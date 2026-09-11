@@ -623,7 +623,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         // We are ahead of the block node, streaming a block beyond the one it last verified (10).
         streamingBlockNumber.set(15L);
         final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
-        when(bufferService.getBlockState(11L)).thenReturn(new BlockState(11L));
+        when(bufferService.getBlockState(11L)).thenReturn(new BlockState(11L, 2_000L));
         when(stats.shouldIgnoreBehindPublisher(any(Instant.class), any(Duration.class), any(Duration.class)))
                 .thenReturn(false);
         when(stats.addBehindPublisherAndCheckLimit(any(Instant.class), anyInt(), any(Duration.class)))
@@ -772,7 +772,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
         streamingBlockNumber.set(11); // pretend we are currently streaming block 11
         final PublishStreamResponse response = createResendBlock(10L);
-        when(bufferService.getBlockState(10L)).thenReturn(new BlockState(10L));
+        when(bufferService.getBlockState(10L)).thenReturn(new BlockState(10L, 2_000L));
 
         connection.onNext(response);
 
@@ -1271,7 +1271,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
 
         doReturn(101L).when(bufferService).getLastBlockNumberProduced();
-        doReturn(new BlockState(101)).when(bufferService).getBlockState(101);
+        doReturn(new BlockState(101, 2_000L)).when(bufferService).getBlockState(101);
 
         assertThat(streamingBlockNumber).hasValue(-1);
 
@@ -1316,7 +1316,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
 
         streamingBlockNumber.set(10);
-        doReturn(new BlockState(10)).when(bufferService).getBlockState(10);
+        doReturn(new BlockState(10, 2_000L)).when(bufferService).getBlockState(10);
 
         // Call doWork directly - with no items in the block, nothing should be sent
         final Object worker = createWorker();
@@ -1372,11 +1372,11 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
 
         streamingBlockNumber.set(10);
 
-        final BlockState block10 = new BlockState(10);
+        final BlockState block10 = new BlockState(10, 2_000L);
         final BlockItem block10Header = newBlockHeaderItem(10);
         block10.addItem(block10Header);
 
-        final BlockState block11 = new BlockState(11);
+        final BlockState block11 = new BlockState(11, 2_000L);
         final BlockItem block11Header = newBlockHeaderItem(11);
         block11.addItem(block11Header);
 
@@ -1444,7 +1444,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
         assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
 
-        final BlockState block = new BlockState(10);
+        final BlockState block = new BlockState(10, 2_000L);
         final BlockItem header = newBlockHeaderItem(10);
         final BlockItem item = newBlockTxItem(2097120);
         final BlockItem proof = newBlockProofItem(10, 2_000);
@@ -1502,7 +1502,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
         assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
 
-        final BlockState block = new BlockState(10);
+        final BlockState block = new BlockState(10, 2_000L);
         // Each item is 20 MB: above the 2 MB soft limit but well below the 36 MB hard limit.
         // Individually valid, but 20 MB + 20 MB = 40 MB exceeds the hard limit.
         final BlockItem item1 = newBlockTxItem(20_000_000);
@@ -1549,7 +1549,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
         assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
 
-        final BlockState block = new BlockState(10);
+        final BlockState block = new BlockState(10, 2_000L);
         final BlockItem item1 = newBlockHeaderItem(10);
         final BlockItem item2 = newBlockTxItem(5_000);
         final BlockItem item3 = newBlockTxItem(5_000);
@@ -1740,7 +1740,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     void testOnNext_blockNodeBehind_maxValueBlockNumber() {
         activateConnection();
         final PublishStreamResponse response = createBlockNodeBehindResponse(Long.MAX_VALUE);
-        when(bufferService.getBlockState(0L)).thenReturn(new BlockState(0L));
+        when(bufferService.getBlockState(0L)).thenReturn(new BlockState(0L, 2_000L));
         when(stats.shouldIgnoreBehindPublisher(any(Instant.class), any(Duration.class), any(Duration.class)))
                 .thenReturn(false);
         when(stats.addBehindPublisherAndCheckLimit(any(Instant.class), anyInt(), any(Duration.class)))
@@ -1800,7 +1800,7 @@ class BlockNodeStreamingConnectionTest extends BlockNodeCommunicationTestBase {
     void testOnNext_blockNodeBehind_ignorePeriod_firstMessageInWindow() {
         activateConnection();
         final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
-        when(bufferService.getBlockState(11L)).thenReturn(new BlockState(11L));
+        when(bufferService.getBlockState(11L)).thenReturn(new BlockState(11L, 2_000L));
 
         // First message should NOT be ignored (new window, queue is empty)
         when(stats.shouldIgnoreBehindPublisher(any(Instant.class), any(Duration.class), any(Duration.class)))

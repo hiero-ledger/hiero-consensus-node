@@ -299,7 +299,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         // Feed one item just over configuredMax to force fatal branch if limit not respected
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
         streamingBlockNumber.set(5);
-        final BlockState block = new BlockState(5);
+        final BlockState block = new BlockState(5, 2_000L);
         final BlockItem header = newBlockHeaderItem(5);
         block.addItem(header);
         // Slightly over configuredMax to ensure split/end if not honored
@@ -362,7 +362,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
         assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
 
-        final BlockState block = new BlockState(10);
+        final BlockState block = new BlockState(10, 2_000L);
         doReturn(block).when(bufferService).getBlockState(10);
         /*
         Items 1, 2, and 3 are sized such that, given a request padding of 0 and an item padding of 0, during the pending
@@ -465,7 +465,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
         assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
 
-        final BlockState block = new BlockState(10);
+        final BlockState block = new BlockState(10, 2_000L);
         doReturn(block).when(bufferService).getBlockState(10);
         /*
         The item is sized such that, given a request padding of 0 and an item padding of 0, during the pending request
@@ -568,7 +568,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         final StringBuilder blockSummary =
                 new StringBuilder("\n=== Blocks (seed=").append(seed).append(") ===\n");
         for (int i = 1; i <= numBlocks; i++) {
-            final BlockState block = new BlockState(i);
+            final BlockState block = new BlockState(i, 2_000L);
             doReturn(block).when(bufferService).getBlockState(i);
 
             // Add header
@@ -727,7 +727,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
         assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
 
-        final BlockState block = new BlockState(10);
+        final BlockState block = new BlockState(10, 2_000L);
         doReturn(block).when(bufferService).getBlockState(10);
 
         final Map<Integer, BlockItem> items = new TreeMap<>();
@@ -860,7 +860,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
         assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
 
-        final BlockState block = new BlockState(10);
+        final BlockState block = new BlockState(10, 2_000L);
         doReturn(block).when(bufferService).getBlockState(10);
 
         final Map<Integer, BlockItem> items = new TreeMap<>();
@@ -974,7 +974,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
         streamingBlockNumber.set(10);
 
-        final BlockState block = new BlockState(10);
+        final BlockState block = new BlockState(10, 2_000L);
         final BlockItem header = newBlockHeaderItem(10);
         block.addItem(header);
         block.closeBlock(); // Close the block to force sending
@@ -1082,7 +1082,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
     void testCloseAtBlockBoundary_activeBlock() throws Exception {
         // re-create the connection so we get the worker thread to run
         final long blockNumber = 10;
-        final BlockState block = new BlockState(blockNumber);
+        final BlockState block = new BlockState(blockNumber, 2_000L);
         lenient().when(bufferService.getBlockState(blockNumber)).thenReturn(block);
 
         connection = new BlockNodeStreamingConnection(
@@ -1324,7 +1324,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
 
         streamingBlockNumber.set(10);
 
-        final BlockState block = new BlockState(10);
+        final BlockState block = new BlockState(10, 2_000L);
 
         doReturn(block).when(bufferService).getBlockState(10);
 
@@ -1474,7 +1474,7 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
         assertThat(config.messageSizeHardLimitBytes()).isEqualTo(37_748_736L); // hard limit = 36 MB
 
-        final BlockState block = new BlockState(10);
+        final BlockState block = new BlockState(10, 2_000L);
         doReturn(block).when(bufferService).getBlockState(10);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
@@ -1570,9 +1570,9 @@ class BlockNodeStreamingConnectionComponentTest extends BlockNodeCommunicationTe
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
         streamingBlockNumber.set(10);
 
-        final BlockState block = new BlockState(10);
+        final BlockState block = new BlockState(10, 2_000L);
         doReturn(block).when(bufferService).getBlockState(10);
-        doReturn(new BlockState(11)).when(bufferService).getBlockState(11);
+        doReturn(new BlockState(11, 2_000L)).when(bufferService).getBlockState(11);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         // sleep to let the worker detect the state change and start doing work

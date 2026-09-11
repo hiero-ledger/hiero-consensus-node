@@ -104,6 +104,9 @@ class EnsureAliasesStepTest extends StepsBase {
         assertThat(transferContext.numOfLazyCreations()).isZero();
         assertThat(transferContext.resolutions()).containsKey(edKeyAlias.value());
         assertThat(transferContext.resolutions()).containsKey(ecKeyAlias.value());
+        assertThat(transferContext.isAutoCreated(hbarReceiverId)).isTrue();
+        assertThat(transferContext.isAutoCreated(tokenReceiverId)).isTrue();
+        assertThat(transferContext.isAutoCreated(ownerId)).isFalse();
     }
 
     @Test
@@ -195,6 +198,12 @@ class EnsureAliasesStepTest extends StepsBase {
         assertThat(transferContext.resolutions()).containsKey(evmAddressAlias1.value());
         assertThat(transferContext.resolutions()).containsKey(evmAddressAlias2.value());
         assertThat(transferContext.resolutions()).containsKey(evmAddressAlias3.value());
+        assertThat(transferContext.isAutoCreated(transferContext.resolutions().get(evmAddressAlias1.value())))
+                .isTrue();
+        assertThat(transferContext.isAutoCreated(transferContext.resolutions().get(evmAddressAlias2.value())))
+                .isTrue();
+        assertThat(transferContext.isAutoCreated(transferContext.resolutions().get(evmAddressAlias3.value())))
+                .isTrue();
     }
 
     @Test
@@ -218,6 +227,8 @@ class EnsureAliasesStepTest extends StepsBase {
         assertThat(transferContext.numOfLazyCreations()).isZero();
         assertThat(transferContext.resolutions()).containsKey(edKeyAlias.value());
         assertThat(transferContext.resolutions()).containsKey(ecKeyAlias.value());
+        assertThat(transferContext.isAutoCreated(hbarReceiverId)).isFalse();
+        assertThat(transferContext.isAutoCreated(tokenReceiverId)).isFalse();
     }
 
     @Test
