@@ -101,8 +101,9 @@ public class DefaultTransactionPrehandler implements TransactionPrehandler {
             }
         } finally {
             event.signalPrehandleCompletion();
-            latestImmutableState.close();
-
+            if (latestImmutableState != null) {
+                latestImmutableState.close();
+            }
             preHandleTime.update(startTime, time.nanoTime());
         }
 
