@@ -4,6 +4,9 @@ package com.hedera.node.app.history.impl;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.history.impl.ProofControllers.activeProofNeedsWork;
+import static com.hedera.node.app.history.impl.ProofControllers.freshGenesisInProgress;
+import static com.hedera.node.app.history.impl.ProofControllers.freshGenesisRequested;
+import static com.hedera.node.app.history.impl.ProofControllers.groundsChainOfTrust;
 import static com.hedera.node.app.history.impl.ProofControllers.groundsGenesisProof;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
@@ -21,9 +24,11 @@ import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import java.time.Instant;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
@@ -40,8 +45,16 @@ class ProofControllersTest {
     private static final HistoryProofConstruction ONE_CONSTRUCTION =
             HistoryProofConstruction.newBuilder().constructionId(1L).build();
     private static final Bytes LEDGER_ID = Bytes.wrap("LEDGER_ID");
-    private static final String KEY_HASH_A = "0a".repeat(48);
-    private static final String KEY_HASH_B = "0b".repeat(48);
+    private static final Bytes A_ROSTER_HASH = Bytes.wrap("A");
+    private static final Bytes B_ROSTER_HASH = Bytes.wrap("B");
+    private static final HistoryProof WRAPS_PROOF = HistoryProof.newBuilder()
+            .chainOfTrustProof(ChainOfTrustProof.newBuilder().wrapsProof(Bytes.wrap("COMPRESSED")))
+            .uncompressedWrapsProof(Bytes.wrap("UNCOMPRESSED"))
+            .build();
+    private static final HistoryProof SIGNATURES_PROOF = HistoryProof.newBuilder()
+            .chainOfTrustProof(
+                    ChainOfTrustProof.newBuilder().aggregatedNodeSignatures(AggregatedNodeSignatures.DEFAULT))
+            .build();
 
     @Mock
     private Executor executor;
@@ -182,126 +195,104 @@ class ProofControllersTest {
     }
 
     @Test
-    void nothingIsFoldableWithoutAnUncompressedWrapsProof() {
-        assertFalse(ProofControllers.isFoldable(null, tssConfigWithProvingKeyHash(KEY_HASH_A)));
-        assertFalse(ProofControllers.isFoldable(
-                HistoryProof.newBuilder()
-                        .chainOfTrustProof(ChainOfTrustProof.newBuilder()
-                                .aggregatedNodeSignatures(AggregatedNodeSignatures.DEFAULT))
-                        .build(),
-                tssConfigWithProvingKeyHash(KEY_HASH_A)));
+    void onlyAConstructionWithTheSameRosterAsSourceAndTargetGroundsAChainOfTrust() {
+        assertTrue(groundsChainOfTrust(constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, null)));
+        assertFalse(groundsChainOfTrust(constructionFor(A_ROSTER_HASH, B_ROSTER_HASH, null)));
+        // A construction that does not exist yet grounds nothing
+        assertFalse(groundsChainOfTrust(HistoryProofConstruction.DEFAULT));
     }
 
     @Test
-    void proofWithoutRecordedProvingKeyHashIsAssumedFoldable() {
-        // An unrecorded hash is taken to be the configured one
-        assertTrue(
-                ProofControllers.isFoldable(wrapsProofBuiltWith(Bytes.EMPTY), tssConfigWithProvingKeyHash(KEY_HASH_A)));
+    void freshGenesisIsRequestedOnlyInThePostUpgradeRoundWhileConfiguredAndBeforeTheCutover() {
+        final var requested = configWith("tss.needsFreshGenesisWrapsProof", "true");
+
+        assertTrue(freshGenesisRequested(tssConfig(requested), blockStreamConfig(requested), true));
+
+        // Never outside the round that carries the post-upgrade work
+        assertFalse(freshGenesisRequested(tssConfig(requested), blockStreamConfig(requested), false));
+        // Never unless asked for, or without WRAPS
+        final var notRequested = configWith("tss.needsFreshGenesisWrapsProof", "false");
+        assertFalse(freshGenesisRequested(tssConfig(notRequested), blockStreamConfig(notRequested), true));
+        final var noWraps = configWith("tss.needsFreshGenesisWrapsProof", "true", "tss.wrapsEnabled", "false");
+        assertFalse(freshGenesisRequested(tssConfig(noWraps), blockStreamConfig(noWraps), true));
     }
 
     @Test
-    void proofIsFoldableOnlyUnderTheProvingKeyThatBuiltIt() {
-        final var proof = wrapsProofBuiltWith(Bytes.fromHex(KEY_HASH_A));
+    void freshGenesisIsNeverRequestedOnceBlockProofsAreToCarryTheChainOfTrust() {
+        // A fresh genesis proof may move the ledger id, which verifiers cannot follow after the cutover
+        final var cutoverEnabled =
+                configWith("tss.needsFreshGenesisWrapsProof", "true", "blockStream.enableCutover", "true");
+        assertFalse(freshGenesisRequested(tssConfig(cutoverEnabled), blockStreamConfig(cutoverEnabled), true));
 
-        assertTrue(ProofControllers.isFoldable(proof, tssConfigWithProvingKeyHash(KEY_HASH_A)));
-        assertFalse(ProofControllers.isFoldable(proof, tssConfigWithProvingKeyHash(KEY_HASH_B)));
+        final var signingWithChainOfTrust = configWith(
+                "tss.needsFreshGenesisWrapsProof",
+                "true",
+                "tss.forceMockSignatures",
+                "false",
+                "blockStream.streamMode",
+                "BLOCKS",
+                "tss.hintsEnabled",
+                "true",
+                "tss.historyEnabled",
+                "true");
+        assertFalse(freshGenesisRequested(
+                tssConfig(signingWithChainOfTrust), blockStreamConfig(signingWithChainOfTrust), true));
     }
 
     @Test
-    void blankConfiguredProvingKeyHashDoesNotMatchARecordedOne() {
-        final var proof = wrapsProofBuiltWith(Bytes.fromHex(KEY_HASH_A));
+    void freshGenesisIsInProgressWhileTheNextConstructionGroundsAnIncompleteChainOfTrust() {
+        final var tssConfig = tssConfig(configWith("tss.wrapsEnabled", "true"));
 
-        assertEquals(Bytes.EMPTY, ProofControllers.configuredProvingKeyHash(tssConfigWithProvingKeyHash("")));
-        assertFalse(ProofControllers.isFoldable(proof, tssConfigWithProvingKeyHash("")));
+        assertTrue(freshGenesisInProgress(constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, null), tssConfig));
+        // Once complete, the fresh proof is the active one and there is nothing in progress
+        assertFalse(freshGenesisInProgress(constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, WRAPS_PROOF), tssConfig));
+        // A transition to a new roster extends the chain rather than grounding one
+        assertFalse(freshGenesisInProgress(constructionFor(A_ROSTER_HASH, B_ROSTER_HASH, null), tssConfig));
+        assertFalse(freshGenesisInProgress(HistoryProofConstruction.DEFAULT, tssConfig));
     }
 
     @Test
-    void abandoningAValidProofNeedsTheOperatorGateButBootstrappingDoesNot() {
-        final var noWrapsProof = HistoryProof.newBuilder()
-                .chainOfTrustProof(
-                        ChainOfTrustProof.newBuilder().aggregatedNodeSignatures(AggregatedNodeSignatures.DEFAULT))
-                .build();
-        final var staleKeyProof = wrapsProofBuiltWith(Bytes.fromHex(KEY_HASH_A));
-
-        // With nothing to fold onto, a genesis proof is grounded whatever the property says
-        assertTrue(ProofControllers.needsFreshGenesis(noWrapsProof, tssConfigFor(KEY_HASH_B, false), false));
-        assertTrue(ProofControllers.needsFreshGenesis(noWrapsProof, tssConfigFor(KEY_HASH_B, true), false));
-
-        // A WRAPS-extensible proof is only discarded when the property allows it
-        assertFalse(ProofControllers.needsFreshGenesis(staleKeyProof, tssConfigFor(KEY_HASH_B, false), false));
-        assertTrue(ProofControllers.needsFreshGenesis(staleKeyProof, tssConfigFor(KEY_HASH_B, true), false));
-
-        // And never when the proof still folds
-        assertFalse(ProofControllers.needsFreshGenesis(staleKeyProof, tssConfigFor(KEY_HASH_A, true), false));
-    }
-
-    @Test
-    void aValidProofIsNeverAbandonedOnceBlockProofsCarryTheChainOfTrust() {
-        final var staleKeyProof = wrapsProofBuiltWith(Bytes.fromHex(KEY_HASH_A));
-
-        // Grounding a new proof moves the ledger id, which verifiers cannot follow after the cutover
-        assertFalse(ProofControllers.needsFreshGenesis(staleKeyProof, tssConfigFor(KEY_HASH_B, true), true));
-
-        // But a chain of trust that does not exist yet is still grounded
-        final var noWrapsProof = HistoryProof.newBuilder()
-                .chainOfTrustProof(
-                        ChainOfTrustProof.newBuilder().aggregatedNodeSignatures(AggregatedNodeSignatures.DEFAULT))
-                .build();
-        assertTrue(ProofControllers.needsFreshGenesis(noWrapsProof, tssConfigFor(KEY_HASH_B, true), true));
-    }
-
-    @Test
-    void nothingNeedsFreshGenesisWhenWrapsIsDisabled() {
-        final var config = HederaTestConfigBuilder.create()
-                .withConfigDataType(TssConfig.class)
-                .withValue("tss.wrapsEnabled", "false")
-                .withValue("tss.wrapsProvingKeyHash", KEY_HASH_B)
-                .withValue("tss.wrapsAllowFreshGenesisOnKeyChange", "true")
-                .getOrCreateConfig()
-                .getConfigData(TssConfig.class);
-
-        assertFalse(ProofControllers.needsFreshGenesis(wrapsProofBuiltWith(Bytes.fromHex(KEY_HASH_A)), config, false));
-        assertFalse(ProofControllers.needsFreshGenesis(null, config, false));
-    }
-
-    @Test
-    void activeProofNeedsWorkUntilThereIsAFoldableProofOfTheRightKind() {
-        final var foldable = constructionWith(wrapsProofBuiltWith(Bytes.fromHex(KEY_HASH_A)));
-        final var staleKey = constructionWith(wrapsProofBuiltWith(Bytes.fromHex(KEY_HASH_B)));
-        final var nonRecursive = constructionWith(HistoryProof.newBuilder()
-                .chainOfTrustProof(
-                        ChainOfTrustProof.newBuilder().aggregatedNodeSignatures(AggregatedNodeSignatures.DEFAULT))
-                .build());
+    void activeProofNeedsWorkUntilTheChainOfTrustIsSettled() {
+        final var tssConfig = tssConfig(configWith("tss.wrapsEnabled", "true"));
+        final var settled = constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, WRAPS_PROOF);
+        final var nonRecursive = constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, SIGNATURES_PROOF);
+        final var freshGenesis = constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, null);
+        final var transition = constructionFor(A_ROSTER_HASH, B_ROSTER_HASH, null);
 
         // Nothing to build on yet
-        assertTrue(activeProofNeedsWork(HistoryProofConstruction.DEFAULT, tssConfigFor(KEY_HASH_A, false), false));
+        assertTrue(activeProofNeedsWork(
+                HistoryProofConstruction.DEFAULT, HistoryProofConstruction.DEFAULT, tssConfig, false));
         // A proof of the wrong kind for the current WRAPS setting
-        assertTrue(activeProofNeedsWork(nonRecursive, tssConfigFor(KEY_HASH_A, false), false));
-        // A proof that can no longer be folded onto, once re-anchoring is allowed
-        assertTrue(activeProofNeedsWork(staleKey, tssConfigFor(KEY_HASH_A, true), false));
+        assertTrue(activeProofNeedsWork(nonRecursive, HistoryProofConstruction.DEFAULT, tssConfig, false));
+        // A fresh genesis proof requested this round, or still being built
+        assertTrue(activeProofNeedsWork(settled, HistoryProofConstruction.DEFAULT, tssConfig, true));
+        assertTrue(activeProofNeedsWork(settled, freshGenesis, tssConfig, false));
 
-        // ...but not while re-anchoring is disallowed, nor once block proofs carry the chain of trust
-        assertFalse(activeProofNeedsWork(staleKey, tssConfigFor(KEY_HASH_A, false), false));
-        assertFalse(activeProofNeedsWork(staleKey, tssConfigFor(KEY_HASH_A, true), true));
-        // ...and never for a proof that still folds
-        assertFalse(activeProofNeedsWork(foldable, tssConfigFor(KEY_HASH_A, true), false));
+        // ...but a settled chain of trust with an ordinary transition in flight, or nothing at all, needs none
+        assertFalse(activeProofNeedsWork(settled, transition, tssConfig, false));
+        assertFalse(activeProofNeedsWork(settled, HistoryProofConstruction.DEFAULT, tssConfig, false));
     }
 
     @Test
-    void groundsGenesisProofBeforeAnyLedgerIdAndWheneverAFreshGenesisIsNeeded() {
-        final var foldable = constructionWith(wrapsProofBuiltWith(Bytes.fromHex(KEY_HASH_A)));
-        final var staleKey = constructionWith(wrapsProofBuiltWith(Bytes.fromHex(KEY_HASH_B)));
+    void groundsGenesisProofBeforeAnyLedgerIdAndWhileAFreshGenesisIsRequestedOrInProgress() {
+        final var tssConfig = tssConfig(configWith("tss.wrapsEnabled", "true"));
+        final var settled = constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, WRAPS_PROOF);
+        final var nonRecursive = constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, SIGNATURES_PROOF);
+        final var freshGenesis = constructionFor(A_ROSTER_HASH, A_ROSTER_HASH, null);
+        final var transition = constructionFor(A_ROSTER_HASH, B_ROSTER_HASH, null);
 
         // No ledger id yet: the network is grounding its first chain of trust
-        assertTrue(groundsGenesisProof(HistoryProofConstruction.DEFAULT, null, tssConfigFor(KEY_HASH_A, false), false));
-        // A superseded proving key grounds a new one, when allowed
-        assertTrue(groundsGenesisProof(staleKey, LEDGER_ID, tssConfigFor(KEY_HASH_A, true), false));
+        assertTrue(groundsGenesisProof(
+                HistoryProofConstruction.DEFAULT, HistoryProofConstruction.DEFAULT, null, tssConfig, false));
+        // A chain of trust that is not yet recursive is grounded again with WRAPS
+        assertTrue(groundsGenesisProof(nonRecursive, HistoryProofConstruction.DEFAULT, LEDGER_ID, tssConfig, false));
+        // As is a fresh genesis proof, from the round it is requested until it completes
+        assertTrue(groundsGenesisProof(settled, HistoryProofConstruction.DEFAULT, LEDGER_ID, tssConfig, true));
+        assertTrue(groundsGenesisProof(settled, freshGenesis, LEDGER_ID, tssConfig, false));
 
         // An extendable chain proves the NEXT construction's key instead
-        assertFalse(groundsGenesisProof(foldable, LEDGER_ID, tssConfigFor(KEY_HASH_A, true), false));
-        // A construction with no proof yet is not itself grounding one
-        assertFalse(groundsGenesisProof(
-                HistoryProofConstruction.DEFAULT, LEDGER_ID, tssConfigFor(KEY_HASH_A, true), false));
+        assertFalse(groundsGenesisProof(settled, transition, LEDGER_ID, tssConfig, false));
+        assertFalse(groundsGenesisProof(settled, HistoryProofConstruction.DEFAULT, LEDGER_ID, tssConfig, false));
     }
 
     @Test
@@ -318,33 +309,35 @@ class ProofControllersTest {
         assertEquals(anchor, ProofControllers.reAnchoredLedgerId(proof, null));
     }
 
-    private static HistoryProofConstruction constructionWith(final HistoryProof proof) {
-        return HistoryProofConstruction.newBuilder()
+    private static HistoryProofConstruction constructionFor(
+            final Bytes sourceRosterHash, final Bytes targetRosterHash, final HistoryProof targetProof) {
+        final var builder = HistoryProofConstruction.newBuilder()
                 .constructionId(1L)
-                .targetProof(proof)
-                .build();
+                .sourceRosterHash(sourceRosterHash)
+                .targetRosterHash(targetRosterHash);
+        if (targetProof != null) {
+            builder.targetProof(targetProof);
+        }
+        return builder.build();
     }
 
-    private static HistoryProof wrapsProofBuiltWith(final Bytes provingKeyHash) {
-        return HistoryProof.newBuilder()
-                .chainOfTrustProof(ChainOfTrustProof.newBuilder().wrapsProof(Bytes.wrap("COMPRESSED")))
-                .uncompressedWrapsProof(Bytes.wrap("UNCOMPRESSED"))
-                .wrapsProvingKeyHash(provingKeyHash)
-                .build();
-    }
-
-    private static TssConfig tssConfigWithProvingKeyHash(final String hashHex) {
-        return tssConfigFor(hashHex, false);
-    }
-
-    private static TssConfig tssConfigFor(final String hashHex, final boolean allowFreshGenesisOnKeyChange) {
-        return HederaTestConfigBuilder.create()
+    private static Configuration configWith(final String... keysAndValues) {
+        final var builder = HederaTestConfigBuilder.create()
                 .withConfigDataType(TssConfig.class)
-                .withValue("tss.wrapsEnabled", "true")
-                .withValue("tss.wrapsProvingKeyHash", hashHex)
-                .withValue("tss.wrapsAllowFreshGenesisOnKeyChange", "" + allowFreshGenesisOnKeyChange)
-                .getOrCreateConfig()
-                .getConfigData(TssConfig.class);
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("tss.wrapsEnabled", "true");
+        for (int i = 0; i < keysAndValues.length; i += 2) {
+            builder.withValue(keysAndValues[i], keysAndValues[i + 1]);
+        }
+        return builder.getOrCreateConfig();
+    }
+
+    private static TssConfig tssConfig(final Configuration config) {
+        return config.getConfigData(TssConfig.class);
+    }
+
+    private static BlockStreamConfig blockStreamConfig(final Configuration config) {
+        return config.getConfigData(BlockStreamConfig.class);
     }
 
     private void setController(final ProofController controller) throws Exception {

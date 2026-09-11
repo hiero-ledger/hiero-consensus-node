@@ -91,8 +91,6 @@ class WrapsHistoryProverTest {
     private RosterTransitionWeights weights;
 
     private WrapsHistoryProver subject;
-    private static final String PROVING_KEY_HASH = "0a".repeat(48);
-    private static final String OTHER_PROVING_KEY_HASH = "0b".repeat(48);
     private static final Bytes AGG_SIG = Bytes.wrap("aggSig");
     private static final Bytes UNCOMPRESSED = Bytes.wrap("uncompressed");
     private static final Bytes COMPRESSED = Bytes.wrap("compressed");
@@ -603,7 +601,6 @@ class WrapsHistoryProverTest {
         given(historyLibrary.constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any()))
                 .willReturn(incremental);
         given(historyLibrary.wrapsProverReady(any())).willReturn(true);
-        given(tssConfig.wrapsProvingKeyHash()).willReturn(PROVING_KEY_HASH);
         given(historyLibrary.verifyAggregateSignature(any(), any(), any(), any(), any()))
                 .willReturn(true);
 
@@ -640,16 +637,20 @@ class WrapsHistoryProverTest {
         assertEquals(UNCOMPRESSED, proof.uncompressedWrapsProof());
         final var chainOfTrust = proof.chainOfTrustProofOrThrow();
         assertTrue(chainOfTrust.hasWrapsProof());
-        assertEquals(Bytes.fromHex(PROVING_KEY_HASH), proof.wrapsProvingKeyHash());
     }
 
     @Test
-    void aggregatePhaseReAnchorsWhenSourceProofWasBuiltUnderADifferentProvingKey() {
+    void aggregatePhaseGroundsAGenesisProofWhenTheConstructionHasTheSameRosterAsSourceAndTarget() {
+        final var sourceProof = HistoryProof.newBuilder()
+                .uncompressedWrapsProof(UNCOMPRESSED)
+                .chainOfTrustProof(
+                        ChainOfTrustProof.newBuilder().wrapsProof(COMPRESSED).build())
+                .build();
         subject = new WrapsHistoryProver(
                 SELF_ID,
                 GRACE_PERIOD,
                 KEY_PAIR,
-                wrapsProofBuiltWith(PROVING_KEY_HASH),
+                sourceProof,
                 weights,
                 proofKeys,
                 delayer,
@@ -664,69 +665,27 @@ class WrapsHistoryProverTest {
         given(historyLibrary.verifyAggregateSignature(any(), any(), any(), any(), any()))
                 .willReturn(true);
         given(tssConfig.wrapsEnabled()).willReturn(true);
-        given(tssConfig.wrapsProvingKeyHash()).willReturn(OTHER_PROVING_KEY_HASH);
         given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
                 .willReturn(CompletableFuture.completedFuture(null));
 
         replaySigningRounds();
 
-        final var outcome = subject.advance(
-                EPOCH,
-                constructionWithPhase(AGGREGATE, null),
-                TARGET_METADATA,
-                targetProofKeys,
-                tssConfig,
-                LEDGER_ID,
-                true);
-
-        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
-        // Unable to fold, the construction takes the genesis path and grounds an aggregate signature proof
-        verify(historyLibrary, never()).constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any());
-        final var captor = ArgumentCaptor.forClass(HistoryProof.class);
-        verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
-        assertTrue(captor.getValue().chainOfTrustProofOrThrow().hasAggregatedNodeSignatures());
-    }
-
-    @Test
-    void advanceFailsWhenUnfoldableSourceProofIsPairedWithARosterChange() {
-        subject = new WrapsHistoryProver(
-                SELF_ID,
-                GRACE_PERIOD,
-                KEY_PAIR,
-                wrapsProofBuiltWith(PROVING_KEY_HASH),
-                weights,
-                proofKeys,
-                delayer,
-                executor,
-                historyLibrary,
-                submissions,
-                new WrapsMpcStateMachine());
-        given(tssConfig.wrapsEnabled()).willReturn(true);
-        given(tssConfig.wrapsProvingKeyHash()).willReturn(OTHER_PROVING_KEY_HASH);
-
-        // Only a self-transition can ground a genesis proof, so a roster change has no alternative to folding
-        final var construction = constructionWithPhase(R1, null)
+        // A fresh genesis proof for the current roster is built by a construction with that roster on both sides
+        final var construction = constructionWithPhase(AGGREGATE, null)
                 .copyBuilder()
-                .sourceRosterHash(Bytes.wrap("SOURCE"))
-                .targetRosterHash(Bytes.wrap("TARGET"))
+                .sourceRosterHash(Bytes.wrap("SAME"))
+                .targetRosterHash(Bytes.wrap("SAME"))
                 .build();
         final var outcome =
                 subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
 
-        final var failed = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
-        assertTrue(failed.reason().startsWith(WrapsHistoryProver.UNFOLDABLE_SOURCE_PROOF_FAILURE_PREFIX));
-        assertTrue(failed.reason().contains("tss.wrapsAllowFreshGenesisOnKeyChange"));
-        assertTrue(failed.reason().contains("before block proofs carry the chain of trust"));
-        verifyNoInteractions(submissions);
-    }
-
-    private static HistoryProof wrapsProofBuiltWith(final String provingKeyHashHex) {
-        return HistoryProof.newBuilder()
-                .uncompressedWrapsProof(UNCOMPRESSED)
-                .chainOfTrustProof(
-                        ChainOfTrustProof.newBuilder().wrapsProof(COMPRESSED).build())
-                .wrapsProvingKeyHash(Bytes.fromHex(provingKeyHashHex))
-                .build();
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        // Even with a proof it could fold onto, the construction takes the genesis path and grounds an
+        // aggregate signature proof first
+        verify(historyLibrary, never()).constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any());
+        final var captor = ArgumentCaptor.forClass(HistoryProof.class);
+        verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
+        assertTrue(captor.getValue().chainOfTrustProofOrThrow().hasAggregatedNodeSignatures());
     }
 
     private void replaySigningRounds() {
@@ -1148,7 +1107,6 @@ class WrapsHistoryProverTest {
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
         // Not ready on the first advance() (download still in flight); ready on the second.
         given(historyLibrary.wrapsProverReady(any())).willReturn(false, true);
-        given(tssConfig.wrapsProvingKeyHash()).willReturn("");
         given(historyLibrary.constructGenesisWrapsProof(any(), any(), any(), any(), any()))
                 .willReturn(
                         new com.hedera.cryptography.wraps.Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));
@@ -1216,7 +1174,6 @@ class WrapsHistoryProverTest {
         // Second call (inside outputFuture supplier): false -> NoopOutput.
         // Third call (next-round retry early-exit guard): true -> proceeds to publish.
         given(historyLibrary.wrapsProverReady(any())).willReturn(true, false, true);
-        given(tssConfig.wrapsProvingKeyHash()).willReturn("");
         given(historyLibrary.constructGenesisWrapsProof(any(), any(), any(), any(), any()))
                 .willReturn(
                         new com.hedera.cryptography.wraps.Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));

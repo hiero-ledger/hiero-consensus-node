@@ -4,9 +4,12 @@ package com.hedera.node.app.workflows.handle;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
+import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.history.impl.ProofControllers.activeProofNeedsWork;
+import static com.hedera.node.app.history.impl.ProofControllers.freshGenesisRequested;
+import static com.hedera.node.app.history.impl.ProofControllers.groundsChainOfTrust;
 import static com.hedera.node.app.history.impl.ProofControllers.groundsGenesisProof;
-import static com.hedera.node.app.history.impl.ProofControllers.needsFreshGenesis;
+import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.history.impl.ProofControllers.reAnchoredLedgerId;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
@@ -15,7 +18,6 @@ import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartR
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransaction;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransactionPreHandleResultP2;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransactionPreHandleResultP3;
-import static com.hedera.node.app.tss.TssBlockHashSigner.usesChainOfTrustProof;
 import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRANSACTION;
 import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
 import static com.hedera.node.app.workflows.handle.record.SystemTransactions.MAX_NANOS_PER_SYSTEM_DISPATCH;
@@ -1122,9 +1124,11 @@ public class HandleWorkflow {
                         return;
                     }
                     // WRAPS genesis is the proof that grounds a chain of trust; but it takes a long time to
-                    // finish, so we make do in the meantime with a list-of-signatures block proof
-                    final boolean isWrapsGenesis =
-                            needsFreshGenesis(activeConstruction.targetProof(), tssConfig, chainOfTrustInUse());
+                    // finish, so we make do in the meantime with a list-of-signatures block proof. The same
+                    // holds for a fresh genesis proof built to replace the active one at the current roster.
+                    final boolean isWrapsGenesis = tssConfig.wrapsEnabled()
+                            && (!isWrapsExtensible(activeConstruction.targetProof())
+                                    || groundsChainOfTrust(construction));
                     if (isWrapsGenesis || rosterStore.candidateIsWeightRotation()) {
                         final var activeRoster = requireNonNull(rosterStore.getActiveRoster());
                         final var candidateRoster = rosterStore.getCandidateRoster();
@@ -1192,13 +1196,22 @@ public class HandleWorkflow {
      * @param roundTimestamp the current round timestamp
      */
     private void reconcileTssState(@NonNull final State state, @NonNull final Instant roundTimestamp) {
-        final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
+        final var config = configProvider.getConfiguration();
+        final var tssConfig = config.getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
             final var entityCounters = new WritableEntityIdStoreImpl(state.getWritableStates(EntityIdService.NAME));
             final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
             final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
             final var readableHistoryStore = new ReadableHistoryStoreImpl(historyWritableStates);
+            // Requested in the first round after an upgrade, before the post-upgrade transaction is handled
+            final boolean freshGenesisRequested = freshGenesisRequested(
+                    tssConfig,
+                    config.getConfigData(BlockStreamConfig.class),
+                    blockStreamManager.pendingWork() == POST_UPGRADE_WORK);
+            if (freshGenesisRequested) {
+                logger.info("Fresh genesis WRAPS proof requested for the current roster");
+            }
             final var activeRosters = ActiveRosters.from(
                     rosterStore,
                     tssConfig.historyEnabled(),
@@ -1210,7 +1223,10 @@ public class HandleWorkflow {
                             // A construction that must ground a genesis proof takes the bootstrap phase,
                             // which holds the candidate roster back until the chain of trust exists
                             : () -> activeProofNeedsWork(
-                                    readableHistoryStore.getActiveConstruction(), tssConfig, chainOfTrustInUse()));
+                                    readableHistoryStore.getActiveConstruction(),
+                                    readableHistoryStore.getNextConstruction(),
+                                    tssConfig,
+                                    freshGenesisRequested));
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
                 final var crsWritableStates = state.getWritableStates(HintsService.NAME);
@@ -1244,9 +1260,10 @@ public class HandleWorkflow {
                     final var vk = Optional.ofNullable(
                                     groundsGenesisProof(
                                                     historyStore.getActiveConstruction(),
+                                                    historyStore.getNextConstruction(),
                                                     historyStore.getLedgerId(),
                                                     tssConfig,
-                                                    chainOfTrustInUse())
+                                                    freshGenesisRequested)
                                             ? hintsStore.getActiveConstruction().hintsScheme()
                                             : hintsStore.getNextConstruction().hintsScheme())
                             .map(s -> s.preprocessedKeysOrThrow().verificationKey())
@@ -1261,7 +1278,8 @@ public class HandleWorkflow {
                                     blockStreamManager.lastUsedConsensusTime(),
                                     tssConfig,
                                     isActive,
-                                    hintsService.activeConstruction()));
+                                    hintsService.activeConstruction(),
+                                    freshGenesisRequested));
                 }
             }
         }
@@ -1276,16 +1294,6 @@ public class HandleWorkflow {
             logStartUserTransactionPreHandleResultP2(parentTxn.preHandleResult());
             logStartUserTransactionPreHandleResultP3(parentTxn.preHandleResult());
         }
-    }
-
-    /**
-     * Returns whether block proofs currently carry a chain-of-trust proof, read live so that a network
-     * configured to cut over is treated as cut over.
-     */
-    private boolean chainOfTrustInUse() {
-        final var config = configProvider.getConfiguration();
-        return usesChainOfTrustProof(
-                config.getConfigData(TssConfig.class), config.getConfigData(BlockStreamConfig.class));
     }
 
     private void logTssReconcileFailure(@NonNull final Exception e) {

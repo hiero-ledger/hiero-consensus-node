@@ -4,7 +4,6 @@ package com.hedera.node.app.history.impl;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.history.HistoryService.isCompleted;
-import static com.hedera.node.app.history.impl.ProofControllers.isFoldable;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
@@ -80,7 +79,8 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     public @NonNull HistoryProofConstruction getOrCreateConstruction(
             @NonNull final ActiveRosters activeRosters,
             @NonNull final Instant now,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final TssConfig tssConfig,
+            final boolean freshGenesisRequested) {
         requireNonNull(activeRosters);
         requireNonNull(now);
         requireNonNull(tssConfig);
@@ -89,13 +89,10 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             throw new IllegalArgumentException("Handoff phase has no construction");
         }
         var construction = getConstructionFor(activeRosters);
-        // Constructions are matched by roster hashes alone, so a completed bootstrap construction is
-        // matched again whenever the same roster is both source and target -- which is exactly the shape
-        // of the phase entered to ground a new chain of trust. Reusing it would leave the network with a
-        // completed construction holding the very proof it needs to replace, and no work to do.
-        if (construction != null
-                && isCompleted(construction, tssConfig)
-                && !isFoldable(construction.targetProof(), tssConfig)) {
+        // Constructions are matched by roster hashes alone, so when a fresh genesis proof is requested the
+        // completed construction that already grounds the chain of trust for this roster is matched again;
+        // it holds the very proof to be replaced, so a new construction is needed
+        if (construction != null && freshGenesisRequested && isCompleted(construction, tssConfig)) {
             construction = null;
         }
         if (construction == null) {
@@ -354,17 +351,14 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             @NonNull final Bytes targetRosterHash) {
         final var ac = requireNonNull(activeConstruction.get());
         log.info(
-                "Created {} construction #{} for rosters (source={}, target={}) {} source proof{}",
+                "Created {} construction #{} for rosters (source={}, target={}) {} source proof",
                 slot,
                 construction.constructionId(),
                 sourceRosterHash,
                 targetRosterHash,
                 ac.hasTargetProof()
                         ? ("WITH" + (isWrapsExtensible(ac.targetProofOrThrow()) ? " WRAPS-extensible" : ""))
-                        : "WITHOUT",
-                ac.hasTargetProof() && isWrapsExtensible(ac.targetProofOrThrow())
-                        ? " (built under proving key " + ac.targetProofOrThrow().wrapsProvingKeyHash() + ")"
-                        : "");
+                        : "WITHOUT");
     }
 
     /**

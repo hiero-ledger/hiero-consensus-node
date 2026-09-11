@@ -9,8 +9,7 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.history.HistoryLibrary.MISSING_SCHNORR_KEY;
-import static com.hedera.node.app.history.impl.ProofControllers.configuredProvingKeyHash;
-import static com.hedera.node.app.history.impl.ProofControllers.isFoldable;
+import static com.hedera.node.app.history.impl.ProofControllers.groundsChainOfTrust;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.history.impl.WrapsMpcStateMachine.POST_MPC_PHASES;
 import static java.util.Collections.emptySortedMap;
@@ -63,7 +62,6 @@ public class WrapsHistoryProver implements HistoryProver {
     public static final String MISSING_MESSAGES_FAILURE_PREFIX = "Still missing messages from R1 nodes ";
     public static final String WRAPS_NOT_READY_FAILURE_PREFIX = "WRAPS library is not ready";
     public static final String LEDGER_ID_NOT_READY_FAILURE_PREFIX = "Ledger id is not yet available";
-    public static final String UNFOLDABLE_SOURCE_PROOF_FAILURE_PREFIX = "Source proof was built under proving key ";
 
     private final long selfId;
     private final Duration wrapsMessageGracePeriod;
@@ -94,8 +92,8 @@ public class WrapsHistoryProver implements HistoryProver {
 
     /**
      * Whether this construction extends {@link #sourceProof} by folding onto it, rather than grounding a
-     * genesis proof. False at network genesis, and whenever the source proof was built under WRAPS parameters
-     * this construction is not using.
+     * genesis proof. False at network genesis, and for any construction that grounds a fresh chain of trust
+     * for the roster the network already has.
      */
     private volatile boolean foldsOntoSourceProof;
 
@@ -279,21 +277,10 @@ public class WrapsHistoryProver implements HistoryProver {
         if (ledgerId == null && sourceProof != null) {
             return new Outcome.Failed("Only genesis WRAPS proofs are allowed to not have a ledger id");
         }
-        foldsOntoSourceProof = tssConfig.wrapsEnabled() && isFoldable(sourceProof, tssConfig);
-        // A genesis proof is grounded in an address book the library requires to be both source and target,
-        // so only a self-transition can ground one; anything else has no alternative to an invalid fold
-        if (tssConfig.wrapsEnabled()
-                && !foldsOntoSourceProof
-                && isWrapsExtensible(sourceProof)
-                && !construction.sourceRosterHash().equals(construction.targetRosterHash())) {
-            return new Outcome.Failed(UNFOLDABLE_SOURCE_PROOF_FAILURE_PREFIX
-                    + requireNonNull(sourceProof).wrapsProvingKeyHash().toHex()
-                    + " but the network is configured to use "
-                    + configuredProvingKeyHash(tssConfig).toHex()
-                    + ", so this construction cannot extend it. Restoring the previous proving key lets it"
-                    + " proceed; re-anchoring instead needs tss.wrapsAllowFreshGenesisOnKeyChange=true, and is"
-                    + " only supported before block proofs carry the chain of trust");
-        }
+        // A construction with the same roster as source and target grounds a chain of trust, even when there
+        // is a source proof it could fold onto; that is how a fresh genesis proof replaces the active one
+        foldsOntoSourceProof =
+                tssConfig.wrapsEnabled() && isWrapsExtensible(sourceProof) && !groundsChainOfTrust(construction);
         final var state = construction.wrapsSigningStateOrElse(WrapsSigningState.DEFAULT);
         if (state.phase() != AGGREGATE
                 && state.hasGracePeriodEndTime()
@@ -613,7 +600,6 @@ public class WrapsHistoryProver implements HistoryProver {
                                                         .chainOfTrustProof(ChainOfTrustProof.newBuilder()
                                                                 .wrapsProof(recursiveProof))
                                                         .uncompressedWrapsProof(uncompressedProof)
-                                                        .wrapsProvingKeyHash(configuredProvingKeyHash(tssConfig))
                                                         .build();
                                                 scheduleVoteWithJitter(constructionId, tssConfig, proof);
                                             }

@@ -55,8 +55,17 @@ public class FakeHistoryService implements HistoryService {
             @NonNull final Instant now,
             @NonNull final TssConfig tssConfig,
             final boolean isActive,
-            @Nullable final HintsConstruction activeConstruction) {
-        delegate.reconcile(activeRosters, currentMetadata, historyStore, now, tssConfig, isActive, activeConstruction);
+            @Nullable final HintsConstruction activeConstruction,
+            final boolean freshGenesisRequested) {
+        delegate.reconcile(
+                activeRosters,
+                currentMetadata,
+                historyStore,
+                now,
+                tssConfig,
+                isActive,
+                activeConstruction,
+                freshGenesisRequested);
     }
 
     @NonNull

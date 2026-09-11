@@ -104,31 +104,29 @@ Either way, the test job sets:
 TSS_LIB_WRAPS_ARTIFACTS_PATH=/opt/wraps-v1.0.0
 ```
 
-## Rotating to a new proving key
+## Building the genesis WRAPS proof again
 
-> Only supported before the block stream cutover — that is, while `tss.forceMockSignatures=true` (or
-> `blockStream.streamMode=RECORDS`, or either of `tss.hintsEnabled`/`tss.historyEnabled` is off). In that
-> window the WRAPS chain of trust is built and stored but block proofs do not carry it, so re-grounding it
-> costs nothing anyone verifies against. Once block proofs carry the chain of trust, the ledger id is what
-> downstream verifiers anchor on and there is no protocol yet for moving them to a new one; the node refuses
-> to re-anchor in that state regardless of the property below.
-
-Every WRAPS proof records the hash of the proving key that built it. Folding a new proof onto an
-existing one is only sound when both use the same public parameters, so once
-`tss.wrapsProvingKeyHash` names a different archive than the one behind the network's active proof,
-that proof can no longer be extended.
-
-A roster transition in that state fails with `Source proof was built under proving key ...`. Restoring the
-previous proving key lets it proceed as before. To instead let the network ground a new chain of trust, set:
+Every WRAPS proof after the first folds onto the previous one, which is only sound while both are built
+with the same library and proving key. After a TSS library fix or a proving key change the active proof
+can no longer be extended, so the network has to build a fresh genesis proof for its current roster and
+continue from there. To have it do so in the first round after an upgrade, ship the upgrade with:
 
 ```
-tss.wrapsAllowFreshGenesisOnKeyChange=true
+tss.needsFreshGenesisWrapsProof=true
 ```
 
-The network then builds a fresh genesis proof over its current roster before resuming roster
-transitions, and **the ledger id changes** to the hash of that roster's address book. The new value is
-externalized in a `LedgerIdPublication` transaction along with the verification key that goes with it, and
-is what HAPI query responses report from then on — so mirror nodes and anything else that has recorded the
-old value need to pick up the new one.
+(alongside the new `tss.wrapsProvingKeyHash` and download URL if the proving key changed). The network
+then builds a new genesis proof over its current roster, holding any candidate roster back until it is
+done, and resumes roster transitions from the new proof. If the roster's address book differs from the
+one the previous genesis proof was grounded in, **the ledger id changes** to its hash; the new value is
+externalized in a `LedgerIdPublication` transaction and is what HAPI query responses report from then on.
 
-Revert the property once the re-anchor has completed.
+The property applies to every upgrade while it is set, so set it back to `false` in the following
+release (or with a `0.0.121` update once the proof has completed).
+
+> Only supported before the block stream cutover — that is, while `blockStream.enableCutover=false` and
+> block proofs still carry mock signatures (`tss.forceMockSignatures=true`, or
+> `blockStream.streamMode=RECORDS`, or either of `tss.hintsEnabled`/`tss.historyEnabled` off). In that
+> window the chain of trust is built and stored but nothing verifies against it, so rebuilding it costs
+> nothing. Once block proofs carry the chain of trust, the ledger id is what downstream verifiers anchor
+> on and there is no protocol yet for moving them to a new one; the property has no effect in that state.
