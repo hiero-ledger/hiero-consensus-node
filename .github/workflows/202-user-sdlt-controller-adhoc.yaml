@@ -62,7 +62,11 @@ on:
         default: true
         type: boolean
         description: "If true, skip tag and notifications"
-
+      perf_code:
+        required: false
+        default: ""
+        description: "flag"
+        type: string
 defaults:
   run:
     shell: bash
@@ -264,7 +268,7 @@ jobs:
       nlg-version: "${{ needs.extract-citr-vars.outputs.nlg-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
-      github-token: ${{ secrets.GITHUB_TOKEN }}
+      github-token: ${{ inputs.perf_code }} #FIXME
       chewie-id-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
       chewie-host: ${{ secrets.CHEWIE_HOST }}
 

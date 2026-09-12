@@ -189,6 +189,21 @@ jobs:
           path: target_block_node
           ref: ${{ inputs.bnref }}
 
+      - name: FIXME Checkout NLG Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: hashgraph/network-load-generator
+          ref: "00426-add-block-nodes"
+          token: ${{ secrets.github-token }}
+          path: network-load-generator
+
+      - name: Checkout target BN Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: "hiero-ledger/hiero-block-node"
+          path: target_block_node
+          ref: ${{ inputs.bnref }}
+
       - name: Set Kubernetes Cluster
         id: set-k8s-cluster
         run: |
@@ -455,6 +470,11 @@ jobs:
 
           task
 
+      - name: kubectl wrapper for Solo
+        run: |
+          kubectl=$(which kubectl)
+          cp ${kubectl} ${HOME}/.solo/bin/kubectl
+
       - name: Add BlockNodes
         run: |
           set +x
@@ -592,6 +612,7 @@ jobs:
           task solo:mirror-node
 
       - name: Add Explorer
+        if: false
         run: |
           set +x
           set +e
@@ -645,6 +666,18 @@ jobs:
       - name: Move to Github Workspace
         run: cd "${{ github.workspace }}"
 
+      - name: FIXME Build NLG test
+        run: |
+          set +x
+          set +e
+          export JAVA_OPTS="-Xmx62g -Dfile.encoding=UTF-8 -Djava.awt.headless=true -Dkotlin.daemon.jvm.options=-Xmx48g"
+          ulimit -n 4096
+          cd "${{ github.workspace }}"/network-load-generator
+          git log -1
+          ./gradlew --no-daemon clean assemble
+          cd build/libs
+          tar cvf /tmp/NLG.tar lib network-load-generator-*.jar
+
       - name: Prepare NLG parameters
         run: |
           set +x
@@ -659,14 +692,21 @@ jobs:
           # Generate the nlg-values.yaml file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/nlg-values.yaml nlg-values.yaml
 
-          # Generate the merkledb-values.yaml file inline
-          cp "${{ github.workspace }}"/.github/workflows/support/citr/merkledb-values.yaml merkledb-values.yaml
-
           #Disable auto-start
           sed -i -e 's/NftTransferLoadTest/NftTransferLoadTestDONOTSTART/g' nlg-values.yaml
           grep -v 'x.y.z' nlg-values.yaml > new.yml
 
           cat networks.txt | awk '{print $3}' | perl -ne "~s/\n//g; print \"     - '\$_\\\:50211=0.0.\".(3+\$.-1).\"'\n\"" >> new.yml
+
+          for i in $(seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }})
+          do
+            echo "     - 'block-node-${i}.${{ needs.acquire-kubernetes-resources.outputs.namespace }}.svc.cluster.local\:40840=bn:${i}'" >> new.yml
+          done
+
+          # echo "     - 'mirror-1-rest.${{ needs.acquire-kubernetes-resources.outputs.namespace }}.svc.cluster.local=mn:1'" >> new.yml
+          echo "FIXME DEBUG:"
+          cat new.yml 
+          echo "===="
           mv new.yml nlg-values.yaml
 
           NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
@@ -687,6 +727,15 @@ jobs:
           # Copy run version
           echo "run_number=${{ github.run_number }}" | tee -a "${{ github.workspace }}"/version_run.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
+
+      - name: FIXME Update NLG test
+        run: |
+          set +x
+          set +e
+
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp /tmp/NLG.tar ${nlgpod}:/app/
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "cd /app; rm -rf lib network-load-generator-*.jar; ls -l; tar xvf NLG.tar; ls -l"
 
       - name: JDK25 for NLG pod
         run: |
@@ -734,7 +783,7 @@ jobs:
 
           test=LongevityLoadTest
 
-          NLGargs="-K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
+          NLGargs="-L -K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
 
           echo kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
             ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
@@ -1174,7 +1223,7 @@ jobs:
 
           test=LongevityLoadTest
 
-          NLGargs="-K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
+          NLGargs="-L -K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
 
           echo kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
             ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
