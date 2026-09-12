@@ -21,6 +21,7 @@ import org.hiero.base.concurrent.pool.CachedPoolParallelExecutor;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
+import org.hiero.consensus.gossip.config.TrafficShapingConfig;
 import org.hiero.consensus.gossip.impl.gossip.GossipController;
 import org.hiero.consensus.gossip.impl.gossip.permits.SyncGuard;
 import org.hiero.consensus.gossip.impl.gossip.permits.SyncGuardFactory;
@@ -51,6 +52,7 @@ public class RpcProtocol implements Protocol, GossipController {
     private final SyncMetrics syncMetrics;
     private final SyncConfig syncConfig;
     private final BroadcastConfig broadcastConfig;
+    private final TrafficShapingConfig trafficConfig;
     private final ShadowgraphSynchronizer synchronizer;
     private final SyncPermitProvider permitProvider;
     private final AtomicBoolean gossipHalted = new AtomicBoolean(false);
@@ -112,6 +114,9 @@ public class RpcProtocol implements Protocol, GossipController {
 
         this.syncConfig = configuration.getConfigData(SyncConfig.class);
         this.broadcastConfig = configuration.getConfigData(BroadcastConfig.class);
+        this.trafficConfig = configuration.getConfigData(TrafficShapingConfig.class);
+        validateTrafficShapingConfig(trafficConfig, broadcastConfig);
+
         final int permitCount;
         if (syncConfig.onePermitPerPeer()) {
             permitCount = rosterSize - 1;
@@ -147,6 +152,7 @@ public class RpcProtocol implements Protocol, GossipController {
                 time,
                 syncMetrics,
                 syncConfig,
+                trafficConfig,
                 broadcastConfig,
                 NetworkUtils::handleNetworkException);
 
@@ -272,5 +278,33 @@ public class RpcProtocol implements Protocol, GossipController {
      */
     public void clear() {
         synchronizer.clear();
+    }
+
+    /**
+     * Fail fast on configurations that would be actively harmful rather than merely badly tuned.
+     */
+    private static void validateTrafficShapingConfig(
+            @NonNull final TrafficShapingConfig traffic, @NonNull final BroadcastConfig broadcast) {
+
+        if (traffic.peerBytesPerSecond() <= 0) {
+            throw new IllegalArgumentException("trafficShaping.peerBytesPerSecond must be positive");
+        }
+        if (traffic.peerBurstBytes() <= 0) {
+            throw new IllegalArgumentException("trafficShaping.peerBurstBytes must be positive");
+        }
+        if (traffic.maxMessageBytes() <= 0) {
+            throw new IllegalArgumentException("trafficShaping.maxMessageBytes must be positive");
+        }
+        if (traffic.lowWatermark() >= traffic.highWatermark()) {
+            throw new IllegalArgumentException("trafficShaping.lowWatermark must be below highWatermark");
+        }
+        // pausing reads also stops us answering pings; if we pause for long enough the peer decides we are
+        // unhealthy and disables broadcast towards us, which is worse than the traffic we are limiting
+        final Duration pauseCeiling = broadcast.disablePingThreshold().dividedBy(2);
+        if (traffic.maxReadDelay().compareTo(pauseCeiling) >= 0) {
+            throw new IllegalArgumentException("trafficShaping.maxReadDelay (" + traffic.maxReadDelay()
+                    + ") must be well below half of broadcast.disablePingThreshold ("
+                    + broadcast.disablePingThreshold() + ")");
+        }
     }
 }
