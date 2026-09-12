@@ -139,8 +139,8 @@ public class CloseFlushTest extends AbstractFileManagerAwareTest {
                 final boolean offlineUse) {
             return new VirtualDataSource() {
                 @Override
-                public void close(boolean keepData) throws IOException {
-                    delegate.close(keepData);
+                public void close() throws IOException {
+                    delegate.close();
                 }
 
                 @Override

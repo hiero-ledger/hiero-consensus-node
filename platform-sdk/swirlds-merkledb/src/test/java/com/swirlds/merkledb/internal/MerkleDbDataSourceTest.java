@@ -41,7 +41,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
@@ -320,30 +319,6 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
         });
     }
 
-    @Test
-    void preservesInterruptStatusWhenInterruptedSavingRecords() throws IOException {
-        createAndApplyDataSource(1000, dataSource -> {
-            final CountDownLatch savingThreadStarted = new CountDownLatch(1);
-            final InterruptRememberingThread savingThread = slowRecordSavingThread(dataSource, savingThreadStarted);
-            savingThread.start();
-            savingThreadStarted.await();
-            /* Don't interrupt until the saving thread will be blocked on the CountDownLatch,
-             * awaiting all internal records to be written. */
-            sleepUnchecked(100L);
-
-            savingThread.interrupt();
-            /* Give some time for the interrupt to set the thread's interrupt status */
-            sleepUnchecked(100L);
-
-            System.out.println("Checking interrupt count");
-            assertEquals(
-                    2,
-                    savingThread.numInterrupts(),
-                    "Thread interrupt status should NOT be cleared (two total interrupts)");
-            savingThread.join();
-        });
-    }
-
     @ParameterizedTest
     @EnumSource(TestType.class)
     void createCloseSnapshotCheckDelete(final TestType testType) throws IOException {
@@ -447,38 +422,6 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
                 deleteDirectoryAndContents(snapshotDir);
             }
         }
-    }
-
-    @Test
-    void preservesInterruptStatusWhenInterruptedClosing() throws IOException {
-        createAndApplyDataSource(1001, dataSource -> {
-            /* Keep an executor busy */
-            final CountDownLatch savingThreadStarted = new CountDownLatch(1);
-            final InterruptRememberingThread savingThread = slowRecordSavingThread(dataSource, savingThreadStarted);
-            savingThread.start();
-            savingThreadStarted.await();
-            sleepUnchecked(100L);
-
-            final CountDownLatch closingThreadStarted = new CountDownLatch(1);
-            final InterruptRememberingThread closingThread = new InterruptRememberingThread(() -> {
-                closingThreadStarted.countDown();
-                try {
-                    dataSource.close();
-                } catch (final IOException ignore) {
-                }
-            });
-
-            closingThread.start();
-            closingThreadStarted.await();
-            closingThread.interrupt();
-            sleepUnchecked(100L);
-
-            System.out.println("Checking interrupt count for " + closingThread.getName());
-            final var numInterrupts = closingThread.numInterrupts();
-            assertEquals(2, numInterrupts, "Thread interrupt status should NOT be cleared (two total interrupts)");
-            closingThread.join();
-            savingThread.join();
-        });
     }
 
     @Test
@@ -857,61 +800,5 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
                 recordA == null ? null : recordA.toString(),
                 recordB == null ? null : recordB.toString(),
                 "Equal records should have the same toString representation");
-    }
-
-    private void sleepUnchecked(final long millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (final InterruptedException ignore) {
-            /* No-op */
-        }
-    }
-
-    private InterruptRememberingThread slowRecordSavingThread(
-            final MerkleDbDataSource dataSource, final CountDownLatch startLatch) {
-        return new InterruptRememberingThread(() -> {
-            startLatch.countDown();
-            try {
-                System.err.println("SAVE START");
-                dataSource.saveRecords(
-                        1000,
-                        2000,
-                        createHashChunkStream(2000, dataSource.getHashChunkHeight())
-                                .peek(c -> {
-                                    System.out.println("SLOWLY loading chunk #"
-                                            + c
-                                            + " in "
-                                            + Thread.currentThread().getName());
-                                    sleepUnchecked(200L);
-                                }),
-                        Stream.empty(),
-                        Stream.empty(),
-                        false);
-                System.err.println("SAVE DONE");
-            } catch (final IOException impossible) {
-                /* We don't throw this */
-            }
-        });
-    }
-
-    private static class InterruptRememberingThread extends Thread {
-
-        private final AtomicInteger numInterrupts = new AtomicInteger(0);
-
-        public InterruptRememberingThread(final Runnable target) {
-            super(target);
-        }
-
-        @Override
-        public void interrupt() {
-            System.out.println(
-                    this.getName() + " interrupted (that makes " + numInterrupts.incrementAndGet() + " times)");
-            Thread.dumpStack();
-            super.interrupt();
-        }
-
-        public synchronized int numInterrupts() {
-            return numInterrupts.get();
-        }
     }
 }

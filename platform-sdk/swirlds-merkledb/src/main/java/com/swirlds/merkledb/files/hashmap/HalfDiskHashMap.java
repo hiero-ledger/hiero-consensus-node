@@ -120,22 +120,11 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     private Thread writingThread;
 
     /**
-     * This method is invoked from a non-static method and uses the provided configuration.
-     * Consequently, the flushing pool will be initialized using the configuration provided
-     * by the first instance of HalfDiskHashMap class that calls the relevant non-static method.
-     * Subsequent calls will reuse the same pool, regardless of any new configurations provided.
-     * </br>
-     * FUTURE WORK: it can be moved to MerkleDb.
-     */
-    private static ForkJoinPool initFlushingPool(final @NonNull MerkleDbConfig config) {
-        final int flushThreadCount = config.getNumHalfDiskHashMapFlushThreads();
-        return new ForkJoinPool(flushThreadCount);
-    }
-
-    /**
      * Construct a new HalfDiskHashMap
      *
-     * @param config                         merkle db config.
+     * @param config                         MerkleDb config
+     * @param flushPool                      Thread pool to run tasks during flushes. This HDHM doesn't own this pool,
+     *                                       it's managed and closed by the caller, typically a MerkleDb data source
      * @param fileSystemManager              File system manager to use for resolving file locations
      * @param initialCapacity                Initial map capacity. This should be more than big enough to avoid too
      *                                       many key collisions. This capacity is used to calculate the initial number
@@ -153,18 +142,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      *                                       index and vice versa.
      * @throws IOException If there was a problem creating or opening a set of data files.
      */
-    public HalfDiskHashMap(
-            final @NonNull MerkleDbConfig config,
-            final @NonNull FileSystemManager fileSystemManager,
-            final long initialCapacity,
-            final @NonNull Path storeDir,
-            final String storeName,
-            final String legacyStoreName,
-            final boolean preferDiskBasedIndex)
-            throws IOException {
-        this(config, initFlushingPool(config), fileSystemManager, initialCapacity, storeDir, storeName, legacyStoreName, preferDiskBasedIndex);
-    }
-
     public HalfDiskHashMap(
             final @NonNull MerkleDbConfig config,
             final @NonNull ForkJoinPool flushPool,
@@ -534,9 +511,8 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         try {
             if (size > 0) {
                 fileCollection.startWriting();
-                final ForkJoinPool pool = flushPool;
-                final AbstractTask notifyTask = new NotifyTask(pool, size);
-                final SubmitBucketTask submitTask = new SubmitBucketTask(pool, notifyTask);
+                final AbstractTask notifyTask = new NotifyTask(flushPool, size);
+                final SubmitBucketTask submitTask = new SubmitBucketTask(flushPool, notifyTask);
                 submitTask.send();
                 notifyTask.join();
                 // close files session
