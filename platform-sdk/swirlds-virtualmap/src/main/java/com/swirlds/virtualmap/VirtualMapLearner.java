@@ -478,7 +478,7 @@ public final class VirtualMapLearner {
             reconnectHashingFuture.cancel(true);
         }
         try {
-            dataSource.close(false);
+            dataSource.close();
         } catch (final Exception e) {
             logger.error(EXCEPTION.getMarker(), "Failed to close reconnect data source during abort", e);
             // ignore exception to preserve caller exception propagation

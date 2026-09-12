@@ -35,18 +35,7 @@ public interface VirtualDataSource {
      * @throws IOException
      * 		If there was a problem closing the data source
      */
-    default void close() throws IOException {
-        close(false);
-    }
-
-    /**
-     * Close the data source.
-     *
-     * @param keepData Indicates whether to keep data source data or not
-     * @throws IOException
-     * 		If there was a problem closing the data source
-     */
-    void close(boolean keepData) throws IOException;
+    void close() throws IOException;
 
     /**
      * Save a batch of data to data store.
