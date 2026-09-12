@@ -5,6 +5,9 @@ workloads. They cover crypto-transfer-like operations over virtual maps, virtual
 map read and edit cycles, and reconnect synchronization between learner and
 teacher map states.
 
+If you need to explore metrics during test run, use `hiero-observability/local-stack`
+to scrape the Prometheus endpoint during test run and explore metrics/logs in local Grafana.
+
 ## Available Benchmarks
 
 ### CryptoBench
