@@ -19,6 +19,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.genRandomBytes;
 
 import com.esaulpaugh.headlong.abi.Address;
+import com.esaulpaugh.headlong.rlp.RLPEncoder;
+import com.esaulpaugh.headlong.util.Integers;
 import com.hedera.node.app.hapi.utils.ethereum.AccessListItem;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -30,6 +32,7 @@ import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
+import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -116,12 +119,44 @@ public class AccessListTest {
                 .signingWith(SECP_256K1_SOURCE_KEY)
                 .type(type)
                 .withAccessList(accessList)
-                .exposingGasTo((status, gas) -> Assertions.assertEquals(
+                .exposingGasTo((_, gas) -> Assertions.assertEquals(
                         expectedGas.getAsLong(),
                         gas,
                         "Wrong gas for type:%s AccessList:%s".formatted(type, accessList)));
     }
+
+    // build type 1, EIP2930 transaction with accessList from byte[]
+    private static byte[] buildType1RawTransaction(final EthTxData data) {
+        return RLPEncoder.sequence(
+                Integers.toBytes(0x01),
+                List.of(
+                        data.chainId(),
+                        Integers.toBytes(data.nonce()),
+                        data.gasPrice(),
+                        Integers.toBytes(data.gasLimit()),
+                        data.to(),
+                        Integers.toBytesUnsigned(data.value()),
+                        data.callData(),
+                        data.accessList(),
+                        Integers.toBytes(data.recId()),
+                        data.r(),
+                        data.s()));
+    }
     // ------------------------------- /Utils -------------------------------
+
+    @HapiTest
+    final Stream<DynamicTest> rejectsAccessListThatIsNotACanonicalListTest() {
+        return hapiTest(
+                // prepare sender
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                // send transaction with RLP empty byte-string Access List
+                ethereumCall(callerContract.name(), "call", TARGET_CONTRACT_ADDRESS.get())
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .type(EthTxData.EthTransactionType.EIP2930)
+                        .withAccessList(new byte[0])
+                        .withEthTxDataEncodeFunction(AccessListTest::buildType1RawTransaction)
+                        .hasPrecheck(ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION));
+    }
 
     @HapiTest
     final Stream<DynamicTest> accessListIntrinsicGasTest() {
@@ -134,7 +169,7 @@ public class AccessListTest {
                 ethereumCall(callerContract.name(), "call", TARGET_CONTRACT_ADDRESS.get())
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .type(EthTxData.EthTransactionType.LEGACY_ETHEREUM)
-                        .exposingGasTo((status, gas) -> legacyGas.set(gas)),
+                        .exposingGasTo((_, gas) -> legacyGas.set(gas)),
                 // EIP2930/EIP1559 calls with random accessList
                 Stream.of(EthTxData.EthTransactionType.EIP2930, EthTxData.EthTransactionType.EIP1559)
                         .flatMap(type -> Stream.of(
@@ -156,7 +191,7 @@ public class AccessListTest {
                 ethereumCall(callerContract.name(), "call", TARGET_CONTRACT_ADDRESS.get())
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .type(EthTxData.EthTransactionType.LEGACY_ETHEREUM)
-                        .exposingGasTo((status, gas) -> legacyGas.set(gas)),
+                        .exposingGasTo((_, gas) -> legacyGas.set(gas)),
                 // EIP2930/EIP1559 calls to check the discount
                 Stream.of(EthTxData.EthTransactionType.EIP2930, EthTxData.EthTransactionType.EIP1559)
                         .flatMap(type -> Stream.of(
@@ -206,13 +241,13 @@ public class AccessListTest {
                 ethereumCall(callerContract.name(), "callDelegation")
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .type(EthTxData.EthTransactionType.EIP2930)
-                        .exposingGasTo((status, gas) -> originalGas.set(gas)),
+                        .exposingGasTo((_, gas) -> originalGas.set(gas)),
                 // -100 for CALL
                 ethereumCall(callerContract.name(), "callDelegation")
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .type(EthTxData.EthTransactionType.EIP2930)
                         .withAccessList(List.of(new AccessListItem(TARGET_CONTRACT_ADDRESS_BYTES.get(), List.of())))
-                        .exposingGasTo((status, gas) -> Assertions.assertEquals(originalGas.get() - 100, gas)),
+                        .exposingGasTo((_, gas) -> Assertions.assertEquals(originalGas.get() - 100, gas)),
                 // -100 for CALL, +2400 for Address. Using sourcing() because of 'signerAddress.get()'
                 sourcing(() -> ethereumCall(callerContract.name(), "callDelegation")
                         .signingWith(SECP_256K1_SOURCE_KEY)
@@ -220,7 +255,7 @@ public class AccessListTest {
                         .withAccessList(List.of(
                                 new AccessListItem(TARGET_CONTRACT_ADDRESS_BYTES.get(), List.of()),
                                 new AccessListItem(signerAddress.get(), List.of())))
-                        .exposingGasTo((status, gas) -> Assertions.assertEquals(originalGas.get() - 100 + 2400, gas))),
+                        .exposingGasTo((_, gas) -> Assertions.assertEquals(originalGas.get() - 100 + 2400, gas))),
                 // -100 for CALL, +2400 for Address, -100 for SLOAD, -100 for SSTORE. Using sourcing() because of
                 // 'signerAddress.get()'
                 sourcing(() -> ethereumCall(callerContract.name(), "callDelegation")
@@ -229,7 +264,7 @@ public class AccessListTest {
                         .withAccessList(List.of(
                                 new AccessListItem(TARGET_CONTRACT_ADDRESS_BYTES.get(), List.of()),
                                 new AccessListItem(signerAddress.get(), List.of(SLOT_3))))
-                        .exposingGasTo((status, gas) ->
+                        .exposingGasTo((_, gas) ->
                                 Assertions.assertEquals(originalGas.get() - 100 + 2400 - 100 - 100, gas)))));
     }
 }
