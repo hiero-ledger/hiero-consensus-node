@@ -9,6 +9,8 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
+import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
@@ -46,6 +48,10 @@ class AbstractScheduleHandlerTest {
     private static final Key ED25519_KEY = Key.newBuilder()
             .ed25519(Bytes.fromHex("0101010101010101010101010101010101010101010101010101010101010101"))
             .build();
+    private static final Key OTHER_ED25519_KEY = Key.newBuilder()
+            .ed25519(Bytes.fromHex("0202020202020202020202020202020202020202020202020202020202020202"))
+            .build();
+
     private static final Key ECDSA_KEY = Key.newBuilder()
             .ecdsaSecp256k1(Bytes.fromHex("010101010101010101010101010101010101010101010101010101010101010101"))
             .build();
@@ -64,6 +70,85 @@ class AbstractScheduleHandlerTest {
                 emptyList(),
                 emptyList());
         assertThat(newSignatories).containsExactlyInAnyOrder(CONTRACT_ID_KEY, DELEGATABLE_CONTRACT_ID_KEY);
+    }
+
+    /**
+     * Per {@code Schedule.signatories} (services/state/schedule/schedule.proto:165-181): "The only keys stored
+     * are 'primitive' keys (ED25519 or ECDSA_SECP256K1) in order to ensure that any key list or threshold keys
+     * are correctly handled, regardless of signing order, intervening changes, or other situations." Recording
+     * is therefore per constituent and independent of whether the threshold is already met - the same field
+     * documentation states the transaction "SHALL NOT be executed before this list is sufficient to 'activate'
+     * the required keys".
+     */
+    @Test
+    void recordsOnlySigningConstituentsOfARequiredThresholdKey() {
+        final var thresholdKey = Key.newBuilder()
+                .thresholdKey(ThresholdKey.newBuilder()
+                        .threshold(2)
+                        .keys(KeyList.newBuilder().keys(ED25519_KEY, ECDSA_KEY, OTHER_ED25519_KEY)))
+                .build();
+        // Two of the three constituents signed; only those two are recorded, even though the threshold is unmet
+        final var newSignatories = AbstractScheduleHandler.newSignatories(
+                sortedSetOf(ED25519_KEY, OTHER_ED25519_KEY), emptyList(), List.of(thresholdKey));
+        assertThat(newSignatories).containsExactlyInAnyOrder(ED25519_KEY, OTHER_ED25519_KEY);
+    }
+
+    /**
+     * The key-list counterpart of the threshold case, per the same
+     * {@code Schedule.signatories} documentation (schedule.proto:175-177).
+     */
+    @Test
+    void recordsOnlySigningConstituentsOfARequiredKeyList() {
+        final var keyListKey = Key.newBuilder()
+                .keyList(KeyList.newBuilder().keys(ED25519_KEY, ECDSA_KEY))
+                .build();
+        final var newSignatories =
+                AbstractScheduleHandler.newSignatories(sortedSetOf(ECDSA_KEY), emptyList(), List.of(keyListKey));
+        assertThat(newSignatories).containsExactly(ECDSA_KEY);
+    }
+
+    /**
+     * {@code Schedule.signatories} (schedule.proto:170-173) makes signing necessary - "A Key SHALL NOT be stored
+     * in this list unless the corresponding private key has signed either the original {@code schedule_create}
+     * transaction or a subsequent {@code schedule_sign} transaction intended for, and referencing to, this
+     * specific schedule." This asserts the stricter rule the implementation applies: signing is necessary but
+     * not sufficient, because a key is only accumulated while walking the schedule's currently required keys.
+     */
+    @Test
+    void doesNotRecordASigningKeyThatIsNotARequiredConstituent() {
+        final var thresholdKey = Key.newBuilder()
+                .thresholdKey(ThresholdKey.newBuilder()
+                        .threshold(1)
+                        .keys(KeyList.newBuilder().keys(ED25519_KEY)))
+                .build();
+        // OTHER_ED25519_KEY signed but is no part of the required structure, so it is not recorded
+        final var newSignatories = AbstractScheduleHandler.newSignatories(
+                sortedSetOf(OTHER_ED25519_KEY), emptyList(), List.of(thresholdKey));
+        assertThat(newSignatories).isEmpty();
+    }
+
+    /**
+     * Nested composition of the same rule, exercising the recursive descent that keeps the stored list made of
+     * primitive keys only (schedule.proto:175-177).
+     */
+    @Test
+    void recordsSigningConstituentsOfANestedThresholdKey() {
+        final var nested = Key.newBuilder()
+                .thresholdKey(ThresholdKey.newBuilder()
+                        .threshold(1)
+                        .keys(KeyList.newBuilder()
+                                .keys(
+                                        Key.newBuilder()
+                                                .thresholdKey(ThresholdKey.newBuilder()
+                                                        .threshold(1)
+                                                        .keys(KeyList.newBuilder()
+                                                                .keys(ED25519_KEY, ECDSA_KEY)))
+                                                .build(),
+                                        OTHER_ED25519_KEY)))
+                .build();
+        final var newSignatories =
+                AbstractScheduleHandler.newSignatories(sortedSetOf(ECDSA_KEY), emptyList(), List.of(nested));
+        assertThat(newSignatories).containsExactly(ECDSA_KEY);
     }
 
     @Test
