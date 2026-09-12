@@ -495,7 +495,7 @@ public class TipsetEventCreator implements EventCreator {
                 eventWindow.newEventBirthRound(),
                 calculateNewEventCreationTime(lastSelfEvent, allParents, transactions),
                 transactions.stream().map(TimestampedTransaction::transaction).toList(),
-                random.nextLong(0, roster.rosterEntries().size() + 1));
+                random.nextLong(0, roster.size() + 1));
         eventHasher.hashUnsignedEvent(event);
 
         return event;

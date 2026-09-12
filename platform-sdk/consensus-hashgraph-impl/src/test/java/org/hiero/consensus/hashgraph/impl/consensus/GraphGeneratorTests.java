@@ -237,10 +237,10 @@ public class GraphGeneratorTests {
         generator.getSourceByIndex(3).setNewEventWeight(1.0);
 
         List<PlatformEvent> events = generator.generateEvents(1000);
-        verifyExpectedParentRatio(events, roster.rosterEntries().get(0).nodeId(), 0.25, 0.05);
-        verifyExpectedParentRatio(events, roster.rosterEntries().get(1).nodeId(), 0.25, 0.05);
-        verifyExpectedParentRatio(events, roster.rosterEntries().get(2).nodeId(), 0.25, 0.05);
-        verifyExpectedParentRatio(events, roster.rosterEntries().get(3).nodeId(), 0.25, 0.05);
+        verifyExpectedParentRatio(events, roster.rosterEntry(0).nodeId(), 0.25, 0.05);
+        verifyExpectedParentRatio(events, roster.rosterEntry(1).nodeId(), 0.25, 0.05);
+        verifyExpectedParentRatio(events, roster.rosterEntry(2).nodeId(), 0.25, 0.05);
+        verifyExpectedParentRatio(events, roster.rosterEntry(3).nodeId(), 0.25, 0.05);
 
         // Test un-even weights
         generator.reset();
@@ -250,10 +250,10 @@ public class GraphGeneratorTests {
         generator.getSourceByIndex(3).setNewEventWeight(2.0);
 
         events = generator.generateEvents(1000);
-        verifyExpectedParentRatio(events, roster.rosterEntries().get(0).nodeId(), 0.5 / 4.5, 0.05);
-        verifyExpectedParentRatio(events, roster.rosterEntries().get(1).nodeId(), 1.0 / 4.5, 0.05);
-        verifyExpectedParentRatio(events, roster.rosterEntries().get(2).nodeId(), 1.0 / 4.5, 0.05);
-        verifyExpectedParentRatio(events, roster.rosterEntries().get(3).nodeId(), 2.0 / 4.5, 0.05);
+        verifyExpectedParentRatio(events, roster.rosterEntry(0).nodeId(), 0.5 / 4.5, 0.05);
+        verifyExpectedParentRatio(events, roster.rosterEntry(1).nodeId(), 1.0 / 4.5, 0.05);
+        verifyExpectedParentRatio(events, roster.rosterEntry(2).nodeId(), 1.0 / 4.5, 0.05);
+        verifyExpectedParentRatio(events, roster.rosterEntry(3).nodeId(), 2.0 / 4.5, 0.05);
 
         // Test dynamic weights
         generator.reset();
@@ -272,22 +272,22 @@ public class GraphGeneratorTests {
         generator.getSourceByIndex(3).setNewEventWeight(dynamicWeight);
 
         events = generator.generateEvents(1000);
-        verifyExpectedParentRatio(events, roster.rosterEntries().get(0).nodeId(), 0.33, 0.05);
-        verifyExpectedParentRatio(events, roster.rosterEntries().get(1).nodeId(), 0.33, 0.05);
-        verifyExpectedParentRatio(events, roster.rosterEntries().get(2).nodeId(), 0.33, 0.05);
-        verifyExpectedParentRatio(events, roster.rosterEntries().get(3).nodeId(), 0.0, 0.05);
+        verifyExpectedParentRatio(events, roster.rosterEntry(0).nodeId(), 0.33, 0.05);
+        verifyExpectedParentRatio(events, roster.rosterEntry(1).nodeId(), 0.33, 0.05);
+        verifyExpectedParentRatio(events, roster.rosterEntry(2).nodeId(), 0.33, 0.05);
+        verifyExpectedParentRatio(events, roster.rosterEntry(3).nodeId(), 0.0, 0.05);
 
         events = generator.generateEvents(1000);
-        verifyExpectedParentRatio(events, roster.rosterEntries().get(0).nodeId(), 0.25, 0.05);
-        verifyExpectedParentRatio(events, roster.rosterEntries().get(1).nodeId(), 0.25, 0.05);
-        verifyExpectedParentRatio(events, roster.rosterEntries().get(2).nodeId(), 0.25, 0.05);
-        verifyExpectedParentRatio(events, roster.rosterEntries().get(3).nodeId(), 0.25, 0.05);
+        verifyExpectedParentRatio(events, roster.rosterEntry(0).nodeId(), 0.25, 0.05);
+        verifyExpectedParentRatio(events, roster.rosterEntry(1).nodeId(), 0.25, 0.05);
+        verifyExpectedParentRatio(events, roster.rosterEntry(2).nodeId(), 0.25, 0.05);
+        verifyExpectedParentRatio(events, roster.rosterEntry(3).nodeId(), 0.25, 0.05);
 
         events = generator.generateEvents(1000);
-        verifyExpectedParentRatio(events, roster.rosterEntries().get(0).nodeId(), 0.2, 0.05);
-        verifyExpectedParentRatio(events, roster.rosterEntries().get(1).nodeId(), 0.2, 0.05);
-        verifyExpectedParentRatio(events, roster.rosterEntries().get(2).nodeId(), 0.2, 0.05);
-        verifyExpectedParentRatio(events, roster.rosterEntries().get(3).nodeId(), 0.4, 0.05);
+        verifyExpectedParentRatio(events, roster.rosterEntry(0).nodeId(), 0.2, 0.05);
+        verifyExpectedParentRatio(events, roster.rosterEntry(1).nodeId(), 0.2, 0.05);
+        verifyExpectedParentRatio(events, roster.rosterEntry(2).nodeId(), 0.2, 0.05);
+        verifyExpectedParentRatio(events, roster.rosterEntry(3).nodeId(), 0.4, 0.05);
     }
 
     /**
@@ -318,10 +318,10 @@ public class GraphGeneratorTests {
                 asList(1.0, 1.0, 0.0, 1.0),
                 asList(1.0, 1.0, 1.0, 0.0)));
         List<PlatformEvent> events = generator.generateEvents(1000);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(0).nodeId(), 0.25, 0.05);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(1).nodeId(), 0.25, 0.05);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(2).nodeId(), 0.25, 0.05);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(3).nodeId(), 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(0).nodeId(), 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(1).nodeId(), 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(2).nodeId(), 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(3).nodeId(), 0.25, 0.05);
 
         // Node 0 is never used as the other parent
         generator.reset();
@@ -332,10 +332,10 @@ public class GraphGeneratorTests {
                 asList(0.0, 1.0, 0.0, 1.0),
                 asList(0.0, 1.0, 1.0, 0.0)));
         events = generator.generateEvents(1000);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(0).nodeId(), 0.0, 0.0);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(1).nodeId(), 0.333, 0.05);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(2).nodeId(), 0.333, 0.05);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(3).nodeId(), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(0).nodeId(), 0.0, 0.0);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(1).nodeId(), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(2).nodeId(), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(3).nodeId(), 0.333, 0.05);
 
         // Node 3 is never used as the other parent
         generator.reset();
@@ -346,10 +346,10 @@ public class GraphGeneratorTests {
                 asList(1.0, 1.0, 0.0, 0.0),
                 asList(1.0, 1.0, 1.0, 0.0)));
         events = generator.generateEvents(1000);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(0).nodeId(), 0.333, 0.05);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(1).nodeId(), 0.333, 0.05);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(2).nodeId(), 0.333, 0.05);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(3).nodeId(), 0.0, 0.0);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(0).nodeId(), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(1).nodeId(), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(2).nodeId(), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(3).nodeId(), 0.0, 0.0);
 
         // Node 0 uses node 1 as the other parent twice as often as it uses either 2 or 3
         generator.reset();
@@ -360,10 +360,10 @@ public class GraphGeneratorTests {
                 asList(1.0, 1.0, 0.0, 1.0),
                 asList(1.0, 1.0, 1.0, 0.0)));
         events = generator.generateEvents(1000);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(0).nodeId(), 0.25, 0.05);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(1).nodeId(), 0.5 * 0.333 + 0.25 * 0.5, 0.05);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(2).nodeId(), 0.5 * 0.333 + 0.25 * 0.25, 0.05);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(3).nodeId(), 0.5 * 0.333 + 0.25 * 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(0).nodeId(), 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(1).nodeId(), 0.5 * 0.333 + 0.25 * 0.5, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(2).nodeId(), 0.5 * 0.333 + 0.25 * 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(3).nodeId(), 0.5 * 0.333 + 0.25 * 0.25, 0.05);
 
         // Dynamic other parent affinity
         generator.reset();
@@ -397,22 +397,22 @@ public class GraphGeneratorTests {
         baseGenerator.setOtherParentAffinity(affinityGenerator);
 
         events = generator.generateEvents(1000);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(0).nodeId(), 0.25, 0.05);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(1).nodeId(), 0.25, 0.05);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(2).nodeId(), 0.25, 0.05);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(3).nodeId(), 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(0).nodeId(), 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(1).nodeId(), 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(2).nodeId(), 0.25, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(3).nodeId(), 0.25, 0.05);
 
         events = generator.generateEvents(1000);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(0).nodeId(), 0.0, 0.0);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(1).nodeId(), 0.333, 0.05);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(2).nodeId(), 0.333, 0.05);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(3).nodeId(), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(0).nodeId(), 0.0, 0.0);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(1).nodeId(), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(2).nodeId(), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(3).nodeId(), 0.333, 0.05);
 
         events = generator.generateEvents(1000);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(0).nodeId(), 0.333, 0.05);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(1).nodeId(), 0.333, 0.05);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(2).nodeId(), 0.333, 0.05);
-        verifyExpectedOtherParentRatio(events, roster.rosterEntries().get(3).nodeId(), 0.0, 0.0);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(0).nodeId(), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(1).nodeId(), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(2).nodeId(), 0.333, 0.05);
+        verifyExpectedOtherParentRatio(events, roster.rosterEntry(3).nodeId(), 0.0, 0.0);
     }
 
     /**
@@ -767,8 +767,7 @@ public class GraphGeneratorTests {
                 new StandardEventSource());
         generator.generateEvents(numberOfEvents / 2);
 
-        final NodeId removalNode =
-                generator.getRoster().rosterEntries().getFirst().nodeId();
+        final NodeId removalNode = generator.getRoster().rosterEntry(0).nodeId();
         generator.removeNode(removalNode);
 
         final List<PlatformEvent> postRemovalEvents = generator.generateEvents(numberOfEvents / 2);

@@ -69,8 +69,7 @@ class TipsetTrackerTests {
 
         for (int eventIndex = 0; eventIndex < 1000; eventIndex++) {
 
-            final NodeId creator =
-                    roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId();
+            final NodeId creator = roster.rosterEntry(random.nextInt(nodeCount)).nodeId();
 
             birthRound += random.nextLong(0, 3) / 2;
 
@@ -79,7 +78,7 @@ class TipsetTrackerTests {
             final int maxParentCount = random.nextInt(nodeCount);
             for (int parentIndex = 0; parentIndex < maxParentCount; parentIndex++) {
                 final NodeId parent =
-                        roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId();
+                        roster.rosterEntry(random.nextInt(nodeCount)).nodeId();
 
                 // We are only trying to generate a random number of parents, the exact count is unimportant.
                 // So it doesn't matter if the actual number of parents is less than the number we requested.

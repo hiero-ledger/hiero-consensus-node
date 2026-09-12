@@ -20,14 +20,14 @@ public class RosterMetadata {
 
     public RosterMetadata(@NonNull final RosterWrapper roster) {
         this.roster = Objects.requireNonNull(roster, "roster must not be null");
-        final int m = roster.rosterEntries().size();
+        final int m = roster.size();
         numMembers = m;
         memberLabels = new String[m];
         for (int i = 0; i < m; i++) {
             memberLabels[i] = "ID:%d W:%d"
                     .formatted(
-                            roster.rosterEntries().get(i).nodeId(),
-                            roster.rosterEntries().get(i).weight());
+                            roster.rosterEntry(i).nodeId(),
+                            roster.rosterEntry(i).weight());
         }
     }
 

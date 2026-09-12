@@ -35,18 +35,18 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
 @State(Scope.Thread)
-@Fork(value = 1)
-@Warmup(iterations = 1, time = 3)
-@Measurement(iterations = 3, time = 10)
+@Fork(
+        value = 20,
+        jvmArgsAppend = {"-Xms8g", "-Xmx8g", "-XX:+AlwaysPreTouch"})
+@Warmup(iterations = 5, time = 5)
+@Measurement(iterations = 5, time = 5)
 public class HashgraphModuleBenchmark {
     private static final long SEED = 0;
     private static final int NUMBER_OF_EVENTS = 100000;
+    private static final int MAX_OTHER_PARENTS = 4;
 
     @Param({"4", "10"})
     public int numNodes;
-
-    @Param({"1", "4"})
-    public int numOP;
 
     private HashgraphModule hashgraphModule;
     private List<PlatformEvent> events;
@@ -78,7 +78,7 @@ public class HashgraphModuleBenchmark {
         final Time time = Time.getCurrent();
         final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
                 .seed(SEED)
-                .maxOtherParents(numOP)
+                .maxOtherParents(MAX_OTHER_PARENTS)
                 .realSignatures(false)
                 .numNodes(numNodes)
                 .populateNgen(true)
@@ -96,7 +96,7 @@ public class HashgraphModuleBenchmark {
                 metrics,
                 time,
                 generator.getRoster(),
-                generator.getRoster().rosterEntries().getFirst().nodeId(),
+                generator.getRoster().rosterEntry(0).nodeId(),
                 i -> false,
                 null,
                 0L);
