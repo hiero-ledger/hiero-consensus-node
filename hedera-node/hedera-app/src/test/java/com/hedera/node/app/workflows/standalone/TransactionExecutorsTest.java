@@ -405,7 +405,6 @@ public class TransactionExecutorsTest {
                 UNAVAILABLE_GOSSIP,
                 () -> config,
                 () -> DEFAULT_NODE_INFO,
-                () -> NO_OP_METRICS,
                 new AppScheduleThrottleFactory(
                         () -> config, () -> state, () -> ThrottleDefinitions.DEFAULT, ThrottleAccumulator::new),
                 () -> UNIVERSAL_NOOP_FEE_CHARGING,

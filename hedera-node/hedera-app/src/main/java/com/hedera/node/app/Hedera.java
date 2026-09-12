@@ -196,6 +196,7 @@ import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
+import org.hiero.metrics.core.MetricRegistry;
 
 /*
  ****************        ****************************************************************************************
@@ -399,6 +400,11 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
     private final Metrics metrics;
 
     /**
+     * The registry of the new metrics framework, made available to services via the {@link AppContext}.
+     */
+    private final MetricRegistry metricRegistry;
+
+    /**
      * A {@link StateChangeListener} that accumulates state changes that are only reported once per block; in the
      * current system, these are the singleton and queue updates. Every {@link VirtualMapState} will have this
      * listener registered.
@@ -506,6 +512,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
      * @param configuration the configuration to use for the node
      * @param fileSystemManager the file system manager to use for the node
      * @param metrics the metrics object to use for reporting
+     * @param metricRegistry the registry of the new metrics framework
      * @param time the time source to use for measuring time
      */
     public Hedera(
@@ -521,12 +528,14 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             @NonNull final Configuration configuration,
             @NonNull final FileSystemManager fileSystemManager,
             @NonNull final Metrics metrics,
+            @NonNull final MetricRegistry metricRegistry,
             @NonNull final Time time) {
         requireNonNull(registryFactory);
         requireNonNull(constructableRegistry);
         requireNonNull(hintsServiceFactory);
         requireNonNull(historyServiceFactory);
         this.metrics = requireNonNull(metrics);
+        this.metricRegistry = requireNonNull(metricRegistry);
         this.serviceMigrator = requireNonNull(migrator);
         this.selfId = requireNonNull(selfId);
         this.startupNetworksFactory = requireNonNull(startupNetworksFactory);
@@ -570,7 +579,6 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 this,
                 configSupplier,
                 () -> requireNonNull(daggerApp).networkInfo().selfNodeInfo(),
-                () -> this.metrics,
                 new AppScheduleThrottleFactory(
                         configSupplier,
                         () -> requireNonNull(daggerApp).workingStateAccessor().getState(),
@@ -1366,6 +1374,15 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
     @Override
     public @NonNull TransactionLimits getTransactionLimits() {
         return transactionLimits;
+    }
+
+    /**
+     * Returns the registry of the new metrics framework used by this node.
+     *
+     * @return the metric registry
+     */
+    public @NonNull MetricRegistry metricRegistry() {
+        return metricRegistry;
     }
 
     /**

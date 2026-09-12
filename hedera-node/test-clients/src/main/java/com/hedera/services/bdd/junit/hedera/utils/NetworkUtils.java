@@ -156,6 +156,7 @@ public class NetworkUtils {
      * @param nextGossipPort the next gossip port to use
      * @param nextGossipTlsPort the next gossip TLS port to use
      * @param nextPrometheusPort the next Prometheus port to use
+     * @param nextOpenMetricsPort the next OpenMetrics HTTP port to use
      * @return the metadata for the node
      */
     public static NodeMetadata classicMetadataFor(
@@ -168,6 +169,7 @@ public class NetworkUtils {
             final int nextGossipPort,
             final int nextGossipTlsPort,
             final int nextPrometheusPort,
+            final int nextOpenMetricsPort,
             final long shard,
             final long realm) {
         requireNonNull(host);
@@ -186,6 +188,7 @@ public class NetworkUtils {
                 nextGossipPort + nodeId * 2,
                 nextGossipTlsPort + nodeId * 2,
                 nextPrometheusPort + nodeId,
+                nextOpenMetricsPort + nodeId,
                 workingDirFor(nodeId, scope));
     }
 
@@ -202,6 +205,7 @@ public class NetworkUtils {
      * @param nextGossipPort the next gossip port to use
      * @param nextGossipTlsPort the next gossip TLS port to use
      * @param nextPrometheusPort the next Prometheus port to use
+     * @param nextOpenMetricsPort the next OpenMetrics HTTP port to use
      * @param workingDir the working directory for the node
      * @return the metadata for the node
      */
@@ -214,6 +218,7 @@ public class NetworkUtils {
             final int nextGossipPort,
             final int nextGossipTlsPort,
             final int nextPrometheusPort,
+            final int nextOpenMetricsPort,
             @NonNull final Path workingDir,
             final long shard,
             final long realm) {
@@ -234,6 +239,7 @@ public class NetworkUtils {
                 nextGossipPort + nodeId * 2,
                 nextGossipTlsPort + nodeId * 2,
                 nextPrometheusPort + nodeId,
+                nextOpenMetricsPort + nodeId,
                 workingDir);
     }
 

@@ -18,6 +18,7 @@ public record NodeMetadata(
         int internalGossipPort,
         int externalGossipPort,
         int prometheusPort,
+        int openMetricsPort,
         @Nullable Path workingDir) {
     public static final int UNKNOWN_PORT = -1;
 
@@ -29,6 +30,7 @@ public record NodeMetadata(
      * @param internalGossipPort the new internal gossip port
      * @param externalGossipPort the new external gossip port
      * @param prometheusPort the new prometheus port
+     * @param openMetricsPort the new OpenMetrics HTTP port
      * @return a new instance with the same values as this instance, but different ports
      */
     public NodeMetadata withNewPorts(
@@ -36,7 +38,8 @@ public record NodeMetadata(
             final int grpcNodeOperatorPort,
             final int internalGossipPort,
             final int externalGossipPort,
-            final int prometheusPort) {
+            final int prometheusPort,
+            final int openMetricsPort) {
         return new NodeMetadata(
                 nodeId,
                 name,
@@ -47,6 +50,7 @@ public record NodeMetadata(
                 internalGossipPort,
                 externalGossipPort,
                 prometheusPort,
+                openMetricsPort,
                 workingDir);
     }
 
@@ -67,6 +71,7 @@ public record NodeMetadata(
                 internalGossipPort,
                 externalGossipPort,
                 prometheusPort,
+                openMetricsPort,
                 workingDir);
     }
 

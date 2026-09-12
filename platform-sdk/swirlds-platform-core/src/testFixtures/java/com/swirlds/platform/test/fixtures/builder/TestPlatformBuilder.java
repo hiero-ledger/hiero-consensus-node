@@ -25,6 +25,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.metrics.core.MetricRegistry;
 
 /**
  * The {@code TestPlatformBuilder} class is a specialized implementation of {@link PlatformBuilder} for building
@@ -45,6 +46,7 @@ public class TestPlatformBuilder extends PlatformBuilder<TestPlatformBuilder> {
      *
      * @param configuration The configuration settings for the platform.
      * @param metrics The metrics system for monitoring and reporting platform performance.
+     * @param metricRegistry The registry of the new metrics framework.
      * @param time The time source for the platform, used for timestamping events and transactions.
      * @param rosterHistory The roster history provided by the application to use at startup.
      * @param keysAndCerts The cryptographic keys and certificates for the node, used for signing and verifying messages.
@@ -63,6 +65,7 @@ public class TestPlatformBuilder extends PlatformBuilder<TestPlatformBuilder> {
     public TestPlatformBuilder(
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
+            @NonNull final MetricRegistry metricRegistry,
             @NonNull final Time time,
             @NonNull final RosterHistory rosterHistory,
             @NonNull final KeysAndCerts keysAndCerts,
@@ -80,6 +83,7 @@ public class TestPlatformBuilder extends PlatformBuilder<TestPlatformBuilder> {
         super(
                 configuration,
                 metrics,
+                metricRegistry,
                 time,
                 rosterHistory,
                 keysAndCerts,
@@ -155,6 +159,7 @@ public class TestPlatformBuilder extends PlatformBuilder<TestPlatformBuilder> {
         return new ConsensusLayerInputs(
                 configuration,
                 metrics,
+                metricRegistry,
                 time,
                 rosterHistory,
                 keysAndCerts,

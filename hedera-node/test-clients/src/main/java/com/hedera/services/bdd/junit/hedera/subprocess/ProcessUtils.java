@@ -234,6 +234,9 @@ public class ProcessUtils {
                 // JVM system
                 "-Dfile.encoding=UTF-8",
                 "-Dprometheus.endpointPortNumber=" + metadata.prometheusPort(),
+                // Each node runs in its own JVM on this host, so the OpenMetrics HTTP server needs a
+                // port of its own; otherwise every node after the first fails to bind and dies at startup.
+                "-Dmetrics.exporter.openmetrics.http.port=" + metadata.openMetricsPort(),
                 "-Dhedera.recordStream.logDir=" + DATA_DIR + "/" + RECORD_STREAMS_DIR,
                 "-Dhedera.recordStream.wrappedRecordHashesDir=" + DATA_DIR + "/wrappedRecordHashes",
                 "-Dhedera.profiles.active=DEV",

@@ -70,6 +70,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.transaction.handling;
     requires transitive org.hiero.consensus.utility;
     requires transitive org.hiero.consensus.wiring.framework;
+    requires transitive org.hiero.metrics;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires org.hiero.consensus.fakes;

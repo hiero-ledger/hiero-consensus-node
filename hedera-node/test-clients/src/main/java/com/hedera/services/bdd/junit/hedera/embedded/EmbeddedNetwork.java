@@ -95,6 +95,7 @@ public class EmbeddedNetwork extends AbstractNetwork {
                                         0,
                                         0,
                                         0,
+                                        0,
                                         workingDirFor(0, workingDir),
                                         getConfigShard(),
                                         getConfigRealm())))
