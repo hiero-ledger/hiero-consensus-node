@@ -59,6 +59,12 @@ tasks.register<JMHTask>("jmhVirtualMapEdit") {
     resultsFile.convention(layout.buildDirectory.file("results/jmh/results-virtualmap-edit.txt"))
 }
 
+tasks.register<JMHTask>("jmhMerkleDbSnapshot") {
+    includes.set(listOf("MerkleDbSnapshotBenchmark"))
+    jvmArgs.set(listOf("-Xmx16g"))
+    resultsFile.convention(layout.buildDirectory.file("results/jmh/results-merkle-db-snapshot.txt"))
+}
+
 // Defaults are based on the large-state local calibration profile documented in
 // docs/ReconnectBench.md.
 tasks.register<JMHTask>("jmhReconnect") {
