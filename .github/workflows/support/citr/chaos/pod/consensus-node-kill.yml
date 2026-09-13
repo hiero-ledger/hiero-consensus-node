@@ -1,0 +1,17 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: solo-chaos-pod-kill-${UUID}
+  namespace: chaos-mesh
+spec:
+  action: pod-kill
+  mode: all
+  selector:
+    namespaces:
+      - ${NAMESPACE}
+    expressionSelectors:
+      - key: solo.hedera.com/node-name
+        operator: In
+        values: [${NODE_NAMES}]
+    labelSelectors:
+      'solo.hedera.com/type': 'network-node'
