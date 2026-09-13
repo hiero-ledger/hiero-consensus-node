@@ -72,6 +72,17 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
         virtualMapState = createTestState();
     }
 
+    /**
+     * Initialize common metadata used by many nested test classes.
+     * Consolidates repeated calls to setupFruitVirtualMap(), setupSingletonCountry()
+     * and setupSteamQueue().
+     */
+    private void initCommonMetadata() {
+        setupFruitVirtualMap();
+        setupSingletonCountry();
+        setupSteamQueue();
+    }
+
     @Nested
     @DisplayName("Service Registration Tests")
     final class RegistrationTest {
@@ -267,10 +278,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
         @BeforeEach
         void setUp() {
             // calling below setup methods only for metadata init
-            // FUTURE WORK: refactor after MerkleStateRootTest will be removed
-            setupFruitVirtualMap();
-            setupSingletonCountry();
-            setupSteamQueue();
+            initCommonMetadata();
 
             // adding k/v and singleton states directly to the virtual map
             final var virtualMap = virtualMapState.getRoot();
@@ -407,7 +415,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
                     .isInstanceOf(ClassCastException.class);
         }
 
-        private static void assertFruitState(ReadableKVState<ProtoBytes, ProtoBytes> fruitState) {
+        private void assertFruitState(ReadableKVState<ProtoBytes, ProtoBytes> fruitState) {
             assertThat(fruitState).isNotNull();
             assertThat(fruitState.get(A_KEY)).isSameAs(APPLE);
             assertThat(fruitState.get(B_KEY)).isSameAs(BANANA);
@@ -436,10 +444,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
         @BeforeEach
         void setUp() {
             // calling below setup methods only for metadata init
-            // FUTURE WORK: refactor after MerkleStateRootTest will be removed
-            setupFruitVirtualMap();
-            setupSingletonCountry();
-            setupSteamQueue();
+            initCommonMetadata();
 
             // adding k/v and singleton states directly to the virtual map
             final var virtualMap = virtualMapState.getRoot();
@@ -625,10 +630,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
             given(queueListener.stateTypes()).willReturn(EnumSet.of(QUEUE));
 
             // calling below setup methods only for metadata init
-            // FUTURE WORK: refactor after MerkleStateRootTest will be removed
-            setupFruitVirtualMap();
-            setupSingletonCountry();
-            setupSteamQueue();
+            initCommonMetadata();
 
             // adding k/v and singleton states directly to the virtual map
             final var virtualMap = virtualMapState.getRoot();
@@ -689,10 +691,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
         @BeforeEach
         void setUp() {
             // calling below setup methods only for metadata init
-            // FUTURE WORK: refactor after MerkleStateRootTest will be removed
-            setupFruitVirtualMap();
-            setupSingletonCountry();
-            setupSteamQueue();
+            initCommonMetadata();
 
             // adding k/v and singleton states directly to the virtual map
             final var virtualMap = virtualMapState.getRoot();
@@ -752,10 +751,8 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
 
         @BeforeEach
         void setUp() {
-            // Initialize metadata for all relevant states
-            setupFruitVirtualMap();
-            setupSingletonCountry();
-            setupSteamQueue();
+            // calling below setup methods only for metadata init
+            initCommonMetadata();
             virtualMap = virtualMapState.getRoot();
             virtualMapState.initializeState(steamMetadata);
             virtualMapState.initializeState(countryMetadata);
@@ -985,7 +982,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
          * @param right right hash
          * @return combined hash
          */
-        static Hash hash(final Hash left, final Hash right) {
+        private Hash hash(final Hash left, final Hash right) {
             try {
                 final MessageDigest md = MessageDigest.getInstance(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
                 md.reset();
@@ -1160,9 +1157,7 @@ public class VirtualMapStateImplTest extends MerkleTestBase {
     @Test
     @DisplayName("Checking the content of getInfoJson")
     void testGetInfoJson() {
-        setupFruitVirtualMap();
-        setupSingletonCountry();
-        setupSteamQueue();
+        initCommonMetadata();
         // adding k/v and singleton states directly to the virtual map
         final var virtualMap = virtualMapState.getRoot();
         addKvState(fruitVirtualMap, fruitMetadata, A_KEY, APPLE);
