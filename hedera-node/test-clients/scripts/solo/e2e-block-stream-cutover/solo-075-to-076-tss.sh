@@ -4,17 +4,17 @@
 # End-to-end test for the 0.75 -> 0.76 (TSS enablement, mock signatures) upgrade.
 #
 # Solo's `consensus network deploy` does not accept --local-build-path, so we deploy a published
-# 0.75 baseline and upgrade in place to 0.76 — to the published v0.76.0-rc.1 release by default, or
+# 0.75 baseline and upgrade in place to 0.76 — to the published v0.76.1 release by default, or
 # to the local build when UPGRADE_TAG=local:
 #
-#   1. Deploy a baseline CN network at the published v0.75.0-rc.6 release tag
+#   1. Deploy a baseline CN network at the published v0.75.1 release tag
 #      with resources/0.75/application.properties.
 #   2. Deploy a mirror node (with --pinger, so it keeps submitting transactions and the
 #      network keeps producing blocks) + explorer UI on top of the 0.75 baseline (importer
 #      reads RECORD streams from MinIO).
 #   3. Deploy a Block Node mid-chain; it verifies the mock-sig (RSA WRB) blocks
 #      streamed by the CN through the RSA bootstrap roster.
-#   4. Upgrade in place to v0.76.0-rc.1 (or the local build when UPGRADE_TAG=local) with
+#   4. Upgrade in place to v0.76.1 (or the local build when UPGRADE_TAG=local) with
 #      resources/0.76/application.properties + application.env, enabling TSS with
 #      tss.forceMockSignatures=true (the 0.76 "dual-write, mock signatures" state). The CN
 #      self-downloads the WRAPS proving key from tss.wrapsProvingKeyDownloadUrl in the 0.76
@@ -44,14 +44,14 @@ NODE_ALIASES="${NODE_ALIASES:-node1,node2,node3,node4}"
 
 # Initial deploy pulls a real published binary at this release tag.
 # Solo's `consensus network deploy` does not accept --local-build-path.
-DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.75.0-rc.6}"
+DEPLOY_RELEASE_TAG="${DEPLOY_RELEASE_TAG:-v0.75.1}"
 
 # Target for the 0.76 upgrade.
-#   Blank (default): upgrade to the published v0.76.0-rc.1 release (no --local-build-path).
+#   Blank (default): upgrade to the published v0.76.1 release (no --local-build-path).
 #   "local": upgrade in place to the LOCAL build at LOCAL_BUILD_PATH (--local-build-path). Solo
 #     still requires --upgrade-version to be a published tag; we reuse DEPLOY_RELEASE_TAG as that label.
 #   Any other value: upgrade to the published Solo tag named here (no --local-build-path).
-UPGRADE_TAG="${UPGRADE_TAG:-v0.76.0-rc.1}"
+UPGRADE_TAG="${UPGRADE_TAG:-v0.76.1}"
 LOCAL_BUILD_PATH="${LOCAL_BUILD_PATH:-${REPO_ROOT}/hedera-node/data}"
 
 # The CN downloads + extracts the WRAPS proving-key archive itself during the upgrade, using the
@@ -990,7 +990,7 @@ deploy_mirror_and_explorer() {
 
 # The focus of this script: the 0.75 -> 0.76 upgrade with TSS enabled in mock-signature mode.
 # Solo's `consensus network deploy` does not accept --local-build-path, so we deploy a published
-# 0.75 baseline first and then upgrade in place — to the published v0.76.0-rc.1 release by default,
+# 0.75 baseline first and then upgrade in place — to the published v0.76.1 release by default,
 # or to the local build when UPGRADE_TAG=local (or any other published Solo tag named in UPGRADE_TAG).
 upgrade_to_local_076() {
   inject_wraps_env_into_statefulsets
@@ -1057,9 +1057,10 @@ if [[ "${UPGRADE_TAG}" == "local" ]]; then
   validate_local_build_path "${LOCAL_BUILD_PATH}" || {
     echo "Invalid LOCAL_BUILD_PATH: ${LOCAL_BUILD_PATH}" >&2
     echo "Expected ${LOCAL_BUILD_PATH}/apps/HederaNode.jar and ${LOCAL_BUILD_PATH}/lib" >&2
-    echo "(Leave UPGRADE_TAG blank to upgrade to the published v0.76.0-rc.1 release instead.)" >&2
+    echo "(Leave UPGRADE_TAG blank to upgrade to the published v0.76.1 release instead.)" >&2
     exit 1
   }
+  log "WARN: UPGRADE_TAG=local applies resources/0.76/application.properties (WRAPS v1.0 proving key) to the local binary. If that binary is hedera-cryptography 3.15.2+, override APP_PROPS_076_FILE with a v1.6 wrapsProvingKeyHash/DownloadUrl overlay."
 fi
 
 create_cluster

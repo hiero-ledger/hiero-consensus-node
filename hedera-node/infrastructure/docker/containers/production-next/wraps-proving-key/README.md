@@ -15,12 +15,12 @@ runner images or downloading it per job. It is consumed by the `hapiTestWraps` a
 
 |           File           | Size (bytes) |                                              SHA-384                                               |
 |--------------------------|--------------|----------------------------------------------------------------------------------------------------|
-| `decider_pp.bin`         | 2170538264   | `8e9fbd68c7f28d56146857b52626185918162a1ecfce25856576465139d1bf4ef638dcbfaf15548d336e56206ae61dca` |
-| `decider_vp.bin`         | 1768         | `53e72141e4cf68f4b862daa4acc634d4f2220ecc2d44feca90b377fc5e786dad288dbf32722dd3e18217727a20666da2` |
-| `nova_pp.bin`            | 8454224      | `18d89cfff6e5abebfa8d1740974ce0bd2b60449c67ef7d7de0d3ab377c4b265ab9a99c01fcd03d33da77c6dc47a8c467` |
-| `nova_vp.bin`            | 65768        | `c45e3146f4b3b093c3301ec42171d18f7015c01615d29ca1ab9354d790b5c7ca888f82f26a458366d3b1ff623c8d6c1f` |
-| `wraps.sha384`           | —            | `4eb1beccf1303ad182459ad9238ef371fdd14d3c1b69ed628957d162bbd1365d8c7f6c7b3b73e2f6c160bb94557cf6e8` |
-| `wraps-artifacts.sha384` | —            | `21a72f28756f9ab4a134afbf69daf1c7148cf416ad0ae40e958a070adca6589c9b3a8cf12cf419b6895650ea64ef18d8` |
+| `decider_pp.bin`         | 2327595832   | `5e2816e7bbd0cfbf5bf74ca693e881d784cd33a083d883ea677781744d3a760c7451d76b2a5f9b47fb06300a94f45a99` |
+| `decider_vp.bin`         | 1768         | `8a1879d451d745a99834738fa1839d324c85a69e28a96892b9e1b080a3c7d7d1762045bdad388b1ffb346583bc982774` |
+| `nova_pp.bin`            | 16842832     | `e2de61ab1ace3500faf5aefce587b42a8c874b62efb82477f3dc02a2109d23ee2426e4cd3c9ddc79bc41830b7a13d642` |
+| `nova_vp.bin`            | 65768        | `d6208c538ed5119797ac4c5ee368e2e80c4e059f5a9c3ef6967bef97a7be45f73f1d10880ae8a00ca1cfbd118d359779` |
+| `wraps.sha384`           | —            | `ac23d70230b5adec4a115386c85367ef9318dda2706b93a26243a6ba0c8eded47a54cc6fb0b648248a9560788f9bc517` |
+| `wraps-artifacts.sha384` | —            | `db965a870a54e3bd351f2ad3969d580c40060f54f0828d210897b1a17c11d3f47f52720aef4bf5644bee58753c76cbb2` |
 
 The image carries two housekeeping files:
 
@@ -37,8 +37,8 @@ The image carries two housekeeping files:
 
 ## Provenance
 
-- Source: <https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz>
-- Tarball SHA-384: `620cbcf69098d31a0893081cb76113ee0f72091b3417e601178cdc376c81e5c2407c1827d123df44bccb78ad4bb11fb3`
+- Source: <https://builds.hedera.com/tss/hiero/wraps/v1.6/wraps-v1.6.0.tar.gz>
+- Tarball SHA-384: `ead332b853b0312881ebaaae1a55020014c3b577f9639ad3c136e2d4e573d9c87261c328e8043dcbed497a34fae5b33f`
 
 ## Building
 
@@ -49,12 +49,12 @@ hash, builds with the `Containerfile` here, pushes, and re-verifies the publishe
 digest. To build manually instead:
 
 ```bash
-curl -fSLo wraps-v1.0.0.tar.gz https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz
-shasum -a 384 -c <<< "620cbcf69098d31a0893081cb76113ee0f72091b3417e601178cdc376c81e5c2407c1827d123df44bccb78ad4bb11fb3  wraps-v1.0.0.tar.gz"
-mkdir wraps-v1.0.0 && tar xzf wraps-v1.0.0.tar.gz -C wraps-v1.0.0
-printf '%s\n' 620cbcf69098d31a0893081cb76113ee0f72091b3417e601178cdc376c81e5c2407c1827d123df44bccb78ad4bb11fb3 > wraps-v1.0.0/wraps.sha384
-podman build -f path/to/this/Containerfile -t <registry>/wraps-proving-key:v1.0.0 wraps-v1.0.0
-podman push <registry>/wraps-proving-key:v1.0.0
+curl -fSLo wraps-v1.6.0.tar.gz https://builds.hedera.com/tss/hiero/wraps/v1.6/wraps-v1.6.0.tar.gz
+shasum -a 384 -c <<< "ead332b853b0312881ebaaae1a55020014c3b577f9639ad3c136e2d4e573d9c87261c328e8043dcbed497a34fae5b33f  wraps-v1.6.0.tar.gz"
+mkdir wraps-v1.6.0 && tar xzf wraps-v1.6.0.tar.gz -C wraps-v1.6.0
+printf '%s\n' ead332b853b0312881ebaaae1a55020014c3b577f9639ad3c136e2d4e573d9c87261c328e8043dcbed497a34fae5b33f > wraps-v1.6.0/wraps.sha384
+podman build -f path/to/this/Containerfile -t <registry>/wraps-proving-key:v1.6.0 wraps-v1.6.0
+podman push <registry>/wraps-proving-key:v1.6.0
 ```
 
 Works identically with `docker build`/`docker push` or `buildah`. Tag per artifact version;
@@ -77,7 +77,7 @@ volumes:
 containers:
   - volumeMounts:
       - name: wraps-proving-key
-        mountPath: /opt/wraps-v1.0.0
+        mountPath: /opt/wraps-v1.6.0
         readOnly: true
 ```
 
@@ -101,5 +101,5 @@ cached once per node.
 Either way, the test job sets:
 
 ```
-TSS_LIB_WRAPS_ARTIFACTS_PATH=/opt/wraps-v1.0.0
+TSS_LIB_WRAPS_ARTIFACTS_PATH=/opt/wraps-v1.6.0
 ```
