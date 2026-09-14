@@ -26,7 +26,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOU
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.node.config.types.StreamMode;
 import com.hedera.services.bdd.GenesisSubprocessTest;
 import com.hedera.services.bdd.GenesisSubprocessTest.SubProcessNodeConfig;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -107,33 +106,30 @@ public class UpdateNodeAccountTestSubprocess {
                     nodeUpdate(nodeToUpdate).accountId("newAccount").signedByPayerAnd("newAccount"),
                     // create a transaction after the update so stream files are generated
                     cryptoCreate("foo"),
-                    // The output dir stays on the old node account until a restart; assert against whichever
-                    // stream the node is producing for the current mode.
+                    // The output dir stays on the old node account until a restart.
                     withOpContext((spec, log) -> {
                         // Resolve the stream dirs from the updated node's own (scope-aware) working dir: a
                         // @GenesisSubprocessTest network is scoped by method name, not the default "hapi"
-                        // scope, so workingDirFor(..., null) would point at a non-existent path. The output
-                        // dir stays on the old node account until a restart.
+                        // scope, so workingDirFor(..., null) would point at a non-existent path.
                         final var node = spec.getNetworkNodes().get(Integer.parseInt(nodeToUpdate));
-                        final var streamMode = spec.startupProperties().getStreamMode("blockStream.streamMode");
-                        if (streamMode != StreamMode.BLOCKS) {
-                            final var recordsDir =
-                                    node.getExternalPath(RECORD_STREAMS_DIR).getParent();
-                            final var oldRecordPath =
-                                    recordsDir.resolve("record" + asAccountString(oldNodeAccountId.get()));
-                            final var newRecordPath =
-                                    recordsDir.resolve("record" + asAccountString(newAccountId.get()));
-                            assertTrue(oldRecordPath.toFile().exists());
-                            assertFalse(newRecordPath.toFile().exists());
-                        }
-                        if (streamMode != StreamMode.RECORDS) {
-                            final var blocksDir = node.getExternalPath(BLOCK_STREAMS_PARENT_DIR);
-                            final var oldBlockPath =
-                                    blocksDir.resolve("block-" + asAccountString(oldNodeAccountId.get()));
-                            final var newBlockPath = blocksDir.resolve("block-" + asAccountString(newAccountId.get()));
-                            assertTrue(oldBlockPath.toFile().exists());
-                            assertFalse(newBlockPath.toFile().exists());
-                        }
+                        // Both streams are asserted unconditionally: the @GenesisSubprocessTest annotation above
+                        // pins every node to streamMode=BOTH + writerMode=FILE_AND_GRPC, so both directories must
+                        // exist. Branching on spec.startupProperties() would silently skip the record half --
+                        // that property source does not see the per-node overrides (only
+                        // SubProcessNetwork#effectiveStartupProperties does) and resolves to the BLOCKS default.
+                        final var recordsDir =
+                                node.getExternalPath(RECORD_STREAMS_DIR).getParent();
+                        final var oldRecordPath =
+                                recordsDir.resolve("record" + asAccountString(oldNodeAccountId.get()));
+                        final var newRecordPath = recordsDir.resolve("record" + asAccountString(newAccountId.get()));
+                        assertTrue(oldRecordPath.toFile().exists());
+                        assertFalse(newRecordPath.toFile().exists());
+
+                        final var blocksDir = node.getExternalPath(BLOCK_STREAMS_PARENT_DIR);
+                        final var oldBlockPath = blocksDir.resolve("block-" + asAccountString(oldNodeAccountId.get()));
+                        final var newBlockPath = blocksDir.resolve("block-" + asAccountString(newAccountId.get()));
+                        assertTrue(oldBlockPath.toFile().exists());
+                        assertFalse(newBlockPath.toFile().exists());
                     }));
         }
     }

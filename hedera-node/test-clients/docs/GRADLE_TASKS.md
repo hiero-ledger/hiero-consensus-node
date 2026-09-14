@@ -37,6 +37,7 @@ sibling tasks can run in parallel without clashing.
 | `hapiTestWrapsDownload`          | `WRAPS_DOWNLOAD`                              | `testSubprocess`           | default               |
 | `hapiTestCutover`                | `CUTOVER`                                     | `testSubprocess`           | default               |
 | `hapiTestTimeConsuming`          | `LONG_RUNNING`                                | `testSubprocessConcurrent` | default               |
+| `hapiTestTimeConsumingSerial`    | `(LONG_RUNNING&SERIAL)`                       | `testSubprocess`           | default               |
 | `hapiTestNodeStaking`            | `(NODE_STAKING)&!(SERIAL)`                    | `testSubprocess`           | 3                     |
 | `hapiTestNodeStakingSerial`      | `(NODE_STAKING&SERIAL)`                       | `testSubprocess`           | default               |
 | `hapiTestIss`                    | `ISS`                                         | `testSubprocess`           | default               |

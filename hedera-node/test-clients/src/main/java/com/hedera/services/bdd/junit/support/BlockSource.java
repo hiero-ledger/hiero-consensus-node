@@ -24,6 +24,10 @@ public interface BlockSource {
      * becomes available is delivered to {@link StreamDataListener#onNewBlock(Block)} in ascending
      * block-number order.
      *
+     * <p>Implementations MUST honour {@link StreamDataListener#replayExistingFiles()}: when it returns
+     * false only blocks that become available after this call are delivered; when it returns true the
+     * blocks already held by the source are replayed first.
+     *
      * @param listener the listener to receive blocks
      * @return a {@link Runnable} that, when run, stops/unsubscribes this source
      */

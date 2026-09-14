@@ -118,6 +118,12 @@ public class HgcaaLogValidator {
                 List.of("WRAPS proving key download did not complete"),
                 List.of("Failed to initiate async download of WRAPS proving key (from URL "),
                 List.of("WRAPS enabled but this node cannot build recursive proofs", "data/keys"),
+                // Freeze seals the block and then waits hedera.nowFrozenWriteTimeout (60s) for the freeze
+                // block's proof and the block node's acknowledgement. Under writerMode=GRPC a real block
+                // node can still be finalizing that proof when the timeout elapses; the node logs this and
+                // hands the freeze state back anyway. StreamValidationOp tolerates the same condition by
+                // skipping the state-replay validators when the freeze block was never served, so a run in
+                // which the block node never acknowledges the freeze block is green on both counts.
                 List.of("Timed out waiting for pending block proofs, WRB writers, or block node acknowledgements"));
 
         private int numProblems = 0;

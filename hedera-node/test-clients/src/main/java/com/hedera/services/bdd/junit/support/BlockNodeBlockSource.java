@@ -30,6 +30,10 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>All block-node read I/O (the REAL-vs-SIMULATOR switch, the per-block-node client loop) is delegated
  * to {@link BlockNodeReader}; this class only adds the polling/push delivery on top of those reads.
+ *
+ * <p>{@link StreamDataListener#replayExistingFiles()} is honoured on both paths: when false the listener only
+ * sees blocks the block node receives after it subscribed, matching {@link FileSystemBlockSource}; when true
+ * delivery starts at block 0.
  */
 public class BlockNodeBlockSource implements BlockSource {
     private static final Logger log = LogManager.getLogger(BlockNodeBlockSource.class);
@@ -56,10 +60,16 @@ public class BlockNodeBlockSource implements BlockSource {
     public Runnable subscribe(@NonNull final StreamDataListener listener) {
         requireNonNull(listener);
         final var stop = new AtomicBoolean(false);
+        // Honour the listener's replay contract, the block-node analogue of StreamFileAccess replaying
+        // already-written files: replaying starts from block 0, otherwise we start above whatever the block
+        // node already holds so the listener only sees blocks that arrive after it subscribed. Resolved once,
+        // here, because the loops below re-derive their start block from this watermark on every reconnect.
+        final long initialWatermark = listener.replayExistingFiles() ? -1L : reader.latestAvailableBlock();
         // REAL block node: one long-lived live subscription (supervised for reconnect), so the block
         // node holds a single subscriber handler for our lifetime, not one accumulating per poll.
         if (reader.isReal()) {
-            final var supervisor = new Thread(() -> liveSupervisorLoop(listener, stop), "BlockNodeBlockSource-live");
+            final var supervisor =
+                    new Thread(() -> liveSupervisorLoop(listener, stop, initialWatermark), "BlockNodeBlockSource-live");
             supervisor.setDaemon(true);
             supervisor.start();
             return () -> {
@@ -73,7 +83,7 @@ public class BlockNodeBlockSource implements BlockSource {
             };
         }
         // SIMULATOR: in-memory reads, no gRPC handlers to leak -- keep the simple poll loop.
-        final var poller = new Thread(() -> pollLoop(listener, stop), "BlockNodeBlockSource-poller");
+        final var poller = new Thread(() -> pollLoop(listener, stop, initialWatermark), "BlockNodeBlockSource-poller");
         poller.setDaemon(true);
         poller.start();
         return () -> {
@@ -88,18 +98,29 @@ public class BlockNodeBlockSource implements BlockSource {
 
     /**
      * Maintains a single live subscription to a REAL block node, delivering blocks to the listener as
-     * they arrive and re-subscribing (from the next unseen block) whenever the stream drops, until
+     * they arrive and re-subscribing (from the last block we delivered) whenever the stream drops, until
      * stopped. At most one subscription is open at a time, so the block node holds exactly one
      * subscriber handler for our lifetime.
+     *
+     * <p>Each subscription starts at the watermark itself rather than one past it, because
+     * {@code block_stream_subscribe_service.proto} requires {@code start_block_number} to be "less than or
+     * equal to the latest available block number" -- the watermark is a block the node demonstrably has,
+     * whereas its successor may not exist yet. The re-delivered boundary block is dropped by the watermark
+     * filter below.
+     *
+     * @param initialWatermark the highest block treated as already delivered; {@code -1} to deliver from block 0
      */
-    private void liveSupervisorLoop(@NonNull final StreamDataListener listener, @NonNull final AtomicBoolean stop) {
-        final var lastDelivered = new AtomicLong(-1L);
+    private void liveSupervisorLoop(
+            @NonNull final StreamDataListener listener,
+            @NonNull final AtomicBoolean stop,
+            final long initialWatermark) {
+        final var lastDelivered = new AtomicLong(initialWatermark);
         while (!stop.get()) {
             final var streamEnded = new CountDownLatch(1);
             AutoCloseable handle = null;
             try {
                 handle = reader.streamLive(
-                        lastDelivered.get() + 1,
+                        Math.max(lastDelivered.get(), 0L),
                         block -> {
                             final long number = BlockNodeReader.blockNumberOf(block);
                             // Skip header-less blocks and any at/below the watermark (a reconnect can
@@ -156,8 +177,16 @@ public class BlockNodeBlockSource implements BlockSource {
         return BlockNodeReader.of(requireNonNull(network)).allBlocks();
     }
 
-    private void pollLoop(@NonNull final StreamDataListener listener, @NonNull final AtomicBoolean stop) {
-        long lastDelivered = -1L;
+    /**
+     * Polls a SIMULATOR block node for newly available blocks and pushes them to the listener.
+     *
+     * @param initialWatermark the highest block treated as already delivered; {@code -1} to deliver from block 0
+     */
+    private void pollLoop(
+            @NonNull final StreamDataListener listener,
+            @NonNull final AtomicBoolean stop,
+            final long initialWatermark) {
+        long lastDelivered = initialWatermark;
         while (!stop.get()) {
             try {
                 final long latest = reader.latestAvailableBlock();
