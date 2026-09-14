@@ -14,4 +14,4 @@ import com.swirlds.config.api.ConfigProperty;
  */
 @ConfigData("crypto")
 public record CryptoConfig(
-        @ConfigProperty(defaultValue = "password") String keystorePassword) {}
+        @ConfigProperty(defaultValue = "") String keystorePassword) {}
