@@ -17,6 +17,7 @@ import org.hiero.consensus.gui.api.TestGuiSource;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.pcli.graph.PcesEventGraphSource;
 import org.hiero.consensus.pcli.graph.PcesEventGraphSource.HashOption;
 import org.hiero.consensus.round.EventWindowUtils;
@@ -68,7 +69,8 @@ public class HashgraphGuiFromPcesMain {
         final Path resourceDir = Path.of(ROOT_DIR);
         final Path rosterPath = resourceDir.resolve(ROSTER_FILE);
         final Path pcesPath = resourceDir.resolve(PCES_DIR);
-        final Roster roster = Roster.JSON.parse(new ReadableStreamingData(new FileInputStream(rosterPath.toFile())));
+        final RosterWrapper roster = RosterWrapper.of(
+                Roster.JSON.parse(new ReadableStreamingData(new FileInputStream(rosterPath.toFile()))));
 
         final long startingRound;
         final long minimumNonAncientRound;

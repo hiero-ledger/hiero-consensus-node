@@ -3,7 +3,6 @@ package org.hiero.consensus.gui.internal;
 
 import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
@@ -25,6 +24,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.round.EventWindowUtils;
 
 /**
@@ -53,7 +53,7 @@ public class GuiEventStorage {
      * @param configuration this node's configuration
      * @param roster the network's roster
      */
-    public GuiEventStorage(@NonNull final Configuration configuration, @NonNull final Roster roster) {
+    public GuiEventStorage(@NonNull final Configuration configuration, @NonNull final RosterWrapper roster) {
         this.configuration = Objects.requireNonNull(configuration);
         if (USE_DYNAMIC_ADDRESS_BOOK_UPDATE) {
             this.consensus =

@@ -121,7 +121,10 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
             final long clientId = clientCtr.incrementAndGet();
             logger.debug("{} Creating new client (clientId: {})", BlockNodeServiceConnection.this, clientId);
             final BlockNodeServiceClient client = clientFactory.createServiceClient(
-                    configuration(), timeout, connectionId().toString());
+                    configuration(),
+                    timeout,
+                    connectionId().toString(),
+                    bncConfig().grpcCompressionType());
             if (clientRef.compareAndSet(null, new BlockNodeServiceConnection.ServiceClientHolder(clientId, client))) {
                 // unlike the streaming connection, these connections don't really have an intermediate state between
                 // UNINITIALIZED and ACTIVE, so just set the state to ACTIVE

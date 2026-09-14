@@ -16,6 +16,7 @@ package com.hedera.hapi.block.internal;
 
 // SPDX-License-Identifier: Apache-2.0
 import "services/timestamp.proto";
+import "google/protobuf/wrappers.proto";
 
 option java_package = "com.hedera.hapi.block.internal.protoc";
 // <<<pbj.java_package = "com.hedera.hapi.block.internal">>> This comment is special code for setting PBJ Compiler java package
@@ -87,4 +88,9 @@ message BufferedBlock {
    * The timestamp this block's header was added to the Block.
    */
   proto.Timestamp opened_timestamp = 6;
+
+  /**
+   * The block period (in milliseconds) for this block.
+   */
+  google.protobuf.Int64Value block_period_millis = 7;
 }

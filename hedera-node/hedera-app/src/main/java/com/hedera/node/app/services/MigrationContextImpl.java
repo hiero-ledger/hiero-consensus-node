@@ -23,6 +23,7 @@ import java.util.Map;
  * @param newStates The new states, preloaded with any new state definitions.
  * @param appConfig The configuration to use
  * @param previousVersion the previous version of the state
+ * @param isReconnect whether this migration is initializing a state learned by reconnecting
  */
 public record MigrationContextImpl(
         @NonNull ReadableStates previousStates,
@@ -32,7 +33,8 @@ public record MigrationContextImpl(
         @Nullable SemanticVersion previousVersion,
         long roundNumber,
         @NonNull Map<String, Object> sharedValues,
-        @NonNull StartupNetworks startupNetworks)
+        @NonNull StartupNetworks startupNetworks,
+        boolean isReconnect)
         implements HederaMigrationContext {
     public MigrationContextImpl {
         requireNonNull(previousStates);

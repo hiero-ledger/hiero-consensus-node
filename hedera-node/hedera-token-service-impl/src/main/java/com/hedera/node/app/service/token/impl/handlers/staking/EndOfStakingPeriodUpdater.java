@@ -3,6 +3,7 @@ package com.hedera.node.app.service.token.impl.handlers.staking;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 import static com.hedera.node.app.service.token.impl.TokenServiceImpl.HBARS_TO_TINYBARS;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.asStakingRewardBuilder;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.computeExtendedRewardSumHistory;
@@ -134,9 +135,9 @@ public class EndOfStakingPeriodUpdater {
                     () -> readableNonZeroHistory(newRewardSumHistory.rewardSumHistory()));
 
             // The amount of pending rewards that stakers could collect from this period
-            final var pendingRewards = (nodeInfo.stakeRewardStart() - nodeInfo.unclaimedStakeRewardStart())
-                    / HBARS_TO_TINYBARS
-                    * nodeRewardRate;
+            final var pendingRewards = clampedMultiply(
+                    (nodeInfo.stakeRewardStart() - nodeInfo.unclaimedStakeRewardStart()) / HBARS_TO_TINYBARS,
+                    nodeRewardRate);
             final var newStakes = computeNewStakes(nodeInfo, stakingConfig);
             log.info(
                     "For node{}, the tb/hbar reward rate was {} for {} pending, with stake reward start {} -> {}",
@@ -224,7 +225,7 @@ public class EndOfStakingPeriodUpdater {
      */
     private BigDecimal ratioOf(final long unreservedBalance, final long thresholdBalance) {
         return thresholdBalance > 0L
-                ? BigDecimal.valueOf(Math.min(unreservedBalance, thresholdBalance))
+                ? BigDecimal.valueOf(Math.clamp(unreservedBalance, 0L, thresholdBalance))
                         .divide(BigDecimal.valueOf(thresholdBalance), MATH_CONTEXT)
                 : BigDecimal.ONE;
     }

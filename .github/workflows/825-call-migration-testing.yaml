@@ -64,7 +64,7 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
-          node-version: "22"
+          node-version: "24"
 
       # Build the local hedera-node artifacts (hedera-node/data) that step 3
       # of the migration script stages onto each consensus node via
