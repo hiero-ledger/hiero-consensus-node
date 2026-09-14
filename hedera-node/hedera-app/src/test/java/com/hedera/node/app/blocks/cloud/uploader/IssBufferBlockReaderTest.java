@@ -42,7 +42,7 @@ class IssBufferBlockReaderTest {
     }
 
     private void givenBlock(final long blockNumber, final long firstRound) {
-        final BlockState state = new BlockState(blockNumber);
+        final BlockState state = new BlockState(blockNumber, 2_000L);
         state.addItem(BlockItem.newBuilder()
                 .blockHeader(BlockHeader.newBuilder().number(blockNumber).build())
                 .build());
@@ -112,7 +112,7 @@ class IssBufferBlockReaderTest {
         givenBuffer(1, 2);
         givenBlock(1, 1);
         // Block 2 (containing ISS round 6) is present for the locate scan, then pruned before the write pass.
-        final BlockState state2 = new BlockState(2);
+        final BlockState state2 = new BlockState(2, 2_000L);
         state2.addItem(BlockItem.newBuilder()
                 .roundHeader(RoundHeader.newBuilder().roundNumber(5).build())
                 .build());
