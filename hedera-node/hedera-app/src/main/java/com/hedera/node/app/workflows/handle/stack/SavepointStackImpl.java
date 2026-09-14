@@ -464,12 +464,10 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * Returns the next preset transaction id, taking its payer and valid start from the given owner when the request
      * was made inside an atomic batch inner transaction, and its nonce from this stack's top-level transaction.
      *
-     * <p>The nonce must stay anchored on the top-level transaction even when the identity does not. Nonces assigned
-     * sequentially in {@link #buildHandleOutput(Instant, ExchangeRateSet, Long)} are {@code topLevelNonce + offset}
-     * for an offset strictly less than {@code noncesPerPresetId}, so a preset nonce of
-     * {@code topLevelNonce + k * noncesPerPresetId} is guaranteed to fall beyond every one of them. Anchoring the
-     * nonce on the owner instead would make that hold only while the top-level nonce is itself a multiple of the
-     * stride, and the overflow check below would no longer be reachable.
+     * <p>The nonce stays anchored on the top-level transaction even when the identity does not, which is what keeps
+     * preset nonces clear of the sequential ones: {@link #buildHandleOutput(Instant, ExchangeRateSet, Long)} assigns
+     * {@code topLevelNonce + offset} for an offset strictly less than {@code noncesPerPresetId}, so a preset nonce of
+     * {@code topLevelNonce + k * noncesPerPresetId} always falls beyond every one of them. Keep both anchored here.
      *
      * @param isLastAllowed whether the stack should refuse to create more preset ids after this one
      * @param ownerId the batch inner transaction the request was made within, or null if there was none

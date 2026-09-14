@@ -91,8 +91,7 @@ public final class EthereumTransactionRollbackHandler implements HandleException
      *
      * <p>A non-null owner means this handler was registered with a batch's rollback queue, and only an inner
      * transaction's body carries a batch key &mdash; a submitted top-level transaction that sets one is rejected in
-     * pre-handle with {@code BATCH_KEY_SET_ON_NON_INNER_TRANSACTION}. Together those identify the inner pass without
-     * comparing ids, which a batch sharing its own id with one of its inners would otherwise confuse.
+     * pre-handle with {@code BATCH_KEY_SET_ON_NON_INNER_TRANSACTION}. Together those distinguish the inner pass from the batch's own.
      */
     private boolean isOwnInnerReplay(@NonNull final HandleContext handleContext) {
         return ownerTxnId != null && handleContext.body().hasBatchKey();

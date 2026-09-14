@@ -583,8 +583,8 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
     }
 
     // ---------------------------------------------------------------------------------------------------------
-    // Ownership is captured from live stack lineage, so it is lost wherever the dispatch does not happen
-    // underneath the inner transaction's own savepoint stack. Both classes below pin down such a case.
+    // Dispatch paths whose owning inner transaction cannot be read off the savepoint stack,
+    // and so is carried explicitly instead.Both classes below pin down such a case.
     // ---------------------------------------------------------------------------------------------------------
     @Nested
     @DisplayName("Code delegations replayed after a batch rollback")
@@ -655,8 +655,8 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
     }
 
     // ---------------------------------------------------------------------------------------------------------
-    // A dispatch that carries a preset transaction id never reaches the ownership map, because buildHandleOutput
-    // only consults it for builders that still need an id
+    // A dispatch that arrives with a preset transaction id is stamped before the handler runs,
+    // so its identity is resolved when the id is issued rather than when the record is built
     // ---------------------------------------------------------------------------------------------------------
     @Nested
     @DisplayName("Preset-id children dispatched by a batch inner")
