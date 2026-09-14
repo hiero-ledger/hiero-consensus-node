@@ -3,14 +3,15 @@ package org.hiero.otter.fixtures.turtle;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
+import java.util.Random;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
+import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 
@@ -24,19 +25,19 @@ public class InstrumentedTurtleNode extends TurtleNode implements InstrumentedNo
     /**
      * Constructor for the {@link InstrumentedTurtleNode} class.
      *
-     * @param randotron the random number generator
+     * @param random the random number generator
      * @param timeManager the time provider
      * @param selfId the node ID of the node
      * @param keysAndCerts the keys and certificates of the node
-     * @param gossip the simulated gossip
+     * @param gossip the simulated gossip instance
      * @param logging the logging instance for the node
      * @param outputDirectory the output directory for the node
      * @param networkConfiguration the network configuration
      * @param consensusRoundPool the shared pool for deduplicating consensus rounds
      */
     public InstrumentedTurtleNode(
-            @NonNull final Randotron randotron,
-            @NonNull final TurtleTimeManager timeManager,
+            @NonNull final Random random,
+            @NonNull final SimulatorTimeManager timeManager,
             @NonNull final NodeId selfId,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final SimulatedGossip gossip,
@@ -45,7 +46,7 @@ public class InstrumentedTurtleNode extends TurtleNode implements InstrumentedNo
             @NonNull final NetworkConfiguration networkConfiguration,
             @NonNull final ConsensusRoundPool consensusRoundPool) {
         super(
-                randotron,
+                random,
                 timeManager,
                 selfId,
                 keysAndCerts,

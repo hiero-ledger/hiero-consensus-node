@@ -11,7 +11,6 @@ import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.HASH_SIZE;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashLeaf;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.cleanUpPendingBlock;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadContiguousPendingBlocks;
@@ -21,14 +20,15 @@ import static com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
+import static com.hedera.node.config.types.StreamMode.BOTH;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
-import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.block.stream.output.BlockHeader;
@@ -124,6 +124,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private final int roundsPerBlock;
     private final Duration blockPeriod;
+    private final boolean blockSizeCircuitBreakerApplicable;
     private final BlockHashSigner blockHashSigner;
     private final SemanticVersion version;
     private final SemanticVersion hapiVersion;
@@ -166,6 +167,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private Instant consensusTimeCurrentRound;
     private Timestamp lastUsedTime;
     private BlockItemWriter writer;
+    // The circuit-breaker size configuration snapshot for the current block.
+    private boolean blockSizeCircuitBreakerEnabled;
+    private long maxBlockSizeBytes;
+    // The canonical serialized size of all items accepted into the current block, excluding its asynchronous proof.
+    private long currentBlockSizeBytes;
+    // Once open, no more output from savepoint stacks is accepted until the next block starts.
+    private boolean savepointOutputSuppressed;
 
     // Block merkle subtrees and leaves
     private IncrementalStreamingHasher previousBlockHashes;
@@ -249,6 +257,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private final BlockStreamingObs streamingObs;
 
+    private final Counter blockSizeCircuitBreakerTripsCounter;
+
     @Inject
     public BlockStreamManagerImpl(
             @NonNull final BlockHashSigner blockHashSigner,
@@ -281,6 +291,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         this.roundsPerBlock = blockStreamConfig.roundsPerBlock();
         this.blockPeriod = blockStreamConfig.blockPeriod();
+        this.blockSizeCircuitBreakerApplicable = blockStreamConfig.streamMode() == BOTH;
         final var networkAdminConfig = config.getConfigData(NetworkAdminConfig.class);
         this.diskNetworkExport = networkAdminConfig.diskNetworkExport();
         this.diskNetworkExportFile = networkAdminConfig.diskNetworkExportFile();
@@ -294,6 +305,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         indirectProofCounter = requireNonNull(metrics)
                 .getOrCreate(new Counter.Config("block", "numIndirectProofs")
                         .withDescription("Number of blocks closed with indirect proofs"));
+        blockSizeCircuitBreakerTripsCounter = metrics.getOrCreate(new Counter.Config(
+                        "block", "numBlockSizeCircuitBreakerTrips")
+                .withDescription("Number of preview blocks whose savepoint output was suppressed by the size limit"));
         if (!quiescenceEnabled) {
             log.info("Quiescence is disabled");
             quiescedHeartbeat.shutdown();
@@ -435,17 +449,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         stateChangesHasher.addLeaf(BlockItem.PROTOBUF.toBytes(lastStateChanges).toByteArray());
         final var lastBlockFinalStateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
 
-        return combine(
-                        prevBlockHash,
-                        allPrevBlocksHash,
-                        blockStreamInfo.startOfBlockStateHash(),
-                        blockStreamInfo.consensusHeaderRootHash(),
-                        blockStreamInfo.inputTreeRootHash(),
-                        blockStreamInfo.outputItemRootHash(),
-                        lastBlockFinalStateChangesHash,
-                        blockStreamInfo.traceDataRootHash(),
-                        blockStreamInfo.blockTimeOrThrow())
-                .blockRootHash();
+        // Straight to BlockRootTree rather than through combine(), which also derives the sibling hashes
+        // that only a pending proof needs
+        return BlockRootTree.computeBlockRootHash(
+                blockStreamInfo.blockTimeOrThrow(),
+                prevBlockHash,
+                allPrevBlocksHash,
+                blockStreamInfo.startOfBlockStateHash(),
+                blockStreamInfo.consensusHeaderRootHash(),
+                blockStreamInfo.inputTreeRootHash(),
+                blockStreamInfo.outputItemRootHash(),
+                lastBlockFinalStateChangesHash,
+                blockStreamInfo.traceDataRootHash());
     }
 
     @Override
@@ -478,6 +493,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
         // Writer will be null when beginning a new block
         if (writer == null) {
+            final var blockStreamConfig = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
+            maxBlockSizeBytes = blockStreamConfig.maxBlockSizeBytes();
+            blockSizeCircuitBreakerEnabled = blockSizeCircuitBreakerApplicable && maxBlockSizeBytes > 0;
+            currentBlockSizeBytes = 0;
+            savepointOutputSuppressed = false;
+
             writer = writerSupplier.get();
             blockTimestamp = asTimestamp(firstConsensusTimestampOf(round));
 
@@ -518,7 +539,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .blockTimestamp(blockTimestamp)
                     .hapiProtoVersion(hapiVersion);
             streamingObs.onBlockInit(blockNumber);
-            worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
+            writeItem(BlockItem.newBuilder().blockHeader(header).build());
         }
         consensusTimeCurrentRound = round.getConsensusTimestamp();
     }
@@ -727,7 +748,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             quiescenceController.finishHandlingInProgressBlock();
             state.commitSingletons();
             // Flush all boundary state changes besides the BlockStreamInfo
-            worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
+            writeItem(flushChangesFromListener(boundaryStateChangeListener));
             worker.sync();
 
             // This block's starting state hash is the end state hash of the last non-empty round
@@ -782,7 +803,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             ((CommittableWritableStates) writableState).commit();
 
             // Produce one more state change item (i.e. putting the block stream info just constructed into state)
-            worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
+            writeItem(flushChangesFromListener(boundaryStateChangeListener));
             worker.sync();
 
             final var stateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
@@ -815,7 +836,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var footerItem =
                     BlockItem.newBuilder().blockFooter(blockFooter).build();
             streamingObs.onBlockFooterCreate(blockNumber);
-            worker.addItem(footerItem);
+            writeItem(footerItem);
             worker.sync();
 
             // Create a pending block, waiting to be signed
@@ -948,11 +969,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         if (fatalShutdownRequested) {
             return;
         }
-        lastUsedTime = switch (item.item().kind()) {
-            case STATE_CHANGES -> item.stateChangesOrThrow().consensusTimestampOrThrow();
-            case TRANSACTION_RESULT -> item.transactionResultOrThrow().consensusTimestampOrThrow();
-            default -> lastUsedTime;
-        };
+        requireNonNull(item);
+        accountForWrittenItems(List.of(item));
+        updateLastUsedTimeFrom(item);
         worker.addItem(item);
     }
 
@@ -963,6 +982,87 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             return;
         }
         writeItem(itemSpec.apply(lastUsedTime));
+    }
+
+    @Override
+    public void writeSavepointItems(
+            @NonNull final List<BlockItem> items, @NonNull final Instant lastUsedConsensusTime) {
+        requireNonNull(items);
+        requireNonNull(lastUsedConsensusTime);
+
+        if (blockSizeCircuitBreakerEnabled) {
+            if (savepointOutputSuppressed) {
+                advanceLastUsedTimeTo(lastUsedConsensusTime);
+                return;
+            }
+            final long candidateSize = serializedBlockSize(items);
+            final long projectedSize = saturatedAdd(currentBlockSizeBytes, candidateSize);
+            if (projectedSize > maxBlockSizeBytes) {
+                tripBlockSizeCircuitBreaker(projectedSize, candidateSize);
+                advanceLastUsedTimeTo(lastUsedConsensusTime);
+                return;
+            }
+            currentBlockSizeBytes = projectedSize;
+            items.forEach(item -> {
+                updateLastUsedTimeFrom(item);
+                worker.addItem(item);
+            });
+        } else {
+            items.forEach(this::writeItem);
+        }
+        advanceLastUsedTimeTo(lastUsedConsensusTime);
+    }
+
+    @Override
+    public boolean isSavepointOutputSuppressed() {
+        return savepointOutputSuppressed;
+    }
+
+    private void accountForWrittenItems(@NonNull final List<BlockItem> items) {
+        if (!blockSizeCircuitBreakerEnabled) {
+            return;
+        }
+        final long addedSize = serializedBlockSize(items);
+        currentBlockSizeBytes = saturatedAdd(currentBlockSizeBytes, addedSize);
+        if (!savepointOutputSuppressed && currentBlockSizeBytes > maxBlockSizeBytes) {
+            tripBlockSizeCircuitBreaker(currentBlockSizeBytes, addedSize);
+        }
+    }
+
+    private void tripBlockSizeCircuitBreaker(final long projectedSize, final long addedSize) {
+        savepointOutputSuppressed = true;
+        blockSizeCircuitBreakerTripsCounter.increment();
+        log.error(
+                "Preview block #{} reached a projected serialized size of {} bytes after adding {} bytes, "
+                        + "exceeding the {}-byte limit; suppressing savepoint output for the rest of the block",
+                blockNumber,
+                projectedSize,
+                addedSize,
+                maxBlockSizeBytes);
+    }
+
+    private static long serializedBlockSize(@NonNull final List<BlockItem> items) {
+        // A Block is only a repeated BlockItem field, so measuring a Block containing this batch gives its exact
+        // contribution to the canonical, uncompressed protobuf representation.
+        return Block.PROTOBUF.measureRecord(new Block(items));
+    }
+
+    private static long saturatedAdd(final long a, final long b) {
+        return a > Long.MAX_VALUE - b ? Long.MAX_VALUE : a + b;
+    }
+
+    private void updateLastUsedTimeFrom(@NonNull final BlockItem item) {
+        lastUsedTime = switch (item.item().kind()) {
+            case STATE_CHANGES -> item.stateChangesOrThrow().consensusTimestampOrThrow();
+            case TRANSACTION_RESULT -> item.transactionResultOrThrow().consensusTimestampOrThrow();
+            default -> lastUsedTime;
+        };
+    }
+
+    private void advanceLastUsedTimeTo(@NonNull final Instant consensusTime) {
+        if (lastUsedTime == null || consensusTime.isAfter(asInstant(lastUsedTime))) {
+            lastUsedTime = asTimestamp(consensusTime);
+        }
     }
 
     @Override
@@ -1615,8 +1715,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     /**
-     * Resets the subtree hashers for branches 4-8 to empty states. Since these subtrees only contain data specific to
-     * the current block, they need to be reset whenever a new block starts.
+     * Resets the hashers for the block root tree's per-block sub-trees (branches 4-8, see
+     * {@link BlockRootTree}).
+     * Since these subtrees only contain data specific to the current block, they need to be reset whenever a
+     * new block starts.
      */
     private void resetSubtrees() {
         // Branch 4
@@ -1631,25 +1733,22 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         traceDataHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
     }
 
-    private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
-
     /**
-     * Combines the given branch hashes into a block root hash and sibling hashes for a pending proof.
+     * Fills the {@link BlockRootTree} branches with this block's sub-tree roots and computes its root hash.
      * Since it's not known whether the pending proof will be directly signed at this point in the block's
      * lifecycle, the sibling hashes required for an indirect proof are also computed.
      * <p>
-     * Note that all of these initial hash values should have all been hashed prior to this point, whether
-     * as a leaf node (prefixed with {@link BlockImplUtils#LEAF_PREFIX}) or as an internal node (prefixed
-     * with {@link BlockImplUtils#INTERNAL_NODE_PREFIX}). Therefore, they should <b>not</b> be hashed
-     * again until combined with another hash.
+     * All of these values have already been hashed, whether as a leaf node (prefixed with
+     * {@link BlockImplUtils#LEAF_PREFIX}) or as an internal node (prefixed with
+     * {@link BlockImplUtils#INTERNAL_NODE_PREFIX}), so they are not hashed again until combined with
+     * another hash.
      * <p>
-     * While {@code prevBlockHash} could programmatically be null, in practice it never should be. Even
-     * in the case of the genesis block, this value should be {@link BlockStreamManager#HASH_OF_ZERO}. For
-     * all other blocks, it should be the actual previous block's root hash.
+     * At the genesis block {@code prevBlockHash} is {@link BlockStreamManager#HASH_OF_ZERO}; for all other
+     * blocks it is the previous block's root hash.
      * @return the block root hash and all possibly-required sibling hashes, ordered from bottom (the
-     * leaf level, depth six) to top (the root, depth one)
+     * branch level) to top (the root)
      */
-    private static RootAndSiblingHashes combine(
+    private static BlockRootTreeHasher.RootAndSiblingHashes combine(
             @NonNull final Bytes prevBlockHash,
             @NonNull final Bytes prevBlockRootsHash,
             @NonNull final Bytes startingStateHash,
@@ -1660,43 +1759,16 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final Bytes traceDataHash,
             @NonNull final Timestamp firstConsensusTimeOfCurrentBlock) {
         requireNonNull(prevBlockHash);
-
-        // Compute depth five hashes
-        final var depth5Node1 = BlockImplUtils.hashInternalNode(prevBlockHash, prevBlockRootsHash);
-        final var depth5Node2 = BlockImplUtils.hashInternalNode(startingStateHash, consensusHeaderHash);
-        final var depth5Node3 = BlockImplUtils.hashInternalNode(inputsHash, outputsHash);
-        final var depth5Node4 = BlockImplUtils.hashInternalNode(stateChangesHash, traceDataHash);
-
-        // Compute depth four hashes
-        final var depth4Node1 = BlockImplUtils.hashInternalNode(depth5Node1, depth5Node2);
-        final var depth4Node2 = BlockImplUtils.hashInternalNode(depth5Node3, depth5Node4);
-
-        // Compute depth three hash (there's no node 2 hash as the reserved subroots aren't encoded anywhere in the
-        // tree)
-        final var depth3Node1 = BlockImplUtils.hashInternalNode(depth4Node1, depth4Node2);
-
-        // Compute depth two hashes (timestamp + last right sibling)
-        final var tsBytes = Timestamp.PROTOBUF.toBytes(firstConsensusTimeOfCurrentBlock);
-        final var depth2Node1 = hashLeaf(tsBytes);
-        // (Depth 2, Node 2) represents the subroot of the tree where the actual data combine with the future reserved
-        // roots 9-16, so we treat its child as the only child (even though other future roots may exist later).
-        final var depth2Node2 = BlockImplUtils.hashInternalNodeSingleChild(depth3Node1);
-
-        // Compute the block's root hash (depth 1)
-        final var rootHash = BlockImplUtils.hashInternalNode(depth2Node1, depth2Node2);
-
-        return new RootAndSiblingHashes(rootHash, new MerkleSiblingHash[] {
-            // Level 6 first sibling (right child)
-            new MerkleSiblingHash(false, prevBlockRootsHash),
-            // Level 5 first sibling (right child)
-            new MerkleSiblingHash(false, depth5Node2),
-            // Level 4 first sibling (right child)
-            new MerkleSiblingHash(false, depth4Node2)
-            // Level 3 has no sibling because reserved roots 9-16 aren't represented as real subroots in the tree. It's
-            // just a single child node hash operation. NOTE: if any of the reserved roots are ever included in the
-            // tree, this level's hash will need to be re-added as an internal node here.
-            // Level 2's _left_ sibling–the block's timestamp–is represented explicitly outside these sibling hashes
-        });
+        return BlockRootTree.computeRootAndSiblings(
+                BlockRootTree.hashTimestampLeaf(firstConsensusTimeOfCurrentBlock),
+                prevBlockHash,
+                prevBlockRootsHash,
+                startingStateHash,
+                consensusHeaderHash,
+                inputsHash,
+                outputsHash,
+                stateChangesHash,
+                traceDataHash);
     }
 
     private static Instant firstConsensusTimestampOf(final Round round) {

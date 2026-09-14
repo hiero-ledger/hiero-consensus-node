@@ -21,7 +21,7 @@ module org.hiero.consensus.iss.detection {
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
     requires com.swirlds.state.impl;
-    requires org.hiero.consensus.concurrent;
+    requires org.hiero.base.concurrent;
     requires org.hiero.consensus.hashgraph;
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.roster;

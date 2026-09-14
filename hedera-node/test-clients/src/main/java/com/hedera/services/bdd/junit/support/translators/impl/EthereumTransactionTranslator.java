@@ -34,9 +34,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
-import org.bouncycastle.util.encoders.Hex;
 
 /**
  * Translates a ethereum transaction into a {@link SingleTransactionRecord}.
@@ -72,7 +72,7 @@ public class EthereumTransactionTranslator implements BlockTransactionPartsTrans
                             && ethTx.hasCallData()) {
                         final var callDataFileNum = ethTx.callDataOrThrow().fileNum();
                         final var hexedCallData = baseTranslator.getFileContents(callDataFileNum);
-                        final var callData = Hex.decode(removeIfAnyLeading0x(hexedCallData));
+                        final var callData = HexFormat.of().parseHex(new String(removeIfAnyLeading0x(hexedCallData)));
                         ethTxData = ethTxData.replaceCallData(callData);
                     }
                     final var finalEthTxData = ethTxData;

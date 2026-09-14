@@ -276,9 +276,16 @@ public interface HistoryLibrary {
             @NonNull Set<Long> signers);
 
     /**
-     * Returns whether the library is ready to be used.
+     * Returns whether the library is ready to construct WRAPS proofs; that is, whether the proving key
+     * artifacts installed in {@code TSS_LIB_WRAPS_ARTIFACTS_PATH} are complete and verified against the
+     * given archive hash. Callers must pass {@code tss.wrapsProvingKeyHash} from the configuration the
+     * current construction is running under, so that readiness is judged against the same proving key
+     * the network agreed on.
+     *
+     * @param expectedProvingKeyHashHex the expected proving key archive hash, as bare hex
+     * @return whether recursive proof construction may safely map the installed artifacts
      */
-    boolean wrapsProverReady();
+    boolean wrapsProverReady(@NonNull String expectedProvingKeyHashHex);
 
     /**
      * Verifies whether a compressed proof establishes the given metadata in the chain of trust of the given ledger id.

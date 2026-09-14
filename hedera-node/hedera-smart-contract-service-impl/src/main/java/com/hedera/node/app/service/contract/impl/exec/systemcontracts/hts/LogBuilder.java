@@ -10,8 +10,8 @@ import java.util.List;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.log.Log;
-import org.hyperledger.besu.evm.log.LogTopic;
+import org.hyperledger.besu.datatypes.Log;
+import org.hyperledger.besu.datatypes.LogTopic;
 
 public class LogBuilder {
     private Address logger;
@@ -69,7 +69,7 @@ public class LogBuilder {
     private static LogTopic generateLogTopic(final Object param) {
         byte[] array = new byte[] {};
         if (param instanceof Address address) {
-            array = address.toArray();
+            array = address.getBytes().toArray();
         } else if (param instanceof BigInteger numeric) {
             array = numeric.toByteArray();
         } else if (param instanceof Long numeric) {
@@ -103,7 +103,7 @@ public class LogBuilder {
 
     private static com.esaulpaugh.headlong.abi.Address convertBesuAddressToHeadlongAddress(
             @NonNull final Address address) {
-        return com.esaulpaugh.headlong.abi.Address.wrap(
-                com.esaulpaugh.headlong.abi.Address.toChecksumAddress(address.toUnsignedBigInteger()));
+        return com.esaulpaugh.headlong.abi.Address.wrap(com.esaulpaugh.headlong.abi.Address.toChecksumAddress(
+                address.getBytes().toUnsignedBigInteger()));
     }
 }

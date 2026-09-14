@@ -363,7 +363,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         if (number == MISSING_ENTITY_NUMBER) {
             return false;
         }
-        final AccountID accountID = AccountID.newBuilder().accountNum(number).build();
+        final AccountID accountID = entityIdFactory().newAccountId(number);
         final var account = nativeOperations.getAccount(accountID);
         if (account == null) {
             return false;
@@ -376,7 +376,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     @Override
     public void finalizeHollowAccount(@NonNull final Address address) {
-        nativeOperations.finalizeHollowAccountAsContract(tuweniToPbjBytes(address));
+        nativeOperations.finalizeHollowAccountAsContract(tuweniToPbjBytes(address.getBytes()));
     }
 
     @Override
@@ -416,7 +416,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
                 to.hederaId(),
                 new ActiveContractVerificationStrategy(
                         from.hederaContractId(),
-                        tuweniToPbjBytes(from.getAddress()),
+                        tuweniToPbjBytes(from.getAddress().getBytes()),
                         delegateCall,
                         UseTopLevelSigs.YES));
         if (status != OK) {
@@ -441,7 +441,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         if (maybeValidationError.isPresent()) {
             return maybeValidationError;
         }
-        final var status = nativeOperations.createHollowAccount(tuweniToPbjBytes(address));
+        final var status = nativeOperations.createHollowAccount(tuweniToPbjBytes(address.getBytes()));
         return accountCreationStatusToResult(status);
     }
 
@@ -456,11 +456,11 @@ public class DispatchingEvmFrameState implements EvmFrameState {
             return maybeValidationError;
         }
         final var status = nativeOperations.createAccountWithKeyAndCodeDelegation(
-                tuweniToPbjBytes(address),
+                tuweniToPbjBytes(address.getBytes()),
                 Key.newBuilder()
                         .ecdsaSecp256k1(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(ecdsaPublicKey))
                         .build(),
-                tuweniToPbjBytes(delegationAddress));
+                tuweniToPbjBytes(delegationAddress.getBytes()));
         return accountCreationStatusToResult(status);
     }
 
@@ -470,15 +470,14 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         }
         final var number = maybeMissingNumberOf(address, nativeOperations);
         if (number != MISSING_ENTITY_NUMBER) {
-            final AccountID accountID =
-                    AccountID.newBuilder().accountNum(number).build();
+            final AccountID accountID = entityIdFactory().newAccountId(number);
             final var account = nativeOperations.getAccount(accountID);
             if (account != null) {
                 if (account.expiredAndPendingRemoval()) {
                     return Optional.of(FAILURE_DURING_LAZY_ACCOUNT_CREATION);
                 } else {
                     throw new IllegalArgumentException(
-                            "Unexpired account 0.0." + number + " already exists at address " + address);
+                            "Unexpired account " + accountID + " already exists at address " + address);
                 }
             }
         }

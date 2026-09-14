@@ -37,6 +37,19 @@ env:
   BUILD_GREP_PATTERN: "build-*"
 
 jobs:
+  prime-workflow:
+    name: Prime workflow
+    runs-on: hl-cn-default-lin-ss
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Schedule Run
+        run: |
+          echo "Picking up scheduled run at $(date -u +'%Y-%m-%d %H:%M:%S') UTC"
+
   extract-citr-vars:
     name: Extract CITR Vars
     uses: ./.github/workflows/855-call-extract-citr-vars.yaml
@@ -255,6 +268,25 @@ jobs:
           fi
           set -e
 
+          # XTS_COMMIT_BRANCH is now load-bearing: deploy-xts-optional-trigger dispatches 106 on
+          # it, and the workflow-dispatch API only accepts a branch or tag. git name-rev can hand
+          # back something that is not a dispatchable branch (a commit reachable only from a tag,
+          # or from a branch that has since been deleted), so check it and warn rather than fail -
+          # mandatory XTS does not depend on this value, only the optional dispatch does.
+          set +e
+          git show-ref --verify --quiet "refs/remotes/origin/${XTS_COMMIT_BRANCH}"
+          BRANCH_IS_DISPATCHABLE="${?}"
+          set -e
+          if [[ "${BRANCH_IS_DISPATCHABLE}" -ne 0 ]]; then
+            echo "::warning title=XTS candidate branch not dispatchable::Resolved branch '${XTS_COMMIT_BRANCH}' for commit ${XTS_COMMIT} does not exist as refs/remotes/origin/${XTS_COMMIT_BRANCH}. Mandatory XTS is unaffected, but the optional XTS dispatch will likely fail with 'No ref found for: ${XTS_COMMIT_BRANCH}'."
+            {
+              echo "### Optional XTS dispatch may fail"
+              echo ""
+              echo "Resolved branch \`${XTS_COMMIT_BRANCH}\` for commit \`${XTS_COMMIT}\` is not a remote branch."
+              echo "Mandatory XTS is unaffected; only the 106 dispatch depends on this value."
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
           # Print branch debug info
           echo "::debug::XTS_COMMIT_BRANCH=${XTS_COMMIT_BRANCH}"
           echo "::debug::COMMIT_ON_DEFAULT_BRANCH=${COMMIT_ON_DEFAULT_BRANCH}"
@@ -342,7 +374,6 @@ jobs:
       ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
       branch-name: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}
       solo-version: ${{ needs.parameters.outputs.solo-version }}
-      cutover-solo-version: ${{ needs.extract-citr-vars.outputs.cutover-solo-version }}
       solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
       custom-job-label: "XTS (main):"
@@ -377,36 +408,39 @@ jobs:
       slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
 
-  xts-optional-execution:
-    name: Execute Optional XTS Tests
+  deploy-xts-optional-trigger:
+    name: Trigger Optional XTS
+    runs-on: hl-cn-default-lin-sm
     needs:
       - fetch-xts-candidate
-      - parameters
-      - state-validator-uberjar
-      - extract-jdk-version
-      - extract-citr-vars
-      - verify-citr-vars
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-proceed == 'true' }}
-    uses: ./.github/workflows/815-call-xts-tests.yaml
-    with:
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
-      branch-name: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}
-      solo-version: ${{ needs.parameters.outputs.solo-version }}
-      cutover-solo-version: ${{ needs.extract-citr-vars.outputs.cutover-solo-version }}
-      solo-ge-0440: ${{ needs.parameters.outputs.solo-ge-0440 }}
-      helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
-      custom-job-label: "XTS (Optional):"
-      enable-migration-testing-panel: "true"
-      # (FUTURE) Move to xts-execution once the panel proves stable, so failures block build-candidate promotion.
-      enable-077-to-078-cutover-panel: "true"
-      java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
-      tck-version: "${{ needs.extract-citr-vars.outputs.tck-version }}"
-      js-sdk-version: "${{ needs.extract-citr-vars.outputs.js-sdk-version }}"
-      bn-release-version: "${{ needs.extract-citr-vars.outputs.bn-release-version }}"
-      bn-mirror-node-version: "${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}"
-    secrets:
-      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
-      slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      # Dispatched fire-and-forget: the optional panels do not gate promotion, and this run is
+      # deliberately not awaited.
+      #
+      # `ref` must be a BRANCH, not a commit SHA. The action's README claims a SHA is accepted,
+      # but the underlying workflow-dispatches API rejects one outright:
+      #   Error: No ref found for: 1e68d40ad1a113da0c832da1bb54af3486947e8b
+      # Use the branch the candidate actually lives on rather than a hardcoded `main`, so this
+      # keeps working once XTS runs on release branches. The exact candidate commit is still
+      # pinned -- it is handed to 106 as the `ref` input, which 106 checks out. The xts-candidate
+      # tag is not an option either; fetch-xts-candidate has already deleted it by this point.
+      - name: "Trigger 106: [DISP] XTS Optional Tests"
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/106-disp-xts-optional-tests.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{
+            "ref": "${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}",
+            "branch-name": "${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}"
+            }'
 
   tag-for-promotion:
     name: Tag as XTS-Passing
@@ -494,6 +528,7 @@ jobs:
 
       - name: Build Success Slack Payload
         env:
+          SLACK_COLOR: "#00FF00"
           XTS_INFO: ${{ needs.fetch-xts-candidate.outputs.xts-info }}
           FETCH_XTS_CANDIDATE_RESULT: ${{ needs.fetch-xts-candidate.result }}
           XTS_EXECUTION_RESULT: ${{ needs.xts-execution.result }}
@@ -663,6 +698,7 @@ jobs:
       - name: Build Test Failure Slack Payload
         if: ${{ steps.report-category.outputs.category == 'test' }}
         env:
+          SLACK_COLOR: "#FF0000"
           XTS_INFO: "${{ needs.fetch-xts-candidate.outputs.xts-info  || ''}}"
           FETCH_XTS_CANDIDATE_RESULT: ${{ needs.fetch-xts-candidate.result }}
           XTS_EXECUTION_RESULT: ${{ needs.xts-execution.result }}

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.crypto.internal;
 
-import com.goterl.lazysodium.interfaces.Sign;
+import com.hedera.cryptography.libsodium.Libsodium;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.foreign.MemorySegment;
 import java.security.KeyPair;
 import org.hiero.base.crypto.BytesSigner;
 
@@ -12,6 +13,7 @@ import org.hiero.base.crypto.BytesSigner;
  */
 public class SodiumSigner implements BytesSigner {
     private final byte[] sodiumSecretKey;
+    private final MemorySegment secretKeyMemorySegment;
 
     /**
      * Constructs a SodiumSigner with the given Ed25519 KeyPair.
@@ -27,13 +29,20 @@ public class SodiumSigner implements BytesSigner {
         // Extract 32-byte raw public key from X.509 encoded public key
         final byte[] publicEncoded = keyPair.getPublic().getEncoded();
         System.arraycopy(publicEncoded, publicEncoded.length - 32, sodiumSecretKey, 32, 32);
+        secretKeyMemorySegment = MemorySegment.ofArray(sodiumSecretKey);
     }
 
     @Override
     public @NonNull Bytes sign(@NonNull final Bytes data) {
-        final byte[] signature = new byte[Sign.BYTES];
-        final boolean signed =
-                SodiumJni.SODIUM.cryptoSignDetached(signature, data.toByteArray(), data.length(), sodiumSecretKey);
+        final byte[] signature = new byte[Libsodium.ED25519_BYTES];
+        final boolean signed = Libsodium.getInstance()
+                        .cryptoSignDetached(
+                                MemorySegment.ofArray(signature),
+                                MemorySegment.NULL,
+                                data.toMemorySegment(),
+                                data.length(),
+                                secretKeyMemorySegment)
+                == 0;
         if (!signed) {
             throw new RuntimeException("Failed to sign data using Ed25519 with Sodium");
         }

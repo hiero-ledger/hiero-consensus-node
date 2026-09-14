@@ -1,1 +1,2 @@
 MALLOC_ARENA_MAX=4
+TSS_LIB_WRAPS_ARTIFACTS_PATH=/opt/hgcapp/services-hedera/HapiApp2.0/data/keys/wraps

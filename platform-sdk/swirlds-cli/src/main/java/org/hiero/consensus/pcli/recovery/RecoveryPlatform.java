@@ -2,7 +2,7 @@
 package org.hiero.consensus.pcli.recovery;
 
 import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.utility.AutoCloseableNonThrowing;

@@ -223,10 +223,14 @@ public class SequentialContentManager<T> {
      */
     private void assertNoExtantContentFor(final long seqNo) {
         final var p = pathFor(seqNo);
+        boolean exists = false;
         try {
             contentReader.readContent(p);
-            throw new IllegalArgumentException("Content already exists for #" + seqNo + " at " + p.toAbsolutePath());
+            exists = true;
         } catch (Exception ignore) {
+        }
+        if (exists) {
+            throw new IllegalArgumentException("Content already exists for #" + seqNo + " at " + p.toAbsolutePath());
         }
     }
 

@@ -108,7 +108,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.utility.ByteUtils;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.log.Log;
+import org.hyperledger.besu.datatypes.Log;
 
 /**
  * Implements shared translation logic for transaction records, maintaining all the extra-stream
@@ -808,12 +808,15 @@ public class BaseTranslator {
                     now = asTimestamp(asInstant(now).plusNanos(1));
                 }
                 if (!executedInitcode.hasContractId()) {
-                    sidecars.add(TransactionSidecarRecord.newBuilder()
-                            .consensusTimestamp(now)
-                            .bytecode(ContractBytecode.newBuilder()
-                                    .initcode(executedInitcode.explicitInitcodeOrThrow())
-                                    .build())
-                            .build());
+                    // in case of executedInitcode.initcode.kind == UNSET
+                    if (executedInitcode.hasExplicitInitcode()) {
+                        sidecars.add(TransactionSidecarRecord.newBuilder()
+                                .consensusTimestamp(now)
+                                .bytecode(ContractBytecode.newBuilder()
+                                        .initcode(executedInitcode.explicitInitcodeOrThrow())
+                                        .build())
+                                .build());
+                    }
                 } else {
                     final var contractId = executedInitcode.contractIdOrThrow();
                     final var bytecodeBuilder = ContractBytecode.newBuilder().contractId(contractId);

@@ -13,6 +13,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -22,11 +23,13 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
 import org.hiero.base.utility.CommonUtils;
@@ -36,6 +39,10 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 public class PrngPrecompileSuite {
     private static final long GAS_TO_OFFER = 400_000L;
+    // What a static frame is charged: max(FIXED_VIEW_GAS_COST, TOKEN_INFO base fee / the fixed view gas
+    // price), i.e. max(100, (84 + 851_999) * 1_000 / 852_000 * 1.2) = 1200 under the simple fees schedule.
+    // A mutable PRNG frame must never be charged this; it is priced off UTIL_PRNG instead.
+    private static final long VIEW_GAS_REQUIREMENT = 1200L;
     private static final String THE_GRACEFULLY_FAILING_PRNG_CONTRACT = "GracefullyFailingPrng";
     private static final String THE_PRNG_CONTRACT = "PrngSystemContract";
     private static final String BOB = "bob";
@@ -209,6 +216,37 @@ public class PrngPrecompileSuite {
                                 .contractCallResult(resultWith()
                                         .resultViaFunctionName(
                                                 GET_SEED, prng, isRandomResult(new Object[] {new byte[32]})))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> prngChildRecordGasIsUnaffectedByViewExecutions() {
+        final var prng = THE_PRNG_CONTRACT;
+        final var firstCall = "firstCall";
+        final var secondCall = "secondCall";
+        final AtomicLong firstChildGasUsed = new AtomicLong();
+        return hapiTest(
+                cryptoCreate(BOB),
+                uploadInitCode(prng),
+                contractCreate(prng),
+                contractCall(prng, GET_SEED).gas(GAS_TO_OFFER).payingWith(BOB).via(firstCall),
+                getTxnRecord(firstCall)
+                        .andAllChildRecords()
+                        .hasNonStakingChildRecordCount(1)
+                        .exposingAllTo(records -> firstChildGasUsed.set(
+                                records.getLast().getContractCallResult().getGasUsed())),
+                doingContextual(_ -> assertNotEquals(
+                        VIEW_GAS_REQUIREMENT,
+                        firstChildGasUsed.get(),
+                        "A mutable PRNG call must be charged the canonical UTIL_PRNG gas, not the view gas")),
+                // Repeat after a view execution, which is priced off the view requirement rather than
+                // the canonical one: a mutable call must still report its own frame's price. The
+                contractCallLocal(prng, GET_SEED).gas(GAS_TO_OFFER),
+                contractCall(prng, GET_SEED).gas(GAS_TO_OFFER).payingWith(BOB).via(secondCall),
+                getTxnRecord(secondCall)
+                        .andAllChildRecords()
+                        .hasNonStakingChildRecordCount(1)
+                        .hasChildRecords(
+                                recordWith().contractCallResult(resultWith().gasUsed(firstChildGasUsed::get))));
     }
 
     @HapiTest

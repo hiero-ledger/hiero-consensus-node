@@ -48,6 +48,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -56,7 +57,6 @@ import java.util.function.LongConsumer;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Supplier;
 import org.apache.tuweni.bytes.Bytes;
-import org.bouncycastle.util.encoders.Hex;
 
 public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
     record AuthorizationListItem(Address target, Function<HapiSpec, Long> nonceFn, String privateKeyRef) {}
@@ -91,6 +91,9 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
     private byte[] signedBytes = null;
     private final List<AuthorizationListItem> authorizationListItems = new ArrayList<>();
     private final List<AccessListItem> accessListItems = new ArrayList<>();
+    private byte[] accessList = null;
+    private Object[] accessListRlp = null;
+    private Function<EthTxData, byte[]> ethTxDataEncodeFunction = EthTxData::encodeTx;
 
     public HapiEthereumCall withExplicitParams(final Supplier<String> supplier) {
         explicitHexedParams = Optional.of(supplier);
@@ -296,12 +299,22 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
     }
 
     public HapiEthereumCall markAsJumboTxn() {
-        isJumboTxn = true;
+        this.isJumboTxn = true;
         return this;
     }
 
     public HapiEthereumCall withAccessList(final List<AccessListItem> items) {
         accessListItems.addAll(items);
+        return this;
+    }
+
+    public HapiEthereumCall withAccessList(final byte[] accessList) {
+        this.accessList = accessList;
+        return this;
+    }
+
+    public HapiEthereumCall withEthTxDataEncodeFunction(final Function<EthTxData, byte[]> ethTxDataEncodeFunction) {
+        this.ethTxDataEncodeFunction = ethTxDataEncodeFunction;
         return this;
     }
 
@@ -377,16 +390,18 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         }
 
         // encode accessList
-        byte[] accessList = null;
-        Object[] accessListRlp = null;
-        if (type != EthTransactionType.LEGACY_ETHEREUM && !accessListItems.isEmpty()) {
-            accessListRlp = accessListItems.stream()
-                    .map(e -> new Object[] {
-                        e.address().toArray(),
-                        e.storageKeys().stream().map(Bytes::toArray).toArray()
-                    })
-                    .toArray();
-            accessList = RLPEncoder.sequence(accessListRlp);
+        if (type != EthTransactionType.LEGACY_ETHEREUM) {
+            if (!accessListItems.isEmpty()) {
+                accessListRlp = accessListItems.stream()
+                        .map(e -> new Object[] {
+                            e.address().toArray(),
+                            e.storageKeys().stream().map(Bytes::toArray).toArray()
+                        })
+                        .toArray();
+                accessList = RLPEncoder.sequence(accessListRlp);
+            } else if (accessListRlp != null) {
+                accessList = RLPEncoder.sequence(accessListRlp);
+            }
         }
 
         // encode codeDelegation/authorizationList
@@ -432,7 +447,8 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         spec.registry().saveBytes(ETH_HASH_KEY, ByteString.copyFrom((signedEthTxData.getEthereumHash())));
 
         if (createCallDataFile || (!isJumboTxn && callData.length > MAX_CALL_DATA_SIZE)) {
-            final var callDataBytesString = ByteString.copyFrom(Hex.encode(callData));
+            final var callDataBytesString =
+                    ByteString.copyFromUtf8(HexFormat.of().formatHex(callData));
             final var createFile = new HapiFileCreate(CALL_DATA_FILE_NAME);
             final var updateLargeFile =
                     updateLargeFile(payer.orElse(DEFAULT_CONTRACT_SENDER), CALL_DATA_FILE_NAME, callDataBytesString);
@@ -446,7 +462,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         final EthereumTransactionBody ethOpBody = spec.txns()
                 .<EthereumTransactionBody, EthereumTransactionBody.Builder>body(
                         EthereumTransactionBody.class, builder -> {
-                            builder.setEthereumData(ByteString.copyFrom(finalEthTxData.encodeTx()));
+                            builder.setEthereumData(ByteString.copyFrom(ethTxDataEncodeFunction.apply(finalEthTxData)));
                             maxGasAllowance.ifPresent(builder::setMaxGasAllowance);
                             ethFileID.ifPresent(builder::setCallData);
                         });
@@ -483,9 +499,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
             });
         }
         if (rawResultObserver != null) {
-            doObservedLookup(spec, txnSubmitted, rcd -> {
-                rawResultObserver.accept(rcd.getContractCallResult());
-            });
+            doObservedLookup(spec, txnSubmitted, rcd -> rawResultObserver.accept(rcd.getContractCallResult()));
         }
         if (eventDataObserver != null) {
             doObservedLookup(

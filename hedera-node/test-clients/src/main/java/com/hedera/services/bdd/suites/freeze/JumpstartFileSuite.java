@@ -12,7 +12,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogConta
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildDynamicJumpstartConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getWrappedRecordHashes;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verifyJumpstartHash;
@@ -26,7 +25,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
@@ -50,7 +48,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
@@ -82,7 +79,6 @@ class JumpstartFileSuite implements LifecycleTest {
                 "blockStream.streamMode"
             })
     final Stream<DynamicTest> executesAllCutoverPhases() {
-        final AtomicReference<List<WrappedRecordFileBlockHashes>> wrappedRecordHashes = new AtomicReference<>();
         final AtomicReference<BlockStreamJumpstartConfig> jumpstartConfig = new AtomicReference<>();
         final AtomicReference<String> nodeComputedHash = new AtomicReference<>();
         final AtomicReference<String> freezeBlockNum = new AtomicReference<>();
@@ -91,7 +87,6 @@ class JumpstartFileSuite implements LifecycleTest {
         final AtomicReference<BlockInfo> capturedBlockInfo = new AtomicReference<>();
         final AtomicReference<RunningHashes> capturedRunningHashes = new AtomicReference<>();
         final AtomicReference<BlockStreamJumpstartConfig> jumpstartConfig2 = new AtomicReference<>();
-        final AtomicReference<List<WrappedRecordFileBlockHashes>> wrappedRecordHashes2 = new AtomicReference<>();
         final AtomicReference<String> nodeComputedHash2 = new AtomicReference<>();
         final AtomicReference<String> freezeBlockNum2 = new AtomicReference<>();
 
@@ -153,16 +148,12 @@ class JumpstartFileSuite implements LifecycleTest {
                                 Duration.ofSeconds(30))
                         .exposingMatchGroupTo(1, freezeBlockNum)
                         .exposingMatchGroupTo(2, nodeComputedHash),
-                // Independently verify the node's computed hash. The wrapped record hashes file
-                // may have grown since the migration ran (nodes continue writing after restart),
-                // so we pass the freeze block number to bound the replay to the same range the
-                // migration processed.
-                getWrappedRecordHashes(wrappedRecordHashes),
-                sourcing(() -> verifyJumpstartHash(
-                        jumpstartConfig.get(),
-                        wrappedRecordHashes.get(),
-                        nodeComputedHash.get(),
-                        freezeBlockNum.get())),
+                // Independently verify the node's computed hash by replaying .rcd files from the
+                // jumpstart block through the freeze block (the wrapped record hashes file itself
+                // is truncated to empty as soon as the jumpstart migration consumes it, so it can't
+                // be used for a post-hoc cross-check here).
+                sourcing(
+                        () -> verifyJumpstartHash(jumpstartConfig.get(), nodeComputedHash.get(), freezeBlockNum.get())),
                 logIt("Phase 6: Verify a SECOND jumpstart cycle re-computes a distinct, correct hash"),
                 MixedOperations.burstOfTps(5, Duration.ofSeconds(30)),
                 prepareFakeUpgrade(),
@@ -184,12 +175,8 @@ class JumpstartFileSuite implements LifecycleTest {
                         .matchingLast()
                         .exposingMatchGroupTo(1, freezeBlockNum2)
                         .exposingMatchGroupTo(2, nodeComputedHash2),
-                getWrappedRecordHashes(wrappedRecordHashes2),
-                sourcing(() -> verifyJumpstartHash(
-                        jumpstartConfig2.get(),
-                        wrappedRecordHashes2.get(),
-                        nodeComputedHash2.get(),
-                        freezeBlockNum2.get())),
+                sourcing(() ->
+                        verifyJumpstartHash(jumpstartConfig2.get(), nodeComputedHash2.get(), freezeBlockNum2.get())),
                 assertHgcaaLogContainsPattern(
                         NodeSelector.exceptNodeIds(LATER_NODE_IDS),
                         "Migration root hash voting finalized after node\\d+ vote, >1/3 threshold reached",

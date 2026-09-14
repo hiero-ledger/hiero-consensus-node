@@ -11,7 +11,10 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.toReadableStrin
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileGetContents;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
 
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
@@ -19,18 +22,14 @@ import com.hedera.services.bdd.spec.keys.KeyFactory;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.TxnFactory;
 import com.hederahashgraph.api.proto.java.CryptoTransferTransactionBody;
-import com.hederahashgraph.api.proto.java.CurrentAndNextFeeSchedule;
 import com.hederahashgraph.api.proto.java.ExchangeRate;
 import com.hederahashgraph.api.proto.java.ExchangeRateSet;
-import com.hederahashgraph.api.proto.java.FeeSchedule;
 import com.hederahashgraph.api.proto.java.FileGetContentsQuery;
 import com.hederahashgraph.api.proto.java.FileGetContentsResponse;
 import com.hederahashgraph.api.proto.java.FileID;
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
-import com.hederahashgraph.api.proto.java.SubType;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionID;
 import com.hederahashgraph.api.proto.java.TransferList;
@@ -45,6 +44,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.hapi.support.fees.Extra;
 
 public class FeesAndRatesProvider {
     private static final Logger log = LogManager.getLogger(FeesAndRatesProvider.class);
@@ -59,11 +59,9 @@ public class FeesAndRatesProvider {
     private final HapiSpecSetup setup;
     private final HapiSpecRegistry registry;
 
-    private static long gasPrice;
-    private static FeeSchedule feeSchedule;
+    private static long gasPriceTinycents;
     private static ExchangeRateSet rateSet;
     private final HederaNetwork network;
-    private final ScheduleTypePatching typePatching = new ScheduleTypePatching();
 
     public FeesAndRatesProvider(
             @NonNull final TxnFactory txns,
@@ -85,12 +83,16 @@ public class FeesAndRatesProvider {
         }
     }
 
-    public FeeSchedule currentSchedule() {
-        return feeSchedule;
+    public long currentTinybarGasPrice() {
+        return toTbWithActiveRates(gasPriceTinycents);
     }
 
-    public long currentTinybarGasPrice() {
-        return toTbWithActiveRates(gasPrice / FEE_DIVISOR_FACTOR);
+    /**
+     * Returns the gas price in thousandths of a tinycent, the unit legacy fee schedules used
+     * for the {@code gas} fee component.
+     */
+    public long gasPriceInThousandthsOfTinycent() {
+        return gasPriceTinycents * FEE_DIVISOR_FACTOR;
     }
 
     public ExchangeRate rates() {
@@ -125,15 +127,21 @@ public class FeesAndRatesProvider {
     }
 
     private void downloadFeeSchedule() throws IOException, GeneralSecurityException, ReflectiveOperationException {
-        long queryFee = lookupDownloadFee(setup.feeScheduleId());
-        FileGetContentsResponse response = downloadWith(queryFee, false, setup.feeScheduleId());
+        long queryFee = lookupDownloadFee(setup.simpleFeesScheduleId());
+        FileGetContentsResponse response = downloadWith(queryFee, false, setup.simpleFeesScheduleId());
         byte[] bytes = response.getFileContents().getContents().toByteArray();
-        CurrentAndNextFeeSchedule wrapper = CurrentAndNextFeeSchedule.parseFrom(bytes);
-        setScheduleAndGasPriceFrom(typePatching.withPatchedTypesIfNecessary(wrapper.getCurrentFeeSchedule()));
-        String message = String.format(
-                "The fee schedule covers %s ops.",
-                feeSchedule.getTransactionFeeScheduleList().size());
-        log.info(message);
+        final org.hiero.hapi.support.fees.FeeSchedule schedule;
+        try {
+            schedule = org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.parseStrict(Bytes.wrap(bytes));
+        } catch (ParseException e) {
+            throw new IllegalStateException("Could not parse simple fee schedule", e);
+        }
+        final var gasExtra = lookupExtraFee(schedule, Extra.GAS);
+        if (gasExtra == null) {
+            throw new IllegalStateException("The simple fee schedule is missing the required GAS extra");
+        }
+        gasPriceTinycents = gasExtra.fee();
+        log.info("The simple fee schedule gas price is {} tinycents", gasPriceTinycents);
     }
 
     private long lookupDownloadFee(FileID fileId)
@@ -280,18 +288,7 @@ public class FeesAndRatesProvider {
                 + "]";
     }
 
-    private void setScheduleAndGasPriceFrom(@NonNull final FeeSchedule schedule) {
-        feeSchedule = schedule;
-        gasPrice = feeSchedule.getTransactionFeeScheduleList().stream()
-                .filter(tfs -> tfs.getHederaFunctionality() == HederaFunctionality.ContractCall)
-                .flatMap(tfs -> tfs.getFeesList().stream())
-                .filter(feeData -> feeData.getSubType() == SubType.DEFAULT)
-                .findFirst()
-                .map(feeData -> feeData.getServicedata().getGas())
-                .orElse(0L);
-    }
-
     public long tinycentGasPrice() {
-        return gasPrice / FEE_DIVISOR_FACTOR;
+        return gasPriceTinycents;
     }
 }

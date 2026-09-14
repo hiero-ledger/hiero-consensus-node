@@ -25,8 +25,9 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 
-// Run this suite first in CI, since it assumes there are no NFTs in state at the beginning of the test
-@Order(Integer.MIN_VALUE)
+// Run this suite first in CI, since it assumes there are no NFTs in state at the beginning of the test;
+// MIN_VALUE is reserved for genesis classes, which must run before any shared network exists
+@Order(Integer.MIN_VALUE + 1)
 public class UtilScalePricingCheck {
     private static final String NON_FUNGIBLE_TOKEN = "NON_FUNGIBLE_TOKEN";
 

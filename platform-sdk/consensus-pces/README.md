@@ -11,7 +11,8 @@ The API half of the PCES module pair. For PCES durability and replay across rest
 ## Dependency Rules
 
 May depend on:
-- `consensus-model`, `consensus-metrics`, `consensus-state`, `consensus-utility`
+- `consensus-model`, `consensus-metrics`, `consensus-utility`
+- Self-contained functional module: `consensus-status-monitor`
 - `swirlds-base`, `swirlds-config-api`, `swirlds-metrics-api`, `consensus-wiring-framework`
 
 Must not depend on:

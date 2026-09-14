@@ -240,8 +240,20 @@ public class CustomGasCharging {
         }
         // Ensure all up-front charges are payable (including any to-be-collected value sent with the initial frame)
         validateTrue(transaction.maxGasAllowance() >= relayerGasCost, INSUFFICIENT_TX_FEE);
-        validateTrue(relayer.getBalance().toLong() >= relayerGasCost, INSUFFICIENT_PAYER_BALANCE);
-        validateTrue(sender.getBalance().toLong() >= senderGasCost + transaction.value(), INSUFFICIENT_PAYER_BALANCE);
+        if (sender.hederaId().equals(relayer.hederaId())) {
+            // Self-relayed transaction: the sender and relayer resolve to the same account, so both the
+            // relayer and sender legs are debited from a single balance. Validate the combined up-front
+            // cost (gas + value) once - as chargeWithOnlySender does - rather than checking each leg
+            // independently against the same balance, which would double-count it and let the account
+            // pass while unable to cover the sum.
+            validateTrue(
+                    sender.getBalance().toLong() >= transaction.upfrontCostGiven(context.gasPrice()),
+                    INSUFFICIENT_PAYER_BALANCE);
+        } else {
+            validateTrue(relayer.getBalance().toLong() >= relayerGasCost, INSUFFICIENT_PAYER_BALANCE);
+            validateTrue(
+                    sender.getBalance().toLong() >= senderGasCost + transaction.value(), INSUFFICIENT_PAYER_BALANCE);
+        }
         worldUpdater.collectGasFee(relayer.hederaId(), relayerGasCost, false);
         worldUpdater.collectGasFee(sender.hederaId(), senderGasCost, true);
         return relayerGasCost;

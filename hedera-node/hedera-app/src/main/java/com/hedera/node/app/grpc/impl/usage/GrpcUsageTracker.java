@@ -47,6 +47,18 @@ public class GrpcUsageTracker implements ServerInterceptor {
     private static final int MAX_UA_LENGTH = 250;
 
     /**
+     * The maximum number of distinct user-agents tracked per endpoint within a single bucket. A known SDK's version is
+     * a client-supplied component (any valid SemVer value is preserved as-is), so without this bound an unauthenticated
+     * caller could mint an unlimited number of distinct {@link UserAgent} keys within a logging interval and inflate
+     * heap usage. Once the limit is reached, additional distinct user-agents are folded into the {@code OTHER}
+     * user-agent instead of adding new map entries, which keeps per-endpoint request totals accurate while capping the
+     * number of entries (and therefore the number of log lines emitted at flush time). {@code OTHER} is used rather
+     * than {@code UNKNOWN} so that cap overflow stays distinguishable from genuinely unrecognized user-agents.
+     */
+    @VisibleForTesting
+    static final int MAX_AGENTS_PER_ENDPOINT = 1000;
+
+    /**
      * Logger used to write GRPC access information to a unique log file.
      */
     private static final Logger accessLogger = LogManager.getLogger("grpc-access-log");
@@ -242,10 +254,20 @@ public class GrpcUsageTracker implements ServerInterceptor {
             requireNonNull(rpcEndpointName, "rpcName is required");
             requireNonNull(userAgent, "userAgent is required");
 
-            usageData
-                    .computeIfAbsent(rpcEndpointName, __ -> new ConcurrentHashMap<>())
-                    .computeIfAbsent(userAgent, __ -> new LongAdder())
-                    .increment();
+            final ConcurrentMap<UserAgent, LongAdder> usagesByAgent =
+                    usageData.computeIfAbsent(rpcEndpointName, __ -> new ConcurrentHashMap<>());
+
+            // Fast path: this user-agent is already being tracked for this endpoint.
+            LongAdder counter = usagesByAgent.get(userAgent);
+            if (counter == null) {
+                // A new user-agent for this endpoint. Bound the number of distinct keys so that client-controlled
+                // user-agent values cannot grow the map without limit; any overflow is folded into OTHER so the
+                // total request count for the endpoint is still accurate. The size() check is a best-effort bound and
+                // may be exceeded slightly under concurrency, which is acceptable for a safety limit.
+                final UserAgent key = usagesByAgent.size() >= MAX_AGENTS_PER_ENDPOINT ? UserAgent.OTHER : userAgent;
+                counter = usagesByAgent.computeIfAbsent(key, __ -> new LongAdder());
+            }
+            counter.increment();
         }
     }
 }
