@@ -8,45 +8,44 @@ import com.swirlds.config.api.validation.annotation.Min;
 import java.time.Duration;
 
 /**
- * Configuration for uploading the block(s) around a self/catastrophic ISS to a cloud bucket for developer triage.
+ * Configuration for staging the block(s) around a self/catastrophic ISS to local disk for developer triage.
  *
- * <p>There are two independent upload paths, each gated by its own flag so an operator can run either, both, or
- * neither: {@link #issBlockUploadEnabled} uploads the exact ISS-round block (located at detection time) under the
- * {@code iss/} folder; {@link #triageUploadEnabled} uploads the open/pending blocks flushed at catastrophic failure
- * under the {@code triage/} folder.
+ * <p>The node does not upload anything itself: it writes the captured artifacts into {@link #issBlockDir}, and the
+ * deployment's existing stream uploader (a separate process that watches that directory) ships them to the bucket. This
+ * keeps bucket credentials out of the JVM and off the catastrophic-failure path.
+ *
+ * <p>There are two independent capture paths, each gated by its own flag so an operator can run either, both, or
+ * neither: {@link #issBlockUploadEnabled} stages the exact ISS-round block (located at detection time); the flushed
+ * open/pending blocks captured at catastrophic failure are staged when {@link #triageUploadEnabled} is set.
  *
  * <p>In {@code blockStream.writerMode=GRPC} the ISS-round block lives only in the in-memory block buffer, so its
- * detection-time capture is best-effort: it is uploaded if still buffered (a block node does not acknowledge the ISS
+ * detection-time capture is best-effort: it is staged if still buffered (a block node does not acknowledge the ISS
  * block, and unacknowledged blocks are not pruned, so it is normally still present), otherwise a small pointer
- * {@code .txt} — with the data needed to find the block on the block node — is uploaded to {@code iss/} instead.
+ * {@code .txt} — with the data needed to find the block on the block node — is staged instead.
  *
- * <p>All properties are {@link NodeProperty per-node} operational concerns. The bucket access key and secret are
- * deliberately <b>not</b> configured here (they would leak through configuration logging); they are loaded from the
- * credentials file under {@link #credentialsFileDir}/{@link #credentialsFileName}, overridable by the
- * {@code ISS_BUCKET_ACCESS_KEY} / {@code ISS_BUCKET_SECRET_KEY} environment variables.
+ * <p><b>DEV-OPS RESPONSIBILITY — required before this feature does anything in a real deployment.</b> The two items
+ * below are deployment (NMT / compose) actions, NOT code changes; until both are done the node stages the block to
+ * local disk but nothing ships it:
+ * <ol>
+ *   <li><b>TODO(devops): make {@link #issBlockDir} a host bind mount.</b> mainnet/testnet/previewnet persist via bind
+ *   mounts; on an unmounted path the staged block is lost when the consensus container dies.</li>
+ *   <li><b>TODO(devops): provision an uploader instance for {@link #issBlockDir}.</b> Point a mirror.py uploader at it
+ *   with its own bucket + key — a private bucket (e.g. the backups bucket), ideally a create-only key. It must ship
+ *   <b>every</b> staged extension — {@code .gz} blocks, {@code .pnd.json} proof sidecars, and the {@code .txt} pointer
+ *   fallback — not only {@code .gz}, or the sidecars/pointer are staged locally but never reach the bucket.</li>
+ * </ol>
+ * The exact host dir and bucket/key are owned by DevOps and are intentionally not pinned here.
  *
- * @param issBlockUploadEnabled whether the detection-time ISS-block capture/upload (to {@code iss/}) is active
- * @param triageUploadEnabled whether the catastrophic-failure flushed-set upload (to {@code triage/}) is active
- * @param bucketName the destination bucket name
- * @param endpoint the storage endpoint; for GCP this is the S3-compatible XML interoperability endpoint
- * ({@code https://storage.googleapis.com}); for AWS S3 the regional endpoint (the provider is determined entirely by
- * this endpoint + region + credentials)
- * @param region the storage region; for GCP interoperability this is typically {@code auto}
- * @param storageClass the object storage class (e.g. {@code STANDARD})
- * @param objectKeyPrefix a prefix prepended to every uploaded object key
- * @param issBlockDir the node-local directory the detection path persists the captured ISS block into (and uploads
- * from); artifacts are written under a {@code block-<account>/<timestamp>} subdir per incident and retained (never
- * pruned) so they stay available locally for triage
- * @param precedingBlocks how many blocks immediately before the ISS block to also capture and upload (0 = exactly the
- * ISS-round block); best-effort and clamped to what is actually retained
- * @param credentialsFileDir the directory containing the bucket credentials file
- * @param credentialsFileName the name of the bucket credentials properties file (keys {@code accessKey} and
- * {@code secretKey})
+ * @param issBlockUploadEnabled whether the detection-time ISS-block capture (staged into {@code issBlockDir}) is active
+ * @param triageUploadEnabled whether the catastrophic-failure flushed-set capture (staged into {@code issBlockDir}) is
+ * active
+ * @param issBlockDir the node-local directory the captured artifacts are staged into; <b>must be a bind-mounted host
+ * path</b> (see the TODO above) so the deployment's uploader can ship them. Artifacts are written under a
+ * {@code block-<account>/<timestamp>} subdir per incident
+ * @param precedingBlocks how many blocks immediately before the ISS block to also capture (0 = exactly the ISS-round
+ * block); best-effort and clamped to what is actually retained
  * @param captureTimeout how long the detection path waits for the ISS-round block to become a durable on-disk artifact
  * (it may still be the open, in-progress block at detection); once it elapses the capture is abandoned
- * @param uploadTimeout the hard overall deadline for the entire ISS upload; once it elapses the node abandons the
- * upload and continues its shutdown
- * @param maxRetries the maximum number of retries per object on a transient upload failure
  */
 @ConfigData("failureBlockUpload")
 public record FailureBlockUploadConfig(
@@ -56,34 +55,13 @@ public record FailureBlockUploadConfig(
         @ConfigProperty(defaultValue = "false") @NodeProperty
         boolean triageUploadEnabled,
 
-        @ConfigProperty(defaultValue = "") @NodeProperty String bucketName,
-
-        @ConfigProperty(defaultValue = "https://storage.googleapis.com") @NodeProperty
-        String endpoint,
-
-        @ConfigProperty(defaultValue = "auto") @NodeProperty String region,
-
-        @ConfigProperty(defaultValue = "STANDARD") @NodeProperty
-        String storageClass,
-
-        @ConfigProperty(defaultValue = "iss-blocks") @NodeProperty
-        String objectKeyPrefix,
-
-        @ConfigProperty(defaultValue = "data/iss-blocks") @NodeProperty
+        // TODO(devops): this must be a host BIND MOUNT and have a mirror.py uploader instance provisioned against it
+        // (with a private bucket + key) before this feature ships anything. Deployment action, not a code change; see
+        // the DEV-OPS RESPONSIBILITY note in the class Javadoc.
+        @ConfigProperty(defaultValue = "/opt/hgcapp/issBlocks") @NodeProperty
         String issBlockDir,
 
         @ConfigProperty(defaultValue = "0") @Min(0) @NodeProperty
         int precedingBlocks,
 
-        @ConfigProperty(defaultValue = "data/config") @NodeProperty
-        String credentialsFileDir,
-
-        @ConfigProperty(defaultValue = "iss-bucket-credentials.properties") @NodeProperty
-        String credentialsFileName,
-
-        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration captureTimeout,
-
-        @ConfigProperty(defaultValue = "60s") @NodeProperty Duration uploadTimeout,
-
-        @ConfigProperty(defaultValue = "3") @Min(0) @NodeProperty
-        int maxRetries) {}
+        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration captureTimeout) {}

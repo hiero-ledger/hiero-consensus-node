@@ -238,8 +238,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      */
     private final Object fatalShutdownLock = new Object();
     /**
-     * Contents files ({@code .pnd.gz}/{@code .iss.gz}) written by the triage flush, for upload by the ISS-block-upload
-     * pipeline. Written under the flush locks; read after {@link #awaitFatalShutdown}. Thread-safe for the lock-free read.
+     * Contents files ({@code .pnd.gz}/{@code .open.gz}) written by the triage flush, for staging by the ISS-block
+     * capture pipeline. Written under the flush locks; read after {@link #awaitFatalShutdown}. Thread-safe for the
+     * lock-free read.
      */
     private final List<Path> flushedTriageBlockFiles = new CopyOnWriteArrayList<>();
 

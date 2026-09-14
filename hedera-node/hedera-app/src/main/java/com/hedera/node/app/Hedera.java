@@ -727,21 +727,28 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 blockStreamManager().notifyFatalEvent();
                 blockStreamManager().awaitFatalShutdown(SHUTDOWN_TIMEOUT);
 
-                // Capture and upload the exact ISS-round block: the deterministic, race-free capture for a halting ISS
-                // (no-op unless failureBlockUpload.issBlockUploadEnabled, or if the detection path already uploaded
-                // it).
+                // Capture and stage the exact ISS-round block for the deployment's uploader: the deterministic,
+                // race-free capture for a halting ISS (no-op unless failureBlockUpload.issBlockUploadEnabled, or if the
+                // detection path already staged it).
                 // This MUST run before the block node connections are shut down: in gRPC mode a closed ISS block lives
                 // only in the in-memory buffer that their shutdown clears, so resolving it afterwards would find
                 // nothing.
-                app.issDetectionUploadCoordinator().uploadDetectedIssOnFailure();
+                // NOTE: this only WRITES the artifact to failureBlockUpload.issBlockDir; a SEPARATE deployment uploader
+                // ships it. TODO(devops): that dir must be a host bind mount with a mirror.py uploader instance
+                // provisioned against it — until then nothing is shipped (see FailureBlockUploadConfig).
+                app.issDetectionUploadCoordinator().stageDetectedIssOnFailure();
 
                 if (streamToBlockNodes && isNotEmbedded()) {
                     logger.info("CATASTROPHIC_FAILURE - Shutting down connections to Block Nodes");
                     app.blockNodeConnectionManager().shutdown();
                 }
-                // The open/pending blocks flushed above are on disk; upload them to the triage/ folder (no-op unless
-                // failureBlockUpload.triageUploadEnabled).
-                app.triageBlockUploadCoordinator().uploadFlushedIssBlocks();
+                // The open/pending blocks flushed above are on disk; stage them for the deployment's uploader (no-op
+                // unless failureBlockUpload.triageUploadEnabled), grouped under the SAME per-incident folder as the
+                // exact
+                // ISS block so one incident is one directory.
+                app.triageBlockUploadCoordinator()
+                        .stageFlushedTriageBlocks(
+                                app.issDetectionUploadCoordinator().currentIncidentFolder());
             }
             case BEHIND -> BlockHashSigning.cancelAndRemoveAll(rsaSignings);
             case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING, FREEZING -> {

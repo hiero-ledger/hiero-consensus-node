@@ -14,11 +14,11 @@ import org.hiero.consensus.model.notification.IssNotification;
 
 /**
  * Listener for fatal ISS events (i.e. {@code SELF_ISS} or {@code CATASTROPHIC_ISS}). It logs the event and hands the
- * ISS round to {@link IssDetectionUploadCoordinator}, which captures the ISS-round block and uploads it to the
- * {@code iss/} bucket folder for triage (no-op unless {@code failureBlockUpload.issBlockUploadEnabled} is set). The block
- * stream manager is deliberately allowed to keep processing rounds normally; if the platform later reaches
- * {@code CATASTROPHIC_FAILURE}, the open/pending blocks flushed there are uploaded separately to the {@code triage/}
- * folder by {@code TriageBlockUploadCoordinator}.
+ * ISS round to {@link IssDetectionUploadCoordinator}, which captures the ISS-round block and stages it to the node-local
+ * {@code issBlockDir} for the deployment's uploader to ship for triage (no-op unless
+ * {@code failureBlockUpload.issBlockUploadEnabled} is set). The block stream manager is deliberately allowed to keep
+ * processing rounds normally; if the platform later reaches {@code CATASTROPHIC_FAILURE}, the open/pending blocks flushed
+ * there are staged separately by {@code TriageBlockUploadCoordinator}.
  */
 @Singleton
 public class FatalIssListenerImpl implements AsyncFatalIssListener {
@@ -35,6 +35,6 @@ public class FatalIssListenerImpl implements AsyncFatalIssListener {
     @Override
     public void notify(@NonNull final IssNotification data) {
         log.warn("ISS detected (type={}, round={})", data.getIssType(), data.getRound());
-        detectionUploadCoordinator.captureAndUpload(data.getIssType(), data.getRound());
+        detectionUploadCoordinator.captureAndStage(data.getIssType(), data.getRound());
     }
 }

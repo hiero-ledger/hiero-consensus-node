@@ -111,7 +111,7 @@ class HederaCatastrophicFailureOrderingTest {
         inOrder.verify(blockStreamManager).awaitFatalShutdown(any());
         // The ISS-round block must be captured BEFORE the connection shutdown clears the in-memory buffer: in gRPC
         // mode a closed, proven ISS block lives only in that buffer, so capturing after shutdown would find nothing.
-        inOrder.verify(issDetectionUploadCoordinator).uploadDetectedIssOnFailure();
+        inOrder.verify(issDetectionUploadCoordinator).stageDetectedIssOnFailure();
         inOrder.verify(blockNodeConnectionManager).shutdown();
     }
 

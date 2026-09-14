@@ -193,9 +193,9 @@ class IssBlockResolverTest {
 
     @Test
     void headerlessNewestOpenBlockDoesNotAbortResolve() throws IOException {
-        // The real ISS block is a completed .blk.gz...
+        // The real ISS block is a completed .blk.gz spanning rounds 5..6, so it genuinely contains round 6...
         writeBlock(1, 1, ".blk.gz");
-        writeBlock(2, 5, ".blk.gz");
+        writeBlock(2, 5, 6, ".blk.gz");
         // ...but the newest artifact is a header-only .open.gz: writes were dropped after notifyFatalEvent, so it has
         // a BlockHeader but no RoundHeader. It must be skipped, not abort the whole resolve and drop the real block.
         writeHeaderlessOpenBlock(3);
@@ -209,7 +209,7 @@ class IssBlockResolverTest {
     @Test
     void corruptGzipCandidateIsSkippedNotFatal() throws IOException {
         writeBlock(1, 1, ".blk.gz");
-        writeBlock(2, 5, ".blk.gz");
+        writeBlock(2, 5, 6, ".blk.gz"); // block 2 spans rounds 5..6, so it genuinely contains round 6
         // The newest artifact is a corrupt .open.gz whose gzip header is invalid, so GZIPInputStream's constructor
         // throws (this is the file-descriptor-leak site). It must be skipped, not abort the resolve.
         final Path nodeDir = tempDir.resolve("block-0.0.3");
@@ -220,6 +220,19 @@ class IssBlockResolverTest {
 
         assertThat(refs).hasSize(1);
         assertThat(refs.getFirst().blockNumber()).isEqualTo(2);
+    }
+
+    @Test
+    void roundInHeaderlessNewestOpenBlockIsNotSubstitutedByPrecedingBlock() throws IOException {
+        writeBlock(1, 1, ".blk.gz");
+        writeBlock(2, 5, ".blk.gz"); // durable, last round 5
+        // The ISS round 6 lives in the newest block, flushed as a header-only ".open.gz" (writes dropped after
+        // notifyFatalEvent): LISTED but unreadable, so it cannot bound round 6 to block 2. Since block 2's last round
+        // (5) is < 6, the resolver must NOT substitute preceding block 2 — it returns empty so the caller keeps polling
+        // / surfaces the loss rather than staging the wrong block.
+        writeHeaderlessOpenBlock(3);
+
+        assertThat(subject.resolve(IssType.SELF_ISS, 6, 0)).isEmpty();
     }
 
     private void writeHeaderlessOpenBlock(final long number) throws IOException {

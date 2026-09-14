@@ -51,9 +51,9 @@ public class IssBlockResolver {
     private static final Logger log = LogManager.getLogger(IssBlockResolver.class);
 
     private static final String COMPLETE_EXT = ".blk.gz";
-    private static final String PENDING_EXT = ".pnd.gz";
+    private static final String PENDING_EXT = StagingFiles.PENDING_EXT;
     private static final String INCOMPLETE_EXT = ".open.gz";
-    private static final String PENDING_PROOF_EXT = ".pnd.json";
+    private static final String PENDING_PROOF_EXT = StagingFiles.PENDING_PROOF_EXT;
     /** Written by {@code FileBlockItemWriter} only after a block is fully written and closed. */
     private static final String MARKER_EXT = ".mf";
 
@@ -125,6 +125,10 @@ public class IssBlockResolver {
         final int maxReadSize = config.maxReadBytesSize();
         int issIndex = -1;
         Long oldestReadableRound = null;
+        // Whether a READABLE block newer than the pick bounds the round to the pick (its first round > round). If none
+        // does — because the newest block(s) were unreadable and skipped — the pick needs the last-round confirmation
+        // below before it can be trusted.
+        boolean boundedByReadableNewerBlock = false;
         for (int i = blocks.size() - 1; i >= 0; i--) {
             final OptionalLong firstRound = cachedFirstRound(blocks.get(i), maxReadDepth, maxReadSize);
             if (firstRound.isEmpty()) {
@@ -139,6 +143,7 @@ public class IssBlockResolver {
                 issIndex = i;
                 break;
             }
+            boundedByReadableNewerBlock = true;
         }
         if (issIndex < 0) {
             log.warn(
@@ -149,14 +154,13 @@ public class IssBlockResolver {
         }
 
         // The loop picks the rightmost block whose FIRST round <= the ISS round: proof only that the round is in that
-        // block OR a later one. A later LISTED block would have bounded it (its first round > round), but when the pick
-        // is the NEWEST listed block the round may instead be in the still-open block — written as an unmarked
-        // ".blk.gz" and excluded by the ".mf" gate above. Returning this preceding block would upload the wrong one and
-        // let the coordinator mark the round done, so confirm the round is actually within the newest block
-        // (round <= its LAST round); if not, keep polling (return empty) until the open block closes or is flushed. An
-        // unreadable ".open.gz" skipped above stays in the list, leaving issIndex < size-1, so the best-effort fallback
-        // for a dropped-writes open block is untouched.
-        if (issIndex == blocks.size() - 1) {
+        // block OR a newer one. A readable newer block bounds it (its first round > round) — but if NO readable newer
+        // block does (the pick is the newest block, or every newer block was an unreadable/header-only ".open.gz"
+        // skipped above), the round may instead be in that newest, not-yet-durable/unreadable block. Returning the pick
+        // would stage the WRONG block and let the coordinator mark the round done, so confirm the round is actually
+        // within the pick (round <= its LAST round); if not, return empty so the caller keeps polling / surfaces the
+        // loss rather than masking it with a preceding block.
+        if (!boundedByReadableNewerBlock) {
             final OptionalLong lastRound = cachedLastRound(blocks.get(issIndex), maxReadDepth, maxReadSize);
             if (lastRound.isEmpty() || lastRound.getAsLong() < round) {
                 log.info(

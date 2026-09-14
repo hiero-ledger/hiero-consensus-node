@@ -95,6 +95,12 @@ public class IssBufferBlockReader {
             return List.of();
         }
 
+        // Unlike the disk resolver (IssBlockResolver), we intentionally do NOT re-confirm round <= the picked block's
+        // LAST round. On disk the ISS round can still be in the not-yet-durable OPEN block (excluded by the .mf gate),
+        // so a first-round<=round pick can land on an earlier, wrong block — hence that gate + polling there. The
+        // in-memory buffer holds the open block too, and detection lags the ISS round by several rounds, so by capture
+        // time the round is always buffered within some block here; the first-round<=round pick with the monotonic
+        // break is sufficient.
         final long firstBlockNumber = Math.max(earliest, issBlockNumber - Math.max(0, precedingBlocks));
         final List<Path> written = new ArrayList<>();
         Path issBlockPath = null;
@@ -177,9 +183,12 @@ public class IssBufferBlockReader {
         }
         Files.createDirectories(targetDir);
         final Path out = targetDir.resolve(FileBlockItemWriter.longToFileName(blockNumber) + INCOMPLETE_EXT);
-        try (final GZIPOutputStream os = new GZIPOutputStream(Files.newOutputStream(out))) {
+        // Write to a temp sibling then atomically rename, so the deployment's uploader never grabs a partial .iss.gz.
+        final Path tmp = StagingFiles.tmpFor(out);
+        try (final GZIPOutputStream os = new GZIPOutputStream(Files.newOutputStream(tmp))) {
             os.write(BlockBytes.PROTOBUF.toBytes(new BlockBytes(items)).toByteArray());
         }
+        StagingFiles.atomicMoveOnto(tmp, out);
         return out;
     }
 }

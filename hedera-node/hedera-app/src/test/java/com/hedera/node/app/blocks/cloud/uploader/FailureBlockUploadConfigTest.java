@@ -19,16 +19,8 @@ class FailureBlockUploadConfigTest {
 
         assertThat(config.issBlockUploadEnabled()).isFalse();
         assertThat(config.triageUploadEnabled()).isFalse();
-        assertThat(config.bucketName()).isEmpty();
-        assertThat(config.endpoint()).isEqualTo("https://storage.googleapis.com");
-        assertThat(config.region()).isEqualTo("auto");
-        assertThat(config.storageClass()).isEqualTo("STANDARD");
-        assertThat(config.objectKeyPrefix()).isEqualTo("iss-blocks");
-        assertThat(config.issBlockDir()).isEqualTo("data/iss-blocks");
+        assertThat(config.issBlockDir()).isEqualTo("/opt/hgcapp/issBlocks");
         assertThat(config.precedingBlocks()).isZero();
-        assertThat(config.credentialsFileName()).isEqualTo("iss-bucket-credentials.properties");
         assertThat(config.captureTimeout()).isEqualTo(Duration.ofSeconds(30));
-        assertThat(config.uploadTimeout()).isEqualTo(Duration.ofSeconds(60));
-        assertThat(config.maxRetries()).isEqualTo(3);
     }
 }
