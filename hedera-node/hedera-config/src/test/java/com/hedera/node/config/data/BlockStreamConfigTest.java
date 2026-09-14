@@ -41,6 +41,7 @@ class BlockStreamConfigTest {
                 "/opt/hgcapp/blockStreams",
                 1,
                 Duration.ofSeconds(2),
+                0,
                 8192,
                 Duration.ofMillis(10),
                 100,

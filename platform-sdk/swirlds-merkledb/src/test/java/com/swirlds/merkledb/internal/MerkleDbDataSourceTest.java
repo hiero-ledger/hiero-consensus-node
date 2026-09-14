@@ -493,7 +493,7 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
         // spotless:off
         createAndApplyDataSource(1, dataSource -> {
             final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
-            coordinator.stopAndDisableBackgroundCompaction();
+            coordinator.stopAndDisableBackgroundCompaction(true);
 
             dataSource.saveRecords(
                     0,

@@ -83,11 +83,6 @@ public class DefaultIssDetector implements IssDetector {
     private boolean replayingPreconsensusStream = true;
 
     /**
-     * A round that should not be validated. Set to {@link #DO_NOT_IGNORE_ROUNDS} if all rounds should be validated.
-     */
-    private final long ignoredRound;
-
-    /**
      * ISS related metrics
      */
     private final IssMetrics issMetrics;
@@ -101,14 +96,12 @@ public class DefaultIssDetector implements IssDetector {
     /**
      * Create an object that tracks reported hashes and detects ISS events.
      *
-     * @param time the time provider
-     * @param configuration the configuration
-     * @param metrics the metrics
-     * @param roster the current roster
+     * @param time                         the time provider
+     * @param configuration                the configuration
+     * @param metrics                      the metrics
+     * @param roster                       the current roster
      * @param ignorePreconsensusSignatures If true, ignore signatures from the preconsensus event stream, otherwise
-     * validate them like normal.
-     * @param ignoredRound a round that should not be validated. Set to {@link #DO_NOT_IGNORE_ROUNDS} if all rounds
-     * should be validated.
+     *                                     validate them like normal.
      */
     public DefaultIssDetector(
             @NonNull final Time time,
@@ -116,7 +109,6 @@ public class DefaultIssDetector implements IssDetector {
             @NonNull final Metrics metrics,
             @NonNull final Roster roster,
             final boolean ignorePreconsensusSignatures,
-            final long ignoredRound,
             final long latestFreezeRound) {
 
         final ConsensusConfig consensusConfig = configuration.getConfigData(ConsensusConfig.class);
@@ -139,10 +131,6 @@ public class DefaultIssDetector implements IssDetector {
             logger.info(STARTUP.getMarker(), "State signatures from the preconsensus event stream will be ignored.");
         }
 
-        this.ignoredRound = ignoredRound;
-        if (ignoredRound != DO_NOT_IGNORE_ROUNDS) {
-            logger.warn(STARTUP.getMarker(), "No ISS detection will be performed for round {}", ignoredRound);
-        }
         this.issMetrics = new IssMetrics(metrics, roster);
         this.latestFreezeRound = latestFreezeRound;
     }
@@ -153,21 +141,6 @@ public class DefaultIssDetector implements IssDetector {
     @Override
     public void signalEndOfPreconsensusReplay() {
         replayingPreconsensusStream = false;
-    }
-
-    /**
-     * Create an ISS notification if the round shouldn't be ignored
-     *
-     * @param roundNumber the round number of the ISS
-     * @param issType the type of the ISS
-     * @return an ISS notification, or null if the round of the ISS should be ignored
-     */
-    @Nullable
-    private IssNotification maybeCreateIssNotification(final long roundNumber, @NonNull final IssType issType) {
-        if (roundNumber == ignoredRound) {
-            return null;
-        }
-        return new IssNotification(roundNumber, issType);
     }
 
     /**
@@ -303,10 +276,8 @@ public class DefaultIssDetector implements IssDetector {
                     || status == HashValidityStatus.CATASTROPHIC_LACK_OF_DATA) {
 
                 final IssNotification notification =
-                        maybeCreateIssNotification(roundHashValidator.getRound(), IssType.CATASTROPHIC_ISS);
-                if (notification != null) {
-                    handleCatastrophic(roundHashValidator);
-                }
+                        new IssNotification(roundHashValidator.getRound(), IssType.CATASTROPHIC_ISS);
+                handleCatastrophic(roundHashValidator);
 
                 return notification;
             } else if (status == HashValidityStatus.LACK_OF_DATA) {
@@ -374,11 +345,6 @@ public class DefaultIssDetector implements IssDetector {
             return null;
         }
 
-        if (signaturePayload.round() == ignoredRound) {
-            // This round is intentionally ignored.
-            return null;
-        }
-
         final RoundHashValidator roundValidator = roundData.get(signaturePayload.round());
         if (roundValidator == null) {
             // We are being asked to validate a signature from the far future or far past, or a round that has already
@@ -398,7 +364,7 @@ public class DefaultIssDetector implements IssDetector {
      * Checks the validity of the self state hash for a round.
      *
      * @param round the round of the state
-     * @param hash the hash of the state
+     * @param hash  the hash of the state
      * @return an ISS notification, or null if no ISS occurred
      */
     @Nullable
@@ -471,22 +437,18 @@ public class DefaultIssDetector implements IssDetector {
         return switch (roundValidator.getStatus()) {
             case VALID -> {
                 if (roundValidator.hasDisagreement()) {
-                    yield maybeCreateIssNotification(round, IssType.OTHER_ISS);
+                    yield new IssNotification(round, IssType.OTHER_ISS);
                 }
                 yield null;
             }
             case SELF_ISS -> {
-                final IssNotification notification = maybeCreateIssNotification(round, IssType.SELF_ISS);
-                if (notification != null) {
-                    handleSelfIss(roundValidator);
-                }
+                final IssNotification notification = new IssNotification(round, IssType.SELF_ISS);
+                handleSelfIss(roundValidator);
                 yield notification;
             }
             case CATASTROPHIC_ISS -> {
-                final IssNotification notification = maybeCreateIssNotification(round, IssType.CATASTROPHIC_ISS);
-                if (notification != null) {
-                    handleCatastrophic(roundValidator);
-                }
+                final IssNotification notification = new IssNotification(round, IssType.CATASTROPHIC_ISS);
+                handleCatastrophic(roundValidator);
                 yield notification;
             }
             case UNDECIDED ->

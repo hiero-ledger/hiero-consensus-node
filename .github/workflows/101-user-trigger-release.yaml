@@ -43,7 +43,7 @@ jobs:
           checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
           checkout-fetch-depth: "0"
           setup-node: "true"
-          node-version: "20"
+          node-version: "24"
 
       - name: Print Input Parameters
         env:

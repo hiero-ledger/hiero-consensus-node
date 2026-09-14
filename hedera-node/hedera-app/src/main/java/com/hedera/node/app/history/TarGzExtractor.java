@@ -67,6 +67,7 @@ public final class TarGzExtractor {
         try (var fis = new FileInputStream(tarGzPath.toFile());
                 var gis = new GZIPInputStream(fis)) {
             int entryCount = 0;
+            int metadataHeaderCount = 0;
             long totalExtractedBytes = 0L;
             String longName = null;
 
@@ -81,12 +82,21 @@ public final class TarGzExtractor {
 
                 // Handle GNU long name extension: data is the real name, next header is the entry
                 if (typeFlag == TYPEFLAG_GNU_LONGNAME) {
+                    // Metadata headers are counted separately so they cannot be repeated without bound
+                    metadataHeaderCount++;
+                    if (metadataHeaderCount > MAX_ENTRIES) {
+                        throw new IOException("Tar archive contains too many metadata headers (>" + MAX_ENTRIES + ")");
+                    }
                     longName = readLongName(gis, entrySize);
                     continue;
                 }
 
                 // Skip PAX extended headers
                 if (typeFlag == 'x' || typeFlag == 'g' || typeFlag == 'X') {
+                    metadataHeaderCount++;
+                    if (metadataHeaderCount > MAX_ENTRIES) {
+                        throw new IOException("Tar archive contains too many metadata headers (>" + MAX_ENTRIES + ")");
+                    }
                     skipDataBlocks(gis, entrySize);
                     continue;
                 }
@@ -242,6 +252,11 @@ public final class TarGzExtractor {
     }
 
     private static String readLongName(@NonNull final InputStream is, final long size) throws IOException {
+        // The size field is attacker-controlled, so bound it before allocating (+1 for the trailing NUL)
+        if (size <= 0 || size > MAX_NAME_LENGTH + 1) {
+            throw new IOException(
+                    "Tar GNU long name entry has an invalid size (" + size + ", max=" + (MAX_NAME_LENGTH + 1) + ")");
+        }
         final byte[] nameBytes = is.readNBytes((int) size);
         if (nameBytes.length < size) {
             throw new IOException("Unexpected end of tar archive while reading long name");
