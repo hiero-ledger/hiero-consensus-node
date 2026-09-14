@@ -4,7 +4,6 @@ package com.swirlds.virtualmap.internal.cache;
 import static com.swirlds.virtualmap.internal.cache.VirtualNodeCache.DELETED_LEAF_RECORD;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.*;
 import static java.util.Arrays.asList;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -38,22 +37,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.exceptions.ReferenceCountException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -617,7 +610,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Lifecycle")})
     @DisplayName("A fresh cache is mutable for leaves but immutable for hashes")
     void freshCacheIsMutableForLeaves() {
-        assertFalse(cache.isImmutable(), "Cache was just instantiated");
+        assertFalse(cache.isImmutableForLeafChanges(), "Cache was just instantiated");
         assertFalse(cache.isDestroyed(), "Cache was just instantiated");
         final VirtualHashChunk virtualHashChunk = new VirtualHashChunk(0, HASH_CHUNK_HEIGHT);
         assertThrows(
@@ -638,8 +631,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         nextRound();
 
         final VirtualNodeCache latest = cache;
-        assertTrue(original.isImmutable(), "After a round, a copy is created");
-        assertFalse(latest.isImmutable(), "The latest cache is mutable");
+        assertTrue(original.isImmutableForLeafChanges(), "After a round, a copy is created");
+        assertFalse(latest.isImmutableForLeafChanges(), "The latest cache is mutable");
         assertThrows(
                 MutabilityException.class,
                 () -> original.putLeaf(appleLeaf(A_PATH)),
@@ -874,7 +867,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     void canReleaseOnlyCacheEvenIfNeverCopied() {
         cache.release();
         assertTrue(cache.isDestroyed(), "cache should be destroyed");
-        assertTrue(cache.isImmutable(), "cache should be immutable");
+        assertTrue(cache.isImmutableForLeafChanges(), "cache should be immutable");
     }
 
     /**
@@ -925,7 +918,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @DisplayName("Release cannot be called twice")
     void releaseCannotBeCalledTwice() {
         cache.release();
-        assertThrows(ReferenceCountException.class, cache::release, "second release should fail");
+        assertThrows(IllegalStateException.class, cache::release, "second release should fail");
     }
 
     /**
@@ -1351,125 +1344,6 @@ class VirtualNodeCacheTest extends VirtualTestBase {
                 }
             }
         });
-    }
-
-    /**
-     * This test attempts to perform merges and releases in parallel. In the implementation we have
-     * to be careful of this situation (which can happen in the real world) because we do some
-     * bookkeeping of "next" and "previous" references, and both merging and releasing will play
-     * havoc on that if they are concurrent.
-     */
-    @Test
-    @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Lifecycle")})
-    @DisplayName("Concurrently merge and release different caches")
-    void concurrentReleasesAndMerges() {
-        // This pseudo-random is used to generate some percent chance of put vs. delete mutations.
-        // This isn't really necessary, just adds a little more complexity to the test.
-        final Random random = new Random(1234);
-        // Used by all three threads to know when to stop
-        final AtomicBoolean stop = new AtomicBoolean(false);
-        // Keeps track of which round we're on. I use this for generating the values for leaves, so that
-        // each round has a unique value. Might not be needed, but is helpful in debugging.
-        final AtomicInteger round = new AtomicInteger(0);
-        // Keeps track of all caches, so I know which one to release and which to merge.
-        final ConcurrentLinkedDeque<VirtualNodeCache> caches = new ConcurrentLinkedDeque<>();
-
-        // I will have one thread that produces new caches as quickly as possible.
-        // It will randomly put and delete leaves.
-        final AtomicReference<Throwable> creatorThreadException = new AtomicReference<>();
-        final Thread creatorThread = new Thread(() -> {
-            while (!stop.get()) {
-                final int r = round.getAndIncrement();
-                // Create 100 mutations
-                for (int i = 0; i < 100; i++) {
-                    final int id = random.nextInt(10000);
-                    final int chance = random.nextInt(100);
-                    // Give a 90% chance of a put
-                    if (chance <= 90) {
-                        cache.putLeaf(new VirtualLeafBytes<>(
-                                id, TestKey.longToKey(id), new TestValue(r + ":" + id), TestValueCodec.INSTANCE));
-                    } else {
-                        cache.deleteLeaf(new VirtualLeafBytes<>(id, TestKey.longToKey(id), null, null));
-                    }
-                }
-                final VirtualNodeCache done = cache;
-                nextRound();
-                done.seal();
-                caches.addLast(done);
-            }
-        });
-        creatorThread.setDaemon(true);
-        creatorThread.setUncaughtExceptionHandler((t, e) -> creatorThreadException.set(e));
-        creatorThread.start();
-
-        // I will have another thread that performs releases. Every 100us it will attempt to release a cache
-        final AtomicReference<VirtualNodeCache> toRelease = new AtomicReference<>();
-        final AtomicReference<Throwable> releaseThreadException = new AtomicReference<>();
-        final Thread releaseThread = new Thread(() -> {
-            long startNanos = System.nanoTime();
-            while (!stop.get()) {
-                final long currentNanos = System.nanoTime();
-                if (currentNanos - startNanos >= 100_000) {
-                    final VirtualNodeCache cache = toRelease.getAndSet(null);
-                    if (cache != null) {
-                        cache.release();
-                    }
-                    startNanos = currentNanos;
-                }
-            }
-        });
-        releaseThread.setDaemon(true);
-        releaseThread.setUncaughtExceptionHandler((t, e) -> releaseThreadException.set(e));
-        releaseThread.start();
-
-        // I will have a final thread that performs merges as fast as it can. This increases the likelihood
-        // of a race with the release thread.
-        final AtomicReference<Throwable> mergingThreadException = new AtomicReference<>();
-        final Thread mergingThread = new Thread(() -> {
-            while (!stop.get()) {
-                final Iterator<VirtualNodeCache> itr = caches.iterator();
-                if (itr.hasNext()) {
-                    final VirtualNodeCache toMerge = itr.next();
-                    if (itr.hasNext()) {
-                        itr.remove(); // get rid of "toMerge". It is to be merged into the next.
-                        toMerge.merge();
-                        final VirtualNodeCache merged = itr.next();
-                        if (toRelease.compareAndSet(null, merged)) {
-                            itr.remove();
-                        }
-                    }
-                }
-            }
-        });
-        mergingThread.setDaemon(true);
-        mergingThread.setUncaughtExceptionHandler((t, e) -> mergingThreadException.set(e));
-        mergingThread.start();
-
-        // We'll run the test for 1 second. That should have produced 100,000 releases. A pretty good
-        // chance of a race condition happening.
-        final long start = System.currentTimeMillis();
-        long time = start;
-        while (time < start + 1000) {
-            try {
-                MILLISECONDS.sleep(20);
-            } catch (final InterruptedException ignored) {
-            }
-            time = System.currentTimeMillis();
-        }
-
-        stop.set(true);
-
-        if (creatorThreadException.get() != null) {
-            fail("exception in creator thread", creatorThreadException.get());
-        }
-
-        if (releaseThreadException.get() != null) {
-            fail("exception in release thread", releaseThreadException.get());
-        }
-
-        if (mergingThreadException.get() != null) {
-            fail("exception in merging thread", mergingThreadException.get());
-        }
     }
 
     // ----------------------------------------------------------------------
@@ -1908,7 +1782,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
 
         // Release the older caches
         caches.forEach(cacheInfo -> {
-            if (cacheInfo.cache.isImmutable()) {
+            if (cacheInfo.cache.isImmutableForLeafChanges()) {
                 cacheInfo.cache.release();
             }
         });

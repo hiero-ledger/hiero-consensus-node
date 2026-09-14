@@ -39,6 +39,7 @@ testModuleInfo {
     requires("com.fasterxml.jackson.databind")
     requires("com.google.common.jimfs")
     requires("com.google.protobuf")
+    requires("io.helidon.builder.api")
     requires("org.assertj.core")
     requires("org.bouncycastle.provider")
     requires("org.junit.jupiter.api")

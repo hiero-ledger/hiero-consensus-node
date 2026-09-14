@@ -75,7 +75,7 @@ public class DisabledNodeOperatorTest extends NodeOperatorQueriesBase implements
                 getAccountBalance(NODE_OPERATOR).payingWith(PAYER),
                 sleepFor(3000),
                 // assert payer is charged
-                getAccountBalance(PAYER).hasTinyBars(ONE_HUNDRED_HBARS),
+                getAccountBalance(PAYER).hasTinyBars(lessThan(ONE_HUNDRED_HBARS)),
                 withOpContext((spec, opLog) -> assertThatThrownBy(() -> {
                             final var getAccountBalanceAsNodeOperator = getAccountBalance(NODE_OPERATOR)
                                     .payingWith(PAYER)

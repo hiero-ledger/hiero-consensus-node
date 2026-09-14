@@ -11,7 +11,8 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStateM
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStatusMonitorModule;
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpTransactionHandlingModule;
 import static com.swirlds.platform.state.NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.fakes.noop.FakeRosterFactory.fakeRosterHistory;
 import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -19,10 +20,14 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
 import com.swirlds.state.NoOpStateLifecycleManager;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -40,22 +45,21 @@ import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.ConsensusLayerWiring;
 import org.hiero.consensus.PathsConfig;
-import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
+import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpRecycleBin;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.hashgraph.HashgraphModule;
-import org.hiero.consensus.io.NoOpRecycleBin;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pcli.utility.NoOpExecutionLayer;
 import org.hiero.consensus.pcli.utility.VirtualTerminal;
-import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.monitor.StatusMonitorModule;
@@ -156,7 +160,7 @@ public final class DiagramCommand extends AbstractCommand {
                 configuration,
                 new NoOpMetrics(),
                 Time.getCurrent(),
-                RosterHistory.fakeRoster(),
+                fakeRosterHistory(),
                 KeysAndCertsGenerator.generate(NodeId.FIRST_NODE_ID),
                 NodeId.FIRST_NODE_ID,
                 new NoOpRecycleBin(),
@@ -177,18 +181,24 @@ public final class DiagramCommand extends AbstractCommand {
                 null,
                 Map.of());
 
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new NoOpStateLifecycleManager<>();
+
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
         final StatusMonitorModule statusMonitorModule = createNoOpStatusMonitorModule(model, configuration);
         final PcesModule pcesModule = createNoOpPcesModule(model, configuration, statusMonitorModule);
         final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
-        final GossipModule gossipModule = createNoOpGossipModule(model, configuration, fileSystemManager);
+        final GossipModule gossipModule =
+                createNoOpGossipModule(model, configuration, metrics, time, stateLifecycleManager);
         final IssDetectionModule issDetectionModule =
                 createNoOpIssDetectionModule(model, configuration, fileSystemManager);
-        final TransactionHandlingModule transactionHandlingModule =
-                createNoOpTransactionHandlingModule(model, configuration, fileSystemManager, statusMonitorModule);
-        final StateModule statemanagementModule =
-                createNoOpStateManagementModule(model, configuration, fileSystemManager);
+        final TransactionHandlingModule transactionHandlingModule = createNoOpTransactionHandlingModule(
+                model, configuration, metrics, time, stateLifecycleManager, statusMonitorModule);
+        final StateModule statemanagementModule = createNoOpStateManagementModule(
+                model, configuration, fileSystemManager, metrics, time, stateLifecycleManager);
 
         final EventStreamWiringConfig eventStreamConfig = configuration.getConfigData(EventStreamWiringConfig.class);
         final ComponentWiring<ConsensusEventStream, Void> eventStreamWiring =

@@ -24,7 +24,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 
 public class CannotDeleteSystemEntitiesSuite {
-    final int[] sysFileIds = {101, 102, 111, 112, 121, 122, 150};
+    final int[] sysFileIds = {101, 102, 112, 113, 121, 122, 150};
 
     @HapiTest
     final Stream<DynamicTest> genesisCannotDeleteSystemAccountsFrom1To100() {

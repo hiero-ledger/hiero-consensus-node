@@ -35,8 +35,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.config.BasicCommonConfig;
 import org.hiero.base.utility.ThresholdLimitingHandler;
-import org.hiero.consensus.concurrent.config.BasicCommonConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.model.node.NodeId;
 

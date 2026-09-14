@@ -272,12 +272,10 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
         final var gasRequirement = fullResult.gasRequirement();
         final PrecompileContractResult result;
 
-        // ops duration recording
         final var opsDurationCounter = FrameUtils.opsDurationCounter(frame);
         final var opsDurationSchedule = opsDurationCounter.schedule();
-        final var opsDurationCost = gasRequirement
-                * opsDurationSchedule.systemContractGasBasedDurationMultiplier()
-                / opsDurationSchedule.multipliersDenominator();
+        final var opsDurationCost = opsDurationSchedule.gasBasedOpsDuration(
+                gasRequirement, opsDurationSchedule.systemContractGasBasedDurationMultiplier());
         opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationCost);
         contractMetrics
                 .opsDurationMetrics()
@@ -342,16 +340,8 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
         final var gasRequirement = precompile.gasRequirement(frame.getInputData());
         final PrecompileContractResult result;
 
-        // ops duration recording
-        final var opsDurationCounter = FrameUtils.opsDurationCounter(frame);
-        final var opsDurationSchedule = opsDurationCounter.schedule();
-        final var opsDurationCost = gasRequirement
-                * opsDurationSchedule.precompileGasBasedDurationMultiplier()
-                / opsDurationSchedule.multipliersDenominator();
-        opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationCost);
-        contractMetrics.opsDurationMetrics().recordPrecompileOpsDuration(precompile.getName(), opsDurationCost);
-
         if (frame.getRemainingGas() < gasRequirement) {
+            // The call cannot afford its gas requirement, so no work is done and no ops duration is recorded.
             result = PrecompileContractResult.halt(Bytes.EMPTY, Optional.of(INSUFFICIENT_GAS));
         } else {
             frame.decrementRemainingGas(gasRequirement);
@@ -359,6 +349,14 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
             if (result.isRefundGas()) {
                 frame.incrementRemainingGas(gasRequirement);
             }
+
+            // ops duration recording (only for calls that actually execute)
+            final var opsDurationCounter = FrameUtils.opsDurationCounter(frame);
+            final var opsDurationSchedule = opsDurationCounter.schedule();
+            final var opsDurationCost = opsDurationSchedule.gasBasedOpsDuration(
+                    gasRequirement, opsDurationSchedule.precompileGasBasedDurationMultiplier());
+            opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationCost);
+            contractMetrics.opsDurationMetrics().recordPrecompileOpsDuration(precompile.getName(), opsDurationCost);
         }
         // We must always call tracePrecompileResult() to ensure the tracer is in a consistent
         // state, because AbstractMessageProcessor.process() will not invoke the tracer's
@@ -433,7 +431,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
      * @return true if the input data matches any of the known create selectors, false otherwise
      */
     private boolean isTokenCreation(MessageFrame frame) {
-        if (frame.getInputData().isEmpty()) {
+        if (frame.getInputData().size() < 4) {
             return false;
         }
         final var selector = frame.getInputData().slice(0, 4).toArray();

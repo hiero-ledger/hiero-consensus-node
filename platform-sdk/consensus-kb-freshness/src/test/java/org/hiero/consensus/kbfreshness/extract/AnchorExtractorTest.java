@@ -44,20 +44,21 @@ class AnchorExtractorTest {
     }
 
     @Test
-    void fullPathCodeSpanBecomesSourcePathWithNoAssertedLine() {
+    void fullPathCodeSpanBecomesSourcePathCarryingTheCitedLine() {
         final List<Anchor> anchors = extract(List.of(
                 "As cited (`platform-sdk/consensus-model/src/main/java/org/hiero/PlatformStatus.java:38-41`)."));
         final Anchor a = require(anchors, AnchorKind.SOURCE_PATH, t -> t.endsWith("PlatformStatus.java"));
         assertThat(a.target()).isEqualTo("platform-sdk/consensus-model/src/main/java/org/hiero/PlatformStatus.java");
-        assertThat(a.citedLine()).isEqualTo(Anchor.NO_LINE);
+        // The line is carried (start of a range) to drive a `:NN`→`#symbol` migration — not asserted on.
+        assertThat(a.citedLine()).isEqualTo(38);
         assertThat(a.citedModule()).isEqualTo("consensus-model");
     }
 
     @Test
-    void bareFilenameCodeSpanBecomesSourceBasename() {
+    void bareFilenameCodeSpanBecomesSourceBasenameCarryingTheCitedLine() {
         final List<Anchor> anchors = extract(List.of("Handled in (`ObservingStatusLogic.java:176-187`)."));
         final Anchor a = require(anchors, AnchorKind.SOURCE_BASENAME, t -> t.equals("ObservingStatusLogic.java"));
-        assertThat(a.citedLine()).isEqualTo(Anchor.NO_LINE);
+        assertThat(a.citedLine()).isEqualTo(176);
         assertThat(a.citedModule()).isNull();
     }
 
@@ -68,7 +69,7 @@ class AnchorExtractorTest {
         final Anchor a = require(anchors, AnchorKind.SOURCE_PATH, t -> t.endsWith("Foo.java"));
         assertThat(a.target()).isEqualTo("platform-sdk/swirlds-x/src/main/java/com/swirlds/Foo.java");
         assertThat(a.citedModule()).isEqualTo("swirlds-x");
-        assertThat(a.citedLine()).isEqualTo(Anchor.NO_LINE);
+        assertThat(a.citedLine()).isEqualTo(42);
     }
 
     @Test

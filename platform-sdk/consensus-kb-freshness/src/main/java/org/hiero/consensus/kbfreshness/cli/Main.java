@@ -161,7 +161,11 @@ public final class Main implements Callable<Integer> {
         }
 
         if (!markReviewed.isEmpty()) {
-            final ReviewedMarker.Result marked = ReviewedMarker.apply(result, repoRoot, markReviewed, date);
+            // A doc with no anchored source has no per-source commit to derive from; date it by the
+            // reviewed checkout's HEAD commit (the state the review was performed against), not wall-clock.
+            final String headDate = result.git().headCommitDate();
+            final String markFallback = headDate != null ? headDate : date;
+            final ReviewedMarker.Result marked = ReviewedMarker.apply(result, repoRoot, markReviewed, markFallback);
             System.out.printf(
                     "kb-freshness --mark-reviewed: updated %d doc(s). Re-run to refresh the worklist.%n",
                     marked.updated());

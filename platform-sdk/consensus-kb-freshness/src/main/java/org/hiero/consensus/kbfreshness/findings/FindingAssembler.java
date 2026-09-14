@@ -109,9 +109,11 @@ public final class FindingAssembler {
             return build(entry, rep, existence, occurrencesOf(group));
         }
 
-        // Present-and-clean group: the only remaining finding is an auto-fix for moved line refs.
+        // Present-and-clean group: the only remaining finding is an auto-fix for a cited line — either a
+        // moved line (corrected line) or a declaration line migrating to `#symbol`.
         final List<Occurrence> autoFixOccurrences = new ArrayList<>();
         Integer correctedLine = null;
+        String correctedSymbol = null;
         String evidence = "";
         String question = existence.question();
         for (final Anchor a : group) {
@@ -119,6 +121,7 @@ public final class FindingAssembler {
             if (r.lane() == Lane.AUTO_FIX) {
                 autoFixOccurrences.add(a.toOccurrence());
                 correctedLine = r.autoFixLine();
+                correctedSymbol = r.autoFixSymbol();
                 evidence = r.evidence();
                 question = r.question();
             }
@@ -127,8 +130,8 @@ public final class FindingAssembler {
             return null;
         }
         autoFixOccurrences.sort(Comparator.naturalOrder());
-        final Resolution autoFix =
-                new Resolution(existence.outcome(), Lane.AUTO_FIX, question, evidence, correctedLine, null);
+        final Resolution autoFix = new Resolution(
+                existence.outcome(), Lane.AUTO_FIX, question, evidence, correctedLine, null, correctedSymbol);
         return build(entry, rep, autoFix, autoFixOccurrences);
     }
 
@@ -156,7 +159,8 @@ public final class FindingAssembler {
                         occurrences)
                 .withAutoFixLine(res.autoFixLine())
                 .withResolvedPath(res.resolvedPath())
-                .withStatedModule(rep.statedModule());
+                .withStatedModule(rep.statedModule())
+                .withAutoFixSymbol(res.autoFixSymbol());
     }
 
     /**

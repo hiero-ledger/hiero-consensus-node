@@ -457,14 +457,19 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
             @NonNull List<FixedCustomFee> topicCustomFees,
             AtomicReference<Long> hbarFee,
             Map<TokenID, Long> tokenFees) {
-        for (final var fee : topicCustomFees) {
-            var fixedFee = fee.fixedFeeOrThrow();
-            if (!fixedFee.hasDenominatingTokenId()) {
-                hbarFee.updateAndGet(v -> v + fixedFee.amount());
-            } else {
-                final var denomTokenId = fixedFee.denominatingTokenId();
-                tokenFees.put(denomTokenId, tokenFees.getOrDefault(denomTokenId, 0L) + fixedFee.amount());
+        try {
+            for (final var fee : topicCustomFees) {
+                var fixedFee = fee.fixedFeeOrThrow();
+                if (!fixedFee.hasDenominatingTokenId()) {
+                    hbarFee.updateAndGet(v -> Math.addExact(v, fixedFee.amount()));
+                } else {
+                    final var denomTokenId = fixedFee.denominatingTokenId();
+                    tokenFees.merge(denomTokenId, fixedFee.amount(), Math::addExact);
+                }
             }
+        } catch (final ArithmeticException overflow) {
+            // A fee total that overflows a long necessarily exceeds any payer limit.
+            throw new HandleException(MAX_CUSTOM_FEE_LIMIT_EXCEEDED);
         }
     }
 

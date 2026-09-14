@@ -3,7 +3,6 @@ package org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator;
 
 import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.RandomEventUtils.DEFAULT_FIRST_EVENT_TIME_CREATED;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -22,7 +21,7 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.test.fixtures.Randotron;
 
 /**
@@ -34,7 +33,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
     private final Time time;
     private final long seed;
     private final int maxOtherParents;
-    private final Roster roster;
+    private final RosterWrapper roster;
     private final GeneratorEventSigner eventSigner;
     private final boolean populateNgen;
 
@@ -69,7 +68,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
             @NonNull final Time time,
             final long seed,
             final int maxOtherParents,
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final GeneratorEventSigner eventSigner,
             final boolean populateNgen) {
         this.configuration = configuration;
@@ -82,8 +81,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
         this.populateNgen = populateNgen;
 
         // These fields get reset in reset()
-        this.latestEventPerNode =
-                new EventDescriptorWrapper[roster.rosterEntries().size()];
+        this.latestEventPerNode = new EventDescriptorWrapper[roster.size()];
         this.consensus = new GeneratorConsensus(configuration, time, roster);
         this.random = Randotron.create(seed);
     }
@@ -93,7 +91,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
      *
      * @return the roster
      */
-    public @NonNull Roster getRoster() {
+    public @NonNull RosterWrapper getRoster() {
         return roster;
     }
 
@@ -118,10 +116,8 @@ public class GeneratorEventGraphSource implements EventGraphSource {
     @NonNull
     @Override
     public PlatformEvent next() {
-        final List<Integer> nodeIndices = IntStream.range(
-                        0, roster.rosterEntries().size())
-                .boxed()
-                .collect(ArrayList::new, List::add, List::addAll);
+        final List<Integer> nodeIndices =
+                IntStream.range(0, roster.size()).boxed().collect(ArrayList::new, List::add, List::addAll);
         Collections.shuffle(nodeIndices, random);
 
         final Integer eventCreator = nodeIndices.removeLast();
@@ -138,14 +134,9 @@ public class GeneratorEventGraphSource implements EventGraphSource {
         final List<Bytes> transactions = Stream.generate(() -> random.randomBytes(1, 100))
                 .limit(random.nextInt(0, 5))
                 .toList();
-        final int coin = random.nextInt(0, roster.rosterEntries().size() + 1);
+        final int coin = random.nextInt(0, roster.size() + 1);
         final UnsignedEvent unsignedEvent = new UnsignedEvent(
-                NodeId.of(roster.rosterEntries().get(eventCreator).nodeId()),
-                parents,
-                birthRound,
-                getNextTimestamp(),
-                transactions,
-                coin);
+                roster.rosterEntry(eventCreator).nodeId(), parents, birthRound, getNextTimestamp(), transactions, coin);
         hasher.hashUnsignedEvent(unsignedEvent);
 
         final PlatformEvent platformEvent =
@@ -174,8 +165,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
 
     @Override
     public void reset() {
-        this.latestEventPerNode =
-                new EventDescriptorWrapper[roster.rosterEntries().size()];
+        this.latestEventPerNode = new EventDescriptorWrapper[roster.size()];
         this.consensus = new GeneratorConsensus(configuration, time, roster);
         this.random = Randotron.create(seed);
         this.latestEventTime = null;

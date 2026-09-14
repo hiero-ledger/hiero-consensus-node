@@ -13,6 +13,7 @@ status: accepted
 date: 2026-06-04
 deciders: []   # foundational design decision; individual authors not recorded — see Notes
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # ADR-006 — Upgrade Software via a Coordinated Network-Wide Freeze Rather Than Rolling Upgrades

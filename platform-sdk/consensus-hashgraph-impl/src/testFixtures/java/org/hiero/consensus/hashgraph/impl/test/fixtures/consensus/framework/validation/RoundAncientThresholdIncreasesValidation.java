@@ -26,16 +26,20 @@ public enum RoundAncientThresholdIncreasesValidation implements ConsensusRoundCo
             return;
         }
 
-        for (int i = 1; i < rounds.size(); i++) {
+        // Carry the previous round's threshold across iterations so each round's snapshot chain is
+        // resolved only once instead of once as "current" and again as "previous".
+        MinimumJudgeInfo previousThresholdInfo =
+                rounds.getFirst().getSnapshot().minimumJudgeInfoList().getLast();
+        for (int i = 1, n = rounds.size(); i < n; i++) {
 
-            final MinimumJudgeInfo previousThresholdInfo =
-                    rounds.get(i - 1).getSnapshot().minimumJudgeInfoList().getLast();
             final MinimumJudgeInfo currentThresholdInfo =
                     rounds.get(i).getSnapshot().minimumJudgeInfoList().getLast();
 
             assertThat(currentThresholdInfo.minimumJudgeBirthRound())
                     .withFailMessage("the ancient threshold should never decrease")
                     .isGreaterThanOrEqualTo(previousThresholdInfo.minimumJudgeBirthRound());
+
+            previousThresholdInfo = currentThresholdInfo;
         }
     }
 }

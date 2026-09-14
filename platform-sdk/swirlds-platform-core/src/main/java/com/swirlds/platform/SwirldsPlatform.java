@@ -129,6 +129,7 @@ public class SwirldsPlatform implements Platform {
         notificationEngine.shutdown();
         inputs.recycleBin().stop();
         buildingBlocks.wiringModel().stop();
+        buildingBlocks.pcesModule().destroy();
         getMetricsProvider().removePlatformMetrics(selfId);
     }
 

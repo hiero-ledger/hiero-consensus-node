@@ -66,7 +66,11 @@ public enum CloseReason {
     /**
      * The connection was closed for an unknown reason. Spooky.
      */
-    UNKNOWN(CoolDownType.NONE);
+    UNKNOWN(CoolDownType.NONE),
+    /**
+     * The connection was closed due to too many timeouts sending requests to the block node.
+     */
+    TIMEOUT(CoolDownType.BASIC);
 
     private final CoolDownType coolDownType;
 

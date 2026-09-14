@@ -15,9 +15,11 @@ import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
@@ -29,6 +31,11 @@ import org.apache.logging.log4j.Logger;
  * <p>This reads jumpstart config properties (block number, previous block root hash, and streaming
  * hasher state) and a recent wrapped record hashes file, validates their consistency,
  * computes the Merkle block hashes for the range, and writes the results back to state.
+ *
+ * <p>If a jumpstart actually runs and successfully computes a {@link Result} above, {@link #execute}
+ * also truncates the on-disk wrapped record hashes file to empty (when writing to it is enabled),
+ * since that data has now been consumed and folded into the result. This must stay downstream of
+ * the read above.
  *
  * <p>TODO: Delete this in the release after receiving/injecting the jumpstart historical hashes data.
  */
@@ -61,7 +68,9 @@ public class WrappedRecordBlockHashMigration {
             "Resuming calculation of wrapped record file hashes until next attempt";
 
     /**
-     * Executes the wrapped record block hash migration if enabled.
+     * Executes the wrapped record block hash migration if enabled, then truncates the on-disk
+     * wrapped record hashes file to empty if a jumpstart actually ran and consumed it (and writing
+     * to the file is enabled).
      *
      * @param streamMode the current stream mode
      * @param recordsConfig the block record stream configuration
@@ -78,6 +87,20 @@ public class WrappedRecordBlockHashMigration {
         requireNonNull(recordsConfig);
         requireNonNull(jumpstartConfig);
 
+        try {
+            runJumpstartMigration(streamMode, recordsConfig, jumpstartConfig, migrationAlreadyApplied);
+        } finally {
+            if (result != null) {
+                truncateHashesFileIfWritingEnabled(recordsConfig);
+            }
+        }
+    }
+
+    private void runJumpstartMigration(
+            @NonNull final StreamMode streamMode,
+            @NonNull final BlockRecordStreamConfig recordsConfig,
+            @NonNull final BlockStreamJumpstartConfig jumpstartConfig,
+            final boolean migrationAlreadyApplied) {
         if (migrationAlreadyApplied) {
             if (jumpstartConfig.blockNum() < 0) {
                 log.info("Jumpstart migration already applied (votingComplete=true) and no jumpstart config, skipping");
@@ -97,6 +120,31 @@ public class WrappedRecordBlockHashMigration {
             executeInternal(recordsConfig, jumpstartConfig);
         } catch (Exception e) {
             log.error("Unable to compute continuing historical hash over recent wrapped records. " + RESUME_MESSAGE, e);
+        }
+    }
+
+    /**
+     * Truncates the on-disk wrapped record hashes file to empty when writing to it is enabled. Only
+     * called when a jumpstart actually ran and consumed the file's contents this execution (see
+     * {@link #execute}), since that is the data this truncation would otherwise discard.
+     */
+    private void truncateHashesFileIfWritingEnabled(@NonNull final BlockRecordStreamConfig recordsConfig) {
+        if (!recordsConfig.writeWrappedRecordFileBlockHashesToDisk()) {
+            return;
+        }
+        if (isBlank(recordsConfig.wrappedRecordHashesDir())) {
+            return;
+        }
+        final var file = Paths.get(recordsConfig.wrappedRecordHashesDir())
+                .resolve(WrappedRecordFileBlockHashesDiskWriter.DEFAULT_FILE_NAME);
+        if (!Files.exists(file)) {
+            return;
+        }
+        try (final var ignored =
+                Files.newByteChannel(file, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
+            log.info("Truncated wrapped record hashes file {} now that the jumpstart migration has run", file);
+        } catch (final IOException e) {
+            log.warn("Failed to truncate wrapped record hashes file {}", file, e);
         }
     }
 

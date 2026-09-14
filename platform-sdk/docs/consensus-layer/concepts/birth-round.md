@@ -81,8 +81,8 @@ buffer until the window advances such that the pending round is 101.
 
 ## In current code
 
-Field accessor: `PlatformEvent.getBirthRound()` (line 266 of
-[`PlatformEvent.java`](../../../consensus-model/src/main/java/org/hiero/consensus/model/event/PlatformEvent.java)).
+Field accessor:
+[`PlatformEvent.getBirthRound()`](../../../consensus-model/src/main/java/org/hiero/consensus/model/event/PlatformEvent.java#getBirthRound).
 Sentinel: `EventConstants.BIRTH_ROUND_UNDEFINED`
 ([`EventConstants.java`](../../../consensus-model/src/main/java/org/hiero/consensus/model/event/EventConstants.java)).
 Ancient drop happens in two places, both inside `ConsensusLinker`.

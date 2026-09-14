@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -212,6 +213,31 @@ class NetworkGetAccountDetailsHandlerTest extends NetworkAdminHandlerTestBase {
         when(context.createStore(ReadableAccountStore.class)).thenReturn(readableAccountStore);
         when(context.createStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
         when(context.createStore(ReadableTokenRelationStore.class)).thenReturn(readableTokenRelStore);
+
+        final var response = networkGetAccountDetailsHandler.findResponse(context, responseHeader);
+        final var accountDetailsResponse = response.accountDetailsOrThrow();
+        assertEquals(ResponseCodeEnum.OK, accountDetailsResponse.header().nodeTransactionPrecheckCode());
+        assertEquals(expectedInfo, accountDetailsResponse.accountDetails());
+    }
+
+    @Test
+    void getsResponseIfQueriedByAlias() {
+        final var responseHeader = ResponseHeader.newBuilder()
+                .nodeTransactionPrecheckCode(ResponseCodeEnum.OK)
+                .build();
+        final var expectedInfo = getExpectedInfo(
+                false,
+                Collections.emptyList(),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                Collections.emptyList());
+        final var accountStore = mock(ReadableAccountStore.class);
+
+        when(context.query()).thenReturn(createGetAccountDetailsQuery(alias));
+        when(context.createStore(ReadableAccountStore.class)).thenReturn(accountStore);
+        when(context.createStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
+        when(context.createStore(ReadableTokenRelationStore.class)).thenReturn(readableTokenRelStore);
+        when(accountStore.getAliasedAccountById(alias)).thenReturn(account);
 
         final var response = networkGetAccountDetailsHandler.findResponse(context, responseHeader);
         final var accountDetailsResponse = response.accountDetailsOrThrow();

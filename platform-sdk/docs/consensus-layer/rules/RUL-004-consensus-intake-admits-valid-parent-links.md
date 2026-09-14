@@ -15,6 +15,7 @@ status: holds
 confidence: high
 provenance: originally 2026-06-08 extraction run
 curated_by: Michael Heinrichs (@netopyr)
+last_reviewed: TBD
 ---
 
 # RUL-004 — Consensus intake admits only non-ancient parent links whose claimed birth round matches the actual parent

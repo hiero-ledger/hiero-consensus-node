@@ -1,0 +1,58 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.base.concurrent.framework;
+
+/**
+ * A thread or a class with a thread that can be stopped.
+ */
+public interface StoppableThread extends Stoppable {
+
+    /**
+     * The current desired status for this thread.
+     */
+    enum Status {
+        NOT_STARTED,
+        ALIVE,
+        PAUSED,
+        DYING,
+        DEAD
+    }
+
+    /**
+     * The name of this thread.
+     *
+     * @return the name
+     */
+    String getName();
+
+    /**
+     * <p>
+     * Interrupt this thread.
+     * </p>
+     *
+     * <p>
+     * If called before the thread/seed is started, then this method blocks until the thread/seed is started.
+     * </p>
+     */
+    boolean interrupt();
+
+    /**
+     * Check if this thread is currently alive.
+     *
+     * @return true if this thread is alive
+     */
+    boolean isAlive();
+
+    /**
+     * Get the current status of the thread.
+     *
+     * @return the current status
+     */
+    Status getStatus();
+
+    /**
+     * Check if this thread is currently in a hanging state.
+     *
+     * @return true if this thread is currently in a hanging state
+     */
+    boolean isHanging();
+}

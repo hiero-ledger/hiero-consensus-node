@@ -38,7 +38,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.assertj.core.data.Percentage;
 import org.hiero.base.utility.Threshold;
-import org.hiero.consensus.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -95,6 +95,7 @@ import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
  * environments.
  */
 public abstract class AbstractNetwork implements Network {
+
     /**
      * The fraction of nodes that must consider a node behind for the node to be considered behind by the network.
      */
@@ -123,7 +124,7 @@ public abstract class AbstractNetwork implements Network {
     /** The default timeout duration for network operations. */
     private static final Duration DEFAULT_TIMEOUT = Duration.ofMinutes(2L);
 
-    private final Random random;
+    protected final Random random;
     private final Map<NodeId, PartitionImpl> networkPartitions = new HashMap<>();
     private final Map<ConnectionKey, Boolean> connected = new HashMap<>();
     private final Map<ConnectionKey, LatencyOverride> latencyOverrides = new HashMap<>();
@@ -260,15 +261,11 @@ public abstract class AbstractNetwork implements Network {
         throwIfInLifecycle(Lifecycle.RUNNING, "Cannot add nodes while the network is running.");
         throwIfInLifecycle(Lifecycle.SHUTDOWN, "Cannot add nodes after the network has been started.");
 
-        try {
-            final List<NodeId> nodeIds =
-                    IntStream.range(0, count).mapToObj(i -> getNextNodeId()).toList();
-            return KeysAndCertsGenerator.generateKeysAndCerts(nodeIds).entrySet().stream()
-                    .map(e -> doCreateNode(e.getKey(), e.getValue()))
-                    .toList();
-        } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
-            throw new RuntimeException("Exception while generating KeysAndCerts", e);
-        }
+        final List<NodeId> nodeIds =
+                IntStream.range(0, count).mapToObj(i -> getNextNodeId()).toList();
+        return createKeysAndCerts(nodeIds).entrySet().stream()
+                .map(e -> doCreateNode(e.getKey(), e.getValue()))
+                .toList();
     }
 
     /**
@@ -286,11 +283,21 @@ public abstract class AbstractNetwork implements Network {
         throwIfInLifecycle(Lifecycle.RUNNING, "Cannot add nodes while the network is running.");
         throwIfInLifecycle(Lifecycle.SHUTDOWN, "Cannot add nodes after the network has been started.");
 
+        final NodeId nodeId = getNextNodeId();
+        final KeysAndCerts keysAndCerts = createKeysAndCerts(List.of(nodeId)).get(nodeId);
+        return doCreateInstrumentedNode(nodeId, keysAndCerts);
+    }
+
+    /**
+     * Creates a map of node IDs to their corresponding keys and certificates.
+     *
+     * @param nodeIds the list of node IDs for which to generate keys and certificates
+     * @return a map of node IDs to their corresponding keys and certificates
+     */
+    @NonNull
+    protected Map<NodeId, KeysAndCerts> createKeysAndCerts(@NonNull final List<NodeId> nodeIds) {
         try {
-            final NodeId nodeId = getNextNodeId();
-            final KeysAndCerts keysAndCerts =
-                    KeysAndCertsGenerator.generateKeysAndCerts(List.of(nodeId)).get(nodeId);
-            return doCreateInstrumentedNode(nodeId, keysAndCerts);
+            return KeysAndCertsGenerator.generateKeysAndCerts(nodeIds);
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException("Exception while generating KeysAndCerts", e);
         }
@@ -320,9 +327,11 @@ public abstract class AbstractNetwork implements Network {
      * <p>Subclasses can override this method to add custom behavior before the network starts, such as initializing
      * resources or performing setup tasks. They can also modify the roster if needed.
      *
+     * <p>The default implementation is empty.
+     *
      * @param roster the preliminary roster generated for the network
      */
-    protected abstract void preStartHook(@NonNull final Roster roster);
+    protected void preStartHook(@NonNull final Roster roster) {}
 
     private void doStart(@NonNull final Duration timeout) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Network is already running.");
@@ -642,7 +651,13 @@ public abstract class AbstractNetwork implements Network {
         doFreeze(DEFAULT_TIMEOUT);
     }
 
-    private void doFreeze(@NonNull final Duration timeout) {
+    /**
+     * The actual implementation of the freeze logic. Subclasses of environments that do not support freezing override
+     * this method to throw, which covers the asynchronous variant as well.
+     *
+     * @param timeout the maximum duration to wait for all nodes to freeze
+     */
+    protected void doFreeze(@NonNull final Duration timeout) {
         throwIfInLifecycle(Lifecycle.INIT, "Network has not been started yet.");
         throwIfInLifecycle(Lifecycle.SHUTDOWN, "Network has been shut down.");
 
@@ -671,7 +686,13 @@ public abstract class AbstractNetwork implements Network {
         doTriggerCatastrophicIss(DEFAULT_TIMEOUT);
     }
 
-    private void doTriggerCatastrophicIss(@NonNull final Duration defaultTimeout) {
+    /**
+     * The actual implementation of the catastrophic ISS logic. Subclasses of environments that do not support ISS
+     * override this method to throw, which covers the asynchronous variant as well.
+     *
+     * @param defaultTimeout the maximum duration to wait for the ISS to be triggered
+     */
+    protected void doTriggerCatastrophicIss(@NonNull final Duration defaultTimeout) {
         throwIfNotInLifecycle(Lifecycle.RUNNING, "Network must be running to trigger an ISS.");
 
         log.info("Sending Catastrophic ISS triggering transaction...");
@@ -843,7 +864,13 @@ public abstract class AbstractNetwork implements Network {
         doShutdown(DEFAULT_TIMEOUT);
     }
 
-    private void doShutdown(@NonNull final Duration timeout) {
+    /**
+     * The actual implementation of the shutdown logic. Subclasses of environments that do not support shutting nodes
+     * down override this method to throw, which covers the asynchronous variant as well.
+     *
+     * @param timeout the maximum duration to wait for all nodes to shut down
+     */
+    protected void doShutdown(@NonNull final Duration timeout) {
         throwIfInLifecycle(Lifecycle.INIT, "Network has not been started yet.");
         throwIfInLifecycle(Lifecycle.SHUTDOWN, "Network has already been shut down.");
 

@@ -19,8 +19,6 @@ public class StandardSerdes {
             new AddrBkJsonToGrpcBytes(),
             102L,
             new NodesJsonToGrpcBytes(),
-            111L,
-            new FeesJsonToGrpcBytes(),
             112L,
             new XRatesJsonToGrpcBytes(),
             113L,
