@@ -25,6 +25,7 @@ public class ServiceEndpointWrapper {
         this.hostName = calculateHostName(serviceEndpoint);
     }
 
+    @NonNull
     private static String calculateHostName(@NonNull final ServiceEndpoint serviceEndpoint) {
         final Bytes ipAddressV4 = serviceEndpoint.ipAddressV4();
         final long length = ipAddressV4.length();
@@ -54,6 +55,7 @@ public class ServiceEndpointWrapper {
      *
      * @return the host name of this service endpoint
      */
+    @NonNull
     public String hostName() {
         return hostName;
     }

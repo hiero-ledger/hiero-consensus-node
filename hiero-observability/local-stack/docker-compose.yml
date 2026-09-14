@@ -92,6 +92,9 @@ services:
       METRICS_DATASOURCE_URL: ${METRICS_DATASOURCE_URL}
       LOKI_DATASOURCE_NAME: ${LOKI_DATASOURCE_NAME}
       SCRAPE_INTERVAL: ${SCRAPE_INTERVAL}
+      # Native Grafana setting (not one of ours) - GF_<INI SECTION>_<KEY>
+      # maps to [date_formats] default_timezone.
+      GF_DATE_FORMATS_DEFAULT_TIMEZONE: ${GRAFANA_DEFAULT_TIMEZONE}
     volumes:
       - ${GRAFANA_PROVISIONING_DIR}:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
@@ -141,7 +144,9 @@ services:
     environment:
       LOG_INCLUDE: ${LOG_INCLUDE}
       LOG_LABELS: ${LOG_LABELS}
-      LOG_MULTILINE_START: ${LOG_MULTILINE_START}
+      LOG_TIMESTAMP_REGEX: ${LOG_TIMESTAMP_REGEX}
+      LOG_TIMESTAMP_FORMAT: ${LOG_TIMESTAMP_FORMAT}
+      LOG_TIMESTAMP_LOCATION: ${LOG_TIMESTAMP_LOCATION}
     volumes:
       - ${ALLOY_CONFIG}:/etc/alloy/config.alloy:ro
       - ${LOGS_DIR}:/logs:ro

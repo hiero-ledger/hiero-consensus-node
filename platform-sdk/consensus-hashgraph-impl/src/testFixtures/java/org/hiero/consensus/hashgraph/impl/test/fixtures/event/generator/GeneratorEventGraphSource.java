@@ -81,8 +81,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
         this.populateNgen = populateNgen;
 
         // These fields get reset in reset()
-        this.latestEventPerNode =
-                new EventDescriptorWrapper[roster.rosterEntries().size()];
+        this.latestEventPerNode = new EventDescriptorWrapper[roster.size()];
         this.consensus = new GeneratorConsensus(configuration, time, roster);
         this.random = Randotron.create(seed);
     }
@@ -117,10 +116,8 @@ public class GeneratorEventGraphSource implements EventGraphSource {
     @NonNull
     @Override
     public PlatformEvent next() {
-        final List<Integer> nodeIndices = IntStream.range(
-                        0, roster.rosterEntries().size())
-                .boxed()
-                .collect(ArrayList::new, List::add, List::addAll);
+        final List<Integer> nodeIndices =
+                IntStream.range(0, roster.size()).boxed().collect(ArrayList::new, List::add, List::addAll);
         Collections.shuffle(nodeIndices, random);
 
         final Integer eventCreator = nodeIndices.removeLast();
@@ -137,14 +134,9 @@ public class GeneratorEventGraphSource implements EventGraphSource {
         final List<Bytes> transactions = Stream.generate(() -> random.randomBytes(1, 100))
                 .limit(random.nextInt(0, 5))
                 .toList();
-        final int coin = random.nextInt(0, roster.rosterEntries().size() + 1);
+        final int coin = random.nextInt(0, roster.size() + 1);
         final UnsignedEvent unsignedEvent = new UnsignedEvent(
-                roster.rosterEntries().get(eventCreator).nodeId(),
-                parents,
-                birthRound,
-                getNextTimestamp(),
-                transactions,
-                coin);
+                roster.rosterEntry(eventCreator).nodeId(), parents, birthRound, getNextTimestamp(), transactions, coin);
         hasher.hashUnsignedEvent(unsignedEvent);
 
         final PlatformEvent platformEvent =
@@ -173,8 +165,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
 
     @Override
     public void reset() {
-        this.latestEventPerNode =
-                new EventDescriptorWrapper[roster.rosterEntries().size()];
+        this.latestEventPerNode = new EventDescriptorWrapper[roster.size()];
         this.consensus = new GeneratorConsensus(configuration, time, roster);
         this.random = Randotron.create(seed);
         this.latestEventTime = null;

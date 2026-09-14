@@ -2,7 +2,7 @@
   "buckets": [
     {
       "name": "ReclaimNormalCreateLimit",
-      "burstPeriod": 1,
+      "burstPeriod": 4,
       "throttleGroups": [
         {
           "opsPerSec": 1,
@@ -14,7 +14,7 @@
     },
     {
       "name": "ReclaimHighVolumeCreateLimit",
-      "burstPeriod": 1,
+      "burstPeriod": 4,
       "highVolume": true,
       "throttleGroups": [
         {
