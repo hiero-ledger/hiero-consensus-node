@@ -6,37 +6,48 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.explicitBytesOf;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withAddressOfKey;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ScheduleInfo;
 import com.hederahashgraph.api.proto.java.TransactionID;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -71,6 +82,23 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
     private static final String PLAIN_RECEIVER = "plainReceiver";
 
     private static final long DEPOSIT = ONE_HBAR;
+
+    private static final String CODE_DELEGATION_CONTRACT = "CodeDelegationContract";
+    private static final String TRIVIAL_CONTRACT = "CreateTrivial";
+    private static final String TRIVIAL_FN = "create";
+    private static final String REVERTING_CONTRACT = "InternalCallee";
+    private static final String REVERT_FN = "revertWithRevertReason";
+    private static final String RELAYER_PAYER = "relayerPayer";
+    private static final String ETH_SENDER = "ethSender";
+    private static final String AUTHORITY = "delegationAuthority";
+    private static final String CODE_DELEGATIONS_ENABLED = "contracts.codeDelegations.enabled";
+    private static final long GAS_LIMIT_2M = 2_000_000L;
+
+    private static final String SCHEDULE_CONTRACT = "HIP1215Contract";
+    private static final String SCHEDULE_CALL_FN = "scheduleCallExample";
+    private static final String SCHEDULE_CALL_ENABLED = "contracts.systemContract.scheduleService.scheduleCall.enabled";
+    private static final String THROTTLE_BY_GAS = "contracts.throttle.throttleByGas";
+    private static final long SCHEDULE_EXPIRY_SHIFT = 60L;
 
     // ---------------------------------------------------------------------------------------------------------
     // The ContractCall is the last inner transaction, so no sibling follows it
@@ -555,6 +583,148 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
     }
 
     // ---------------------------------------------------------------------------------------------------------
+    // Ownership is captured from live stack lineage, so it is lost wherever the dispatch does not happen
+    // underneath the inner transaction's own savepoint stack. Both classes below pin down such a case.
+    // ---------------------------------------------------------------------------------------------------------
+    @Nested
+    @DisplayName("Code delegations replayed after a batch rollback")
+    class CodeDelegationRollbackReplay {
+
+        @LeakyHapiTest(overrides = {CODE_DELEGATIONS_ENABLED})
+        @DisplayName("A code delegation replayed after a later sibling fails belongs to its Ethereum inner")
+        final Stream<DynamicTest> replayAfterSiblingFailureBelongsToTheEthereumInner() {
+            final var ethInner = "delegatingEthInner";
+            final var outerBatch = "rolledBackBatch";
+            final var innerRecords = new AtomicReference<List<TransactionRecord>>();
+            final var batchRecords = new AtomicReference<List<TransactionRecord>>();
+            final var delegationTarget = new AtomicReference<Address>();
+
+            return hapiTest(
+                    overriding(CODE_DELEGATIONS_ENABLED, "true"),
+                    commonSetup(),
+                    delegationSetup(delegationTarget),
+                    withOpContext((spec, opLog) -> allRunFor(
+                            spec,
+                            atomicBatch(
+                                            delegatingEthCall(delegationTarget, TRIVIAL_CONTRACT, TRIVIAL_FN)
+                                                    .via(ethInner),
+                                            // A later sibling fails, so the batch rolls back and the delegation
+                                            // the Ethereum inner applied is replayed by the batch handler
+                                            failingTransfer())
+                                    .payingWith(BATCH_OPERATOR)
+                                    .hasKnownStatus(INNER_TRANSACTION_FAILED)
+                                    .via(outerBatch))),
+                    getTxnRecord(ethInner).andAllChildRecords().exposingAllTo(innerRecords::set),
+                    getTxnRecord(outerBatch).andAllChildRecords().exposingAllTo(batchRecords::set),
+                    assertReplayOwnership(innerRecords, batchRecords, ethInner));
+        }
+
+        @LeakyHapiTest(overrides = {CODE_DELEGATIONS_ENABLED})
+        @DisplayName("A code delegation replayed after the Ethereum inner itself reverts belongs to that inner")
+        final Stream<DynamicTest> replayAfterOwnFailureBelongsToTheEthereumInner() {
+            final var ethInner = "revertingEthInner";
+            final var outerBatch = "revertedBatch";
+            final var innerRecords = new AtomicReference<List<TransactionRecord>>();
+            final var batchRecords = new AtomicReference<List<TransactionRecord>>();
+            final var delegationTarget = new AtomicReference<Address>();
+
+            return hapiTest(
+                    overriding(CODE_DELEGATIONS_ENABLED, "true"),
+                    commonSetup(),
+                    delegationSetup(delegationTarget),
+                    withOpContext((spec, opLog) -> allRunFor(
+                            spec,
+                            // The Ethereum inner is itself the failure; the authorization is still applied before
+                            // the call reverts, so the batch handler replays it on the way out
+                            atomicBatch(delegatingEthCall(delegationTarget, REVERTING_CONTRACT, REVERT_FN)
+                                            .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                            .via(ethInner))
+                                    .payingWith(BATCH_OPERATOR)
+                                    .hasKnownStatus(INNER_TRANSACTION_FAILED)
+                                    .via(outerBatch))),
+                    getTxnRecord(ethInner)
+                            .andAllChildRecords()
+                            .exposingAllTo(innerRecords::set)
+                            .logged(),
+                    getTxnRecord(outerBatch)
+                            .andAllChildRecords()
+                            .exposingAllTo(batchRecords::set)
+                            .logged(),
+                    assertReplayOwnership(innerRecords, batchRecords, ethInner));
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------------------
+    // A dispatch that carries a preset transaction id never reaches the ownership map, because buildHandleOutput
+    // only consults it for builders that still need an id
+    // ---------------------------------------------------------------------------------------------------------
+    @Nested
+    @DisplayName("Preset-id children dispatched by a batch inner")
+    class PresetIdChildren {
+
+        @LeakyHapiTest(overrides = {SCHEDULE_CALL_ENABLED, THROTTLE_BY_GAS})
+        @DisplayName("A scheduleCall from a ContractCall inner is owned by that inner, in record and in state")
+        final Stream<DynamicTest> scheduleCallFromAnInnerIsOwnedByThatInner() {
+            final var ccInner = "schedulingInner";
+            final var outerBatch = "schedulingBatch";
+            final var innerRecords = new AtomicReference<List<TransactionRecord>>();
+            final var batchRecords = new AtomicReference<List<TransactionRecord>>();
+
+            return hapiTest(
+                    overriding(SCHEDULE_CALL_ENABLED, "true"),
+                    overriding(THROTTLE_BY_GAS, "false"),
+                    commonSetup(),
+                    uploadInitCode(SCHEDULE_CONTRACT),
+                    contractCreate(SCHEDULE_CONTRACT).gas(4_000_000L),
+                    atomicBatch(contractCall(
+                                            SCHEDULE_CONTRACT,
+                                            SCHEDULE_CALL_FN,
+                                            BigInteger.valueOf(SCHEDULE_EXPIRY_SHIFT))
+                                    .batchKey(BATCH_OPERATOR)
+                                    .payingWith(EVM_PAYER)
+                                    .gas(GAS_LIMIT_2M)
+                                    .via(ccInner))
+                            .payingWith(BATCH_OPERATOR)
+                            .signedByPayerAnd(BATCH_OPERATOR)
+                            .via(outerBatch),
+                    getTxnRecord(ccInner).andAllChildRecords().exposingAllTo(innerRecords::set),
+                    getTxnRecord(outerBatch).andAllChildRecords().exposingAllTo(batchRecords::set),
+                    withOpContext((spec, opLog) -> {
+                        final var underInner = scheduleCreationsIn(innerRecords);
+                        final var underBatch = scheduleCreationsIn(batchRecords);
+                        assertEquals(
+                                1,
+                                underInner.size() + underBatch.size(),
+                                "expected exactly one ScheduleCreate record from the scheduleCall");
+                        final var creation = underInner.isEmpty() ? underBatch.getFirst() : underInner.getFirst();
+                        final var info = new AtomicReference<ScheduleInfo>();
+                        allRunFor(
+                                spec,
+                                getScheduleInfo(String.valueOf(creation.getReceipt()
+                                                .getScheduleID()
+                                                .getScheduleNum()))
+                                        .exposingInfoTo(info::set));
+                        final var innerId = spec.registry().getTxnId(ccInner);
+                        opLog.info(
+                                "scheduleCreate filed under inner={} batch={} creator={}",
+                                underInner.size(),
+                                underBatch.size(),
+                                info.get().getCreatorAccountID());
+                        assertAll(
+                                () -> assertTrue(
+                                        underBatch.isEmpty(),
+                                        "the ScheduleCreate record must not be filed under the enclosing batch"),
+                                () -> assertIdentity(creation.getTransactionID(), innerId),
+                                () -> assertEquals(
+                                        spec.registry().getAccountID(EVM_PAYER),
+                                        info.get().getCreatorAccountID(),
+                                        "the stored schedule must be created by the inner transaction's payer,"
+                                                + " not the batch payer"));
+                    }));
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------------------------------------------------
 
@@ -633,5 +803,89 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
         // The nonce comes from a counter shared by every synthetic record in the user transaction, so only its
         // being a child nonce is meaningful
         assertTrue(creationId.getNonce() > 0, "creation should carry a child nonce");
+    }
+
+    /** Uploads the delegation target and call targets, and funds the accounts an EIP-7702 call needs. */
+    private static SpecOperation delegationSetup(final AtomicReference<Address> delegationTarget) {
+        return blockingOrder(
+                uploadInitCode(CODE_DELEGATION_CONTRACT),
+                contractCreate(CODE_DELEGATION_CONTRACT).exposingAddressTo(delegationTarget::set),
+                uploadInitCode(TRIVIAL_CONTRACT),
+                contractCreate(TRIVIAL_CONTRACT).gas(3_000_000L),
+                uploadInitCode(REVERTING_CONTRACT),
+                contractCreate(REVERTING_CONTRACT).gas(3_000_000L),
+                cryptoCreate(RELAYER_PAYER).balance(ONE_MILLION_HBARS),
+                fundedEcdsaAccount(ETH_SENDER),
+                fundedEcdsaAccount(AUTHORITY));
+    }
+
+    private static SpecOperation fundedEcdsaAccount(final String name) {
+        return blockingOrder(
+                newKeyNamed(name).shape(SECP_256K1_SHAPE),
+                cryptoCreate(name).key(name).withMatchingEvmAddress().balance(ONE_HUNDRED_HBARS));
+    }
+
+    /**
+     * An EIP-7702 call delegating {@code AUTHORITY} to the target contract; the authority already exists, so the
+     * replay after a rollback takes the {@code CryptoUpdate} branch.
+     */
+    private static com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall delegatingEthCall(
+            final AtomicReference<Address> delegationTarget, final String contract, final String function) {
+        return ethereumCall(contract, function)
+                .signingWith(ETH_SENDER)
+                .payingWith(RELAYER_PAYER)
+                .type(EthTransactionType.EIP7702)
+                .addCodeDelegationWithSpecNonce(delegationTarget.get(), AUTHORITY)
+                .gasLimit(GAS_LIMIT_2M)
+                .batchKey(BATCH_OPERATOR);
+    }
+
+    /** A transfer out of the zero-balance account, so the enclosing batch always rolls back. */
+    private static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer failingTransfer() {
+        return cryptoTransfer(movingHbar(ONE_HBAR).between(PLAIN_RECEIVER, BATCH_OPERATOR))
+                .batchKey(BATCH_OPERATOR)
+                .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE);
+    }
+
+    /**
+     * Asserts the records the rollback replay produced are filed under the Ethereum inner that caused the
+     * delegation, and not under the enclosing batch.
+     */
+    private static SpecOperation assertReplayOwnership(
+            final AtomicReference<List<TransactionRecord>> innerRecords,
+            final AtomicReference<List<TransactionRecord>> batchRecords,
+            final String ethInner) {
+        return withOpContext((spec, opLog) -> {
+            final var ethId = spec.registry().getTxnId(ethInner);
+            final var underInner = syntheticRecordsIn(innerRecords);
+            final var underBatch = syntheticRecordsIn(batchRecords);
+            opLog.info(
+                    "code-delegation replay: {} record(s) under the Ethereum inner, {} under the batch",
+                    underInner.size(),
+                    underBatch.size());
+            assertAll(
+                    () -> assertTrue(
+                            underBatch.isEmpty(),
+                            "replayed code-delegation records must not be filed under the enclosing batch, but "
+                                    + underBatch.size() + " were"),
+                    () -> assertEquals(
+                            1,
+                            underInner.size(),
+                            "the Ethereum inner should own exactly one replayed code-delegation record"),
+                    () -> underInner.forEach(record -> assertIdentity(record.getTransactionID(), ethId)));
+        });
+    }
+
+    /** The synthetic records in an exposed list; index 0 is the parent, and every child carries a non-zero nonce. */
+    private static List<TransactionRecord> syntheticRecordsIn(final AtomicReference<List<TransactionRecord>> records) {
+        return records.get().stream()
+                .filter(record -> record.getTransactionID().getNonce() > 0)
+                .toList();
+    }
+
+    private static List<TransactionRecord> scheduleCreationsIn(final AtomicReference<List<TransactionRecord>> records) {
+        return records.get().stream()
+                .filter(record -> record.getReceipt().hasScheduleID())
+                .toList();
     }
 }

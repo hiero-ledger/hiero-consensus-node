@@ -455,9 +455,30 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @throws NullPointerException if this is called before the base builder was given an id
      */
     public TransactionID nextPresetTxnId(final boolean isLastAllowed) {
+        // The owner has to be resolved here, on the frame the request was made from; the recursion below reaches the
+        // root stack, from which the enclosing batch inner transaction is no longer visible
+        return nextPresetTxnId(isLastAllowed, enclosingBatchInnerTxnId());
+    }
+
+    /**
+     * Returns the next preset transaction id, taking its payer and valid start from the given owner when the request
+     * was made inside an atomic batch inner transaction, and its nonce from this stack's top-level transaction.
+     *
+     * <p>The nonce must stay anchored on the top-level transaction even when the identity does not. Nonces assigned
+     * sequentially in {@link #buildHandleOutput(Instant, ExchangeRateSet, Long)} are {@code topLevelNonce + offset}
+     * for an offset strictly less than {@code noncesPerPresetId}, so a preset nonce of
+     * {@code topLevelNonce + k * noncesPerPresetId} is guaranteed to fall beyond every one of them. Anchoring the
+     * nonce on the owner instead would make that hold only while the top-level nonce is itself a multiple of the
+     * stride, and the overflow check below would no longer be reachable.
+     *
+     * @param isLastAllowed whether the stack should refuse to create more preset ids after this one
+     * @param ownerId the batch inner transaction the request was made within, or null if there was none
+     * @return the next expected transaction ID
+     */
+    private TransactionID nextPresetTxnId(final boolean isLastAllowed, @Nullable final TransactionID ownerId) {
         // Child stacks always delegate such requests to their parent
         if (state instanceof SavepointStackImpl parent) {
-            return parent.nextPresetTxnId(isLastAllowed);
+            return parent.nextPresetTxnId(isLastAllowed, ownerId);
         }
         if (!presetIdsAllowed) {
             throw new HandleException(NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION);
@@ -466,9 +487,10 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
         if (isLastAllowed) {
             presetIdsAllowed = false;
         }
-        final var baseId = requireNonNull(baseBuilder.transactionID());
-        final var presetNonce = baseId.nonce() + numPresetIds * noncesPerPresetId;
-        if (baseId.nonce() < 0 && presetNonce >= 0) {
+        final var topLevelId = requireNonNull(baseBuilder.transactionID());
+        final var baseId = ownerId != null ? ownerId : topLevelId;
+        final var presetNonce = topLevelId.nonce() + numPresetIds * noncesPerPresetId;
+        if (topLevelId.nonce() < 0 && presetNonce >= 0) {
             throw new HandleException(RECURSIVE_SCHEDULING_LIMIT_REACHED);
         }
         return baseId.copyBuilder().nonce(presetNonce).build();
@@ -684,7 +706,7 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * @param builder the builder to record an owner for
      * @param batchInnerId the id of the batch inner transaction that dispatched the builder
      */
-    void trackBatchInnerId(@NonNull final StreamBuilder builder, @NonNull final TransactionID batchInnerId) {
+    public void trackBatchInnerId(@NonNull final StreamBuilder builder, @NonNull final TransactionID batchInnerId) {
         // Child stacks always delegate such requests to their parent
         if (state instanceof SavepointStackImpl parent) {
             parent.trackBatchInnerId(builder, batchInnerId);

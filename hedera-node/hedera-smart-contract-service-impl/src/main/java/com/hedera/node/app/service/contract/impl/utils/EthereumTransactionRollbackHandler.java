@@ -4,10 +4,12 @@ package com.hedera.node.app.service.contract.impl.utils;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationWithKeyAndCodeDelegation;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.ATTRIBUTED_BATCH_INNER_ID;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -28,6 +30,7 @@ import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,22 +44,58 @@ public final class EthereumTransactionRollbackHandler implements HandleException
     private final List<HederaOperations.GasChargingEvent> gasChargingEvents;
     private final RootProxyWorldUpdater rootProxyWorldUpdater;
 
+    /**
+     * The id of the atomic batch inner transaction this handler was registered for, or null if the transaction was
+     * not dispatched inside a batch; both identifies the owner of any records the replay externalizes, and marks
+     * which of the two replay passes a batch performs is the one that should externalize them.
+     */
+    @Nullable
+    private final TransactionID ownerTxnId;
+
     public EthereumTransactionRollbackHandler(
             @NonNull CallOutcome outcome,
             @NonNull List<HederaOperations.GasChargingEvent> gasChargingEvents,
             @NonNull RootProxyWorldUpdater rootProxyWorldUpdater) {
+        this(outcome, gasChargingEvents, rootProxyWorldUpdater, null);
+    }
+
+    public EthereumTransactionRollbackHandler(
+            @NonNull CallOutcome outcome,
+            @NonNull List<HederaOperations.GasChargingEvent> gasChargingEvents,
+            @NonNull RootProxyWorldUpdater rootProxyWorldUpdater,
+            @Nullable TransactionID ownerTxnId) {
         this.outcome = outcome;
         this.gasChargingEvents = gasChargingEvents;
         this.rootProxyWorldUpdater = rootProxyWorldUpdater;
+        this.ownerTxnId = ownerTxnId;
     }
 
     @Override
     public void replay(@NonNull FeeCharging.Context feeChargingContext, @NonNull HandleContext handleContext) {
-        // Replay fee charges
+        // Replay fee charges; a batch replays these twice, but only the charges recorded on the inner pass are
+        // carried forward by the batch's own fee replay, so both passes must run
         replayGasChargingIn(feeChargingContext, handleContext);
 
-        // Replay code delegations
-        replayCodeDelegations(handleContext);
+        // Replay code delegations. Inside a batch this handler is invoked twice: once on the inner transaction's own
+        // context when that inner fails, and once on the batch's context as the batch unwinds. Only the latter
+        // survives the batch's rollback, so replaying on the inner pass as well would externalize a duplicate record
+        // for state that is then discarded.
+        if (!isOwnInnerReplay(handleContext)) {
+            replayCodeDelegations(handleContext);
+        }
+    }
+
+    /**
+     * Returns whether this is the first of the two replay passes a batch performs, i.e. the one running on the
+     * failing inner transaction's own context.
+     *
+     * <p>A non-null owner means this handler was registered with a batch's rollback queue, and only an inner
+     * transaction's body carries a batch key &mdash; a submitted top-level transaction that sets one is rejected in
+     * pre-handle with {@code BATCH_KEY_SET_ON_NON_INNER_TRANSACTION}. Together those identify the inner pass without
+     * comparing ids, which a batch sharing its own id with one of its inners would otherwise confuse.
+     */
+    private boolean isOwnInnerReplay(@NonNull final HandleContext handleContext) {
+        return ownerTxnId != null && handleContext.body().hasBatchKey();
     }
 
     private void replayGasChargingIn(
@@ -123,7 +162,7 @@ public final class EthereumTransactionRollbackHandler implements HandleException
                                 CryptoUpdateStreamBuilder.class,
                                 NOOP_SIGNED_TX_CUSTOMIZER,
                                 StreamBuilder.ReversingBehavior.IRREVERSIBLE,
-                                new HandleContext.DispatchMetadata(Map.of()));
+                                attributionMetadata());
                         try {
                             handleContext.dispatch(dispatchOpts);
                         } catch (HandleException e) {
@@ -160,7 +199,7 @@ public final class EthereumTransactionRollbackHandler implements HandleException
                                 CryptoCreateStreamBuilder.class,
                                 NOOP_SIGNED_TX_CUSTOMIZER,
                                 StreamBuilder.ReversingBehavior.IRREVERSIBLE,
-                                new HandleContext.DispatchMetadata(Map.of()));
+                                attributionMetadata());
                         try {
                             handleContext.dispatch(dispatchOpts);
                         } catch (HandleException e) {
@@ -181,5 +220,15 @@ public final class EthereumTransactionRollbackHandler implements HandleException
                 }
             }
         }
+    }
+
+    /**
+     * Returns the dispatch metadata for a replayed step, carrying the owning batch inner transaction's id when there
+     * is one so the resulting record is filed under that inner rather than the enclosing batch.
+     */
+    private HandleContext.DispatchMetadata attributionMetadata() {
+        return ownerTxnId == null
+                ? new HandleContext.DispatchMetadata(Map.of())
+                : new HandleContext.DispatchMetadata(Map.of(ATTRIBUTED_BATCH_INNER_ID, ownerTxnId));
     }
 }

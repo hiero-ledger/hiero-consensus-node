@@ -1132,6 +1132,9 @@ class SavepointStackImplTest extends StateTestBase {
                 .transactionValidStart(new Timestamp(1_234_501L, 2))
                 .build();
 
+        /** The preset-id stride for the 3/50 budget {@link #batchRootStack()} uses. */
+        private static final int STRIDE = 3 + 50 + 1;
+
         @Test
         @DisplayName("a preceding dispatch flushed out of an inner transaction's savepoint keeps that inner's identity")
         void lateFlushedPrecedingKeepsItsOwnBatchInnerIdentity() {
@@ -1255,6 +1258,20 @@ class SavepointStackImplTest extends StateTestBase {
 
             assertThat(idsFrom(stack))
                     .containsExactly(BATCH_ID.copyBuilder().nonce(1).build(), BATCH_ID, INNER_A_ID);
+        }
+
+        @Test
+        @DisplayName("a preset id requested inside a batch inner carries that inner's identity")
+        void presetIdInsideABatchInnerCarriesThatInnersIdentity() {
+            final var stack = batchRootStack();
+            final var innerA = batchInnerStackIn(stack, INNER_A_ID);
+
+            final var presetId = innerA.nextPresetTxnId(false);
+
+            // The payer and valid start are the inner's, so a schedule created with this id is filed under the
+            // transaction that asked for it rather than under the enclosing batch
+            assertThat(presetId)
+                    .isEqualTo(INNER_A_ID.copyBuilder().nonce(STRIDE).build());
         }
 
         private SavepointStackImpl batchRootStack() {
