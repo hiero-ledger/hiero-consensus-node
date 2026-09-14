@@ -56,8 +56,8 @@ public class GuiEventStorage {
     public GuiEventStorage(@NonNull final Configuration configuration, @NonNull final RosterWrapper roster) {
         this.configuration = Objects.requireNonNull(configuration);
         if (USE_DYNAMIC_ADDRESS_BOOK_UPDATE) {
-            this.consensus =
-                    new ConsensusImplDAB(configuration, Time.getCurrent(), new NoOpConsensusMetrics(), roster, 0L);
+            this.consensus = new ConsensusImplDAB(
+                    configuration, Time.getCurrent(), new NoOpConsensusMetrics(), roster.toPbj(), 0L);
         } else {
             this.consensus =
                     new ConsensusImpl(configuration, Time.getCurrent(), new NoOpConsensusMetrics(), roster, 0L);

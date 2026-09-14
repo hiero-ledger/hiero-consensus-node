@@ -82,7 +82,8 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         final ConsensusConfig consensusConfig = configuration.getConfigData(ConsensusConfig.class);
         useDABAlgorithm = consensusConfig.useDABConsensusAlgorithm();
         if (useDABAlgorithm) {
-            consensus = new ConsensusImplDAB(configuration, time, consensusMetrics, roster, transactionOffsetNanos);
+            consensus =
+                    new ConsensusImplDAB(configuration, time, consensusMetrics, roster.toPbj(), transactionOffsetNanos);
         } else {
             consensus = new ConsensusImpl(configuration, time, consensusMetrics, roster, transactionOffsetNanos);
         }

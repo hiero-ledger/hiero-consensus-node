@@ -50,6 +50,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.roster.RosterLookup;
 import org.hiero.consensus.round.RoundCalculationUtils;
 
@@ -499,7 +500,7 @@ public class ConsensusImplDAB implements Consensus {
                 : consensusEvents.getLast().getConsensusOrder() + 1;
 
         return new ConsensusRound(
-                rosterLookup.getRoster(),
+                RosterWrapper.of(rosterLookup.getRoster()),
                 consensusEvents,
                 new EventWindow(
                         consensusRoundNum,

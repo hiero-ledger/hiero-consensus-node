@@ -279,7 +279,7 @@ public class StandardGraphGenerator implements GraphGenerator {
     private void initializeInternalConsensus() {
         final ConsensusConfig consensusConfig = configuration.getConfigData(ConsensusConfig.class);
         if (consensusConfig.useDABConsensusAlgorithm()) {
-            consensus = new ConsensusImplDAB(configuration, time, new NoOpConsensusMetrics(), roster, 0L);
+            consensus = new ConsensusImplDAB(configuration, time, new NoOpConsensusMetrics(), roster.toPbj(), 0L);
         } else {
             consensus = new ConsensusImpl(configuration, time, new NoOpConsensusMetrics(), roster, 0L);
         }

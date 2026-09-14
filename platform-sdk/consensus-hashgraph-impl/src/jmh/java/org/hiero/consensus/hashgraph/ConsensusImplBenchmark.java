@@ -76,8 +76,12 @@ public class ConsensusImplBenchmark {
 
         final ConsensusConfig consensusConfig = configuration.getConfigData(ConsensusConfig.class);
         if (consensusConfig.useDABConsensusAlgorithm()) {
-            consensus =
-                    new ConsensusImplDAB(configuration, time, new NoOpConsensusMetrics(), generator.getRoster(), 0L);
+            consensus = new ConsensusImplDAB(
+                    configuration,
+                    time,
+                    new NoOpConsensusMetrics(),
+                    generator.getRoster().toPbj(),
+                    0L);
         } else {
             consensus = new ConsensusImpl(configuration, time, new NoOpConsensusMetrics(), generator.getRoster(), 0L);
         }
