@@ -22,6 +22,8 @@ import com.hedera.node.app.hints.impl.RsaContext;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -223,6 +225,30 @@ class TssBlockHashSignerTest {
 
         assertThrows(NullPointerException.class, () -> subject.sign(null, SUCCINCT_SIGNATURE));
         assertThrows(NullPointerException.class, () -> subject.sign(FAKE_BLOCK_HASH, null));
+    }
+
+    @Test
+    void chainOfTrustIsOnlyInUseWhenSigningActuallyReachesForIt() {
+        // The only combination in which sign() packages a chain-of-trust proof
+        assertTrue(usesChainOfTrust(HintsEnabled.YES, HistoryEnabled.YES, ForceMockSignatures.NO, StreamMode.BOTH));
+
+        // Mock signatures short-circuit before the history service is consulted
+        assertFalse(usesChainOfTrust(HintsEnabled.YES, HistoryEnabled.YES, ForceMockSignatures.YES, StreamMode.BOTH));
+        // As does a record-only stream, which wires up neither service
+        assertFalse(usesChainOfTrust(HintsEnabled.YES, HistoryEnabled.YES, ForceMockSignatures.NO, StreamMode.RECORDS));
+        // And there is no chain of trust to carry with either half of the protocol disabled
+        assertFalse(usesChainOfTrust(HintsEnabled.NO, HistoryEnabled.YES, ForceMockSignatures.NO, StreamMode.BOTH));
+        assertFalse(usesChainOfTrust(HintsEnabled.YES, HistoryEnabled.NO, ForceMockSignatures.NO, StreamMode.BOTH));
+    }
+
+    private boolean usesChainOfTrust(
+            @NonNull final HintsEnabled hintsEnabled,
+            @NonNull final HistoryEnabled historyEnabled,
+            @NonNull final ForceMockSignatures forceMockSignatures,
+            @NonNull final StreamMode streamMode) {
+        final var config = configWith(hintsEnabled, historyEnabled, forceMockSignatures, streamMode);
+        return TssBlockHashSigner.usesChainOfTrustProof(
+                config.getConfigData(TssConfig.class), config.getConfigData(BlockStreamConfig.class));
     }
 
     private void givenSubjectWith(

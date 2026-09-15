@@ -3,7 +3,9 @@ package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
@@ -823,7 +825,7 @@ class HandleWorkflowTest {
 
         final var reconciliationTimes = ArgumentCaptor.forClass(Instant.class);
         verify(historyService, times(4))
-                .reconcile(any(), any(), any(), reconciliationTimes.capture(), any(), eq(true), any());
+                .reconcile(any(), any(), any(), reconciliationTimes.capture(), any(), eq(true), any(), eq(false));
         assertEquals(
                 List.of(firstRoundTime, afterGracePeriod, readyBlockTime, readyBlockTime),
                 reconciliationTimes.getAllValues());
@@ -854,6 +856,14 @@ class HandleWorkflowTest {
         lenient()
                 .when(historyStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID))
                 .thenReturn(mock(WritableSingletonState.class));
+        final WritableSingletonState<HistoryProofConstruction> proofConstruction = mock(WritableSingletonState.class);
+        lenient()
+                .when(historyStates.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID))
+                .thenReturn(proofConstruction);
+        lenient()
+                .when(historyStates.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID))
+                .thenReturn(proofConstruction);
+        lenient().when(proofConstruction.get()).thenReturn(HistoryProofConstruction.DEFAULT);
 
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
         given(event.getCreatorId()).willReturn(NodeId.of(0));
