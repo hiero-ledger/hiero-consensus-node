@@ -380,7 +380,6 @@ public class TestHashgraphInfo {
         try (final PrintWriter out = new PrintWriter(Files.newBufferedWriter(outputFile))) {
             final Random random = new Random(RANDOM_SEED);
             long eventsWritten = 0; // number of times an EventInfo row has been written so far
-            EventInfo[] lastEvent = new EventInfo[NUM_NODES]; // the most recent event created by each node
             HashgraphInfo hashgraphInfo = new HashgraphInfo();
             List<EventInfo> recentEventsToRecalculate = new LinkedList<>();
             UpdateResults updateResults;
@@ -389,7 +388,18 @@ public class TestHashgraphInfo {
             boolean newRound = true;
             RoundInfo roundInfo = null;
             long minNonAncientRound;
-            ArrayList<HashSet<EventInfo>> tips; // for each nodeID, the set of all tips created by it
+            // tips[i] has all non-ancient tips created by nodeIDs[i]. An honest node has at most one tip.
+            ArrayList<HashSet<EventInfo>> tips = new ArrayList<HashSet<EventInfo>>(MAX_NUM_NODES);
+            // Honest nodes have a nodeID of nodeIDs[i] for 0 <= i < NUM_HONEST.
+            // Malicious nodes have a nodeID of nodeIDs[i] for NUM_HONEST <= i < NUM_NODES.
+            long[] nodeIDs = new long[MAX_NUM_NODES];
+            {
+                long mask = random.nextInt(MAX_NUM_NODES) + 9 * MAX_NUM_NODES;
+                for (int i=0; i<MAX_NUM_NODES; i++) {
+                    nodeIDs[i] = mask ^ i; // node IDs are unique, randomish, 1 digit bigger than max index
+                    tips.add(new HashSet<EventInfo>()); // tip set is empty for each node at genesis
+                }
+            }
 
             // fields for the next roundInfo (default values that match old code on mainnet)
             long[] roundInfoNodes = new long[] {0, 10, 20, 30, 40, 110, 120};
@@ -405,7 +415,9 @@ public class TestHashgraphInfo {
             while (eventsWritten < NUM_EVENTS_TO_WRITE) {
                 newHashgraph = newHashgraph || (random.nextFloat() < RESTART_PROBABILITY);
                 if (newHashgraph) {
-                    lastEvent = new EventInfo[NUM_NODES];
+                    for (HashSet<EventInfo> nodeTips : tips) {
+                        nodeTips.clear(); // there are no tips at genesis
+                    }
                     hashgraphInfo = new HashgraphInfo();
                     recentEventsToRecalculate = new LinkedList<>();
                     tips = new ArrayList<>();
@@ -460,7 +472,6 @@ public class TestHashgraphInfo {
                     roundInfoJudgeCon1 = random.nextBoolean();
                     roundInfoTargetNumRoundsNonAncient = random.nextInt(1, 6);
                     roundInfoNumRoundsAddressBook = random.nextInt(1, 4);
-                    // TODO randomly decide whether to make a new hashgraph
                     // TODO randomly choose address book (and randomly shuffle it)
                     // TODO randomly choose other parents, including branching
 
@@ -498,12 +509,17 @@ public class TestHashgraphInfo {
                 int creatorIndex = random.nextInt(roundInfo.nodes().length);
                 ArrayList<EventInfo> possibleOtherParents = new ArrayList<>();
                 ArrayList<EventInfo> parents = new ArrayList<>();
-                if (lastEvent[creatorIndex] != null) {
-                    parents.add(lastEvent[creatorIndex]);
+                if (!tips.get(creatorIndex).isEmpty()) {
+                    EventInfo[] allTips = tips.get(creatorIndex).toArray(new EventInfo[0]);
+                    EventInfo toAdd = allTips[0]; // for malicious nodes, choose one or more at random /**/
+                    parents.add(toAdd);
+                    tips.get(creatorIndex).remove(toAdd); // assume honest node - no branching
                 }
-                for (int i = 0; i < lastEvent.length; i++) {
-                    if (lastEvent[i] != null && i != creatorIndex) {
-                        possibleOtherParents.add(lastEvent[i]);
+                for (int i = 0; i < tips.size(); i++) {
+                    if (!tips.get(i).isEmpty() && i != creatorIndex) {
+                        EventInfo[] allTips = tips.get(i).toArray(new EventInfo[0]);
+                        EventInfo toAdd = allTips[0]; // for malicious nodes, choose one or more at random /**/
+                        possibleOtherParents.add(toAdd);
                     }
                 }
                 Collections.shuffle(possibleOtherParents, random);
@@ -519,7 +535,7 @@ public class TestHashgraphInfo {
                 if (!parents.isEmpty() && timeCreated.isBefore(parents.getLast().getTimeCreated())) {
                     timeCreated = parents.getLast().getTimeCreated();
                 }
-                timeCreated = timeCreated.plusNanos(random.nextInt(2_000_000_000));
+                timeCreated = timeCreated.plusNanos(random.nextInt(1,2_000_000_000));
 
                 EventInfo eventInfo = new EventInfo(
                         hashgraphInfo, // HashgraphInfo hashgraphInfo
@@ -530,11 +546,9 @@ public class TestHashgraphInfo {
                         random.nextInt(), // int coin
                         parents.toArray(new EventInfo[0]).clone(), // EventInfo[] parents
                         null); // Object payload
-                // lastEvent[(int)roundInfo.nodes()[eventInfo.getCreatorIndex()]] = eventInfo;
-                // mapEventIdToEventInfo.put(eventInfo.getEventID(), eventInfo);
                 recentEventsToRecalculate.add(eventInfo);
                 writeEventSigned(out, eventInfo);
-                lastEvent[creatorIndex] = eventInfo;
+                tips.get(creatorIndex).add(eventInfo);
 
                 updateResults = eventInfo.update(roundInfo, roundInfoPrev);
                 writeEventInfo(out, eventInfo, roundInfoPrev);
