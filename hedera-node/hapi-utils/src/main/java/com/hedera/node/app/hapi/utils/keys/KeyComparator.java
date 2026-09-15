@@ -42,9 +42,10 @@ public class KeyComparator implements Comparator<Key> {
                 case DELEGATABLE_CONTRACT_ID -> compareDelegateable(first, second);
                 case ED25519 -> compareEdwards(first, second);
                 case ECDSA_SECP256K1 -> compareSecp256k(first, second);
+                case ML_DSA_44 -> compareMlDsa44(first, second);
                 case THRESHOLD_KEY -> compareThreshold(first, second);
                 case KEY_LIST -> compareKeyList(first, second);
-                    // The next two are not currently supported key types.
+                // The next two are not currently supported key types.
                 case RSA_3072 -> compareRsa(first, second);
                 case ECDSA_384 -> compareEcdsa(first, second);
             };
@@ -106,6 +107,10 @@ public class KeyComparator implements Comparator<Key> {
         final Bytes lhs = first.ecdsaSecp256k1();
         final Bytes rhs = second.ecdsaSecp256k1();
         return compareBytes(lhs, rhs);
+    }
+
+    private int compareMlDsa44(final Key first, final Key second) {
+        return compareBytes(first.mlDsa44(), second.mlDsa44());
     }
 
     private int compareThreshold(final Key first, final Key second) {

@@ -40,6 +40,7 @@ import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -433,7 +434,11 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
             signatureExpander.expand(context.requiredNonPayerKeys(), originals, expanded);
             signatureExpander.expand(context.optionalNonPayerKeys(), originals, expanded);
         }
-        return signatureVerifier.verify(txInfo.signedBytes(), expanded);
+        final var ledgerId = configProvider
+                .getConfiguration()
+                .getConfigData(LedgerConfig.class)
+                .id();
+        return signatureVerifier.verify(txInfo.signedBytes(), expanded, ledgerId);
     }
 
     private boolean wasComputedWithCurrentNodeConfiguration(@Nullable PreHandleResult previousResult) {

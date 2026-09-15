@@ -299,7 +299,7 @@ public abstract class AbstractScheduleHandler {
         final Set<ContractID> delegatableContractIdSigs = new HashSet<>();
         signatories.forEach(k -> {
             switch (k.key().kind()) {
-                case ED25519, ECDSA_SECP256K1 -> cryptoSigs.add(k);
+                case ED25519, ECDSA_SECP256K1, ML_DSA_44 -> cryptoSigs.add(k);
                 case CONTRACT_ID -> contractIdSigs.add(k.contractIDOrThrow());
                 case DELEGATABLE_CONTRACT_ID -> delegatableContractIdSigs.add(k.delegatableContractIdOrThrow());
                 default -> {
@@ -308,12 +308,13 @@ public abstract class AbstractScheduleHandler {
             }
         });
         return key -> switch (key.key().kind()) {
-            case ED25519, ECDSA_SECP256K1 -> cryptoSigs.contains(key);
-                // A contract id key is only activated by direct authorization
+            case ED25519, ECDSA_SECP256K1, ML_DSA_44 -> cryptoSigs.contains(key);
+            // A contract id key is only activated by direct authorization
             case CONTRACT_ID -> isAuthorized(key.contractIDOrThrow(), accountStore, contractIdSigs, emptySet());
-                // The more permissive "delegatable" key is activated by either type of authorization
-            case DELEGATABLE_CONTRACT_ID -> isAuthorized(
-                    key.delegatableContractIdOrThrow(), accountStore, delegatableContractIdSigs, contractIdSigs);
+            // The more permissive "delegatable" key is activated by either type of authorization
+            case DELEGATABLE_CONTRACT_ID ->
+                isAuthorized(
+                        key.delegatableContractIdOrThrow(), accountStore, delegatableContractIdSigs, contractIdSigs);
             default -> false;
         };
     }
@@ -372,18 +373,18 @@ public abstract class AbstractScheduleHandler {
     private static void accumulateNewSignatories(
             @NonNull final Set<Key> signatories, @NonNull final Set<Key> signingCryptoKeys, @NonNull final Key key) {
         switch (key.key().kind()) {
-            case ED25519, ECDSA_SECP256K1 -> {
+            case ED25519, ECDSA_SECP256K1, ML_DSA_44 -> {
                 if (signingCryptoKeys.contains(key)) {
                     signatories.add(key);
                 }
             }
-            case KEY_LIST -> key.keyListOrThrow()
-                    .keys()
-                    .forEach(k -> accumulateNewSignatories(signatories, signingCryptoKeys, k));
-            case THRESHOLD_KEY -> key.thresholdKeyOrThrow()
-                    .keysOrThrow()
-                    .keys()
-                    .forEach(k -> accumulateNewSignatories(signatories, signingCryptoKeys, k));
+            case KEY_LIST ->
+                key.keyListOrThrow().keys().forEach(k -> accumulateNewSignatories(signatories, signingCryptoKeys, k));
+            case THRESHOLD_KEY ->
+                key.thresholdKeyOrThrow()
+                        .keysOrThrow()
+                        .keys()
+                        .forEach(k -> accumulateNewSignatories(signatories, signingCryptoKeys, k));
         }
     }
 

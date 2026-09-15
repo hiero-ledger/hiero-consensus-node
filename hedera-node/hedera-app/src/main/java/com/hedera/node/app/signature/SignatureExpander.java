@@ -11,8 +11,9 @@ import java.util.Set;
  * Expands {@link SignaturePair}s into {@link ExpandedSignaturePair}s.
  *
  * <p>A {@link SignaturePair} is a cryptographic signature and an optional public key prefix. The prefix can be anything
- * from 0 bytes all the way up to the bytes of a full cryptographic public key. Only ED25519 (32 bytes long) and
- * ECDSA_SECP256K1 <strong>compressed</strong> (33 bytes long) public keys are supported.
+ * from 0 bytes all the way up to the bytes of a full cryptographic public key. ED25519 (32 bytes long),
+ * ECDSA_SECP256K1 <strong>compressed</strong> (33 bytes long), and ML_DSA_44 keys are supported. ML_DSA_44 pairs use
+ * an exact 32-byte HCPQ key identifier rather than public-key prefix matching.
  *
  * <p>The job of the {@link SignatureExpander} is to "expand" the prefix of a {@link SignaturePair} to be a full,
  * uncompressed (in the case of ECDSA_SECP256K1), public key. There are two different scenarios it must deal with:
@@ -38,10 +39,10 @@ public interface SignatureExpander {
     void expand(@NonNull List<SignaturePair> sigPairs, @NonNull Set<ExpandedSignaturePair> expanded);
 
     /**
-     * Given a {@link Key}, traverses it looking for each cryptographic key (ED25519, ECDSA_SECP256K1). For each such
-     * cryptographic key, look for a corresponding matching prefix in the {@link SignaturePair}s. If one is found, then
-     * we are guaranteed that it is the only possible match, and a corresponding {@link ExpandedSignaturePair} will be
-     * created.
+     * Given a {@link Key}, traverses it looking for each supported cryptographic key. For each such key, look for a
+     * corresponding matching prefix, or exact HCPQ key identifier for ML_DSA_44, in the {@link SignaturePair}s. If one
+     * is found, then we are guaranteed that it is the only possible match, and a corresponding
+     * {@link ExpandedSignaturePair} will be created.
      *
      * @param key The {@link Key} to traverse looking for cryptographic keys, used to find matching
      *            {@link SignaturePair}s

@@ -6,12 +6,14 @@ import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PREPROCESSING_
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_VOTE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERIALIZED_TX_MESSAGE_HASH_ALGORITHM;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_START;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_PREFIX_MISMATCH;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_EXPIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_HAS_UNKNOWN_FIELDS;
@@ -41,6 +43,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.workflows.prehandle.DueDiligenceException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.GovernanceTransactionsConfig;
+import com.hedera.node.config.data.HcpqConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.Codec;
@@ -685,11 +688,13 @@ public class TransactionChecker {
             throws PreCheckException {
         validateTruePreCheck(signedTx.hasSigMap(), INVALID_TRANSACTION_BODY);
         final var signatureMap = signedTx.sigMapOrThrow();
+        checkHcpqPolicy(signatureMap.sigPair());
         final var txBody = parseStrict(
                 signedTx.bodyBytes().toReadableSequentialData(),
                 TransactionBody.PROTOBUF,
                 INVALID_TRANSACTION_BODY,
                 maxSize);
+        validateTruePreCheck(hasCanonicalHcpqBody(signedTx, txBody), INVALID_TRANSACTION_BODY);
         final HederaFunctionality functionality;
         try {
             functionality = HapiUtils.functionOf(txBody);
@@ -706,6 +711,41 @@ public class TransactionChecker {
         }
         return checkParsed(new TransactionInfo(
                 signedTx, txBody, signatureMap, signedTx.bodyBytes(), functionality, serializedSignedTx));
+    }
+
+    /**
+     * HCPQ signatures deliberately reject all alternate protobuf encodings. This rule is scoped
+     * to the new signature type so existing Ed25519/ECDSA transactions retain their historical
+     * wire compatibility.
+     */
+    @VisibleForTesting
+    static boolean hasCanonicalHcpqBody(
+            @NonNull final SignedTransaction signedTx, @NonNull final TransactionBody parsedBody) {
+        final var hasHcpqSignature =
+                signedTx.sigMapOrElse(com.hedera.hapi.node.base.SignatureMap.DEFAULT).sigPair().stream()
+                        .anyMatch(SignaturePair::hasMlDsa44);
+        return !hasHcpqSignature || signedTx.bodyBytes().equals(TransactionBody.PROTOBUF.toBytes(parsedBody));
+    }
+
+    /** Enforces the default-off activation gate and bounded pre-consensus verification work. */
+    @VisibleForTesting
+    void checkHcpqPolicy(@NonNull final List<SignaturePair> signaturePairs) throws PreCheckException {
+        final var hcpqPairs =
+                signaturePairs.stream().filter(SignaturePair::hasMlDsa44).toList();
+        if (hcpqPairs.isEmpty()) {
+            return;
+        }
+        final var config = configProvider.getConfiguration().getConfigData(HcpqConfig.class);
+        validateTruePreCheck(config.enabled(), NOT_SUPPORTED);
+        validateTruePreCheck(
+                config.maxSignaturesPerTransaction() > 0 && hcpqPairs.size() <= config.maxSignaturesPerTransaction(),
+                INVALID_SIGNATURE);
+        for (final var pair : hcpqPairs) {
+            validateTruePreCheck(
+                    pair.pubKeyPrefix().length() == com.hedera.cryptography.hcpq.Hcpq.KEY_ID_LENGTH
+                            && pair.mlDsa44OrThrow().length() == com.hedera.cryptography.hcpq.Hcpq.SIGNATURE_LENGTH,
+                    INVALID_SIGNATURE);
+        }
     }
 
     /**
