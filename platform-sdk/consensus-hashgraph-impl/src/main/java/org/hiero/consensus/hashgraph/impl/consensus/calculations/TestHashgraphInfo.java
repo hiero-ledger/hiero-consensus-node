@@ -49,7 +49,7 @@ public class TestHashgraphInfo {
 
     /** the path down to where the log file should be read or written, starting at {@link #REPOSITORY_DIRECTORY_NAME} */
     private static final String DESCENT_PATH = "platform-sdk/consensus-hashgraph-impl/src/main/java/org"
-            +"/hiero/consensus/hashgraph/impl/consensus/calculations";
+            + "/hiero/consensus/hashgraph/impl/consensus/calculations";
 
     /** NewHashgraphRow is a CSV row starting with this number */
     private static final int NEW_HASHGRAPH_ROW_TYPE = 0;
