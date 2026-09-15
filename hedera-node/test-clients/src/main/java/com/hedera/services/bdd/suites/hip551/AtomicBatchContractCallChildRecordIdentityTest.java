@@ -43,6 +43,7 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ScheduleInfo;
 import com.hederahashgraph.api.proto.java.TransactionID;
@@ -584,7 +585,7 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
 
     // ---------------------------------------------------------------------------------------------------------
     // Dispatch paths whose owning inner transaction cannot be read off the savepoint stack,
-    // and so is carried explicitly instead.Both classes below pin down such a case.
+    // and so is carried explicitly instead. Both classes below pin down such a case.
     // ---------------------------------------------------------------------------------------------------------
     @Nested
     @DisplayName("Code delegations replayed after a batch rollback")
@@ -642,14 +643,8 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
                                     .payingWith(BATCH_OPERATOR)
                                     .hasKnownStatus(INNER_TRANSACTION_FAILED)
                                     .via(outerBatch))),
-                    getTxnRecord(ethInner)
-                            .andAllChildRecords()
-                            .exposingAllTo(innerRecords::set)
-                            .logged(),
-                    getTxnRecord(outerBatch)
-                            .andAllChildRecords()
-                            .exposingAllTo(batchRecords::set)
-                            .logged(),
+                    getTxnRecord(ethInner).andAllChildRecords().exposingAllTo(innerRecords::set),
+                    getTxnRecord(outerBatch).andAllChildRecords().exposingAllTo(batchRecords::set),
                     assertReplayOwnership(innerRecords, batchRecords, ethInner));
         }
     }
@@ -880,6 +875,7 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
     private static List<TransactionRecord> syntheticRecordsIn(final AtomicReference<List<TransactionRecord>> records) {
         return records.get().stream()
                 .filter(record -> record.getTransactionID().getNonce() > 0)
+                .filter(TxnUtils::isNotEndOfStakingPeriodRecord)
                 .toList();
     }
 
