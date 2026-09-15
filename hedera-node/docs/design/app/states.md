@@ -140,10 +140,10 @@ State proofs would require the **latest signed state** and are not supported. `Q
 ### States used during Ingestion
 
 When clients send a transaction to a node, the node must perform pre-check logic before sending the transaction
-to the hashgraph platform for consensus. The pre-check logic needs access to **the latest immutable state**. It never
-performs any modification to the state. The [Ingest Workflow](workflows.md#ingest-workflow) needs access to key
-information on the transaction payer, and uses a `ReadableKVState` to get this information, by delegating to the
-token service.
+to the hashgraph platform for consensus. The pre-check logic reads from **the current working state**, for the same
+reason queries do (see above). It never performs any modification to the state. The
+[Ingest Workflow](workflows.md#ingest-workflow) needs access to key information on the transaction payer, and uses a
+`ReadableKVState` to get this information, by delegating to the token service.
 
 ### States used during Pre-Handle
 
