@@ -369,6 +369,9 @@ public class TestHashgraphInfo {
         final int NUM_NODES = 7;
         final int MAX_OTHER_PARENTS = 2;
         final Path outputFile = getFilePath(outputFilename);
+        final int PROB_SINGLE_NONZERO_STAKE = 10; // percent probability that all nodes except 1 have zero stake
+        final int PROB_UNIFORM_STAKE = 10; // percent prob (if not single_nonzero_stake) that every stake is 1
+
         if (outputFile == null) {
             return;
         }
@@ -417,6 +420,28 @@ public class TestHashgraphInfo {
                 }
                 while (newRound) { // start new round, update old events, if one of them reaches consensus, loop
                     newRound = false;
+                    // randomize the stakes
+                    if (random.nextInt(100) < PROB_SINGLE_NONZERO_STAKE) {
+                        Arrays.fill(roundInfoStake, 0);
+                        roundInfoStake[random.nextInt(roundInfoStake.length)] = random.nextInt(1000);
+                    } else if (random.nextInt(100) < PROB_UNIFORM_STAKE) {
+                        Arrays.fill(roundInfoStake, 1);
+                    } else {
+                        // number of stakes to set to zero (from none to all-but-one)
+                        int numZero = random.nextInt(roundInfoStake.length-1);
+                        for (int i=0; i<roundInfoStake.length; i++) {
+                            roundInfoStake[i] = random.nextInt(1000);
+                        }
+                        for (int i=0; i<numZero; i++) {
+                            roundInfoStake[random.nextInt(roundInfoStake.length)] = 0;
+                        }
+                    }
+//                    for (int j = roundInfoNodes.length - 1; j > 0; j--) {
+//                                int index = random.nextInt(j + 1);
+//                                long temp = roundInfoNodes[index];
+//                                roundInfoNodes[index] = roundInfoNodes[j];
+//                                roundInfoNodes[j] = temp;
+//                            }
                     //                    for (int i=roundInfoNodes.length-1; i>0; i--) { // randomly shuffle the order
                     // of nodes and stake
                     //                        int p = random.nextInt(i+1);
