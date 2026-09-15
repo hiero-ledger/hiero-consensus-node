@@ -365,7 +365,9 @@ public class TestHashgraphInfo {
      * org/hiero/consensus/hashgraph/impl/consensus/calculations/log and creates the file there.
      */
     static void writeLogFile(String outputFilename) throws IOException {
-        final int MAX_NUM_NODES = 199; // 0-99 are honest, 100-199 are malicious
+        final int MAX_NUM_HONEST = 10;
+        final int MAX_NUM_MALICIOUS = 10;
+        final int MAX_NUM_NODES = MAX_NUM_HONEST + MAX_NUM_MALICIOUS;
         final int NUM_NODES = 7;
         final int MAX_OTHER_PARENTS = 2;
         final Path outputFile = getFilePath(outputFilename);
@@ -413,7 +415,12 @@ public class TestHashgraphInfo {
                     writeNewHashgraphRow(
                             out,
                             new NewHashgraphRow(
-                                    hashgraphInfo.getHashgraphInfoID(), SOFTWARE_VERSION, RANDOM_SEED, Instant.now()));
+                                    hashgraphInfo.getHashgraphInfoID(), SOFTWARE_VERSION, RANDOM_SEED,
+                                    //replace Instant.EPOCH with Instant.now() to gain better
+                                    //self-documentation in the CSV file. But it will lose the deterministic file
+                                    //generation (so git will see a diff every time it's re-generated)
+                                    Instant.EPOCH
+                            ));
                     newHashgraph = false;
                     newRound = true;
                     roundInfoPrev = HashgraphInfo.FIRST_ROUND_INFO_PREV;
@@ -442,16 +449,6 @@ public class TestHashgraphInfo {
 //                                roundInfoNodes[index] = roundInfoNodes[j];
 //                                roundInfoNodes[j] = temp;
 //                            }
-                    //                    for (int i=roundInfoNodes.length-1; i>0; i--) { // randomly shuffle the order
-                    // of nodes and stake
-                    //                        int p = random.nextInt(i+1);
-                    //                        long t1 = roundInfoNodes[i];
-                    //                        long t2 = roundInfoStake[i];
-                    //                        roundInfoNodes[i] = roundInfoNodes[p];
-                    //                        roundInfoStake[i] = roundInfoStake[p];
-                    //                        roundInfoNodes[p] = t1;
-                    //                        roundInfoStake[p] = t2;
-                    //                    }
                     // choose random values for every RoundInfo field except nodes and stake
                     roundInfoCoinInterval = random.nextInt(4, 11);
                     roundInfoSeeDen = 3 * random.nextInt(1, 1000);
