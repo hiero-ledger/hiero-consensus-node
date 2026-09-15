@@ -33,6 +33,7 @@ import org.hiero.base.concurrent.pool.ParallelExecutor;
 import org.hiero.base.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
+import org.hiero.consensus.gossip.config.TrafficShapingConfig;
 import org.hiero.consensus.gossip.impl.gossip.permits.SyncPermitProvider;
 import org.hiero.consensus.gossip.impl.gossip.rpc.GossipRpcReceiver;
 import org.hiero.consensus.gossip.impl.gossip.rpc.GossipRpcReceiverHandler;
@@ -48,6 +49,7 @@ import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.NetworkMetrics;
 import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
 import org.hiero.consensus.gossip.impl.network.protocol.PeerProtocol;
+import org.hiero.consensus.io.counting.ByteCounter;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -177,6 +179,21 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
     private final RpcOverloadMonitor overloadMonitor;
 
     /**
+     * Configuration for per-peer inbound traffic shaping
+     */
+    private final TrafficShapingConfig trafficConfig;
+
+    /**
+     * Per-peer inbound byte budget; charged on every incoming message
+     */
+    private final PeerByteShaper shaper;
+
+    /**
+     * Threshold reporting for {@link #shaper}
+     */
+    private final PeerTrafficReporter trafficReporter;
+
+    /**
      * Constructs a new rpc protocol
      *
      * @param peerId           the id of the peer being synced with in this protocol
@@ -188,6 +205,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
      * @param time             the {@link Time} instance for the platformeturns the {@link Time} instance for the
      *                         platform
      * @param syncMetrics      metrics tracking syncing
+     * @param trafficConfig    configuration for traffic shaper
      * @param syncConfig       sync configuration
      * @param broadcastConfig  broadcast configuration
      * @param exceptionHandler handler for errors which happens when managing the connection/dispatch loop
@@ -202,6 +220,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
             @NonNull final Time time,
             @NonNull final SyncMetrics syncMetrics,
             @NonNull final SyncConfig syncConfig,
+            @NonNull final TrafficShapingConfig trafficConfig,
             @NonNull final BroadcastConfig broadcastConfig,
             @NonNull final RpcInternalExceptionHandler exceptionHandler) {
         this.executor = Objects.requireNonNull(executor);
@@ -212,13 +231,17 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         this.time = Objects.requireNonNull(time);
         this.syncMetrics = Objects.requireNonNull(syncMetrics);
         this.syncConfig = syncConfig;
+        this.trafficConfig = Objects.requireNonNull(trafficConfig);
+        this.shaper = new PeerByteShaper(time, trafficConfig);
+        this.trafficReporter = new PeerTrafficReporter(time, trafficConfig, remotePeerId);
+
         this.pingHandler = new RpcPingHandler(time, networkMetrics, remotePeerId, this, syncConfig.pingPeriod());
 
         this.exceptionRateLimiter = new RateLimiter(time, SOCKET_EXCEPTION_DURATION);
         this.exceptionHandler = exceptionHandler;
 
-        this.inputQueue =
-                syncMetrics.createMeasuredQueue("rpc_input_%02d".formatted(peerId.id()), new LinkedBlockingQueue<>());
+        this.inputQueue = syncMetrics.createMeasuredQueue(
+                "rpc_input_%02d".formatted(peerId.id()), new LinkedBlockingQueue<>(syncConfig.rpcInputQueueCapacity()));
         this.outputQueue =
                 syncMetrics.createMeasuredQueue("rpc_output_%02d".formatted(peerId.id()), new LinkedBlockingQueue<>());
         this.overloadMonitor = new RpcOverloadMonitor(
@@ -425,9 +448,12 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
      * @throws IOException          on any kind of I/O error
      * @throws SyncTimeoutException if conversation finish has not happened in the allotted time
      */
-    private void readMessages(@NonNull final Connection connection) throws IOException, SyncTimeoutException {
+    private void readMessages(@NonNull final Connection connection)
+            throws IOException, InterruptedException, SyncTimeoutException, NetworkProtocolException {
 
         final SyncInputStream input = connection.getDis();
+        final ByteCounter byteCounter = input.byteCounter();
+        long lastByteCount = byteCounter.getTotalCount();
         syncMetrics.rpcReadThreadRunning(+1);
         try {
             while (true) {
@@ -449,30 +475,38 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                 if (incomingBatchSize == END_OF_CONVERSATION) {
                     break;
                 }
+                // we never send more than EVENT_BATCH_SIZE in one batch, so anything larger is a protocol violation
+                if (incomingBatchSize > EVENT_BATCH_SIZE) {
+                    // possibly Sheriff report?
+                    throw new NetworkProtocolException("Peer " + remotePeerId + " declared a batch of "
+                            + incomingBatchSize + " messages, maximum is " + EVENT_BATCH_SIZE);
+                }
 
                 for (int i = 0; i < incomingBatchSize; i++) {
+
+                    lastByteCount = throttleReads(byteCounter, lastByteCount);
 
                     final int messageType = input.read();
                     switch (messageType) {
                         case SYNC_DATA:
                             final GossipSyncData gossipSyncData = input.readPbjRecord(GossipSyncData.PROTOBUF);
-                            inputQueue.add(() -> receiver.receiveSyncData(SyncData.fromProtobuf(gossipSyncData)));
+                            enqueueInput(() -> receiver.receiveSyncData(SyncData.fromProtobuf(gossipSyncData)));
                             break;
                         case KNOWN_TIPS:
                             final GossipKnownTips knownTips = input.readPbjRecord(GossipKnownTips.PROTOBUF);
-                            inputQueue.add(() -> receiver.receiveTips(knownTips.knownTips()));
+                            enqueueInput(() -> receiver.receiveTips(knownTips.knownTips()));
                             break;
                         case EVENT:
                             final List<GossipEvent> events =
                                     Collections.singletonList(input.readPbjRecord(GossipEvent.PROTOBUF));
-                            inputQueue.add(() -> receiver.receiveEvents(events));
+                            enqueueInput(() -> receiver.receiveEvents(events));
                             break;
                         case BROADCAST_EVENT:
                             final GossipEvent event = input.readPbjRecord(GossipEvent.PROTOBUF);
-                            inputQueue.add(() -> receiver.receiveBroadcastEvent(event));
+                            enqueueInput(() -> receiver.receiveBroadcastEvent(event));
                             break;
                         case EVENTS_FINISHED:
-                            inputQueue.add(receiver::receiveEventsFinished);
+                            enqueueInput(receiver::receiveEventsFinished);
                             break;
                         case PING:
                             pingHandler.handleIncomingPing(input.readLong());
@@ -484,15 +518,81 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                             // we are still reporting delay to receive, not to handle
                             // we want to measure the network ping, rather than dispatch thread ping
                             // it is still handled over there, to make overloadMonitor managed from same thread
-                            inputQueue.add(() -> overloadMonitor.reportPing(pingMillis));
+                            enqueueInput(() -> overloadMonitor.reportPing(pingMillis));
                             break;
                     }
                 }
             }
         } finally {
-            inputQueue.add(POISON_PILL);
+            enqueuePoisonPill();
             processMessages = false;
             syncMetrics.rpcReadThreadRunning(-1);
+        }
+    }
+
+    /**
+     * Charge the bytes read from the peer since the previous call against the peer's byte budget, and pause reading if
+     * the peer is over budget. Called between messages, never in the middle of one, so a pause never leaves a partially
+     * read message on the stream.
+     *
+     * <p>The pause is bounded by {@link TrafficShapingConfig#maxReadDelay()} because pausing also stops us
+     * answering the peer's pings.
+     *
+     * @param byteCounter   counts bytes read from the socket for the current connection
+     * @param lastByteCount value the counter held on the previous call
+     * @return the counter value to compare against on the next call
+     */
+    private long throttleReads(@NonNull final ByteCounter byteCounter, final long lastByteCount)
+            throws InterruptedException {
+
+        if (!trafficConfig.enabled()) {
+            return lastByteCount;
+        }
+
+        final long byteCount = byteCounter.getTotalCount();
+        final long delayNanos = shaper.charge(byteCount - lastByteCount);
+
+        syncMetrics.reportShaperOccupancy(shaper.lastOccupancy());
+        trafficReporter.report(shaper.lastOccupancy(), trafficConfig.enforce() ? delayNanos : 0L);
+
+        if (delayNanos > 0) {
+            syncMetrics.rpcReadThrottled(delayNanos);
+            if (trafficConfig.enforce()) {
+                TimeUnit.NANOSECONDS.sleep(delayNanos);
+            }
+        }
+        return byteCount;
+    }
+
+    /**
+     * Hand a parsed message to the dispatch thread, waiting if the dispatch queue is full. Waiting here is the intended
+     * backpressure: it stops us reading the socket, which closes the TCP receive window and slows the peer at the
+     * source.
+     *
+     * @param message the action to be run by the dispatch thread
+     * @throws SyncTimeoutException if the dispatch thread has not drained the queue within
+     *                              {@link SyncConfig#maxSyncTime()}, which means it is wedged rather than merely busy
+     */
+    private void enqueueInput(@NonNull final Runnable message) throws SyncTimeoutException, InterruptedException {
+        final long deadline =
+                time.currentTimeMillis() + syncConfig.maxSyncTime().toMillis();
+
+        while (!inputQueue.offer(
+                message, syncConfig.rpcIdleDispatchPollTimeout().toMillis(), TimeUnit.MILLISECONDS)) {
+            if (time.currentTimeMillis() > deadline) {
+                throw new SyncTimeoutException(
+                        syncConfig.maxSyncTime(), Duration.ofMillis(deadline - time.currentTimeMillis()));
+            }
+        }
+    }
+
+    /**
+     * The dispatch thread only exits when it sees {@link #POISON_PILL}, so it has to be delivered even when the queue
+     * is full.
+     */
+    private void enqueuePoisonPill() {
+        while (!inputQueue.offer(POISON_PILL)) {
+            Thread.yield();
         }
     }
 
