@@ -30,10 +30,10 @@ public class TestHashgraphInfo {
     private static final long RANDOM_SEED = 1;
 
     /** the filename to write (or "" if none) including the extension but not the path */
-    private static final String OUTPUT_FILENAME = "test.csv";
+    private static final String OUTPUT_FILENAME = "log.csv";
 
     /** the filename to read (or "" if none) including the extension but not the path */
-    private static final String INPUT_FILENAME = "test.csv";
+    private static final String INPUT_FILENAME = "log.csv";
 
     /** the version of this file (increment when the file format changes, or possibly for big algorithm changes) */
     private static final long SOFTWARE_VERSION = 1;
@@ -47,20 +47,9 @@ public class TestHashgraphInfo {
     /** probability of restarting the hashgraph after each event */
     private static final float RESTART_PROBABILITY = 0.01f;
 
-    /** the directories to descend through, starting at {@link #REPOSITORY_DIRECTORY_NAME} */
-    private static final List<String> DESCENT = List.of(
-            "platform-sdk",
-            "consensus-hashgraph-impl",
-            "src",
-            "main",
-            "java",
-            "org",
-            "hiero",
-            "consensus",
-            "hashgraph",
-            "impl",
-            "consensus",
-            "calculations");
+    /** the path down to where the log file should be read or written, starting at {@link #REPOSITORY_DIRECTORY_NAME} */
+    private static final String DESCENT_PATH = "platform-sdk/consensus-hashgraph-impl/src/main/java/org"
+            +"/hiero/consensus/hashgraph/impl/consensus/calculations";
 
     /** NewHashgraphRow is a CSV row starting with this number */
     private static final int NEW_HASHGRAPH_ROW_TYPE = 0;
@@ -102,7 +91,7 @@ public class TestHashgraphInfo {
     /**
      * Find the Path of the test log file. This is found by starting where the
      * compiled class is located and then searching upward until the REPOSITORY_DIRECTORY_NAME directory is found,
-     * then searching back downward through the directories in DESCENT.
+     * then searching back downward through the directories in the path DESCENT_PATH.
      *
      * @param outputFilename the filename (with extension but without a path) of the test CSV log file
      * @return the Path, or null if anything went wrong, in which case an error has already been printed
@@ -144,13 +133,11 @@ public class TestHashgraphInfo {
             return null;
         }
 
-        // walk back down, checking each directory exists
-        for (final String name : DESCENT) {
-            directory = directory.resolve(name);
-            if (!Files.isDirectory(directory)) {
-                System.out.println("ERROR: directory does not exist: " + directory + " - no file was written");
-                return null;
-            }
+        // walk back down, along DESCENT_PATH
+        directory = directory.resolve(DESCENT_PATH);
+        if (!Files.isDirectory(directory)) {
+            System.out.println("ERROR: directory does not exist: " + directory + " - no file was written");
+            return null;
         }
 
         // if no errors so far, then create the file here.
