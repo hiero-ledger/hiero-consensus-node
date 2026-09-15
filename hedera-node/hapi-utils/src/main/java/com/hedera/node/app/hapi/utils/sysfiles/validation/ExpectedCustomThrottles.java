@@ -18,7 +18,6 @@ import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoAppro
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoCreate;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoDelete;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoDeleteAllowance;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoGetAccountBalance;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoGetAccountRecords;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoGetInfo;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
@@ -107,7 +106,6 @@ public final class ExpectedCustomThrottles {
             ContractGetInfo,
             ContractGetBytecode,
             ContractGetRecords,
-            CryptoGetAccountBalance,
             CryptoGetAccountRecords,
             CryptoGetInfo,
             FileGetContents,
