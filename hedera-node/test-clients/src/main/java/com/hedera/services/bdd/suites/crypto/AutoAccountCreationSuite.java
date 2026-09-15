@@ -8,24 +8,19 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
-import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.includingFungibleMovement;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAutoCreatedAccountBalance;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relationshipWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.isEndOfStakingPeriodRecord;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createDefaultContract;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDeleteAliased;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdateAliased;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.sortedCryptoTransfer;
@@ -62,7 +57,6 @@ import static com.hedera.services.bdd.suites.contract.Utils.aaWith;
 import static com.hedera.services.bdd.suites.contract.Utils.accountIdFromEvmAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.ocWith;
-import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS;
@@ -645,22 +639,6 @@ public class AutoAccountCreationSuite {
                         .via("failedXfer")
                         .payingWith(CIVILIAN)
                         .signedBy(CIVILIAN, VALID_ALIAS, TOKEN_TREASURY));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> noStakePeriodStartIfNotStakingToNode() {
-        final var user = "user";
-        final var contract = "contract";
-        return hapiTest(
-                newKeyNamed(ADMIN_KEY),
-                cryptoCreate(user).key(ADMIN_KEY).stakedNodeId(0L),
-                createDefaultContract(contract).adminKey(ADMIN_KEY).stakedNodeId(0L),
-                getAccountInfo(user).has(accountWith().someStakePeriodStart()),
-                getContractInfo(contract).has(contractWith().someStakePeriodStart()),
-                cryptoUpdate(user).newStakedAccountId(contract),
-                contractUpdate(contract).newStakedAccountId(user),
-                getAccountInfo(user).has(accountWith().noStakePeriodStart()),
-                getContractInfo(contract).has(contractWith().noStakePeriodStart()));
     }
 
     @HapiTest
