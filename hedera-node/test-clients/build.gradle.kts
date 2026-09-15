@@ -96,7 +96,7 @@ tasks.register<JavaExec>("runTestClient") {
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|GENESIS_SUBPROCESS|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|ISS_GRPC|BLOCK_NODE|GENESIS_SUBPROCESS|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD)"
 val miscTagsSerial = "$miscTags&SERIAL"
 
 val prCheckTags =
@@ -116,6 +116,7 @@ val prCheckTags =
         "hapiTestTimeConsuming" to "LONG_RUNNING",
         "hapiTestTimeConsumingSerial" to "(LONG_RUNNING&SERIAL)",
         "hapiTestIss" to "ISS",
+        "hapiTestIssGrpc" to "ISS_GRPC",
         "hapiTestBlockNodeCommunication" to "BLOCK_NODE",
         "hapiTestMisc" to miscTags,
         "hapiTestMiscSerial" to miscTagsSerial,
@@ -134,6 +135,7 @@ val remoteCheckTags =
             it.key in
                 listOf(
                     "hapiTestIss",
+                    "hapiTestIssGrpc",
                     "hapiTestRestart",
                     "hapiTestWrapsDownload",
                     "hapiTestToken",
@@ -168,6 +170,7 @@ val prCheckStartPorts =
         "hapiTestSimpleFeesSerial" to "29000",
         "hapiTestAtomicBatchSerial" to "29200",
         "hapiTestSmartContractSerial" to "29400",
+        "hapiTestIssGrpc" to "29600",
     )
 val prCheckPropOverrides =
     mapOf(
@@ -346,7 +349,7 @@ tasks.registerHapiTest(
     "testSubprocess",
     prCheckTags,
     "none()|!(EMBEDDED|REPEATABLE)",
-    ciDefaultTags = "|CONCURRENT_SUBPROCESS_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS",
+    ciDefaultTags = "|CONCURRENT_SUBPROCESS_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS|ISS_GRPC",
     ciDefaultTagsWithoutStreamAndLogValidation = ")&!(EMBEDDED|REPEATABLE",
     excludeTags = "CONCURRENT_SUBPROCESS_VALIDATION",
     junitParallelMode = "same_thread",
@@ -370,8 +373,8 @@ tasks.registerHapiTest(
 tasks.registerHapiTest(
     "testSubprocessConcurrent",
     prCheckTags,
-    "none()|!(EMBEDDED|REPEATABLE|ISS)",
-    ciDefaultTags = "|CONCURRENT_SUBPROCESS_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS",
+    "none()|!(EMBEDDED|REPEATABLE|ISS|ISS_GRPC)",
+    ciDefaultTags = "|CONCURRENT_SUBPROCESS_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS|ISS_GRPC",
     ciDefaultTagsWithoutStreamAndLogValidation = ")&!(EMBEDDED|REPEATABLE",
     excludeTags = "SERIAL&!CONCURRENT_SUBPROCESS_VALIDATION",
     junitParallelMode = "concurrent",
@@ -407,8 +410,8 @@ tasks.registerHapiTest(
 tasks.registerHapiTest(
     "testEmbedded",
     prEmbeddedCheckTags,
-    "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS)",
-    ciDefaultTags = "|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS",
+    "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS|ISS_GRPC)",
+    ciDefaultTags = "|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|ISS_GRPC",
     // Tell our launcher to target a concurrent embedded network
     embeddedMode = "concurrent",
     junitParallelMode = "same_thread",
@@ -423,8 +426,8 @@ tasks.registerHapiTest(
 tasks.registerHapiTest(
     "testRepeatable",
     prRepeatableCheckTags,
-    "none()|!(RESTART|ND_RECONNECT|UPGRADE|EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS|ISS)",
-    ciDefaultTags = "|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|EMBEDDED",
+    "none()|!(RESTART|ND_RECONNECT|UPGRADE|EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS|ISS|ISS_GRPC)",
+    ciDefaultTags = "|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|ISS_GRPC|EMBEDDED",
     embeddedMode = "repeatable",
 )
 
@@ -531,6 +534,7 @@ fun TaskContainer.registerHapiTest(
                     else if (
                         ciDefaultTagsWithoutStreamAndLogValidation != null &&
                             (ciTagExpression.contains("ISS") ||
+                                ciTagExpression.contains("ISS_GRPC") ||
                                 ciTagExpression.contains("BLOCK_NODE"))
                     )
                         "(${ciTagExpression}${ciDefaultTagsWithoutStreamAndLogValidation})"
