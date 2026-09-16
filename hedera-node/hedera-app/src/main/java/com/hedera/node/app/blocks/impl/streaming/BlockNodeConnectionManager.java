@@ -634,7 +634,7 @@ public class BlockNodeConnectionManager {
                     Thread.currentThread().interrupt();
                     logger.warn("Connection monitor loop was interrupted; continuing", e);
                 } catch (final Exception e) {
-                    logger.warn("Error caught in connection monitor loop; continuing", e);
+                    logger.warn("Error caught while backing off in connection monitor loop; continuing", e);
                 }
             }
         }

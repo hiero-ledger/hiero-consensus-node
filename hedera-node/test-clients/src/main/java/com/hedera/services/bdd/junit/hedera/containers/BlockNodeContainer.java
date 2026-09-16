@@ -15,12 +15,20 @@ import java.nio.file.DirectoryIteratorException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.NonNull;
 import org.testcontainers.containers.BindMode;
+import org.testcontainers.containers.Container.ExecResult;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.Transferable;
@@ -30,6 +38,7 @@ import org.testcontainers.utility.DockerImageName;
  * A test container for running a block node server instance.
  */
 public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
+    private static final Logger logger = LogManager.getLogger(BlockNodeContainer.class);
     private static final String BLOCK_NODE_VERSION = "0.42.0-rc1";
     private static final DockerImageName DEFAULT_IMAGE_NAME =
             DockerImageName.parse("ghcr.io/hiero-ledger/hiero-block-node:" + BLOCK_NODE_VERSION);
@@ -40,6 +49,29 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
     private static final String RSA_BOOTSTRAP_FILE_NAME = "rsa-bootstrap-roster.json";
     private static final String LOGGING_CONFIG_IN_CONTAINER = "/opt/hiero/block-node/logs/config/logging.properties";
     private static final String BLOCK_PIPELINE_LOG_LEVEL = "FINE";
+    private static final String JAVA_TOOL_OPTIONS_VALUE = "-Djava.util.logging.config.file="
+            + LOGGING_CONFIG_IN_CONTAINER + " -Xlog:gc,gc+init,gc+cpu:stderr:time,uptime,level,tags";
+    /** How often the block node JVM is sampled for a thread dump while its container is running. */
+    private static final Duration THREAD_DUMP_INTERVAL = Duration.ofSeconds(30);
+    /**
+     * Dumps every thread in the block node JVM. {@code Thread.print} adds lock ownership and Java-level
+     * deadlock detection; {@code Thread.dump_to_file} is the only form that lists virtual threads.
+     * SIGQUIT is the fallback for a JRE image without {@code jcmd}; that dump goes to the JVM's own
+     * stdout and so lands in the container log rather than the dump file.
+     */
+    private static final String THREAD_DUMP_COMMAND = """
+            PID=$(grep -l '^java$' /proc/[0-9]*/comm 2>/dev/null | head -1 | cut -d/ -f3)
+            [ -z "$PID" ] && PID=1
+            F=/tmp/bn-threads.txt
+            if command -v jcmd >/dev/null 2>&1; then
+              jcmd "$PID" Thread.print -l 2>&1
+              jcmd "$PID" Thread.dump_to_file -overwrite -format=plain "$F" >/dev/null 2>&1 && cat "$F"
+            else
+              kill -3 "$PID"
+              echo "jcmd unavailable; sent SIGQUIT to $PID -- the dump is in the container log"
+            fi
+            """;
+
     private static final Object PLUGINS_LOCK = new Object();
     private static final List<String> REQUIRED_PLUGIN_ARTIFACTS = List.of(
             "facility-messaging",
@@ -75,7 +107,9 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             Map.entry(
                     "antlr4-runtime-4.13.2.jar",
                     MAVEN_CENTRAL_BASE_URL + "/org/antlr/antlr4-runtime/4.13.2/antlr4-runtime-4.13.2.jar"));
+    private final long blockNodeId;
     private String containerId;
+    private ScheduledExecutorService threadDumpSampler;
 
     /**
      * Creates a new block node container with the default image.
@@ -100,6 +134,7 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             final int port,
             final String rsaBootstrapJson) {
         super(dockerImageName);
+        this.blockNodeId = blockNodeId;
 
         final Path pluginsDir = ensurePluginsAvailable();
         this.withFileSystemBind(pluginsDir.toString(), pluginsDirInContainer(), BindMode.READ_ONLY);
@@ -116,7 +151,7 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
 
         this.withNetworkAliases("block-node-" + blockNodeId)
                 .withEnv("VERSION", BLOCK_NODE_VERSION)
-                .withEnv("JAVA_TOOL_OPTIONS", "-Djava.util.logging.config.file=" + LOGGING_CONFIG_IN_CONTAINER)
+                .withEnv("JAVA_TOOL_OPTIONS", JAVA_TOOL_OPTIONS_VALUE)
                 // The health endpoint is served on the same HTTP/2 port as gRPC (40840), which is
                 // incompatible with testcontainers' HTTP/1.1 wait strategy. Use a log-message check
                 // instead; BlockNodeNetwork.awaitGrpcReadiness() provides the gRPC-level confirmation.
@@ -333,13 +368,81 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
             super.start();
         }
         containerId = getContainerId();
+        startThreadDumpSampler();
     }
 
     @Override
     public void stop() {
+        stopThreadDumpSampler();
         if (isRunning()) {
             super.stop();
         }
+    }
+
+    /**
+     * Diagnostic: samples a full thread dump from the block node JVM every {@link #THREAD_DUMP_INTERVAL}.
+     * The block node has been seen to stop verifying blocks permanently and silently -- the publisher
+     * keeps accepting them in ~100us while nothing is ever verified or acknowledged again -- which
+     * saturates the consensus node block buffer and parks its handle thread. A time series of dumps,
+     * healthy ones first, is what identifies which thread stopped and what it is waiting on.
+     */
+    private void startThreadDumpSampler() {
+        if (threadDumpSampler != null) {
+            return;
+        }
+        threadDumpSampler = Executors.newSingleThreadScheduledExecutor(runnable -> {
+            final Thread thread = new Thread(runnable, "bn-thread-dump-" + blockNodeId);
+            thread.setDaemon(true);
+            return thread;
+        });
+        final long periodSeconds = THREAD_DUMP_INTERVAL.toSeconds();
+        threadDumpSampler.scheduleWithFixedDelay(
+                this::captureThreadDump, periodSeconds, periodSeconds, TimeUnit.SECONDS);
+    }
+
+    private void stopThreadDumpSampler() {
+        if (threadDumpSampler != null) {
+            threadDumpSampler.shutdownNow();
+            threadDumpSampler = null;
+        }
+    }
+
+    private void captureThreadDump() {
+        if (!isRunning()) {
+            return;
+        }
+        try {
+            final ExecResult result = execInContainer("sh", "-c", THREAD_DUMP_COMMAND);
+            final String body = result.getStdout().isBlank()
+                    ? "no stdout; exit=" + result.getExitCode() + " stderr=" + result.getStderr()
+                    : result.getStdout();
+            final Path dumpFile = threadDumpFile();
+            Files.createDirectories(dumpFile.getParent());
+            Files.writeString(
+                    dumpFile,
+                    "===== block node " + blockNodeId + " @ " + Instant.now() + " =====\n" + body + "\n",
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.APPEND);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (final Exception e) {
+            // Best-effort diagnostic; a test must never fail because a dump could not be taken
+            logger.warn("Failed to capture a thread dump for block node {}", blockNodeId, e);
+        }
+    }
+
+    /**
+     * Dumps land beside the {@code block-node-<id>.log} written by
+     * {@code BlockNodeNetwork.dumpContainerLogs()}, so the CI artifact glob already uploads them.
+     */
+    private Path threadDumpFile() {
+        final Path scopeRoot = WorkingDirUtils.workingDirFor(0, null).getParent();
+        final Path outputDir = (scopeRoot == null
+                        ? Path.of("build", "hapi-test").toAbsolutePath()
+                        : scopeRoot)
+                .resolve("block-node-containers")
+                .resolve("output");
+        return outputDir.resolve("block-node-" + blockNodeId + "-threads.log");
     }
 
     /**
