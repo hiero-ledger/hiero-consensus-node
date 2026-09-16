@@ -5,13 +5,12 @@ import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDE
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -40,7 +39,6 @@ public class PaidQueryThrottleChargeTest {
         return hapiTest(
                 overridingThrottles(THROTTLES),
                 cryptoCreate(payer).balance(ONE_HUNDRED_HBARS),
-                balanceSnapshot("before", payer),
                 // The CryptoGetInfo bucket is saturated to near-zero, so this paid query is throttled at the
                 // query-throttle step and answered BUSY. Its CryptoTransfer payment bucket stays generous, so the
                 // payment itself is not blocked at ingest.
@@ -49,7 +47,9 @@ public class PaidQueryThrottleChargeTest {
                 // handled before we read the balance.
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
                 // The payment is submitted only after the throttle check passes, so a BUSY query never reaches
-                // submit() and the payer is not charged: its balance is unchanged.
-                getAccountBalance(payer).hasTinyBars(changeFromSnapshot("before", 0L)));
+                // submit() and the payer is not charged: its balance is still its full creation balance.
+                getAccountDetails(payer)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith().balance(ONE_HUNDRED_HBARS)));
     }
 }
