@@ -214,9 +214,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
     @AfterEach
     void afterEach() throws InterruptedException {
-        // Tests that start the manager spawn a real 'bn-conn-monitor' thread. If it is not stopped here, it
-        // outlives this class, keeps calling mocks that Mockito later disables, and floods the
-        // BlockNodeConnectionManager logger - which breaks LogCaptor assertions in other test classes.
+        // Tests that start the manager spawn a real 'bn-conn-monitor' thread; if it outlives this class
+        // it keeps calling disabled mocks and floods the logger, breaking LogCaptor assertions elsewhere.
         isConnectionManagerActive().set(false);
         final Thread monitorThread = connectionMonitorThreadRef().getAndSet(null);
         if (monitorThread != null) {
