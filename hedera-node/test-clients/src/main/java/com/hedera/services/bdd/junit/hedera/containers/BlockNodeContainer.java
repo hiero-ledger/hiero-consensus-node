@@ -39,7 +39,7 @@ import org.testcontainers.utility.DockerImageName;
  */
 public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
     private static final Logger logger = LogManager.getLogger(BlockNodeContainer.class);
-    private static final String BLOCK_NODE_VERSION = "0.42.0-rc1";
+    private static final String BLOCK_NODE_VERSION = "0.43.0-rc1";
     private static final DockerImageName DEFAULT_IMAGE_NAME =
             DockerImageName.parse("ghcr.io/hiero-ledger/hiero-block-node:" + BLOCK_NODE_VERSION);
     private static final int GRPC_PORT = 40840;
@@ -50,7 +50,11 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
     private static final String LOGGING_CONFIG_IN_CONTAINER = "/opt/hiero/block-node/logs/config/logging.properties";
     private static final String BLOCK_PIPELINE_LOG_LEVEL = "FINE";
     private static final String JAVA_TOOL_OPTIONS_VALUE = "-Djava.util.logging.config.file="
-            + LOGGING_CONFIG_IN_CONTAINER + " -Xlog:gc,gc+init,gc+cpu:stderr:time,uptime,level,tags";
+            + LOGGING_CONFIG_IN_CONTAINER + " -Xlog:gc,gc+init,gc+cpu:stderr:time,uptime,level,tags"
+            // The block node container is a sibling started through the Docker daemon, so it is not in
+            // this job's cgroup; without this its JVM sizes the virtual-thread carrier pool, GC workers
+            // and gRPC pools for the whole host. Give it the CPU count the job itself was given.
+            + " -XX:ActiveProcessorCount=" + Runtime.getRuntime().availableProcessors();
     /** How often the block node JVM is sampled for a thread dump while its container is running. */
     private static final Duration THREAD_DUMP_INTERVAL = Duration.ofSeconds(30);
     /**
