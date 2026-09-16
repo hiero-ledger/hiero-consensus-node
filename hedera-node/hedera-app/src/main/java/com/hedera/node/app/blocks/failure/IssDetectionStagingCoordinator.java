@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.blocks.cloud.uploader;
+package com.hedera.node.app.blocks.failure;
 
 import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static java.util.Objects.requireNonNull;
@@ -9,7 +9,7 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
-import com.hedera.node.config.data.FailureBlockUploadConfig;
+import com.hedera.node.config.data.FailureBlockStagingConfig;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -36,8 +36,8 @@ import org.hiero.consensus.model.notification.IssNotification.IssType;
 /**
  * Captures the exact ISS-round block and stages it to the node-local {@code issBlockDir} so the deployment's stream
  * uploader (a separate process that watches that bind-mounted directory) ships it to the bucket for triage. The node
- * itself does no upload and holds no bucket credentials. Capture happens from two trigger points that together make it
- * deterministic for both halting and non-halting ISSes:
+ * itself does no upload and holds no bucket credentials. Capture happens from two trigger points that together cover
+ * both halting and non-halting ISSes:
  *
  * <ol>
  *   <li><b>At detection</b> ({@link #captureAndStage}, from {@code FatalIssListenerImpl.notify(...)} on the platform's
@@ -49,8 +49,10 @@ import org.hiero.consensus.model.notification.IssNotification.IssType;
  *   <li><b>At {@code CATASTROPHIC_FAILURE}</b> ({@link #stageDetectedIssOnFailure}, called synchronously from
  *   {@code Hedera.newPlatformStatus} after {@code awaitFatalShutdown} has flushed the open/pending blocks to disk and
  *   <b>before</b> the block-node connections are shut down): resolves the recorded ISS round's block <i>once</i> (no
- *   polling) from the correct source for the writer mode and stages it. Running before the buffer is cleared makes the
- *   <i>halting</i> case race-free.</li>
+ *   polling) from the correct source for the writer mode and stages it. Running before the buffer is cleared keeps the
+ *   in-memory buffer available for the <i>halting</i> case. It relies on the async detection above having recorded the
+ *   ISS first; the ISS notification is soldered after the status monitor, so if it has not (a fast halt) this logs at
+ *   {@code FATAL} and stages nothing. {@code awaitFatalShutdown} having run first makes that miss unlikely.</li>
  * </ol>
  *
  * <p>The two paths de-duplicate via {@link #stagedRounds}: whichever stages the round first marks it; the failure path is
@@ -59,8 +61,8 @@ import org.hiero.consensus.model.notification.IssNotification.IssType;
  * file. Best-effort throughout; never throws.
  */
 @Singleton
-public class IssDetectionUploadCoordinator {
-    private static final Logger log = LogManager.getLogger(IssDetectionUploadCoordinator.class);
+public class IssDetectionStagingCoordinator {
+    private static final Logger log = LogManager.getLogger(IssDetectionStagingCoordinator.class);
 
     /** How often the detection path re-checks disk while waiting for the ISS-round block to become durable. */
     private static final long POLL_INTERVAL_MS = 250L;
@@ -85,8 +87,12 @@ public class IssDetectionUploadCoordinator {
     /** Runs the detection-time capture off the ISS-notification dispatcher (a virtual thread per ISS in production). */
     private final Executor captureExecutor;
 
-    /** The latest detected fatal ISS, recorded at detection so the {@code CATASTROPHIC_FAILURE} path can stage it. */
-    private final AtomicReference<RecordedIss> lastIss = new AtomicReference<>();
+    /**
+     * The FIRST detected fatal ISS, recorded once at detection so the {@code CATASTROPHIC_FAILURE} path stages the same
+     * (earliest divergent) round under the same incident folder. A diverged node re-notifies every round until it halts;
+     * only the first is kept (see {@link #captureAndStage}).
+     */
+    private final AtomicReference<RecordedIss> firstIss = new AtomicReference<>();
     /** ISS rounds already staged, so the detection and failure paths never double-stage a round. */
     private final Set<Long> stagedRounds = ConcurrentHashMap.newKeySet();
 
@@ -94,7 +100,7 @@ public class IssDetectionUploadCoordinator {
             @NonNull IssType issType, long round, @NonNull String incidentFolder) {}
 
     @Inject
-    public IssDetectionUploadCoordinator(
+    public IssDetectionStagingCoordinator(
             @NonNull final ConfigProvider configProvider,
             @NonNull final IssBlockResolver diskResolver,
             @NonNull final IssBufferBlockReader bufferReader,
@@ -119,7 +125,7 @@ public class IssDetectionUploadCoordinator {
     }
 
     // visible for testing: a direct executor lets a test run the capture synchronously
-    IssDetectionUploadCoordinator(
+    IssDetectionStagingCoordinator(
             @NonNull final ConfigProvider configProvider,
             @NonNull final IssBlockResolver diskResolver,
             @NonNull final IssBufferBlockReader bufferReader,
@@ -150,41 +156,39 @@ public class IssDetectionUploadCoordinator {
      */
     public void captureAndStage(@NonNull final IssType issType, final long round) {
         try {
-            final var config = configProvider.getConfiguration().getConfigData(FailureBlockUploadConfig.class);
-            if (!config.issBlockUploadEnabled()) {
+            final var config = configProvider.getConfiguration().getConfigData(FailureBlockStagingConfig.class);
+            if (!config.issBlockStagingEnabled()) {
                 return;
             }
-            // One folder per ISS event. Record it synchronously — before offloading — so the CATASTROPHIC_FAILURE path
-            // reuses the same folder and round even while the capture below is still running.
-            final String incidentFolder = StagingFiles.incidentFolderNow(instantSource);
-            lastIss.set(new RecordedIss(issType, round, incidentFolder));
-            if (stagedRounds.contains(round)) {
+            // A diverged node emits a fatal-ISS notification every round until it halts. Record only the FIRST one (the
+            // earliest divergent round is the block worth triaging) and pin its incident folder, so the async capture
+            // here and the CATASTROPHIC_FAILURE path both group under ONE directory and target the same round, rather
+            // than a fresh timestamp folder and a later round per notification.
+            final RecordedIss iss = new RecordedIss(issType, round, StagingFiles.incidentFolderNow(instantSource));
+            if (!firstIss.compareAndSet(null, iss)) {
                 return;
             }
             // Offload the blocking disk poll (resolveWithWait polls up to captureTimeout) off the ORDERED async
             // ISS-notification dispatcher: blocking it would stall later ISS notifications.
-            captureExecutor.execute(() -> doCaptureAndStage(config, issType, round, incidentFolder));
+            captureExecutor.execute(() -> doCaptureAndStage(config, iss));
         } catch (final Throwable t) {
             log.error("ISS detection-time block capture failed for round {}", round, t);
         }
     }
 
     /** The blocking capture, run off the ISS dispatcher by {@link #captureAndStage}. Best-effort; never throws. */
-    private void doCaptureAndStage(
-            @NonNull final FailureBlockUploadConfig config,
-            @NonNull final IssType issType,
-            final long round,
-            @NonNull final String incidentFolder) {
+    private void doCaptureAndStage(@NonNull final FailureBlockStagingConfig config, @NonNull final RecordedIss iss) {
         try {
-            if (stagedRounds.contains(round)) {
+            if (stagedRounds.contains(iss.round())) {
                 return;
             }
-            final Path incidentDir = incidentDirFor(config, incidentFolder).resolve(STAGE_DETECTION);
+            final Path incidentDir =
+                    incidentDirFor(config, iss.incidentFolder()).resolve(STAGE_DETECTION);
             // Detection can run before the block is durable on disk (FILE modes), so poll until it is.
-            final List<Path> files = capture(config, issType, round, incidentDir, true);
-            markStaged(round, files);
+            final List<Path> files = capture(config, iss.issType(), iss.round(), incidentDir, true);
+            markStaged(iss.round(), files);
         } catch (final Throwable t) {
-            log.error("ISS detection-time block capture failed for round {}", round, t);
+            log.error("ISS detection-time block capture failed for round {}", iss.round(), t);
         }
     }
 
@@ -199,12 +203,20 @@ public class IssDetectionUploadCoordinator {
      */
     public void stageDetectedIssOnFailure() {
         try {
-            final var config = configProvider.getConfiguration().getConfigData(FailureBlockUploadConfig.class);
-            if (!config.issBlockUploadEnabled()) {
+            final var config = configProvider.getConfiguration().getConfigData(FailureBlockStagingConfig.class);
+            if (!config.issBlockStagingEnabled()) {
                 return;
             }
-            final RecordedIss iss = lastIss.get();
-            if (iss == null || stagedRounds.contains(iss.round())) {
+            final RecordedIss iss = firstIss.get();
+            if (iss == null) {
+                // The async ISS notification is soldered AFTER the status monitor (see ConsensusLayerWiring), so on a
+                // fast halt no ISS may have been recorded before this ran (unlikely, since awaitFatalShutdown ran
+                // first). Surface it rather than silently staging nothing.
+                log.fatal(
+                        "Reached CATASTROPHIC_FAILURE with no ISS round recorded; the exact ISS block was not staged");
+                return;
+            }
+            if (stagedRounds.contains(iss.round())) {
                 return;
             }
             final Path incidentDir =
@@ -217,7 +229,8 @@ public class IssDetectionUploadCoordinator {
             // was preserved, instead of only the routine-looking WARNs from the individual steps.
             if (!staged) {
                 log.fatal(
-                        "ISS block for round {} was NOT staged to {}; the exact ISS block may be unavailable for triage",
+                        "ISS block for round {} was NOT staged to {}; only a best-effort pointer (if any) is available, "
+                                + "so the exact ISS block may be unavailable for triage",
                         iss.round(),
                         config.issBlockDir());
             }
@@ -235,7 +248,7 @@ public class IssDetectionUploadCoordinator {
      * if nothing could be staged.
      */
     private List<Path> capture(
-            @NonNull final FailureBlockUploadConfig config,
+            @NonNull final FailureBlockStagingConfig config,
             @NonNull final IssType issType,
             final long round,
             @NonNull final Path incidentDir,
@@ -250,16 +263,10 @@ public class IssDetectionUploadCoordinator {
                     // becomes durable; the halt path resolves once (the block was already flushed, and we must not
                     // stall the shutdown waiting for one that will not appear).
                     case FILE, FILE_AND_GRPC ->
-                        materializeFromDisk(
-                                pollForDurability
-                                        ? resolveWithWait(
-                                                issType, round, config.precedingBlocks(), config.captureTimeout())
-                                        : diskResolver.resolve(issType, round, config.precedingBlocks()),
-                                incidentDir);
-                    // The ISS-round block is expected to still be buffered: a self-ISS block's divergent root hash
-                    // never
-                    // gathers a threshold block proof, so it is never closed and (since only closed blocks are pruned)
-                    // never pruned. Capture it if present, else fall through to the pointer marker below.
+                        materializeFromDisk(resolveFromDisk(config, round, pollForDurability), incidentDir);
+                    // The ISS-round block is normally still buffered: a block node never acknowledges a diverged ISS
+                    // block, and an unacknowledged block is not pruned under BLOCKS-mode back pressure. Capture it if
+                    // present, else fall through to the pointer marker below.
                     case GRPC -> bufferReader.captureToDir(round, config.precedingBlocks(), incidentDir);
                 };
         // GRPC last-resort fallback: if the ISS block is somehow NOT in the buffer, stage a plain-text pointer instead
@@ -273,29 +280,34 @@ public class IssDetectionUploadCoordinator {
 
     /**
      * Marks the round staged when the exact ISS block was captured (the last entry; earlier entries are best-effort
-     * preceding context). Returns whether the round is now considered staged.
+     * preceding context). A {@code .txt} pointer alone does NOT count as staged, so the {@code CATASTROPHIC_FAILURE}
+     * path can still recover the real block (normally still buffered then). Returns whether the round is now staged.
      */
     private boolean markStaged(final long round, @NonNull final List<Path> files) {
+        final boolean blockStaged =
+                files.stream().anyMatch(p -> !p.getFileName().toString().endsWith(StagingFiles.POINTER_EXT));
+        if (blockStaged) {
+            stagedRounds.add(round);
+            log.warn("Staged ISS round {} for triage: {}", round, files);
+            return true;
+        }
         if (files.isEmpty()) {
             log.warn("No ISS block staged for round {}", round);
-            return stagedRounds.contains(round);
         }
-        stagedRounds.add(round);
-        log.warn("Staged ISS round {} for upload: {}", round, files);
-        return true;
+        return stagedRounds.contains(round);
     }
 
     /**
-     * The incident folder recorded for the latest detected fatal ISS, or {@code null} if none — lets the triage staging
+     * The incident folder recorded for the first detected fatal ISS, or {@code null} if none — lets the triage staging
      * group its files under the SAME per-incident folder as the exact ISS block.
      */
     @Nullable
     public String currentIncidentFolder() {
-        final RecordedIss iss = lastIss.get();
+        final RecordedIss iss = firstIss.get();
         return iss == null ? null : iss.incidentFolder();
     }
 
-    private Path incidentDirFor(@NonNull final FailureBlockUploadConfig config, @NonNull final String incidentFolder) {
+    private Path incidentDirFor(@NonNull final FailureBlockStagingConfig config, @NonNull final String incidentFolder) {
         return StagingFiles.incidentDir(
                 fileSystem,
                 config.issBlockDir(),
@@ -305,7 +317,7 @@ public class IssDetectionUploadCoordinator {
 
     /** The pointer-marker file name for an ISS round whose block is no longer in the buffer. */
     private static String markerFileName(final long round) {
-        return "iss-round-" + round + ".txt";
+        return "iss-round-" + round + StagingFiles.POINTER_EXT;
     }
 
     /**
@@ -315,7 +327,7 @@ public class IssDetectionUploadCoordinator {
      * Returns an empty list if the marker cannot be written; best-effort, never throws.
      */
     private List<Path> markerFilesFor(
-            @NonNull final FailureBlockUploadConfig config,
+            @NonNull final FailureBlockStagingConfig config,
             @NonNull final IssType issType,
             final long round,
             @NonNull final BlockStreamWriterMode writerMode,
@@ -388,20 +400,32 @@ public class IssDetectionUploadCoordinator {
     }
 
     /**
+     * Resolves the ISS block from disk: the detection path ({@code pollForDurability}) polls until it becomes durable;
+     * the authoritative {@code CATASTROPHIC_FAILURE} one-shot resolves once, first dropping any negative-cache entry
+     * poisoned by a transient read during the poll so it always re-reads. Kept on the disk resolver, so {@code GRPC}
+     * mode never touches it.
+     */
+    private List<IssBlockRef> resolveFromDisk(
+            @NonNull final FailureBlockStagingConfig config, final long round, final boolean pollForDurability) {
+        if (pollForDurability) {
+            return resolveWithWait(round, config.precedingBlocks(), config.captureTimeout());
+        }
+        diskResolver.forgetUnreadable();
+        return diskResolver.resolve(round, config.precedingBlocks());
+    }
+
+    /**
      * Resolves the ISS-round block from disk, retrying until it is found or {@code timeout} elapses. The block may be
      * the still-open block at detection (not yet a finished file on disk); it becomes durable as rounds continue, or is
      * flushed as a {@code .open.gz} at {@code CATASTROPHIC_FAILURE}. Polling makes the capture deterministic instead of a
      * one-shot miss.
      */
     private List<IssBlockRef> resolveWithWait(
-            @NonNull final IssType issType,
-            final long round,
-            final int precedingBlocks,
-            @NonNull final Duration timeout) {
+            final long round, final int precedingBlocks, @NonNull final Duration timeout) {
         // nanoTime (monotonic), not currentTimeMillis, so an NTP step or leap second cannot shorten or extend the wait.
         final long deadlineNs = System.nanoTime() + timeout.toNanos();
         while (true) {
-            final List<IssBlockRef> refs = diskResolver.resolve(issType, round, precedingBlocks);
+            final List<IssBlockRef> refs = diskResolver.resolve(round, precedingBlocks);
             if (!refs.isEmpty() || System.nanoTime() - deadlineNs >= 0) {
                 return refs;
             }

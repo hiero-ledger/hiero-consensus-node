@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.blocks.cloud.uploader;
+package com.hedera.node.app.blocks.failure;
 
 import static java.util.Objects.requireNonNull;
 
@@ -24,11 +24,13 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * Locates the block containing a given ISS round in the in-memory {@link BlockBufferService} and writes it to disk as
- * an {@code .iss.gz} artifact, so it can be uploaded for triage. This is the source for the detection
+ * an {@code .iss.gz} artifact, so it can be staged for triage. This is the source for the detection
  * path in {@code GRPC} mode, where closed blocks are never written to disk and the buffer is the only place the ISS
- * round still lives at detection time. Capture is best-effort — the block is normally still buffered (a self-ISS block
- * never gathers a valid threshold proof, so it is never closed and, since only closed blocks are pruned, never pruned)
- * — and this returns empty if it is not.
+ * round still lives at detection time. Capture is best-effort: the block is normally still buffered because a block
+ * node never acknowledges a diverged ISS block, and an unacknowledged block is not pruned while back pressure is
+ * enabled ({@code streamMode=BLOCKS} with gRPC streaming). In other stream modes back pressure is off, so an
+ * unacknowledged block can be pruned once the buffer exceeds its limits; the caller then falls back to a {@code .txt}
+ * pointer. This returns empty if the block is no longer buffered.
  *
  * <p>The round is found the same way as on disk: every round's first block item is a {@code RoundHeader}, so a block's
  * first {@code RoundHeader} is its first round, and first-round-per-block increases monotonically with block number.
@@ -41,7 +43,7 @@ import org.apache.logging.log4j.Logger;
 public class IssBufferBlockReader {
     private static final Logger log = LogManager.getLogger(IssBufferBlockReader.class);
 
-    private static final String INCOMPLETE_EXT = ".iss.gz";
+    private static final String ISS_BLOCK_EXT = StagingFiles.ISS_BLOCK_EXT;
 
     private final BlockBufferService blockBufferService;
 
@@ -89,7 +91,7 @@ public class IssBufferBlockReader {
         }
         if (issBlockNumber < 0) {
             log.warn(
-                    "ISS round {} is not in the block buffer (earliest buffered #{}); nothing to upload",
+                    "ISS round {} is not in the block buffer (earliest buffered #{}); nothing to stage",
                     round,
                     earliest);
             return List.of();
@@ -182,7 +184,7 @@ public class IssBufferBlockReader {
             return null;
         }
         Files.createDirectories(targetDir);
-        final Path out = targetDir.resolve(FileBlockItemWriter.longToFileName(blockNumber) + INCOMPLETE_EXT);
+        final Path out = targetDir.resolve(FileBlockItemWriter.longToFileName(blockNumber) + ISS_BLOCK_EXT);
         // Write to a temp sibling then atomically rename, so the deployment's uploader never grabs a partial .iss.gz.
         final Path tmp = StagingFiles.tmpFor(out);
         try (final GZIPOutputStream os = new GZIPOutputStream(Files.newOutputStream(tmp))) {

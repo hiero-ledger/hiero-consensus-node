@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.blocks.cloud.uploader;
+package com.hedera.node.app.blocks.failure;
 
 import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static java.util.Objects.requireNonNull;
@@ -7,7 +7,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.FailureBlockUploadConfig;
+import com.hedera.node.config.data.FailureBlockStagingConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -31,11 +31,11 @@ import org.apache.logging.log4j.Logger;
  * at which point the flushed files are available via {@link BlockStreamManager#flushedTriageBlockFiles()}. The flushed
  * files live in the block-stream directory, which is not necessarily the bind-mounted upload directory, so they are
  * copied here. Each artifact is written atomically (see {@link StagingFiles}) so the uploader never sees a partial file.
- * Best-effort; never throws. The exact ISS-round block is staged separately by {@code IssDetectionUploadCoordinator}.
+ * Best-effort; never throws. The exact ISS-round block is staged separately by {@code IssDetectionStagingCoordinator}.
  */
 @Singleton
-public class TriageBlockUploadCoordinator {
-    private static final Logger log = LogManager.getLogger(TriageBlockUploadCoordinator.class);
+public class TriageBlockStagingCoordinator {
+    private static final Logger log = LogManager.getLogger(TriageBlockStagingCoordinator.class);
 
     private static final String STAGE_TRIAGE = "triage";
 
@@ -46,7 +46,7 @@ public class TriageBlockUploadCoordinator {
     private final InstantSource instantSource;
 
     @Inject
-    public TriageBlockUploadCoordinator(
+    public TriageBlockStagingCoordinator(
             @NonNull final ConfigProvider configProvider,
             @NonNull final BlockStreamManager blockStreamManager,
             @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
@@ -63,13 +63,13 @@ public class TriageBlockUploadCoordinator {
      * Stages the flushed triage set under {@code issBlockDir/block-<account>/<incidentFolder>/triage/}.
      *
      * @param incidentFolder the per-incident folder to group under — pass the ISS block's folder (from
-     * {@link IssDetectionUploadCoordinator#currentIncidentFolder()}) so the triage set and the exact ISS block land in
+     * {@link IssDetectionStagingCoordinator#currentIncidentFolder()}) so the triage set and the exact ISS block land in
      * ONE incident dir; {@code null} falls back to a fresh timestamp (e.g. triage enabled but ISS capture disabled)
      */
     public void stageFlushedTriageBlocks(@Nullable final String incidentFolder) {
         try {
-            final var config = configProvider.getConfiguration().getConfigData(FailureBlockUploadConfig.class);
-            if (!config.triageUploadEnabled()) {
+            final var config = configProvider.getConfiguration().getConfigData(FailureBlockStagingConfig.class);
+            if (!config.triageStagingEnabled()) {
                 return;
             }
             final List<Path> files = blockStreamManager.flushedTriageBlockFiles();

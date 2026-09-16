@@ -2,10 +2,7 @@
 package com.hedera.services.bdd.suites.misc;
 
 import static com.hedera.services.bdd.junit.TestTags.ISS_GRPC;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
-import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.updateBootstrapProperties;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getVersionInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -13,7 +10,6 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -35,17 +31,11 @@ import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -67,8 +57,7 @@ import org.junit.jupiter.api.Tag;
  */
 @Tag(ISS_GRPC)
 @OrderedInIsolation
-class IssGrpcBufferUploadTest implements LifecycleTest {
-    private static final Logger log = LogManager.getLogger(IssGrpcBufferUploadTest.class);
+class IssGrpcBufferStagingTest implements LifecycleTest {
 
     /** The absolute staging dir the ISS node writes captured artifacts into; asserted on disk after the ISS. */
     private final AtomicReference<Path> issBlockDir = new AtomicReference<>();
@@ -141,7 +130,9 @@ class IssGrpcBufferUploadTest implements LifecycleTest {
                 sleepForSeconds(2),
                 // Reconnect node1 with the aberrant transfer limit + the failure-capture feature staging to disk.
                 sourcing(() -> reconnectIssNode(
-                        byNodeId(ISS_NODE_ID), configVersionOf(startVersion.get()), configureFailureStaging())),
+                        byNodeId(ISS_NODE_ID),
+                        configVersionOf(startVersion.get()),
+                        IssStagingTestSupport.configureFailureStaging(issBlockDir))),
                 assertHgcaaLogContainsText(
                         byNodeId(ISS_NODE_ID), "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
                 // Reconnect alone must not ISS.
@@ -166,9 +157,9 @@ class IssGrpcBufferUploadTest implements LifecycleTest {
                         "from buffer block #",
                         Duration.ofSeconds(90),
                         () -> new SpecOperation[0]),
-                // Exactly one block is captured: with failureBlockUpload.precedingBlocks=0 (default) the reader writes
-                // only the ISS-round block, so the capture reports "wrote 1 block(s)". Guards against a capture that
-                // stages context/extra blocks or fires repeatedly for the same incident.
+                // With precedingBlocks=0 (default) the reader writes only the ISS-round block, so it logs
+                // "wrote 1 block(s)" — a substring check, so it confirms a single-block capture was logged rather than
+                // strictly asserting exactly one.
                 assertHgcaaLogContainsText(byNodeId(ISS_NODE_ID), "wrote 1 block(s)", Duration.ofSeconds(90)),
                 untilHgcaaLogContainsText(
                         byNodeId(ISS_NODE_ID), "Staged ISS round", Duration.ofSeconds(90), () -> new SpecOperation[0]),
@@ -180,43 +171,12 @@ class IssGrpcBufferUploadTest implements LifecycleTest {
                 waitForFrozenNetwork(FREEZE_TIMEOUT, NodeSelector.exceptNodeIds(ISS_NODE_ID)));
     }
 
-    /**
-     * Configures the ISS node (at reconnect) with the aberrant {@code ledger.transfers.maxLen} that induces the
-     * self-ISS and the failure-capture feature staging into a dir under the node's working directory. The buffer sizing
-     * that keeps the ISS block available is set statically per node in the {@code @HapiBlockNode} annotation.
-     */
-    private SpecOperation configureFailureStaging() {
-        return doingContextual(spec -> {
-            final var issNode = spec.getNetworkNodes().get((int) ISS_NODE_ID);
-            final var props = issNode.getExternalPath(APPLICATION_PROPERTIES);
-            final var configDir = issNode.getExternalPath(DATA_CONFIG_DIR);
-            final Path stagingDir = configDir.toAbsolutePath().getParent().resolve("iss-blocks");
-            issBlockDir.set(stagingDir);
-            log.info("Configuring ISS node failure-staging + transfer limit @ {} (staging dir {})", props, stagingDir);
-            updateBootstrapProperties(
-                    props,
-                    Map.of(
-                            "ledger.transfers.maxLen", "5",
-                            "failureBlockUpload.issBlockUploadEnabled", "true",
-                            "failureBlockUpload.triageUploadEnabled", "true",
-                            "failureBlockUpload.issBlockDir", stagingDir.toString()));
-        });
-    }
-
     /** Asserts the reconstructed ISS-round block was staged as an {@code .iss.gz} under {@code detect/} or {@code failure/}. */
     private static void assertBufferBlockStaged(final Path issBlockDir) {
-        assertTrue(
-                issBlockDir != null && Files.isDirectory(issBlockDir),
-                "ISS staging dir was never created: " + issBlockDir);
-        try (final Stream<Path> paths = Files.walk(issBlockDir)) {
-            final List<String> staged =
-                    paths.filter(Files::isRegularFile).map(Path::toString).toList();
-            final long issBlocks = staged.stream()
-                    .filter(p -> (p.contains("/detect/") || p.contains("/failure/")) && p.endsWith(".iss.gz"))
-                    .count();
-            assertTrue(issBlocks >= 1, "expected an ISS .iss.gz staged from the buffer; saw " + staged);
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        final List<String> staged = IssStagingTestSupport.stagedRegularFiles(issBlockDir);
+        final long issBlocks = staged.stream()
+                .filter(p -> (p.contains("/detect/") || p.contains("/failure/")) && p.endsWith(".iss.gz"))
+                .count();
+        assertTrue(issBlocks >= 1, "expected an ISS .iss.gz staged from the buffer; saw " + staged);
     }
 }

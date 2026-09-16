@@ -3,7 +3,7 @@ package com.hedera.node.app.state.listeners;
 
 import static org.mockito.Mockito.verify;
 
-import com.hedera.node.app.blocks.cloud.uploader.IssDetectionUploadCoordinator;
+import com.hedera.node.app.blocks.failure.IssDetectionStagingCoordinator;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.junit.jupiter.api.Test;
@@ -15,14 +15,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class FatalIssListenerImplTest {
 
     @Mock
-    private IssDetectionUploadCoordinator detectionUploadCoordinator;
+    private IssDetectionStagingCoordinator detectionStagingCoordinator;
 
     @Test
     void delegatesDetectedIssToTheDetectionCoordinator() {
-        final var listener = new FatalIssListenerImpl(detectionUploadCoordinator);
+        final var listener = new FatalIssListenerImpl(detectionStagingCoordinator);
 
         listener.notify(new IssNotification(42L, IssType.SELF_ISS));
 
-        verify(detectionUploadCoordinator).captureAndStage(IssType.SELF_ISS, 42L);
+        verify(detectionStagingCoordinator).captureAndStage(IssType.SELF_ISS, 42L);
     }
 }

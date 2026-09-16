@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.blocks.cloud.uploader;
+package com.hedera.node.app.blocks.failure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.lenient;
@@ -21,7 +21,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.GZIPOutputStream;
-import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -72,13 +71,11 @@ class IssBlockResolverTest {
         writeBlock(3, 9, ".open.gz");
 
         // round 6 lives in block 2 (first round 5 <= 6 < 9)
-        final List<IssBlockRef> refs = subject.resolve(IssType.SELF_ISS, 6, 0);
+        final List<IssBlockRef> refs = subject.resolve(6, 0);
 
         assertThat(refs).hasSize(1);
         final IssBlockRef ref = refs.getFirst();
         assertThat(ref.blockNumber()).isEqualTo(2);
-        assertThat(ref.issType()).isEqualTo(IssType.SELF_ISS);
-        assertThat(ref.round()).isEqualTo(6);
         // pending block includes its .pnd.json proof sidecar
         assertThat(ref.files()).hasSize(2);
         assertThat(ref.files().get(0).getFileName().toString()).endsWith(".pnd.gz");
@@ -91,7 +88,7 @@ class IssBlockResolverTest {
         writeBlock(2, 5, ".blk.gz");
         writeBlock(3, 9, 12, ".open.gz"); // the flushed open block actually spans rounds 9..12
 
-        final List<IssBlockRef> refs = subject.resolve(IssType.CATASTROPHIC_ISS, 12, 0);
+        final List<IssBlockRef> refs = subject.resolve(12, 0);
 
         assertThat(refs).hasSize(1);
         assertThat(refs.getFirst().blockNumber()).isEqualTo(3);
@@ -107,7 +104,7 @@ class IssBlockResolverTest {
         writeBlock(4, 13, ".open.gz");
 
         // round 10 is in block 3; request 2 preceding context blocks → blocks 1,2,3 oldest→newest
-        final List<IssBlockRef> refs = subject.resolve(IssType.SELF_ISS, 10, 2);
+        final List<IssBlockRef> refs = subject.resolve(10, 2);
 
         assertThat(refs).hasSize(3);
         assertThat(refs.stream().map(IssBlockRef::blockNumber)).containsExactly(1L, 2L, 3L);
@@ -119,7 +116,7 @@ class IssBlockResolverTest {
         writeBlock(6, 25, 26, ".open.gz"); // block 6 spans rounds 25..26
 
         // request 10 preceding for the block containing round 26 (block 6) but only block 5 precedes it
-        final List<IssBlockRef> refs = subject.resolve(IssType.SELF_ISS, 26, 10);
+        final List<IssBlockRef> refs = subject.resolve(26, 10);
 
         assertThat(refs.stream().map(IssBlockRef::blockNumber)).containsExactly(5L, 6L);
     }
@@ -134,7 +131,7 @@ class IssBlockResolverTest {
         Files.write(nodeDir.resolve(FileBlockItemWriter.longToFileName(3L) + ".blk.gz"), new byte[] {1, 2, 3});
 
         // round 6 genuinely lives in durable block 2; the unmarked open block 3 must not break the search
-        final List<IssBlockRef> refs = subject.resolve(IssType.SELF_ISS, 6, 0);
+        final List<IssBlockRef> refs = subject.resolve(6, 0);
 
         assertThat(refs).hasSize(1);
         assertThat(refs.getFirst().blockNumber()).isEqualTo(2);
@@ -151,7 +148,7 @@ class IssBlockResolverTest {
         final Path nodeDir = tempDir.resolve("block-0.0.3");
         Files.write(nodeDir.resolve(FileBlockItemWriter.longToFileName(3L) + ".blk.gz"), new byte[] {1, 2, 3});
 
-        assertThat(subject.resolve(IssType.SELF_ISS, 6, 0)).isEmpty();
+        assertThat(subject.resolve(6, 0)).isEmpty();
     }
 
     @Test
@@ -160,7 +157,7 @@ class IssBlockResolverTest {
         writeBlock(2, 5, 8, ".blk.gz"); // newest durable block spans rounds 5..8; no open block on disk
 
         // round 7 is genuinely within the newest block, so it resolves immediately (no substitution, no waiting)
-        final List<IssBlockRef> refs = subject.resolve(IssType.SELF_ISS, 7, 0);
+        final List<IssBlockRef> refs = subject.resolve(7, 0);
 
         assertThat(refs).hasSize(1);
         assertThat(refs.getFirst().blockNumber()).isEqualTo(2);
@@ -171,12 +168,12 @@ class IssBlockResolverTest {
         writeBlock(10, 100, ".blk.gz");
         writeBlock(11, 104, ".blk.gz");
 
-        assertThat(subject.resolve(IssType.SELF_ISS, 50, 0)).isEmpty();
+        assertThat(subject.resolve(50, 0)).isEmpty();
     }
 
     @Test
     void returnsEmptyWhenNoBlockDirExists() {
-        assertThat(subject.resolve(IssType.SELF_ISS, 5, 0)).isEmpty();
+        assertThat(subject.resolve(5, 0)).isEmpty();
     }
 
     @Test
@@ -186,7 +183,7 @@ class IssBlockResolverTest {
         }
         writeBlock(201, 201, ".open.gz");
 
-        final List<IssBlockRef> refs = subject.resolve(IssType.SELF_ISS, 201, 0);
+        final List<IssBlockRef> refs = subject.resolve(201, 0);
         assertThat(refs).hasSize(1);
         assertThat(refs.getFirst().blockNumber()).isEqualTo(201);
     }
@@ -200,7 +197,7 @@ class IssBlockResolverTest {
         // a BlockHeader but no RoundHeader. It must be skipped, not abort the whole resolve and drop the real block.
         writeHeaderlessOpenBlock(3);
 
-        final List<IssBlockRef> refs = subject.resolve(IssType.SELF_ISS, 6, 0);
+        final List<IssBlockRef> refs = subject.resolve(6, 0);
 
         assertThat(refs).hasSize(1);
         assertThat(refs.getFirst().blockNumber()).isEqualTo(2);
@@ -216,7 +213,7 @@ class IssBlockResolverTest {
         Files.createDirectories(nodeDir);
         Files.write(nodeDir.resolve(FileBlockItemWriter.longToFileName(3L) + ".open.gz"), new byte[] {0, 1, 2, 3});
 
-        final List<IssBlockRef> refs = subject.resolve(IssType.SELF_ISS, 6, 0);
+        final List<IssBlockRef> refs = subject.resolve(6, 0);
 
         assertThat(refs).hasSize(1);
         assertThat(refs.getFirst().blockNumber()).isEqualTo(2);
@@ -232,7 +229,49 @@ class IssBlockResolverTest {
         // / surfaces the loss rather than staging the wrong block.
         writeHeaderlessOpenBlock(3);
 
-        assertThat(subject.resolve(IssType.SELF_ISS, 6, 0)).isEmpty();
+        assertThat(subject.resolve(6, 0)).isEmpty();
+    }
+
+    @Test
+    void doesNotStageOlderBlockWhenAnUnreadableBlockSitsBetweenPickAndBound() throws IOException {
+        // Block 1 spans rounds 1..4 and block 3 spans 9..12; the block that would contain round 6 (block 2) is present
+        // but unreadable (header-only). A readable newer block (3) bounds the round, but because the block BETWEEN is
+        // unreadable, block 1 is not proven to contain round 6 (its last round is 4) — so stage nothing, not the wrong
+        // older block.
+        writeBlock(1, 1, 4, ".blk.gz");
+        writeHeaderlessOpenBlock(2);
+        writeBlock(3, 9, 12, ".blk.gz");
+
+        assertThat(subject.resolve(6, 0)).isEmpty();
+    }
+
+    @Test
+    void resolvingTheSameRoundTwiceReusesMemoizedRounds() throws IOException {
+        writeBlock(1, 1, 4, ".blk.gz");
+        writeBlock(2, 5, 7, ".blk.gz");
+
+        // The second resolve exercises the first/last-round memo caches (no re-parse); both must resolve identically.
+        assertThat(subject.resolve(6, 0)).hasSize(1);
+        assertThat(subject.resolve(6, 0).getFirst().blockNumber()).isEqualTo(2);
+    }
+
+    @Test
+    void forgetUnreadableLetsTheAuthoritativePathReReadAPreviouslyUnreadableBlock() throws IOException {
+        writeBlock(1, 1, 4, ".blk.gz");
+        writeHeaderlessOpenBlock(2); // unreadable on first read -> negatively cached
+        writeBlock(3, 9, 12, ".blk.gz");
+        assertThat(subject.resolve(6, 0)).isEmpty();
+
+        // Block 2 later becomes a readable durable block that actually spans round 6.
+        final Path nodeDir = tempDir.resolve("block-0.0.3");
+        Files.deleteIfExists(nodeDir.resolve(FileBlockItemWriter.longToFileName(2L) + ".open.gz"));
+        writeBlock(2, 5, 7, ".blk.gz");
+
+        // The detection cache still skips block 2 (negatively cached from the earlier read)...
+        assertThat(subject.resolve(6, 0)).isEmpty();
+        // ...until the authoritative failure path clears the negative cache and re-reads it.
+        subject.forgetUnreadable();
+        assertThat(subject.resolve(6, 0).stream().map(IssBlockRef::blockNumber)).containsExactly(2L);
     }
 
     private void writeHeaderlessOpenBlock(final long number) throws IOException {

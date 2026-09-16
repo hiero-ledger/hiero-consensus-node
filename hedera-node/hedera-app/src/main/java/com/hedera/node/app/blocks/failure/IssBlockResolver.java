@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.blocks.cloud.uploader;
+package com.hedera.node.app.blocks.failure;
 
 import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static java.util.Objects.requireNonNull;
@@ -32,11 +32,10 @@ import java.util.zip.GZIPInputStream;
 import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.notification.IssNotification.IssType;
 
 /**
  * Locates, on local disk, the block that contains a given ISS round (plus optionally a window of preceding blocks for
- * lead-up context), so they can be uploaded for triage. This is the source for the detection path in
+ * lead-up context), so they can be staged for triage. This is the source for the detection path in
  * {@code FILE} / {@code FILE_AND_GRPC} mode, where closed blocks are durable {@code .blk.gz} files on disk.
  *
  * <p>Block files are named by block number, not round number, so the round is found by searching: the node writes a
@@ -50,12 +49,12 @@ import org.hiero.consensus.model.notification.IssNotification.IssType;
 public class IssBlockResolver {
     private static final Logger log = LogManager.getLogger(IssBlockResolver.class);
 
-    private static final String COMPLETE_EXT = ".blk.gz";
+    private static final String COMPLETE_EXT = StagingFiles.COMPLETE_EXT;
     private static final String PENDING_EXT = StagingFiles.PENDING_EXT;
-    private static final String INCOMPLETE_EXT = ".open.gz";
+    private static final String INCOMPLETE_EXT = StagingFiles.INCOMPLETE_EXT;
     private static final String PENDING_PROOF_EXT = StagingFiles.PENDING_PROOF_EXT;
     /** Written by {@code FileBlockItemWriter} only after a block is fully written and closed. */
-    private static final String MARKER_EXT = ".mf";
+    private static final String MARKER_EXT = StagingFiles.COMPLETION_MARKER_EXT;
 
     private final ConfigProvider configProvider;
     private final SelfNodeAccountIdManager selfNodeAccountIdManager;
@@ -72,6 +71,13 @@ public class IssBlockResolver {
     /** Memoized last-round-per-block-number, used only to confirm the newest block actually contains the ISS round. */
     private final Map<Long, Long> lastRoundByBlockNumber = new ConcurrentHashMap<>();
 
+    /**
+     * Block numbers whose contents could not be read (corrupt, or a header-only {@code .open.gz}). Cached so the
+     * detection poll (which re-invokes {@link #resolve} every 250ms) does not re-decompress the same unreadable file
+     * each iteration. Unreadability is terminal for a given block number; the set is pruned to the retention window.
+     */
+    private final Set<Long> unreadableBlockNumbers = ConcurrentHashMap.newKeySet();
+
     @Inject
     public IssBlockResolver(
             @NonNull final ConfigProvider configProvider,
@@ -85,14 +91,12 @@ public class IssBlockResolver {
     /**
      * Resolves the block containing {@code round}, plus up to {@code precedingBlocks} blocks immediately before it.
      *
-     * @param issType the ISS type (carried into each returned {@link IssBlockRef} for object-key context)
      * @param round the ISS round to locate
      * @param precedingBlocks how many preceding blocks to also include (clamped at the earliest retained block)
      * @return the ISS block plus any preceding blocks, ordered oldest→newest; empty if the ISS block is not on disk
      */
     @NonNull
-    public List<IssBlockRef> resolve(@NonNull final IssType issType, final long round, final int precedingBlocks) {
-        requireNonNull(issType);
+    public List<IssBlockRef> resolve(final long round, final int precedingBlocks) {
         final var config = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
         final Path nodeDir = fileSystem
                 .getPath(config.blockFileDir())
@@ -115,6 +119,7 @@ public class IssBlockResolver {
         }
         firstRoundByBlockNumber.keySet().retainAll(currentNumbers);
         lastRoundByBlockNumber.keySet().retainAll(currentNumbers);
+        unreadableBlockNumbers.retainAll(currentNumbers);
 
         // Find the block containing the round: the rightmost block whose first round is <= round (first round
         // increases monotonically with block number). Scan from the newest end so a recent ISS — the common case — is
@@ -136,6 +141,9 @@ public class IssBlockResolver {
                         "Skipping block file {} while locating ISS round {}: first round not readable",
                         blocks.get(i).contents(),
                         round);
+                // The round could be inside THIS unreadable block, so an already-seen readable newer block no longer
+                // proves the round is in the pick; clear the bound to force the last-round confirmation below.
+                boundedByReadableNewerBlock = false;
                 continue;
             }
             oldestReadableRound = firstRound.getAsLong();
@@ -147,7 +155,7 @@ public class IssBlockResolver {
         }
         if (issIndex < 0) {
             log.warn(
-                    "ISS round {} precedes the earliest retained block (first retained round {}); nothing to upload",
+                    "ISS round {} precedes the earliest retained block (first retained round {}); nothing to stage",
                     round,
                     oldestReadableRound);
             return List.of();
@@ -185,15 +193,24 @@ public class IssBlockResolver {
         final List<IssBlockRef> refs = new ArrayList<>();
         for (int i = firstIndex; i <= issIndex; i++) {
             final BlockFile bf = blocks.get(i);
-            refs.add(new IssBlockRef(issType, round, bf.blockNumber(), bf.files()));
+            refs.add(new IssBlockRef(bf.blockNumber(), bf.files()));
         }
         log.info(
-                "Located ISS round {} in block #{}; uploading {} block(s) ({} preceding + the ISS block)",
+                "Located ISS round {} in block #{}; staging {} block(s) ({} preceding + the ISS block)",
                 round,
                 blocks.get(issIndex).blockNumber(),
                 refs.size(),
                 found);
         return refs;
+    }
+
+    /**
+     * Clears the negative (unreadable) cache so the next {@link #resolve} re-reads every candidate. Called by the
+     * authoritative {@code CATASTROPHIC_FAILURE} one-shot resolve, so a block that was only <i>transiently</i>
+     * unreadable during the detection poll (e.g. a fleeting I/O error) is not skipped forever.
+     */
+    void forgetUnreadable() {
+        unreadableBlockNumbers.clear();
     }
 
     /** Lists the content block files under the node dir, keyed by block number (best file per number). */
@@ -250,8 +267,15 @@ public class IssBlockResolver {
         if (cached != null) {
             return OptionalLong.of(cached);
         }
+        if (unreadableBlockNumbers.contains(block.blockNumber())) {
+            return OptionalLong.empty();
+        }
         final OptionalLong firstRound = firstRoundOf(block.contents(), maxReadDepth, maxReadSize);
-        firstRound.ifPresent(r -> firstRoundByBlockNumber.put(block.blockNumber(), r));
+        if (firstRound.isPresent()) {
+            firstRoundByBlockNumber.put(block.blockNumber(), firstRound.getAsLong());
+        } else {
+            unreadableBlockNumbers.add(block.blockNumber());
+        }
         return firstRound;
     }
 

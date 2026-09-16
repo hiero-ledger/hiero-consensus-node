@@ -37,7 +37,7 @@ import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.ExpiryConfig;
-import com.hedera.node.config.data.FailureBlockUploadConfig;
+import com.hedera.node.config.data.FailureBlockStagingConfig;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.GovernanceTransactionsConfig;
@@ -93,7 +93,7 @@ public class ServicesConfigExtension implements ConfigurationExtension {
                 BlockStreamConfig.class,
                 BlockNodeConnectionConfig.class,
                 BlockBufferConfig.class,
-                FailureBlockUploadConfig.class,
+                FailureBlockStagingConfig.class,
                 BootstrapConfig.class,
                 CacheConfig.class,
                 ConsensusConfig.class,

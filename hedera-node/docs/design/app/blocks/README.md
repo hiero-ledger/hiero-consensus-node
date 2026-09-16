@@ -77,3 +77,49 @@ These define how the Consensus Node batches, stores, or streams blocks of data. 
 - Streaming Mode: Controlled via `streamMode` and `writerMode`, the node can either write to local files or stream blocks to Block Nodes over gRPC.
 - Performance Tuning: Settings like `blockPeriod`, `blockItemBatchSize`, and `buffer TTLs/pruning intervals` help manage throughput and resource usage.
 - Block Formation: Parameters such as `roundsPerBlock` and `hashCombineBatchSize` govern how data is grouped into blocks.
+
+## ISS Block Staging for Triage
+
+On a self/catastrophic ISS the node stages the block(s) around the incident to a node-local directory so a **separate**
+deployment uploader (a `mirror.py` instance) can ship them to a private bucket for developer triage. The node performs
+no upload itself and holds no bucket credentials — its only action on the halt path is a fast local write. This is
+implemented by `IssDetectionStagingCoordinator` (the exact ISS-round block) and `TriageBlockStagingCoordinator` (the
+catastrophic-failure flushed open/pending set). Both are off by default.
+
+### Configuration (`failureBlockStaging.[propertyName]`)
+
+| Property                 | Default                 | Meaning                                                                                        |
+|:-------------------------|:------------------------|:-----------------------------------------------------------------------------------------------|
+| `issBlockStagingEnabled` | `false`                 | Stage the exact ISS-round block (located at detection time).                                   |
+| `triageStagingEnabled`   | `false`                 | Stage the open/pending blocks flushed to disk at catastrophic failure.                         |
+| `issBlockDir`            | `/opt/hgcapp/issBlocks` | Node-local staging directory. **Must be a host bind mount** or the artifacts are lost on halt. |
+| `precedingBlocks`        | `0`                     | How many blocks before the ISS block to also stage (best-effort, clamped to what is retained). |
+| `captureTimeout`         | `30s`                   | How long the detection path waits for the ISS-round block to become durable on disk.           |
+
+### On-disk layout
+
+Artifacts are grouped one directory per incident, namespaced by node account and a UTC timestamp:
+
+The timestamp folder is a UTC `yyyy-MM-dd'T'HH-mm-ss'Z'` instant, e.g.:
+
+```
+{issBlockDir}/block-0.0.3/2026-06-16T14-32-05Z/
+  detect/   # ISS-round block captured at detection (non-halting ISS)
+  failure/  # ISS-round block captured at CATASTROPHIC_FAILURE (halting ISS); one of detect/ or failure/ wins
+  triage/   # the open/pending blocks flushed at CATASTROPHIC_FAILURE
+```
+
+Staged file extensions: `.blk.gz` (complete block), `.pnd.gz` + `.pnd.json` (pending block contents + proof sidecar),
+`.open.gz` (open block flushed at failure), `.iss.gz` (ISS-round block reconstructed from the in-memory buffer in
+`GRPC` mode), and `.txt` (a last-resort pointer with the block-node endpoint + ack watermark, staged only when a `GRPC`
+ISS block is no longer buffered). Every artifact is written to a `.tmp` sibling and then atomically renamed into place,
+so the uploader must **ignore `.tmp`** and match only the final extensions.
+
+### DevOps prerequisites (required before anything ships)
+
+These are deployment (NMT / compose) actions, not code changes; until both are done the node stages to disk but nothing
+reaches a bucket:
+
+1. Make `issBlockDir` a host bind mount (mainnet/testnet/previewnet persist via bind mounts).
+2. Point a `mirror.py` uploader instance at `issBlockDir` with its own private bucket + key, configured to ship **every**
+   staged extension (`.gz`, `.pnd.json`, and `.txt`) — not only `.gz`.

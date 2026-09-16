@@ -2,17 +2,13 @@
 package com.hedera.services.bdd.suites.misc;
 
 import static com.hedera.services.bdd.junit.TestTags.ISS;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
-import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.updateBootstrapProperties;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getVersionInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -30,17 +26,11 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.suites.crypto.ParseableIssBlockStreamValidationOp;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -67,7 +57,6 @@ import org.junit.jupiter.api.Tag;
  */
 @Tag(ISS)
 class IssHandlingTest implements LifecycleTest {
-    private static final Logger log = LogManager.getLogger(IssHandlingTest.class);
 
     /** The absolute staging dir the ISS node writes captured artifacts into; asserted on disk after the ISS. */
     private final AtomicReference<Path> issBlockDir = new AtomicReference<>();
@@ -83,7 +72,9 @@ class IssHandlingTest implements LifecycleTest {
                 // Reconnect node1 with an aberrant ledger.transfers.maxLen override and the failure-capture feature
                 // enabled, staging into a dir under the node's working directory.
                 sourcing(() -> reconnectIssNode(
-                        byNodeId(ISS_NODE_ID), configVersionOf(startVersion.get()), configureFailureStaging())),
+                        byNodeId(ISS_NODE_ID),
+                        configVersionOf(startVersion.get()),
+                        IssStagingTestSupport.configureFailureStaging(issBlockDir))),
                 assertHgcaaLogContainsText(
                         NodeSelector.byNodeId(ISS_NODE_ID), "ledger.transfers.maxLen = 5", Duration.ofSeconds(10)),
                 // First assert there was no ISS caused by simply reconnecting
@@ -130,47 +121,16 @@ class IssHandlingTest implements LifecycleTest {
     }
 
     /**
-     * Configures the ISS node (at reconnect) with the aberrant {@code ledger.transfers.maxLen} that induces the
-     * self-ISS and the failure-capture feature staging into a dir under the node's working directory.
-     */
-    private SpecOperation configureFailureStaging() {
-        return doingContextual(spec -> {
-            final var issNode = spec.getNetworkNodes().get((int) ISS_NODE_ID);
-            final var props = issNode.getExternalPath(APPLICATION_PROPERTIES);
-            final var configDir = issNode.getExternalPath(DATA_CONFIG_DIR);
-            final Path stagingDir = configDir.toAbsolutePath().getParent().resolve("iss-blocks");
-            issBlockDir.set(stagingDir);
-            log.info("Configuring ISS node failure-staging + transfer limit @ {} (staging dir {})", props, stagingDir);
-            updateBootstrapProperties(
-                    props,
-                    Map.of(
-                            "ledger.transfers.maxLen", "5",
-                            "failureBlockUpload.issBlockUploadEnabled", "true",
-                            "failureBlockUpload.triageUploadEnabled", "true",
-                            "failureBlockUpload.issBlockDir", stagingDir.toString()));
-        });
-    }
-
-    /**
      * Asserts the ISS node staged its artifacts to disk: an ISS-round block under {@code detect/} or {@code failure/},
      * and a flushed block under {@code triage/}.
      */
     private static void assertStaged(final Path issBlockDir) {
+        final List<String> staged = IssStagingTestSupport.stagedRegularFiles(issBlockDir);
         assertTrue(
-                issBlockDir != null && Files.isDirectory(issBlockDir),
-                "ISS staging dir was never created: " + issBlockDir);
-        try (final Stream<Path> paths = Files.walk(issBlockDir)) {
-            final List<String> staged =
-                    paths.filter(Files::isRegularFile).map(Path::toString).toList();
-            assertTrue(
-                    staged.stream()
-                            .anyMatch(p -> (p.contains("/detect/") || p.contains("/failure/")) && p.endsWith(".gz")),
-                    "expected an ISS block staged under detect/ or failure/; saw " + staged);
-            assertTrue(
-                    staged.stream().anyMatch(p -> p.contains("/triage/") && p.endsWith(".gz")),
-                    "expected a triage/ block staged; saw " + staged);
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
+                staged.stream().anyMatch(p -> (p.contains("/detect/") || p.contains("/failure/")) && p.endsWith(".gz")),
+                "expected an ISS block staged under detect/ or failure/; saw " + staged);
+        assertTrue(
+                staged.stream().anyMatch(p -> p.contains("/triage/") && p.endsWith(".gz")),
+                "expected a triage/ block staged; saw " + staged);
     }
 }

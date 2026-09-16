@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.blocks.cloud.uploader;
+package com.hedera.node.app.blocks.failure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -13,7 +13,7 @@ import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
-import com.hedera.node.config.data.FailureBlockUploadConfig;
+import com.hedera.node.config.data.FailureBlockStagingConfig;
 import java.io.IOException;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -29,7 +29,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class TriageBlockUploadCoordinatorTest {
+class TriageBlockStagingCoordinatorTest {
 
     @TempDir
     Path tempDir;
@@ -41,7 +41,7 @@ class TriageBlockUploadCoordinatorTest {
     private VersionedConfiguration versionedConfiguration;
 
     @Mock
-    private FailureBlockUploadConfig config;
+    private FailureBlockStagingConfig config;
 
     @Mock
     private BlockStreamManager blockStreamManager;
@@ -54,20 +54,20 @@ class TriageBlockUploadCoordinatorTest {
     private static final String EXPECTED_FOLDER = "2026-06-16T14-32-05Z";
 
     private Path issBlockDir;
-    private TriageBlockUploadCoordinator subject;
+    private TriageBlockStagingCoordinator subject;
 
     @BeforeEach
     void setUp() {
         issBlockDir = tempDir.resolve("iss-blocks");
         lenient().when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         lenient()
-                .when(versionedConfiguration.getConfigData(FailureBlockUploadConfig.class))
+                .when(versionedConfiguration.getConfigData(FailureBlockStagingConfig.class))
                 .thenReturn(config);
         lenient().when(config.issBlockDir()).thenReturn(issBlockDir.toString());
         lenient()
                 .when(selfNodeAccountIdManager.getSelfNodeAccountId())
                 .thenReturn(AccountID.newBuilder().accountNum(3).build());
-        subject = new TriageBlockUploadCoordinator(
+        subject = new TriageBlockStagingCoordinator(
                 configProvider, blockStreamManager, selfNodeAccountIdManager, FileSystems.getDefault(), instantSource);
     }
 
@@ -77,7 +77,7 @@ class TriageBlockUploadCoordinatorTest {
 
     @Test
     void stagesFlushedFilesAndProofSidecarUnderTriageWhenEnabled() throws IOException {
-        when(config.triageUploadEnabled()).thenReturn(true);
+        when(config.triageStagingEnabled()).thenReturn(true);
 
         final Path streamDir = tempDir.resolve("stream");
         Files.createDirectories(streamDir);
@@ -97,8 +97,30 @@ class TriageBlockUploadCoordinatorTest {
     }
 
     @Test
+    void stagesUnderTheProvidedIncidentFolderWhenNonNull() throws IOException {
+        when(config.triageStagingEnabled()).thenReturn(true);
+
+        final Path streamDir = tempDir.resolve("stream");
+        Files.createDirectories(streamDir);
+        final String openBase = FileBlockItemWriter.longToFileName(8L);
+        final Path openGz = Files.write(streamDir.resolve(openBase + ".open.gz"), new byte[] {3});
+        when(blockStreamManager.flushedTriageBlockFiles()).thenReturn(List.of(openGz));
+
+        // A non-null folder (the ISS block's incident folder) is used verbatim, not the fresh-timestamp fallback.
+        subject.stageFlushedTriageBlocks("2020-01-02T03-04-05Z");
+
+        final Path provided = issBlockDir
+                .resolve("block-0.0.3")
+                .resolve("2020-01-02T03-04-05Z")
+                .resolve("triage")
+                .resolve(openBase + ".open.gz");
+        assertThat(provided).exists();
+        assertThat(triageDir()).doesNotExist(); // not under the fixed-clock fallback folder
+    }
+
+    @Test
     void noOpWhenDisabled() {
-        when(config.triageUploadEnabled()).thenReturn(false);
+        when(config.triageStagingEnabled()).thenReturn(false);
 
         subject.stageFlushedTriageBlocks(null);
 
@@ -108,7 +130,7 @@ class TriageBlockUploadCoordinatorTest {
 
     @Test
     void noOpWhenNoFilesFlushed() {
-        when(config.triageUploadEnabled()).thenReturn(true);
+        when(config.triageStagingEnabled()).thenReturn(true);
         when(blockStreamManager.flushedTriageBlockFiles()).thenReturn(List.of());
 
         subject.stageFlushedTriageBlocks(null);
@@ -118,7 +140,7 @@ class TriageBlockUploadCoordinatorTest {
 
     @Test
     void swallowsStagingErrorsWhenFlushedFileMissing() {
-        when(config.triageUploadEnabled()).thenReturn(true);
+        when(config.triageStagingEnabled()).thenReturn(true);
         // A flushed file that no longer exists on disk must not abort staging or propagate.
         when(blockStreamManager.flushedTriageBlockFiles()).thenReturn(List.of(tempDir.resolve("gone.open.gz")));
 

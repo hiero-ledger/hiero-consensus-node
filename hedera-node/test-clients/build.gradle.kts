@@ -533,8 +533,8 @@ fun TaskContainer.registerHapiTest(
                     // We don't want to run stream or log validation for ISS or BLOCK_NODE cases
                     else if (
                         ciDefaultTagsWithoutStreamAndLogValidation != null &&
+                            // contains("ISS") also matches the "ISS_GRPC" tag substring
                             (ciTagExpression.contains("ISS") ||
-                                ciTagExpression.contains("ISS_GRPC") ||
                                 ciTagExpression.contains("BLOCK_NODE"))
                     )
                         "(${ciTagExpression}${ciDefaultTagsWithoutStreamAndLogValidation})"
