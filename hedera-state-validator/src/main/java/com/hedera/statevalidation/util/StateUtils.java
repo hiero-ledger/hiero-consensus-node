@@ -235,7 +235,6 @@ public final class StateUtils {
                 AppContext.Gossip.UNAVAILABLE_GOSSIP,
                 configSupplier,
                 fakeNetworkInfo::selfNodeInfo,
-                NoOpMetrics::new,
                 new AppScheduleThrottleFactory(
                         configSupplier, () -> null, () -> ThrottleDefinitions.DEFAULT, ThrottleAccumulator::new),
                 () -> UNIVERSAL_NOOP_FEE_CHARGING,

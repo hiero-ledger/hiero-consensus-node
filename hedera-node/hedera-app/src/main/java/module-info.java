@@ -98,6 +98,7 @@ module com.hedera.node.app {
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.platformstate;
     requires transitive org.hiero.consensus.utility;
+    requires transitive org.hiero.metrics;
     requires transitive dagger;
     requires transitive io.grpc.stub;
     requires transitive io.grpc;

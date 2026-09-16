@@ -33,6 +33,13 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
             new ObjectMapper(new YAMLFactory().disable(Feature.WRITE_DOC_START_MARKER));
 
     /**
+     * Name of {@code MetricsFileExportConfig#directory}. Spelled out rather than referenced through the
+     * generated {@code MetricsFileExportConfig_} constant, because {@code org.hiero.metrics.export.file}
+     * exports its config package only to the configuration modules.
+     */
+    private static final String METRICS_FILE_EXPORT_DIRECTORY = "metrics.exporter.file.directory";
+
+    /**
      * Constructor for the {@link ContainerNodeConfiguration} class
      *
      * @param lifecycleSupplier a supplier that provides the current lifecycle state of the node
@@ -57,7 +64,13 @@ public class ContainerNodeConfiguration extends AbstractNodeConfiguration {
                 // The default MerkleDb capacity (1e9 keys) sizes each data source's off-heap structures for a
                 // billion keys regardless of the tiny state used in Otter tests. Sizing the
                 // capacity to the handful of keys these tests actually use keeps the footprint small.
-                .withConfigValue(MerkleDbConfig_.INITIAL_CAPACITY, 1_000_000L);
+                .withConfigValue(MerkleDbConfig_.INITIAL_CAPACITY, 1_000_000L)
+                // The container image carries the new metrics framework's file exporter, whose `directory`
+                // property has no default: leaving it unset makes Configuration.build() throw and the node
+                // fails to start. Point it at the same folder the old ToFilePrometheusExporter writes to
+                // (MetricsConfig.csvOutputFolder, default "data/stats"); the two do not collide because the
+                // new exporter gzips, producing metrics.txt.gz next to the old metrics.txt.
+                .withConfigValue(METRICS_FILE_EXPORT_DIRECTORY, Path.of(CONTAINER_APP_WORKING_DIR, "data", "stats"));
     }
 
     /**

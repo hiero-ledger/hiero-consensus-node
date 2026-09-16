@@ -115,6 +115,7 @@ public class RemoteNetwork extends AbstractGrpcNetwork implements HederaNetwork 
                 UNKNOWN_PORT,
                 UNKNOWN_PORT,
                 UNKNOWN_PORT,
+                UNKNOWN_PORT,
                 null);
     }
 }

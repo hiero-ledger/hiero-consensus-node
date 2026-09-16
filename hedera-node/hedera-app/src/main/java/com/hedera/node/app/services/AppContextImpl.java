@@ -10,7 +10,6 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
 import java.util.function.Supplier;
@@ -23,7 +22,6 @@ import java.util.function.Supplier;
  * @param gossip The gossip interface.
  * @param configSupplier The configuration.
  * @param selfNodeInfoSupplier The supplier of the self-node info
- * @param metricsSupplier The supplier of metrics.
  * @param throttleFactory The factory for throttles.
  * @param feeChargingSupplier supplies the app's fee charging strategy implementation
  * @param idFactory The factory for entity ids.
@@ -34,7 +32,6 @@ public record AppContextImpl(
         @NonNull Gossip gossip,
         @NonNull Supplier<Configuration> configSupplier,
         @NonNull Supplier<NodeInfo> selfNodeInfoSupplier,
-        @NonNull Supplier<Metrics> metricsSupplier,
         @NonNull ScheduleThrottle.Factory throttleFactory,
         @NonNull Supplier<FeeCharging> feeChargingSupplier,
         @NonNull EntityIdFactory idFactory)
@@ -45,7 +42,6 @@ public record AppContextImpl(
         requireNonNull(gossip);
         requireNonNull(configSupplier);
         requireNonNull(selfNodeInfoSupplier);
-        requireNonNull(metricsSupplier);
         requireNonNull(throttleFactory);
         requireNonNull(feeChargingSupplier);
         requireNonNull(idFactory);
