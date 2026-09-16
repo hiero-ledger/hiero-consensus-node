@@ -23,6 +23,7 @@ import org.jspecify.annotations.NonNull;
 import org.testcontainers.containers.BindMode;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.images.builder.Transferable;
 import org.testcontainers.utility.DockerImageName;
 
 /**
@@ -37,6 +38,8 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
     private static final String HIER0_BLOCK_NODE_GROUP_PATH = "org/hiero/block-node";
     private static final String STATE_DIR_IN_CONTAINER = "/opt/hiero/block-node/application-state";
     private static final String RSA_BOOTSTRAP_FILE_NAME = "rsa-bootstrap-roster.json";
+    private static final String LOGGING_CONFIG_IN_CONTAINER = "/opt/hiero/block-node/logs/config/logging.properties";
+    private static final String BLOCK_PIPELINE_LOG_LEVEL = "FINE";
     private static final Object PLUGINS_LOCK = new Object();
     private static final List<String> REQUIRED_PLUGIN_ARTIFACTS = List.of(
             "facility-messaging",
@@ -108,13 +111,57 @@ public class BlockNodeContainer extends GenericContainer<BlockNodeContainer> {
 
         // Expose the gRPC port for block node communication
         this.addFixedExposedPort(port, GRPC_PORT);
+        // Diagnostic: make the block pipeline observable in the container log (see loggingProperties()).
+        this.withCopyToContainer(Transferable.of(loggingProperties()), LOGGING_CONFIG_IN_CONTAINER);
+
         this.withNetworkAliases("block-node-" + blockNodeId)
                 .withEnv("VERSION", BLOCK_NODE_VERSION)
+                .withEnv("JAVA_TOOL_OPTIONS", "-Djava.util.logging.config.file=" + LOGGING_CONFIG_IN_CONTAINER)
                 // The health endpoint is served on the same HTTP/2 port as gRPC (40840), which is
                 // incompatible with testcontainers' HTTP/1.1 wait strategy. Use a log-message check
                 // instead; BlockNodeNetwork.awaitGrpcReadiness() provides the gRPC-level confirmation.
                 .waitingFor(Wait.forLogMessage(".*Started BlockNode Server.*", 1)
                         .withStartupTimeout(Duration.ofMinutes(2)));
+    }
+
+    /**
+     * The block node ships every package at INFO, at which a block is received, verified, persisted and
+     * acknowledged without emitting a single line -- so an acknowledgement stall leaves no trace at all.
+     * This mirrors the bundled config (block-node/app/src/main/resources/logging.properties) and raises
+     * the three packages that bracket the pipeline:
+     *
+     * <ul>
+     *   <li>{@code stream.publisher} - "Completed blocks N" (block fully received), handler add/remove,
+     *       and the SKIP/RESEND/Behind decisions that show which publisher was elected.</li>
+     *   <li>{@code blocks.files.recent} - "Persistence Handle verification started for block N" and
+     *       "Wrote verified block N to file", which bracket verification completing.</li>
+     *   <li>{@code block.verification} - little below INFO today, but kept so any DEBUG added upstream
+     *       is captured.</li>
+     * </ul>
+     *
+     * <p>The per-acknowledgement latency logs in the publisher are TRACE, so FINE deliberately leaves
+     * them off. Setting {@code java.util.logging.config.file} makes BlockNodeApp skip its
+     * {@code CleanColorfulFormatter.makeLoggingColorful()} call, so the formatter is named explicitly
+     * here to keep the log format identical to a default run.
+     */
+    private static String loggingProperties() {
+        return """
+                .level=INFO
+                org.hiero.block.level=INFO
+                org.hiero.block.node.block.verification.level=%1$s
+                org.hiero.block.node.stream.publisher.level=%1$s
+                org.hiero.block.node.blocks.files.recent.level=%1$s
+                io.grpc.level=INFO
+                io.helidon.level=INFO
+                com.sun.jmx.interceptor.level=INFO
+                javax.management.level=INFO
+                com.sun.net.httpserver.level=WARNING
+                com.sun.net.httpserver.ServerImpl.level=WARNING
+                com.sun.net.httpserver.ExchangeImpl.level=WARNING
+                handlers=java.util.logging.ConsoleHandler
+                java.util.logging.ConsoleHandler.level=ALL
+                java.util.logging.ConsoleHandler.formatter=org.hiero.block.node.app.logging.CleanColorfulFormatter
+                """.formatted(BLOCK_PIPELINE_LOG_LEVEL);
     }
 
     private static String pluginsDirInContainer() {

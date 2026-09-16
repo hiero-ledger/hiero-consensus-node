@@ -211,6 +211,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         final BlockNodeStreamingConnection newConnection = mock(BlockNodeStreamingConnection.class);
         when(newConnection.configuration()).thenReturn(configuration);
         when(newConnection.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 2));
+        when(newConnection.currentState()).thenReturn(ConnectionState.ACTIVE);
 
         node.onActive(newConnection);
 
@@ -257,6 +258,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         when(newConnection.createTimestamp()).thenReturn(now);
         when(newConnection.configuration()).thenReturn(configuration);
         when(newConnection.connectionId()).thenReturn(conn6Id);
+        when(newConnection.currentState()).thenReturn(ConnectionState.ACTIVE);
 
         node.onActive(newConnection);
 
@@ -296,6 +298,7 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         when(conn6.createTimestamp()).thenReturn(now);
         when(conn6.configuration()).thenReturn(configuration);
         when(conn6.connectionId()).thenReturn(conn6Id);
+        when(conn6.currentState()).thenReturn(ConnectionState.ACTIVE);
 
         node.onActive(conn6);
 
@@ -318,12 +321,31 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
         when(conn7.createTimestamp()).thenReturn(now);
         when(conn7.configuration()).thenReturn(configuration);
         when(conn7.connectionId()).thenReturn(conn7Id);
+        when(conn7.currentState()).thenReturn(ConnectionState.ACTIVE);
 
         node.onActive(conn7);
 
         // Current History: STR3 - STR4 - STR5 - STR6 - STR7
         // now the history map should contain connections connection 3-7
         assertThat(connectionHistories()).hasSize(5).containsOnlyKeys(conn3Id, conn4Id, conn5Id, conn6Id, conn7Id);
+    }
+
+    @Test
+    void testOnActive_connectionAlreadyClosedIsUnregistered() {
+        final ConnectionId connId = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1);
+        final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
+        when(connection.configuration()).thenReturn(configuration);
+        when(connection.connectionId()).thenReturn(connId);
+        when(connection.currentState()).thenReturn(ConnectionState.CLOSED);
+
+        node.onActive(connection);
+
+        // the connection was closed before registration completed, so it must not be left registered
+        assertThat(activeStreamingConnectionRef()).hasNullValue();
+        assertThat(connectionHistories()).isEmpty();
+        assertThat(globalActiveStreamConnectionCount).hasValue(0);
+        assertThat(localActiveStreamingConnectionCount()).hasValue(0);
+        assertThat(node.isStreamingCandidate()).isTrue();
     }
 
     @Test
