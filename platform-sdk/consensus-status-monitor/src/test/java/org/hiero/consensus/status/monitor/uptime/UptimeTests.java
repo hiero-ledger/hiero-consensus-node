@@ -3,8 +3,8 @@ package org.hiero.consensus.status.monitor.uptime;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
-import static org.hiero.consensus.roster.test.fixtures.RosterTestUtils.addRandomRosterEntryToRoster;
-import static org.hiero.consensus.roster.test.fixtures.RosterTestUtils.dropRosterEntryFromRoster;
+import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.addRandomRosterEntryToRoster;
+import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.dropRosterEntryFromRoster;
 import static org.hiero.consensus.status.monitor.uptime.UptimeData.NO_ROUND;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -13,7 +13,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.config.api.Configuration;
@@ -33,8 +32,9 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -45,18 +45,17 @@ class UptimeTests {
             @NonNull final Random random,
             @NonNull final FakeTime time,
             @NonNull final Duration roundDuration,
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             final int count,
             @NonNull Set<NodeId> noEvents,
             @NonNull Set<NodeId> noJudges) {
 
         final List<PlatformEvent> events = new ArrayList<>(count);
         final Set<NodeId> firstEventCreated = new HashSet<>();
-        final int size = roster.rosterEntries().size();
+        final int size = roster.size();
         while (events.size() < count) {
 
-            final NodeId nodeId =
-                    NodeId.of(roster.rosterEntries().get(random.nextInt(size)).nodeId());
+            final NodeId nodeId = roster.rosterEntry(random.nextInt(size)).nodeId();
             if (noEvents.contains(nodeId)) {
                 continue;
             }
@@ -79,7 +78,7 @@ class UptimeTests {
     }
 
     private static ConsensusRound mockRound(
-            @NonNull final List<PlatformEvent> events, @NonNull final Roster roster, final long roundNum) {
+            @NonNull final List<PlatformEvent> events, @NonNull final RosterWrapper roster, final long roundNum) {
         final ConsensusSnapshot snapshot = mock(ConsensusSnapshot.class);
         final ConsensusRound round =
                 new ConsensusRound(roster, events, mock(EventWindow.class), snapshot, false, Instant.now());
@@ -98,20 +97,18 @@ class UptimeTests {
         final FakeTime time = new FakeTime();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
-        final Roster roster = RosterFactory.randomRoster(random, 10);
-        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, 10);
+        final NodeId selfId = roster.rosterEntry(0).nodeId();
 
         final UptimeTracker uptimeTracker = new UptimeTracker(configuration, new NoOpMetrics(), time, selfId);
         final UptimeData uptimeData = uptimeTracker.uptimeData;
 
         // First, simulate a round starting at genesis
         final int eventCount = 100;
-        final Set<NodeId> noFirstRoundEvents = Set.of(
-                NodeId.of(roster.rosterEntries().getFirst().nodeId()),
-                NodeId.of(roster.rosterEntries().get(1).nodeId()));
-        final Set<NodeId> noFirstRoundJudges = Set.of(
-                NodeId.of(roster.rosterEntries().get(8).nodeId()),
-                NodeId.of(roster.rosterEntries().get(9).nodeId()));
+        final Set<NodeId> noFirstRoundEvents =
+                Set.of(roster.rosterEntry(0).nodeId(), roster.rosterEntry(1).nodeId());
+        final Set<NodeId> noFirstRoundJudges =
+                Set.of(roster.rosterEntry(8).nodeId(), roster.rosterEntry(9).nodeId());
         final List<PlatformEvent> firstRoundEvents = generateEvents(
                 random, time, Duration.ofSeconds(1), roster, eventCount, noFirstRoundEvents, noFirstRoundJudges);
 
@@ -119,7 +116,7 @@ class UptimeTests {
         uptimeTracker.trackRound(roundOne);
 
         roster.rosterEntries().forEach(entry -> {
-            final NodeId nodeId = NodeId.of(entry.nodeId());
+            final NodeId nodeId = entry.nodeId();
             ConsensusEvent judge = null;
             ConsensusEvent lastEvent = null;
 
@@ -153,12 +150,10 @@ class UptimeTests {
             }
         });
 
-        final Set<NodeId> noSecondRoundEvents = Set.of(
-                NodeId.of(roster.rosterEntries().get(0).nodeId()),
-                NodeId.of(roster.rosterEntries().get(2).nodeId()));
-        final Set<NodeId> noSecondRoundJudges = Set.of(
-                NodeId.of(roster.rosterEntries().get(7).nodeId()),
-                NodeId.of(roster.rosterEntries().get(9).nodeId()));
+        final Set<NodeId> noSecondRoundEvents =
+                Set.of(roster.rosterEntry(0).nodeId(), roster.rosterEntry(2).nodeId());
+        final Set<NodeId> noSecondRoundJudges =
+                Set.of(roster.rosterEntry(7).nodeId(), roster.rosterEntry(9).nodeId());
         final List<PlatformEvent> secondRoundEvents = generateEvents(
                 random, time, Duration.ofSeconds(1), roster, eventCount, noSecondRoundEvents, noSecondRoundJudges);
 
@@ -166,7 +161,7 @@ class UptimeTests {
         uptimeTracker.trackRound(roundTwo);
 
         roster.rosterEntries().forEach(entry -> {
-            final NodeId nodeId = NodeId.of(entry.nodeId());
+            final NodeId nodeId = entry.nodeId();
             ConsensusEvent judge = null;
             ConsensusEvent lastEvent = null;
 
@@ -211,24 +206,22 @@ class UptimeTests {
         final FakeTime time = new FakeTime();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
-        final Roster roster = RosterFactory.randomRoster(random, 10);
-        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, 10);
+        final NodeId selfId = roster.rosterEntry(0).nodeId();
 
         final UptimeTracker uptimeTracker = new UptimeTracker(configuration, new NoOpMetrics(), time, selfId);
         final UptimeData uptimeData = uptimeTracker.uptimeData;
         // First, simulate a round starting at genesis
         final int eventCount = 100;
-        final Set<NodeId> noFirstRoundEvents = Set.of(
-                NodeId.of(roster.rosterEntries().get(0).nodeId()),
-                NodeId.of(roster.rosterEntries().get(1).nodeId()));
-        final Set<NodeId> noFirstRoundJudges = Set.of(
-                NodeId.of(roster.rosterEntries().get(8).nodeId()),
-                NodeId.of(roster.rosterEntries().get(9).nodeId()));
+        final Set<NodeId> noFirstRoundEvents =
+                Set.of(roster.rosterEntry(0).nodeId(), roster.rosterEntry(1).nodeId());
+        final Set<NodeId> noFirstRoundJudges =
+                Set.of(roster.rosterEntry(8).nodeId(), roster.rosterEntry(9).nodeId());
         final List<PlatformEvent> firstRoundEvents = generateEvents(
                 random, time, Duration.ofSeconds(1), roster, eventCount, noFirstRoundEvents, noFirstRoundJudges);
 
         roster.rosterEntries().forEach(entry -> {
-            final NodeId nodeId = NodeId.of(entry.nodeId());
+            final NodeId nodeId = entry.nodeId();
             assertNull(uptimeData.getLastEventTime(nodeId));
             assertNull(uptimeData.getLastJudgeTime(nodeId));
             assertEquals(NO_ROUND, uptimeData.getLastEventRound(nodeId));
@@ -239,7 +232,7 @@ class UptimeTests {
         uptimeTracker.trackRound(roundOne);
 
         roster.rosterEntries().forEach(entry -> {
-            final NodeId nodeId = NodeId.of(entry.nodeId());
+            final NodeId nodeId = entry.nodeId();
             ConsensusEvent judge = null;
             ConsensusEvent lastEvent = null;
 
@@ -273,9 +266,9 @@ class UptimeTests {
         });
 
         // Simulate a following round with a different address book
-        final long nodeToRemove = roster.rosterEntries().getFirst().nodeId();
-        final Roster intermediateRoster = dropRosterEntryFromRoster(roster, nodeToRemove);
-        final Roster newRoster = addRandomRosterEntryToRoster(intermediateRoster, 12345L, random);
+        final NodeId nodeToRemove = roster.rosterEntry(0).nodeId();
+        final RosterWrapper intermediateRoster = dropRosterEntryFromRoster(roster, nodeToRemove);
+        final RosterWrapper newRoster = addRandomRosterEntryToRoster(intermediateRoster, NodeId.of(12345L), random);
         final Set<NodeId> noSecondRoundEvents = Set.of();
         final Set<NodeId> noSecondRoundJudges = Set.of();
         final List<PlatformEvent> secondRoundEvents = generateEvents(
@@ -286,7 +279,7 @@ class UptimeTests {
         uptimeTracker.trackRound(roundTwo);
 
         newRoster.rosterEntries().forEach(entry -> {
-            final NodeId nodeId = NodeId.of(entry.nodeId());
+            final NodeId nodeId = entry.nodeId();
             ConsensusEvent judge = null;
             ConsensusEvent lastEvent = null;
 
@@ -315,7 +308,7 @@ class UptimeTests {
             }
         });
 
-        final NodeId nodeIdToRemove = NodeId.of(nodeToRemove);
+        final NodeId nodeIdToRemove = nodeToRemove;
         assertNull(uptimeData.getLastJudgeTime(nodeIdToRemove));
         assertNull(uptimeData.getLastEventTime(nodeIdToRemove));
         assertEquals(NO_ROUND, uptimeData.getLastJudgeRound(nodeIdToRemove));
@@ -330,8 +323,8 @@ class UptimeTests {
         final FakeTime time = new FakeTime();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
-        final Roster roster = RosterFactory.randomRoster(random, 3);
-        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, 3);
+        final NodeId selfId = roster.rosterEntry(0).nodeId();
 
         final UptimeTracker uptimeTracker = new UptimeTracker(configuration, new NoOpMetrics(), time, selfId);
         final UptimeData uptimeData = uptimeTracker.uptimeData;
@@ -342,7 +335,7 @@ class UptimeTests {
                 generateEvents(random, time, Duration.ofSeconds(1), roster, eventCount, Set.of(), Set.of());
 
         roster.rosterEntries().forEach(entry -> {
-            final NodeId nodeId = NodeId.of(entry.nodeId());
+            final NodeId nodeId = entry.nodeId();
             assertNull(uptimeData.getLastEventTime(nodeId));
             assertNull(uptimeData.getLastJudgeTime(nodeId));
             assertEquals(NO_ROUND, uptimeData.getLastEventRound(nodeId));
@@ -355,8 +348,7 @@ class UptimeTests {
         // Simulate a following round, but allow a long time to pass
         time.tick(Duration.ofSeconds(30));
 
-        final Set<NodeId> noSecondRoundEvents =
-                Set.of(NodeId.of(roster.rosterEntries().getFirst().nodeId()));
+        final Set<NodeId> noSecondRoundEvents = Set.of(roster.rosterEntry(0).nodeId());
         final List<PlatformEvent> secondRoundEvents =
                 generateEvents(random, time, Duration.ofSeconds(1), roster, eventCount, noSecondRoundEvents, Set.of());
 

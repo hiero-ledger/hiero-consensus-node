@@ -5,13 +5,13 @@ and the Prometheus exposition endpoint.
 
 ## Architecture
 
-Sits above `consensus-model` and `consensus-concurrent` in the supporting module DAG. Provides
-metrics infrastructure consumed across the layer.
+Sits above `consensus-model` in the supporting module DAG. Provides metrics infrastructure
+consumed across the layer.
 
 ## Dependency Rules
 
 May depend on:
-- `consensus-model`, `consensus-concurrent`
+- `consensus-model`
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`
 
 Must not depend on:

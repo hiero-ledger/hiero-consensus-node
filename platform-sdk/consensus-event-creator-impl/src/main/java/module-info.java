@@ -7,7 +7,6 @@ module org.hiero.consensus.event.creator.impl {
     exports org.hiero.consensus.event.creator.impl.tipset;
     exports org.hiero.consensus.event.creator.impl;
 
-    requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
@@ -20,7 +19,6 @@ module org.hiero.consensus.event.creator.impl {
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;
     requires org.hiero.base.utility;
-    requires org.hiero.consensus.roster;
     requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;

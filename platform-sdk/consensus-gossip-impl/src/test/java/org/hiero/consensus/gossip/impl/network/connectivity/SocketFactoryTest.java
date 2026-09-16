@@ -104,7 +104,7 @@ class SocketFactoryTest extends ConnectivityTestBase {
      * @param port         the port to bind the server socket to
      */
     @ParameterizedTest
-    @MethodSource({"org.hiero.consensus.roster.test.fixtures.CryptoArgsProvider#basicTestArgs"})
+    @MethodSource({"org.hiero.consensus.gossip.impl.network.connectivity.CryptoArgsProvider#basicTestArgs"})
     void tlsFactoryTest(
             @NonNull final Roster roster,
             @NonNull final Map<NodeId, KeysAndCerts> keysAndCerts,
@@ -146,7 +146,7 @@ class SocketFactoryTest extends ConnectivityTestBase {
      * @throws IOException if the server socket cannot be created
      */
     @ParameterizedTest
-    @MethodSource({"org.hiero.consensus.roster.test.fixtures.CryptoArgsProvider#basicTestArgs"})
+    @MethodSource({"org.hiero.consensus.gossip.impl.network.connectivity.CryptoArgsProvider#basicTestArgs"})
     void bindInterfaceTest(
             @NonNull final Roster roster,
             @NonNull final Map<NodeId, KeysAndCerts> keysAndCerts,
@@ -172,7 +172,7 @@ class SocketFactoryTest extends ConnectivityTestBase {
      * @throws IOException if the server socket cannot be created
      */
     @ParameterizedTest
-    @MethodSource({"org.hiero.consensus.roster.test.fixtures.CryptoArgsProvider#basicTestArgs"})
+    @MethodSource({"org.hiero.consensus.gossip.impl.network.connectivity.CryptoArgsProvider#basicTestArgs"})
     void bindInterfaceTestWithDefaultConfig(
             @NonNull final Roster roster,
             @NonNull final Map<NodeId, KeysAndCerts> keysAndCerts,
@@ -195,7 +195,7 @@ class SocketFactoryTest extends ConnectivityTestBase {
      * @param port         the port to bind the server socket to
      */
     @ParameterizedTest
-    @MethodSource({"org.hiero.consensus.roster.test.fixtures.CryptoArgsProvider#basicTestArgs"})
+    @MethodSource({"org.hiero.consensus.gossip.impl.network.connectivity.CryptoArgsProvider#basicTestArgs"})
     void bindInterfaceTestWithFailingClaimingIp(
             @NonNull final Roster roster,
             @NonNull final Map<NodeId, KeysAndCerts> keysAndCerts,

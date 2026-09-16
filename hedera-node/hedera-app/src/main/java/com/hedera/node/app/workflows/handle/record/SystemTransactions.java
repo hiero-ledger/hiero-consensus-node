@@ -151,6 +151,14 @@ public class SystemTransactions {
 
     private static final Logger log = LogManager.getLogger(SystemTransactions.class);
 
+    /**
+     * The number of consensus times a single system transaction dispatch can consume when it applies stake period
+     * side effects; one for the dispatch itself, and an earlier one for a preceding {@code NODE_STAKE_UPDATE}. A
+     * caller choosing the first free time for such a dispatch must thus advance this many nanos past the last used
+     * consensus time.
+     */
+    public static final int MAX_NANOS_PER_SYSTEM_DISPATCH = 2;
+
     private static final int DEFAULT_GENESIS_WEIGHT = 500;
     private static final long FIRST_RESERVED_SYSTEM_CONTRACT = 350L;
     private static final long LAST_RESERVED_SYSTEM_CONTRACT = 399L;
@@ -834,7 +842,7 @@ public class SystemTransactions {
         final var remainingDispatches = new AtomicInteger(
                 useReserved
                         ? (int) java.time.Duration.between(firstConsTime, now).toNanos()
-                                / (applyStakePeriodSideEffects ? 2 : 1)
+                                / (applyStakePeriodSideEffects ? MAX_NANOS_PER_SYSTEM_DISPATCH : 1)
                         : 1);
         final AtomicReference<Instant> nextConsTime = new AtomicReference<>(firstConsTime);
         final var systemAdminId = idFactory.newAccountId(
@@ -863,7 +871,7 @@ public class SystemTransactions {
                 spec.accept(builder);
                 final var body = builder.build();
                 final var output = dispatch(body, 0, triggerStakePeriodSideEffects);
-                final var statuses = output.preferringBlockRecordSource().identifiedReceipts().stream()
+                final var statuses = output.preferredRecordSource().identifiedReceipts().stream()
                         .map(RecordSource.IdentifiedReceipt::receipt)
                         .map(TransactionReceipt::status)
                         .toList();
@@ -919,7 +927,7 @@ public class SystemTransactions {
                 }
                 final boolean applyStakePeriodSideEffects =
                         triggerStakePeriodSideEffects == TriggerStakePeriodSideEffects.YES;
-                final int maxNanosUsed = applyStakePeriodSideEffects ? 2 : 1;
+                final int maxNanosUsed = applyStakePeriodSideEffects ? MAX_NANOS_PER_SYSTEM_DISPATCH : 1;
                 final var now = nextConsTime.getAndUpdate(then -> then.plusNanos(maxNanosUsed));
                 if (streamMode != BLOCKS) {
                     blockRecordManager.startUserTransaction(now, state);
@@ -939,7 +947,9 @@ public class SystemTransactions {
                     blockRecordManager.endUserTransaction(records.stream(), state);
                 }
                 if (streamMode != RECORDS) {
-                    handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
+                    blockStreamManager.writeSavepointItems(
+                            handleOutput.blockRecordSourceOrThrow().blockItems(),
+                            handleOutput.lastAssignedConsensusTime());
                 }
                 return handleOutput;
             }
@@ -1016,7 +1026,7 @@ public class SystemTransactions {
                     creatorInfo.nodeId(),
                     parentTxn.txnInfo().transactionID(),
                     HederaRecordCache.DueDiligenceFailure.NO,
-                    handleOutput.preferringBlockRecordSource());
+                    handleOutput.preferredRecordSource());
             return handleOutput;
         } catch (final Exception e) {
             log.error("{} - exception thrown while handling system transaction", ALERT_MESSAGE, e);

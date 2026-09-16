@@ -96,10 +96,11 @@ public final class ConfigRecords {
     }
 
     /**
-     * Whether a path lies directly under its module's {@code src/main/java} tree. The index only walks
-     * {@code src/main/java} trees, but a test-resource fixture can embed one (e.g.
-     * {@code <module>/src/test/resources/…/src/main/java/…}) — the first {@code src} segment after the
-     * module must already be the {@code src/main/java} one.
+     * Whether a path lies directly under its module's {@code src/main/java} tree. This is the only
+     * guard keeping non-production records out of the catalog: the index walks every
+     * {@code src/<sourceSet>/java} tree, and a test-resource fixture can embed one of its own (e.g.
+     * {@code <module>/src/test/resources/…/src/main/java/…}) — so the first {@code src} segment after
+     * the module must already be the {@code src/main/java} one.
      *
      * @param repoRelPath the repo-relative source path.
      * @return {@code true} when the module's own source set is {@code src/main/java}.
