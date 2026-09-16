@@ -2,7 +2,10 @@
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.transfer;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SENDER_DOES_NOT_OWN_NFT_SERIAL_NO;
+import static com.hedera.node.app.service.contract.impl.exec.gas.DispatchType.ASSOCIATE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_NEW_ACCOUNT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RECEIVER_ID;
@@ -14,6 +17,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -27,18 +32,28 @@ import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuild
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.config.api.Configuration;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
+import org.hyperledger.besu.datatypes.Log;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.log.Log;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 
 class Erc721TransferFromCallTest extends CallTestBase {
-    private static final Address FROM_ADDRESS = ConversionUtils.asHeadlongAddress(EIP_1014_ADDRESS.toArray());
+    private static final Configuration NO_UNLIMITED_ASSOCIATIONS_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("entities.unlimitedAutoAssociationsEnabled", false)
+            .getOrCreateConfig();
+    private static final long CANONICAL_ASSOCIATE_GAS = 704_000L;
+    private static final Address FROM_ADDRESS =
+            ConversionUtils.asHeadlongAddress(EIP_1014_ADDRESS.getBytes().toArray());
     private static final Address TO_ADDRESS =
             ConversionUtils.asHeadlongAddress(asEvmAddress(B_NEW_ACCOUNT_ID.accountNumOrThrow()));
 
@@ -94,7 +109,8 @@ class Erc721TransferFromCallTest extends CallTestBase {
                 convertAccountToLog(localReceiver), logs.getFirst().getTopics().get(2));
         assertEquals(
                 1L,
-                UInt256.fromBytes(Bytes.wrap(logs.getFirst().getTopics().get(3).toArray()))
+                UInt256.fromBytes(Bytes.wrap(
+                                logs.getFirst().getTopics().get(3).getBytes().toArray()))
                         .toLong());
     }
 
@@ -115,6 +131,72 @@ class Erc721TransferFromCallTest extends CallTestBase {
 
         assertEquals(MessageFrame.State.REVERT, result.state());
         assertEquals(readableRevertReason(SENDER_DOES_NOT_OWN_NFT_SERIAL_NO), result.output());
+    }
+
+    @Test
+    void chargesGasForAutoAssociationsCreatedByTransferFrom() {
+        givenSuccessfulTransfer();
+        givenFrameConfig(DEFAULT_CONFIG);
+        given(recordBuilder.getNumAutoAssociations()).willReturn(1);
+        given(gasCalculator.canonicalGasRequirement(ASSOCIATE)).willReturn(CANONICAL_ASSOCIATE_GAS);
+
+        subject = subjectFor(1L);
+
+        final var result = subject.execute(frame).fullResult();
+
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.result().state());
+        assertEquals(CANONICAL_ASSOCIATE_GAS, result.gasRequirement());
+    }
+
+    @Test
+    void doesNotChargeAutoAssociationGasIfUnlimitedAssociationsDisabled() {
+        givenSuccessfulTransfer();
+        givenFrameConfig(NO_UNLIMITED_ASSOCIATIONS_CONFIG);
+        given(recordBuilder.getNumAutoAssociations()).willReturn(1);
+
+        subject = subjectFor(1L);
+
+        final var result = subject.execute(frame).fullResult();
+
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.result().state());
+        assertEquals(0L, result.gasRequirement());
+    }
+
+    @Test
+    void doesNotConsultConfigWithoutAutoAssociations() {
+        givenSuccessfulTransfer();
+
+        subject = subjectFor(1L);
+
+        final var result = subject.execute(frame).fullResult();
+
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.result().state());
+        assertEquals(0L, result.gasRequirement());
+        verify(gasCalculator, never()).canonicalGasRequirement(ASSOCIATE);
+    }
+
+    private void givenSuccessfulTransfer() {
+        given(nativeOperations.readableAccountStore()).willReturn(accountStore);
+        given(systemContractOperations.dispatch(
+                        any(TransactionBody.class),
+                        eq(verificationStrategy),
+                        eq(SENDER_ID),
+                        eq(ContractCallStreamBuilder.class)))
+                .willReturn(recordBuilder);
+        given(recordBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
+        given(addressIdConverter.convert(FROM_ADDRESS)).willReturn(SENDER_ID);
+        given(addressIdConverter.convertCredit(TO_ADDRESS)).willReturn(RECEIVER_ID);
+        given(accountStore.getAliasedAccountById(SENDER_ID))
+                .willReturn(Account.newBuilder().accountId(SENDER_ID).build());
+        given(accountStore.getAliasedAccountById(RECEIVER_ID))
+                .willReturn(Account.newBuilder().accountId(RECEIVER_ID).build());
+    }
+
+    private void givenFrameConfig(@NonNull final Configuration config) {
+        final Deque<MessageFrame> stack = new ArrayDeque<>();
+        stack.push(frame);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(config);
     }
 
     private void givenSynthIdHelperForToAccount() {

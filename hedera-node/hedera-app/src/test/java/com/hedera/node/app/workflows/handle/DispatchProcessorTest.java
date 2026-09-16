@@ -490,6 +490,7 @@ class DispatchProcessorTest {
         final var inOrder = inOrder(feeAccumulator, stack);
         inOrder.verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
         inOrder.verify(stack).rollbackFullStack();
+        inOrder.verify(feeAccumulator).reverseAccumulatedNodeFees();
         inOrder.verify(feeAccumulator).resetRefundableFees();
         inOrder.verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
@@ -556,6 +557,7 @@ class DispatchProcessorTest {
         verify(recordBuilder).status(CONSENSUS_GAS_EXHAUSTED);
         verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
         verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES.withoutServiceComponent(), null);
+        verify(feeAccumulator).reverseAccumulatedNodeFees();
         verify(opWorkflowMetrics).incrementThrottled(CONTRACT_CALL);
         assertFinished();
     }
@@ -612,6 +614,7 @@ class DispatchProcessorTest {
         verify(recordBuilder).status(CONSENSUS_GAS_EXHAUSTED);
         verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
         verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES.withoutServiceComponent(), null);
+        verify(feeAccumulator).reverseAccumulatedNodeFees();
         verify(ethereumTransactionHandler).handleThrottled(context);
         verify(opWorkflowMetrics).incrementThrottled(ETHEREUM_TRANSACTION);
         assertFinished();
@@ -640,6 +643,7 @@ class DispatchProcessorTest {
         verify(recordBuilder).status(FAIL_INVALID);
         verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
         verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES.withoutServiceComponent(), null);
+        verify(feeAccumulator).reverseAccumulatedNodeFees();
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
         assertFinished();
     }

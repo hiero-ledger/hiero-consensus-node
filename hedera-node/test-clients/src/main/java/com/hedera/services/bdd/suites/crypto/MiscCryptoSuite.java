@@ -97,11 +97,6 @@ public class MiscCryptoSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> getBalanceIdVariantsTreatedAsExpected() {
-        return hapiTest(sendModified(withSuccessivelyVariedQueryIds(), () -> getAccountBalance(DEFAULT_PAYER)));
-    }
-
-    @HapiTest
     final Stream<DynamicTest> getDetailsIdVariantsTreatedAsExpected() {
         return hapiTest(
                 sendModifiedWithFixedPayer(withSuccessivelyVariedQueryIds(), () -> getAccountDetails(DEFAULT_PAYER)

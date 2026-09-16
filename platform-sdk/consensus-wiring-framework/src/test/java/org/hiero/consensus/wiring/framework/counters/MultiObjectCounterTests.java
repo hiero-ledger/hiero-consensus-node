@@ -2,16 +2,16 @@
 package org.hiero.consensus.wiring.framework.counters;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.time.Duration;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.junit.jupiter.api.Test;
 
 class MultiObjectCounterTests {

@@ -105,7 +105,7 @@ class CustomExtCodeSizeOperationTest {
     }
 
     private void givenWellKnownFrameWith(final Address to) {
-        given(frame.getStackItem(0)).willReturn(to);
+        given(frame.getStackItem(0)).willReturn(to.getBytes());
         given(gasCalculator.getExtCodeSizeOperationGasCost()).willReturn(123L);
     }
 }

@@ -47,10 +47,13 @@ public class SimpleFeesScheduleUpdateTest {
     final Stream<DynamicTest> invalidSimpleFeesScheduleIsRejected() {
         return hapiTest(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FEE_SCHEDULE_CONTROL, 1_000_000_000_000L)),
+                getFileContents(SIMPLE_FEE_SCHEDULE).saveToRegistry(SIMPLE_FEES_SNAPSHOT),
                 fileUpdate(SIMPLE_FEE_SCHEDULE)
                         .contents("INVALID_GARBAGE_BYTES")
                         .payingWith(FEE_SCHEDULE_CONTROL)
-                        .hasKnownStatus(FEE_SCHEDULE_FILE_PART_UPLOADED));
+                        .hasKnownStatus(FEE_SCHEDULE_FILE_PART_UPLOADED),
+                // Restore the valid schedule so the shared network isn't left with unparseable 0.0.113 contents.
+                updateLargeFile(GENESIS, SIMPLE_FEE_SCHEDULE, SIMPLE_FEES_SNAPSHOT));
     }
 
     @LeakyHapiTest(requirement = ContextRequirement.NO_CONCURRENT_CREATIONS)

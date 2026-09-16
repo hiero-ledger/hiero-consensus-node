@@ -9,6 +9,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 
 import com.hedera.node.app.hapi.utils.CommonUtils;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.SignatureGenerator;
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.node.app.hapi.utils.keys.KeyUtils;
@@ -40,7 +41,6 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import org.apache.commons.lang3.tuple.Pair;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.junit.jupiter.api.Assertions;
 
 /**
@@ -688,7 +688,7 @@ public class KeyFactory {
                 final byte[] sig;
                 if (privateKey instanceof ECPrivateKey) {
                     if (keccak256Digest == null) {
-                        keccak256Digest = new Keccak.Digest256().digest(data);
+                        keccak256Digest = MiscCryptoUtils.keccak256DigestOf(data);
                     }
                     sig = SignatureGenerator.signBytes(keccak256Digest, privateKey);
                 } else {

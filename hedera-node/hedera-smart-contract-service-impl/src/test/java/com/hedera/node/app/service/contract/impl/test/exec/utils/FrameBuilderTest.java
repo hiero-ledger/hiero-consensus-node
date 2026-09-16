@@ -6,7 +6,6 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.co
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.selfDestructBeneficiariesFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.tinybarValuesFor;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CONTRACT_CODE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_COINBASE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
@@ -62,7 +61,7 @@ import org.apache.tuweni.bytes.Bytes32;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.code.CodeV0;
+import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.frame.BlockValues;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.Test;
@@ -111,7 +110,7 @@ class FrameBuilderTest {
     @Mock
     private Account contract;
 
-    private final ContractCodeCache codeCache = new ContractCodeCache(CODE_FACTORY);
+    private final ContractCodeCache codeCache = new ContractCodeCache();
     private final FrameBuilder subject = new FrameBuilder(codeCache);
 
     @Test
@@ -397,7 +396,7 @@ class FrameBuilderTest {
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getRecipientAddress());
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getContractAddress());
         assertEquals(transaction.evmPayload(), frame.getInputData());
-        assertSame(CodeV0.EMPTY_CODE, frame.getCode());
+        assertSame(Code.EMPTY_CODE, frame.getCode());
         assertSame(tinybarValues, tinybarValuesFor(frame));
     }
 
@@ -446,7 +445,7 @@ class FrameBuilderTest {
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getRecipientAddress());
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getContractAddress());
         assertEquals(transaction.evmPayload(), frame.getInputData());
-        assertSame(CodeV0.EMPTY_CODE, frame.getCode());
+        assertSame(Code.EMPTY_CODE, frame.getCode());
         assertSame(tinybarValues, tinybarValuesFor(frame));
     }
 

@@ -31,6 +31,7 @@ module com.hedera.state.validator {
     requires com.swirlds.config.extensions;
     requires com.swirlds.merkledb;
     requires com.swirlds.metrics.api;
+    requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.platform.core;
     requires com.swirlds.state.api;
     requires com.swirlds.state.impl;
@@ -38,7 +39,6 @@ module com.hedera.state.validator {
     requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
-    requires org.hiero.consensus.concurrent;
     requires org.hiero.consensus.fakes;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.model;
@@ -46,8 +46,10 @@ module com.hedera.state.validator {
     requires org.hiero.consensus.pces;
     requires org.hiero.consensus.pcli;
     requires org.hiero.consensus.platformstate;
+    requires org.hiero.consensus.roster;
     requires org.hiero.consensus.state;
     requires org.hiero.consensus.utility;
+    requires org.hiero.consensus.wiring.framework;
     requires com.github.spotbugs.annotations;
     requires info.picocli;
     requires org.apache.logging.log4j;

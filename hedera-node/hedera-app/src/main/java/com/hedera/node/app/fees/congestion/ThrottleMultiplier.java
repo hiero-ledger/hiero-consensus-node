@@ -105,6 +105,16 @@ public class ThrottleMultiplier {
      * @param startTimes the saved congestion level starts
      */
     public void resetCongestionLevelStarts(@NonNull final Instant[] startTimes) {
+        // Reconcile against the active config; if the tier count changed since these were saved,
+        // discard the stale history and re-warm rather than index out of bounds on the handle path.
+        if (activeConfig != null && startTimes.length != activeConfig.multipliers().length) {
+            logger.warn(
+                    "Ignoring {} restored congestion level start(s) for {} congestion pricing; active config has {} tier(s)",
+                    startTimes.length,
+                    congestionType,
+                    activeConfig.multipliers().length);
+            return;
+        }
         congestionLevelStarts = startTimes.clone();
     }
 

@@ -65,9 +65,6 @@ import java.time.Duration;
  *                                      careful enabling this network wide. If this is enabled and all states on disk
  *                                      have deserialization bugs, then all nodes will delete all state copies and the
  *                                      network will restart from genesis.
- * @param validateInitialState          If false, then do not do ISS validation on the state loaded from disk at startup.
- *                                      This should always be enabled in production environments. Disabling initial
- *                                      state validation is intended to be a test-only feature.
  * @param periodicSnapshotsEnabled       If true, then create periodic snapshots of the signed state.
  *
  */
@@ -92,7 +89,6 @@ public record StateConfig(
         @ConfigProperty(defaultValue = "false") boolean stateHistoryEnabled,
         @ConfigProperty(defaultValue = "false") boolean debugStackTracesEnabled,
         @ConfigProperty(defaultValue = "false") boolean deleteInvalidStateFiles,
-        @ConfigProperty(defaultValue = "true") boolean validateInitialState,
         @ConfigProperty(defaultValue = "true") boolean periodicSnapshotsEnabled) {
 
     /**

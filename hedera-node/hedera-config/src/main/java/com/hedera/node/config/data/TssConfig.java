@@ -87,4 +87,15 @@ public record TssConfig(
         String wrapsProvingKeyDownloadUrl,
 
         @ConfigProperty(defaultValue = "300s") @NetworkProperty
-        Duration wrapsProvingKeyRetryInterval) {}
+        Duration wrapsProvingKeyRetryInterval,
+
+        // Timeout for establishing the connection to the proving key download server
+        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration wrapsProvingKeyConnectTimeout,
+
+        // Timeout for receiving the response headers once connected; bounds a server that accepts the
+        // connection and then never replies
+        @ConfigProperty(defaultValue = "60s") @NodeProperty Duration wrapsProvingKeyResponseHeadersTimeout,
+
+        // How long the download may go without receiving any bytes before it is treated as stalled; bounds a
+        // server that sends headers and then stops mid-body
+        @ConfigProperty(defaultValue = "120s") @NodeProperty Duration wrapsProvingKeyStallTimeout) {}

@@ -118,12 +118,14 @@ public class IvyContractScenarioSuite extends AbstractIvySuite {
                                                         PERSISTENT_CONTRACT_NAME,
                                                         BELIEVE_IN_ABI,
                                                         Long.valueOf(persistent.getLuckyNo()))
+                                                .payingWith(SCENARIO_PAYER_NAME)
                                                 .setNodeFrom(nodeAccounts.get()))
                                 : noOp())
                 .when(flattened(
                         doingContextual(spec -> persistentIdLiteral.set(
                                 asContractString(spec.contractIdFactory().apply(persistent.getNum())))),
                         sourcing(() -> contractCallLocalWithFunctionAbi(persistentIdLiteral.get(), PICK_ABI)
+                                .payingWith(SCENARIO_PAYER_NAME)
                                 .setNodeFrom(nodeAccounts.get())
                                 .has(resultWith().resultThruAbi(PICK_ABI, isLiteralResult(new Object[] {
                                     Long.valueOf(persistent.getLuckyNo())
@@ -134,6 +136,7 @@ public class IvyContractScenarioSuite extends AbstractIvySuite {
                                 .logged()
                                 .sending(1L)),
                         sourcing(() -> getContractInfo(persistentIdLiteral.get())
+                                .payingWith(SCENARIO_PAYER_NAME)
                                 .has(ContractInfoAsserts.contractWith().balance(1))
                                 .logged()),
                         sourcing(() -> contractCallWithFunctionAbi(
@@ -144,6 +147,7 @@ public class IvyContractScenarioSuite extends AbstractIvySuite {
                                 .setNodeFrom(nodeAccounts.get())
                                 .via("donation")),
                         sourcing(() -> getContractInfo(persistentIdLiteral.get())
+                                .payingWith(SCENARIO_PAYER_NAME)
                                 .has(ContractInfoAsserts.contractWith().balance(0))
                                 .logged()),
                         getTxnRecord("donation")
@@ -187,8 +191,7 @@ public class IvyContractScenarioSuite extends AbstractIvySuite {
         };
     }
 
-    private static final String PICK_ABI =
-            """
+    private static final String PICK_ABI = """
               {
                 "inputs": [],
                 "name": "pick",
@@ -203,8 +206,7 @@ public class IvyContractScenarioSuite extends AbstractIvySuite {
                 "type": "function"
               }
             """;
-    private static final String BELIEVE_IN_ABI =
-            """
+    private static final String BELIEVE_IN_ABI = """
               {
                "inputs": [
                  {
@@ -219,8 +221,7 @@ public class IvyContractScenarioSuite extends AbstractIvySuite {
                "type": "function"
               }
             """;
-    private static final String DONATE_ABI =
-            """
+    private static final String DONATE_ABI = """
               {
                 "inputs": [
                   {

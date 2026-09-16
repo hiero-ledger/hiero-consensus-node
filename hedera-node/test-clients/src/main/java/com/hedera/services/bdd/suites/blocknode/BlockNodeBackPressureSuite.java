@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogDoesNotContainText;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.awaitBlockNodeCommsLogContainsText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
@@ -70,8 +71,10 @@ public class BlockNodeBackPressureSuite {
         final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
                 waitUntilNextBlocks(5),
-                blockNode(0).shutDownImmediately(),
+                // Capture the time before shutting down: the buffer can saturate and log backpressure
+                // during the container's shutdown/drain phase, before shutDownImmediately() returns.
                 doingContextual(spec -> time.set(Instant.now())),
+                blockNode(0).shutDownImmediately(),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
                         byNodeId(0),
                         time::get,
@@ -104,8 +107,12 @@ public class BlockNodeBackPressureSuite {
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "false",
+                            "tss.hintsEnabled",
+                            "true",
+                            "tss.historyEnabled",
+                            "true",
                             "tss.forceMockSignatures",
-                            "true"
+                            "false"
                         })
             })
     @Order(2)
@@ -164,8 +171,12 @@ public class BlockNodeBackPressureSuite {
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "false",
+                            "tss.hintsEnabled",
+                            "true",
+                            "tss.historyEnabled",
+                            "true",
                             "tss.forceMockSignatures",
-                            "true"
+                            "false"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
@@ -184,8 +195,12 @@ public class BlockNodeBackPressureSuite {
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "false",
+                            "tss.hintsEnabled",
+                            "true",
+                            "tss.historyEnabled",
+                            "true",
                             "tss.forceMockSignatures",
-                            "true"
+                            "false"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 2,
@@ -204,8 +219,12 @@ public class BlockNodeBackPressureSuite {
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "false",
+                            "tss.hintsEnabled",
+                            "true",
+                            "tss.historyEnabled",
+                            "true",
                             "tss.forceMockSignatures",
-                            "true"
+                            "false"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 3,
@@ -224,19 +243,28 @@ public class BlockNodeBackPressureSuite {
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "false",
+                            "tss.hintsEnabled",
+                            "true",
+                            "tss.historyEnabled",
+                            "true",
                             "tss.forceMockSignatures",
-                            "true"
+                            "false"
                         })
             })
     @Order(3)
     final Stream<DynamicTest> backPressureAllNodesCheckingScenario() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
-                // Let the 4-node network stabilize before shutting down the block node
-                doingContextual(
-                        spec -> LockSupport.parkNanos(Duration.ofSeconds(10).toNanos())),
-                blockNode(0).shutDownImmediately(),
+                // Anchor on a condition, not a clock. A fixed park cannot guarantee the buffer is
+                // healthy at t0: with maxBlocks=5 and four real block-node containers, node0 can
+                // saturate while the network is still settling. The timeframe op below only matches
+                // lines in [t0, t0+timeframe], so a saturation logged before t0 is invisible no
+                // matter how long it polls. An acknowledgement proves the connection is up and the
+                // buffer is draining, so the saturation asserted below is caused by the shutdown.
+                awaitBlockNodeCommsLogContainsText(
+                        byNodeId(0), "BlockAcknowledgement received for block", Duration.ofMinutes(2)),
                 doingContextual(spec -> time.set(Instant.now())),
+                blockNode(0).shutDownImmediately(),
                 // With REAL block nodes (Docker containers), shutdown takes ~15s before the
                 // connection drops, then the buffer needs ~10s more to fill. Use 2min timeout.
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
@@ -263,7 +291,10 @@ public class BlockNodeBackPressureSuite {
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(30).toNanos())),
                 blockNode(0).shutDownImmediately(),
                 blockNode(1).shutDownImmediately(),
-                waitForAny(allNodes(), Duration.ofSeconds(120), PlatformStatus.CHECKING),
+                // With both block nodes down, backpressure blocks the handler thread, so a node
+                // can fall BEHIND consensus rather than pass through CHECKING; either status shows
+                // it has stopped being ACTIVE, which is what this step is waiting for.
+                waitForAny(allNodes(), Duration.ofSeconds(120), PlatformStatus.CHECKING, PlatformStatus.BEHIND),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(30).toNanos())),
                 blockNode(0).startImmediately(),
@@ -303,7 +334,7 @@ public class BlockNodeBackPressureSuite {
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "false",
                             "tss.forceMockSignatures",
-                            "true"
+                            "false"
                         })
             })
     @Order(4)

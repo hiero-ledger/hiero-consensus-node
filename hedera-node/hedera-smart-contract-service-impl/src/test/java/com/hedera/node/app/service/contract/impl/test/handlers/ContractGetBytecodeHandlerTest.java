@@ -38,8 +38,8 @@ import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.util.HexFormat;
 import java.util.Objects;
-import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -315,7 +315,7 @@ class ContractGetBytecodeHandlerTest {
         given(contractStore.getContractById(contractID)).willReturn(account);
         given(account.smartContract()).willReturn(false);
         final var delegationAddressBytes =
-                Bytes.wrap(Hex.decode("00000000000000000000000000000000000000000000000000000000cafebabe"));
+                Bytes.wrap(HexFormat.of().parseHex("00000000000000000000000000000000000000000000000000000000cafebabe"));
         given(account.delegationAddress()).willReturn(delegationAddressBytes);
 
         final var response = subject.findResponse(context, responseHeader);

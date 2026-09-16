@@ -94,7 +94,8 @@ public class HasCallAttempt extends AbstractCallAttempt<HasCallAttempt> {
                     .nativeOperations()
                     .getAccount(nativeOperations()
                             .entityIdFactory()
-                            .newAccountId(numberOfLongZero(accountAddress.toArray())));
+                            .newAccountId(
+                                    numberOfLongZero(accountAddress.getBytes().toArray())));
         } else {
             final var config = configuration().getConfigData(HederaConfig.class);
             final var addressNum = enhancement()
@@ -102,7 +103,8 @@ public class HasCallAttempt extends AbstractCallAttempt<HasCallAttempt> {
                     .resolveAlias(
                             config.shard(),
                             config.realm(),
-                            com.hedera.pbj.runtime.io.buffer.Bytes.wrap(accountAddress.toArray()));
+                            com.hedera.pbj.runtime.io.buffer.Bytes.wrap(
+                                    accountAddress.getBytes().toArray()));
             return enhancement()
                     .nativeOperations()
                     .getAccount(nativeOperations().entityIdFactory().newAccountId(addressNum));

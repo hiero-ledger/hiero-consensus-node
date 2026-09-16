@@ -137,10 +137,7 @@ public class HapiGetContractInfo extends HapiQueryOp<HapiGetContractInfo> {
         ContractInfo actualInfo = response.getContractGetInfo().getContractInfo();
         // Since we don't return token relationships from getContractInfo query, for internal testing
         // we are using getAccountDetails query to get token relationships.
-        if (!relationships.isEmpty()
-                || !absentRelationships.isEmpty()
-                || expectations.isPresent()
-                || registryEntry.isPresent()) {
+        if (!relationships.isEmpty() || !absentRelationships.isEmpty()) {
             final var detailsLookup = getAccountDetails(
                             String.valueOf(actualInfo.getContractID().getContractNum()))
                     .payingWith(GENESIS);

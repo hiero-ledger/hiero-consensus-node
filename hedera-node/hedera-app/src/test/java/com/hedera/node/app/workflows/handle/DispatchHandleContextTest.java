@@ -554,14 +554,19 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
         @Test
         void overrideSignatureMapIsUsedInsteadOfContextMap() {
-            // txnInfo uses SignatureMap.DEFAULT (0 bytes). An override with sig pairs produces
-            // a non-zero signatureMapSize, which is reflected in ChildFeeContext.numTxnBytes().
-            final var sigPair = SignaturePair.newBuilder()
-                    .pubKeyPrefix(Bytes.wrap(new byte[6]))
-                    .ed25519(Bytes.wrap(new byte[64]))
-                    .build();
+            // txnInfo uses SignatureMap.DEFAULT (0 bytes/pairs). An override with sig pairs produces
+            // a non-zero signatureMapSize/signatureCount, reflected in numTxnBytes()/numTxnSignatures().
+            final var sigPairs = List.of(
+                    SignaturePair.newBuilder()
+                            .pubKeyPrefix(Bytes.wrap(new byte[6]))
+                            .ed25519(Bytes.wrap(new byte[64]))
+                            .build(),
+                    SignaturePair.newBuilder()
+                            .pubKeyPrefix(Bytes.wrap(new byte[6]))
+                            .ecdsaSecp256k1(Bytes.wrap(new byte[64]))
+                            .build());
             final var overrideSigMap =
-                    SignatureMap.newBuilder().sigPair(sigPair).build();
+                    SignatureMap.newBuilder().sigPair(sigPairs).build();
             final var fees = new Fees(1L, 2L, 3L);
             given(dispatcher.dispatchComputeFees(any())).willReturn(fees);
             final var captor = ArgumentCaptor.forClass(FeeContext.class);
@@ -573,6 +578,20 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             final var expectedSigMapSize = SignatureMap.PROTOBUF.measureRecord(overrideSigMap);
             final var expectedTxnBytes = TransactionBody.PROTOBUF.measureRecord(txBody) + expectedSigMapSize;
             assertThat(feeContext.numTxnBytes()).isEqualTo(expectedTxnBytes);
+            assertThat(feeContext.numTxnSignatures()).isEqualTo(sigPairs.size());
+        }
+
+        @Test
+        void noOverrideSignatureMapMeansNoSignaturesCharged() {
+            final var fees = new Fees(1L, 2L, 3L);
+            given(dispatcher.dispatchComputeFees(any())).willReturn(fees);
+            final var captor = ArgumentCaptor.forClass(FeeContext.class);
+
+            subject.dispatchComputeFees(txBody, account1002, ComputeDispatchFeesAsTopLevel.NO, null);
+
+            verify(dispatcher).dispatchComputeFees(captor.capture());
+            final var feeContext = (ChildFeeContext) captor.getValue();
+            assertThat(feeContext.numTxnSignatures()).isZero();
         }
 
         @SuppressWarnings("ConstantConditions")

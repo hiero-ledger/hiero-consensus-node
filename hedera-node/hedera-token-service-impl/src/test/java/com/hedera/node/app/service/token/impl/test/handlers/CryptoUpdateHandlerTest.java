@@ -414,6 +414,30 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
+    void stakedAccountIdWithWrongShardRealmIsNotTreatedAsSentinel() {
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(configuration, 1));
+
+        // Only 0.0.0 is the reset-staking sentinel; a num-0 id in another shard/realm names a
+        // nonexistent account and must be rejected rather than persisted as the staking target
+        final var base = new CryptoUpdateBuilder().withStakedAccountId(0).build();
+        final var txn = base.copyBuilder()
+                .cryptoUpdateAccount(base.cryptoUpdateAccountOrThrow()
+                        .copyBuilder()
+                        .stakedAccountId(AccountID.newBuilder()
+                                .shardNum(9)
+                                .realmNum(9)
+                                .accountNum(0)
+                                .build()))
+                .build();
+        givenTxnWith(txn);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INVALID_STAKING_ID));
+        assertNull(writableStore.get(updateAccountId).stakedAccountId());
+    }
+
+    @Test
     void sentinelValuesForStakedNodeNumberWorks() {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(configuration, 1));
 

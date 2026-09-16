@@ -4,7 +4,7 @@ package com.swirlds.virtualmap.internal.cache;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.function.CheckedFunction;
@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Comparator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -29,23 +30,20 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.FastCopyable;
+import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.concurrent.futures.StandardFuture;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.exceptions.PlatformException;
-import org.hiero.base.exceptions.ReferenceCountException;
-import org.hiero.consensus.concurrent.framework.config.CompositeThreadNameProvider;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
- * A cache for virtual merkel trees.
+ * A cache for virtual merkle trees.
  * <p>
- * At genesis, a virtual merkel tree has an empty {@link VirtualNodeCache} and no data on disk. As values are added to
+ * At genesis, a virtual merkle tree has an empty {@link VirtualNodeCache} and no data on disk. As values are added to
  * the tree, corresponding {@link VirtualLeafBytes}s are added to the cache. When the round completes, a fast-copy of
  * the tree is made, along with a fast-copy of the cache. Any new changes to the modifiable tree are done through the
  * corresponding copy of the cache. The original tree and original cache have <strong>IMMUTABLE</strong> leaf data. The
@@ -59,12 +57,13 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
  * At some point, the cache should be flushed to disk. This is done by calling the
  * {@link #dirtyLeavesForFlush(long, long)} and {@link #dirtyHashesForFlush(long)} methods and sending them to the code
  * responsible for flushing. The cache itself knows nothing about the data source or how to save data, it simply
- * maintains a record of mutations so that some other code can perform the flushing.
+ * maintains a record of mutations so that some other code can perform the flushing. After flushes, virtual node cache
+ * copy is typically destroyed by calling its {@link #release()} method.
  * <p>
- * A cache is {@link FastCopyable}, so that each copy of the {@link VirtualMap} has a corresponding copy of the
- * {@link VirtualNodeCache}, at the same version. It keeps track of immutability of leaf data and internal data
+ * Each copy of the {@link VirtualMap} has a corresponding copy of the
+ * {@link VirtualNodeCache}, at the same version. It keeps track of immutability of leaf data and hashes
  * separately, since the set of dirty leaves in a copy is added during {@code handleTransaction} (which uses the most
- * current copy), but the set of dirty internals during the {@code hashing} phase, which is always one-copy removed from
+ * current copy), but the set of dirty hashes during the {@code hashing} phase, which is always one-copy removed from
  * the current copy.
  * <p>
  * Caches have pointers to the next and previous caches in the chain of copies. This is necessary to support merging of
@@ -95,7 +94,7 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
  * for that cache. Instead, I must make a fast copy of the leaf record and put *that* copy into {@code cache1}.
  */
 @SuppressWarnings("rawtypes")
-public final class VirtualNodeCache implements FastCopyable {
+public final class VirtualNodeCache {
 
     private static final Logger logger = LogManager.getLogger(VirtualNodeCache.class);
 
@@ -242,23 +241,14 @@ public final class VirtualNodeCache implements FastCopyable {
     private final AtomicBoolean mergedCopy = new AtomicBoolean(false);
 
     /**
-     * A shared lock that prevents two copies from being merged/released at the same time. For example, one thread might
-     * be merging two caches while another thread is releasing the oldest copy. These all happen completely in parallel,
-     * but we have some bookkeeping which should be done inside a critical section.
-     */
-    private final ReentrantLock releaseLock;
-
-    /**
-     * lastReleased serves as a lock shared by a VirtualNodeCache family. It provides needed synchronization between
-     * purge() and snapshot() (see #5838). It didn't have to be atomic, just a reference to mutable long. Purge() may be
-     * blocked by snapshot() until it finishes. Snapshot(), however, should not be blocked for long by purge().
-     * lastReleased ensures that snapshot() is aware of which version should not be included in the snapshot.
+     * The last released cache copy version. This field is used for synchronization between
+     * releases and snapshots. {@link #release()} and {@link #snapshot()} may not be called
+     * in parallel. However, when a copy is released, its mutations are purged from the
+     * shared cache maps asynchronously. When a snapshot is made, there may still be some
+     * purges in progress. To avoid including these already released but yet to be purged
+     * mutations to snapshots, this field is checked in {@link #snapshot()}.
      */
     private final AtomicLong lastReleased;
-
-    /** Platform configuration for VirtualMap */
-    @NonNull
-    private final VirtualMapConfig virtualMapConfig;
 
     /**
      * Create a new VirtualNodeCache. The cache will be the first in the chain. It will get a fastCopyVersion of zero,
@@ -272,7 +262,7 @@ public final class VirtualNodeCache implements FastCopyable {
             final @NonNull VirtualMapConfig virtualMapConfig,
             final int hashChunkHeight,
             final @NonNull CheckedFunction<Long, VirtualHashChunk, IOException> hashChunkLoader) {
-        this(virtualMapConfig, hashChunkHeight, hashChunkLoader, 0);
+        this(hashChunkHeight, hashChunkLoader, 0, newCleaningPool(virtualMapConfig));
     }
 
     /**
@@ -289,35 +279,7 @@ public final class VirtualNodeCache implements FastCopyable {
             final int hashChunkHeight,
             final @NonNull CheckedFunction<Long, VirtualHashChunk, IOException> hashChunkLoader,
             final long fastCopyVersion) {
-        this.hashChunkHeight = hashChunkHeight;
-        this.hashChunkLoader = requireNonNull(hashChunkLoader);
-        this.keyToDirtyLeafIndex = new ConcurrentHashMap<>();
-        this.pathToDirtyKeyIndex = new ConcurrentHashMap<>();
-        this.idToDirtyHashChunkIndex = new ConcurrentHashMap<>();
-        this.releaseLock = new ReentrantLock();
-        this.lastReleased = new AtomicLong(-1L);
-        this.fastCopyVersion.set(fastCopyVersion);
-        this.virtualMapConfig = requireNonNull(virtualMapConfig);
-
-        if (Boolean.getBoolean("syncCleaningPool")) {
-            cleaningPool = Runnable::run;
-        } else {
-            final ThreadPoolExecutor pool = new ThreadPoolExecutor(
-                    virtualMapConfig.getNumCleanerThreads(),
-                    virtualMapConfig.getNumCleanerThreads(),
-                    60L,
-                    TimeUnit.SECONDS,
-                    new LinkedBlockingQueue<>(),
-                    new ThreadConfiguration(getStaticThreadManager())
-                            .setThreadGroup(new ThreadGroup("virtual-cache-cleaners"))
-                            .setThreadNameProvider(
-                                    CompositeThreadNameProvider.createNumbered("virtual-map", "cache-cleaner"))
-                            .setExceptionHandler((t, ex) -> logger.error(
-                                    EXCEPTION.getMarker(), "Failed to purge unneeded key/mutationList pairs", ex))
-                            .buildFactory());
-            pool.allowCoreThreadTimeOut(true);
-            cleaningPool = pool;
-        }
+        this(hashChunkHeight, hashChunkLoader, fastCopyVersion, newCleaningPool(virtualMapConfig));
     }
 
     /**
@@ -339,9 +301,7 @@ public final class VirtualNodeCache implements FastCopyable {
         this.keyToDirtyLeafIndex = source.keyToDirtyLeafIndex;
         this.pathToDirtyKeyIndex = source.pathToDirtyKeyIndex;
         this.idToDirtyHashChunkIndex = source.idToDirtyHashChunkIndex;
-        this.releaseLock = source.releaseLock;
         this.lastReleased = source.lastReleased;
-        this.virtualMapConfig = source.virtualMapConfig;
         this.cleaningPool = source.cleaningPool;
 
         // The source now has immutable leaves and mutable internals
@@ -357,7 +317,6 @@ public final class VirtualNodeCache implements FastCopyable {
      * caches that inherit the parent's pool instead of creating a new one.
      */
     private VirtualNodeCache(
-            final @NonNull VirtualMapConfig virtualMapConfig,
             final int hashChunkHeight,
             final @NonNull CheckedFunction<Long, VirtualHashChunk, IOException> hashChunkLoader,
             final long fastCopyVersion,
@@ -367,27 +326,49 @@ public final class VirtualNodeCache implements FastCopyable {
         this.keyToDirtyLeafIndex = new ConcurrentHashMap<>();
         this.pathToDirtyKeyIndex = new ConcurrentHashMap<>();
         this.idToDirtyHashChunkIndex = new ConcurrentHashMap<>();
-        this.releaseLock = new ReentrantLock();
         this.lastReleased = new AtomicLong(-1L);
         this.fastCopyVersion.set(fastCopyVersion);
-        this.virtualMapConfig = requireNonNull(virtualMapConfig);
         this.cleaningPool = requireNonNull(cleaningPool);
     }
 
     /**
-     * {@inheritDoc}
-     * <p>
-     * Only a single thread should call copy at a time, but other threads may {@link #release()} and {@link#merge()}
-     * concurrent to this call on other nodes in the chain.
+     * Only a single thread should call copy at a time, but other threads may {@link #release()} and
+     * {@link #merge()} concurrent to this call on other nodes in the chain.
      */
-    @SuppressWarnings("unchecked")
-    @Override
     public VirtualNodeCache copy() {
         return new VirtualNodeCache(this);
     }
 
     /**
-     * Makes the cache immutable for leaf changes, but mutable for internal node changes. This method call is
+     * Creates a new thread pool to run node cache's internal tasks like purges or filtering.
+     * A new thread pool is created per cache family. All cache copies in a single family use
+     * the same thread pool, see {@link #VirtualNodeCache(VirtualNodeCache)} for details.
+     */
+    private static Executor newCleaningPool(@NonNull final VirtualMapConfig virtualMapConfig) {
+        if (Boolean.getBoolean("syncCleaningPool")) {
+            return Runnable::run;
+        } else {
+            Objects.requireNonNull(virtualMapConfig, "Null virtual map config");
+            final ThreadPoolExecutor pool = new ThreadPoolExecutor(
+                    virtualMapConfig.getNumCleanerThreads(),
+                    virtualMapConfig.getNumCleanerThreads(),
+                    60L,
+                    TimeUnit.SECONDS,
+                    new LinkedBlockingQueue<>(),
+                    new ThreadConfiguration(getStaticThreadManager())
+                            .setThreadGroup(new ThreadGroup("virtual-cache-cleaners"))
+                            .setThreadNameProvider(
+                                    CompositeThreadNameProvider.createNumbered("virtual-map", "cache-cleaner"))
+                            .setExceptionHandler((t, ex) -> logger.error(
+                                    EXCEPTION.getMarker(), "Failed to purge unneeded key/mutationList pairs", ex))
+                            .buildFactory());
+            pool.allowCoreThreadTimeOut(true);
+            return pool;
+        }
+    }
+
+    /**
+     * Makes the cache immutable for leaf changes, but mutable for hash changes. This method call is
      * idempotent.
      */
     public void prepareForHashing() {
@@ -397,55 +378,44 @@ public final class VirtualNodeCache implements FastCopyable {
     }
 
     /**
-     * {@inheritDoc}
+     * Returns if this cache copy is immutable for leaf changes. For testing purposes only.
      */
-    @Override
-    public boolean isImmutable() {
-        // We use this as the stand-in as it obeys the normal semantics. Technically there is no advantage to
-        // having this class implement FastCopyable, other than declaration of intent.
-        return this.leafIndexesAreImmutable.get();
+    boolean isImmutableForLeafChanges() {
+        return leafIndexesAreImmutable.get();
     }
 
     /**
-     * {@inheritDoc}
-     * <p>
-     * May be called on one cache in the chain while another copy is being made. Do not call release on two caches in
-     * the chain concurrently. Must only release the very oldest cache in the chain. See {@link #merge()}.
+     * Releases this cache by removing it from the chain of cache copies and purging all its
+     * mutations from shared cache maps. This method may only be called on the very oldest cache
+     * copy in the chain. After release, this cache will become available for garbage collection.
+     *
+     * <p>Threading: this call may not be called in parallel with {@link #merge()} or
+     * {@link #snapshot()} on any cache copy in a single family.
      *
      * @throws IllegalStateException if this is not the oldest cache in the chain
+     * @throws IllegalStateException if this cache instance has been already released
      */
-    @Override
     public boolean release() {
-        throwIfDestroyed();
+        // We are very strict about this, or the semantics around the cache will break.
+        if (next.get() != null) {
+            throw new IllegalStateException("Cannot release an intermediate version, must release the oldest");
+        }
 
-        // Under normal conditions "seal()" would have been called already, but it is at least possible to
-        // release something that hasn't been sealed. So we call "seal()", just to tidy things up.
+        if (!this.released.compareAndSet(false, true)) {
+            throw new IllegalStateException("This node cache instance is already released");
+        }
+
+        // Fix the next/prev pointer so this entire cache will get dropped. We don't have to clear
+        // any of our per-instance stuff, because nobody will be holding a strong reference to the
+        // cache anymore. Still, in the off chance that somebody does hold a reference, we might
+        // as well be proactive about it.
+        wirePrevAndNext();
+
+        // Under normal conditions seal() would have been called already, but it is at least possible to
+        // release something that hasn't been sealed. So we call seal(), just to tidy things up.
         seal();
 
-        synchronized (lastReleased) {
-            lastReleased.set(fastCopyVersion.get());
-        }
-
-        // We lock across all merges and releases across all copies (releaseLock is shared with all copies)
-        // to prevent issues with one thread releasing while another thread is merging (as might happen if
-        // the archive thread wants to release and another thread wants to merge).
-        releaseLock.lock();
-        try {
-            // We are very strict about this, or the semantics around the cache will break.
-            if (next.get() != null) {
-                throw new IllegalStateException("Cannot release an intermediate version, must release the oldest");
-            }
-
-            this.released.set(true);
-
-            // Fix the next/prev pointer so this entire cache will get dropped. We don't have to clear
-            // any of our per-instance stuff, because nobody will be holding a strong reference to the
-            // cache anymore. Still, in the off chance that somebody does hold a reference, we might
-            // as well be proactive about it.
-            wirePrevAndNext();
-        } finally {
-            releaseLock.unlock();
-        }
+        lastReleased.set(fastCopyVersion.get());
 
         // Fire off the cleaning threads to go and clear out data in the indexes that doesn't need
         // to be there anymore.
@@ -467,9 +437,11 @@ public final class VirtualNodeCache implements FastCopyable {
         return true;
     }
 
-    @Override
-    public boolean isDestroyed() {
-        return this.released.get();
+    /**
+     * Returns if this cache copy is destroyed by calling {@link #release()}. For testing purposes only.
+     */
+    boolean isDestroyed() {
+        return released.get();
     }
 
     /**
@@ -482,51 +454,53 @@ public final class VirtualNodeCache implements FastCopyable {
     }
 
     /**
-     * Merges this cache with the one that is just-newer. This cache will be removed from the chain and become available
-     * for garbage collection. Both this cache and the one it is being merged into <strong>must</strong> be sealed (full
-     * immutable).
+     * Merges this cache with the previous (newer) one by removing it from the chain of cache
+     * copies. All mutations from this cache are appended to the target cache copy. No changes
+     * are made to shared cache maps to keep merges very fast. After merge, this cache will
+     * become available for garbage collection.
+     *
+     * <p>Both this cache and the one it is being merged into <strong>must</strong> be sealed
+     * (full immutable).
+     *
+     * <p>Threading: this method may not be called in parallel with {@link #release()} or
+     * {@link #snapshot()} on any cache copy in a single family.
      *
      * @throws IllegalStateException if there is nothing to merge into, or if both this cache and the one it is merging
      *                               into are not sealed.
      */
     public void merge() {
-        releaseLock.lock();
-        try {
-            // We only permit you to merge a cache if it is no longer being used for hashing.
-            final VirtualNodeCache p = prev.get();
-            if (p == null) {
-                throw new IllegalStateException("Cannot merge with a null cache");
-            } else if (!p.hashesAreImmutable.get() || !hashesAreImmutable.get()) {
-                throw new IllegalStateException("You can only merge caches that are sealed");
-            }
+        // We only permit you to merge a cache if it is no longer being used for hashing.
+        final VirtualNodeCache p = prev.get();
+        if (p == null) {
+            throw new IllegalStateException("Cannot merge with a null cache");
+        } else if (!p.hashesAreImmutable.get() || !hashesAreImmutable.get()) {
+            throw new IllegalStateException("You can only merge caches that are sealed");
+        }
 
-            // Merge my mutations into the previous (newer) cache's arrays.
-            // This operation has a high probability of producing override mutations. That is, two mutations
-            // for the same key/path but with different versions. Before returning to a caller a stream of
-            // dirty leaves or dirty hashes, the stream must be sorted (which we had to do anyway) and
-            // deduplicated. But it makes for a _VERY FAST_ merge operation.
-            p.dirtyLeaves.merge(dirtyLeaves);
-            p.dirtyLeafPaths.merge(dirtyLeafPaths);
-            p.dirtyHashChunks.merge(dirtyHashChunks);
-            // Estimated sizes include both mutations and concurrent array overheads
-            p.estimatedLeavesSizeInBytes.addAndGet(estimatedLeavesSizeInBytes.get());
-            p.estimatedHashesSizeInBytes.addAndGet(estimatedHashesSizeInBytes.get());
-            p.mergedCopy.set(true);
+        // Merge my mutations into the previous (newer) cache's arrays.
+        // This operation has a high probability of producing override mutations. That is, two mutations
+        // for the same key/path but with different versions. Before returning to a caller a stream of
+        // dirty leaves or dirty hashes, the stream must be sorted (which we had to do anyway) and
+        // deduplicated. But it makes for a _VERY FAST_ merge operation.
+        p.dirtyLeaves.merge(dirtyLeaves);
+        p.dirtyLeafPaths.merge(dirtyLeafPaths);
+        p.dirtyHashChunks.merge(dirtyHashChunks);
+        // Estimated sizes include both mutations and concurrent array overheads
+        p.estimatedLeavesSizeInBytes.addAndGet(estimatedLeavesSizeInBytes.get());
+        p.estimatedHashesSizeInBytes.addAndGet(estimatedHashesSizeInBytes.get());
+        p.mergedCopy.set(true);
 
-            // Remove this cache from the chain and wire the prev and next caches together.
-            // This will allow this cache to be garbage collected.
-            wirePrevAndNext();
-        } finally {
-            releaseLock.unlock();
+        // Remove this cache from the chain and wire the prev and next caches together.
+        // This will allow this cache to be garbage collected.
+        wirePrevAndNext();
 
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                        VIRTUAL_MERKLE_STATS.getMarker(),
-                        "Merged version {}, {} dirty leaves, {} dirty hash chunks",
-                        fastCopyVersion,
-                        dirtyLeaves.size(),
-                        dirtyHashChunks.size());
-            }
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                    VIRTUAL_MERKLE_STATS.getMarker(),
+                    "Merged version {}, {} dirty leaves, {} dirty hash chunks",
+                    fastCopyVersion,
+                    dirtyLeaves.size(),
+                    dirtyHashChunks.size());
         }
     }
 
@@ -649,9 +623,8 @@ public final class VirtualNodeCache implements FastCopyable {
      * @return A {@link VirtualLeafBytes} if there is one in the cache (this instance or a previous copy in the chain),
      * or null if there is not one.
      * @throws NullPointerException    if the key is null
-     * @throws ReferenceCountException if the cache has already been released
      */
-    public VirtualLeafBytes lookupLeafByKey(final Bytes key) {
+    public VirtualLeafBytes lookupLeafByKey(@NonNull final Bytes key) {
         requireNonNull(key);
 
         // The only way to be released is to be in a condition where the data source has
@@ -690,7 +663,6 @@ public final class VirtualNodeCache implements FastCopyable {
      * @param path The path to use to lookup.
      * @return A {@link VirtualLeafBytes} if there is one in the cache (this instance or a previous copy in the chain),
      * or null if there is not one.
-     * @throws ReferenceCountException if the cache has already been released
      */
     public VirtualLeafBytes lookupLeafByPath(final long path) {
         // The only way to be released is to be in a condition where the data source has
@@ -912,21 +884,21 @@ public final class VirtualNodeCache implements FastCopyable {
     /**
      * Creates a new immutable snapshot of this cache.
      *
+     * <p>Threading: this method may not be called in parallel with {@link #merge()} or
+     * {@link #release()} on any cache copy in a single family.
+     *
      * @return snapshot of the current {@link VirtualNodeCache}
      */
     public VirtualNodeCache snapshot() {
-        synchronized (lastReleased) {
-            final VirtualNodeCache newSnapshot = new VirtualNodeCache(
-                    virtualMapConfig, hashChunkHeight, hashChunkLoader, fastCopyVersion.get(), cleaningPool);
-            setMapSnapshotAndArray(
-                    this.idToDirtyHashChunkIndex, newSnapshot.idToDirtyHashChunkIndex, newSnapshot.dirtyHashChunks);
-            setMapSnapshotAndArray(
-                    this.pathToDirtyKeyIndex, newSnapshot.pathToDirtyKeyIndex, newSnapshot.dirtyLeafPaths);
-            setMapSnapshotAndArray(this.keyToDirtyLeafIndex, newSnapshot.keyToDirtyLeafIndex, newSnapshot.dirtyLeaves);
-            newSnapshot.fastCopyVersion.set(this.fastCopyVersion.get());
-            newSnapshot.seal();
-            return newSnapshot;
-        }
+        final VirtualNodeCache newSnapshot =
+                new VirtualNodeCache(hashChunkHeight, hashChunkLoader, fastCopyVersion.get(), cleaningPool);
+        setMapSnapshotAndArray(
+                this.idToDirtyHashChunkIndex, newSnapshot.idToDirtyHashChunkIndex, newSnapshot.dirtyHashChunks);
+        setMapSnapshotAndArray(this.pathToDirtyKeyIndex, newSnapshot.pathToDirtyKeyIndex, newSnapshot.dirtyLeafPaths);
+        setMapSnapshotAndArray(this.keyToDirtyLeafIndex, newSnapshot.keyToDirtyLeafIndex, newSnapshot.dirtyLeaves);
+        newSnapshot.fastCopyVersion.set(this.fastCopyVersion.get());
+        newSnapshot.seal();
+        return newSnapshot;
     }
 
     // --------------------------------------------------------------------------------------------
@@ -964,8 +936,8 @@ public final class VirtualNodeCache implements FastCopyable {
      *     +----------------+         +----------------+
      * </pre>
      * <p>
-     * This method IS NOT threadsafe! Control access via locks. It would be bad if a merge and a release were to happen
-     * concurrently, or two merges happened concurrently, among neighbors in the chain.
+     * This method IS NOT threadsafe! It gets called from {@link #merge()} or {@link #release()}, which
+     * must not be called in parallel.
      */
     private void wirePrevAndNext() {
         final VirtualNodeCache n = this.next.get();

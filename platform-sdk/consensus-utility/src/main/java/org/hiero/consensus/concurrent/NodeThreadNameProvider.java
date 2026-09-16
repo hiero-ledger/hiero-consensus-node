@@ -5,7 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.consensus.concurrent.framework.config.CompositeThreadNameProvider;
+import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

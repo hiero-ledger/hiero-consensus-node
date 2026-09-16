@@ -13,7 +13,7 @@ import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
-import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
+import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.wiring.framework.schedulers.TaskScheduler;
 
 /**
