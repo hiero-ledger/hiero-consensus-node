@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_QUERY_HEADER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RECEIVING_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
@@ -115,6 +116,14 @@ public class QueryChecker {
         final var txBody = transactionInfo.txBody();
         final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
         cryptoTransferHandler.pureChecks(pureChecksContext);
+
+        // A query payment must be a pure HBAR transfer to the node. Token transfers in the payment are not
+        // validated on the query path (no token-sender signature, association, KYC, freeze, or balance checks),
+        // so a payment whose token leg is doomed at consensus would still let the query be answered without the
+        // node collecting its fee. Reject any token transfers here rather than answer such a query.
+        if (!txBody.cryptoTransferOrThrow().tokenTransfers().isEmpty()) {
+            throw new PreCheckException(INVALID_QUERY_HEADER);
+        }
 
         for (final var accountAmount :
                 txBody.cryptoTransferOrThrow().transfersOrThrow().accountAmounts()) {

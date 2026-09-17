@@ -176,8 +176,7 @@ class StakeRewardCalculatorImplTest {
 
     @Test
     void withNonRewardableConsensusTime() {
-        given(stakePeriodManager.effectivePeriod(account.stakePeriodStart())).willReturn(1L);
-        given(stakePeriodManager.isRewardable(1L, stakingRewardsStore)).willReturn(false);
+        given(stakePeriodManager.isRewardable(account, stakingRewardsStore)).willReturn(false);
 
         var reward = subject.computePendingReward(account, stakingInfoStore, stakingRewardsStore, consensusTime);
 
@@ -189,6 +188,7 @@ class StakeRewardCalculatorImplTest {
                 .willReturn(TODAY_NUMBER);
         willCallRealMethod().given(stakePeriodManager).effectivePeriod(anyLong());
         willCallRealMethod().given(stakePeriodManager).isRewardable(anyLong(), any());
+        willCallRealMethod().given(stakePeriodManager).isRewardable(any(Account.class), any());
     }
 
     private static List<Long> newRewardHistory() {

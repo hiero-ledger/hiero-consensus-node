@@ -62,8 +62,6 @@ public enum AnchorKind {
     // ---- Tier 2: signature / value equality ----
     /** A method cited with a parameter list, e.g. {@code Class.method(ParamType)}, checked for signature equality. */
     METHOD_SIGNATURE(2),
-    /** A documented interface method compared against the interface's declared method set. */
-    INTERFACE_METHOD(2),
     /** A documented config default compared against the {@code @ConfigProperty(defaultValue = …)} literal. */
     CONFIG_DEFAULT(2);
 

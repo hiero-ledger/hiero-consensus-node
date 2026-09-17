@@ -17,8 +17,10 @@ software version. In current code the freeze procedure is not owned by
 a single component; the trigger originates on the Execution side, the
 round-level cutoff lives in `consensus-hashgraph-impl`, the per-rule
 guards live across `consensus-event-creator-impl` and
-`consensus-gossip-impl`, and the state-save and status transitions live
-in `swirlds-platform-core`. This file documents the current behaviour
+`consensus-gossip-impl`, the freeze-round handoff in
+`consensus-transaction-handling`, the state save in `consensus-state`,
+and the status transitions in `consensus-status-monitor`. This file
+documents the current behaviour
 and points each rule at the file that enforces it.
 
 ## Responsibilities
@@ -277,9 +279,10 @@ Pending catalogs:
 > the `isInFreezePeriod` predicate), `consensus-hashgraph-impl` (the
 > round-level cutoff in `FreezeRoundController`), `consensus-event-creator-impl`
 > (the per-status guard in `PlatformStatusRule`),
-> `consensus-gossip-impl` (status-driven sync gating), and
-> `swirlds-platform-core` (the trigger handler at round handling, the
-> save-controller, the snapshot manager, and the status state machine).
+> `consensus-gossip-impl` (status-driven sync gating),
+> `consensus-transaction-handling` (the trigger handler at round
+> handling), `consensus-state` (the save-controller and the snapshot
+> manager), and `consensus-status-monitor` (the status state machine).
 > The anticipated move is for the freeze trigger and procedure to
 > consolidate under Execution; the consensus side would receive a
 > simpler "stop after round N" signal rather than reading and gating
