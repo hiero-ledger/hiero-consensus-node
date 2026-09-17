@@ -4,12 +4,14 @@ package com.hedera.node.app.workflows;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_START;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.KEY_PREFIX_MISMATCH;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_EXPIRED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_HAS_UNKNOWN_FIELDS;
@@ -174,6 +176,50 @@ final class TransactionCheckerTest extends AppTestBase {
 
         // And create the checker itself
         checker = new TransactionChecker(props, metrics);
+    }
+
+    @Test
+    void hcpqIsDisabledByDefault() {
+        assertThatThrownBy(() -> checker.checkHcpqPolicy(List.of(hcpqPair(32, 2420))))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(NOT_SUPPORTED));
+    }
+
+    @Test
+    void hcpqRejectsMalformedWireSizesAndExcessSignatures() {
+        enableHcpq(1);
+        assertThatThrownBy(() -> checker.checkHcpqPolicy(List.of(hcpqPair(31, 2420))))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_SIGNATURE));
+        assertThatThrownBy(() -> checker.checkHcpqPolicy(List.of(hcpqPair(32, 2419))))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_SIGNATURE));
+        assertThatThrownBy(() -> checker.checkHcpqPolicy(List.of(hcpqPair(32, 2420), hcpqPair(32, 2420))))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_SIGNATURE));
+    }
+
+    @Test
+    void hcpqAcceptsOneWellFormedSignatureWhenEnabled() {
+        enableHcpq(1);
+        assertThatNoException().isThrownBy(() -> checker.checkHcpqPolicy(List.of(hcpqPair(32, 2420))));
+    }
+
+    private void enableHcpq(final int maxSignatures) {
+        props = () -> new VersionedConfigImpl(
+                HederaTestConfigBuilder.create()
+                        .withValue("hcpq.enabled", true)
+                        .withValue("hcpq.maxSignaturesPerTransaction", maxSignatures)
+                        .getOrCreateConfig(),
+                1);
+        checker = new TransactionChecker(props, metrics);
+    }
+
+    private static SignaturePair hcpqPair(final int keyIdLength, final int signatureLength) {
+        return SignaturePair.newBuilder()
+                .pubKeyPrefix(Bytes.wrap(new byte[keyIdLength]))
+                .mlDsa44(Bytes.wrap(new byte[signatureLength]))
+                .build();
     }
 
     @Nested

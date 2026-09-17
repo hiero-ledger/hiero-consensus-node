@@ -2,6 +2,7 @@
 package com.hedera.node.app.spi.key;
 
 import static com.hedera.node.app.hapi.utils.keys.Secp256k1Utils.ECDSA_SECP256K1_COMPRESSED_KEY_LENGTH;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.ML_DSA_44_PUBLIC_KEY_LENGTH;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -40,6 +41,7 @@ public class KeyUtilsTest {
                 .build()));
         assertTrue(KeyUtils.isEmpty(Key.newBuilder().ed25519(Bytes.EMPTY).build()));
         assertTrue(KeyUtils.isEmpty(Key.newBuilder().ecdsaSecp256k1(Bytes.EMPTY).build()));
+        assertTrue(KeyUtils.isEmpty(Key.newBuilder().mlDsa44(Bytes.EMPTY).build()));
         assertTrue(
                 KeyUtils.isEmpty(Key.newBuilder().contractID(ContractID.DEFAULT).build()));
         assertTrue(KeyUtils.isEmpty(
@@ -69,6 +71,7 @@ public class KeyUtilsTest {
         assertFalse(KeyUtils.isValid(Key.newBuilder().ed25519(Bytes.EMPTY).build()));
         assertFalse(
                 KeyUtils.isValid(Key.newBuilder().ecdsaSecp256k1(Bytes.EMPTY).build()));
+        assertFalse(KeyUtils.isValid(Key.newBuilder().mlDsa44(Bytes.EMPTY).build()));
         assertFalse(
                 KeyUtils.isValid(Key.newBuilder().contractID(ContractID.DEFAULT).build()));
         assertFalse(KeyUtils.isValid(
@@ -112,6 +115,8 @@ public class KeyUtilsTest {
                 Key.newBuilder().ed25519(Bytes.wrap("test".getBytes())).build()));
         assertFalse(KeyUtils.isValid(
                 Key.newBuilder().ecdsaSecp256k1(Bytes.wrap("0x02".getBytes())).build()));
+        assertFalse(KeyUtils.isValid(
+                Key.newBuilder().mlDsa44(Bytes.wrap(new byte[ML_DSA_44_PUBLIC_KEY_LENGTH - 1])).build()));
         assertFalse(KeyUtils.isValid(Key.newBuilder()
                 .contractID(ContractID.newBuilder().contractNum(-1).build())
                 .build()));
@@ -144,6 +149,9 @@ public class KeyUtilsTest {
                 .build()));
         assertTrue(KeyUtils.isValid(Key.newBuilder()
                 .ecdsaSecp256k1(Bytes.wrap(randomValidECDSASecp256K1Key()))
+                .build()));
+        assertTrue(KeyUtils.isValid(Key.newBuilder()
+                .mlDsa44(Bytes.wrap(new byte[ML_DSA_44_PUBLIC_KEY_LENGTH]))
                 .build()));
         assertTrue(KeyUtils.isValid(Key.newBuilder()
                 .contractID(ContractID.newBuilder().contractNum(1).build())

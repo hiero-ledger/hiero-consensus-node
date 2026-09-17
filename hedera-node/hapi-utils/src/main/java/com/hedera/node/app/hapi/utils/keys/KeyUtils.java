@@ -51,6 +51,9 @@ import org.bouncycastle.util.io.pem.PemReader;
  * Utility class for working with algorithm-agnostic cryptographic keys
  */
 public final class KeyUtils {
+    /** The FIPS 204 ML-DSA-44 public-key length in bytes. */
+    public static final int ML_DSA_44_PUBLIC_KEY_LENGTH = 1312;
+
     public static final Key IMMUTABILITY_SENTINEL_KEY =
             Key.newBuilder().keyList(KeyList.DEFAULT).build();
     public static final String TEST_CLIENTS_PREFIX = "hedera-node" + File.separator + "test-clients" + File.separator;
@@ -260,6 +263,8 @@ public final class KeyUtils {
             return ((Bytes) key.value()).length() == 0;
         } else if (pbjKey.hasEcdsaSecp256k1()) {
             return ((Bytes) key.value()).length() == 0;
+        } else if (pbjKey.hasMlDsa44()) {
+            return ((Bytes) key.value()).length() == 0;
         } else if (pbjKey.hasDelegatableContractId() || pbjKey.hasContractID()) {
             return ((ContractID) key.value()).contractNumOrElse(0L) == 0
                     && ((ContractID) key.value()).evmAddressOrElse(Bytes.EMPTY).length() == 0L;
@@ -301,6 +306,8 @@ public final class KeyUtils {
             return isValidEd25519Key((Bytes) key.value());
         } else if (pbjKey.hasEcdsaSecp256k1()) {
             return isValidEcdsaSecp256k1Key((Bytes) key.value());
+        } else if (pbjKey.hasMlDsa44()) {
+            return ((Bytes) key.value()).length() == ML_DSA_44_PUBLIC_KEY_LENGTH;
         } else if (pbjKey.hasDelegatableContractId() || pbjKey.hasContractID()) {
             return isValidEvmAddress((ContractID) key.value());
         }

@@ -366,14 +366,14 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
         final Set<Key> cryptoSigs = new HashSet<>();
         signatories.forEach(k -> {
             switch (k.key().kind()) {
-                case ED25519, ECDSA_SECP256K1 -> cryptoSigs.add(k);
+                case ED25519, ECDSA_SECP256K1, ML_DSA_44 -> cryptoSigs.add(k);
                 default -> {
                     // No other key type can be a signatory
                 }
             }
         });
         return key -> switch (key.key().kind()) {
-            case ED25519, ECDSA_SECP256K1 -> cryptoSigs.contains(key);
+            case ED25519, ECDSA_SECP256K1, ML_DSA_44 -> cryptoSigs.contains(key);
             default -> false;
         };
     }
