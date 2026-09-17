@@ -293,7 +293,7 @@ public class StandardGraphGenerator implements GraphGenerator {
 
         for (int index = 0; index < eventSourceCount; index++) {
             final EventSource source = eventSources.get(index);
-            final NodeId nodeId = roster.rosterEntries().get(index).nodeId();
+            final NodeId nodeId = roster.rosterEntry(index).nodeId();
             source.setNodeId(nodeId);
         }
     }
@@ -333,11 +333,10 @@ public class StandardGraphGenerator implements GraphGenerator {
         final List<List<Double>> matrix = new ArrayList<>(sources.size());
 
         for (int nodeIndex = 0; nodeIndex < sources.size(); nodeIndex++) {
-            final NodeId nodeId = roster.rosterEntries().get(nodeIndex).nodeId();
+            final NodeId nodeId = roster.rosterEntry(nodeIndex).nodeId();
             final List<Double> affinityVector = new ArrayList<>(sources.size());
             for (int otherNodeIndex = 0; otherNodeIndex < sources.size(); otherNodeIndex++) {
-                final NodeId otherNodeId =
-                        roster.rosterEntries().get(otherNodeIndex).nodeId();
+                final NodeId otherNodeId = roster.rosterEntry(otherNodeIndex).nodeId();
                 if (Objects.equals(nodeId, otherNodeId)) {
                     affinityVector.add(0.0);
                 } else {
@@ -445,7 +444,7 @@ public class StandardGraphGenerator implements GraphGenerator {
      * @param source The node that is creating the event.
      */
     private @Nullable EventSource getNextOtherParentSource(final long eventIndex, final EventSource source) {
-        if (roster.rosterEntries().size() == 1) {
+        if (roster.size() == 1) {
             return null;
         }
         final List<Double> affinityVector =

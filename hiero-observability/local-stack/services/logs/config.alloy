@@ -36,17 +36,43 @@ loki.process "logs" {
 	//    Java stack trace arrives as dozens of useless single-line entries.
 	//    The regex comes from the environment, so it needs no extra escaping.
 	stage.multiline {
-		firstline     = sys.env("LOG_MULTILINE_START")
+		firstline     = sys.env("LOG_TIMESTAMP_REGEX")
 		max_wait_time = "5s"
 		max_lines     = 512
 	}
 
-	// 5. LOG_LABELS is a JSON map; promote its entries to real stream labels.
+	// 5. Re-run the same regex against the now-merged entry to pull the
+	//    leading timestamp into the extracted map under "timestamp".
+	//    LOG_TIMESTAMP_REGEX must carry a `(?P<timestamp>...)` named group
+	//    for this to produce anything - the shipped default does. Named
+	//    groups are invisible to stage.multiline's plain MatchString check,
+	//    so this stays compatible with an override that drops the group (at
+	//    the cost of every line falling back to stage.timestamp's "fudge"
+	//    below). The merged, multi-line entry always begins with the
+	//    original firstline text verbatim, so the same `^`-anchored pattern
+	//    still matches here, at the start of the whole entry.
+	stage.regex {
+		expression = sys.env("LOG_TIMESTAMP_REGEX")
+	}
+
+	// 6. Stamp the entry with the timestamp just extracted, instead of
+	//    Loki's default of "when Alloy pushed this" - otherwise re-ingesting
+	//    an old run's logs (see README) stamps everything with ingestion
+	//    time and destroys chronological order. A line whose regex/format
+	//    doesn't match keeps its place in the stream regardless:
+	//    action_on_failure defaults to "fudge", not "drop".
+	stage.timestamp {
+		source   = "timestamp"
+		format   = sys.env("LOG_TIMESTAMP_FORMAT")
+		location = sys.env("LOG_TIMESTAMP_LOCATION")
+	}
+
+	// 7. LOG_LABELS is a JSON map; promote its entries to real stream labels.
 	stage.static_labels {
 		values = encoding.from_json(sys.env("LOG_LABELS"))
 	}
 
-	// 6. Drop the full-path label loki.source.file adds. `log_name` is the
+	// 8. Drop the full-path label loki.source.file adds. `log_name` is the
 	//    per-file selector; `filename` is just high-cardinality noise.
 	stage.label_drop {
 		values = ["filename"]
@@ -55,7 +81,7 @@ loki.process "logs" {
 	forward_to = [loki.write.loki.receiver]
 }
 
-// 7. Push the finished entries to Loki.
+// 9. Push the finished entries to Loki.
 loki.write "loki" {
 	endpoint {
 		url = "http://loki:3100/loki/api/v1/push"

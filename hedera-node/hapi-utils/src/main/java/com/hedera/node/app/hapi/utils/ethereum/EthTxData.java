@@ -695,6 +695,11 @@ public record EthTxData(
         if (rlpList.size() != 12) {
             return null;
         }
+        // Per EIP-1559 the access list field must always be an RLP list, even when empty
+        // (canonically encoded as 0xc0); a byte-string in this position is malformed.
+        if (!rlpList.get(8).isList()) {
+            return null;
+        }
 
         return new EthTxData(
                 rawTx,
@@ -709,9 +714,7 @@ public record EthTxData(
                 rlpList.get(6).asBigInt(), // value
                 rlpList.get(7).data(), // callData
                 rlpList.get(8).data(), // accessList
-                rlpList.get(8) != null && rlpList.get(8).isList()
-                        ? encodeRlpList(rlpList.get(8).asRLPList())
-                        : new Object[0], // accessList as RLPList
+                encodeRlpList(rlpList.get(8).asRLPList()), // accessList as RLPList
                 null, // authorizationList
                 null,
                 asByte(rlpList.get(9)), // yParity
@@ -735,6 +738,11 @@ public record EthTxData(
         if (rlpList.size() != 11) {
             return null;
         }
+        // Per EIP-2930 the access list field must always be an RLP list, even when empty
+        // (canonically encoded as 0xc0); a byte-string in this position is malformed.
+        if (!rlpList.get(7).isList()) {
+            return null;
+        }
 
         return new EthTxData(
                 rawTx,
@@ -749,9 +757,7 @@ public record EthTxData(
                 rlpList.get(5).asBigInt(), // value
                 rlpList.get(6).data(), // callData
                 rlpList.get(7).data(), // accessList
-                rlpList.get(7).isList()
-                        ? encodeRlpList(rlpList.get(7).asRLPList())
-                        : new Object[0], // accessList encoded as Object
+                encodeRlpList(rlpList.get(7).asRLPList()), // accessList encoded as Object
                 null, // authorizationList
                 null,
                 asByte(rlpList.get(8)), // yParity
@@ -775,6 +781,11 @@ public record EthTxData(
         if (rlpList.size() != 13) {
             return null;
         }
+        // Per EIP-7702 the access list and authorization list fields must always be RLP lists, even
+        // when empty (canonically encoded as 0xc0); a byte-string in either position is malformed.
+        if (!rlpList.get(8).isList() || !rlpList.get(9).isList()) {
+            return null;
+        }
 
         return new EthTxData(
                 rawTx,
@@ -789,13 +800,9 @@ public record EthTxData(
                 rlpList.get(6).asBigInt(), // value
                 rlpList.get(7).data(), // callData
                 rlpList.get(8).data(), // accessList
-                rlpList.get(8) != null && rlpList.get(8).isList()
-                        ? encodeRlpList(rlpList.get(8).asRLPList())
-                        : new Object[0], // accessList as RLPList
+                encodeRlpList(rlpList.get(8).asRLPList()), // accessList as RLPList
                 rlpList.get(9).data(),
-                rlpList.get(9) != null && rlpList.get(9).isList()
-                        ? encodeRlpList(rlpList.get(9).asRLPList())
-                        : new Object[0], // authorizationList - must preserve full RLP encoding
+                encodeRlpList(rlpList.get(9).asRLPList()), // authorizationList - must preserve full RLP encoding
                 asByte(rlpList.get(10)), // yParity
                 null, // v
                 rlpList.get(11).data(), // r
