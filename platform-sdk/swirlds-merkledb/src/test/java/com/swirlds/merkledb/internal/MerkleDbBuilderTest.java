@@ -161,16 +161,13 @@ class MerkleDbBuilderTest extends AbstractFileManagerAwareTest {
         final MerkleDbDataSourceBuilder builder =
                 new MerkleDbDataSourceBuilder("merkledb-state", DEFAULT_CONFIGURATION, fileSystemManager, INITIAL_SIZE);
         final VirtualDataSource dataSource1 = builder.build("test", null, false, false);
-        try {
-            dataSource1.saveRecords(100, 200, Stream.of(), Stream.of(), Stream.of(), false);
-        } finally {
-            dataSource1.close(true);
-        }
+        dataSource1.saveRecords(100, 200, Stream.of(), Stream.of(), Stream.of(), false);
         final VirtualDataSource dataSource2 = builder.build("test", null, false, false);
         try {
             Assertions.assertEquals(100, dataSource2.getFirstLeafPath());
             Assertions.assertEquals(200, dataSource2.getLastLeafPath());
         } finally {
+            dataSource1.close();
             dataSource2.close();
         }
     }

@@ -103,6 +103,9 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     /** The name to use for the files prefix on disk */
     private final String storeName;
 
+    /** Fork-join pool for HDHM.endWriting() */
+    private final ForkJoinPool flushPool;
+
     /** Bucket pool used by this HDHM */
     private final ReusableBucketPool bucketPool;
     /** Store for session data during a writing transaction */
@@ -116,35 +119,12 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     private Thread writingThread;
 
-    /** Fork-join pool for HDHM.endWriting() */
-    private static volatile ForkJoinPool SHARED_FLUSHING_POOL = null;
-
-    /**
-     * This method is invoked from a non-static method and uses the provided configuration.
-     * Consequently, the flushing pool will be initialized using the configuration provided
-     * by the first instance of HalfDiskHashMap class that calls the relevant non-static method.
-     * Subsequent calls will reuse the same pool, regardless of any new configurations provided.
-     * </br>
-     * FUTURE WORK: it can be moved to MerkleDb.
-     */
-    private static void initFlushingPool(final @NonNull MerkleDbConfig config) {
-        ForkJoinPool pool = SHARED_FLUSHING_POOL;
-        if (pool == null) {
-            synchronized (HalfDiskHashMap.class) {
-                pool = SHARED_FLUSHING_POOL;
-                if (pool == null) {
-                    final int flushThreadCount = config.getNumHalfDiskHashMapFlushThreads();
-                    pool = new ForkJoinPool(flushThreadCount);
-                    SHARED_FLUSHING_POOL = pool;
-                }
-            }
-        }
-    }
-
     /**
      * Construct a new HalfDiskHashMap
      *
-     * @param config                         merkle db config.
+     * @param config                         MerkleDb config
+     * @param flushPool                      Thread pool to run tasks during flushes. This HDHM doesn't own this pool,
+     *                                       it's managed and closed by the caller, typically a MerkleDb data source
      * @param fileSystemManager              File system manager to use for resolving file locations
      * @param initialCapacity                Initial map capacity. This should be more than big enough to avoid too
      *                                       many key collisions. This capacity is used to calculate the initial number
@@ -164,6 +144,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     public HalfDiskHashMap(
             final @NonNull MerkleDbConfig config,
+            final @NonNull ForkJoinPool flushPool,
             final @NonNull FileSystemManager fileSystemManager,
             final long initialCapacity,
             final @NonNull Path storeDir,
@@ -172,7 +153,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             final boolean preferDiskBasedIndex)
             throws IOException {
         requireNonNull(config);
-        initFlushingPool(config);
         this.goodAverageBucketEntryCount = config.goodAverageBucketEntryCount();
         // Max number of keys is limited by merkleDbConfig.maxNumberOfKeys. Number of buckets is,
         // on average, goodAverageBucketEntryCount times smaller than the number of keys.
@@ -185,6 +165,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         this.storeDir = requireNonNull(storeDir);
         this.storeName = storeName;
         Path indexFile = storeDir.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX);
+        this.flushPool = requireNonNull(flushPool);
         // create bucket pool
         this.bucketPool = new ReusableBucketPool(Bucket::new);
         // load or create new
@@ -530,9 +511,8 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         try {
             if (size > 0) {
                 fileCollection.startWriting();
-                final ForkJoinPool pool = SHARED_FLUSHING_POOL;
-                final AbstractTask notifyTask = new NotifyTask(pool, size);
-                final SubmitBucketTask submitTask = new SubmitBucketTask(pool, notifyTask);
+                final AbstractTask notifyTask = new NotifyTask(flushPool, size);
+                final SubmitBucketTask submitTask = new SubmitBucketTask(flushPool, notifyTask);
                 submitTask.send();
                 notifyTask.join();
                 // close files session
