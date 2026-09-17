@@ -22,11 +22,8 @@ on:
       github-token:
         description: "GitHub Token with permissions to checkout the repository."
         required: true
-      gradle-cache-username:
-        description: "The username used to authenticate with the Gradle Build Cache Node."
-        required: true
-      gradle-cache-password:
-        description: "The password used to authenticate with the Gradle Build Cache Node."
+      gcp-project-number:
+        description: "GCP project for storing Gradle remote cache entries."
         required: true
     outputs:
       failure-mode:
@@ -44,8 +41,7 @@ permissions:
 env:
   GRADLE_MANIFEST_PATH: ${{ github.workspace }}/.manifests/gradle
   GRADLE_MANIFEST_GENERATOR: .github/workflows/support/scripts/generate-gradle-artifact-baseline.sh
-  GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
-  GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
+  GCP_PROJECT_NUMBER: ${{ secrets.gcp-project-number }}
   LC_ALL: C.UTF-8
 
 jobs:

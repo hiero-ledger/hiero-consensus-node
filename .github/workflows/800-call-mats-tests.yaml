@@ -72,12 +72,9 @@ on:
       codecov-token:
         description: "Codecov Token"
         required: false
-      gradle-cache-username:
-        description: "Gradle Cache Username"
-        required: true
-      gradle-cache-password:
-        description: "Gradle Cache Password"
-        required: true
+      gcp-project-number:
+        description: "GCP Project Number"
+        required: false
       snyk-token:
         required: false
     outputs:
@@ -133,8 +130,7 @@ jobs:
       java-distribution: "${{ inputs.java-distribution }}"
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   dependency-check:
     name: "${{ inputs.custom-job-label }} Dependency (Module Info)"
@@ -148,8 +144,7 @@ jobs:
       java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   mats-unit-tests:
     name: Unit Tests
@@ -164,8 +159,7 @@ jobs:
       java-distribution: "${{ inputs.java-distribution }}"
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
       codacy-project-token: ${{ secrets.codacy-project-token }}
       codecov-token: ${{ secrets.codecov-token }}
 
@@ -183,8 +177,7 @@ jobs:
       enable-network-log-capture: "true"
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   mats-hapi-tests:
     name: HAPI Tests
@@ -200,8 +193,7 @@ jobs:
       enable-network-log-capture: "true"
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   mats-otter-tests:
     name: Otter Tests
@@ -217,8 +209,7 @@ jobs:
       enable-network-log-capture: true
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   mats-snyk-scan:
     name: Snyk Scan
@@ -233,8 +224,7 @@ jobs:
       java-distribution: "${{ inputs.java-distribution }}"
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
       snyk-token: ${{ secrets.snyk-token }}
 
   mats-gradle-determinism:
@@ -250,8 +240,7 @@ jobs:
       java-distribution: "${{ inputs.java-distribution }}"
     secrets:
       github-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   mats-docker-determinism:
     name: Docker Determinism
@@ -266,8 +255,7 @@ jobs:
       java-distribution: "${{ inputs.java-distribution }}"
     secrets:
       github-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   set-failure-mode:
     name: Set Failure Mode
