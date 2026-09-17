@@ -423,4 +423,59 @@ class PreHandleContextImplTest implements Scenarios {
                     .has(responseCode(UNRESOLVABLE_REQUIRED_SIGNERS));
         }
     }
+
+    @Nested
+    class ForeignContractIdPayerKeyTests {
+        // PAYER is account 0.0.3, so a self-referential contract key names contract 0.0.3.
+        private static final ContractID SELF =
+                ContractID.newBuilder().contractNum(3L).build();
+        private static final ContractID FOREIGN =
+                ContractID.newBuilder().contractNum(10002L).build();
+
+        @Test
+        void foreignContractIdPayerKeyIsRequired() throws PreCheckException {
+            final var foreignKey = Key.newBuilder().contractID(FOREIGN).build();
+            final var context = subjectWithPayerKey(foreignKey);
+            context.requireKey(foreignKey);
+            assertThat(context.requiredNonPayerKeys()).containsExactly(foreignKey);
+        }
+
+        @Test
+        void selfContractIdPayerKeyIsElided() throws PreCheckException {
+            final var selfKey = Key.newBuilder().contractID(SELF).build();
+            final var context = subjectWithPayerKey(selfKey);
+            context.requireKey(selfKey);
+            assertThat(context.requiredNonPayerKeys()).isEmpty();
+        }
+
+        @Test
+        void foreignDelegatableContractIdPayerKeyIsRequired() throws PreCheckException {
+            final var foreignKey =
+                    Key.newBuilder().delegatableContractId(FOREIGN).build();
+            final var context = subjectWithPayerKey(foreignKey);
+            context.requireKey(foreignKey);
+            assertThat(context.requiredNonPayerKeys()).containsExactly(foreignKey);
+        }
+
+        @Test
+        void selfDelegatableContractIdPayerKeyIsElided() throws PreCheckException {
+            final var selfKey = Key.newBuilder().delegatableContractId(SELF).build();
+            final var context = subjectWithPayerKey(selfKey);
+            context.requireKey(selfKey);
+            assertThat(context.requiredNonPayerKeys()).isEmpty();
+        }
+
+        @Test
+        void cryptoPayerKeyIsStillElided() throws PreCheckException {
+            final var context = subjectWithPayerKey(payerKey);
+            context.requireKey(payerKey);
+            assertThat(context.requiredNonPayerKeys()).isEmpty();
+        }
+    }
+
+    private PreHandleContextImpl subjectWithPayerKey(final Key key) throws PreCheckException {
+        given(account.keyOrThrow()).willReturn(key);
+        return new PreHandleContextImpl(
+                storeFactory, createAccountTransaction(), configuration, dispatcher, transactionChecker, creatorInfo);
+    }
 }

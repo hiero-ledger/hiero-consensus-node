@@ -1,10 +1,10 @@
-NAMESPACE=$1
+NAMESPACE=${1}
 NODE_ROOT=/opt/hgcapp/services-hedera/HapiApp2.0
 LOG_DIR=${NODE_ROOT}/output
 STATS_DIR=${NODE_ROOT}/data/stats
 CONFIG_DIR=${NODE_ROOT}/data/config
 
-TOOLDIR=`dirname $0`
+TOOLDIR=`dirname ${0}`
 
 mkdir podlog_${NAMESPACE}
 

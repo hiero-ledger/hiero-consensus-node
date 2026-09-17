@@ -249,10 +249,42 @@ public class PreHandleContextImpl implements PreHandleContext {
     @Override
     @NonNull
     public PreHandleContext requireKey(@NonNull final Key key) {
-        if (!key.equals(payerKey) && isValid(key)) {
+        if (isValid(key) && (!key.equals(payerKey) || payerKeyIsForeignContractReference())) {
             requiredNonPayerKeys.add(key);
         }
         return this;
+    }
+
+    /**
+     * Returns true when the payer's key is a contract-ID (or delegatable-contract-ID) key that
+     * references a contract OTHER than the payer account itself. Crypto/keylist/threshold payer keys,
+     * and self-referential contract keys (such as the network installs for a self-managed contract),
+     * return false so their existing elision behavior is preserved.
+     */
+    private boolean payerKeyIsForeignContractReference() {
+        final ContractID ref;
+        final var kind = payerKey.key().kind();
+        if (kind == KeyOneOfType.CONTRACT_ID) {
+            ref = payerKey.contractIDOrThrow();
+        } else if (kind == KeyOneOfType.DELEGATABLE_CONTRACT_ID) {
+            ref = payerKey.delegatableContractIdOrThrow();
+        } else {
+            return false;
+        }
+        return !contractIdReferencesPayer(ref);
+    }
+
+    /**
+     * Returns true when the given contract id names the payer account's own entity (matching shard,
+     * realm, and number) i.e. it is the self-referential contract key the network installs for a
+     * self-managed contract.
+     */
+    private boolean contractIdReferencesPayer(@NonNull final ContractID ref) {
+        return ref.hasContractNum()
+                && payerId.hasAccountNum()
+                && ref.shardNum() == payerId.shardNum()
+                && ref.realmNum() == payerId.realmNum()
+                && ref.contractNumOrElse(0L).equals(payerId.accountNumOrElse(0L));
     }
 
     @Override

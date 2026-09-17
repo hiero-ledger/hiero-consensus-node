@@ -47,7 +47,6 @@
 | 601-flow-pull-request-formatting.yaml        | 601: [FLOW] PR Formatting              | flow-pull-request-formatting.yaml                     | PR Formatting                                                     |
 |                                              |                                        |                                                       |                                                                   |
 | # AI HELPERS (700-799)                       |                                        |                                                       |                                                                   |
-| 700-flow-copilot-setup-steps.yaml            | 700: [FLOW] Copilot Setup Steps        | 700-flow-copilot-setup-steps.yaml                     | 700: [FLOW] Copilot Setup Steps                                   |
 | 701-flow-auto-unapprove.yaml                 | 701: [FLOW] Auto Unapprove PR          | 080-flow-auto-unapprove.yaml                          | 080: [FLOW] Auto Unapprove PR                                     |
 |                                              |                                        |                                                       |                                                                   |
 | # REUSABLE (800-899)                         |                                        |                                                       |                                                                   |
@@ -108,6 +107,7 @@
 | 860-call-validate-chewie-jwt.yaml            | 860: [CALL] Validate Chewie JWT        |                                                       |                                                                   |
 | 861-call-get-test-config.yaml                | 861: [CALL] Get CITR Test Config       |                                                       |                                                                   |
 | 862-call-get-chewie-properties.yaml          | 862: [CALL] Get CITR Chewie Properties |                                                       |                                                                   |
+| 863-call-get-chewie-allocation.yaml          | 863: [CALL] Get Chewie Allocation Details |                                                       |                                                                   |
 |                                              |                                        |                                                       |                                                                   |
 | # CRON (900-999)                             |                                        |                                                       |                                                                   |
 | 900-cron-extended-test-suite.yaml            | 900: [CRON] CITR Ext Test Suite        | zxcron-extended-test-suite.yaml                       | ZXCron: [CITR] Extended Test Suite                                |

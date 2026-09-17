@@ -707,6 +707,22 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         }
     }
 
+    /**
+     * The port on which the given block node serves its service API (server status). For real containers and the
+     * local node this is the same port as the streaming API; simulators serve the two APIs on separate ports.
+     *
+     * @param nodeId the block node id
+     * @return the service API port
+     */
+    public int getBlockNodeServicePortById(final long nodeId) {
+        final BlockNodeNetwork blockNodeNetwork = TARGET_BLOCK_NODE_NETWORK.get();
+        final BlockNodeMode mode = blockNodeNetwork.getBlockNodeModeById().get(nodeId);
+        if (mode == BlockNodeMode.SIMULATOR) {
+            return blockNodeNetwork.getSimulatedBlockNodeById().get(nodeId).getServicePort();
+        }
+        return getBlockNodePortById(nodeId);
+    }
+
     public SimulatedBlockNodeServer getSimulatedBlockNodeById(final long nodeId) {
         final BlockNodeNetwork blockNodeNetwork = TARGET_BLOCK_NODE_NETWORK.get();
         if (blockNodeNetwork != null) {

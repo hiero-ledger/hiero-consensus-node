@@ -26,6 +26,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.pces.impl.common.CommonPcesWriter;
 import org.hiero.consensus.pces.impl.common.PcesFileManager;
 import org.hiero.consensus.pces.impl.common.PcesFileTracker;
@@ -59,8 +60,9 @@ public class TestEventUtils {
             @NonNull final Time time,
             @NonNull final Roster roster,
             @Nullable final Map<NodeId, KeysAndCerts> keysAndCertsMap) {
-        final StandardEventEmitter eventEmitter =
-                new EventEmitterFactory(configuration, metrics, time, random, roster).newStandardEmitter();
+        final StandardEventEmitter eventEmitter = new EventEmitterFactory(
+                        configuration, metrics, time, random, RosterWrapper.of(roster))
+                .newStandardEmitter();
 
         Stream<PlatformEvent> stream = eventEmitter.emitEvents(numEvents).stream();
 
