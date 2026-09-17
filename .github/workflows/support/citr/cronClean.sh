@@ -11,15 +11,6 @@ done
 
 wait
 
-NofBNNodes=`kubectl -n ${NAMESPACE} get pods | grep 'block-node' | wc -l`
-
-for i in `seq 1 1 ${NofBNNodes}`
-do
-  kubectl -n ${NAMESPACE} exec block-node-${i}-0 -- bash -c "find /opt/hiero/block-node/data/ -type f -mmin +59 -exec rm -f {} \;" >/dev/null 2>&1 &
-done
-
-wait
-
 minioIP=`kubectl -n ${NAMESPACE} describe pod minio-pool-1-0 | grep -E '^IP[\:]' | awk '{print $NF}'`
 nlgpod=`kubectl -n ${NAMESPACE} get pods | grep nlg-network-load-generator | awk '{print $1}'`
 
