@@ -34,6 +34,7 @@ import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.simulator.SecureRandomBuilder;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
+import org.hiero.otter.fixtures.network.simulation.EventReceiver;
 import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
@@ -46,7 +47,7 @@ import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 /**
  * An implementation of {@link Node} that is based on the Falcon framework.
  */
-public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
+public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, EventReceiver {
 
     private final Random random;
     private final SimulatorTimeManager timeManager;
@@ -80,17 +81,30 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
         this.random = requireNonNull(random);
         this.timeManager = requireNonNull(timeManager);
         this.networkConnectivity = requireNonNull(networkConnectivity);
-        this.networkConnectivity.addNode(selfId, this::onEventReceived);
 
         this.nodeConfiguration =
                 new FalconNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
         this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
     }
 
-    private void onEventReceived(@NonNull final PlatformEvent event) {
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public NodeId getNodeId() {
+        return selfId;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean receiveEvent(@NonNull final PlatformEvent event) {
         if (wiring != null) {
             wiring.receivedGossipEventsInputWire().put(event);
+            return true;
         }
+        return false;
     }
 
     /**
@@ -124,8 +138,16 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
         final SecureRandom secureRandom = new SecureRandomBuilder(random.nextLong()).get();
 
         wiring = new FalconWiring(currentConfiguration, time, selfId, roster(), secureRandom);
-        wiring.sentGossipEventsOutputWire()
-                .solderTo("EventSubmitter_" + selfId, "event", event -> networkConnectivity.submitEvent(selfId, event));
+        wiring.sentGossipEventsOutputWire().solderTo("EventSubmitter_" + selfId, "event", event -> {
+            // Self-created events have no sender until now; the network identifies the source by this field
+            event.setSenderId(selfId);
+            networkConnectivity.submitEvent(event);
+        });
+        wiring.eventWindowOutputWire()
+                .solderTo(
+                        "EventWindowSubmitter_" + selfId,
+                        "event window",
+                        eventWindow -> networkConnectivity.updateEventWindow(selfId, eventWindow));
         wiring.consensusOutputWire()
                 .buildTransformer(
                         "ConsensusResultCollector", "consensus result", ConsensusEngineOutput::consensusRounds)

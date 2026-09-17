@@ -19,6 +19,19 @@ env:
   RELEASE_BRANCH_CHECK_SCRIPT: ".github/workflows/support/scripts/release-branch-check.sh"
 
 jobs:
+  prime-workflow:
+    name: Prime workflow
+    runs-on: hl-cn-default-lin-ss
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Schedule Run
+        run: |
+          echo "Picking up scheduled run at $(date -u +'%Y-%m-%d %H:%M:%S') UTC"
+
   check-trigger:
     name: Check Trigger Conditions
     runs-on: hl-cn-default-lin-sm

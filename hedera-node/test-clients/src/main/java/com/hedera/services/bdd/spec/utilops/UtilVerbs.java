@@ -68,6 +68,7 @@ import static com.hederahashgraph.api.proto.java.FreezeType.FREEZE_UPGRADE;
 import static com.hederahashgraph.api.proto.java.FreezeType.PREPARE_UPGRADE;
 import static com.hederahashgraph.api.proto.java.FreezeType.TELEMETRY_UPGRADE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONFIG_FILE_PART_UPLOADED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -2190,7 +2191,10 @@ public class UtilVerbs {
             HapiFileUpdate updateSubOp = fileUpdate(fileName)
                     .contents(byteString.substring(0, position))
                     .hasKnownStatusFrom(
-                            SUCCESS, FEE_SCHEDULE_FILE_PART_UPLOADED, SUCCESS_BUT_MISSING_EXPECTED_OPERATION)
+                            SUCCESS,
+                            FEE_SCHEDULE_FILE_PART_UPLOADED,
+                            CONFIG_FILE_PART_UPLOADED,
+                            SUCCESS_BUT_MISSING_EXPECTED_OPERATION)
                     .noLogging()
                     .payingWith(payer);
             updateCustomizer.accept(updateSubOp);
@@ -2209,7 +2213,7 @@ public class UtilVerbs {
                 int newPosition = Math.min(fileSize, position + BYTES_4K);
                 var appendSubOp = fileAppend(fileName)
                         .content(byteString.substring(position, newPosition).toByteArray())
-                        .hasKnownStatusFrom(SUCCESS, FEE_SCHEDULE_FILE_PART_UPLOADED)
+                        .hasKnownStatusFrom(SUCCESS, FEE_SCHEDULE_FILE_PART_UPLOADED, CONFIG_FILE_PART_UPLOADED)
                         .noLogging()
                         .payingWith(payer);
                 appendCustomizer.accept(appendSubOp, totalAppendsRequired - numAppends);

@@ -3,6 +3,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.generateBlockItems;
 import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.generateRandomBlocks;
+import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.newBlockHeader;
 import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.writeBlockToDisk;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -66,6 +67,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -317,7 +319,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void acknowledgedThroughFutureCompletesImmediatelyWhenNoBlocksProduced() {
+    void testAcknowledgedThroughFutureCompletesImmediatelyWhenNoBlocksProduced() {
         // given
         blockBufferService = initBufferService(configProvider);
 
@@ -330,7 +332,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void acknowledgedThroughFutureCompletesImmediatelyWhenBlockAlreadyAcked() {
+    void testAcknowledgedThroughFutureCompletesImmediatelyWhenBlockAlreadyAcked() {
         // given
         blockBufferService = initBufferService(configProvider);
         blockBufferService.openBlock(TEST_BLOCK_NUMBER);
@@ -346,7 +348,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void acknowledgedThroughFutureCompletesWhenBlockIsAcked() {
+    void testAcknowledgedThroughFutureCompletesWhenBlockIsAcked() {
         // given
         blockBufferService = initBufferService(configProvider);
         blockBufferService.openBlock(TEST_BLOCK_NUMBER);
@@ -371,7 +373,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void acknowledgedThroughFutureSupportsBlockNotYetOpened() {
+    void teastAcknowledgedThroughFutureSupportsBlockNotYetOpened() {
         // The freeze wait registers its future with the freeze block's number taken from the
         // BlockStreamManager, which can be ahead of this buffer's lastProducedBlockNumber
         // (openBlock arrives on the async pipeline); the future must hold until the ack
@@ -397,7 +399,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void acknowledgedThroughFutureCompletesWhenAckJumpsPastBlock() {
+    void testAcknowledgedThroughFutureCompletesWhenAckJumpsPastBlock() {
         // given
         blockBufferService = initBufferService(configProvider);
         blockBufferService.openBlock(TEST_BLOCK_NUMBER);
@@ -961,7 +963,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void openBlockShouldNotNotifyBlockNodeConnectionManagerWhenStreamingToBlockNodesDisabled() {
+    void testOpenBlockShouldNotNotifyBlockNodeConnectionManagerWhenStreamingToBlockNodesDisabled() {
         // Configure streamToBlockNodes to return false
         final var mockConfig = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
@@ -2715,6 +2717,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.buffer.maxBytes", "100M")
                 .withValue("blockStream.buffer.maxBlocks", "100")
                 .withValue("blockStream.buffer.ackedBlocksToRetain", "20")
+                .withValue("blockStream.buffer.maxInProgressBlocks", "5")
                 .getOrCreateConfig();
         when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
 
@@ -2742,6 +2745,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(pruneResultA.config().maxBytes()).isEqualTo(BlockStreamingUtils.MB_TO_BYTES * 100L);
         // the block isn't closed and thus isn't yet considered pending an acknowledgement
         assertThat(pruneResultA.checkInfo().blocksPendingAck()).isZero();
+        assertThat(pruneResultA.checkInfo().blocksInProgress()).isZero();
         assertThat(pruneResultA.pruneInfo().prunedBlockCount()).isZero();
         assertThat(pruneResultA.pruneInfo().blocksPruned()).isEmpty();
         assertThat(pruneResultA.pruneInfo().prunedByteCount()).isZero();
@@ -2749,6 +2753,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(pruneResultA.liveBufferInfo().liveByteCount()).isGreaterThanOrEqualTo(tenMB * 15L);
         assertThat(pruneResultA.saturationInfo().blockCountSaturationPercent()).isZero();
         assertThat(pruneResultA.saturationInfo().bytesSaturationPercent()).isZero();
+        assertThat(pruneResultA.saturationInfo().blocksInProgressSaturationPercent())
+                .isZero();
         assertThat(pruneResultA.saturationInfo().maxSaturationPercent()).isZero();
         assertThat(pruneResultA.saturationInfo().isAtActionStage()).isFalse();
         assertThat(pruneResultA.saturationInfo().isSaturated()).isFalse();
@@ -2768,6 +2774,7 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         assertThat(pruneResultB).isNotNull();
         assertThat(pruneResultB.config().maxBytes()).isEqualTo(BlockStreamingUtils.MB_TO_BYTES * 100L);
         assertThat(pruneResultB.checkInfo().blocksPendingAck()).isOne();
+        assertThat(pruneResultB.checkInfo().blocksInProgress()).isZero();
         assertThat(pruneResultB.pruneInfo().prunedBlockCount()).isZero();
         assertThat(pruneResultB.pruneInfo().blocksPruned()).isEmpty();
         assertThat(pruneResultB.pruneInfo().prunedByteCount()).isZero();
@@ -2778,6 +2785,8 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         // we are now around 150 MB out of the max 100 MB... so there should now be around 150% bytes saturation
         assertThat(pruneResultB.saturationInfo().bytesSaturationPercent()).isGreaterThanOrEqualTo(150.0D);
         assertThat(pruneResultB.saturationInfo().maxSaturationPercent()).isGreaterThanOrEqualTo(150.0D);
+        assertThat(pruneResultB.saturationInfo().blocksInProgressSaturationPercent())
+                .isZero();
         assertThat(pruneResultB.saturationInfo().isAtActionStage()).isTrue();
         assertThat(pruneResultB.saturationInfo().isSaturated()).isTrue();
         assertThat(backPressureFutureRef).doesNotHaveNullValue();
@@ -2830,6 +2839,287 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics).recordBackPressureActive();
         verify(blockStreamMetrics, times(2)).recordBackPressureDisabled();
         verify(blockStreamMetrics).recordLatestBlockAcked(0L);
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void testCheckBuffer_tooManyInProgressBlocks_backPressureDisabled() throws Throwable {
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BOTH") // disable back pressure
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .withValue("blockStream.buffer.maxBytes", "100M")
+                .withValue("blockStream.buffer.maxBlocks", "50")
+                .withValue("blockStream.buffer.ackedBlocksToRetain", "20")
+                .withValue("blockStream.buffer.maxInProgressBlocks", "5")
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = initBufferService(configProvider);
+
+        // create more than the max allowed in-progress blocks, but don't close them
+        for (int i = 0; i < 10; ++i) {
+            blockBufferService.openBlock(i);
+            blockBufferService.addItem(i, BlockItem.PROTOBUF.toBytes(newBlockHeader(i)), ItemOneOfType.BLOCK_HEADER);
+            blockBufferService.addItem(
+                    i, BlockItem.PROTOBUF.toBytes(newBlockTxItem(25_000)), ItemOneOfType.SIGNED_TRANSACTION);
+        }
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        final PruneResult pruneResultA =
+                lastPruningResultRef(blockBufferService).get();
+
+        assertThat(pruneResultA).isNotNull();
+        assertThat(pruneResultA.config().maxBytes()).isEqualTo(BlockStreamingUtils.MB_TO_BYTES * 100L);
+        assertThat(pruneResultA.checkInfo().blocksPendingAck()).isEqualTo(9);
+        assertThat(pruneResultA.checkInfo().blocksInProgress()).isEqualTo(9);
+        assertThat(pruneResultA.pruneInfo().prunedBlockCount()).isZero();
+        assertThat(pruneResultA.pruneInfo().blocksPruned()).isEmpty();
+        assertThat(pruneResultA.pruneInfo().prunedByteCount()).isZero();
+        assertThat(pruneResultA.liveBufferInfo().liveBlockCount()).isEqualTo(10);
+        assertThat(pruneResultA.liveBufferInfo().liveByteCount()).isGreaterThanOrEqualTo(25_000 * 10);
+        assertThat(pruneResultA.saturationInfo().blockCountSaturationPercent()).isEqualTo(18.0D);
+        assertThat(pruneResultA.saturationInfo().bytesSaturationPercent()).isLessThan(5.00D);
+        assertThat(pruneResultA.saturationInfo().blocksInProgressSaturationPercent())
+                .isEqualTo(180.0D);
+        assertThat(pruneResultA.saturationInfo().maxSaturationPercent()).isEqualTo(180.0D);
+        assertThat(pruneResultA.saturationInfo().isAtActionStage()).isTrue();
+        assertThat(pruneResultA.saturationInfo().isSaturated()).isTrue();
+
+        // technically the buffer is saturated, but since back pressure is disabled, it is not active
+        final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef1 =
+                backpressureCompletableFutureRef(blockBufferService);
+        assertThat(backPressureFutureRef1).hasNullValue();
+
+        // now add more blocks such that we exceed the max blocks allowed, still not closing any block
+        // some blocks should be pruned, but otherwise back pressure does not engage
+
+        for (int i = 10; i < 60; ++i) {
+            blockBufferService.openBlock(i);
+            blockBufferService.addItem(i, BlockItem.PROTOBUF.toBytes(newBlockHeader(i)), ItemOneOfType.BLOCK_HEADER);
+            blockBufferService.addItem(
+                    i, BlockItem.PROTOBUF.toBytes(newBlockTxItem(25_000)), ItemOneOfType.SIGNED_TRANSACTION);
+        }
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        final PruneResult pruneResultB =
+                lastPruningResultRef(blockBufferService).get();
+        final Set<Long> expectedPrunedBlocks = LongStream.range(0, 10).boxed().collect(Collectors.toSet());
+
+        assertThat(pruneResultB).isNotNull();
+        assertThat(pruneResultB.config().maxBytes()).isEqualTo(BlockStreamingUtils.MB_TO_BYTES * 100L);
+        assertThat(pruneResultB.checkInfo().blocksPendingAck()).isEqualTo(49);
+        assertThat(pruneResultB.checkInfo().blocksInProgress()).isEqualTo(49);
+        assertThat(pruneResultB.pruneInfo().prunedBlockCount()).isEqualTo(10);
+        assertThat(pruneResultB.pruneInfo().blocksPruned()).containsAll(expectedPrunedBlocks);
+        assertThat(pruneResultB.pruneInfo().prunedByteCount()).isGreaterThanOrEqualTo(25_000 * 10);
+        assertThat(pruneResultB.liveBufferInfo().liveBlockCount()).isEqualTo(50);
+        assertThat(pruneResultB.liveBufferInfo().liveByteCount()).isGreaterThanOrEqualTo(25_000 * 50);
+        assertThat(pruneResultB.saturationInfo().blockCountSaturationPercent()).isEqualTo(98.0D);
+        assertThat(pruneResultB.saturationInfo().bytesSaturationPercent()).isLessThan(5.00D);
+        assertThat(pruneResultB.saturationInfo().blocksInProgressSaturationPercent())
+                .isEqualTo(980.0D);
+        assertThat(pruneResultB.saturationInfo().maxSaturationPercent()).isEqualTo(980.0D);
+        assertThat(pruneResultB.saturationInfo().isAtActionStage()).isTrue();
+        assertThat(pruneResultB.saturationInfo().isSaturated()).isTrue();
+
+        final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef2 =
+                backpressureCompletableFutureRef(blockBufferService);
+        assertThat(backPressureFutureRef2).hasNullValue();
+
+        verify(blockStreamMetrics, times(60)).recordLatestBlockOpened(anyLong());
+        verify(blockStreamMetrics, times(60)).recordBlockOpened();
+        verify(blockStreamMetrics, times(120)).recordBlockItemBytes(anyLong());
+        verify(blockStreamMetrics).recordBufferSaturation(180.0D);
+        verify(blockStreamMetrics).recordBufferSaturation(980.0D);
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(10);
+        verify(blockStreamMetrics).recordBufferOldestBlock(0L);
+        verify(blockStreamMetrics).recordBufferOldestBlock(10L);
+        verify(blockStreamMetrics).recordBufferNewestBlock(9L);
+        verify(blockStreamMetrics).recordBufferNewestBlock(59L);
+        verify(blockStreamMetrics).recordBufferedBlocks(10);
+        verify(blockStreamMetrics).recordBufferedBlocks(50);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(9);
+        verify(blockStreamMetrics).recordBufferedBlocksPendingAck(49);
+        verify(blockStreamMetrics, times(2)).recordBufferSizeInBytes(anyLong());
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(10);
+        verify(blockStreamMetrics).recordNumberOfBlocksPruned(0);
+        verifyNoMoreInteractions(blockStreamMetrics);
+    }
+
+    @Test
+    void testCheckBuffer_tooManyInProgressBlocks_backPressureEnabled() throws Throwable {
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS") // enable back pressure
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", false)
+                .withValue("blockStream.buffer.maxBytes", "100M")
+                .withValue("blockStream.buffer.maxBlocks", "50")
+                .withValue("blockStream.buffer.ackedBlocksToRetain", "20")
+                .withValue("blockStream.buffer.maxInProgressBlocks", "5")
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        blockBufferService = initBufferService(configProvider);
+
+        // create 4 blocks, but don't close them
+        for (int i = 0; i < 5; ++i) {
+            blockBufferService.openBlock(i);
+            blockBufferService.addItem(i, BlockItem.PROTOBUF.toBytes(newBlockHeader(i)), ItemOneOfType.BLOCK_HEADER);
+            blockBufferService.addItem(
+                    i, BlockItem.PROTOBUF.toBytes(newBlockTxItem(25_000)), ItemOneOfType.SIGNED_TRANSACTION);
+        }
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        final PruneResult pruneResultA =
+                lastPruningResultRef(blockBufferService).get();
+
+        assertThat(pruneResultA).isNotNull();
+        assertThat(pruneResultA.config().maxBytes()).isEqualTo(BlockStreamingUtils.MB_TO_BYTES * 100L);
+        assertThat(pruneResultA.checkInfo().blocksPendingAck()).isEqualTo(4);
+        assertThat(pruneResultA.checkInfo().blocksInProgress()).isEqualTo(4);
+        assertThat(pruneResultA.pruneInfo().prunedBlockCount()).isZero();
+        assertThat(pruneResultA.pruneInfo().blocksPruned()).isEmpty();
+        assertThat(pruneResultA.pruneInfo().prunedByteCount()).isZero();
+        assertThat(pruneResultA.liveBufferInfo().liveBlockCount()).isEqualTo(5);
+        assertThat(pruneResultA.liveBufferInfo().liveByteCount()).isGreaterThanOrEqualTo(25_000 * 5);
+        assertThat(pruneResultA.saturationInfo().blockCountSaturationPercent()).isEqualTo(8.0D);
+        assertThat(pruneResultA.saturationInfo().bytesSaturationPercent()).isLessThan(5.00D);
+        assertThat(pruneResultA.saturationInfo().blocksInProgressSaturationPercent())
+                .isEqualTo(80.0D);
+        assertThat(pruneResultA.saturationInfo().maxSaturationPercent()).isEqualTo(80.0D);
+        assertThat(pruneResultA.saturationInfo().isAtActionStage()).isTrue();
+        assertThat(pruneResultA.saturationInfo().isSaturated()).isFalse();
+
+        final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef1 =
+                backpressureCompletableFutureRef(blockBufferService);
+        assertThat(backPressureFutureRef1).hasNullValue();
+
+        // add another incomplete block... this should cause back pressure to engage
+        blockBufferService.openBlock(5);
+        blockBufferService.addItem(5, BlockItem.PROTOBUF.toBytes(newBlockHeader(4)), ItemOneOfType.BLOCK_HEADER);
+        blockBufferService.addItem(
+                5, BlockItem.PROTOBUF.toBytes(newBlockTxItem(25_000)), ItemOneOfType.SIGNED_TRANSACTION);
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        final PruneResult pruneResultB =
+                lastPruningResultRef(blockBufferService).get();
+
+        assertThat(pruneResultB).isNotNull();
+        assertThat(pruneResultB.config().maxBytes()).isEqualTo(BlockStreamingUtils.MB_TO_BYTES * 100L);
+        assertThat(pruneResultB.checkInfo().blocksPendingAck()).isEqualTo(5);
+        assertThat(pruneResultB.checkInfo().blocksInProgress()).isEqualTo(5);
+        assertThat(pruneResultB.pruneInfo().prunedBlockCount()).isZero();
+        assertThat(pruneResultB.pruneInfo().blocksPruned()).isEmpty();
+        assertThat(pruneResultB.pruneInfo().prunedByteCount()).isZero();
+        assertThat(pruneResultB.liveBufferInfo().liveBlockCount()).isEqualTo(6);
+        assertThat(pruneResultB.liveBufferInfo().liveByteCount()).isGreaterThanOrEqualTo(25_000 * 6);
+        assertThat(pruneResultB.saturationInfo().blockCountSaturationPercent()).isEqualTo(10.0D);
+        assertThat(pruneResultB.saturationInfo().bytesSaturationPercent()).isLessThan(5.00D);
+        assertThat(pruneResultB.saturationInfo().blocksInProgressSaturationPercent())
+                .isEqualTo(100.0D);
+        assertThat(pruneResultB.saturationInfo().maxSaturationPercent()).isEqualTo(100.0D);
+        assertThat(pruneResultB.saturationInfo().isAtActionStage()).isTrue();
+        assertThat(pruneResultB.saturationInfo().isSaturated()).isTrue();
+
+        final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef2 =
+                backpressureCompletableFutureRef(blockBufferService);
+        assertThat(backPressureFutureRef2).doesNotHaveNullValue();
+        assertThat(backPressureFutureRef2.get()).isNotCompleted();
+
+        // now close all the blocks and check the buffer again. we should no longer be in back pressure, but all of the
+        // blocks are still pending acknowledgements
+
+        for (int i = 0; i < 6; ++i) {
+            blockBufferService.closeBlock(i);
+        }
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        final PruneResult pruneResultC =
+                lastPruningResultRef(blockBufferService).get();
+
+        assertThat(pruneResultC).isNotNull();
+        assertThat(pruneResultC.config().maxBytes()).isEqualTo(BlockStreamingUtils.MB_TO_BYTES * 100L);
+        assertThat(pruneResultC.checkInfo().blocksPendingAck()).isEqualTo(6);
+        assertThat(pruneResultC.checkInfo().blocksInProgress()).isZero();
+        assertThat(pruneResultC.pruneInfo().prunedBlockCount()).isZero();
+        assertThat(pruneResultC.pruneInfo().blocksPruned()).isEmpty();
+        assertThat(pruneResultC.pruneInfo().prunedByteCount()).isZero();
+        assertThat(pruneResultC.liveBufferInfo().liveBlockCount()).isEqualTo(6);
+        assertThat(pruneResultC.liveBufferInfo().liveByteCount()).isGreaterThanOrEqualTo(25_000 * 6);
+        assertThat(pruneResultC.saturationInfo().blockCountSaturationPercent()).isEqualTo(12.0D);
+        assertThat(pruneResultC.saturationInfo().bytesSaturationPercent()).isLessThan(5.00D);
+        assertThat(pruneResultC.saturationInfo().blocksInProgressSaturationPercent())
+                .isZero();
+        assertThat(pruneResultC.saturationInfo().maxSaturationPercent()).isEqualTo(12.0D);
+        assertThat(pruneResultC.saturationInfo().isAtActionStage()).isFalse();
+        assertThat(pruneResultC.saturationInfo().isSaturated()).isFalse();
+
+        final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef3 =
+                backpressureCompletableFutureRef(blockBufferService);
+        assertThat(backPressureFutureRef3).doesNotHaveNullValue();
+        assertThat(backPressureFutureRef3.get()).isCompleted();
+
+        // now for fun, acknowledge all the blocks...
+        blockBufferService.setLatestAcknowledgedBlock(5);
+
+        checkBufferHandle.invoke(blockBufferService);
+
+        final PruneResult pruneResultD =
+                lastPruningResultRef(blockBufferService).get();
+
+        assertThat(pruneResultD).isNotNull();
+        assertThat(pruneResultD.config().maxBytes()).isEqualTo(BlockStreamingUtils.MB_TO_BYTES * 100L);
+        assertThat(pruneResultD.checkInfo().blocksPendingAck()).isZero();
+        assertThat(pruneResultD.checkInfo().blocksInProgress()).isZero();
+        assertThat(pruneResultD.pruneInfo().prunedBlockCount()).isZero();
+        assertThat(pruneResultD.pruneInfo().blocksPruned()).isEmpty();
+        assertThat(pruneResultD.pruneInfo().prunedByteCount()).isZero();
+        assertThat(pruneResultD.liveBufferInfo().liveBlockCount()).isEqualTo(6);
+        assertThat(pruneResultD.liveBufferInfo().liveByteCount()).isGreaterThanOrEqualTo(25_000 * 6);
+        assertThat(pruneResultD.saturationInfo().blockCountSaturationPercent()).isZero();
+        assertThat(pruneResultD.saturationInfo().bytesSaturationPercent()).isZero();
+        assertThat(pruneResultD.saturationInfo().blocksInProgressSaturationPercent())
+                .isZero();
+        assertThat(pruneResultD.saturationInfo().maxSaturationPercent()).isZero();
+        assertThat(pruneResultD.saturationInfo().isAtActionStage()).isFalse();
+        assertThat(pruneResultD.saturationInfo().isSaturated()).isFalse();
+
+        final AtomicReference<CompletableFuture<Boolean>> backPressureFutureRef4 =
+                backpressureCompletableFutureRef(blockBufferService);
+        assertThat(backPressureFutureRef4).doesNotHaveNullValue();
+        assertThat(backPressureFutureRef4.get()).isCompleted();
+
+        verify(blockStreamMetrics, times(6)).recordLatestBlockOpened(anyLong());
+        verify(blockStreamMetrics, times(6)).recordBlockOpened();
+        verify(blockStreamMetrics, times(6)).recordBlockClosed();
+        verify(blockStreamMetrics, times(12)).recordBlockItemBytes(anyLong());
+        verify(blockStreamMetrics, times(6)).recordBlockItemsPerBlock(2);
+        verify(blockStreamMetrics, times(6)).recordBlockBytes(anyLong());
+        verify(blockStreamMetrics, times(4)).recordNumberOfBlocksPruned(0);
+        verify(blockStreamMetrics, times(4)).recordBufferOldestBlock(0L);
+        verify(blockStreamMetrics).recordBufferNewestBlock(4L);
+        verify(blockStreamMetrics, times(3)).recordBufferNewestBlock(5L);
+        verify(blockStreamMetrics).recordBufferSaturation(80.0D);
+        verify(blockStreamMetrics).recordBufferSaturation(100.0D);
+        verify(blockStreamMetrics).recordBufferSaturation(12.0D);
+        verify(blockStreamMetrics).recordBufferSaturation(0.0D);
+        verify(blockStreamMetrics, times(4)).recordBufferedBlocks(anyInt());
+        verify(blockStreamMetrics, times(4)).recordBufferSizeInBytes(anyLong());
+        verify(blockStreamMetrics, times(4)).recordBufferedBlocksPendingAck(anyInt());
+        verify(blockStreamMetrics).recordBackPressureActive();
+        verify(blockStreamMetrics).recordBackPressureActionStage();
+        verify(blockStreamMetrics, times(2)).recordBackPressureDisabled();
+        verify(blockStreamMetrics).recordLatestBlockAcked(5);
         verifyNoMoreInteractions(blockStreamMetrics);
     }
 

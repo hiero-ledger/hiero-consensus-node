@@ -68,8 +68,8 @@ public class ChildCallDataSizeValidationTest {
                         .exposingResultTo(res -> Assertions.assertFalse((Boolean) res[0])),
                 getTxnRecord(txName + "halt")
                         .andAllChildRecords()
-                        .hasChildRecordCount(0) // there should be no child records, because it is halts
-                );
+                        // no child records, because it halts; staking-period rollover records are excluded
+                        .hasNonStakingChildRecordCount(0));
     }
 
     @LeakyHapiTest

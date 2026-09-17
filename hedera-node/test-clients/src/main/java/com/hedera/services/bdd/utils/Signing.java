@@ -20,7 +20,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.foreign.MemorySegment;
 import java.math.BigInteger;
 import org.apache.tuweni.bytes.Bytes;
-import org.bouncycastle.math.ec.rfc8032.Ed25519;
 
 /**
  * Utility methods for signing messages
@@ -82,13 +81,6 @@ public final class Signing {
         System.arraycopy(sig, 0, result, 0, 64);
         result[64] = (byte) (recId[0] + 27);
         return result;
-    }
-
-    public static byte[] signMessageEd25519(final byte[] message, byte[] privateKey) {
-        byte[] signature = new byte[Ed25519.SIGNATURE_SIZE];
-        Ed25519.sign(privateKey, 0, message, 0, message.length, signature, 0);
-
-        return signature;
     }
 
     public static Object[] signCodeDelegation(

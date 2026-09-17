@@ -107,7 +107,7 @@ catching regressions without being unnecessarily long-running.
 | SDK TCK Regression Panel                  | [819: [CALL] TCK Regression](/.github/workflows/819-call-tck-regression.yaml)                    | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              | `access-token`<br/>`slack-tck-report-webhook`<br/>`slack-detailed-report-webhook`                                                                                                                                                                        | Fetch XTS Candidate<br/>Compile Code |
 | Mirror Node Regression Panel              | [820: [CALL] Mirror Node Regress](/.github/workflows/820-call-mirror-node-regression.yaml)       | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`<br/>`helm-release-name: mirror or mirror-1`                                                                                                                                                                                                                  | `access-token`<br/>`slack-detailed-report-webhook`                                                                                                                                                                                                       | Fetch XTS Candidate<br/>Compile Code |
 | Block Node Regression Panel               | [821: [CALL] Block Node Regression](/.github/workflows/821-call-block-node-regression.yaml)      | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              | `access-token`<br/>`slack-detailed-report-webhook`                                                                                                                                                                                                       | Fetch XTS Candidate<br/>Compile Code |
-| Solo 0.77 to 0.78 Cutover Panel           | [826: [CALL] Solo 077-078 Cutover](/.github/workflows/826-call-solo-077-to-078-cutover.yaml)     | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              |                                                                                                                                                                                                                                                          | Fetch XTS Candidate<br/>Compile Code |
+| Solo 0.78 to 0.79 Cutover Panel           | [826: [CALL] Solo 078-079 Cutover](/.github/workflows/826-call-solo-078-to-079-cutover.yaml)     | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              |                                                                                                                                                                                                                                                          | Fetch XTS Candidate<br/>Compile Code |
 
 ## SDCT
 
@@ -268,46 +268,78 @@ does not tear it down. See [Chewie Resource Allocation](chewie.md).
 ### Purpose
 
 MDLT (Multi Day Longevity Test) is designed to run a production throttled mixed TPS load for an extended period of
-time (7 days) to identify regressions in overall network stability and robustness under load. It serves as a longer
-running version of SDLT to catch potential issues that may not surface within the shorter SDLT.
+time (5 days / 7200 minutes) to identify regressions in overall network stability and robustness under load. It serves
+as a longer running version of SDLT to catch potential issues that may not surface within the shorter SDLT.
 
 ### Environment
 
-- MDLT runs inside self-hosted github runners on demand, against any PR, tag, or branch, assuming release candidate
-- MDLT is expected to complete within 7 days of the test suite starting.
-- MDLT has a dry-run equivalent to SDLT
+- MDLT runs against a promoted build tag (`build-XXXXX`) that has already passed SDPT and SDLT.
+- Like SDPT and SDLT, MDLT deploys three block nodes into the allocated namespace, pinned to the
+  version in `block-node-version` in [.citr-env](/.github/workflows/support/citr/.citr-env) and passed
+  through as the `bnref` input. The consensus nodes stream to those block nodes; there is no longer a
+  stand-in block node hosted on the load generator pod.
+- The kickoff workflow runs only a short (~3 minute) smoke on a Chewie-allocated cluster, launches the 5-day
+  (7200 minute) production run in the background, and then exits so the GitHub runner is released (runners are
+  capped at 6 hours).
+- Chewie owns the namespace and its teardown; status is checked out-of-band via the monitor workflow.
 
 ### Workflows
 
-- MDLT is triggered by
-  the [222: [DISP] CITR SDLT Controller](/.github/workflows/222-disp-sdlt-controller.yaml)
-  workflow.
-- MDLT Dry Run is triggered manually via
-  the [202: [USER] CITR SDLT Ctrl Adhoc](/.github/workflows/202-user-sdlt-controller-adhoc.yaml)
-  workflow.
+Kickoff (Chewie allocates the cluster and namespace; the kickoff prints them to the job summary):
+
+- Automated: [224: [DISP] CITR MDLT Controller](/.github/workflows/224-disp-mdlt-controller.yaml) — takes a `build-tag`
+  and verifies the `sdpt-pass-XXXXX` and `sdlt-pass-XXXXX` tags exist before starting.
+- Manual: [203: [USER] CITR MDLT Ctrl Adhoc](/.github/workflows/203-user-mdlt-controller-adhoc.yaml).
+- Both call the reusable
+  [835: [CALL] CITR Exec MDLT](/.github/workflows/835-call-multi-day-longevity-test.yaml) executor.
+
+Monitoring and finalization (dispatched with the Allocation ID printed by the kickoff; each resolves the
+cluster + namespace from the Chewie allocation):
+
+- [204: [DISP] CITR MDLT Monitor](/.github/workflows/204-disp-mdlt-monitor.yaml) — reports run status
+  (running / passed / failed / cancelled) and block node liveness to the summary and Slack. It also
+  prunes each block node's live block data (`*.blk*` older than 59 minutes) unless
+  `prune-block-node-data` is unchecked — the kickoff runner exits after launching the run, so the
+  runner-side cleaner loop SDPT uses cannot cover a multi-day run.
+- [205: [DISP] CITR MDLT Publish Results](/.github/workflows/205-disp-mdlt-publish-results.yaml) — collects logs and
+  publishes them to GCS.
+- [206: [DISP] CITR MDLT Tag Result](/.github/workflows/206-disp-mdlt-tag-result.yaml) — applies the
+  `mdlt-pass-XXXXX` / `mdlt-fail-XXXXX` tag based on the reported result.
+- [225: [DISP] Release Chewie Allocation](/.github/workflows/225-disp-release-chewie-allocation.yaml) — releases the
+  Chewie allocation early using the Allocation ID printed by the kickoff, freeing the cluster + namespace before expiry.
+
+Namespace teardown: Chewie reclaims the namespace automatically when the allocation expires (~6 days), or a user can
+release it early via `225` with the Allocation ID from the kickoff summary.
 
 ### Hardware
 
-MDLT runs through the SDLT workflows, so it uses the same Chewie-allocated environment defined in
-[sdlt-config.json](/.github/workflows/support/chewie/sdlt-config.json).
+MDLT requests its Chewie-allocated environment from
+[mdlt-config.json](/.github/workflows/support/chewie/mdlt-config.json) via
+[861: [CALL] Get CITR Test Config](/.github/workflows/861-call-get-test-config.yaml).
 
 | Instance Group |            Role             | Quantity | CPU | Memory (MB) |
 |----------------|-----------------------------|----------|-----|-------------|
 | `cn-nodes`     | Consensus Nodes             | 8        | 39  | 256000      |
 | `aux-nodes`    | Aux services and NLG client | 1        | 39  | 256000      |
 
-Because MDLT holds the environment for multiple days, the allocation duration must be long enough to cover the whole
-run. Set it with the `duration-minutes` input on
-[202: [USER] CITR SDLT Ctrl Adhoc](/.github/workflows/202-user-sdlt-controller-adhoc.yaml); the `default_duration` in
-[`.github/chewie.yaml`](/.github/chewie.yaml) is sized for a single-day run. See
-[Chewie Resource Allocation](chewie.md).
+Because MDLT holds the environment for multiple days, the allocation duration must be long enough to outlive the whole
+run. Two separate knobs control this, both on
+[203: [USER] CITR MDLT Ctrl Adhoc](/.github/workflows/203-user-mdlt-controller-adhoc.yaml):
+
+- `duration-minutes` — how long Chewie keeps the namespace (defaults to 6 days, giving a day of log-review headroom).
+- `mdlt-length` — how long the production run itself lasts (defaults to `default_mdlt_length`, 5 days).
+
+Workflow inputs are in minutes; the `.github/chewie.yaml` values they fall back to are in seconds, and the controller
+converts. Note `default_duration` in that file is sized for a single-day run, which is why the MDLT controllers pass an
+explicit `duration-minutes`. Before deploying, `835` verifies the allocated network actually has schedulable nodes and
+fails fast if it does not. See [Chewie Resource Allocation](chewie.md).
 
 ### Included Tests
 
 |     Test Name     |                                         Workflow                                         |  Required Parameters  | Run time  |                  Precursor Steps                   |
 |-------------------|------------------------------------------------------------------------------------------|-----------------------|-----------|----------------------------------------------------|
-| LongevityLoadTest | [833: [CALL] CITR Exec SDLT](/.github/workflows/833-call-single-day-longevity-test.yaml) | nlg-accounts,nlg-time | 7 days    | Code Compiles, Solo deployed CNs/NLG onto Latitude |
-| State Validator   | [833: [CALL] CITR Exec SDLT](/.github/workflows/833-call-single-day-longevity-test.yaml) |                       | 1.5 hours | LongevityLoadTest                                  |
+| LongevityLoadTest | [835: [CALL] CITR Exec MDLT](/.github/workflows/835-call-multi-day-longevity-test.yaml)  | nlg-accounts,nlg-time | 5 days    | Code Compiles, Solo deployed BNs/CNs/NLG onto Latitude |
+| Results & Logs    | [205: [DISP] CITR MDLT Publish Results](/.github/workflows/205-disp-mdlt-publish-results.yaml) | build-tag,allocation-id | after run | LongevityLoadTest                                  |
 
 ### LongevityLoadTest consists of the following tests, running in parallel with pre-defined throttling:
 
@@ -322,7 +354,12 @@ run. Set it with the `duration-minutes` input on
 - 30 mins with arguments: nlg-time=3 (mins), nlg-accounts=100000
 - 1 hour : nlg-time=21 (mins), nlg-accounts=20000000
 - 3 hour: nlg-time=180, nlg-accounts=20000000
-- 7 days: nlg-time=10080, nlg-accounts=100000000
+- 5 days (MDLT production run): nlg-time=3, mdlt-length=7200, nlg-accounts=100000000
+
+`nlg-time` sets only the initial smoke run; `mdlt-length` (minutes) sets the production run that follows it. The
+kickoff (`835`) starts the smoke with `nlg-time=3`, then relaunches the same command with `-tt <mdlt-length>m` in the
+background for the full run and exits. Leave `mdlt-length` blank to use `default_mdlt_length` from
+[`.github/chewie.yaml`](/.github/chewie.yaml) (`432000` seconds / 5 days).
 
 ## Shortgevity
 

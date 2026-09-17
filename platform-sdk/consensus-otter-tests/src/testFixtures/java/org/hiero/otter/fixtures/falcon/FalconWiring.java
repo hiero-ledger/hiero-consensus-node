@@ -34,6 +34,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
@@ -57,6 +58,7 @@ public class FalconWiring implements TimeTickReceiver {
     private final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring;
     private final ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring;
     private final ComponentWiring<EventCreationManager, PlatformEvent> eventCreationManagerWiring;
+    private final OutputWire<EventWindow> eventWindowOutputWire;
 
     /**
      * Constructor for {@link FalconWiring}.
@@ -64,21 +66,23 @@ public class FalconWiring implements TimeTickReceiver {
      * @param configuration the configuration for the wiring
      * @param time the time source
      * @param selfId the ID of the current node
-     * @param roster the roster of nodes
+     * @param pbjRoster the roster of nodes
      * @param secureRandom the secure random number generator
      */
     public FalconWiring(
             @NonNull final Configuration configuration,
             @NonNull final Time time,
             @NonNull final NodeId selfId,
-            @NonNull final Roster roster,
+            @NonNull final Roster pbjRoster,
             @NonNull final SecureRandom secureRandom) {
+
+        final RosterWrapper roster = RosterWrapper.of(pbjRoster);
 
         final Metrics metrics = new NoOpMetrics();
 
         model = WiringModelBuilder.create(metrics, time)
                 .deterministic()
-                .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
+                .withUncaughtExceptionHandler((_, e) -> fail("Unexpected exception in wiring framework", e))
                 .build();
 
         final EventIntakeWiringConfig eventIntakeConfig = configuration.getConfigData(EventIntakeWiringConfig.class);
@@ -113,7 +117,7 @@ public class FalconWiring implements TimeTickReceiver {
         orphanBufferOutput.solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
         orphanBufferOutput.solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::registerEvent));
 
-        final OutputWire<EventWindow> eventWindowOutputWire = consensusEngineWiring
+        eventWindowOutputWire = consensusEngineWiring
                 .getOutputWire()
                 .buildTransformer("ConsensusRound", "consensus output", ConsensusEngineOutput::consensusRounds)
                 .<ConsensusRound>buildSplitter("ConsensusRoundSplitter", "consensus rounds")
@@ -152,6 +156,16 @@ public class FalconWiring implements TimeTickReceiver {
     @NonNull
     public OutputWire<PlatformEvent> sentGossipEventsOutputWire() {
         return eventCreationManagerWiring.getOutputWire();
+    }
+
+    /**
+     * Get the output wire that provides the event window of each consensus round.
+     *
+     * @return the output wire for event windows
+     */
+    @NonNull
+    public OutputWire<EventWindow> eventWindowOutputWire() {
+        return eventWindowOutputWire;
     }
 
     /**
