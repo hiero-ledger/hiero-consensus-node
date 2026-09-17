@@ -3,11 +3,10 @@ package com.swirlds.merkledb.test.fixtures;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 
 /**
- * Supports parameterized testing of {@link MerkleDbDataSource} with
+ * Supports parameterized testing of {@code MerkleDbDataSource} with
  * both fixed- and variable-size data.
  *
  * <p>Used with JUnit's 'org.junit.jupiter.params.provider.EnumSource' annotation.

@@ -6,18 +6,18 @@ plugins {
 }
 
 jmhModuleInfo {
-    requires("com.hedera.node.hapi")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.consensus.event.creator")
     requires("org.hiero.consensus.event.creator.impl")
     requires("org.hiero.consensus.fakes")
-    requires("org.hiero.consensus.roster.test.fixtures")
+    requires("org.hiero.consensus.model.test.fixtures")
     requires("jmh.core")
 }
 
 description = "Default Consensus Event Creator Implementation"
 
 testModuleInfo {
+    requires("com.hedera.node.hapi")
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.base.crypto.test.fixtures")

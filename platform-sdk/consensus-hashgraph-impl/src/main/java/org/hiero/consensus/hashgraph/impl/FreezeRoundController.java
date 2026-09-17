@@ -77,7 +77,7 @@ public class FreezeRoundController {
                 round.getEventWindow().ancientThreshold(),
                 round.getEventWindow().expiredThreshold());
         return new ConsensusRound(
-                round.getConsensusRoster(),
+                round.getConsensusRosterWrapper(),
                 round.getConsensusEvents(),
                 modifiedWindow,
                 round.getSnapshot(),

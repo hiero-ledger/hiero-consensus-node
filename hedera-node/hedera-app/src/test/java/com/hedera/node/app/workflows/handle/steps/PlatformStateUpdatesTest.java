@@ -325,6 +325,45 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
     }
 
     @Test
+    void invalidCandidateRosterIsRejectedAndActiveRosterPreserved() {
+        // When the derived candidate roster is invalid (node 0 has an empty gossipCaCertificate,
+        // which RosterValidator rejects), putCandidateRoster() throws and handleTxBody does not
+        // propagate it: the existing active roster is retained and no candidate is persisted.
+        final var freezeTime = Timestamp.newBuilder().seconds(123L).nanos(456).build();
+        freezeTimeBackingStore.set(freezeTime);
+        entityCountsBackingStore.set(EntityCounts.newBuilder().numNodes(1).build());
+        final var txBody = TransactionBody.newBuilder()
+                .freeze(FreezeTransactionBody.newBuilder().freezeType(PREPARE_UPGRADE));
+        final var fakeEndpoint = new ServiceEndpoint(Bytes.EMPTY, 50211, "test.org");
+        nodes.put(
+                new EntityNumber(0L),
+                Node.newBuilder()
+                        .weight(0)
+                        .gossipCaCertificate(Bytes.EMPTY) // invalid -> RosterValidator rejects it
+                        .gossipEndpoint(fakeEndpoint)
+                        .build());
+        final var activeRoster =
+                new Roster(List.of(new RosterEntry(0L, 1, Bytes.fromHex("0123"), List.of(fakeEndpoint))));
+        new WritableRosterStore(state.getWritableStates(RosterService.NAME)).putActiveRoster(activeRoster, 123L);
+
+        // Handling completes normally -- the rejection is not propagated out of handleTxBody.
+        Assertions.assertThatCode(() -> subject.handleTxBody(state, txBody.build(), configWith(true, true)))
+                .doesNotThrowAnyException();
+
+        // The active roster is unchanged.
+        assertEquals(
+                activeRoster, new WritableRosterStore(state.getWritableStates(RosterService.NAME)).getActiveRoster());
+        // No candidate roster is persisted (validation runs before any state mutation).
+        final var candidateRosterHash = state.getWritableStates(RosterService.NAME)
+                .<RosterState>getSingleton(ROSTER_STATE_STATE_ID)
+                .get()
+                .candidateRosterHash();
+        assertEquals(Bytes.EMPTY, candidateRosterHash);
+        // Nothing is exported when there is no accepted candidate.
+        verify(rosterExportHelper, never()).accept(any(), any());
+    }
+
+    @Test
     void updatesCandidateRosterWeightsWhenNotExportingAndRosterLifecycleEnabled() {
         final var freezeTime = Timestamp.newBuilder().seconds(123L).nanos(456).build();
         freezeTimeBackingStore.set(freezeTime);

@@ -5,6 +5,9 @@ workloads. They cover crypto-transfer-like operations over virtual maps, virtual
 map read and edit cycles, and reconnect synchronization between learner and
 teacher map states.
 
+If you need to explore metrics during test run, use `hiero-observability/local-stack`
+to scrape the Prometheus endpoint during test run and explore metrics/logs in local Grafana.
+
 ## Available Benchmarks
 
 ### CryptoBench
@@ -189,3 +192,6 @@ absolute path is configured:
 
 If `settingsUsed.txt`, `data`, or `output` appear elsewhere, the benchmark was
 started with a different working directory.
+
+If `prometheus.endpointEnabled` is `true` (the default is `true`), the benchmark exposes a Prometheus endpoint on `prometheus.endpointPortNumber` (default `9999`).
+Change `prometheus.endpointEnabled` to `false` in `settings.txt` to disable the Prometheus endpoint and metrics updates.
