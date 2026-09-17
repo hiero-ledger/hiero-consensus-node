@@ -297,6 +297,11 @@ public class DispatchProcessor {
             @NonNull final FeeAccumulator feeAccumulator) {
         builder.status(status);
         stack.rollbackFullStack();
+        // The full-stack rollback reverts the ledger effects of the discarded charge (payer debit and
+        // fee collection credit) and the savepoint's node-fee reward counter, but it cannot reach the
+        // block-scoped node-payments accumulator. Reverse that accumulation here, before the tracked
+        // amounts are cleared, so the payer re-charge that follows does not double-count the node fee.
+        feeAccumulator.reverseAccumulatedNodeFees();
         feeAccumulator.resetRefundableFees();
     }
 

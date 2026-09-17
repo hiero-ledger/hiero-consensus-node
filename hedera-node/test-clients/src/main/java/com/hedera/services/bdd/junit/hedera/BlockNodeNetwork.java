@@ -6,11 +6,14 @@ import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.
 
 import com.hedera.node.internal.network.BlockNodeConfig;
 import com.hedera.node.internal.network.BlockNodeConnectionInfo;
+import com.hedera.node.internal.network.BlockNodeTlsConfig;
 import com.hedera.services.bdd.junit.hedera.containers.BlockNodeContainer;
 import com.hedera.services.bdd.junit.hedera.containers.BlockNodeSubscribeClient;
 import com.hedera.services.bdd.junit.hedera.simulator.BlockNodeController;
+import com.hedera.services.bdd.junit.hedera.simulator.SelfSignedCert;
 import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,6 +40,7 @@ public class BlockNodeNetwork {
     private final Map<Long, SimulatedBlockNodeServer> simulatedBlockNodeById = new HashMap<>();
     private final Map<Long, BlockNodeContainer> blockNodeContainerById = new HashMap<>();
     private final Map<Long, Boolean> blockNodeHighLatencyById = new HashMap<>();
+    private final Map<Long, BlockNodeTlsMode> blockNodeTlsModeById = new HashMap<>();
 
     // SubProcessNode configuration for Block Nodes (just priorities for now)
     private final Map<Long, long[]> blockNodePrioritiesBySubProcessNodeId = new HashMap<>();
@@ -45,6 +49,9 @@ public class BlockNodeNetwork {
     private String rsaBootstrapJson;
 
     public static final int BLOCK_NODE_LOCAL_PORT = 40840;
+    /** A well-formed SHA-384 fingerprint that no simulator certificate will ever match. */
+    private static final String UNMATCHED_FINGERPRINT = "0".repeat(96);
+
     private static final int MAX_START_ATTEMPTS = 4;
     private static final long CONTAINER_START_BACKOFF_MS = 1000L;
     private static final long SIMULATOR_START_BACKOFF_MS = 500L;
@@ -267,9 +274,15 @@ public class BlockNodeNetwork {
         Exception lastException = null;
         for (int attempt = 1; attempt <= MAX_START_ATTEMPTS; attempt++) {
             final int port = findAvailablePort();
+            int servicePort = findAvailablePort();
+            while (servicePort == port) {
+                servicePort = findAvailablePort();
+            }
             final boolean highLatency = blockNodeHighLatencyById.getOrDefault(id, false);
-            final SimulatedBlockNodeServer server =
-                    new SimulatedBlockNodeServer(port, highLatency, lastVerifiedBlockNumberSupplier);
+            final BlockNodeTlsMode tlsMode = blockNodeTlsModeById.getOrDefault(id, BlockNodeTlsMode.NONE);
+            final SimulatedBlockNodeServer server = new SimulatedBlockNodeServer(
+                    new SimulatedBlockNodeServer.Spec(port, servicePort, highLatency, tlsMode),
+                    lastVerifiedBlockNumberSupplier);
             try {
                 server.start();
                 simulatedBlockNodeById.put(id, server);
@@ -299,6 +312,41 @@ public class BlockNodeNetwork {
                 lastException);
     }
 
+    /**
+     * Builds the {@code streamingTls} / {@code serviceTls} block a consensus node needs to reach one API of a
+     * simulated block node. Simulators serve a self-signed certificate, so the consensus node trusts it by pinning
+     * the certificate's SHA-384 fingerprint.
+     *
+     * @param tlsMode which of the block node's APIs are served over TLS
+     * @param streaming true for the streaming (publish) API, false for the service API
+     * @return the TLS configuration, or null if this API is served in plaintext
+     */
+    private static @Nullable BlockNodeTlsConfig tlsConfigFor(
+            @NonNull final BlockNodeTlsMode tlsMode, final boolean streaming) {
+        final boolean enabled =
+                switch (tlsMode) {
+                    case NONE -> false;
+                    case PUBLISH_ONLY -> streaming;
+                    case SERVICE_ONLY -> !streaming;
+                    case ALL, ALL_BAD_FINGERPRINT, ALL_NO_FINGERPRINT -> true;
+                };
+        if (!enabled) {
+            return null;
+        }
+        // null leaves the fingerprint unset, which makes the consensus node fall back to the platform trust store
+        final String fingerprint =
+                switch (tlsMode) {
+                    case ALL_BAD_FINGERPRINT -> UNMATCHED_FINGERPRINT;
+                    case ALL_NO_FINGERPRINT -> null;
+                    case NONE, PUBLISH_ONLY, SERVICE_ONLY, ALL ->
+                        SelfSignedCert.shared().sha384Fingerprint();
+                };
+        return BlockNodeTlsConfig.newBuilder()
+                .enabled(true)
+                .certificateSha384(fingerprint)
+                .build();
+    }
+
     public void configureBlockNodeConnectionInformation(HederaNode node) {
         final List<BlockNodeConfig> blockNodes = new ArrayList<>();
         final long[] blockNodeIds = blockNodeIdsBySubProcessNodeId.get(node.getNodeId());
@@ -321,11 +369,14 @@ public class BlockNodeNetwork {
             } else if (mode == BlockNodeMode.SIMULATOR) {
                 final SimulatedBlockNodeServer sim = simulatedBlockNodeById.get(blockNodeId);
                 final int priority = (int) blockNodePrioritiesBySubProcessNodeId.get(node.getNodeId())[blockNodeIndex];
+                final BlockNodeTlsMode tlsMode = sim.spec().tlsMode();
                 blockNodes.add(BlockNodeConfig.newBuilder()
                         .address("localhost")
                         .streamingPort(sim.getPort())
-                        .servicePort(sim.getPort())
+                        .servicePort(sim.getServicePort())
                         .priority(priority)
+                        .streamingTls(tlsConfigFor(tlsMode, true))
+                        .serviceTls(tlsConfigFor(tlsMode, false))
                         .build());
             } else if (mode == BlockNodeMode.LOCAL_NODE) {
                 blockNodes.add(BlockNodeConfig.newBuilder()
@@ -378,6 +429,10 @@ public class BlockNodeNetwork {
 
     public Map<Long, Boolean> getBlockNodeHighLatencyById() {
         return blockNodeHighLatencyById;
+    }
+
+    public Map<Long, BlockNodeTlsMode> getBlockNodeTlsModeById() {
+        return blockNodeTlsModeById;
     }
 
     public void setRsaBootstrapJson(@NonNull final String rsaBootstrapJson) {

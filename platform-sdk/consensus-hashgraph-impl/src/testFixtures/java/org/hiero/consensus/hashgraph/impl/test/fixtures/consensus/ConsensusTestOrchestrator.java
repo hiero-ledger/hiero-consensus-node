@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -14,6 +13,7 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.vali
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GraphGenerator;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 
 /** A type which orchestrates the generation of events and the validation of the consensus output */
 public class ConsensusTestOrchestrator {
@@ -193,7 +193,7 @@ public class ConsensusTestOrchestrator {
         return nodes;
     }
 
-    public Roster getRoster() {
+    public RosterWrapper getRoster() {
         return nodes.get(0).getEventEmitter().getGraphGenerator().getRoster();
     }
 

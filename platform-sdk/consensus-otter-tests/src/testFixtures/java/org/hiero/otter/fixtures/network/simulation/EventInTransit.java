@@ -16,9 +16,4 @@ import org.hiero.consensus.model.node.NodeId;
 public record EventInTransit(
         @NonNull PlatformEvent event,
         @NonNull NodeId sender,
-        @NonNull Instant arrivalTime) implements Comparable<EventInTransit> {
-    @Override
-    public int compareTo(@NonNull final EventInTransit that) {
-        return arrivalTime.compareTo(that.arrivalTime);
-    }
-}
+        @NonNull Instant arrivalTime) {}
