@@ -184,6 +184,12 @@ public class SyncMetrics {
 
     private final IntegerGauge broadcastDisabledDueToOverload;
 
+    private static final CountPerSecond.Config RPC_READ_THROTTLED_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "rpcReadThrottled")
+            .withUnit("hz")
+            .withDescription("Number of times per second reading from a peer was paused by the byte shaper");
+    private final CountPerSecond rpcReadThrottled;
+
     private final AverageStat syncIndicatorDiff;
     private final AverageStat eventRecRate;
     private final AverageStat knownSetSize;
@@ -194,6 +200,8 @@ public class SyncMetrics {
     private final ConcurrentHashMap<NodeId, PhaseTimer<SyncPhase>> syncPhasePerNode = new ConcurrentHashMap<>();
     private final Metrics metrics;
     private final AverageAndMax outputQueuePollTime;
+    private final AverageAndMax shaperOccupancy;
+    private final AverageAndMax readThrottleTime;
     private final Time time;
     private final IntegerGauge rpcReadThreadRunning;
     private final IntegerGauge rpcWriteThreadRunning;
@@ -286,6 +294,23 @@ public class SyncMetrics {
                 "rpc_output_queue_poll_time",
                 "amount of us spent sleeping waiting for poll to happen or timeout on rpc output queue",
                 FORMAT_10_0);
+        rpcReadThrottled = new CountPerSecond(metrics, RPC_READ_THROTTLED_CONFIG);
+
+        shaperOccupancy = new AverageAndMax(
+                metrics,
+                PLATFORM_CATEGORY,
+                "rpc_shaper_occupancy",
+                "per-mille of the per-peer inbound byte budget consumed, sampled once per incoming message",
+                FORMAT_10_0);
+
+        readThrottleTime = new AverageAndMax(
+                metrics,
+                PLATFORM_CATEGORY,
+                "rpc_read_throttle_time",
+                "amount of us the rpc read thread was paused by the per-peer byte shaper",
+                FORMAT_10_0);
+
+        precreateDynamicMetrics(peers);
 
         precreateDynamicMetrics(peers);
     }
@@ -602,5 +627,26 @@ public class SyncMetrics {
      */
     public void disabledBroadcastDueToOverload(final boolean disabled) {
         broadcastDisabledDueToOverload.add(disabled ? 1 : -1);
+    }
+
+    /**
+     * Report how much of a peer's inbound byte budget is currently consumed. The max across peers is what the
+     * shadow-mode rollout gate is read from.
+     *
+     * @param occupancy fraction of the burst budget consumed, from 0.0 to 1.0
+     */
+    public void reportShaperOccupancy(final double occupancy) {
+        shaperOccupancy.update(Math.round(occupancy * 1000));
+    }
+
+    /**
+     * Reading from a peer was paused because the peer was over its byte budget. Note that nanos are passed in but
+     * microseconds are reported.
+     *
+     * @param nanos length of the pause in nanoseconds
+     */
+    public void rpcReadThrottled(final long nanos) {
+        rpcReadThrottled.count();
+        readThrottleTime.update(nanos / 1000);
     }
 }
