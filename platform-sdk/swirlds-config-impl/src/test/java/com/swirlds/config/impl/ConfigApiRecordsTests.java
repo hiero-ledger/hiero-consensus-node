@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.config.api.ConfigData;
+import com.swirlds.config.api.ConfigDefault;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -497,6 +498,166 @@ class ConfigApiRecordsTests {
     }
 
     @Nested
+    class ComponentOverridesLeafDefaults {
+
+        @Test
+        void test() {
+            Configuration configuration = ConfigurationBuilder.create()
+                    .withConfigDataType(WiringRoot.class)
+                    .build();
+
+            WiringRoot root = configuration.getConfigData(WiringRoot.class);
+            assertEquals(SchedulerType.CONCURRENT, root.prehandler().type());
+            assertEquals(1000L, root.prehandler().capacity());
+            assertEquals(SchedulerType.SEQUENTIAL, root.handler().type());
+            assertEquals(500L, root.handler().capacity());
+        }
+
+        enum SchedulerType {
+            SEQUENTIAL,
+            CONCURRENT
+        }
+
+        @ConfigData("wiring")
+        public record WiringRoot(
+                @ConfigDefault(property = "type", defaultValue = "CONCURRENT")
+                @ConfigDefault(property = "capacity", defaultValue = "1000")
+                SchedulerConfig prehandler,
+
+                SchedulerConfig handler) {}
+
+        @NestedConfig
+        public record SchedulerConfig(
+                @ConfigProperty(defaultValue = "SEQUENTIAL") SchedulerType type,
+                @ConfigProperty(defaultValue = "500") long capacity) {}
+    }
+
+    @Nested
+    class RootOverrideWinsWithNullDefault {
+
+        @Test
+        void test() {
+            Configuration configuration = ConfigurationBuilder.create()
+                    .withConfigDataType(DeepOverrideRoot.class)
+                    .build();
+
+            DeepOverrideRoot root = configuration.getConfigData(DeepOverrideRoot.class);
+            assertEquals("fromRoot", root.branch().leaf().value());
+            assertNull(root.branch().leaf().optional());
+        }
+
+        @ConfigData("root")
+        public record DeepOverrideRoot(
+                @ConfigDefault(property = "leaf.value", defaultValue = "fromRoot")
+                @ConfigDefault(property = "leaf.optional", defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                Branch branch) {}
+
+        @NestedConfig
+        public record Branch(
+                @ConfigDefault(property = "value", defaultValue = "fromBranch")
+                Leaf leaf) {}
+
+        @NestedConfig
+        public record Leaf(
+                @ConfigProperty(defaultValue = "fromRecord") String value,
+                @ConfigProperty(defaultValue = "fromRecord") String optional) {}
+    }
+
+    @Nested
+    class ConfigDefaultWithUndefinedMarkerValueIsRejected {
+
+        /**
+         * Not declaring an override for a property already means it has no default here, so
+         * {@link ConfigProperty#UNDEFINED_DEFAULT_VALUE} has nothing left to mean as a
+         * {@link ConfigDefault#defaultValue()}.
+         */
+        @Test
+        void test() {
+            ConfigurationBuilder builder =
+                    ConfigurationBuilder.create().withConfigDataType(UndefinedDefaultOverrideRoot.class);
+
+            verifyBuildFails(
+                    builder,
+                    "root.leaf",
+                    ConfigDefault.class.getSimpleName(),
+                    ConfigProperty.class.getSimpleName(),
+                    "no default here");
+        }
+
+        @ConfigData("root")
+        public record UndefinedDefaultOverrideRoot(
+                @ConfigDefault(property = "value", defaultValue = ConfigProperty.UNDEFINED_DEFAULT_VALUE)
+                Leaf leaf) {}
+
+        @NestedConfig
+        public record Leaf(
+                @ConfigProperty(defaultValue = "fromRecord") String value) {}
+    }
+
+    @Nested
+    class DottedAndDuplicatePropertyPathOverrides {
+
+        @Test
+        void test() {
+            Configuration configuration = ConfigurationBuilder.create()
+                    .withConfigDataType(DottedAndDuplicateRoot.class)
+                    .build();
+
+            DottedAndDuplicateRoot root = configuration.getConfigData(DottedAndDuplicateRoot.class);
+            assertEquals("override", root.dotted().customValue());
+            assertEquals("override", root.duplicates().first());
+            assertEquals("override", root.duplicates().second());
+        }
+
+        @ConfigData("root")
+        public record DottedAndDuplicateRoot(
+                @ConfigDefault(property = "custom.leaf.value", defaultValue = "override")
+                DottedLeaf dotted,
+
+                @ConfigDefault(property = "value", defaultValue = "override")
+                DuplicateLeaf duplicates) {}
+
+        @NestedConfig
+        public record DottedLeaf(
+                @ConfigProperty(value = "custom.leaf.value", defaultValue = "fromRecord")
+                String customValue) {}
+
+        @NestedConfig
+        public record DuplicateLeaf(
+                @ConfigProperty(value = "value", defaultValue = "firstDefault")
+                String first,
+
+                @ConfigProperty(value = "value", defaultValue = "secondDefault")
+                String second) {}
+    }
+
+    @Nested
+    class CollectionOverrideUsesDefaultValueSemantics {
+
+        @Test
+        void test() {
+            Configuration configuration = ConfigurationBuilder.create()
+                    .withConfigDataType(CollectionOverrideRoot.class)
+                    .build();
+
+            CollectionOverrideRoot root = configuration.getConfigData(CollectionOverrideRoot.class);
+            assertIterableEquals(List.of(3, 4), root.nested().list());
+            assertEquals(Set.of(5L, 6L), root.nested().set());
+        }
+
+        @ConfigData("root")
+        public record CollectionOverrideRoot(
+                @ConfigDefault(property = "list", defaultValue = "3,4")
+                @ConfigDefault(property = "set", defaultValue = "5,6,5")
+                CollectionLeaf nested) {}
+
+        @NestedConfig
+        public record CollectionLeaf(
+                @ConfigProperty(defaultValue = "1,2") List<Integer> list,
+                @ConfigProperty(defaultValue = "1,2") Set<Long> set) {}
+    }
+
+    @Nested
     class NestedRecordWithConverter {
 
         @Test
@@ -875,9 +1036,9 @@ class ConfigApiRecordsTests {
         @ConfigData("root")
         public record Root(
                 @ConfigProperty(value = Names.GROUP) Leaf group,
-                @ConfigProperty(value = "") Leaf plain,
+                @ConfigProperty Leaf plain,
                 @ConfigProperty(value = Names.PORT_NUMBER) int port,
-                @ConfigProperty(value = "") int retries) {}
+                @ConfigProperty int retries) {}
 
         @NestedConfig
         public record Leaf(int value) {}
@@ -1028,7 +1189,7 @@ class ConfigApiRecordsTests {
     }
 
     @Nested
-    class CollectionOfNestedRecords {
+    class CollectionOfNestedRecordsIsRejected {
 
         @Test
         void testListOfNestedRecordsIsRejected() {
@@ -1044,12 +1205,26 @@ class ConfigApiRecordsTests {
             verifyBuildFails(builder, "root.leaves", NestedConfig.class.getSimpleName(), "element of a collection");
         }
 
+        @ConfigData("root")
+        public record ListRoot(List<Leaf> leaves) {}
+
+        @ConfigData("root")
+        public record SetRoot(Set<Leaf> leaves) {}
+
+        @NestedConfig
+        public record Leaf(
+                @ConfigProperty(defaultValue = "fromRecord") String value) {}
+    }
+
+    @Nested
+    class CollectionOfAConvertedTypeIsNotRejected {
+
         /**
          * Only a collection of a nested config data object is rejected. A collection of a type that a converter creates
          * stays a single property that is read as a list of values.
          */
         @Test
-        void testCollectionOfAConvertedTypeStillWorks() {
+        void test() {
             Configuration configuration = ConfigurationBuilder.create()
                     .withValue("root.values", "a,b")
                     .withConfigDataType(ConvertedListRoot.class)
@@ -1061,21 +1236,11 @@ class ConfigApiRecordsTests {
         }
 
         @ConfigData("root")
-        public record ListRoot(List<Leaf> leaves) {}
-
-        @ConfigData("root")
-        public record SetRoot(Set<Leaf> leaves) {}
-
-        @ConfigData("root")
         public record ConvertedListRoot(List<String> values) {}
-
-        @NestedConfig
-        public record Leaf(
-                @ConfigProperty(defaultValue = "fromRecord") String value) {}
     }
 
     @Nested
-    class NestedConfigIsNotAConfigDataType {
+    class NestedConfigRegisteredOnItsOwnIsRejected {
 
         /**
          * A nested config data object is a group of properties that takes its prefix from the component that holds it,
@@ -1087,6 +1252,30 @@ class ConfigApiRecordsTests {
 
             verifyBuildFails(builder, NestedConfig.class.getSimpleName(), "never registered on its own");
         }
+
+        /**
+         * A nested config data object is read property by property, so a converter for it would never be used. Leaving
+         * a converter registered while moving a type over to {@link NestedConfig} has to be an error rather than a
+         * silent change of behaviour.
+         */
+        @Test
+        void testNestedConfigWithARegisteredConverterIsRejected() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create()
+                    .withConfigDataType(Root.class)
+                    .withConverter(NestedOnly.class, _ -> new NestedOnly("converted"));
+
+            verifyBuildFails(builder, "also has a converter", "Remove one of the two");
+        }
+
+        @NestedConfig
+        public record NestedOnly(String value) {}
+
+        @ConfigData("root")
+        public record Root(NestedOnly nested) {}
+    }
+
+    @Nested
+    class RecordAnnotatedWithBothConfigDataAndNestedConfigIsRejected {
 
         @Test
         void testRecordWithBothAnnotationsIsRejected() {
@@ -1107,36 +1296,16 @@ class ConfigApiRecordsTests {
             verifyBuildFails(builder, "annotated with both ConfigData and NestedConfig", "mutually exclusive");
         }
 
-        /**
-         * A nested config data object is read property by property, so a converter for it would never be used. Leaving
-         * a converter registered while moving a type over to {@link NestedConfig} has to be an error rather than a
-         * silent change of behaviour.
-         */
-        @Test
-        void testNestedConfigWithARegisteredConverterIsRejected() {
-            ConfigurationBuilder builder = ConfigurationBuilder.create()
-                    .withConfigDataType(Root.class)
-                    .withConverter(NestedOnly.class, _ -> new NestedOnly("converted"));
-
-            verifyBuildFails(builder, "also has a converter", "Remove one of the two");
-        }
-
-        @NestedConfig
-        public record NestedOnly(String value) {}
-
         @ConfigData("both")
         @NestedConfig
         public record BothAnnotations(String value) {}
-
-        @ConfigData("root")
-        public record Root(NestedOnly nested) {}
 
         @ConfigData("root")
         public record BothAnnotationsRoot(BothAnnotations nested) {}
     }
 
     @Nested
-    class InvalidNestedRecordDeclarations {
+    class DefaultValueOnComponentHoldingAGroupIsRejected {
 
         /**
          * A group has no value of its own that a config source could define, so there is nothing a default value of the
@@ -1160,6 +1329,85 @@ class ConfigApiRecordsTests {
             verifyBuildFails(builder, "root.leaf", "nested config data object", "group of properties rather than");
         }
 
+        @ConfigData("root")
+        public record DefaultValueRoot(
+                @ConfigProperty(defaultValue = "nonsense") Leaf leaf) {}
+
+        @ConfigData("root")
+        public record NullDefaultRoot(
+                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
+                Leaf leaf) {}
+
+        @NestedConfig
+        public record Leaf(
+                @ConfigProperty(defaultValue = "fromRecord") String value) {}
+    }
+
+    @Nested
+    class UnknownConfigDefaultPathIsRejected {
+
+        @Test
+        void test() {
+            ConfigurationBuilder builder =
+                    ConfigurationBuilder.create().withConfigDataType(UnknownDefaultPathRoot.class);
+
+            verifyBuildFails(builder, "root.leaf", ConfigDefault.class.getSimpleName(), "missing", "leaf property");
+        }
+
+        @ConfigData("root")
+        public record UnknownDefaultPathRoot(
+                @ConfigDefault(property = "missing", defaultValue = "unused")
+                ConfigDefaultLeaf leaf) {}
+
+        @NestedConfig
+        public record ConfigDefaultLeaf(
+                @ConfigProperty(defaultValue = "fromRecord") String value) {}
+    }
+
+    @Nested
+    class ConfigDefaultTargetingAGroupIsRejected {
+
+        @Test
+        void test() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(GroupDefaultPathRoot.class);
+
+            verifyBuildFails(
+                    builder, "root.leaf", ConfigDefault.class.getSimpleName(), "nested", "nested config data object");
+        }
+
+        @ConfigData("root")
+        public record GroupDefaultPathRoot(
+                @ConfigDefault(property = "nested", defaultValue = "unused")
+                GroupDefaultLeaf leaf) {}
+
+        @NestedConfig
+        public record GroupDefaultLeaf(NestedLeaf nested) {}
+
+        @NestedConfig
+        public record NestedLeaf(
+                @ConfigProperty(defaultValue = "fromRecord") String value) {}
+    }
+
+    @Nested
+    class ConfigDefaultOnAScalarComponentIsRejected {
+
+        @Test
+        void test() {
+            ConfigurationBuilder builder =
+                    ConfigurationBuilder.create().withConfigDataType(ScalarDefaultOverrideRoot.class);
+
+            verifyBuildFails(builder, "root.value", ConfigDefault.class.getSimpleName(), "does not hold");
+        }
+
+        @ConfigData("root")
+        public record ScalarDefaultOverrideRoot(
+                @ConfigDefault(property = "anything", defaultValue = "unused")
+                String value) {}
+    }
+
+    @Nested
+    class TypeVariableOrGenericComponentIsRejected {
+
         /**
          * The properties of a group follow from its type, and the annotation processor reads the declared type while
          * the runtime reads the erasure. Requiring the record type to be named is what keeps the two the same.
@@ -1178,45 +1426,11 @@ class ConfigApiRecordsTests {
             verifyBuildFails(builder, "root.leaf", "instead of naming the record type");
         }
 
-        /**
-         * A record valued component is either a group or a value that a converter creates from a single property.
-         * Being neither is a forgotten annotation, which is reported instead of silently producing a property that can
-         * not be set.
-         */
-        @Test
-        void testRecordComponentThatIsNeitherNestedNorConvertedIsRejected() {
-            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(PlainRecordRoot.class);
-
-            verifyBuildFails(builder, "root.leaf", "neither annotated with", "nor has a converter registered");
-        }
-
-        @Test
-        void testNestedRecordThatIsNotPublicIsRejected() {
-            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(NotPublicRoot.class);
-
-            verifyBuildFails(builder, "it is not public");
-        }
-
-        @ConfigData("root")
-        public record DefaultValueRoot(
-                @ConfigProperty(defaultValue = "nonsense") Leaf leaf) {}
-
-        @ConfigData("root")
-        public record NullDefaultRoot(
-                @ConfigProperty(defaultValue = ConfigProperty.NULL_DEFAULT_VALUE)
-                Leaf leaf) {}
-
         @ConfigData("root")
         public record TypeVariableRoot<T extends Leaf>(T leaf) {}
 
         @ConfigData("root")
         public record GenericRoot(GenericLeaf<String> leaf) {}
-
-        @ConfigData("root")
-        public record PlainRecordRoot(PlainRecord leaf) {}
-
-        @ConfigData("root")
-        public record NotPublicRoot(NotPublicLeaf leaf) {}
 
         @NestedConfig
         public record Leaf(
@@ -1224,8 +1438,41 @@ class ConfigApiRecordsTests {
 
         @NestedConfig
         public record GenericLeaf<T>(T value) {}
+    }
+
+    @Nested
+    class RecordComponentThatIsNeitherNestedNorConvertedIsRejected {
+
+        /**
+         * A record valued component is either a group or a value that a converter creates from a single property.
+         * Being neither is a forgotten annotation, which is reported instead of silently producing a property that can
+         * not be set.
+         */
+        @Test
+        void test() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(PlainRecordRoot.class);
+
+            verifyBuildFails(builder, "root.leaf", "neither annotated with", "nor has a converter registered");
+        }
+
+        @ConfigData("root")
+        public record PlainRecordRoot(PlainRecord leaf) {}
 
         public record PlainRecord(String value) {}
+    }
+
+    @Nested
+    class NestedRecordThatIsNotPublicIsRejected {
+
+        @Test
+        void test() {
+            ConfigurationBuilder builder = ConfigurationBuilder.create().withConfigDataType(NotPublicRoot.class);
+
+            verifyBuildFails(builder, "it is not public");
+        }
+
+        @ConfigData("root")
+        public record NotPublicRoot(NotPublicLeaf leaf) {}
 
         @NestedConfig
         record NotPublicLeaf(

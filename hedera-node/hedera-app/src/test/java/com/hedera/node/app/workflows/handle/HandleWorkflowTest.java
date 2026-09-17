@@ -2,6 +2,8 @@
 package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
@@ -16,6 +18,7 @@ import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Collections.emptyIterator;
 import static java.util.Collections.emptyList;
 import static org.hiero.consensus.platformstate.PlatformStateService.NAME;
+import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -32,6 +35,7 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.withSettings;
 
@@ -50,9 +54,13 @@ import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.roster.RosterState;
+import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
@@ -788,6 +796,81 @@ class HandleWorkflowTest {
         subject.handleRound(state, round, txn -> {});
 
         verify(blockBufferService).ensureNewBlocksPermitted();
+    }
+
+    @Test
+    void historyRecoveryClockAdvancesOnEmptyRoundsUntilSignerIsReady() {
+        givenTssEnabledEmptyRounds();
+        given(blockHashSigner.isReady()).willReturn(false);
+        given(blockStreamManager.lastUsedConsensusTime()).willReturn(NOW);
+
+        // A missing genesis WRAPS message must not freeze recovery time before its 10-second deadline.
+        final var firstRoundTime = NOW.plusSeconds(1);
+        final var afterGracePeriod = NOW.plusSeconds(11);
+        given(round.getConsensusTimestamp()).willReturn(firstRoundTime);
+        subject.handleRound(state, round, txn -> {});
+        given(round.getConsensusTimestamp()).willReturn(afterGracePeriod);
+        subject.handleRound(state, round, txn -> {});
+
+        // After readiness, history must retain the block-based clock even when subsequent rounds are empty.
+        final var readyBlockTime = NOW.plusSeconds(12);
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockStreamManager.lastUsedConsensusTime()).willReturn(readyBlockTime);
+        given(round.getConsensusTimestamp()).willReturn(NOW.plusSeconds(13));
+        subject.handleRound(state, round, txn -> {});
+        given(round.getConsensusTimestamp()).willReturn(NOW.plusSeconds(23));
+        subject.handleRound(state, round, txn -> {});
+
+        final var reconciliationTimes = ArgumentCaptor.forClass(Instant.class);
+        verify(historyService, times(4))
+                .reconcile(any(), any(), any(), reconciliationTimes.capture(), any(), eq(true), any());
+        assertEquals(
+                List.of(firstRoundTime, afterGracePeriod, readyBlockTime, readyBlockTime),
+                reconciliationTimes.getAllValues());
+    }
+
+    private void givenTssEnabledEmptyRounds() {
+        final var rosterStates = mock(ReadableStates.class);
+        final ReadableSingletonState<RosterState> rosterState = mock(ReadableSingletonState.class);
+        given(state.getReadableStates(RosterService.NAME)).willReturn(rosterStates);
+        given(rosterStates.<RosterState>getSingleton(ROSTER_STATE_STATE_ID)).willReturn(rosterState);
+        given(rosterState.get())
+                .willReturn(RosterState.newBuilder()
+                        .roundRosterPairs(new RoundRosterPair(0, Bytes.wrap("genesis-roster")))
+                        .build());
+
+        final var entityStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        given(state.getWritableStates(EntityIdService.NAME)).willReturn(entityStates);
+        final var hintsStates = mock(WritableStates.class);
+        final WritableSingletonState<HintsConstruction> hintsConstruction = mock(WritableSingletonState.class);
+        given(state.getWritableStates(HintsService.NAME)).willReturn(hintsStates);
+        lenient()
+                .when(hintsStates.<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
+                .thenReturn(hintsConstruction);
+        given(hintsConstruction.get()).willReturn(HintsConstruction.DEFAULT);
+        final var historyStates = mock(WritableStates.class);
+        given(state.getWritableStates(HistoryService.NAME)).willReturn(historyStates);
+        lenient()
+                .when(historyStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID))
+                .thenReturn(mock(WritableSingletonState.class));
+
+        given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
+        given(event.getCreatorId()).willReturn(NodeId.of(0));
+        given(event.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(event.allParentsIterator()).willAnswer(ignore -> emptyIterator());
+        given(event.consensusTransactionIterator()).willAnswer(ignore -> emptyIterator());
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(networkInfo.nodeInfo(0)).willReturn(mock(NodeInfo.class));
+        given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
+        given(scheduleService.executableTxns(any(), any(), any())).willReturn(mock(ExecutableTxnIterator.class));
+        given(state.getWritableStates(ScheduleService.NAME)).willReturn(mock(WritableStates.class));
+
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true"));
     }
 
     @Test
