@@ -63,6 +63,10 @@ public class CompositeStatistics implements Statistics {
         BigInteger max = null;
 
         for (final Statistics stats : componentStatistics) {
+            if (BigInteger.ZERO.equals(stats.numSamples())) {
+                continue;
+            }
+
             if (min == null || min.compareTo(stats.min()) > 0) {
                 min = stats.min();
             }
