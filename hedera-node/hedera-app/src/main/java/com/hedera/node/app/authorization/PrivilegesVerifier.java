@@ -161,8 +161,6 @@ public class PrivilegesVerifier {
             return hasAddressBookPrivilege(accountID) || hasExchangeRatePrivilege(accountID)
                     ? AUTHORIZED
                     : UNAUTHORIZED;
-        } else if (entityNum == filesConfig.feeSchedules()) {
-            return hasFeeSchedulePrivilege(accountID) ? AUTHORIZED : UNAUTHORIZED;
         } else if (entityNum == filesConfig.simpleFeesSchedules()) {
             return hasFeeSchedulePrivilege(accountID) ? AUTHORIZED : UNAUTHORIZED;
         } else if (entityNum == filesConfig.exchangeRates()) {

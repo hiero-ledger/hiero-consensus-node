@@ -39,6 +39,6 @@ public class SmokeTest {
         network.start();
 
         // Run the network for 5s simulated time
-        timeManager.waitFor(Duration.ofSeconds(5L));
+        timeManager.waitFor(Duration.ofSeconds(10L));
     }
 }

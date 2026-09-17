@@ -299,11 +299,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     @Nullable
     private String throttleResource;
-    /**
-     * If non-null, a resource to load override fees from for this spec, restoring the previous
-     * contents of the 0.0.111 system file after the spec completes.
-     */
-    @Nullable
+
     boolean quietMode;
 
     /**
@@ -709,6 +705,22 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         } else {
             throw new IllegalStateException("Node " + nodeId + " is not a block node");
         }
+    }
+
+    /**
+     * The port on which the given block node serves its service API (server status). For real containers and the
+     * local node this is the same port as the streaming API; simulators serve the two APIs on separate ports.
+     *
+     * @param nodeId the block node id
+     * @return the service API port
+     */
+    public int getBlockNodeServicePortById(final long nodeId) {
+        final BlockNodeNetwork blockNodeNetwork = TARGET_BLOCK_NODE_NETWORK.get();
+        final BlockNodeMode mode = blockNodeNetwork.getBlockNodeModeById().get(nodeId);
+        if (mode == BlockNodeMode.SIMULATOR) {
+            return blockNodeNetwork.getSimulatedBlockNodeById().get(nodeId).getServicePort();
+        }
+        return getBlockNodePortById(nodeId);
     }
 
     public SimulatedBlockNodeServer getSimulatedBlockNodeById(final long nodeId) {

@@ -12,13 +12,14 @@ layer. Production code should not depend on it directly. For its role, see
 ## Dependency Rules
 
 May depend on:
-- `consensus-model`, `consensus-metrics`, `consensus-platformstate`, `consensus-roster`
+- Supporting modules: `consensus-model`, `consensus-metrics`
+- Structural-transitional modules: `consensus-platformstate`, `consensus-roster`
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
-`swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`
+`swirlds-state-api`, `swirlds-state-impl`, `swirlds-virtualmap`, `consensus-wiring-framework`
 
 Must not depend on:
 - Any `consensus-*-impl` module or functional-api module
 - `swirlds-common`, `swirlds-platform-core` — legacy, being eliminated
-- `consensus-wiring-framework`, `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`
+- `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`
 
 No known violations.

@@ -1,0 +1,12 @@
+# Fixture served to VictoriaMetrics by `make selftest`.
+#
+# These are exactly the metric-name shapes a translation layer mangles: a
+# counter whose `_total` suffix gets stripped and reconstructed, a camelCase
+# segment, and a name existing production dashboards query verbatim. The
+# assertions query all three by their exact strings.
+# TYPE selftest_requests_total counter
+selftest_requests_total{type="max"} 42
+# TYPE selftest_blockStream_round_duration_seconds gauge
+selftest_blockStream_round_duration_seconds 0.25
+# TYPE selftest_platform_trans_per_sec gauge
+selftest_platform_trans_per_sec 17

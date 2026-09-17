@@ -78,16 +78,29 @@ public record EthTxData(
     public static EthTxData populateEthTxData(final byte[] data) {
         try {
             final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(data);
-            final var rlpItem = decoder.next();
-            if (rlpItem.isList()) {
-                return populateLegacyEthTxData(rlpItem, data);
+            final var firstItem = decoder.next();
+
+            // A legacy transaction is a bare RLP list, so it is its own envelope.
+            if (firstItem.isList()) {
+                return consumesAllOf(firstItem, data) ? populateLegacyEthTxData(firstItem, data) : null;
             }
 
-            return switch (asByte(rlpItem)) {
-                case 1 -> populateEip2390EthTxData(decoder.next(), data);
-                case 2 -> populateEip1559EthTxData(decoder.next(), data);
+            // A typed transaction (EIP-2718) is a one-byte type tag followed by its payload list, so there the
+            // envelope is the second item. Unsupported types fall through to `null` below; decoding their
+            // payload first is wasted work on an already-rejected input, but it keeps the check in one place,
+            // and a malformed payload only raises `IllegalArgumentException`, which this method already maps
+            // to `null`.
+            final var type = asByte(firstItem);
+            final var envelope = decoder.next();
+            if (!consumesAllOf(envelope, data)) {
+                return null;
+            }
+
+            return switch (type) {
+                case 1 -> populateEip2390EthTxData(envelope, data);
+                case 2 -> populateEip1559EthTxData(envelope, data);
                 case 3 -> null; // We don't currently support Cancun "blob" transactions
-                case 4 -> populateEip7702EthTxData(decoder.next(), data);
+                case 4 -> populateEip7702EthTxData(envelope, data);
                 default -> null;
             };
 
@@ -602,6 +615,34 @@ public record EthTxData(
     }
 
     /**
+     * Returns whether the given envelope item ends exactly at the end of {@code data}, i.e. whether the RLP
+     * encoding consumed the whole input as EIP-2718 requires and as {@code ethereum_data} is specified ("the
+     * complete transaction data").
+     *
+     * <p>{@code RLPDecoder.sequenceIterator} is a <em>sequence</em> reader, so anything past the envelope is
+     * simply left unread rather than reported: {@code tx || extra} would otherwise parse as {@code tx}, yielding
+     * identical fields but a different {@code keccak256(rawTx)} — the value externalized as a record's
+     * {@code ethereum_hash}. Requiring full consumption keeps that hash a function of the transaction rather
+     * than of how its bytes were framed.
+     *
+     * <p>This governs only bytes <em>outside</em> the envelope. It is unrelated to trailing bytes <em>inside</em>
+     * ABI-encoded {@code callData}, which are part of the signed payload and which HIP-1342 deliberately
+     * permits; neither rule generalizes to the other layer.
+     *
+     * <p>A positional comparison is preferred over {@code decoder.hasNext()}, which reaches the same two
+     * outcomes only by way of exception control flow: it returns {@code true} for a well-formed trailing item
+     * but throws headlong's {@code ShortInputException} for a malformed one, relying on that being an
+     * {@code IllegalArgumentException} for {@link #populateEthTxData} to map it to {@code null}.
+     *
+     * @param envelope the RLP item parsed from the start of {@code data}
+     * @param data the complete candidate transaction bytes
+     * @return whether the envelope ends exactly at the end of {@code data}
+     */
+    private static boolean consumesAllOf(@NonNull final RLPItem envelope, @NonNull final byte[] data) {
+        return envelope.endIndex == data.length;
+    }
+
+    /**
      * Encodes the transaction data into a EthTxData according to legacy RLP format.
      *
      * @return the encoded transaction data
@@ -654,6 +695,11 @@ public record EthTxData(
         if (rlpList.size() != 12) {
             return null;
         }
+        // Per EIP-1559 the access list field must always be an RLP list, even when empty
+        // (canonically encoded as 0xc0); a byte-string in this position is malformed.
+        if (!rlpList.get(8).isList()) {
+            return null;
+        }
 
         return new EthTxData(
                 rawTx,
@@ -668,9 +714,7 @@ public record EthTxData(
                 rlpList.get(6).asBigInt(), // value
                 rlpList.get(7).data(), // callData
                 rlpList.get(8).data(), // accessList
-                rlpList.get(8) != null && rlpList.get(8).isList()
-                        ? encodeRlpList(rlpList.get(8).asRLPList())
-                        : new Object[0], // accessList as RLPList
+                encodeRlpList(rlpList.get(8).asRLPList()), // accessList as RLPList
                 null, // authorizationList
                 null,
                 asByte(rlpList.get(9)), // yParity
@@ -694,6 +738,11 @@ public record EthTxData(
         if (rlpList.size() != 11) {
             return null;
         }
+        // Per EIP-2930 the access list field must always be an RLP list, even when empty
+        // (canonically encoded as 0xc0); a byte-string in this position is malformed.
+        if (!rlpList.get(7).isList()) {
+            return null;
+        }
 
         return new EthTxData(
                 rawTx,
@@ -708,9 +757,7 @@ public record EthTxData(
                 rlpList.get(5).asBigInt(), // value
                 rlpList.get(6).data(), // callData
                 rlpList.get(7).data(), // accessList
-                rlpList.get(7).isList()
-                        ? encodeRlpList(rlpList.get(7).asRLPList())
-                        : new Object[0], // accessList encoded as Object
+                encodeRlpList(rlpList.get(7).asRLPList()), // accessList encoded as Object
                 null, // authorizationList
                 null,
                 asByte(rlpList.get(8)), // yParity
@@ -734,6 +781,11 @@ public record EthTxData(
         if (rlpList.size() != 13) {
             return null;
         }
+        // Per EIP-7702 the access list and authorization list fields must always be RLP lists, even
+        // when empty (canonically encoded as 0xc0); a byte-string in either position is malformed.
+        if (!rlpList.get(8).isList() || !rlpList.get(9).isList()) {
+            return null;
+        }
 
         return new EthTxData(
                 rawTx,
@@ -748,13 +800,9 @@ public record EthTxData(
                 rlpList.get(6).asBigInt(), // value
                 rlpList.get(7).data(), // callData
                 rlpList.get(8).data(), // accessList
-                rlpList.get(8) != null && rlpList.get(8).isList()
-                        ? encodeRlpList(rlpList.get(8).asRLPList())
-                        : new Object[0], // accessList as RLPList
+                encodeRlpList(rlpList.get(8).asRLPList()), // accessList as RLPList
                 rlpList.get(9).data(),
-                rlpList.get(9) != null && rlpList.get(9).isList()
-                        ? encodeRlpList(rlpList.get(9).asRLPList())
-                        : new Object[0], // authorizationList - must preserve full RLP encoding
+                encodeRlpList(rlpList.get(9).asRLPList()), // authorizationList - must preserve full RLP encoding
                 asByte(rlpList.get(10)), // yParity
                 null, // v
                 rlpList.get(11).data(), // r

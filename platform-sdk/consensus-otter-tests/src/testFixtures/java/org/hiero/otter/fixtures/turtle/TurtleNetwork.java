@@ -22,7 +22,7 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
-import org.hiero.otter.fixtures.internal.simulator.SimulatorNetwork;
+import org.hiero.otter.fixtures.internal.simulator.SimulatedNetwork;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
 import org.hiero.otter.fixtures.logging.context.ContextAwareThreadFactory;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
@@ -34,7 +34,7 @@ import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 /**
  * An implementation of {@link Network} that is based on the Turtle framework.
  */
-public class TurtleNetwork extends SimulatorNetwork implements TimeTickReceiver {
+public class TurtleNetwork extends SimulatedNetwork implements TimeTickReceiver {
 
     private static final Logger log = LogManager.getLogger();
 
@@ -73,8 +73,8 @@ public class TurtleNetwork extends SimulatorNetwork implements TimeTickReceiver 
     @Override
     @NonNull
     protected TurtleNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        final SimulatedGossip simulatedGossip = new SimulatedGossip(simulatedNetwork, nodeId);
-        simulatedNetwork.addNode(nodeId, simulatedGossip);
+        final SimulatedGossip simulatedGossip = new SimulatedGossip(simulatedNetworkConnectivity, nodeId);
+        simulatedNetworkConnectivity.addNode(nodeId, simulatedGossip);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new TurtleNode(
                 random,
@@ -95,8 +95,8 @@ public class TurtleNetwork extends SimulatorNetwork implements TimeTickReceiver 
     @NonNull
     protected InstrumentedNode doCreateInstrumentedNode(
             @NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
-        final SimulatedGossip simulatedGossip = new SimulatedGossip(simulatedNetwork, nodeId);
-        simulatedNetwork.addNode(nodeId, simulatedGossip);
+        final SimulatedGossip simulatedGossip = new SimulatedGossip(simulatedNetworkConnectivity, nodeId);
+        simulatedNetworkConnectivity.addNode(nodeId, simulatedGossip);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new InstrumentedTurtleNode(
                 random,
@@ -164,7 +164,7 @@ public class TurtleNetwork extends SimulatorNetwork implements TimeTickReceiver 
             return;
         }
 
-        simulatedNetwork.tick(now);
+        simulatedNetworkConnectivity.tick(now);
         turtleTransactionGenerator.tick(now, nodes());
 
         // Iteration order over nodes does not need to be deterministic -- nodes are not permitted to communicate with

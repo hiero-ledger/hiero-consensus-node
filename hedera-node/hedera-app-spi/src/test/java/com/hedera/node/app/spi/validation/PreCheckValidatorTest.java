@@ -19,6 +19,7 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.transaction.CustomFeeLimit;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -60,56 +61,144 @@ public class PreCheckValidatorTest {
     class CustomFeeValidation {
         private static final HederaFunctionality SUPPORTED_FUNC = CONSENSUS_SUBMIT_MESSAGE;
         private static final HederaFunctionality UNSUPPORTED_FUNC = CRYPTO_TRANSFER;
+        private static final long SHARD = 1L;
+        private static final long REALM = 2L;
+        private static final AccountID PAYER_ID = accountId(SHARD, REALM, 1234L);
+        private static final TokenID TOKEN_ID = tokenId(SHARD, REALM, 4321L);
+        private static final List<FixedFee> FEES = List.of(new FixedFee(10, TOKEN_ID));
 
         @Test
         void unsupportedFuncWithFeesThrowsException() {
             List<CustomFeeLimit> fees = List.of(createValidFeeLimit());
-            PreCheckException exception =
-                    assertThrows(PreCheckException.class, () -> checkMaxCustomFees(fees, UNSUPPORTED_FUNC));
+            PreCheckException exception = assertThrows(
+                    PreCheckException.class, () -> checkMaxCustomFees(fees, UNSUPPORTED_FUNC, SHARD, REALM));
             assertEquals(MAX_CUSTOM_FEES_IS_NOT_SUPPORTED, exception.responseCode());
         }
 
         @Test
         void unsupportedFuncWithEmptyFeesIsValid() {
-            assertDoesNotThrow(() -> checkMaxCustomFees(List.of(), UNSUPPORTED_FUNC));
+            assertDoesNotThrow(() -> checkMaxCustomFees(List.of(), UNSUPPORTED_FUNC, SHARD, REALM));
         }
 
         @Test
         void nullAccountIdThrowsException() {
-            CustomFeeLimit invalidFee = new CustomFeeLimit(null, List.of(new FixedFee(10, TokenID.DEFAULT)));
-            PreCheckException exception = assertThrows(
-                    PreCheckException.class, () -> checkMaxCustomFees(List.of(invalidFee), SUPPORTED_FUNC));
-            assertEquals(INVALID_MAX_CUSTOM_FEES, exception.responseCode());
+            CustomFeeLimit invalidFee = new CustomFeeLimit(null, List.of(new FixedFee(10, TOKEN_ID)));
+            assertRejected(invalidFee);
         }
 
         @Test
         void emptyFeesListThrowsException() {
-            CustomFeeLimit invalidFee = customFeeLimitWith(List.of());
-            PreCheckException exception = assertThrows(
-                    PreCheckException.class, () -> checkMaxCustomFees(List.of(invalidFee), SUPPORTED_FUNC));
-            assertEquals(INVALID_MAX_CUSTOM_FEES, exception.responseCode());
+            assertRejected(customFeeLimitWith(List.of()));
         }
 
         @Test
         void negativeFeeAmountThrowsException() {
-            CustomFeeLimit invalidFee =
-                    customFeeLimitWith(List.of(new FixedFee(10, TokenID.DEFAULT), new FixedFee(-1, TokenID.DEFAULT)));
-            PreCheckException exception = assertThrows(
-                    PreCheckException.class, () -> checkMaxCustomFees(List.of(invalidFee), SUPPORTED_FUNC));
+            assertRejected(customFeeLimitWith(List.of(new FixedFee(10, TOKEN_ID), new FixedFee(-1, TOKEN_ID))));
+        }
+
+        @Test
+        void unsetAccountIdThrowsException() {
+            assertRejected(new CustomFeeLimit(AccountID.DEFAULT, List.of(new FixedFee(10, TOKEN_ID))));
+        }
+
+        @ParameterizedTest
+        @ValueSource(longs = {0L, -1L})
+        void nonPositiveAccountNumThrowsException(final long accountNum) {
+            assertRejected(
+                    new CustomFeeLimit(accountId(SHARD, REALM, accountNum), List.of(new FixedFee(10, TOKEN_ID))));
+        }
+
+        @Test
+        void aliasAccountIdIsValid() {
+            final var limit = new CustomFeeLimit(aliasedAccountId(Bytes.wrap("0123456789012345678")), FEES);
+            assertDoesNotThrow(() -> checkMaxCustomFees(List.of(limit), SUPPORTED_FUNC, SHARD, REALM));
+        }
+
+        @Test
+        void emptyAliasThrowsException() {
+            assertRejected(new CustomFeeLimit(aliasedAccountId(Bytes.EMPTY), FEES));
+        }
+
+        @Test
+        void accountIdInAnotherShardOrRealmThrowsException() {
+            assertRejected(new CustomFeeLimit(accountId(SHARD + 1, REALM, 1234L), List.of(new FixedFee(10, TOKEN_ID))));
+            assertRejected(new CustomFeeLimit(accountId(SHARD, REALM + 1, 1234L), List.of(new FixedFee(10, TOKEN_ID))));
+        }
+
+        @ParameterizedTest
+        @ValueSource(longs = {0L, -1L})
+        void nonPositiveDenominatingTokenNumThrowsException(final long tokenNum) {
+            assertRejected(customFeeLimitWith(List.of(new FixedFee(10, tokenId(SHARD, REALM, tokenNum)))));
+        }
+
+        @Test
+        void unsetDenominatingTokenIdThrowsException() {
+            assertRejected(customFeeLimitWith(List.of(new FixedFee(10, TokenID.DEFAULT))));
+        }
+
+        @Test
+        void denominatingTokenIdInAnotherShardOrRealmThrowsException() {
+            assertRejected(customFeeLimitWith(List.of(new FixedFee(10, tokenId(SHARD + 1, REALM, 4321L)))));
+            assertRejected(customFeeLimitWith(List.of(new FixedFee(10, tokenId(SHARD, REALM + 1, 4321L)))));
+        }
+
+        @Test
+        void entriesBeyondTheFirstAreAlsoValidated() {
+            final var fees = List.of(
+                    createValidFeeLimit(),
+                    new CustomFeeLimit(accountId(SHARD, REALM, 4567L), List.of(new FixedFee(10, TokenID.DEFAULT))));
+            PreCheckException exception =
+                    assertThrows(PreCheckException.class, () -> checkMaxCustomFees(fees, SUPPORTED_FUNC, SHARD, REALM));
             assertEquals(INVALID_MAX_CUSTOM_FEES, exception.responseCode());
         }
 
         @Test
+        void hbarLimitWithoutDenominatingTokenIsValid() {
+            final var hbarLimit = new CustomFeeLimit(PAYER_ID, List.of(new FixedFee(10, null)));
+            assertDoesNotThrow(() -> checkMaxCustomFees(List.of(hbarLimit), SUPPORTED_FUNC, SHARD, REALM));
+        }
+
+        @Test
         void validFeesForSupportedFunc() {
-            assertDoesNotThrow(() -> checkMaxCustomFees(List.of(createValidFeeLimit()), SUPPORTED_FUNC));
+            assertDoesNotThrow(() -> checkMaxCustomFees(List.of(createValidFeeLimit()), SUPPORTED_FUNC, SHARD, REALM));
+        }
+
+        private void assertRejected(final CustomFeeLimit feeLimit) {
+            PreCheckException exception = assertThrows(
+                    PreCheckException.class, () -> checkMaxCustomFees(List.of(feeLimit), SUPPORTED_FUNC, SHARD, REALM));
+            assertEquals(INVALID_MAX_CUSTOM_FEES, exception.responseCode());
         }
 
         private CustomFeeLimit createValidFeeLimit() {
-            return customFeeLimitWith(List.of(new FixedFee(10, TokenID.DEFAULT), new FixedFee(0, TokenID.DEFAULT)));
+            return customFeeLimitWith(List.of(new FixedFee(10, TOKEN_ID), new FixedFee(0, TOKEN_ID)));
         }
 
         private CustomFeeLimit customFeeLimitWith(List<FixedFee> feeLimits) {
-            return new CustomFeeLimit(AccountID.DEFAULT, feeLimits);
+            return new CustomFeeLimit(PAYER_ID, feeLimits);
+        }
+
+        private static AccountID aliasedAccountId(final Bytes alias) {
+            return AccountID.newBuilder()
+                    .shardNum(SHARD)
+                    .realmNum(REALM)
+                    .alias(alias)
+                    .build();
+        }
+
+        private static AccountID accountId(final long shard, final long realm, final long num) {
+            return AccountID.newBuilder()
+                    .shardNum(shard)
+                    .realmNum(realm)
+                    .accountNum(num)
+                    .build();
+        }
+
+        private static TokenID tokenId(final long shard, final long realm, final long num) {
+            return TokenID.newBuilder()
+                    .shardNum(shard)
+                    .realmNum(realm)
+                    .tokenNum(num)
+                    .build();
         }
     }
 }

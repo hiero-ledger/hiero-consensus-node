@@ -13,18 +13,28 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpTransa
 import static com.swirlds.platform.state.NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.fakes.noop.FakeRosterFactory.fakeRosterHistory;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
 import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.wiring.components.RunningEventHashOverrideWiring;
+import com.swirlds.state.NoOpStateLifecycleManager;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import java.nio.file.Path;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -47,6 +57,7 @@ import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -56,6 +67,7 @@ import org.hiero.consensus.wiring.framework.component.ComponentWiring;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
 import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
 import org.hiero.consensus.wiring.framework.transformers.WireTransformer;
+import org.hiero.consensus.wiring.framework.wires.output.StandardOutputWire;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -89,6 +101,8 @@ class ConsensusLayerWiringTests {
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
         final TestFileSystemManager fileSystemManager = new TestFileSystemManager(tmpDir);
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                spy(new NoOpStateLifecycleManager<>());
 
         final ConsensusLayerInputs inputs = new ConsensusLayerInputs(
                 configuration,
@@ -102,7 +116,7 @@ class ConsensusLayerWiringTests {
                 mock(ExecutionLayer.class),
                 NO_OP_CONSENSUS_STATE_EVENT_HANDLER,
                 ReservedSignedState.createNullReservation(),
-                null,
+                stateLifecycleManager,
                 SemanticVersion.DEFAULT,
                 "testApp",
                 "123",
@@ -123,17 +137,22 @@ class ConsensusLayerWiringTests {
         final ComponentWiring<AppNotifier, Void> notifierWiring =
                 new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
 
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
         final StatusMonitorModule statusMonitorModule = createNoOpStatusMonitorModule(model, configuration);
         final PcesModule pcesModule = createNoOpPcesModule(model, configuration, statusMonitorModule);
         final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
-        final GossipModule gossipModule = createNoOpGossipModule(model, configuration, fileSystemManager);
+        final GossipModule gossipModule =
+                createNoOpGossipModule(model, configuration, metrics, time, stateLifecycleManager);
         final IssDetectionModule issDetectionModule =
                 createNoOpIssDetectionModule(model, configuration, fileSystemManager);
-        final TransactionHandlingModule transactionHandlingModule =
-                createNoOpTransactionHandlingModule(model, configuration, fileSystemManager, statusMonitorModule);
-        final StateModule stateModule = createNoOpStateManagementModule(model, configuration, fileSystemManager);
+        final TransactionHandlingModule transactionHandlingModule = createNoOpTransactionHandlingModule(
+                model, configuration, metrics, time, stateLifecycleManager, statusMonitorModule);
+        final StateModule stateModule = createNoOpStateManagementModule(
+                model, configuration, fileSystemManager, metrics, time, stateLifecycleManager);
 
         final ConsensusLayerBuildingBlocks buildingBlocks = new ConsensusLayerBuildingBlocks(
                 model,
@@ -164,6 +183,15 @@ class ConsensusLayerWiringTests {
 
         model.start();
         assertFalse(model.checkForUnboundInputWires());
+
+        final StandardOutputWire<PlatformStatus> platformStatusOutput =
+                (StandardOutputWire<PlatformStatus>) statusMonitorModule.platformStatusOutputWire();
+        platformStatusOutput.forward(ACTIVE);
+        verify(stateLifecycleManager, never()).prepareForFreeze();
+
+        platformStatusOutput.forward(FREEZING);
+        verify(stateLifecycleManager).prepareForFreeze();
+
         model.stop();
     }
 }

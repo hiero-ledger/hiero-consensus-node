@@ -2,10 +2,10 @@
 package org.hiero.consensus.event.creator.impl.tipset;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.Threshold.SUPER_MAJORITY;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -15,7 +15,6 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.throttle.RateLimitedLogger;
@@ -23,7 +22,7 @@ import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**
  * Calculates tipset advancement weights for events created by a node.
@@ -89,7 +88,7 @@ public class TipsetWeightCalculator {
      */
     private Tipset latestSelfEventTipset;
 
-    private final Roster roster;
+    private final RosterWrapper roster;
 
     private final RateLimitedLogger ancientParentLogger;
     private final RateLimitedLogger allParentsAreAncientLogger;
@@ -107,18 +106,18 @@ public class TipsetWeightCalculator {
     public TipsetWeightCalculator(
             @NonNull final Configuration configuration,
             @NonNull final Time time,
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final NodeId selfId,
             @NonNull final TipsetTracker tipsetTracker,
             @NonNull final ChildlessEventTracker childlessEventTracker) {
 
-        this.selfId = Objects.requireNonNull(selfId);
-        this.tipsetTracker = Objects.requireNonNull(tipsetTracker);
-        this.childlessEventTracker = Objects.requireNonNull(childlessEventTracker);
-        this.roster = Objects.requireNonNull(roster);
+        this.selfId = requireNonNull(selfId);
+        this.tipsetTracker = requireNonNull(tipsetTracker);
+        this.childlessEventTracker = requireNonNull(childlessEventTracker);
+        this.roster = requireNonNull(roster);
 
-        totalWeight = RosterUtils.computeTotalWeight(roster);
-        selfWeight = RosterUtils.getRosterEntry(roster, selfId.id()).weight();
+        totalWeight = roster.totalWeight();
+        selfWeight = roster.getRosterEntry(selfId).weight();
         maximumPossibleAdvancementWeight = totalWeight - selfWeight;
         maxSnapshotHistorySize =
                 configuration.getConfigData(EventCreationConfig.class).tipsetSnapshotHistorySize();
@@ -133,6 +132,8 @@ public class TipsetWeightCalculator {
 
     /**
      * Get the maximum possible tipset advancement weight that a new event can achieve.
+     *
+     * @return the maximum possible tipset advancement weight
      */
     public long getMaximumPossibleAdvancementWeight() {
         return maximumPossibleAdvancementWeight;
@@ -163,7 +164,7 @@ public class TipsetWeightCalculator {
      * previous event passed to this method
      */
     public TipsetAdvancementWeight addEventAndGetAdvancementWeight(@NonNull final EventDescriptorWrapper event) {
-        Objects.requireNonNull(event);
+        requireNonNull(event);
         if (!event.creator().equals(selfId)) {
             throw new IllegalArgumentException("event creator must be the same as self ID");
         }

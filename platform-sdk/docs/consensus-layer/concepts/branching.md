@@ -65,13 +65,15 @@ attack:
    (the witness with the minimum hash). The result is that branching
    never inflates a creator's voice in the consensus order.
 
-**No explicit branch detector.** The code does not scan for branches
-and does not flag, punish, or evict branching creators. Tolerance is
-structural: the agreement requirement in `stronglySeeP`, the
-allowance for multiple witnesses per creator per round, and the
-deterministic judge merge are sufficient to keep the algorithm safe
-under any pattern of branching by up to `<n/3` of the creators (by
-weight).
+**Branch detection is observability, not defense.** The intake
+pipeline scans for branches, but its only consumer logs and meters
+(see *In current code*); nothing flags a branching creator to the
+algorithm, punishes it, or evicts it. Tolerance is structural: the
+agreement requirement in `stronglySeeP`, the allowance for multiple
+witnesses per creator per round, and the deterministic judge merge
+are sufficient to keep the algorithm safe under any pattern of
+branching by up to `<n/3` of the creators (by weight) in any given
+voting round.
 
 ## Why this gives Byzantine fault tolerance
 
@@ -127,9 +129,8 @@ events on top of the chosen branch (or, again, to branch further).
 
 **The 2020 strong-seeing redefinition.** All of the seeing predicates
 in `ConsensusImpl` are annotated as functions from `SWIRLDS-TR-2020-
-01`. There is no separate `see` predicate; `lastSee` (line 965),
-`firstSee` (line 1307), `seeThru` (line 1028), and `stronglySeeP`
-(line 1054) jointly encode the 2020 definition, in which strong-
+01`. There is no separate `see` predicate; `lastSee`,
+`firstSee`, `seeThru`, and `stronglySeeP` jointly encode the 2020 definition, in which strong-
 seeing requires a super-majority weight of paths (one per creator
 `m₂`) to agree on the canonical witness by each creator. See
 [`strongly-seeing.md`](strongly-seeing.md) for the full walkthrough.
@@ -138,22 +139,43 @@ seeing requires a super-majority weight of paths (one per creator
 one event per creator if the creator branched. The class comment for
 [
 `RoundElections`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/RoundElections.java)
-(line 36) notes explicitly: "if a member branches, it could have
+notes explicitly: "if a member branches, it could have
 multiple [witnesses in a round]". Each branched witness has its own
 candidate-witness entry and its own fame election.
 
 **Judge merge.** When fame is decided,
-`RoundElections.findAllJudges` (line 136) builds a map keyed by
+`RoundElections.findAllJudges` builds a map keyed by
 creator id and merges multiple famous witnesses for the same creator
-via `RoundElections.uniqueFamous` (line 174), which keeps the
+via `RoundElections.uniqueFamous`, which keeps the
 witness with the minimum base hash. This is the deterministic tie-
 break that ensures every node picks the same judge for a branched
 creator.
 
-**No detector.** A grep for "fork" or "branch" across the consensus
-implementation turns up only the comments quoted above. There is no
-class that flags branching creators or excludes them; the algorithm
-is correct without any such mechanism.
+**Branch detector — reporting only.** Branch detection lives in the
+`branching/` package of `consensus-event-intake-impl` and feeds
+logging and metrics.
+[
+`DefaultBranchDetector.checkForBranches`](../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/branching/DefaultBranchDetector.java#checkForBranches)
+is soldered to the orphan buffer's split output in
+[
+`DefaultEventIntakeModule.initialize`](../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/DefaultEventIntakeModule.java#initialize),
+so every non-ancient event leaving the orphan buffer is checked: it
+counts as a branch when the creator's most recent non-ancient event
+is not this event's self-parent. The detector's output wire feeds
+[
+`DefaultBranchReporter.reportBranch`](../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/branching/DefaultBranchReporter.java#reportBranch),
+which rate-limits an error log per creator, updates the
+`branchingEvents`, `branchingNodeCount` and `branchingWeightFraction`
+metrics
+([
+`BranchingMetrics`](../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/branching/BranchingMetrics.java)),
+and logs a fatal "Excessive branching detected!" once branching
+creators hold a strong minority of the weight — the point at which
+the `<n/3` assumption is violated.
+
+No class excludes a branching creator or discounts its events. The
+detector's output ends at the reporter, whose own output wire is never
+soldered, so no result of branch detection reaches the hashgraph.
 
 ## Cross-references
 
