@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.initializeBuilderInfo;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
@@ -29,6 +30,19 @@ public record ParentTxn(
         @NonNull ReadableStoreFactory readableStoreFactory,
         @NonNull Configuration config,
         @NonNull NodeInfo creatorInfo) {
+
+    public ParentTxn {
+        requireNonNull(functionality, "functionality must not be null");
+        requireNonNull(consensusNow, "consensusNow must not be null");
+        requireNonNull(state, "state must not be null");
+        requireNonNull(txnInfo, "txnInfo must not be null");
+        requireNonNull(tokenContextImpl, "tokenContextImpl, must not be null");
+        requireNonNull(stack, "stack must not be null");
+        requireNonNull(preHandleResult, "preHandleResult must not be null");
+        requireNonNull(readableStoreFactory, "readableStoreFactory must not be null");
+        requireNonNull(config, "config must not be null");
+        requireNonNull(creatorInfo, "creatorInfo must not be null");
+    }
 
     /**
      * Initializes and returns the base stream builder for this user transaction.
