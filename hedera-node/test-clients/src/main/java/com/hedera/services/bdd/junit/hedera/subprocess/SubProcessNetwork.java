@@ -43,6 +43,7 @@ import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.TargetNetworkType;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
+import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
 import com.hederahashgraph.api.proto.java.Transaction;
@@ -880,6 +881,36 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
 
     public Map<Long, List<String>> getApplicationPropertyOverrides() {
         return applicationPropertyOverrides;
+    }
+
+    /**
+     * Returns the effective startup properties as seen by the given node: this network's
+     * {@link #startupProperties() startup properties} with that node's per-node application-property
+     * overrides (e.g. those supplied by {@code @GenesisSubprocessTest}/{@code @HapiBlockNode}) layered on
+     * top at the highest priority. PR-check overrides, network defaults and service defaults all still come
+     * from {@code startupProperties()}; only the node's explicit per-node overrides win over them.
+     *
+     * <p>This reads the <em>in-memory</em> per-node override map, not the node's on-disk
+     * {@code application.properties}. That file also carries the {@code configuration/dev} base config
+     * (e.g. {@code blockStream.streamMode=BLOCKS}/{@code writerMode=GRPC}), which would otherwise mask the
+     * per-task PR-check {@code streamMode}/{@code writerMode} overrides that reach the node only via the
+     * process environment (and so are present in {@code startupProperties()} but not in the file).
+     *
+     * @param nodeId the node whose effective startup properties to resolve
+     * @return startup properties with that node's per-node overrides layered on top
+     */
+    @NonNull
+    public HapiPropertySource effectiveStartupProperties(final long nodeId) {
+        final var overrides = applicationPropertyOverrides.get(nodeId);
+        if (overrides == null || overrides.isEmpty()) {
+            return startupProperties();
+        }
+        // Overrides are a flat [key, value, key, value, ...] list (see configureApplicationProperties).
+        final Map<String, String> overrideMap = new LinkedHashMap<>();
+        for (int i = 0; i + 1 < overrides.size(); i += 2) {
+            overrideMap.put(overrides.get(i), overrides.get(i + 1));
+        }
+        return HapiPropertySource.inPriorityOrder(new MapPropertySource(overrideMap), startupProperties());
     }
 
     public Map<NodeId, KeysAndCerts> getNodeKeys() {

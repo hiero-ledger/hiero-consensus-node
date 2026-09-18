@@ -65,7 +65,9 @@ public abstract class AbstractEventualStreamAssertion extends UtilOp {
     public void assertHasPassed() {
         try {
             final var eventualResult = result.get();
-            if (!eventualResult.passed()) {
+            // Only a timeout is eligible for recovery; an explicitly recorded failure must stand, or a
+            // fresh full-stream rescan could find an unrelated satisfying item and mask the real failure.
+            if (!eventualResult.passed() && !(eventualResult.timedOut() && recoveredAfterTimeout())) {
                 Assertions.fail(assertionDescription() + " ended with result: " + eventualResult.getErrorDetails());
             }
         } catch (final InterruptedException e) {
@@ -74,6 +76,18 @@ public abstract class AbstractEventualStreamAssertion extends UtilOp {
         } finally {
             unsubscribe();
         }
+    }
+
+    /**
+     * Hook invoked when the eventual result timed out (never when it explicitly failed), giving a subclass
+     * a final chance to determine the assertion actually holds — e.g. by re-reading the whole stream once with
+     * fully-populated spec state. Returns true to treat the assertion as passed despite the timeout;
+     * defaults to no recovery.
+     *
+     * @return true if a final check determined the assertion has passed
+     */
+    protected boolean recoveredAfterTimeout() {
+        return false;
     }
 
     /**
