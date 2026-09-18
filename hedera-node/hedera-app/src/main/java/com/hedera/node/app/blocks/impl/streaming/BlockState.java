@@ -163,12 +163,15 @@ public class BlockState {
 
         if (isWarnedForAppendDelay) {
             final long diffMillis = timestampMillis - latestItemAddTimestamp;
+            final int prevIndex = index - 1;
             logger.info(
-                    "Block ({}) took {}ms to append the next item (itemIndex: {}->{})",
+                    "Block {} took {}ms to append the next item: (index: {}, type: {}) -> (index: {}, type: {})",
                     blockNumber,
                     diffMillis,
-                    index - 1,
-                    index);
+                    prevIndex,
+                    bufferedItems.get(prevIndex).itemType,
+                    index,
+                    itemType);
             isWarnedForAppendDelay = false;
         }
 
@@ -284,9 +287,14 @@ public class BlockState {
         closedTimestamp = requireNonNull(timestamp, "timestamp must not be null");
 
         if (isWarnedForCloseDelay) {
-            final long durationMillis =
+            final long durationOpenMillis =
                     Duration.between(openedTimestamp, timestamp).toMillis();
-            logger.info("Block ({}) was open for {}ms before being closed", blockNumber, durationMillis);
+            final long durationSinceLastAppendMillis = timestamp.toEpochMilli() - latestItemAddTimestamp;
+            logger.info(
+                    "Block {} was open for {}ms before being closed (timeSinceLastAppend: {}ms)",
+                    blockNumber,
+                    durationOpenMillis,
+                    durationSinceLastAppendMillis);
         }
     }
 
