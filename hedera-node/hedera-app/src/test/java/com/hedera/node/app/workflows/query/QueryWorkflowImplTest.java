@@ -37,7 +37,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ResponseHeader;
-import com.hedera.hapi.node.base.ResponseType;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
@@ -88,7 +87,7 @@ import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.time.InstantSource;
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.Supplier;
 import org.hiero.hapi.fees.FeeResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -118,7 +117,7 @@ class QueryWorkflowImplTest extends AppTestBase {
             SIMPLE_QUERY_FEE_TINYCENTS * RATE_HBAR_EQUIV / RATE_CENT_EQUIV;
 
     @Mock(strictness = LENIENT)
-    private Function<ResponseType, AutoCloseableWrapper<State>> stateAccessor;
+    private Supplier<AutoCloseableWrapper<State>> stateAccessor;
 
     @Mock
     private SubmissionManager submissionManager;
@@ -176,7 +175,7 @@ class QueryWorkflowImplTest extends AppTestBase {
     void setup() throws ParseException, PreCheckException {
         setupStandardStates();
 
-        when(stateAccessor.apply(any())).thenReturn(new AutoCloseableWrapper<>(state, () -> {}));
+        when(stateAccessor.get()).thenReturn(new AutoCloseableWrapper<>(state, () -> {}));
         final var transactionID =
                 TransactionID.newBuilder().accountID(ALICE.accountID()).build();
         txBody = TransactionBody.newBuilder().transactionID(transactionID).build();
