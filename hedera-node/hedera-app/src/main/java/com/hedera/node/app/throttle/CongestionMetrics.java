@@ -30,6 +30,8 @@ public class CongestionMetrics {
 
     public void updateMultiplier(
             @NonNull final TransactionInfo txnInfo, @NonNull final ReadableStoreFactory storeFactory) {
+        requireNonNull(txnInfo, "txnInfo must not be null");
+        requireNonNull(storeFactory, "storeFactory must not be null");
         congestionMultiplierGauge.set(congestionMultipliers.maxCurrentMultiplier(txnInfo, storeFactory));
     }
 }
