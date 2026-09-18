@@ -33,6 +33,7 @@ jobs:
       docs-only: ${{ steps.classify.outputs.docs-only }}
       enable-tests: ${{ steps.classify.outputs.enable-tests }}
       workflow-files-changed: ${{ steps.classify.outputs.workflow-files-changed }}
+      smart-contracts-changed: ${{ steps.classify.outputs.smart-contracts-changed }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -90,6 +91,46 @@ jobs:
     if: ${{ needs.detect-change-type.outputs.workflow-files-changed == 'true' }}
     uses: ./.github/workflows/857-call-workflow-unit-tests.yaml
 
+  # The EVM functional tests (870) run only when a non-documentation file under the smart-contract service
+  # modules changed, or when the PR carries the "Run EVM Tests" (or "Run Full CI") label. The gate is a job-level
+  # `if:` rather than an `on.pull_request.paths` filter so the workflow always reports; a skipped job counts as
+  # passing. The result is advisory: it is surfaced in the PR summary and the per-shard check runs, but
+  # `ci-complete` (a required status check) does not depend on it.
+  extract-citr-vars:
+    name: Extract CITR Vars
+    needs:
+      - detect-change-type
+    if: ${{ needs.detect-change-type.outputs.smart-contracts-changed == 'true' }}
+    uses: ./.github/workflows/855-call-extract-citr-vars.yaml
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  evm-functional-tests:
+    name: EVM Functional Tests
+    needs:
+      - detect-change-type
+      - extract-jdk-version
+      - extract-citr-vars
+    if: ${{ needs.detect-change-type.outputs.smart-contracts-changed == 'true' }}
+    uses: ./.github/workflows/870-call-evm-functional-tests.yaml
+    with:
+      ref: ${{ github.event.pull_request.head.sha }}
+      custom-job-name: "Standard"
+      java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
+      java-distribution: "temurin"
+      solo-version: ${{ needs.extract-citr-vars.outputs.citr-solo-version }}
+      mirror-node-version: ${{ needs.extract-citr-vars.outputs.citr-mirror-node-version }}
+      # Deliberately not `needs.extract-citr-vars.outputs.json-rpc-relay-version` (v0.78.0): the HIP-1340 shards
+      # need TX_TYPE_4_ENABLED, which first shipped in relay 0.79.0-rc1. Bumping .citr-env instead would also move
+      # the XTS JSON-RPC relay regression panel (818).
+      json-rpc-relay-version: "0.79.0-rc1"
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
   ci-complete:
     name: CI Complete
     runs-on: hl-cn-default-lin-sm
@@ -129,6 +170,7 @@ jobs:
       - detect-change-type
       - mats-pr-checks
       - workflow-unit-tests
+      - evm-functional-tests
     if: ${{ !cancelled() && always() }}
     steps:
       - name: Prepare Runner
@@ -159,6 +201,7 @@ jobs:
             echo "### Results"
             echo "- **MATS Tests:** ${{ needs.mats-pr-checks.result }}"
             echo "- **Workflow File Tests:** ${{ needs.workflow-unit-tests.result }}"
+            echo "- **EVM Functional Tests (advisory):** ${{ needs.evm-functional-tests.result }}"
             echo "------------------------------------"
             if [[ "${{ needs.mats-pr-checks.result }}" == "failure" ]]; then
                 echo "### MATS Test Failures"
@@ -166,6 +209,17 @@ jobs:
                 echo "- **Failure Mode:** ${{ needs.mats-pr-checks.outputs.failure-mode }}"
                 echo "- **Failed Tests:**"
                 bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.mats-pr-checks.outputs.failed-tests }}"
+                echo "------------------------------------"
+            fi
+            if [[ "${{ needs.evm-functional-tests.result }}" == "skipped" ]]; then
+                echo "> **EVM Functional Tests skipped.** No non-documentation change under the smart-contract service modules and no \`Run EVM Tests\` label."
+                echo "------------------------------------"
+            elif [[ "${{ needs.evm-functional-tests.result }}" == "failure" ]]; then
+                echo "### EVM Functional Test Failures (advisory, does not gate CI Complete)"
+                echo ""
+                echo "- **Failure Mode:** ${{ needs.evm-functional-tests.outputs.failure-mode }}"
+                echo "- **Failed Shards:**"
+                bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.evm-functional-tests.outputs.failed-tests }}"
                 echo "------------------------------------"
             fi
           } >> "${GITHUB_STEP_SUMMARY}"
