@@ -11,6 +11,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
+import com.hedera.hapi.node.base.StakingInfo;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.schedule.Schedule;
@@ -24,14 +25,19 @@ import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
+import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.service.token.api.AccountSummariesApi;
 import com.hedera.node.config.data.LedgerConfig;
+import com.hedera.node.config.data.StakingConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Instant;
 import java.util.SortedSet;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
@@ -312,4 +318,50 @@ public interface HederaNativeOperations {
      * @return The new record builder
      */
     <T> T createNewChildRecordBuilder(@NonNull Class<T> recordBuilderClass, @NonNull HederaFunctionality functionality);
+
+    /**
+     * Returns the {@link ReadableStakingInfoStore} for this scope.
+     * @return the staking info store
+     */
+    @NonNull
+    ReadableStakingInfoStore readableStakingInfoStore();
+
+    /**
+     * Returns the {@link ReadableNetworkStakingRewardsStore} for this scope.
+     * @return the network staking rewards store
+     */
+    @NonNull
+    ReadableNetworkStakingRewardsStore readableNetworkStakingRewardsStore();
+
+    /**
+     * Returns the time to estimate staking rewards against; the consensus time in a transaction, and the current
+     * time in a query.
+     * @return the time to estimate against
+     */
+    @NonNull
+    Instant currentConsensusTime();
+
+    /**
+     * Returns the given account's staking state, as HAPI reports it through {@code CryptoGetInfo}. Used by the
+     * Hedera Account Service {@code getStakingInfo} accessor of HIP-1522, so the two views of an account agree
+     * field for field.
+     *
+     * <p>Note {@code pendingReward} is derived rather than stored: it is estimated against
+     * {@link #currentConsensusTime()}, and is zero unless the account is staked to a node and accepts rewards.
+     *
+     * @param account the account to summarize
+     * @return the account's staking state
+     */
+    @NonNull
+    default StakingInfo stakingInfoOf(@NonNull final Account account) {
+        requireNonNull(account);
+        final var stakingConfig = configuration().getConfigData(StakingConfig.class);
+        return AccountSummariesApi.summarizeStakingInfo(
+                stakingConfig.rewardHistoryNumStoredPeriods(),
+                stakingConfig.periodMins(),
+                readableNetworkStakingRewardsStore().isStakingRewardsActivated(),
+                account,
+                readableStakingInfoStore(),
+                currentConsensusTime());
+    }
 }

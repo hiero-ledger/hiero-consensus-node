@@ -12,13 +12,17 @@ import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
+import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
+import java.time.InstantSource;
 import java.util.Objects;
 import javax.inject.Inject;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -33,6 +37,8 @@ public class QueryHederaNativeOperations implements HederaNativeOperations {
 
     private final EntityIdFactory entityIdFactory;
 
+    private final InstantSource instantSource;
+
     @Override
     public boolean checkForCustomFees(@NonNull final CryptoTransferTransactionBody op) {
         throw new UnsupportedOperationException("Cannot dispatch child transfers in query context");
@@ -40,9 +46,12 @@ public class QueryHederaNativeOperations implements HederaNativeOperations {
 
     @Inject
     public QueryHederaNativeOperations(
-            @NonNull final QueryContext context, @NonNull final EntityIdFactory entityIdFactory) {
+            @NonNull final QueryContext context,
+            @NonNull final EntityIdFactory entityIdFactory,
+            @NonNull final InstantSource instantSource) {
         this.context = Objects.requireNonNull(context);
         this.entityIdFactory = Objects.requireNonNull(entityIdFactory);
+        this.instantSource = Objects.requireNonNull(instantSource);
     }
 
     /**
@@ -83,6 +92,33 @@ public class QueryHederaNativeOperations implements HederaNativeOperations {
     @Override
     public @NonNull ReadableScheduleStore readableScheduleStore() {
         return context.createStore(ReadableScheduleStore.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull ReadableStakingInfoStore readableStakingInfoStore() {
+        return context.createStore(ReadableStakingInfoStore.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull ReadableNetworkStakingRewardsStore readableNetworkStakingRewardsStore() {
+        return context.createStore(ReadableNetworkStakingRewardsStore.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>A query has no consensus time, so rewards are estimated against wall clock, exactly as the
+     * {@code CryptoGetInfo} query does.
+     */
+    @Override
+    public @NonNull Instant currentConsensusTime() {
+        return instantSource.instant();
     }
 
     /**

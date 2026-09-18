@@ -66,6 +66,17 @@ public class ReturnTypes {
     public static final String RESPONSE_CODE_ADDRESS = "(int64,address)";
 
     public static final String UINT256 = "(uint256)";
+
+    /**
+     * The HAS {@code StakingInfo} struct of HIP-1522. Note the response code is {@code int64}, unlike the
+     * legacy {@code RESPONSE_CODE_<struct>} types below, which use {@code int32}.
+     */
+    public static final String STAKING_INFO =
+            // declineReward, stakePeriodStart, pendingReward, stakedToMe, stakedNodeId, stakedAccountId
+            "(bool,int64,int64,int64,int64,address)";
+
+    public static final String RESPONSE_CODE_STAKING_INFO = "(int64," + STAKING_INFO + ")";
+
     public static final String RESPONSE_CODE_EXPIRY = "(int32,"
             // Expiry
             + "(int64,address,int64)" // second, autoRenewAccount, autoRenewPeriod

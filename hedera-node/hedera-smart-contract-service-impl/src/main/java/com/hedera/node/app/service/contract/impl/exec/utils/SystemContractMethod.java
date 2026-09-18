@@ -162,6 +162,7 @@ public record SystemContractMethod(
 
         ALIASES("ALIASES"),
         IS_AUTHORIZED("IS_AUTHORIZED", "(IsAuthorized, IsAuthorizedRaw)"),
+        STAKING("STAKING", "(account staking configuration)"),
 
         AIRDROP("AIRDROP"),
         ALLOWANCE("ALLOWANCE", "(Allowance related)"),
