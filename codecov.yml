@@ -25,4 +25,3 @@ ignore:
   - "**/test-clients/**"
   - "**/statedumpers/**"
   - "**/testFixtures/**"
-  - "**/example-apps/**"

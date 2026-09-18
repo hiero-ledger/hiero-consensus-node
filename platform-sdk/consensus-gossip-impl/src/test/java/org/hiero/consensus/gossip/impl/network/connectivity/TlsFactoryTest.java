@@ -26,8 +26,8 @@ import org.hiero.consensus.gossip.impl.network.NetworkUtils;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
-import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWithKeys;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.AfterEach;
@@ -59,8 +59,8 @@ class TlsFactoryTest extends ConnectivityTestBase {
     void setUp() throws Throwable {
         // create addressBook, keysAndCerts
         final RosterWithKeys rosterAndCerts = genRosterLoadKeys(2);
-        final Roster roster = rosterAndCerts.getRoster();
-        final Map<NodeId, KeysAndCerts> keysAndCerts = rosterAndCerts.getAllKeysAndCerts();
+        final Roster roster = rosterAndCerts.roster().toPbj();
+        final Map<NodeId, KeysAndCerts> keysAndCerts = rosterAndCerts.privateKeys();
         assertTrue(roster.rosterEntries().size() > 1, "Roster must contain at least 2 nodes");
 
         // choose 2 nodes to test connections
@@ -86,12 +86,14 @@ class TlsFactoryTest extends ConnectivityTestBase {
 
         // create a new address book with keys and new set of nodes
         final RosterWithKeys updatedRosterAndCerts = genRosterLoadKeys(6);
+        final List<RosterEntry> updatedEntries =
+                updatedRosterAndCerts.roster().toPbj().rosterEntries();
         final Roster updatedRoster = Roster.newBuilder()
-                .rosterEntries(updatedRosterAndCerts.getRoster().rosterEntries().stream()
+                .rosterEntries(updatedEntries.stream()
                         .map(entry -> {
                             if (entry.nodeId() == nodeA.id()) {
                                 return entry.copyBuilder()
-                                        .nodeId(updatedRosterAndCerts.getRoster().rosterEntries().stream()
+                                        .nodeId(updatedEntries.stream()
                                                         .mapToLong(RosterEntry::nodeId)
                                                         .max()
                                                         .getAsLong()
@@ -103,7 +105,7 @@ class TlsFactoryTest extends ConnectivityTestBase {
                         })
                         .toList())
                 .build();
-        final Map<NodeId, KeysAndCerts> updatedKeysAndCerts = updatedRosterAndCerts.getAllKeysAndCerts();
+        final Map<NodeId, KeysAndCerts> updatedKeysAndCerts = updatedRosterAndCerts.privateKeys();
         assertTrue(updatedRoster.rosterEntries().size() > 1, "Roster must contain at least 2 nodes");
 
         peersA = Utilities.createPeerInfoList(updatedRoster, nodeA); // Peers of A as in updated addressBook
@@ -192,6 +194,7 @@ class TlsFactoryTest extends ConnectivityTestBase {
      */
     @NonNull
     private static RosterWithKeys genRosterLoadKeys(final int size) {
-        return RosterFactory.randomRosterWithKeys(Randotron.create(), size, WeightGenerators.BALANCED_1000_PER_NODE);
+        return RosterWrapperFactory.randomRosterWithKeys(
+                Randotron.create(), size, WeightGenerators.BALANCED_1000_PER_NODE);
     }
 }

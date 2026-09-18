@@ -1,9 +1,0 @@
-apiVersion: 1
-
-providers:
-  - name: Default
-    folder: CryptoBench
-    type: file
-    options:
-      path:
-        /benchmark-grafana/dashboards/crypto_bench
