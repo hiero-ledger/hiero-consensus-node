@@ -254,6 +254,31 @@ public class ContractServiceFeeCalculatorsTest {
     }
 
     @Test
+    void testContractCallLocalWithNegativeGasChargesBaseFeeOnly() {
+        // A client-supplied negative gas must not produce a negative extra fee: the extra count is
+        // clamped to zero (Math.max(0, gas - included)), so only the base fee is charged.
+        final var query = Query.newBuilder()
+                .contractCallLocal(ContractCallLocalQuery.newBuilder().gas(-1L))
+                .build();
+        final var result = feeCalculator.calculateQueryFee(query, new SimpleFeeContextImpl(null, queryContext));
+
+        assertThat(result.totalTinycents()).isEqualTo(555);
+    }
+
+    @Test
+    void testContractCallLocalWithMaxGasSaturatesInsteadOfWrapping() {
+        // A client-supplied Long.MAX_VALUE gas must not wrap the fee product into a negative or
+        // undercharged value: clampedMultiply/clampedAdd saturate at Long.MAX_VALUE, so the fee
+        // overcharges rather than undercharging.
+        final var query = Query.newBuilder()
+                .contractCallLocal(ContractCallLocalQuery.newBuilder().gas(Long.MAX_VALUE))
+                .build();
+        final var result = feeCalculator.calculateQueryFee(query, new SimpleFeeContextImpl(null, queryContext));
+
+        assertThat(result.totalTinycents()).isEqualTo(Long.MAX_VALUE);
+    }
+
+    @Test
     void testContractGetBytecode() {
         final var contractId = ContractID.newBuilder().contractNum(12333).build();
         final var contractStoreMock = mock(ContractStateStore.class);
