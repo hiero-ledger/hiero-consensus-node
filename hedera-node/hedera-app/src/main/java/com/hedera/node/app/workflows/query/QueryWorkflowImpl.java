@@ -61,7 +61,7 @@ import java.io.IOException;
 import java.time.InstantSource;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.Supplier;
 import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -76,7 +76,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
     private static final List<HederaFunctionality> RESTRICTED_FUNCTIONALITIES =
             List.of(NETWORK_GET_EXECUTION_TIME, GET_ACCOUNT_DETAILS);
 
-    private final Function<ResponseType, AutoCloseableWrapper<State>> stateAccessor;
+    private final Supplier<AutoCloseableWrapper<State>> stateAccessor;
     private final SubmissionManager submissionManager;
     private final QueryChecker queryChecker;
     private final IngestChecker ingestChecker;
@@ -100,8 +100,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
     /**
      * Constructor of {@code QueryWorkflowImpl}
      *
-     * @param stateAccessor a {@link Function} that returns the latest immutable or latest signed state depending on the
-     * {@link ResponseType}
+     * @param stateAccessor a {@link Supplier} that returns the current working state
      * @param submissionManager the {@link SubmissionManager} to submit transactions to the platform
      * @param queryChecker the {@link QueryChecker} with specific checks of an ingest-workflow
      * @param ingestChecker the {@link IngestChecker} to handle the crypto transfer
@@ -120,7 +119,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
      */
     @Inject
     public QueryWorkflowImpl(
-            @NonNull final Function<ResponseType, AutoCloseableWrapper<State>> stateAccessor,
+            @NonNull final Supplier<AutoCloseableWrapper<State>> stateAccessor,
             @NonNull final SubmissionManager submissionManager,
             @NonNull final QueryChecker queryChecker,
             @NonNull final IngestChecker ingestChecker,
@@ -178,7 +177,9 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             final ResponseType responseType = queryHeader.responseType();
             logger.debug("Started answering a {} query of type {}", function, responseType);
 
-            try (final var wrappedState = stateAccessor.apply(responseType)) {
+            // The accessor hands back the working state, which the handle thread mutates concurrently; a query
+            // therefore has no snapshot and may observe a round partially applied (see docs/design/app/states.md)
+            try (final var wrappedState = stateAccessor.get()) {
                 // 2. Do some general pre-checks
                 final var paymentRequired = handler.requiresNodePayment(responseType);
                 if (paymentRequired) {
