@@ -95,7 +95,8 @@ jobs:
   # modules changed, or when the PR carries the "Run EVM Tests" (or "Run Full CI") label. The gate is a job-level
   # `if:` rather than an `on.pull_request.paths` filter so the workflow always reports; a skipped job counts as
   # passing. The result is advisory: it is surfaced in the PR summary and the per-shard check runs, but
-  # `ci-complete` (a required status check) does not depend on it.
+  # `ci-complete` (a required status check) does not depend on it. The tests run after MATS and only when MATS
+  # succeeded, so a PR that does not compile or fails MATS does not spend 18 solo deployments.
   extract-citr-vars:
     name: Extract CITR Vars
     needs:
@@ -113,6 +114,7 @@ jobs:
       - detect-change-type
       - extract-jdk-version
       - extract-citr-vars
+      - mats-pr-checks
     if: ${{ needs.detect-change-type.outputs.smart-contracts-changed == 'true' }}
     uses: ./.github/workflows/870-call-evm-functional-tests.yaml
     with:
@@ -211,8 +213,11 @@ jobs:
                 bash "${{ github.workspace }}/${{ env.PRINT_FAILED_TESTS_SCRIPT }}" "${{ needs.mats-pr-checks.outputs.failed-tests }}"
                 echo "------------------------------------"
             fi
-            if [[ "${{ needs.evm-functional-tests.result }}" == "skipped" ]]; then
+            if [[ "${{ needs.detect-change-type.outputs.smart-contracts-changed }}" != "true" ]]; then
                 echo "> **EVM Functional Tests skipped.** No non-documentation change under the smart-contract service modules and no \`Run EVM Tests\` label."
+                echo "------------------------------------"
+            elif [[ "${{ needs.evm-functional-tests.result }}" == "skipped" ]]; then
+                echo "> **EVM Functional Tests skipped.** They run after MATS, and an upstream job did not succeed (MATS result: ${{ needs.mats-pr-checks.result }})."
                 echo "------------------------------------"
             elif [[ "${{ needs.evm-functional-tests.result }}" == "failure" ]]; then
                 echo "### EVM Functional Test Failures (advisory, does not gate CI Complete)"

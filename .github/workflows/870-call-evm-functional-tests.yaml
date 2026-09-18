@@ -303,27 +303,37 @@ jobs:
 
       # hardhat.config.js expects the network on fixed localhost ports: JSON-RPC relay 37546, consensus node gRPC
       # 35211 (SDK client) and mirror node REST 38081. Solo tears its own CN gRPC port-forward down after the
-      # node health checks (818 re-adds it as well), so re-establish whichever forward is missing.
+      # node health checks (818 re-adds it as well), so re-establish whichever forward is missing. The probe is
+      # plain bash (/dev/tcp) because the runner image does not ship nc; kubectl's output is kept for diagnosis.
       - name: Ensure local port-forwards
         id: port-forwards
         run: |
           set -eo pipefail
+          mkdir -p "${SHARD_LOGS_DIR}"
+          port_open() {
+            (exec 3<>"/dev/tcp/127.0.0.1/${1}") 2>/dev/null
+          }
           ensure_forward() {
             local port="${1}" target="${2}" remote_port="${3}"
-            if nc -z 127.0.0.1 "${port}" 2>/dev/null; then
+            local log="${SHARD_LOGS_DIR}/port-forward-${port}.log"
+            if port_open "${port}"; then
               echo "127.0.0.1:${port} is already listening (solo port-forward still active)"
               return 0
             fi
             echo "Forwarding ${target} port ${remote_port} to 127.0.0.1:${port}"
-            kubectl -n "${SOLO_NAMESPACE}" port-forward "${target}" "${port}:${remote_port}" >/dev/null 2>&1 &
+            kubectl -n "${SOLO_NAMESPACE}" port-forward "${target}" "${port}:${remote_port}" >"${log}" 2>&1 &
             for _ in $(seq 1 15); do
-              if nc -z 127.0.0.1 "${port}" 2>/dev/null; then
+              if port_open "${port}"; then
                 echo "127.0.0.1:${port} ready"
                 return 0
               fi
               sleep 2
             done
             echo "::error::127.0.0.1:${port} did not open for ${target}"
+            echo "--- kubectl port-forward output ---"
+            cat "${log}" || true
+            echo "--- services in ${SOLO_NAMESPACE} ---"
+            kubectl -n "${SOLO_NAMESPACE}" get svc -o wide || true
             return 1
           }
           # solo names the relay release "relay-<node alias>" and finds its pod by the instance label.
@@ -392,6 +402,8 @@ jobs:
           mkdir -p "${SHARD_LOGS_DIR}"
           {
             kubectl -n "${SOLO_NAMESPACE}" get pods -o wide
+            echo
+            kubectl -n "${SOLO_NAMESPACE}" get svc -o wide
             echo
             kubectl -n "${SOLO_NAMESPACE}" get events --sort-by=.lastTimestamp
           } > "${SHARD_LOGS_DIR}/kubectl-overview.txt" 2>&1 || true

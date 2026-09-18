@@ -89,6 +89,8 @@ one hardhat test file.
 
 - Runs on `hl-cn-rpc-relay-lin-lg` runners (shared with the XTS JSON-RPC relay panel and the adhoc solo tests), one
   solo deployment per shard, at most 6 shards in parallel and 90 minutes per shard.
+- Runs after MATS and only when MATS succeeded, so a PR that does not compile or fails MATS does not spend 18 solo
+  deployments.
 - **Advisory.** The result is reported in the PR check summary and as per-shard check runs
   (`EVM Functional Tests / Standard (<shard>)`), but `CI Complete` does not depend on it.
 - Runs only when a non-documentation file under `hedera-node/hedera-smart-contract-service/` or
@@ -109,7 +111,7 @@ one hardhat test file.
 
 |            Test Name             |                                             Workflow                                             |                                                             Required Parameters                                                              |                     Required Workflow Secrets                          | Precursor Steps |
 |----------------------------------|--------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|-----------------|
-| EVM Functional Tests (18 shards) | [870: [CALL] EVM Functional Tests](/.github/workflows/870-call-evm-functional-tests.yaml)        | `ref: <commit-sha>`<br/>`solo-version: <citr-solo-version>`<br/>`mirror-node-version: <citr-mirror-node-version>`<br/>`json-rpc-relay-version: 0.79.0-rc1` | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password` | build           |
+| EVM Functional Tests (18 shards) | [870: [CALL] EVM Functional Tests](/.github/workflows/870-call-evm-functional-tests.yaml)        | `ref: <commit-sha>`<br/>`solo-version: <citr-solo-version>`<br/>`mirror-node-version: <citr-mirror-node-version>`<br/>`json-rpc-relay-version: 0.79.0-rc1` | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password` | MATS            |
 
 ## XTS
 
