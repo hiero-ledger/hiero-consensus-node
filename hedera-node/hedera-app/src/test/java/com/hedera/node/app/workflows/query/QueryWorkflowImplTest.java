@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_GET_INFO;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
@@ -867,7 +868,7 @@ class QueryWorkflowImplTest extends AppTestBase {
     }
 
     @Test
-    void paidQueryDoesNotSubmitPaymentWhenResponseGenerationFails() throws PreCheckException, ParseException {
+    void paidQuerySubmitsPaymentBeforeGeneratingResponse() throws PreCheckException, ParseException {
         // given — a paid query that passes validation and throttling, but whose response generation then fails
         mockQueryContext();
         when(handler.requiresNodePayment(ANSWER_ONLY)).thenReturn(true);
@@ -885,8 +886,15 @@ class QueryWorkflowImplTest extends AppTestBase {
         // when
         workflow.handleQuery(requestBuffer, responseBuffer);
 
-        // then — the node never produced an answer, so the payment is not submitted and the payer is not charged.
-        verify(submissionManager, never()).submit(any(), any(), anyBoolean());
+        // then — the node committed to answering once validation and the throttle passed, so the payment was
+        // already submitted; a later failure leaves the payer charged for the work the node attempted.
+        verify(submissionManager).submit(txBody, serializedPayment, false);
+
+        // An unchecked exception other than HandleException escaping response generation is surfaced as
+        // FAIL_INVALID, so the payer is charged for a node-side fault rather than a rejected request.
+        final var response = parseResponse(responseBuffer);
+        assertThat(response.fileGetInfoOrThrow().headerOrThrow().nodeTransactionPrecheckCode())
+                .isEqualTo(FAIL_INVALID);
     }
 
     @Test

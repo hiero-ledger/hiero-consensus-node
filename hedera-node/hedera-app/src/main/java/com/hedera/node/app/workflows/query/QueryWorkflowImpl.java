@@ -66,7 +66,9 @@ import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-/** Implementation of {@link QueryWorkflow} */
+/**
+ * Implementation of {@link QueryWorkflow}
+ */
 public final class QueryWorkflowImpl implements QueryWorkflow {
 
     private static final Logger logger = LogManager.getLogger(QueryWorkflowImpl.class);
@@ -112,9 +114,9 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
      * @param exchangeRateManager the {@link ExchangeRateManager} to get the {@link ExchangeRateInfo}
      * @param feeManager the {@link FeeManager} to calculate the fees
      * @param synchronizedThrottleAccumulator the {@link SynchronizedThrottleAccumulator} that checks transaction should be throttled
-     * @param instantSource the {@link InstantSource} to get the current time
-     * @param workflowMetrics the {@link OpWorkflowMetrics} to update the metrics
-     * @param shouldCharge If the workflow should charge for handling queries.
+     * @param instantSource                   the {@link InstantSource} to get the current time
+     * @param workflowMetrics                 the {@link OpWorkflowMetrics} to update the metrics
+     * @param shouldCharge                    If the workflow should charge for handling queries.
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     @Inject
@@ -297,10 +299,12 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             null);
                 }
 
-                // Validate, throttle-check, and generate the response before submitting the payment, so the payer
-                // is charged only once the node has produced the answer it is charging for. If any of these steps
-                // fails, reclaim the throttle capacity the payment consumed at ingest, since no payment transaction
-                // will be submitted.
+                // Validate and throttle-check before submitting the payment, so a query that is rejected or
+                // throttled is never charged. If either step fails -- or the submission itself does -- reclaim the
+                // throttle capacity the payment consumed at ingest, since no payment transaction reaches consensus.
+                // The payment is submitted once the node has committed to answering, i.e. before the response is
+                // generated: a failure after this point leaves the payer charged for work the node did attempt,
+                // which is why response generation sits outside this block.
                 try {
                     // 4. Check validity of query
                     handler.validate(context);
@@ -312,25 +316,8 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                         throw new PreCheckException(BUSY);
                     }
 
-                    // 6. Generate the response
-                    if (handler.needsAnswerOnlyCost(responseType)) {
-                        // 6.i Estimate costs
-                        final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
-                                .calculateQueryFee(context.query(), new SimpleFeeContextImpl(null, context));
-                        final long queryFees = tinycentsToTinybars(
-                                queryFeeTinyCents.totalTinycents(),
-                                fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
-
-                        final var header = createResponseHeader(responseType, OK, queryFees);
-                        response = handler.createEmptyResponse(header);
-                    } else {
-                        // 6.ii Find response
-                        final var header = createResponseHeader(responseType, OK, 0L);
-                        response = handler.findResponse(context, header);
-                    }
-
                     // 3.vi Submit payment to platform with priority=false vs network consensus and TSS txs, now
-                    //      that the query has been validated, has passed throttling, and its response is ready.
+                    //      that the query has been validated and has passed throttling.
                     if (deferredPayment != null) {
                         submissionManager.submit(txBody, deferredPayment, false);
                     }
@@ -339,6 +326,23 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                         paidCheckerResult.throttleUsages().forEach(ThrottleUsage::reclaimCapacity);
                     }
                     throw e;
+                }
+
+                // 6. Generate the response
+                if (handler.needsAnswerOnlyCost(responseType)) {
+                    // 6.i Estimate costs
+                    final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
+                            .calculateQueryFee(context.query(), new SimpleFeeContextImpl(null, context));
+                    final long queryFees = tinycentsToTinybars(
+                            queryFeeTinyCents.totalTinycents(),
+                            fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
+
+                    final var header = createResponseHeader(responseType, OK, queryFees);
+                    response = handler.createEmptyResponse(header);
+                } else {
+                    // 6.ii Find response
+                    final var header = createResponseHeader(responseType, OK, 0L);
+                    response = handler.findResponse(context, header);
                 }
             } catch (InsufficientBalanceException e) {
                 response = createErrorResponse(handler, responseType, e.responseCode(), e.getEstimatedFee());
