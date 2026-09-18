@@ -70,7 +70,8 @@ public class SimpleFeesCongestionPricingTest {
                     {
                       "opsPerSec": 100,
                       "operations": [
-                        "FileGetContents", "FileGetInfo", "TransactionGetRecord",
+                        "CryptoGetAccountBalance", "FileGetContents",
+                        "FileGetInfo", "TransactionGetRecord",
                         "TransactionGetReceipt"
                       ]
                     }

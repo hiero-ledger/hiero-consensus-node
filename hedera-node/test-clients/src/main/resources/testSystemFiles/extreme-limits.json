@@ -19,6 +19,7 @@
         {
           "opsPerSec": 100,
           "operations": [
+            "CryptoGetAccountBalance",
             "FileGetContents",
             "FileGetInfo",
             "TransactionGetRecord",

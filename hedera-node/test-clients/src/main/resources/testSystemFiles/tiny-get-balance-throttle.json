@@ -6,8 +6,8 @@
       "name": "ThroughputLimits",
       "throttleGroups": [
         {
-          "opsPerSec": 1,
-          "milliOpsPerSec": 1000,
+          "opsPerSec": 0,
+          "milliOpsPerSec": 10500000,
           "operations": [
             "NodeCreate",
             "NodeDelete",
@@ -178,14 +178,22 @@
       "name": "FreeQueryLimits",
       "throttleGroups": [
         {
-          "opsPerSec": 0,
-          "milliOpsPerSec": 1000000000,
+          "opsPerSec": 1000000,
+          "milliOpsPerSec": 0,
           "operations": [
-            "CryptoGetAccountBalance",
             "TransactionGetReceipt"
+          ]
+        },
+        {
+          "opsPerSec": 5,
+          "milliOpsPerSec": 0,
+          "operations": [
+            "CryptoGetAccountBalance"
           ]
         }
       ]
     }
   ]
 }
+
+
