@@ -16,7 +16,6 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
@@ -33,7 +32,6 @@ import java.time.Instant;
 import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.Executor;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
 import org.junit.jupiter.api.BeforeEach;
@@ -73,9 +71,6 @@ class IssDetectionStagingCoordinatorTest {
     @Mock
     private BlockBufferService blockBufferService;
 
-    @Mock
-    private BlockNodeConnectionManager blockNodeConnectionManager;
-
     private final InstantSource instantSource = InstantSource.fixed(Instant.parse("2026-06-16T14:32:05Z"));
     private static final String EXPECTED_FOLDER = "2026-06-16T14-32-05Z";
 
@@ -111,7 +106,6 @@ class IssDetectionStagingCoordinatorTest {
                 FileSystems.getDefault(),
                 instantSource,
                 blockBufferService,
-                blockNodeConnectionManager,
                 captureExecutor);
     }
 
@@ -208,18 +202,12 @@ class IssDetectionStagingCoordinatorTest {
         when(issConfig.issBlockStagingEnabled()).thenReturn(true);
         when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.GRPC);
         when(bufferReader.captureToDir(eq(9L), eq(0), any())).thenReturn(List.of());
-        when(blockNodeConnectionManager.activeConnectionSnapshot())
-                .thenReturn(Optional.of(
-                        new BlockNodeConnectionManager.ActiveBlockNodeSnapshot("bn-host", 8080, 0, 538L, 535L)));
 
         subject.captureAndStage(IssType.SELF_ISS, 9);
 
         final Path marker = detectDir().resolve("iss-round-9.txt");
         assertThat(marker).exists();
-        assertThat(Files.readString(marker))
-                .contains("issRound=9")
-                .contains("writerMode=GRPC")
-                .contains("activeBlockNode=bn-host:8080");
+        assertThat(Files.readString(marker)).contains("issRound=9").contains("writerMode=GRPC");
         verifyNoInteractions(diskResolver);
     }
 
@@ -442,15 +430,14 @@ class IssDetectionStagingCoordinatorTest {
     void grpcPointerMarkerDoesNotSuppressFailurePathRecovery() throws IOException {
         when(issConfig.issBlockStagingEnabled()).thenReturn(true);
         when(blockStreamConfig.writerMode()).thenReturn(BlockStreamWriterMode.GRPC);
-        // Detection finds the block missing from the buffer and (with no active connection) stages only a .txt pointer.
+        // Detection finds the block missing from the buffer and stages only a .txt pointer.
         when(bufferReader.captureToDir(eq(9L), eq(0), any())).thenReturn(List.of());
-        when(blockNodeConnectionManager.activeConnectionSnapshot()).thenReturn(Optional.empty());
 
         subject.captureAndStage(IssType.SELF_ISS, 9);
 
         final Path marker = detectDir().resolve("iss-round-9.txt");
         assertThat(marker).exists();
-        assertThat(Files.readString(marker)).contains("activeBlockNode=<none");
+        assertThat(Files.readString(marker)).contains("issRound=9").contains("writerMode=GRPC");
 
         // The pointer alone did NOT mark the round staged, so the failure path still recovers the real block.
         final String issName = FileBlockItemWriter.longToFileName(7L) + ".iss.gz";

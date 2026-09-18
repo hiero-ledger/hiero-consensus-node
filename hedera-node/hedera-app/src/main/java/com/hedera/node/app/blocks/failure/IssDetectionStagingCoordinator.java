@@ -5,7 +5,6 @@ import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -21,7 +20,6 @@ import java.time.Duration;
 import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -83,7 +81,6 @@ public class IssDetectionStagingCoordinator {
     private final FileSystem fileSystem;
     private final InstantSource instantSource;
     private final BlockBufferService blockBufferService;
-    private final BlockNodeConnectionManager blockNodeConnectionManager;
     /** Runs the detection-time capture off the ISS-notification dispatcher (a virtual thread per ISS in production). */
     private final Executor captureExecutor;
 
@@ -107,8 +104,7 @@ public class IssDetectionStagingCoordinator {
             @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
             @NonNull final FileSystem fileSystem,
             @NonNull final InstantSource instantSource,
-            @NonNull final BlockBufferService blockBufferService,
-            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
+            @NonNull final BlockBufferService blockBufferService) {
         // Detection-time capture runs on a virtual thread per ISS so the ORDERED async ISS-notification dispatcher
         // (which calls captureAndStage) is never blocked by the bounded disk poll.
         this(
@@ -119,7 +115,6 @@ public class IssDetectionStagingCoordinator {
                 fileSystem,
                 instantSource,
                 blockBufferService,
-                blockNodeConnectionManager,
                 Executors.newThreadPerTaskExecutor(
                         Thread.ofVirtual().name("iss-block-capture-", 0).factory()));
     }
@@ -133,7 +128,6 @@ public class IssDetectionStagingCoordinator {
             @NonNull final FileSystem fileSystem,
             @NonNull final InstantSource instantSource,
             @NonNull final BlockBufferService blockBufferService,
-            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager,
             @NonNull final Executor captureExecutor) {
         this.configProvider = requireNonNull(configProvider);
         this.diskResolver = requireNonNull(diskResolver);
@@ -142,7 +136,6 @@ public class IssDetectionStagingCoordinator {
         this.fileSystem = requireNonNull(fileSystem);
         this.instantSource = requireNonNull(instantSource);
         this.blockBufferService = requireNonNull(blockBufferService);
-        this.blockNodeConnectionManager = requireNonNull(blockNodeConnectionManager);
         this.captureExecutor = requireNonNull(captureExecutor);
     }
 
@@ -322,9 +315,10 @@ public class IssDetectionStagingCoordinator {
 
     /**
      * GRPC best-effort fallback: writes a plain-text pointer marker (atomically) for an ISS round whose block is no
-     * longer in the buffer into {@code stageDir}, and returns it as the single staged file. The marker records where the
-     * block was streamed and how far the block node acknowledged, so an operator can fetch it from the block node.
-     * Returns an empty list if the marker cannot be written; best-effort, never throws.
+     * longer in the buffer into {@code stageDir}, and returns it as the single staged file. The marker records local
+     * diagnostic state (the ISS round, writer mode, and buffer watermarks at capture time) so an operator has a
+     * breadcrumb even though the block itself could not be preserved. Returns an empty list if the marker cannot be
+     * written; best-effort, never throws.
      */
     private List<Path> markerFilesFor(
             @NonNull final FailureBlockStagingConfig config,
@@ -350,15 +344,18 @@ public class IssDetectionStagingCoordinator {
     }
 
     /**
-     * Builds the plain-text {@code key=value} body of a pointer marker. Defensive: it reads only non-throwing buffer and
-     * connection-manager snapshots and renders a placeholder when there is no active connection, so it does not throw on
-     * the ISS/halt path.
+     * Builds the plain-text {@code key=value} body of a pointer marker. Defensive: it reads only non-throwing buffer
+     * snapshots, so it does not throw on the ISS/halt path. Local diagnostic state only — a diverged ISS block never
+     * gathers a valid proof, so it is never acknowledged or persisted by the block node and cannot be fetched from it.
      */
     private String buildMarkerContent(
             @NonNull final IssType issType, final long round, @NonNull final BlockStreamWriterMode writerMode) {
-        final StringBuilder sb = new StringBuilder(512);
-        sb.append("# ISS block pointer - the ISS-round block was NOT in the in-memory buffer at capture time.\n");
-        sb.append("# Written best-effort so the block can still be located on the block node.\n\n");
+        final StringBuilder sb = new StringBuilder(384);
+        sb.append(
+                "# ISS block pointer - the ISS-round block was NOT in the in-memory buffer at capture time and could\n");
+        sb.append("# not be preserved locally. Diagnostic metadata only: a diverged ISS block never gathers a valid\n");
+        sb.append(
+                "# proof, so it is never acknowledged/persisted by the block node and is not recoverable from it.\n\n");
         sb.append("issType=").append(issType).append('\n');
         sb.append("issRound=").append(round).append('\n');
         sb.append("writerMode=").append(writerMode).append('\n');
@@ -377,25 +374,7 @@ public class IssDetectionStagingCoordinator {
                 .append('\n');
         sb.append("highestAckedBlock=")
                 .append(blockBufferService.getHighestAckedBlockNumber())
-                .append("\n\n");
-        sb.append("# Active block-node connection at capture time (where blocks were streamed / persisted).\n");
-        sb.append("# Blocks <= lastBlockAckedByBlockNode are persisted and verified by this block node - fetch the "
-                + "ISS-round block from it.\n");
-        final Optional<BlockNodeConnectionManager.ActiveBlockNodeSnapshot> snapshot =
-                blockNodeConnectionManager.activeConnectionSnapshot();
-        if (snapshot.isPresent()) {
-            final BlockNodeConnectionManager.ActiveBlockNodeSnapshot s = snapshot.get();
-            sb.append("activeBlockNode=")
-                    .append(s.host())
-                    .append(':')
-                    .append(s.port())
-                    .append('\n');
-            sb.append("activeBlockNodePriority=").append(s.priority()).append('\n');
-            sb.append("lastBlockSentToBlockNode=").append(s.lastBlockSent()).append('\n');
-            sb.append("lastBlockAckedByBlockNode=").append(s.lastBlockAcked()).append('\n');
-        } else {
-            sb.append("activeBlockNode=<none: no active block-node connection at capture time>\n");
-        }
+                .append('\n');
         return sb.toString();
     }
 
