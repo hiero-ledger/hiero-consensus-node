@@ -99,6 +99,8 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
             REPEATABLE
         }
 
+        private static final Object EMBEDDING_LOCK = new Object();
+
         private Embedding embedding;
         private boolean subprocessConcurrent;
 
@@ -143,9 +145,9 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                         // For the default Test task, we need to run some tests in concurrent embedded mode and
                         // some in repeatable embedded mode, depending on the value of their @TargetEmbeddedMode
                         // annotation; this PER_CLASS value supports that requirement
-                        case PER_CLASS -> null;
-                        case CONCURRENT -> EmbeddedNetwork.newSharedNetwork(EmbeddedMode.CONCURRENT);
-                        case REPEATABLE -> EmbeddedNetwork.newSharedNetwork(EmbeddedMode.REPEATABLE);
+                        // Embedded networks are created lazily on first demand, so that a
+                        // @GenesisHapiTest running before any other test is the only live instance
+                        case PER_CLASS, CONCURRENT, REPEATABLE -> null;
                     };
             if (network != null) {
                 checkPrOverridesForBlockNodeStreaming(network);
@@ -210,6 +212,14 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
          */
         public static void ensureEmbedding(@NonNull final EmbeddedMode mode) {
             requireNonNull(mode);
+            // Tests run concurrently, so creating the shared network lazily must be atomic; otherwise
+            // several threads each re-init the same working directory and corrupt it
+            synchronized (EMBEDDING_LOCK) {
+                ensureEmbeddingLocked(mode);
+            }
+        }
+
+        private static void ensureEmbeddingLocked(@NonNull final EmbeddedMode mode) {
             if (SHARED_NETWORK.get() != null) {
                 if (SHARED_NETWORK.get() instanceof EmbeddedNetwork embeddedNetwork) {
                     if (embeddedNetwork.mode() != mode) {
@@ -270,8 +280,9 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         }
 
         private static void startSharedEmbedded(@NonNull final EmbeddedMode mode) {
-            SHARED_NETWORK.set(EmbeddedNetwork.newSharedNetwork(mode));
-            SHARED_NETWORK.get().start();
+            final var network = EmbeddedNetwork.newSharedNetwork(mode);
+            network.start();
+            SHARED_NETWORK.set(network);
         }
 
         public static void reconfigureSharedSubProcessLogging(@NonNull final SubProcessNetwork network) {
@@ -308,6 +319,18 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 }
             }
             return count;
+        }
+
+        /**
+         * Returns the embedded mode implied by the session's {@code hapi.spec.embedded.mode}, if it
+         * implies one; empty for subprocess and per-class sessions.
+         */
+        public static Optional<EmbeddedMode> sessionEmbeddedMode() {
+            return switch (embeddingMode()) {
+                case CONCURRENT -> Optional.of(EmbeddedMode.CONCURRENT);
+                case REPEATABLE -> Optional.of(EmbeddedMode.REPEATABLE);
+                case NA, PER_CLASS -> Optional.empty();
+            };
         }
 
         private static Embedding embeddingMode() {

@@ -7,7 +7,10 @@ import static com.hedera.node.app.service.roster.impl.schemas.V0540RosterSchema.
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -158,6 +161,26 @@ class V0540RosterSchemaTest {
         verify(rosterStore, times(1)).getActiveRoster();
         verify(rosterStore).getCandidateRoster();
         verify(rosterStore).adoptCandidateRoster(ROUND_NO + 1L);
+    }
+
+    @Test
+    void restartIgnoresOverrideNetworkOnReconnect() {
+        subject = new V0540RosterSchema(onAdopt, canAdopt, rosterStoreFactory, onOverrideNetwork);
+        given(ctx.isReconnect()).willReturn(true);
+        given(ctx.roundNumber()).willReturn(ROUND_NO);
+        given(ctx.newStates()).willReturn(writableStates);
+        given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
+        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
+
+        subject.restart(ctx);
+
+        // A reconnected node must take its roster from the state it learned, not from a startup asset
+        // left on disk; transplanting here diverges this node's state from the rest of the network
+        verifyNoInteractions(startupNetworks);
+        verifyNoInteractions(onOverrideNetwork);
+        verifyNoInteractions(onAdopt);
+        verify(rosterStore, never()).putActiveRoster(any(), anyLong());
+        verify(rosterStore, never()).updateTransplantInProgress(anyBoolean());
     }
 
     @Test

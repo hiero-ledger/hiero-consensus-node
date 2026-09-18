@@ -6,6 +6,7 @@ import com.swirlds.config.api.validation.ConfigValidator;
 import com.swirlds.config.api.validation.ConfigViolation;
 import com.swirlds.config.api.validation.annotation.ConstraintMethod;
 import com.swirlds.config.extensions.reflection.ConfigReflectionUtils;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Method;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -16,8 +17,9 @@ import java.util.stream.Stream;
  */
 public class ConstraintMethodConstraintsValidation implements ConfigValidator {
 
+    @NonNull
     @Override
-    public Stream<ConfigViolation> validate(final Configuration configuration) {
+    public Stream<ConfigViolation> validate(@NonNull final Configuration configuration) {
         return ConfigReflectionUtils.getAllMatchingPropertiesForConstraintAnnotation(
                         ConstraintMethod.class, configuration)
                 .stream()
@@ -26,15 +28,16 @@ public class ConstraintMethodConstraintsValidation implements ConfigValidator {
     }
 
     private static ConfigViolation execute(
-            final Configuration configuration,
-            final ConfigReflectionUtils.AnnotatedProperty<ConstraintMethod, ?> annotatedProperty) {
+            final Configuration configuration, final ConfigReflectionUtils.ConfigDataProperty annotatedProperty) {
+        // The owner is the record instance that declares the property. For a property of a nested config data object
+        // this is the nested instance, which can not be resolved via Configuration#getConfigData.
+        final Record recordInstance = annotatedProperty.owner();
+        final Class<?> recordType = recordInstance.getClass();
+
         try {
-            final String methodName = annotatedProperty.annotation().value();
-            final Class<Record> recordType =
-                    (Class<Record>) annotatedProperty.component().getDeclaringRecord();
-            final Object recordInstance = configuration.getConfigData(recordType);
-            final Method method =
-                    annotatedProperty.component().getDeclaringRecord().getMethod(methodName, Configuration.class);
+            final String methodName =
+                    annotatedProperty.annotation(ConstraintMethod.class).value();
+            final Method method = recordType.getMethod(methodName, Configuration.class);
             final Object violation = method.invoke(recordInstance, configuration);
             if (violation == null) {
                 return null;

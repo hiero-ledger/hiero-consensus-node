@@ -17,7 +17,6 @@ jmhModuleInfo {
     requires("org.hiero.base.crypto")
     requires("org.hiero.consensus.fakes")
     requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
-    requires("org.hiero.consensus.roster.test.fixtures")
     requires("jmh.core")
 
     runtimeOnly("org.hiero.consensus.event.intake.concurrent")

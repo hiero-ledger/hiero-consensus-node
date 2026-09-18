@@ -1,7 +1,10 @@
+{{- $refName := getenv "REF_NAME" | required "REF_NAME must be set" -}}
+{{- $color := "#FF0000" -}}
+{{- if strings.HasPrefix "release/" $refName -}}{{- $color = "#F08080" -}}{{- end -}}
 {
   "attachments": [
     {
-      "color": "#FF0000",
+      "color": {{ $color | data.ToJSON }},
       "blocks": [
         {
           "type": "header",

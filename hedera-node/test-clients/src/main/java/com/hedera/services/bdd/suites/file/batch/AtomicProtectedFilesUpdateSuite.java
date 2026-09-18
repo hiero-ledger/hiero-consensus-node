@@ -25,7 +25,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.SIMPLE_FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTHORIZATION_FAILED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -294,13 +293,13 @@ class AtomicProtectedFilesUpdateSuite {
         return hapiTest(
                 cryptoCreate("unauthorizedAccount"),
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
+                // The inner update is unauthorized, so the whole batch is rejected at ingest.
                 atomicBatch(fileUpdate(specialFile)
                                 .contents(newContents)
                                 .payingWith("unauthorizedAccount")
-                                .hasKnownStatus(AUTHORIZATION_FAILED)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+                        .hasPrecheckFrom(AUTHORIZATION_FAILED));
     }
 
     private byte[] extendedBioAddressBook(byte[] contents, String targetMemo, String replaceMemo) {

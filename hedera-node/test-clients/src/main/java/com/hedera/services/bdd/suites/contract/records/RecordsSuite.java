@@ -4,10 +4,12 @@ package com.hedera.services.bdd.suites.contract.records;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.ADHOC;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -30,6 +32,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.contract.Utils.asInstant;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.RECEIVER;
 import static com.hedera.services.bdd.suites.crypto.CryptoCreateSuite.ACCOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -105,6 +108,36 @@ public class RecordsSuite {
                         .hasKnownStatus(INSUFFICIENT_GAS)
                         .via(txName),
                 getTxnRecord(txName));
+    }
+
+    @HapiTest
+    @Tag(ADHOC)
+    @Tag(ATOMIC_BATCH)
+    @DisplayName("Oversized contract actions are clipped for a batch-inner call, just as for a top-level call")
+    final Stream<DynamicTest> oversizedContractActionsAreClippedInsideAtomicBatch() {
+        final var contract = "ClipCandidate";
+        final var innerTxn = "clipCandidateBatchInnerLargeCalldata";
+        final var batchOperator = "batchOperator";
+
+        // The identical call is rejected at the trace-data cap as a top-level transaction; wrapping it in an
+        // atomic batch must not let it bypass the cap, so the inner call fails and the whole batch rolls back.
+        return hapiTest(
+                streamMustIncludeNoFailuresFrom(noContractActionSidecarFor(innerTxn)),
+                cryptoCreate(batchOperator).balance(ONE_HUNDRED_HBARS),
+                uploadInitCode(contract),
+                contractCreate(contract),
+                atomicBatch(contractCall(
+                                        contract,
+                                        "loopLargeCalldata",
+                                        BigInteger.valueOf(5),
+                                        BigInteger.valueOf(131_072))
+                                .gas(14_000_000L)
+                                .hasKnownStatus(INSUFFICIENT_GAS)
+                                .batchKey(batchOperator)
+                                .via(innerTxn))
+                        .payingWith(batchOperator)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                getTxnRecord(innerTxn));
     }
 
     @HapiTest

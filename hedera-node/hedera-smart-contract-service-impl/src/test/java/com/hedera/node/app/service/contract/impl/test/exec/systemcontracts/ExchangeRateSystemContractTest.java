@@ -32,6 +32,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class ExchangeRateSystemContractTest {
+    private static final long GAS_COST = 100L;
+    private static final long UPDATED_GAS_COST = 250L;
+
     @Mock
     private GasCalculator gasCalculator;
 
@@ -52,6 +55,8 @@ class ExchangeRateSystemContractTest {
     void setUp() {
         subject = new ExchangeRateSystemContract(gasCalculator);
         frameUtils = Mockito.mockStatic(FrameUtils.class);
+        frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(contractsConfig);
+        given(contractsConfig.precompileExchangeRateGasCost()).willReturn(GAS_COST);
     }
 
     @AfterEach
@@ -108,6 +113,30 @@ class ExchangeRateSystemContractTest {
     }
 
     @Test
+    void chargesConfiguredGasWhenSelectorIsTruncated() {
+        // The configured cost applies even where validation fails before any conversion happens
+        final var fragmentSelector = Bytes.of(0xab);
+        final var result = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, fragmentSelector, frame);
+        assertThat(result.gasRequirement()).isEqualTo(GAS_COST);
+    }
+
+    @Test
+    void gasRequirementIsRecomputedPerInvocation() {
+        givenRate(someRate);
+
+        // a successful conversion reports the configured cost...
+        final var successful =
+                subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, tinycentsInput(someTinycentAmount), frame);
+        assertThat(successful.gasRequirement()).isEqualTo(GAS_COST);
+
+        // ...and a later call reports the cost configured for its own frame, even where validation
+        // fails before any conversion happens
+        given(contractsConfig.precompileExchangeRateGasCost()).willReturn(UPDATED_GAS_COST);
+        final var truncated = subject.computeFully(EXCHANGE_RATE_CONTRACT_ID, Bytes.of(0xab), frame);
+        assertThat(truncated.gasRequirement()).isEqualTo(UPDATED_GAS_COST);
+    }
+
+    @Test
     void selectorMustBeRecognized() {
         final var fragmentSelector = Bytes.of((byte) 0xab, (byte) 0xab, (byte) 0xab, (byte) 0xab);
         final var input = Bytes.concatenate(fragmentSelector, Bytes32.ZERO);
@@ -149,8 +178,6 @@ class ExchangeRateSystemContractTest {
     private void givenRate(final ExchangeRate rate) {
         frameUtils.when(() -> proxyUpdaterFor(frame)).thenReturn(updater);
         given(updater.currentExchangeRate()).willReturn(rate);
-        frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(contractsConfig);
-        given(contractsConfig.precompileExchangeRateGasCost()).willReturn(0L);
     }
 
     private static final int someHbarEquiv = 120;

@@ -220,8 +220,8 @@ public class CloseFlushTest extends AbstractFileManagerAwareTest {
                 }
 
                 @Override
-                public void stopAndDisableBackgroundCompaction() {
-                    delegate.stopAndDisableBackgroundCompaction();
+                public void stopAndDisableBackgroundCompaction(final boolean waitForTasksToComplete) {
+                    delegate.stopAndDisableBackgroundCompaction(waitForTasksToComplete);
                 }
             };
         }

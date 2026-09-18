@@ -15,16 +15,17 @@ val eclipseCollections = "13.0.0"
 val grpc = "1.81.0"
 val hederaCryptography = "3.15.0"
 val helidon = "4.5.0"
-val jackson = "2.22.1"
+val jackson = "2.22.2"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
 val log4j = "2.26.0"
 val mockito = "5.23.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
 val prometheusSimpleclient = "0.16.0"
 val protobuf = "4.34.0"
-val blockNodeProtobufSources = "0.39.0"
+val blockNodeProtobufSources = "0.41.0"
 val testContainers = "2.0.3"
 val tuweni = "2.7.2"
+val vertx = "4.5.30"
 val webcompare = "2.1.8"
 
 dependencies.constraints {
@@ -46,6 +47,7 @@ dependencies.constraints {
     }
     api("com.github.ben-manes.caffeine:caffeine:3.2.4") { because("com.github.benmanes.caffeine") }
     api("com.github.docker-java:docker-java-api:3.7.1") { because("com.github.dockerjava.api") }
+    api("com.github.luben:zstd-jni:1.5.7-16") { because("com.github.luben.zstd_jni") }
     api("com.github.spotbugs:spotbugs-annotations:4.9.8") {
         because("com.github.spotbugs.annotations")
     }
@@ -77,6 +79,7 @@ dependencies.constraints {
     api("io.prometheus:simpleclient_tracer_common:$prometheusSimpleclient") {
         because("simpleclient.tracer.common")
     }
+    api("io.vertx:vertx-core:$vertx") { because("io.vertx.core") }
     api("jakarta.inject:jakarta.inject-api:2.0.1") { because("jakarta.inject") }
     api("javax.inject:javax.inject:1") { because("javax.inject") }
     api("net.i2p.crypto:eddsa:0.3.0") { because("net.i2p.crypto.eddsa") }
