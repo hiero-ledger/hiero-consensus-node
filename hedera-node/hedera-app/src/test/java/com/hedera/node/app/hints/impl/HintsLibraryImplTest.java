@@ -11,7 +11,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.cryptography.hints.HintsLibraryBridge;
+import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
@@ -51,8 +53,31 @@ class HintsLibraryImplTest {
         RANDOM.nextBytes(entropyBytes);
         final var newCrs = subject.updateCrs(oldCrs, Bytes.wrap(entropyBytes));
         final var decodedCrsUpdate = decodeCrsUpdate(oldCrs.length(), newCrs);
-        final var isValid = subject.verifyCrsUpdate(oldCrs, newCrs, decodedCrsUpdate.proof());
+        final var isValid = subject.verifyCrsUpdate(oldCrs, decodedCrsUpdate.crs(), decodedCrsUpdate.proof());
         assertTrue(isValid);
+    }
+
+    @Test
+    void rejectsNonCanonicalCrsUpdateFraming() {
+        final var oldCrs = subject.newCrs((short) 4);
+        final byte[] entropyBytes = new byte[32];
+        RANDOM.nextBytes(entropyBytes);
+        final var updateOutput = subject.updateCrs(oldCrs, Bytes.wrap(entropyBytes));
+        final var decoded = decodeCrsUpdate(oldCrs.length(), updateOutput);
+        final var canonicalCrs = decoded.crs().toByteArray();
+        final var canonicalProof = decoded.proof().toByteArray();
+
+        assertEquals(HintsLibrary.PROOF_LENGTH, canonicalProof.length);
+        assertTrue(subject.verifyCrsUpdate(oldCrs, decoded.crs(), decoded.proof()));
+        assertFalse(subject.verifyCrsUpdate(oldCrs, updateOutput, decoded.proof()));
+        assertFalse(subject.verifyCrsUpdate(
+                oldCrs, Bytes.wrap(Arrays.copyOf(canonicalCrs, canonicalCrs.length - 1)), decoded.proof()));
+        assertFalse(subject.verifyCrsUpdate(
+                oldCrs, Bytes.wrap(Arrays.copyOf(canonicalCrs, canonicalCrs.length + 1)), decoded.proof()));
+        assertFalse(subject.verifyCrsUpdate(
+                oldCrs, decoded.crs(), Bytes.wrap(Arrays.copyOf(canonicalProof, canonicalProof.length - 1))));
+        assertFalse(subject.verifyCrsUpdate(
+                oldCrs, decoded.crs(), Bytes.wrap(Arrays.copyOf(canonicalProof, canonicalProof.length + 1))));
     }
 
     @Test
