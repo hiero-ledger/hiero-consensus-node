@@ -1,0 +1,538 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "870: [CALL] EVM Functional Tests"
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "The branch, tag, or SHA to checkout:"
+        required: false
+        type: string
+      custom-job-name:
+        description: "The custom job name to use for the job:"
+        required: false
+        type: string
+      java-distribution:
+        description: "Java JDK Distribution:"
+        type: string
+        required: false
+        default: "temurin"
+      java-version:
+        description: "Java JDK Version:"
+        type: string
+        required: false
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "24"
+      solo-version:
+        description: "The version of solo to install:"
+        required: true
+        type: string
+      mirror-node-version:
+        description: "The version of the mirror node to deploy with solo:"
+        required: true
+        type: string
+      json-rpc-relay-version:
+        description: "The version of the JSON-RPC relay to deploy with solo. Must be >= 0.79.0-rc1, the first release with TX_TYPE_4_ENABLED, which the HIP-1340 shards need:"
+        required: false
+        type: string
+        default: "0.79.0-rc1"
+      evm-testing-ref:
+        description: "The hashgraph/hedera-evm-testing commit SHA to test with (that repository has no tags):"
+        required: false
+        type: string
+        default: "57a98d0c0b9bc96f9ed0d65656d7dc81314a7cf1"
+    secrets:
+      access-token:
+        description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
+        required: true
+      gradle-cache-username:
+        description: "The username used to authenticate with the Gradle Build Cache Node."
+        required: true
+      gradle-cache-password:
+        description: "The password used to authenticate with the Gradle Build Cache Node."
+        required: true
+    outputs:
+      failure-mode:
+        description: "Indicates the failure mode of the job, if any."
+        value: ${{ jobs.set-failure-mode.outputs.failure-mode }}
+      failed-tests:
+        description: "Comma-separated list of the shards that failed, if any."
+        value: ${{ jobs.set-failure-mode.outputs.failed-tests }}
+
+defaults:
+  run:
+    shell: bash
+
+# Must stay a subset of the caller's permissions (600 grants id-token, actions: read, issues, pull-requests,
+# statuses, checks and contents: read); a called workflow that asks for more fails at run time.
+permissions:
+  contents: read
+
+env:
+  SOLO_CLUSTER_NAME: "solo-evm-e2e"
+  SOLO_NAMESPACE: "solo-evm-e2e"
+  SOLO_DEPLOYMENT: "solo-evm-deployment"
+  SOLO_CLUSTER_SETUP_NAMESPACE: "solo-setup"
+  GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
+  # hedera-evm-testing is checked out here. The matrix below repeats this prefix literally because the env
+  # context is not available inside strategy.matrix.
+  EVM_TESTING_DIR: "regression-tests/hedera-evm-testing/evm-functional-testing"
+  SHARD_RESULTS_DIR: "evm-shard-results"
+  SHARD_LOGS_DIR: "evm-shard-logs"
+
+jobs:
+  # Runs the hardhat EVM functional suite of hashgraph/hedera-evm-testing against a solo network (1 consensus
+  # node built from this checkout, mirror node, JSON-RPC relay on kind). One solo deployment per shard; the
+  # shards mirror .github/workflows/evm-functional-testing.yaml in hedera-evm-testing.
+  evm-functional-tests:
+    name: ${{ inputs.custom-job-name || 'Standard' }} (${{ matrix.shard }})
+    runs-on: hl-cn-rpc-relay-lin-lg
+    # A hung shard must not hold a runner for the 6-hour default; the pool is shared with 818 and 103.
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      # Placeholder until the first runs show how the shared hl-cn-rpc-relay-lin-lg pool copes; it also serves
+      # 818 (XTS, every 3 hours) and 103 (adhoc solo tests).
+      max-parallel: 6
+      matrix:
+        include:
+          - shard: HIP-1215
+            test_args: "test/hip-1215/*.test.js"
+          - shard: HIP-632
+            test_args: "test/hip-632/hip-632.test.js"
+          - shard: HTS transfer events
+            test_args: "test/hts/transfer-events/transfer-events.test.js"
+          - shard: HIP-1340 baseline
+            test_args: "test/hip-1340/hip1340-baseline.test.js"
+          # The HIP-1340 suites (except baseline) submit EIP-7702 type 4 transactions through the relay, which
+          # rejects them unless deployed with TX_TYPE_4_ENABLED=true (relay_values -> relay-values.yaml). The
+          # consensus-node side is covered by contracts.codeDelegations.enabled=true in the default
+          # application.properties.
+          - shard: HIP-1340 EIP-7702 (solo)
+            test_args: "test/hip-1340/hip1340-hts-delegation-noop-value.test.js"
+            relay_values: "regression-tests/hedera-evm-testing/evm-functional-testing/local/relay-values.yaml"
+          - shard: HIP-1340 EIP-7702 Ethereum Specific (solo) - delegation setup
+            test_args: "test/hip-1340/hip1340-delegation-setup.test.js --grep 'Ethereum Specific tests'"
+            relay_values: "regression-tests/hedera-evm-testing/evm-functional-testing/local/relay-values.yaml"
+          - shard: HIP-1340 EIP-7702 Ethereum Specific (solo) - delegated execution
+            test_args: "test/hip-1340/hip1340-delegated-execution.test.js --grep 'Ethereum Specific tests'"
+            relay_values: "regression-tests/hedera-evm-testing/evm-functional-testing/local/relay-values.yaml"
+          - shard: HIP-1340 EIP-7702 Ethereum Specific (solo) - token and account creation
+            test_args: "test/hip-1340/hip1340-token-and-account-creation.test.js --grep 'Ethereum Specific tests'"
+            relay_values: "regression-tests/hedera-evm-testing/evm-functional-testing/local/relay-values.yaml"
+          - shard: HIP-1340 Hiero
+            test_args: "test/hip-1340/hip1340-hiero.test.js"
+            relay_values: "regression-tests/hedera-evm-testing/evm-functional-testing/local/relay-values.yaml"
+          - shard: HIP-1340 SDK tests
+            test_args: "test/hip-1340/hip1340-sdk.test.js"
+            relay_values: "regression-tests/hedera-evm-testing/evm-functional-testing/local/relay-values.yaml"
+          - shard: HIP-1340 Atomic Batch
+            test_args: "test/hip-1340/hip1340-sdk-atomic-batch.test.js"
+            relay_values: "regression-tests/hedera-evm-testing/evm-functional-testing/local/relay-values.yaml"
+          - shard: ETH validation tests
+            test_args: "test/eth-validation/eth-tx-stale-key.test.js"
+            relay_values: "regression-tests/hedera-evm-testing/evm-functional-testing/local/relay-values.yaml"
+          # The eth-validation suite runs end-to-end at zero gas price on Hedera:
+          #   zero_gas_price   -> EVM_ZERO_GAS_PRICE on the run step (read by hardhat.config.js)
+          #   app_properties   -> consensus node started with zero-fees.properties
+          #                       (fees.simpleFeesAreFree=true) so zero-gas-price txs incur no fee
+          #   relay_values     -> relay deployed with the paymaster wildcard whitelist so its precheck accepts a
+          #                       below-minimum gas price (gas allowance kept at 0, so nothing is relay-subsidized)
+          - shard: ETH Validation deployment
+            test_args: "test/eth-validation/deployment.test.js"
+            zero_gas_price: "true"
+            app_properties: "regression-tests/hedera-evm-testing/evm-functional-testing/local/zero-fees.properties"
+            relay_values: "regression-tests/hedera-evm-testing/evm-functional-testing/local/relay-zero-gas-values.yaml"
+          - shard: ETH Validation CREATE/CREATE2
+            test_args: "test/eth-validation/create-create2.test.js"
+            zero_gas_price: "true"
+            app_properties: "regression-tests/hedera-evm-testing/evm-functional-testing/local/zero-fees.properties"
+            relay_values: "regression-tests/hedera-evm-testing/evm-functional-testing/local/relay-zero-gas-values.yaml"
+          - shard: ETH Validation call semantics
+            test_args: "test/eth-validation/call-semantics.test.js"
+            zero_gas_price: "true"
+            app_properties: "regression-tests/hedera-evm-testing/evm-functional-testing/local/zero-fees.properties"
+            relay_values: "regression-tests/hedera-evm-testing/evm-functional-testing/local/relay-zero-gas-values.yaml"
+          - shard: ETH Validation call edge cases
+            test_args: "test/eth-validation/call-edge-cases.test.js"
+            zero_gas_price: "true"
+            app_properties: "regression-tests/hedera-evm-testing/evm-functional-testing/local/zero-fees.properties"
+            relay_values: "regression-tests/hedera-evm-testing/evm-functional-testing/local/relay-zero-gas-values.yaml"
+          - shard: ETH Validation zero gas price
+            test_args: "test/eth-validation/zero-gas-price.test.js"
+            zero_gas_price: "true"
+            app_properties: "regression-tests/hedera-evm-testing/evm-functional-testing/local/zero-fees.properties"
+            relay_values: "regression-tests/hedera-evm-testing/evm-functional-testing/local/relay-zero-gas-values.yaml"
+          # The one eth-validation shard that must NOT run in zero-gas-price mode: it asserts how much gas an
+          # EthereumTransaction is charged, and with fees.simpleFeesAreFree=true the consensus node skips gas
+          # charging entirely (the suite skips itself if it finds that mode on). So no zero_gas_price and no
+          # app_properties override -> the node gets the default local/application.properties and charges real
+          # fees. The suite drives the consensus node over the SDK; the relay only serves its contract
+          # deployment, and relay-values.yaml is used for USE_ASYNC_TX_PROCESSING=false so a failed deployment
+          # surfaces its error.
+          - shard: ETH Validation self-relay gas (SDK)
+            test_args: "test/eth-validation/self-relay-gas-sdk.test.js"
+            relay_values: "regression-tests/hedera-evm-testing/evm-functional-testing/local/relay-values.yaml"
+    env:
+      GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
+      GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || '' }}"
+          checkout-token: "${{ secrets.access-token }}"
+          checkout-fetch-depth: "1"
+          setup-java: "true"
+          java-distribution: "${{ inputs.java-distribution }}"
+          java-version: "${{ inputs.java-version }}"
+          setup-gradle: "true"
+          gradle-cache-read-only: "false"
+          setup-node: "true"
+          node-version: "${{ inputs.node-version }}"
+
+      - name: Checkout hedera-evm-testing
+        id: checkout-evm-testing
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: hashgraph/hedera-evm-testing
+          ref: ${{ inputs.evm-testing-ref }}
+          path: regression-tests/hedera-evm-testing
+          fetch-depth: 1
+
+      # Artifact names cannot contain characters such as / and the shard names do, so derive a safe slug once.
+      - name: Derive Shard Slug
+        id: shard
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          slug=$(printf '%s' "${SHARD}" | tr -cs 'A-Za-z0-9._-' '-')
+          slug="${slug#-}"
+          slug="${slug%-}"
+          echo "slug=${slug}" | tee -a "${GITHUB_OUTPUT}"
+
+      # hedera-evm-testing commits its SDK and proto tarballs (file: dependencies), so npm ci needs no extra
+      # registry access.
+      - name: Install NodeJS Dependencies (hedera-evm-testing)
+        id: npm-ci
+        run: npm ci
+        working-directory: ${{ env.EVM_TESTING_DIR }}
+
+      - name: Install Solo
+        id: install-solo
+        env:
+          SOLO_VERSION: ${{ inputs.solo-version }}
+        run: |
+          npm install -g "@hiero-ledger/solo@${SOLO_VERSION}"
+          solo --version
+
+      - name: Setup Kind
+        id: setup-kind
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        with:
+          install_only: true
+          node_image: kindest/node:v1.32.5@sha256:e3b2327e3a5ab8c76f5ece68936e4cafaa82edf58486b769727ab0b3b97a5b0d
+          version: v0.29.0
+          kubectl_version: v1.32.5
+          verbosity: 3
+          wait: 120s
+
+      # The network under test is deployed from THIS checkout's build artifacts (the ref being tested).
+      - name: Build hiero-consensus-node
+        id: build-consensus-node
+        run: ${GRADLE_EXEC} assemble
+
+      - name: Configure and run solo
+        id: run-solo
+        timeout-minutes: 35
+        env:
+          INPUT_MIRROR_NODE_VERSION: ${{ inputs.mirror-node-version }}
+          INPUT_JSON_RPC_RELAY_VERSION: ${{ inputs.json-rpc-relay-version }}
+          # A fresh kind cluster pulls every container image; solo's default pod-Running gate (900 x 1s) can
+          # expire on slow pulls, so widen it (same as 819).
+          PODS_RUNNING_MAX_ATTEMPTS: "2700"
+          # Pins the web3 image and enables the mirror REST delegation-address field the HIP-1340 tests need.
+          MIRROR_NODE_VALUES_PATH: ${{ env.EVM_TESTING_DIR }}/local/mn-values.yaml
+          # Empty when the shard sets no relay_values -> relay deployed with default config.
+          RELAY_VALUES_PATH: ${{ matrix.relay_values }}
+          # eth-validation zero-gas shards override this with zero-fees.properties.
+          APP_PROPERTIES_PATH: ${{ matrix.app_properties || format('{0}/local/application.properties', env.EVM_TESTING_DIR) }}
+          # Well-known test keys of hedera-evm-testing; hardhat.config.js signs with the same keys.
+          # alias f70febf7420398c3892ce79fdc393c1a5487ad27
+          TEST_ACCOUNT_ECDSA_PRIVATE_KEY_DER_1: 3030020100300706052b8104000a04220420de78ff4e5e77ec2bf28ef7b446d4bec66e06d39b6e6967864b2bf3d6153f3e68
+          # alias dbe82db504ca6701fbe59e638ceaddbdb691067b
+          TEST_ACCOUNT_ECDSA_PRIVATE_KEY_DER_2: 3030020100300706052b8104000a04220420748634984b480c75456a68ea88f31609cd3091e012e2834948a6da317b727c04
+          # alias 84b4d82e6ed64102d0faa6c29bf4e9f541db442f
+          TEST_ACCOUNT_ECDSA_PRIVATE_KEY_DER_3: 3030020100300706052b8104000a042204203bcb2fbd18610f44eda2bfd58df63d053e2a6b165617a2ef5e5cca079e0c588a
+          TEST_ACCOUNT_HBAR_AMOUNT: "1000000000"
+        run: |
+          set -eo pipefail
+          # A previous job on a non-ephemeral runner may have left a cluster behind.
+          kind delete cluster -n "${SOLO_CLUSTER_NAME}" >/dev/null 2>&1 || true
+          kind create cluster -n "${SOLO_CLUSTER_NAME}"
+          solo init
+          solo cluster-ref config connect --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --context "kind-${SOLO_CLUSTER_NAME}"
+          solo deployment config create -n "${SOLO_NAMESPACE}" --deployment "${SOLO_DEPLOYMENT}"
+          solo deployment cluster attach --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "kind-${SOLO_CLUSTER_NAME}" --num-consensus-nodes 1
+          # consensus node
+          solo keys consensus generate --gossip-keys --tls-keys --deployment "${SOLO_DEPLOYMENT}"
+          solo cluster-ref config setup -s "${SOLO_CLUSTER_SETUP_NAMESPACE}"
+          solo consensus network deploy --pvcs --deployment "${SOLO_DEPLOYMENT}" --application-properties "${APP_PROPERTIES_PATH}"
+          solo consensus node setup --deployment "${SOLO_DEPLOYMENT}" --local-build-path ./hedera-node/data
+          solo consensus node start --deployment "${SOLO_DEPLOYMENT}"
+          # mirror node
+          solo mirror node add --enable-ingress --pinger --mirror-node-version "${INPUT_MIRROR_NODE_VERSION}" --values-file "${MIRROR_NODE_VALUES_PATH}" --deployment "${SOLO_DEPLOYMENT}" --cluster-ref "kind-${SOLO_CLUSTER_NAME}"
+          # relay
+          # Shards that set RELAY_VALUES_PATH get a customized relay: HIP-1340 shards enable type 4 (EIP-7702)
+          # transactions, eth-validation zero-gas-price shards accept zero-gas-price transactions (paymaster
+          # whitelist, zero allowance); others use defaults. `--relay-version` replaces the `--relay-release`
+          # flag, deprecated since solo 0.85.0.
+          relay_values_arg=()
+          if [[ -n "${RELAY_VALUES_PATH}" ]]; then
+            relay_values_arg=(--values-file "${RELAY_VALUES_PATH}")
+          fi
+          solo relay node add --relay-version "${INPUT_JSON_RPC_RELAY_VERSION}" --deployment "${SOLO_DEPLOYMENT}" -i node1 "${relay_values_arg[@]}"
+          # accounts pre-setup; the first one becomes 0.0.1001, the SDK operator in hardhat.config.js
+          for private_key in "${TEST_ACCOUNT_ECDSA_PRIVATE_KEY_DER_1}" "${TEST_ACCOUNT_ECDSA_PRIVATE_KEY_DER_2}" "${TEST_ACCOUNT_ECDSA_PRIVATE_KEY_DER_3}"; do
+            solo ledger account create --deployment "${SOLO_DEPLOYMENT}" --hbar-amount "${TEST_ACCOUNT_HBAR_AMOUNT}" --private-key --set-alias --ecdsa-private-key "${private_key}"
+          done
+
+      # hardhat.config.js expects the network on fixed localhost ports: JSON-RPC relay 37546, consensus node gRPC
+      # 35211 (SDK client) and mirror node REST 38081. Solo tears its own CN gRPC port-forward down after the
+      # node health checks (818 re-adds it as well), so re-establish whichever forward is missing. The probe is
+      # plain bash (/dev/tcp) because the runner image does not ship nc; kubectl's output is kept for diagnosis.
+      - name: Ensure local port-forwards
+        id: port-forwards
+        run: |
+          set -eo pipefail
+          mkdir -p "${SHARD_LOGS_DIR}"
+          port_open() {
+            (exec 3<>"/dev/tcp/127.0.0.1/${1}") 2>/dev/null
+          }
+          ensure_forward() {
+            local port="${1}" target="${2}" remote_port="${3}"
+            local log="${SHARD_LOGS_DIR}/port-forward-${port}.log"
+            if port_open "${port}"; then
+              echo "127.0.0.1:${port} is already listening (solo port-forward still active)"
+              return 0
+            fi
+            echo "Forwarding ${target} port ${remote_port} to 127.0.0.1:${port}"
+            kubectl -n "${SOLO_NAMESPACE}" port-forward "${target}" "${port}:${remote_port}" >"${log}" 2>&1 &
+            for _ in $(seq 1 15); do
+              if port_open "${port}"; then
+                echo "127.0.0.1:${port} ready"
+                return 0
+              fi
+              sleep 2
+            done
+            echo "::error::127.0.0.1:${port} did not open for ${target}"
+            echo "--- kubectl port-forward output ---"
+            cat "${log}" || true
+            echo "--- services in ${SOLO_NAMESPACE} ---"
+            kubectl -n "${SOLO_NAMESPACE}" get svc -o wide || true
+            return 1
+          }
+          # solo names the relay release "relay-<node alias>" and finds its pod by the instance label.
+          relay_pod=$(kubectl -n "${SOLO_NAMESPACE}" get pods -l app.kubernetes.io/instance=relay-node1 -o name 2>/dev/null | head -n 1 || true)
+          ensure_forward 35211 svc/haproxy-node1-svc non-tls-grpc-client-port
+          ensure_forward 38081 svc/mirror-1-rest http
+          ensure_forward 37546 "${relay_pod:-svc/relay-node1}" 7546
+
+      # Solo reports readiness before the mirror node REST backend serves data (see 818 and 819), and the relay
+      # needs the mirror node for its own startup queries. Wait for both before running hardhat.
+      - name: Wait for network readiness
+        id: wait-for-network
+        run: |
+          set -eo pipefail
+          kubectl -n "${SOLO_NAMESPACE}" get pods -o wide
+
+          echo "Waiting for the mirror node REST API on 127.0.0.1:38081 (up to 5m)"
+          ready="false"
+          for i in $(seq 1 60); do
+            if curl -sf "http://127.0.0.1:38081/api/v1/blocks?limit=1" >/dev/null; then
+              echo "Mirror node REST API ready (attempt ${i})"
+              ready="true"
+              break
+            fi
+            sleep 5
+          done
+          if [[ "${ready}" != "true" ]]; then
+            echo "::error::Mirror node REST API did not become ready on 127.0.0.1:38081"
+            kubectl -n "${SOLO_NAMESPACE}" get pods >&2
+            exit 1
+          fi
+
+          echo "Waiting for the JSON-RPC relay on 127.0.0.1:37546 (up to 5m)"
+          ready="false"
+          for i in $(seq 1 60); do
+            chain_id=$(curl -sf -X POST "http://127.0.0.1:37546" -H "Content-Type: application/json" \
+              --data '{"jsonrpc":"2.0","id":1,"method":"eth_chainId","params":[]}' | jq -r '.result // empty' || true)
+            if [[ "${chain_id}" == "0x12a" ]]; then
+              echo "JSON-RPC relay ready (chainId ${chain_id}, attempt ${i})"
+              ready="true"
+              break
+            fi
+            sleep 5
+          done
+          if [[ "${ready}" != "true" ]]; then
+            echo "::error::JSON-RPC relay did not become ready on 127.0.0.1:37546"
+            kubectl -n "${SOLO_NAMESPACE}" get pods >&2
+            exit 1
+          fi
+
+      - name: Run the tests
+        id: run-tests
+        # test_args may carry a quoted --grep filter, so it is inlined for the shell to parse (as upstream does).
+        run: npx hardhat test ${{ matrix.test_args }} --network solo
+        working-directory: ${{ env.EVM_TESTING_DIR }}
+        env:
+          # Empty for non-eth-validation shards -> hardhat.config.js falls back to "auto".
+          EVM_ZERO_GAS_PRICE: ${{ matrix.zero_gas_price }}
+
+      # Diagnostics for a failed shard: pod state and events, container logs, the consensus node's application
+      # logs and solo's own CLI logs. The job log already holds the hardhat output.
+      - name: Collect diagnostics
+        if: ${{ failure() }}
+        continue-on-error: true
+        run: |
+          mkdir -p "${SHARD_LOGS_DIR}"
+          {
+            kubectl -n "${SOLO_NAMESPACE}" get pods -o wide
+            echo
+            kubectl -n "${SOLO_NAMESPACE}" get svc -o wide
+            echo
+            kubectl -n "${SOLO_NAMESPACE}" get events --sort-by=.lastTimestamp
+          } > "${SHARD_LOGS_DIR}/kubectl-overview.txt" 2>&1 || true
+          mapfile -t pods < <(kubectl -n "${SOLO_NAMESPACE}" get pods -o name 2>/dev/null || true)
+          for pod in "${pods[@]}"; do
+            name="${pod#pod/}"
+            kubectl -n "${SOLO_NAMESPACE}" describe "${pod}" > "${SHARD_LOGS_DIR}/${name}.describe.txt" 2>&1 || true
+            kubectl -n "${SOLO_NAMESPACE}" logs "${pod}" --all-containers --tail=-1 > "${SHARD_LOGS_DIR}/${name}.log" 2>&1 || true
+          done
+          kubectl -n "${SOLO_NAMESPACE}" cp -c root-container \
+            network-node1-0:/opt/hgcapp/services-hedera/HapiApp2.0/output "${SHARD_LOGS_DIR}/network-node1-output" || true
+          cp -r ~/.solo/logs "${SHARD_LOGS_DIR}/solo-cli-logs" || true
+
+      - name: Upload diagnostics
+        if: ${{ failure() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: EVM Functional Tests Diagnostics (${{ steps.shard.outputs.slug || strategy.job-index }})
+          path: ${{ env.SHARD_LOGS_DIR }}
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop solo
+        if: ${{ always() }}
+        continue-on-error: true
+        run: kind delete cluster -n "${SOLO_CLUSTER_NAME}"
+
+      - name: Set Failure Mode Output
+        id: set-failure-mode
+        if: ${{ always() }}
+        working-directory: ${{ github.workspace }}
+        env:
+          INPUT_TEST_OUTCOMES: ${{ steps.run-tests.outcome }}
+          INPUT_WORKFLOW_OUTCOMES: >-
+            ${{ steps.prepare-runner.outcome }}
+            ${{ steps.checkout-evm-testing.outcome }}
+            ${{ steps.shard.outcome }}
+            ${{ steps.npm-ci.outcome }}
+            ${{ steps.install-solo.outcome }}
+            ${{ steps.setup-kind.outcome }}
+            ${{ steps.build-consensus-node.outcome }}
+            ${{ steps.run-solo.outcome }}
+            ${{ steps.port-forwards.outcome }}
+            ${{ steps.wait-for-network.outcome }}
+        run: bash .github/workflows/support/scripts/set-failure-mode.sh
+
+      # Matrix legs overwrite each other's job outputs (the last leg to finish wins), so every leg records its
+      # own result in a small artifact that the set-failure-mode job aggregates.
+      - name: Record Shard Result
+        id: record-shard-result
+        if: ${{ always() }}
+        env:
+          SHARD_SLUG: ${{ steps.shard.outputs.slug || format('shard-{0}', strategy.job-index) }}
+          JOB_STATUS: ${{ job.status }}
+          FAILURE_MODE: ${{ steps.set-failure-mode.outputs.failure-mode }}
+        run: |
+          mkdir -p "${SHARD_RESULTS_DIR}"
+          mode="${FAILURE_MODE:-none}"
+          # A failed step outside the tracked outcomes still counts as a workflow failure.
+          if [[ "${JOB_STATUS}" == "failure" && "${mode}" == "none" ]]; then
+            mode="workflow"
+          fi
+          printf '%s %s %s\n' "${SHARD_SLUG}" "${JOB_STATUS}" "${mode}" | tee "${SHARD_RESULTS_DIR}/${SHARD_SLUG}.txt"
+
+      - name: Upload Shard Result
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: evm-shard-result-${{ strategy.job-index }}
+          path: ${{ env.SHARD_RESULTS_DIR }}
+          retention-days: 1
+
+  set-failure-mode:
+    name: "Set Failure Mode"
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - evm-functional-tests
+    if: ${{ always() }}
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
+      failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Download Shard Results
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: evm-shard-result-*
+          path: ${{ env.SHARD_RESULTS_DIR }}
+          merge-multiple: true
+
+      - name: Set Failure Mode
+        id: set-failure-mode
+        env:
+          MATRIX_RESULT: ${{ needs.evm-functional-tests.result }}
+        run: |
+          set -eo pipefail
+          shopt -s nullglob
+          statuses=()
+          modes=()
+          names=()
+          for result_file in "${SHARD_RESULTS_DIR}"/*.txt; do
+            read -r name status mode < "${result_file}" || true
+            if [[ -z "${name}" || -z "${status}" ]]; then
+              echo "::warning::Ignoring malformed shard result ${result_file}"
+              continue
+            fi
+            names+=("${name}")
+            statuses+=("${status}")
+            modes+=("${mode:-none}")
+          done
+          echo "Aggregating ${#names[@]} shard result(s); matrix result: ${MATRIX_RESULT}"
+          # A leg that failed without recording a result (for example killed by the job timeout) is still a failure.
+          if [[ "${MATRIX_RESULT}" == "failure" ]] && ! printf '%s\n' "${statuses[@]}" | grep -qx "failure"; then
+            names+=("evm-functional-tests")
+            statuses+=("failure")
+            modes+=("workflow")
+          fi
+          export INPUT_JOB_NAMES="${names[*]}"
+          export INPUT_JOB_STATUSES="${statuses[*]}"
+          export INPUT_JOB_FAILURE_MODES="${modes[*]}"
+          echo "Shards:   ${INPUT_JOB_NAMES}"
+          echo "Statuses: ${INPUT_JOB_STATUSES}"
+          echo "Modes:    ${INPUT_JOB_FAILURE_MODES}"
+          bash .github/workflows/support/scripts/set-failure-mode.sh

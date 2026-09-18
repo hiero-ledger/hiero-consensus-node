@@ -69,6 +69,50 @@ the time constraint. The time limit for MATS is critical because it is also run 
 | MATS - Docker Determinism                              | [822: [CALL] Verify Docker Build](/.github/workflows/822-call-verify-docker-determinism.yaml)    | `ref: <commit-sha>`                                                                                                     | `gradle-cache-username`<br/>`gradle-cache-password`                                                                   | build           |
 | MATS - Gradle Determinism                              | [823: [CALL] Verify Gradle Build](/.github/workflows/823-call-verify-gradle-determinism.yaml)    | `ref: <commit-sha>`                                                                                                     | `gradle-cache-username`<br/>`gradle-cache-password`                                                                   | build           |
 
+## PR-Only Checks
+
+Checks in this section run from the [600: [FLOW] PR Checks](/.github/workflows/600-flow-pull-request-checks.yaml)
+workflow but are not part of MATS: they do not run on pushes to `main` or in XTS, and they do not gate the required
+`CI Complete` status check.
+
+### EVM Functional Tests
+
+#### Purpose
+
+Runs the hardhat-based EVM functional suite of [hashgraph/hedera-evm-testing](https://github.com/hashgraph/hedera-evm-testing)
+(`evm-functional-testing/`, mirroring that repository's own `evm-functional-testing.yaml` workflow) against the PR's
+head commit, so EVM and system-contract regressions surface before merge instead of after. Each of the 18 shards
+deploys the PR's consensus node build with solo (1 consensus node, mirror node and JSON-RPC relay on kind) and runs
+one hardhat test file.
+
+#### Environment
+
+- Runs on `hl-cn-rpc-relay-lin-lg` runners (shared with the XTS JSON-RPC relay panel and the adhoc solo tests), one
+  solo deployment per shard, at most 6 shards in parallel and 90 minutes per shard.
+- Runs after MATS and only when MATS succeeded, so a PR that does not compile or fails MATS does not spend 18 solo
+  deployments.
+- **Advisory.** The result is reported in the PR check summary and as per-shard check runs
+  (`EVM Functional Tests / Standard (<shard>)`), but `CI Complete` does not depend on it.
+- Runs only when a non-documentation file under `hedera-node/hedera-smart-contract-service/` or
+  `hedera-node/hedera-smart-contract-service-impl/` changed, or when the PR carries the `Run EVM Tests` or
+  `Run Full CI` label (see [classify-changed-files.js](/.github/workflows/support/scripts/classify-changed-files.js)).
+  Changes elsewhere that affect EVM behaviour, for example `ContractsConfig` in `hedera-node/hedera-config`, the HTS
+  system-contract handlers in `hedera-node/hedera-token-service-impl`, `hedera-node/configuration/` or `hapi/`, rely
+  on the label. The `Run EVM Tests` label must exist in the repository settings; 600 already re-runs on `labeled`
+  events.
+- Versions: solo and the mirror node come from [.citr-env](/.github/workflows/support/citr/.citr-env)
+  (`citr-solo-version`, `citr-mirror-node-version`) through
+  [855: [CALL] Extract CITR Vars](/.github/workflows/855-call-extract-citr-vars.yaml). The JSON-RPC relay version is
+  passed as a literal `0.79.0-rc1` rather than `json-rpc-relay-version` (v0.78.0) because the HIP-1340 shards need
+  `TX_TYPE_4_ENABLED`, which first shipped in relay 0.79.0-rc1. `hedera-evm-testing` is pinned by commit SHA
+  (`evm-testing-ref`) because that repository has no tags.
+
+#### Included Tests
+
+|            Test Name             |                                             Workflow                                             |                                                             Required Parameters                                                              |                     Required Workflow Secrets                          | Precursor Steps |
+|----------------------------------|--------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|-----------------|
+| EVM Functional Tests (18 shards) | [870: [CALL] EVM Functional Tests](/.github/workflows/870-call-evm-functional-tests.yaml)        | `ref: <commit-sha>`<br/>`solo-version: <citr-solo-version>`<br/>`mirror-node-version: <citr-mirror-node-version>`<br/>`json-rpc-relay-version: 0.79.0-rc1` | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password` | MATS            |
+
 ## XTS
 
 ### Purpose
