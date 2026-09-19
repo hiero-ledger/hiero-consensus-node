@@ -224,7 +224,33 @@ public class FreezeHandler implements TransactionHandler {
                 && (updateFileID == null || upgradeStore.peek(updateFileID) == null)) {
             throw new IllegalStateException("Update file not found");
         }
+
+        if (freezeTxn.freezeType() == FREEZE_UPGRADE) {
+            validatePreparedUpgrade(freezeTxn, freezeStore);
+        }
     }
+
+    /**
+     * Verifies that a {@code FREEZE_UPGRADE} confirms an upgrade that was actually prepared: an earlier
+     * {@code PREPARE_UPGRADE} must have recorded an update file hash, and the hash named by this
+     * transaction must match the recorded one. A {@code FREEZE_ABORT} clears the recorded hash, so a
+     * freeze upgrade aborted in the meantime is treated as having no prepared upgrade.
+     *
+     * @param freezeTxn the freeze transaction body being handled
+     * @param freezeStore the store holding the prepared update file hash
+     * @throws HandleException if no upgrade has been prepared, or the prepared hash does not match
+     */
+    private static void validatePreparedUpgrade(
+            @NonNull final FreezeTransactionBody freezeTxn, @NonNull final ReadableFreezeStore freezeStore) {
+        final Bytes preparedFileHash = freezeStore.updateFileHash();
+        if (preparedFileHash == null || Bytes.EMPTY.equals(preparedFileHash)) {
+            throw new HandleException(ResponseCodeEnum.NO_UPGRADE_HAS_BEEN_PREPARED);
+        }
+        if (!preparedFileHash.equals(freezeTxn.fileHash())) {
+            throw new HandleException(ResponseCodeEnum.UPDATE_FILE_HASH_DOES_NOT_MATCH_PREPARED);
+        }
+    }
+
     /**
      * For freeze types FREEZE_ONLY, FREEZE_UPGRADE, and TELEMETRY_UPGRADE, the startTime field must be set to
      * a time in the future, where future is defined as a time after the current consensus time.
