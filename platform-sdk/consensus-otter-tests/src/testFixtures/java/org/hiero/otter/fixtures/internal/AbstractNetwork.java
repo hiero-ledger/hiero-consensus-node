@@ -337,13 +337,8 @@ public abstract class AbstractNetwork implements Network {
         throwIfInLifecycle(Lifecycle.RUNNING, "Network is already running.");
         log.info("Starting network...");
 
-        roster = createRoster();
-        preStartHook(roster);
-
-        lifecycle = Lifecycle.RUNNING;
-        updateConnections();
+        prepareForStart();
         for (final Node node : nodes()) {
-            ((AbstractNode) node).roster(roster);
             node.start();
         }
 
@@ -352,6 +347,48 @@ public abstract class AbstractNetwork implements Network {
         log.debug("Waiting for nodes to become active...");
         timeManager().waitForCondition(() -> allNodesInStatus(ACTIVE), timeout);
         log.info("Network started.");
+    }
+
+    /**
+     * Runs the one-time network setup (roster creation, {@link #preStartHook(Roster)}, connection wiring, roster
+     * assignment to every node, lifecycle transition to {@link Lifecycle#RUNNING}). Safe to call at most once per
+     * network instance.
+     */
+    private void prepareForStart() {
+        roster = createRoster();
+        preStartHook(roster);
+
+        lifecycle = Lifecycle.RUNNING;
+        updateConnections();
+        for (final Node node : nodes()) {
+            ((AbstractNode) node).roster(roster);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void startSubset(@NonNull final Collection<Node> nodesToStart) {
+        requireNonNull(nodesToStart);
+        if (nodesToStart.isEmpty()) {
+            throw new IllegalArgumentException("nodesToStart must not be empty");
+        }
+        final Set<Node> allNodes = new HashSet<>(nodes());
+        for (final Node node : nodesToStart) {
+            if (!allNodes.contains(node)) {
+                throw new IllegalArgumentException("Node " + node.selfId() + " is not part of this network");
+            }
+        }
+        throwIfInLifecycle(Lifecycle.RUNNING, "Network is already running.");
+        log.info("Starting subset of {} node(s)...", nodesToStart.size());
+
+        prepareForStart();
+        for (final Node node : nodesToStart) {
+            node.start();
+        }
+        transactionGenerator().start();
+        log.info("Subset started.");
     }
 
     private Roster createRoster() {

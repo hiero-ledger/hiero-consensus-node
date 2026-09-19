@@ -86,7 +86,7 @@ class ReplayingEventsStatusLogicTests {
                         time.now(),
                         new TimeElapsedAction.QuiescingStatus(true, time.now().plus(5, ChronoUnit.SECONDS))),
                 logic.getStatus());
-        assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now()), logic.getStatus());
+        assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now(), true), logic.getStatus());
         assertNoTransition(logic, new StateWrittenToDiskAction(0, false), logic.getStatus());
     }
 

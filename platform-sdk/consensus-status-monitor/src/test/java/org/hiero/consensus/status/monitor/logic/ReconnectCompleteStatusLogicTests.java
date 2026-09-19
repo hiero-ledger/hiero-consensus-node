@@ -105,7 +105,7 @@ class ReconnectCompleteStatusLogicTests {
     @Test
     @DisplayName("Irrelevant actions shouldn't cause transitions")
     void irrelevantActions() {
-        assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now()), logic.getStatus());
+        assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now(), true), logic.getStatus());
         assertNoTransition(
                 logic,
                 new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now())),
