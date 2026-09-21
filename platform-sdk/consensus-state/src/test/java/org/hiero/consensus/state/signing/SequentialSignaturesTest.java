@@ -118,7 +118,7 @@ public class SequentialSignaturesTest extends AbstractStateSignatureCollectorTes
         }
 
         // Check reservation counts.
-        validateReservationCounts(round -> round < signedStates.size() - 1);
+        validateReservationCounts(round -> round < signedStates.size() - roundsToKeepForSigning);
 
         // We don't expect any further callbacks. But wait a little while longer in case there is something unexpected.
         SECONDS.sleep(1);
