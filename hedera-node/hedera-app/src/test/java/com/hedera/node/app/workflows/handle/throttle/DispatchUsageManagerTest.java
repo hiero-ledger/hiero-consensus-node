@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_ASSOCIATE_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONSENSUS_GAS_EXHAUSTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -15,8 +16,10 @@ import static com.hedera.node.app.spi.workflows.HandleContext.ConsensusThrottlin
 import static com.hedera.node.app.spi.workflows.HandleContext.ConsensusThrottling.ON;
 import static java.util.Objects.requireNonNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -330,7 +333,7 @@ class DispatchUsageManagerTest {
 
         subject.finalizeAndSaveUsage(dispatch);
 
-        verify(throttleServiceManager).reclaimFrontendThrottleCapacity(1, CRYPTO_CREATE);
+        verify(throttleServiceManager).reclaimFrontendThrottleCapacity(1, CRYPTO_CREATE, false);
         verify(throttleServiceManager).saveThrottleSnapshotsAndCongestionLevelStartsTo(stack);
     }
 
@@ -348,7 +351,7 @@ class DispatchUsageManagerTest {
 
         subject.finalizeAndSaveUsage(dispatch);
 
-        verify(throttleServiceManager, never()).reclaimFrontendThrottleCapacity(anyInt(), any());
+        verify(throttleServiceManager, never()).reclaimFrontendThrottleCapacity(anyInt(), any(), anyBoolean());
         verify(throttleServiceManager).saveThrottleSnapshotsAndCongestionLevelStartsTo(stack);
     }
 
@@ -368,8 +371,104 @@ class DispatchUsageManagerTest {
 
         subject.finalizeAndSaveUsage(dispatch);
 
-        verify(throttleServiceManager, never()).reclaimFrontendThrottleCapacity(anyInt(), any());
+        verify(throttleServiceManager, never()).reclaimFrontendThrottleCapacity(anyInt(), any(), anyBoolean());
         verify(throttleServiceManager).saveThrottleSnapshotsAndCongestionLevelStartsTo(stack);
+    }
+
+    @Test
+    void reclaimsHighVolumeFrontendCapacityOnFailedImplicitCreation() {
+        given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
+        given(recordBuilder.status()).willReturn(INVALID_ACCOUNT_AMOUNTS);
+        given(dispatch.stack()).willReturn(stack);
+        given(dispatch.readableStoreFactory()).willReturn(readableStoreFactory);
+        given(readableStoreFactory.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+        given(throttleServiceManager.numImplicitCreations(NONDESCRIPT_TXN_BODY, readableAccountStore))
+                .willReturn(2);
+        given(networkInfo.selfNodeInfo()).willReturn(selfNodeInfo);
+        given(selfNodeInfo.accountId()).willReturn(CREATOR_ACCOUNT_ID);
+        given(throttleServiceManager.usesHighVolumeBucketForImplicitCreations(NONDESCRIPT_TXN_BODY, CRYPTO_TRANSFER, 2))
+                .willReturn(true);
+
+        subject.finalizeAndSaveUsage(dispatch);
+
+        // The claim used the high-volume bucket, so the reclaim must leak it back into the high-volume bucket
+        verify(throttleServiceManager).reclaimFrontendThrottleCapacity(2, CRYPTO_CREATE, true);
+        verify(throttleServiceManager, never())
+                .reclaimFrontendThrottleCapacity(anyInt(), eq(TOKEN_ASSOCIATE_TO_ACCOUNT), anyBoolean());
+    }
+
+    @Test
+    void reclaimsOnlyImplicitCreationCapacityAndSkipsAutoAssociationWhenImplicitCreationsPresent() {
+        given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
+        given(recordBuilder.status()).willReturn(INVALID_ACCOUNT_AMOUNTS);
+        given(dispatch.stack()).willReturn(stack);
+        given(dispatch.readableStoreFactory()).willReturn(readableStoreFactory);
+        given(readableStoreFactory.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+        given(throttleServiceManager.numImplicitCreations(NONDESCRIPT_TXN_BODY, readableAccountStore))
+                .willReturn(1);
+        given(networkInfo.selfNodeInfo()).willReturn(selfNodeInfo);
+        given(selfNodeInfo.accountId()).willReturn(CREATOR_ACCOUNT_ID);
+
+        subject.finalizeAndSaveUsage(dispatch);
+
+        verify(throttleServiceManager).reclaimFrontendThrottleCapacity(1, CRYPTO_CREATE, false);
+        // Implicit creations take precedence at claim time, so the auto-association leg must not even be evaluated
+        verify(throttleServiceManager, never()).numAutoAssociations(any(), any());
+        verify(throttleServiceManager, never())
+                .reclaimFrontendThrottleCapacity(anyInt(), eq(TOKEN_ASSOCIATE_TO_ACCOUNT), anyBoolean());
+    }
+
+    @Test
+    void reclaimsTokenAssociateCapacityWhenNoImplicitCreationsAndUnlimitedAutoAssociationsEnabled() {
+        given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
+        given(recordBuilder.status()).willReturn(INVALID_ACCOUNT_AMOUNTS);
+        given(dispatch.stack()).willReturn(stack);
+        given(dispatch.config()).willReturn(DEFAULT_CONFIG);
+        given(dispatch.readableStoreFactory()).willReturn(readableStoreFactory);
+        given(readableStoreFactory.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+        given(throttleServiceManager.numImplicitCreations(NONDESCRIPT_TXN_BODY, readableAccountStore))
+                .willReturn(0);
+        given(throttleServiceManager.numAutoAssociations(eq(NONDESCRIPT_TXN_BODY), any()))
+                .willReturn(3);
+        given(networkInfo.selfNodeInfo()).willReturn(selfNodeInfo);
+        given(selfNodeInfo.accountId()).willReturn(CREATOR_ACCOUNT_ID);
+
+        subject.finalizeAndSaveUsage(dispatch);
+
+        // Auto associations are always claimed against the normal bucket, so the reclaim passes false
+        verify(throttleServiceManager).reclaimFrontendThrottleCapacity(3, TOKEN_ASSOCIATE_TO_ACCOUNT, false);
+        verify(throttleServiceManager, never())
+                .reclaimFrontendThrottleCapacity(anyInt(), eq(CRYPTO_CREATE), anyBoolean());
+    }
+
+    @Test
+    void doesNotReclaimTokenAssociateWhenUnlimitedAutoAssociationsDisabled() {
+        final var configWithFlagOff = HederaTestConfigBuilder.create()
+                .withValue("entities.unlimitedAutoAssociationsEnabled", "false")
+                .getOrCreateConfig();
+        given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.USER);
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.streamBuilder()).willReturn(recordBuilder);
+        given(recordBuilder.status()).willReturn(INVALID_ACCOUNT_AMOUNTS);
+        given(dispatch.stack()).willReturn(stack);
+        given(dispatch.config()).willReturn(configWithFlagOff);
+        given(dispatch.readableStoreFactory()).willReturn(readableStoreFactory);
+        given(readableStoreFactory.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+        given(throttleServiceManager.numImplicitCreations(NONDESCRIPT_TXN_BODY, readableAccountStore))
+                .willReturn(0);
+        given(throttleServiceManager.numAutoAssociations(eq(NONDESCRIPT_TXN_BODY), any()))
+                .willReturn(3);
+
+        subject.finalizeAndSaveUsage(dispatch);
+
+        // The claim never charged TOKEN_ASSOCIATE capacity because the flag was off, so nothing is reclaimed
+        verify(throttleServiceManager, never()).reclaimFrontendThrottleCapacity(anyInt(), any(), anyBoolean());
     }
 
     @Test

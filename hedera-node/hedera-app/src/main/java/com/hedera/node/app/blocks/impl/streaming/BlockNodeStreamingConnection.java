@@ -431,15 +431,21 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      */
     private void handleEndOfStream(@NonNull final EndOfStream endOfStream) {
         requireNonNull(endOfStream, "endOfStream must not be null");
-        final long blockNumber = endOfStream.blockNumber();
+        final long lastVerifiedBlock = endOfStream.blockNumber();
+        final long approxProblematicBlock = endOfStream.proximateBlockNumber();
         final EndOfStream.Code responseCode = endOfStream.status();
 
-        logger.info("{} Received EndOfStream response (block: {}, responseCode: {})", this, blockNumber, responseCode);
+        logger.info(
+                "{} Received EndOfStream response (lastVerifiedBlock: {}, approxProblematicBlock: {}, responseCode: {})",
+                this,
+                lastVerifiedBlock,
+                approxProblematicBlock,
+                responseCode);
 
         shouldSendEndStreamOnClose = false;
 
         // Update the latest acknowledged block number
-        acknowledgeBlocks(blockNumber, false);
+        acknowledgeBlocks(lastVerifiedBlock, false);
 
         // Check if we've exceeded the EndOfStream rate limit
         // Record the EndOfStream event and check if the rate limit has been exceeded.
@@ -463,39 +469,14 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         }
 
         switch (responseCode) {
-            case Code.ERROR, Code.PERSISTENCE_FAILED -> {
-                // The block node had an end of stream error and cannot continue processing.
-                // We should wait for a short period before attempting to retry
-                // to avoid overwhelming the node if it's having issues
-                logger.info(
-                        "{} Block node reported an error at block {}; will attempt to reestablish the stream later",
-                        this,
-                        blockNumber);
-
-                close(CloseReason.END_STREAM_RECEIVED, true);
-            }
             case Code.TIMEOUT, Code.DUPLICATE_BLOCK, Code.BAD_BLOCK_PROOF, Code.INVALID_REQUEST -> {
-                // We should restart the stream at the block immediately
-                // following the last verified and persisted block number
-                final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
-                logger.info(
-                        "{} Block node reported status indicating immediate restart should be attempted; "
-                                + "may restart stream at block {}",
-                        this,
-                        restartBlockNumber);
-
+                // A transient issue happened on the BN, so still close the connection but don't force the block node
+                // to enter a cool-down period.
                 close(CloseReason.TRANSIENT_END_STREAM_RECEIVED, true);
             }
-            case Code.SUCCESS -> {
-                // The block node orderly ended the stream. In this case, no errors occurred.
-                // We should wait for a longer period before attempting to retry.
-                logger.info("{} Block node orderly ended the stream at block {}", this, blockNumber);
-                close(CloseReason.END_STREAM_RECEIVED, true);
-            }
-            case Code.UNKNOWN -> {
-                // This should never happen, but if it does, schedule this connection for a retry attempt
-                // and in the meantime select a new node to stream to
-                logger.info("{} Block node reported an unknown error at block {}", this, blockNumber);
+            default -> {
+                // A non-transient close reason was received, so close the connection and let the block node go into
+                // a cool-down period
                 close(CloseReason.END_STREAM_RECEIVED, true);
             }
         }
@@ -663,7 +644,12 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                 logger.warn("{} Sending of end stream request failed (reason: {})", this, result.status);
             }
         } catch (final RuntimeException e) {
-            logger.warn("{} Error sending EndStream request", this, e);
+            final FailureType failureType = FailureType.findFailureType(e);
+            if (failureType.isCommonFailure()) {
+                logger.warn("{} Error sending EndStream request (error: {})", this, failureType);
+            } else {
+                logger.warn("{} Error sending EndStream request", this, e);
+            }
         }
     }
 
@@ -978,18 +964,20 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         if (!isActive()) {
             // the connection is no longer active... no need to process any further
             logger.info(
-                    "{} Timed out sending request to block node (timeout: {}ms, duration: {}μs) - suppressing because connection is no longer active",
+                    "{} Timed out sending request to block node (timeout: {}ms, duration: {}μs, requestSize: {}B) - suppressing because connection is no longer active",
                     connectionContext(correlationId),
                     request.timeoutMillis(),
-                    durationMicros);
+                    durationMicros,
+                    request.streamRequest().protobufSize());
             return new SendRequestResult(SendRequestStatus.CONNECTION_CLOSED, reqStartNanos, reqEndNanos);
         }
 
         logger.warn(
-                "{} Timed out sending request to block node (timeout: {}ms, duration: {}μs)",
+                "{} Timed out sending request to block node (timeout: {}ms, duration: {}μs, requestSize: {}B)",
                 connectionContext(correlationId),
                 request.timeoutMillis(),
-                durationMicros);
+                durationMicros,
+                request.streamRequest().protobufSize());
 
         blockStreamMetrics.recordPipelineOperationTimeout();
 
@@ -1409,7 +1397,8 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
             BufferedItem item;
 
             while ((item = block.bufferedItem(itemIndex)) != null) {
-                connStats.recordHeartbeat(System.currentTimeMillis());
+                final long millisTimestamp = System.currentTimeMillis();
+                connStats.recordHeartbeat(millisTimestamp);
 
                 if (itemIndex == 0) {
                     logger.trace(
@@ -1420,7 +1409,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
                     if (lastSendTimeMillis == -1) {
                         // if we've never sent a request and this is the first time we are processing a block, update
                         // the last send time to the current time. this will avoid prematurely sending a request
-                        lastSendTimeMillis = System.currentTimeMillis();
+                        lastSendTimeMillis = millisTimestamp;
                     }
                 }
 

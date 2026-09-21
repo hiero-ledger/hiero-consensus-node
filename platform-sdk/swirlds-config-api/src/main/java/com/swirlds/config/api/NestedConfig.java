@@ -46,6 +46,12 @@ import java.lang.annotation.Target;
  * Nesting can go any number of levels deep, and a cycle in the record types fails the creation of the config data
  * object. A nested record needs to be public and to have exactly one constructor, like any config data object.
  * <p>
+ * A component that holds a nested config data object still has no value of its own, so it accepts no
+ * {@link ConfigProperty#defaultValue()}. To override the default values of leaf properties below it, annotate the
+ * component with {@link ConfigDefault}. The {@link ConfigDefault#property()} uses the same dotted notation that the
+ * same properties written flat would use, relative to that component, and when several components on the path to the
+ * same leaf property override it the one closest to the config data root wins.
+ * <p>
  * This annotation is what tells a group of properties apart from a value that a converter creates from a single
  * property, so the following all fail instead of being silently misinterpreted:
  * <ul>
@@ -58,8 +64,9 @@ import java.lang.annotation.Target;
  *     a group takes its name from the single component holding it and an element of a collection has none</li>
  *     <li>a component that holds a nested config data object but does not name its record type, like a type variable or
  *     a generic type, since the properties of a group follow from its type</li>
- *     <li>a component that holds a nested config data object and declares a default value, since a group has no value
- *     of its own that a default could describe. Define the defaults of its properties instead.</li>
+ *     <li>a component that holds a nested config data object and declares a {@link ConfigProperty#defaultValue()},
+ *     since a group has no value of its own that such a default could describe. Use {@link ConfigDefault} to override
+ *     the defaults of its leaf properties instead.</li>
  * </ul>
  * A record type without this annotation therefore stays a single property whose raw value is converted by a registered
  * converter.

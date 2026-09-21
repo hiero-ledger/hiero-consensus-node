@@ -72,7 +72,7 @@ as the record fields `ancientThreshold` and
 The ancient threshold is honoured by the hashgraph linker
 ([`ConsensusLinker.linkEvent`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/linking/ConsensusLinker.java))
 and by intake stages such as
-[`StandardEventDeduplicator.shiftWindow`](../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/deduplication/StandardEventDeduplicator.java).
+[`StandardEventDeduplicator.setEventWindow`](../../../consensus-event-intake-impl/src/main/java/org/hiero/consensus/event/intake/impl/deduplication/StandardEventDeduplicator.java#setEventWindow).
 The expired threshold is honoured at retention sites.
 [`ConsensusRounds`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusRounds.java)
 keeps a `minimumJudgeStorage` ring buffer of per-round

@@ -251,8 +251,8 @@ class FileServiceFeeCalculatorsTest {
     }
 
     @Test
-    @DisplayName("FileUpdateFeeCalculator with UNAUTHORIZED privilege clears fees")
-    void testFileUpdateWithUnauthorizedPrivilegedAuthorizationClearsFees() throws UnknownHederaFunctionality {
+    @DisplayName("FileUpdateFeeCalculator with UNAUTHORIZED privilege charges the normal fee")
+    void testFileUpdateWithUnauthorizedPrivilegedAuthorizationChargesNormalFee() throws UnknownHederaFunctionality {
         final var transactionID = TransactionID.newBuilder()
                 .accountID(AccountID.newBuilder().accountNum(1001).build())
                 .build();
@@ -273,9 +273,9 @@ class FileServiceFeeCalculatorsTest {
         final var result = feeCalculator.calculateTxFee(fileUpdateBody, new SimpleFeeContextImpl(feeContext, null));
 
         assertThat(result).isNotNull();
-        assertThat(result.getNodeTotalTinycents()).isEqualTo(0L);
-        assertThat(result.getServiceTotalTinycents()).isEqualTo(0L);
-        assertThat(result.getNetworkTotalTinycents()).isEqualTo(0L);
+        assertThat(result.getNodeTotalTinycents()).isEqualTo(100000L);
+        assertThat(result.getServiceTotalTinycents()).isEqualTo(499000000L);
+        assertThat(result.getNetworkTotalTinycents()).isEqualTo(200000L);
     }
 
     @Test

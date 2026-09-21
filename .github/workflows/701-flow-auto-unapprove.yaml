@@ -27,7 +27,7 @@ jobs:
           checkout: "true"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
           setup-node: "true"
-          node-version: "20"
+          node-version: "24"
 
       - name: Dismiss Reviews from Code Owners and Teams
         uses: step-security/auto-unapprove@c87029c4f62d004fb8979a7a5cb90b3c1729df32 # v1.0.3
