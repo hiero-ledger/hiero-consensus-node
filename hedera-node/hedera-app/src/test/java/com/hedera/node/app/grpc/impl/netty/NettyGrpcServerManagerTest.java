@@ -41,6 +41,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -403,5 +405,40 @@ final class NettyGrpcServerManagerTest {
                 leafCertManager,
                 clprChannelManager,
                 metrics);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void disabledStartupAndRestartDoNotCreateMtlsRuntimeEvenWithCertificatesConfigured(final boolean explicitFalse) {
+        final var builder = HederaTestConfigBuilder.create()
+                .withValue("grpc.port", 0)
+                .withValue("grpc.tlsPort", 0)
+                .withValue("grpc.nodeOperatorPortEnabled", false)
+                .withValue("clpr.caCrtPath", "must-not-read-ca.crt")
+                .withValue("clpr.caKeyPath", "must-not-read-ca.key")
+                .withValue("clpr.mtlsPort", 0);
+        if (explicitFalse) {
+            builder.withValue("clpr.enabled", false);
+        }
+        final ConfigProvider provider = () -> new VersionedConfigImpl(builder.getOrCreateConfig(), 1);
+        final Provider<ClprLeafCertManager> forbiddenCertificates = () -> {
+            throw new AssertionError("Disabled startup must not load CLPR certificates");
+        };
+        clprChannelManager = () -> {
+            throw new AssertionError("Disabled startup must not construct a CLPR channel manager");
+        };
+        // A fresh manager models each startup, including restart with CLPR still disabled.
+        for (int startup = 0; startup < 2; startup++) {
+            final var manager = managerWithClprEndpointService(provider, forbiddenCertificates);
+            try {
+                manager.start();
+                assertThat(manager.port()).isGreaterThan(0);
+                assertThat(manager.clprSyncPort()).isEqualTo(-1);
+                assertThat(manager.clprSyncServer).isNull();
+                assertThat(manager.clprSyncServices()).isEmpty();
+            } finally {
+                manager.stop();
+            }
+        }
     }
 }

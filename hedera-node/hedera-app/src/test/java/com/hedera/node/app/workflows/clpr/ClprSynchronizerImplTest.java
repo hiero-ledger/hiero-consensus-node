@@ -34,6 +34,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -103,15 +105,20 @@ class ClprSynchronizerImplTest {
                             new GrpcConfig(GRPC_PORT, TLS_PORT, true, 50213, 60211, 60212, 4194304, 4194304, 4194304));
         }
 
-        @Test
-        @DisplayName("CLPR disabled skips sync")
-        void disabledClprSkipsSync() {
+        @ParameterizedTest
+        @ValueSource(booleans = {false, true})
+        @DisplayName(
+                "CLPR disabled skips proof generation, networking and bundle submission regardless of manifest flag")
+        void disabledClprSkipsSync(final boolean manifestEnabled) {
             given(versionedConfig.getConfigData(ClprConfig.class))
-                    .willReturn(ClprConfigBuilder.newBuilder().enabled(false).build());
+                    .willReturn(ClprConfigBuilder.newBuilder()
+                            .enabled(false)
+                            .endpointManifestEnabled(manifestEnabled)
+                            .build());
 
             subject.synchronize(testChannel(List.of()), List.of(endpoint(PEER_HOST, PEER_PORT)), 0L, 0L);
 
-            verifyNoInteractions(stateProofManager, bundleSubmitter, networkInfo, clientCache);
+            verifyNoInteractions(stateProofManager, bundleSubmitter, networkInfo, clientCache, leafCertManager);
         }
 
         @Test

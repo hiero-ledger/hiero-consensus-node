@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.ingest;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_ADD_LIVE_HASH;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
@@ -41,6 +40,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -440,11 +440,16 @@ class IngestCheckerTest extends AppTestBase {
                     .hasFieldOrPropertyWithValue("responseCode", NOT_SUPPORTED);
         }
 
-        @Test
-        @DisplayName("Disabled CLPR transaction should log an error and throw CLPR_NOT_ENABLED")
-        void disabledClprTransactionLogsErrorAndIsRejected() throws PreCheckException {
+        @ParameterizedTest
+        @EnumSource(
+                value = HederaFunctionality.class,
+                mode = EnumSource.Mode.MATCH_ALL,
+                names = {"CLPR_.*", "^(?!CLPR_GET_).*$"})
+        @DisplayName("Every disabled CLPR transaction, including internal endpoint publication, is rejected at ingest")
+        void disabledClprTransactionLogsErrorAndIsRejected(final HederaFunctionality function)
+                throws PreCheckException {
             final var clprTransactionInfo = new TransactionInfo(
-                    signedTx, txBody, MOCK_SIGNATURE_MAP, signedTx.bodyBytes(), CLPR_SUBMIT_BUNDLE, serializedTx);
+                    signedTx, txBody, MOCK_SIGNATURE_MAP, signedTx.bodyBytes(), function, serializedTx);
             when(transactionChecker.parseAndCheck(serializedTx)).thenReturn(clprTransactionInfo);
             final var disabledClprConfig = new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
@@ -459,7 +464,7 @@ class IngestCheckerTest extends AppTestBase {
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(CLPR_NOT_ENABLED));
                 assertThat(logCaptor.errorLogs())
-                        .anyMatch(message -> message.contains("Cannot submit CLPR transaction CLPR_SUBMIT_BUNDLE")
+                        .anyMatch(message -> message.contains("Cannot submit CLPR transaction " + function)
                                 && message.contains("clpr.enabled is false"));
             } finally {
                 logCaptor.stopCapture();

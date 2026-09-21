@@ -44,6 +44,7 @@ import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.testfixtures.ClprConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.state.State;
 import java.nio.file.Files;
@@ -65,6 +66,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.MockedConstruction;
 import org.mockito.Mockito;
@@ -946,5 +949,62 @@ class ClprChannelManagerTest {
                 managerB.stop();
             }
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void disablingClprBlocksOutboundWorkForAnExistingChannel(final boolean manifestEnabled) {
+        // Populate an eligible channel and peer cache before disabling the master flag.
+        final var channel = makeChannel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE, 0L, 2L);
+        subject.onChannelActivated(CHANNEL_ID_1);
+        subject.seedPeerEndpoints(CHANNEL_ID_1, List.of(makeEndpoint("10.0.0.7", 50211)));
+        Mockito.clearInvocations(stateAccessor, synchronizer, clientCache, networkInfo, leafCertManager);
+        given(versionedConfig.getConfigData(ClprConfig.class))
+                .willReturn(defaultClprConfig()
+                        .enabled(false)
+                        .endpointManifestEnabled(manifestEnabled)
+                        .build());
+
+        subject.start();
+        subject.syncChannel(CHANNEL_ID_1);
+        subject.initiateSync(channel);
+        subject.discoveryTick();
+
+        assertFalse(subject.started());
+        assertFalse(subject.isDiscoveryEnabled());
+        assertNull(subject.syncTickFuture(CHANNEL_ID_1));
+        assertThat(((ScheduledThreadPoolExecutor) subject.scheduler()).getQueue())
+                .isEmpty();
+        verifyNoInteractions(stateAccessor, synchronizer, clientCache, networkInfo, leafCertManager);
+    }
+
+    @Test
+    void disabledRestartIgnoresPersistedPeerCacheAndLeavesItUnchanged() throws Exception {
+        final var cacheFile = tempDir.resolve("clpr-peer-endpoints.json");
+        final var cached = ClprPeerEndpoints.newBuilder()
+                .entries(List.of(ClprPeerEndpointsEntry.newBuilder()
+                        .channelId(CHANNEL_ID_1)
+                        .endpoints(List.of(makeEndpoint("10.0.0.7", 50211)))
+                        .build()))
+                .build();
+        try (final var output = Files.newOutputStream(cacheFile)) {
+            ClprPeerEndpoints.JSON.write(cached, new WritableStreamingData(output));
+        }
+        final var before = Files.readAllBytes(cacheFile);
+        given(versionedConfig.getConfigData(ClprConfig.class))
+                .willReturn(defaultClprConfig().enabled(false).build());
+
+        subject.start();
+        subject.syncChannel(CHANNEL_ID_1);
+        subject.discoveryTick();
+
+        assertFalse(subject.started());
+        assertThat(subject.knownChannelsIds()).isEmpty();
+        assertThat(subject.getKnownEndpoints(CHANNEL_ID_1)).isEmpty();
+        assertThat(((ScheduledThreadPoolExecutor) subject.scheduler()).getQueue())
+                .isEmpty();
+        verifyNoInteractions(stateAccessor, synchronizer, clientCache, networkInfo, leafCertManager);
+        subject.stop();
+        assertThat(Files.readAllBytes(cacheFile)).isEqualTo(before);
     }
 }
