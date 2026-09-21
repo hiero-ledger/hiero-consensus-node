@@ -20,6 +20,7 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.TestIntake;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.RoundInternalEqualityValidation;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.pces.impl.test.fixtures.PcesFileIteratorFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,7 +61,8 @@ public class MinConsensusRelevantThresholdTest {
     @Test
     void testMinConsensusRelevantThreshold() throws IOException, ParseException {
         final Path rosterPath = testDataDirectory.resolve(ROSTER_FILE);
-        final Roster roster = Roster.JSON.parse(new ReadableStreamingData(new FileInputStream(rosterPath.toFile())));
+        final RosterWrapper roster = RosterWrapper.of(
+                Roster.JSON.parse(new ReadableStreamingData(new FileInputStream(rosterPath.toFile()))));
         final ConsensusOutput consensusOutput_node0 = getConsensusOutput(roster, testDataDirectory.resolve(NODE_0_DIR));
         final ConsensusOutput consensusOutput_node3 = getConsensusOutput(roster, testDataDirectory.resolve(NODE_3_DIR));
         assertEquals(
@@ -84,7 +86,7 @@ public class MinConsensusRelevantThresholdTest {
      * @throws IOException if there is a problem reading the resources from disk
      */
     @NonNull
-    private ConsensusOutput getConsensusOutput(@NonNull final Roster roster, @NonNull final Path resourcePath)
+    private ConsensusOutput getConsensusOutput(@NonNull final RosterWrapper roster, @NonNull final Path resourcePath)
             throws IOException {
         final Path pcesPath = resourcePath.resolve(PCES_DIR);
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();

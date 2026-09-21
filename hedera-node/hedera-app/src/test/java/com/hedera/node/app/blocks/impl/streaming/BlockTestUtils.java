@@ -82,7 +82,8 @@ public class BlockTestUtils {
     }
 
     public static BlockState toBlockState(final BufferedBlock bufferedBlock) {
-        final BlockState block = new BlockState(bufferedBlock.blockNumber());
+        final BlockState block =
+                new BlockState(bufferedBlock.blockNumber(), bufferedBlock.blockPeriodMillisOrElse(-1L));
 
         bufferedBlock.block().items().forEach(block::addSerializedItem);
 
@@ -111,7 +112,7 @@ public class BlockTestUtils {
 
     public static BlockState generateRandomBlock(final long blockNumber) {
         final int numItems = ThreadLocalRandom.current().nextInt(25, 250);
-        final BlockState block = new BlockState(blockNumber);
+        final BlockState block = new BlockState(blockNumber, 2_000L);
         block.addItem(newBlockHeader(blockNumber));
         for (int i = 0; i < numItems; ++i) {
             block.addItem(newRandomItem());

@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -13,6 +12,7 @@ import java.util.List;
 import java.util.Random;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.Test;
@@ -31,8 +31,8 @@ class ConsensusRoundTests {
                 new TestingEventBuilder(r).build(),
                 new TestingEventBuilder(r).build());
 
-        final ConsensusRound round =
-                new ConsensusRound(mock(Roster.class), events, mock(EventWindow.class), snapshot, false, Instant.now());
+        final ConsensusRound round = new ConsensusRound(
+                mock(RosterWrapper.class), events, mock(EventWindow.class), snapshot, false, Instant.now());
 
         assertEquals(events, round.getConsensusEvents(), "consensus event list does not match the provided list.");
         assertEquals(events.size(), round.getNumEvents(), "numEvents does not match the events provided.");
@@ -56,7 +56,7 @@ class ConsensusRoundTests {
         }
 
         final ConsensusRound round = new ConsensusRound(
-                mock(Roster.class),
+                mock(RosterWrapper.class),
                 events,
                 mock(EventWindow.class),
                 mock(ConsensusSnapshot.class),

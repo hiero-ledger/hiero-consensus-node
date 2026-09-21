@@ -58,8 +58,8 @@ import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Function;
-import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -402,11 +402,11 @@ public class AddressBookTestBase {
     }
 
     public static List<X509Certificate> generateX509Certificates(final int n) {
-        final var roster =
-                RosterFactory.randomRosterWithKeys(new Random(), n, GAUSSIAN).getRoster();
+        final var roster = RosterWrapperFactory.randomRosterWithKeys(new Random(), n, GAUSSIAN)
+                .roster();
 
         return roster.rosterEntries().stream()
-                .map(RosterUtils::fetchGossipCaCertificate)
+                .map(RosterEntryWrapper::gossipCaCertificate)
                 .toList();
     }
 }

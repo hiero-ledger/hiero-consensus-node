@@ -3,7 +3,6 @@ package org.hiero.consensus.model.roster;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -27,6 +26,9 @@ public class RosterEntryWrapper {
     @Nullable
     private final X509Certificate gossipCaCertificate;
 
+    @NonNull
+    private final List<ServiceEndpointWrapper> gossipEndpoints;
+
     /**
      * Constructs a new {@link RosterEntryWrapper} instance.
      *
@@ -43,6 +45,9 @@ public class RosterEntryWrapper {
             certificate = null;
         }
         this.gossipCaCertificate = certificate;
+        gossipEndpoints = rosterEntry.gossipEndpoint().stream()
+                .map(ServiceEndpointWrapper::of)
+                .toList();
     }
 
     /**
@@ -80,8 +85,8 @@ public class RosterEntryWrapper {
      * @return the gossip endpoints of this roster entry
      */
     @NonNull
-    public List<ServiceEndpoint> gossipEndpoint() {
-        return rosterEntry.gossipEndpoint();
+    public List<ServiceEndpointWrapper> gossipEndpoint() {
+        return gossipEndpoints;
     }
 
     /**
@@ -92,5 +97,26 @@ public class RosterEntryWrapper {
     @NonNull
     public RosterEntry toPbj() {
         return rosterEntry;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean equals(@Nullable final Object o) {
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        final RosterEntryWrapper that = (RosterEntryWrapper) o;
+        return rosterEntry.equals(that.rosterEntry);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int hashCode() {
+        return rosterEntry.hashCode();
     }
 }

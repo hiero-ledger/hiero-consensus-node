@@ -41,7 +41,7 @@ public final class IngestWorkflowImpl implements IngestWorkflow {
 
     /**
      * Constructor of {@code IngestWorkflowImpl}
-     * @param stateAccessor a {@link Supplier} that provides the latest immutable state
+     * @param stateAccessor a {@link Supplier} that provides the current working state
      * @param ingestChecker the {@link IngestChecker} with specific checks of an ingest-workflow
      * @param submissionManager the {@link SubmissionManager} to submit transactions to the platform
      * @param configProvider the {@link ConfigProvider} to provide the configuration

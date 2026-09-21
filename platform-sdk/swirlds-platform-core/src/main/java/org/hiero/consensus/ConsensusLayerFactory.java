@@ -427,7 +427,7 @@ public class ConsensusLayerFactory {
                 configuration,
                 metrics,
                 time,
-                rosterHistory.getCurrentRoster(),
+                currentRoster,
                 selfId,
                 instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
                 eventPipelineTracker,

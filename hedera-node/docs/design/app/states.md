@@ -56,9 +56,8 @@ All other copies are immutable, and will throw exceptions if you attempt to modi
 modification to the tree permitted after the fast copy is made, and that is to apply the hashes to the nodes in
 the tree during the hash phase).
 
-The next-most recent version of the tree is the "latest immutable state". This is the state used for answering queries
-made by customers of the consensus nodes. It is also the state used in `pre-handle` (more on this later) for preparing
-asynchronously, and ahead of time, transactions for processing.
+The next-most recent version of the tree is the "latest immutable state". This is the state used in `pre-handle`
+(more on this later) for preparing asynchronously, and ahead of time, transactions for processing.
 
 Another older state known as the "latest signed state" is the most recent state for which the consensus node has
 gathered enough signatures to prove to a third party that the state is "final" and correct. This state is used when
@@ -121,18 +120,30 @@ service module (so two service implementations could use the same state key and 
 
 ### States used with Queries
 
-The HAPI supports a number of queries. Queries are always answered either from **the latest immutable state** or the
-**latest signed state** (if a state proof is requested). Query logic only needs a read-only view of the state, and so
-queries use `ReadableKVState`. It is not important to keep track of the different keys queries use. The application
-module reuses instances of states as appropriate to cut down on object allocation rates.
+The HAPI supports a number of queries. Queries are answered from **the current working state**. Query logic only needs
+a read-only view of the state, and so queries use `ReadableKVState`. It is not important to keep track of the different
+keys queries use. The application module reuses instances of states as appropriate to cut down on object allocation
+rates.
+
+Queries were originally answered from the **latest immutable state**, but that state trails the working state by a
+round, so a query issued right after a transaction reached consensus could still return the pre-transaction answer.
+Queries were switched to the working state in
+[#9143](https://github.com/hiero-ledger/hiero-consensus-node/pull/9143). The trade-off is that a query gets no
+snapshot: the _handle transaction_ thread commits into the same state object while the query reads it, so a query that
+performs several reads may observe a round partially applied. This is tolerable because query answers are node-local
+and never feed consensus, so they cannot cause an ISS. Note that `pre-handle`, which *can* cause an ISS, still uses a
+properly reserved **latest immutable state**.
+
+State proofs would require the **latest signed state** and are not supported. `QueryWorkflowImpl` rejects
+`ANSWER_STATE_PROOF` and `COST_ANSWER_STATE_PROOF` with `NOT_SUPPORTED` before any state is read.
 
 ### States used during Ingestion
 
 When clients send a transaction to a node, the node must perform pre-check logic before sending the transaction
-to the hashgraph platform for consensus. The pre-check logic needs access to **the latest immutable state**. It never
-performs any modification to the state. The [Ingest Workflow](workflows.md#ingest-workflow) needs access to key
-information on the transaction payer, and uses a `ReadableKVState` to get this information, by delegating to the
-token service.
+to the hashgraph platform for consensus. The pre-check logic reads from **the current working state**, for the same
+reason queries do (see above). It never performs any modification to the state. The
+[Ingest Workflow](workflows.md#ingest-workflow) needs access to key information on the transaction payer, and uses a
+`ReadableKVState` to get this information, by delegating to the token service.
 
 ### States used during Pre-Handle
 

@@ -4,7 +4,10 @@ package org.hiero.consensus.model.roster;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
+import java.util.stream.LongStream;
+import org.hiero.base.utility.Threshold;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -12,21 +15,35 @@ import org.hiero.consensus.model.node.NodeId;
  */
 public class RosterWrapper {
 
+    /** The underlying {@link Roster} instance. */
     @NonNull
     private final Roster roster;
 
+    /** The list of {@link RosterEntryWrapper} instances in this roster. */
     @NonNull
     private final List<RosterEntryWrapper> rosterEntries;
 
-    /*
-      This array is used to find the index of an entry based on its NodeId (stored as a long).
-      We use a lookup table, because searching in a small array of primitives
-      is usually faster than HashMap-lookups.
-    */
+    /**
+     * This array is used to find the index of an entry based on its NodeId (stored as a long).
+     * We use a lookup table, because searching in a small array of primitives
+     * is usually faster than HashMap-lookups.
+     */
     @NonNull
     private final long[] idLookupTable;
 
+    /**
+     * This array holds the weight of each entry, indexed the same way as {@link #idLookupTable}.
+     * Looking a weight up here avoids the indirection through {@link RosterEntryWrapper} and
+     * {@link RosterEntry} on the hot consensus paths.
+     */
+    @NonNull
+    private final long[] weightLookupTable;
+
+    /** the total weight of all entries in this roster. */
     private final long totalWeight;
+
+    /** true if at least one node has a supermajority of the weight. */
+    private final boolean nodeHasSupermajorityWeight;
 
     /**
      * Constructs a new {@link RosterWrapper} instance.
@@ -39,8 +56,11 @@ public class RosterWrapper {
                 roster.rosterEntries().stream().map(RosterEntryWrapper::new).toList();
         idLookupTable =
                 roster.rosterEntries().stream().mapToLong(RosterEntry::nodeId).toArray();
-        totalWeight =
-                rosterEntries.stream().mapToLong(RosterEntryWrapper::weight).sum();
+        weightLookupTable =
+                roster.rosterEntries().stream().mapToLong(RosterEntry::weight).toArray();
+        totalWeight = LongStream.of(weightLookupTable).sum();
+        nodeHasSupermajorityWeight = LongStream.of(weightLookupTable)
+                .anyMatch(weight -> Threshold.SUPER_MAJORITY.isSatisfiedBy(weight, totalWeight));
     }
 
     /**
@@ -62,6 +82,18 @@ public class RosterWrapper {
     @NonNull
     public List<RosterEntryWrapper> rosterEntries() {
         return rosterEntries;
+    }
+
+    /**
+     * Returns the {@link RosterEntryWrapper} at the given index.
+     *
+     * @param index the index of the entry
+     * @return the {@link RosterEntryWrapper} at the given index
+     * @throws ArrayIndexOutOfBoundsException if the index is out of bounds
+     */
+    @NonNull
+    public RosterEntryWrapper rosterEntry(final int index) {
+        return rosterEntries.get(index);
     }
 
     /**
@@ -90,12 +122,46 @@ public class RosterWrapper {
     }
 
     /**
+     * Checks whether the entry at the given index was created by the given {@link NodeId}. Unlike
+     * {@link #getIndex(NodeId)}, this is a constant-time probe, so it is preferable whenever the
+     * index is already known.
+     *
+     * @param nodeId the {@link NodeId} to check
+     * @param index  the index to check against
+     * @return {@code true} if the entry at {@code index} belongs to {@code nodeId}, {@code false}
+     *         otherwise (including when {@code index} is out of bounds)
+     */
+    public boolean isIdAtIndex(@NonNull final NodeId nodeId, final int index) {
+        return index >= 0 && index < idLookupTable.length && idLookupTable[index] == nodeId.id();
+    }
+
+    /**
+     * Returns the weight of the entry at the given index.
+     *
+     * @param index the index of the entry
+     * @return the weight of the entry at the given index
+     * @throws ArrayIndexOutOfBoundsException if the index is out of bounds
+     */
+    public long getWeight(final int index) {
+        return weightLookupTable[index];
+    }
+
+    /**
      * Returns the total weight of all entries in this roster.
      *
      * @return the total weight
      */
     public long totalWeight() {
         return totalWeight;
+    }
+
+    /**
+     * Returns {@code true} if a node in this roster has a supermajority of the weight.
+     *
+     * @return {@code true} if a node has a supermajority of the weight, {@code false} otherwise
+     */
+    public boolean nodeHasSupermajorityWeight() {
+        return nodeHasSupermajorityWeight;
     }
 
     /**
@@ -132,5 +198,26 @@ public class RosterWrapper {
     @NonNull
     public Roster toPbj() {
         return roster;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean equals(@Nullable final Object o) {
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        final RosterWrapper that = (RosterWrapper) o;
+        return roster.equals(that.roster);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int hashCode() {
+        return roster.hashCode();
     }
 }
