@@ -6,11 +6,13 @@ ignore:
   # besu-util. Snyk records no fixed version for this advisory and there is no GHSA/CVE for
   # it yet, so there is nothing to upgrade to; without this entry the finding fails every
   # build at --severity-threshold=high. Revisit when besu ships a release off 1.1.10.7.
-  SNYK-JAVA-ORGXERIALSNAPPY-19778376:
+  # Snyk re-issues this advisory under new IDs (previously SNYK-JAVA-ORGXERIALSNAPPY-19778376),
+  # and ignores are keyed by ID, so the ID below needs updating whenever that happens.
+  SNYK-JAVA-ORGXERIALSNAPPY-19964087:
     - '*':
         reason: No fixed snappy-java version is available at this time (transitive via besu-evm)
         expires: 2026-10-16T00:00:00.000Z
-        created: 2026-09-16T00:00:00.000Z
+        created: 2026-09-21T00:00:00.000Z
 patch: {}
 exclude:
   global:
