@@ -22,7 +22,7 @@ public class DefaultBranchDetector implements BranchDetector {
     private EventWindow currentEventWindow = EventWindow.getGenesisEventWindow();
 
     /**
-     * The node IDs of the nodes in the network in sorted order, provides deterministic iteration order.
+     * The node IDs of the nodes in the network, in roster order.
      */
     private final List<NodeId> nodes;
 
