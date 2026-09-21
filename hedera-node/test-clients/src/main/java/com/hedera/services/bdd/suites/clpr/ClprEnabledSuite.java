@@ -1,13 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.clpr;
 
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.CHANNELS_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.CONNECTORS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
@@ -15,6 +10,7 @@ import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetEndpointManifest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.clprGetLedgerConfiguration;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
@@ -33,15 +29,16 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toBundleProofBytes;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toConfigProofBytes;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static java.util.stream.Collectors.toSet;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -49,18 +46,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.state.clpr.ClprChannel;
-import com.hedera.hapi.node.state.clpr.ClprConnector;
-import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
 import com.hedera.hapi.node.state.clpr.ClprEndpointPublication;
 import com.hedera.hapi.node.state.clpr.ClprEndpointPublicationEntry;
-import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.services.auxiliary.clpr.legacy.ClprEndpointPublicationTransactionBody;
 import com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition;
 import com.hedera.node.app.service.clpr.ClprService;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
@@ -90,6 +82,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -98,6 +91,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -106,16 +100,17 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 /**
- * Verifies that the entry points covered by {@link ClprEnabledSuite} reject CLPR work when disabled.
+ * Exercises enabled CLPR behavior at HAPI, atomic-batch, consensus, EVM and peer-RPC entry points.
  *
- * <p>The master flag is set once in {@link #beforeAll(TestLifecycle)} and restored after the class.
- * Assertions always describe disabled behavior. Run with {@code -PsysProp.clpr.test.enabled=true}
- * to verify that these rejection assertions fail when the feature is enabled.
+ * <p>The master flag is set once in {@link #beforeAll(TestLifecycle)} and restored by the lifecycle
+ * extension after the class. Assertions always describe enabled behavior; they never change with
+ * the flag. Run with {@code -PsysProp.clpr.test.enabled=false} to verify that these tests fail.
+ * Fixtures are created within each test, so a disabled run fails individual tests, not class setup.
  */
 @Tag(CLPR)
 @OrderedInIsolation
 @HapiTestLifecycle
-public class ClprDisabledSuite {
+public class ClprEnabledSuite {
     private static final String BATCH_OPERATOR = "batchOperator";
     private static final String CALLER = "caller";
     private static final String CLPR_CONTRACT = "ClprSystemContract";
@@ -136,89 +131,102 @@ public class ClprDisabledSuite {
     static void beforeAll(final TestLifecycle lifecycle) {
         lifecycle.overrideInClass(Map.of(
                 "clpr.enabled",
-                System.getProperty("clpr.test.enabled", "false"),
+                System.getProperty("clpr.test.enabled", "true"),
                 "clpr.endpointManifestEnabled",
                 "false"));
     }
 
     @HapiTest
-    @DisplayName("Every public CLPR transaction is rejected at ingest when disabled")
-    final Stream<DynamicTest> allClprTransactionsAreRejectedAtIngest() {
+    @DisplayName("Every public CLPR transaction completes successfully when enabled")
+    final Stream<DynamicTest> allClprTransactionsSucceed() {
         return exerciseTransactions(false, false);
     }
 
     @HapiTest
-    @DisplayName("All ten CLPR transaction types are rejected at ingest inside separate atomic batches")
-    final Stream<DynamicTest> allClprTransactionsInBatchesAreRejectedAtIngest() {
+    @DisplayName("All ten CLPR transaction types succeed inside separate atomic batches")
+    final Stream<DynamicTest> allClprTransactionsSucceedInsideAtomicBatches() {
         return exerciseTransactions(true, false);
     }
 
-    @LeakyEmbeddedHapiTest(reason = {MUST_SKIP_INGEST, NEEDS_STATE_ACCESS})
-    @DisplayName("Every CLPR transaction is rejected at consensus when ingest is bypassed")
-    final Stream<DynamicTest> allClprTransactionsAreRejectedAtConsensus() {
+    @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
+    @DisplayName("Every CLPR transaction succeeds at consensus when ingest is bypassed")
+    final Stream<DynamicTest> allClprTransactionsSucceedAtConsensus() {
         return exerciseTransactions(false, true);
     }
 
-    @LeakyEmbeddedHapiTest(reason = {MUST_SKIP_INGEST, NEEDS_STATE_ACCESS})
-    @DisplayName("All ten CLPR transaction types fail in batches at consensus when ingest is bypassed")
-    final Stream<DynamicTest> allClprTransactionsInBatchesAreRejectedAtConsensus() {
+    @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
+    @DisplayName("All ten CLPR transaction types succeed in batches when ingest is bypassed")
+    final Stream<DynamicTest> allClprTransactionsSucceedInBatchesAtConsensus() {
         return exerciseTransactions(true, true);
     }
 
     @HapiTest
-    @DisplayName("Both CLPR queries reject COST_ANSWER and ANSWER_ONLY when disabled")
-    final Stream<DynamicTest> clprQueriesAreRejected() {
+    @DisplayName("Both CLPR queries accept COST_ANSWER and ANSWER_ONLY when enabled")
+    final Stream<DynamicTest> clprQueriesSucceed() {
         return hapiTest(
-                clprGetLedgerConfiguration().payingWith(GENESIS).hasCostAnswerPrecheck(CLPR_NOT_ENABLED),
-                clprGetEndpointManifest().payingWith(GENESIS).hasCostAnswerPrecheck(CLPR_NOT_ENABLED),
-                clprGetLedgerConfiguration()
-                        .payingWith(GENESIS)
-                        .nodePayment(1L)
-                        .hasAnswerOnlyPrecheck(CLPR_NOT_ENABLED),
-                clprGetEndpointManifest().payingWith(GENESIS).nodePayment(1L).hasAnswerOnlyPrecheck(CLPR_NOT_ENABLED));
+                clprGetLedgerConfiguration().payingWith(GENESIS).hasCostAnswerPrecheck(OK),
+                clprGetEndpointManifest().payingWith(GENESIS).hasCostAnswerPrecheck(OK),
+                clprGetLedgerConfiguration().payingWith(GENESIS).nodePayment(1L).hasAnswerOnlyPrecheck(OK),
+                clprGetEndpointManifest().payingWith(GENESIS).nodePayment(1L).hasAnswerOnlyPrecheck(OK));
     }
 
     @HapiTest
-    @DisplayName("Every native CLPR contract halts with CLPR_NOT_ENABLED when disabled")
-    final Stream<DynamicTest> nativeClprContractsAreRejected() {
-        // A direct call exposes the native halt reason, rather than a wrapper's generic revert.
-        // Enabled execution reaches selector/proof validation and cannot satisfy this assertion.
+    @DisplayName("Native CLPR contracts reach selector or proof validation when enabled")
+    final Stream<DynamicTest> nativeClprContractsReachValidation() {
+        // Deliberately invalid selector/proof. Enabled execution reverts; the disabled native
+        // contract halts with the distinct CLPR_NOT_ENABLED status, so it cannot satisfy this test.
         return hapiTest(CLPR_SYSTEM_CONTRACT_NUMS.stream()
                 .map(num -> contractCallWithFunctionAbi(num, PROBE_ABI, (Object) new byte[] {1})
                         .payingWith(GENESIS)
                         .gas(GAS_TO_OFFER)
                         .refusingEthConversion()
-                        .hasKnownStatus(CLPR_NOT_ENABLED))
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
                 .toArray(SpecOperation[]::new));
     }
 
-    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
-    @DisplayName("A deployed contract cannot read an existing channel or send a message when CLPR is disabled")
-    final Stream<DynamicTest> clprRouterCallsFromContractAreRejected() {
+    @HapiTest
+    @DisplayName("A deployed contract sends a message and reads a real CLPR channel successfully")
+    final Stream<DynamicTest> clprRouterCallsSucceedFromContract() {
         final var crypto = new ClprChannelCrypto();
         final var operations = contractSetup();
-        // Seed state without enabling CLPR. An unknown channel would revert even with CLPR on,
-        // hiding a missing flag check. This existing channel's read succeeds in an enabled run.
-        operations.add(withClprState(
-                crypto,
-                contractCall(CLPR_CONTRACT, "getChannelQueueState", (Object) crypto.channelId())
-                        .payingWith(CALLER)
-                        .gas(GAS_TO_OFFER)
-                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
-                sendMessage(crypto)));
+        final var txns = clprTxns(crypto);
+        for (final var name : List.of(
+                "updateLedgerConfiguration",
+                "registerChannel",
+                "completeChannel",
+                "registerConnector",
+                "completeConnector")) {
+            operations.add(dispatch(txns.get(name), false, false));
+        }
+        operations.add(sendMessage(crypto).via("sentMessage"));
+        operations.add(getTxnRecord("sentMessage")
+                .exposingTo(record -> assertTrue(
+                        new BigInteger(
+                                                1,
+                                                record.getContractCallResult()
+                                                        .getContractCallResult()
+                                                        .toByteArray())
+                                        .longValueExact()
+                                > 0,
+                        "sendMessage must return the enqueued message ID")));
+        operations.add(contractCall(CLPR_CONTRACT, "getChannelQueueState", (Object) crypto.channelId())
+                .payingWith(CALLER)
+                .gas(GAS_TO_OFFER)
+                .hasKnownStatus(SUCCESS));
         return hapiTest(operations.toArray(SpecOperation[]::new));
     }
 
     @HapiTest
-    @DisplayName("The internal endpoint-publication wire body is rejected at ingest when disabled")
-    final Stream<DynamicTest> internalEndpointPublicationIsRejectedAtIngest() {
-        return hapiTest(endpointPublicationProbe().payingWith(GENESIS).hasPrecheck(CLPR_NOT_ENABLED));
+    @DisplayName("The internal endpoint-publication wire body passes ingest when enabled")
+    final Stream<DynamicTest> internalEndpointPublicationPassesIngest() {
+        return hapiTest(
+                endpointPublicationProbe().payingWith(GENESIS).hasPrecheck(OK).hasKnownStatus(SUCCESS));
     }
 
     @Tag(ONLY_SUBPROCESS)
     @HapiTest
-    @DisplayName("Every node rejects peer sync, discovery and streaming while CLPR is disabled")
-    final Stream<DynamicTest> peerRpcCallsAreRejected() {
+    @DisplayName("Every node reaches peer sync, discovery and streaming request validation")
+    final Stream<DynamicTest> peerRpcCallsReachValidation() {
         return hapiTest(withOpContext((spec, opLog) -> {
             for (final var node : spec.targetNetworkOrThrow().nodes()) {
                 final var channel = NettyChannelBuilder.forAddress(node.getHost(), node.getGrpcPort())
@@ -233,7 +241,7 @@ public class ClprDisabledSuite {
                                         peerMethod(method, MethodDescriptor.MethodType.UNARY),
                                         CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS),
                                         new byte[0]));
-                        assertPeerServiceDisabled(error.getStatus());
+                        assertInvalidPeerRequest(error.getStatus());
                     }
                     final var status = new CompletableFuture<Status>();
                     final var stream = ClientCalls.asyncBidiStreamingCall(
@@ -244,7 +252,7 @@ public class ClprDisabledSuite {
                                 @Override
                                 public void onNext(final byte[] response) {
                                     status.completeExceptionally(
-                                            new AssertionError("Disabled CLPR peer service must reject requests"));
+                                            new AssertionError("Empty channel ID must be rejected"));
                                 }
 
                                 @Override
@@ -259,7 +267,7 @@ public class ClprDisabledSuite {
                             });
                     stream.onNext(new byte[0]);
                     stream.onCompleted();
-                    assertPeerServiceDisabled(status.get(10, TimeUnit.SECONDS));
+                    assertInvalidPeerRequest(status.get(10, TimeUnit.SECONDS));
                 } finally {
                     channel.shutdownNow();
                     assertTrue(channel.awaitTermination(5, TimeUnit.SECONDS));
@@ -278,8 +286,8 @@ public class ClprDisabledSuite {
         }
 
         @LeakyEmbeddedHapiTest(reason = {MUST_SKIP_INGEST, NEEDS_STATE_ACCESS})
-        @DisplayName("The manifest sub-feature cannot admit a publication while CLPR is disabled")
-        final Stream<DynamicTest> publicationIsRejectedAtConsensus() {
+        @DisplayName("An internal publication is admitted at consensus when enabled")
+        final Stream<DynamicTest> publicationIsAdmittedAtConsensus() {
             return hapiTest(withOpContext((spec, opLog) -> {
                 final var beforeManifest = manifest(spec);
                 final var beforeConstruction = construction(spec);
@@ -296,9 +304,15 @@ public class ClprDisabledSuite {
                             endpointPublicationProbe()
                                     .payingWith(GENESIS)
                                     .setNode(INGEST_BYPASS_NODE)
-                                    .hasKnownStatus(CLPR_NOT_ENABLED));
-                    assertEquals(beforeManifest, manifest(spec), "Disabled CLPR must not publish a manifest");
-                    assertEquals(pending, construction(spec), "Disabled CLPR must not admit the publication");
+                                    .hasKnownStatus(SUCCESS));
+                    assertTrue(
+                            construction(spec).gatheredPublications().stream()
+                                    .anyMatch(entry -> entry.publicationOrThrow()
+                                                    .endpointOrThrow()
+                                                    .serviceEndpointOrThrow()
+                                                    .port()
+                                            == 50211),
+                            "The handler must record the publication");
                 } finally {
                     putManifestState(spec, beforeManifest, beforeConstruction);
                 }
@@ -306,8 +320,8 @@ public class ClprDisabledSuite {
         }
 
         @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
-        @DisplayName("Consensus cannot finalize an expired manifest construction while CLPR is disabled")
-        final Stream<DynamicTest> consensusCannotFinalizeManifest() {
+        @DisplayName("Consensus finalizes an expired manifest construction when enabled")
+        final Stream<DynamicTest> consensusFinalizesManifest() {
             return hapiTest(withOpContext((spec, opLog) -> {
                 final var beforeManifest = manifest(spec);
                 final var beforeConstruction = construction(spec);
@@ -334,8 +348,8 @@ public class ClprDisabledSuite {
                     allRunFor(
                             spec,
                             cryptoTransfer(tinyBarsFromTo(GENESIS, "98", 1L)).payingWith(GENESIS));
-                    assertEquals(beforeManifest, manifest(spec), "Disabled CLPR must not publish a manifest");
-                    assertEquals(pending, construction(spec), "Disabled CLPR must not advance construction");
+                    assertTrue(manifest(spec).version() > beforeManifest.version(), "Manifest must advance");
+                    assertTrue(manifest(spec).endpoints().contains(endpoint), "Published endpoint must be retained");
                 } finally {
                     putManifestState(spec, beforeManifest, beforeConstruction);
                 }
@@ -349,105 +363,45 @@ public class ClprDisabledSuite {
         final var operations = contractSetup();
         operations.add(withOpContext((spec, opLog) -> assertCoversEveryClprEntryPoint(txns)));
         operations.add(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
-        final var probes = new ArrayList<SpecOperation>();
-        txns.values().forEach(op -> probes.add(dispatch(op, inBatch, bypassIngest)));
-        probes.add(dispatch(endpointPublicationProbe(), inBatch, bypassIngest));
-        if (bypassIngest) {
-            // Pre-handle still runs when ingest is bypassed. Deregistration needs an existing
-            // connector and its admin key before the handler's master flag check can execute.
-            operations.add(withClprState(crypto, probes.toArray(SpecOperation[]::new)));
-        } else {
-            operations.addAll(probes);
+        for (final var entry : txns.entrySet()) {
+            if (entry.getKey().equals("redactMessage")) {
+                // The connector was deregistered successfully before it had any in-flight messages.
+                // Re-create it and enqueue a real message for the redaction assertion.
+                final var fresh = clprTxns(crypto);
+                operations.add(dispatch(fresh.get("registerConnector"), inBatch, bypassIngest));
+                operations.add(dispatch(fresh.get("completeConnector"), inBatch, bypassIngest));
+                final var messageId = new AtomicLong();
+                operations.add(sendMessage(crypto).via("messageToRedact"));
+                operations.add(getTxnRecord("messageToRedact")
+                        .exposingTo(record -> messageId.set(new BigInteger(
+                                        1,
+                                        record.getContractCallResult()
+                                                .getContractCallResult()
+                                                .toByteArray())
+                                .longValueExact())));
+                operations.add(sourcing(() -> dispatch(
+                        clprRedactMessage().channelId(crypto.channelId()).messageId(messageId.get()),
+                        inBatch,
+                        bypassIngest)));
+            } else {
+                operations.add(dispatch(entry.getValue(), inBatch, bypassIngest));
+            }
         }
+        operations.add(dispatch(endpointPublicationProbe(), inBatch, bypassIngest));
         return hapiTest(operations.toArray(SpecOperation[]::new));
     }
 
     private static HapiTxnOp<?> dispatch(final HapiTxnOp<?> op, final boolean inBatch, final boolean bypassIngest) {
-        op.payingWith(GENESIS);
+        op.payingWith(GENESIS).hasKnownStatus(SUCCESS);
+        final HapiTxnOp<?> submitted = inBatch
+                ? atomicBatch(op.batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasKnownStatus(SUCCESS)
+                : op;
         if (bypassIngest) {
-            op.hasKnownStatus(CLPR_NOT_ENABLED);
-        }
-        // Each type gets its own batch: a rejection of the first inner operation must not hide
-        // missing guards on the remaining CLPR transaction types.
-        final HapiTxnOp<?> submitted =
-                inBatch ? atomicBatch(op.batchKey(BATCH_OPERATOR)).payingWith(BATCH_OPERATOR) : op;
-        if (bypassIngest) {
-            submitted.setNode(INGEST_BYPASS_NODE).hasKnownStatus(inBatch ? INNER_TRANSACTION_FAILED : CLPR_NOT_ENABLED);
-        } else {
-            submitted.hasPrecheck(CLPR_NOT_ENABLED);
+            submitted.setNode(INGEST_BYPASS_NODE);
         }
         return submitted;
-    }
-
-    private static SpecOperation withClprState(final ClprChannelCrypto crypto, final SpecOperation... operations) {
-        return withOpContext((spec, opLog) -> {
-            final var channelKey = new ProtoBytes(Bytes.wrap(crypto.channelId()));
-            final var connectorKey = new ClprConnectorKey(channelKey.value(), Bytes.wrap(crypto.connectorId()));
-            final var states = spec.embeddedStateOrThrow().getWritableStates(ClprService.NAME);
-            final var channels = states.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID);
-            final var connectors = states.<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID);
-            final var configurations = states.<com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration>getSingleton(
-                    LEDGER_CONFIGURATION_STATE_ID);
-            final var previousChannel = channels.get(channelKey);
-            final var previousConnector = connectors.get(connectorKey);
-            final var previousConfiguration = configurations.get();
-            final var configuration =
-                    protoToPbj(ledgerConfig(), com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration.class);
-            final var channel = ClprChannel.newBuilder()
-                    .channelId(channelKey.value())
-                    .status(com.hedera.hapi.node.state.clpr.ClprChannelStatus.ACTIVE)
-                    .verifierContract(toPbj(spec.registry().getContractId(VERIFIER_CONTRACT)))
-                    .nextMessageId(1L)
-                    .sentRunningHash(Bytes.wrap(new byte[32]))
-                    .receivedRunningHash(Bytes.wrap(new byte[32]))
-                    .lastConfigTimestamp(configuration.timestamp())
-                    .peerThrottles(configuration.throttles())
-                    .build();
-            final var connector = ClprConnector.newBuilder()
-                    .channelId(connectorKey.channelId())
-                    .connectorId(connectorKey.connectorId())
-                    .connectorContract(toPbj(spec.registry().getContractId(CONNECTOR_CONTRACT)))
-                    .adminKey(toPbj(spec.registry().getKey(GENESIS)))
-                    .build();
-            channels.put(channelKey, channel);
-            connectors.put(connectorKey, connector);
-            configurations.put(configuration);
-            spec.commitEmbeddedState();
-            try {
-                allRunFor(spec, operations);
-                final var after = spec.embeddedStateOrThrow().getReadableStates(ClprService.NAME);
-                assertEquals(
-                        channel,
-                        after.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID).get(channelKey));
-                assertEquals(
-                        connector,
-                        after.<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID)
-                                .get(connectorKey));
-                assertEquals(
-                        configuration,
-                        after.<com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration>getSingleton(
-                                        LEDGER_CONFIGURATION_STATE_ID)
-                                .get());
-            } finally {
-                final var restored = spec.embeddedStateOrThrow().getWritableStates(ClprService.NAME);
-                final var restoredChannels = restored.<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID);
-                final var restoredConnectors = restored.<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID);
-                if (previousChannel == null) {
-                    restoredChannels.remove(channelKey);
-                } else {
-                    restoredChannels.put(channelKey, previousChannel);
-                }
-                if (previousConnector == null) {
-                    restoredConnectors.remove(connectorKey);
-                } else {
-                    restoredConnectors.put(connectorKey, previousConnector);
-                }
-                restored.<com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration>getSingleton(
-                                LEDGER_CONFIGURATION_STATE_ID)
-                        .put(previousConfiguration);
-                spec.commitEmbeddedState();
-            }
-        });
     }
 
     private static ArrayList<SpecOperation> contractSetup() {
@@ -469,7 +423,7 @@ public class ClprDisabledSuite {
                         new byte[] {1, 2, 3})
                 .payingWith(CALLER)
                 .gas(GAS_TO_OFFER)
-                .hasKnownStatus(CONTRACT_REVERT_EXECUTED);
+                .hasKnownStatus(SUCCESS);
     }
 
     private static LinkedHashMap<String, HapiTxnOp<?>> clprTxns(final ClprChannelCrypto crypto) {
@@ -539,9 +493,9 @@ public class ClprDisabledSuite {
                 .build();
     }
 
-    private static void assertPeerServiceDisabled(final Status status) {
-        assertEquals(Status.Code.UNAVAILABLE, status.getCode());
-        assertEquals("CLPR is not enabled", status.getDescription());
+    private static void assertInvalidPeerRequest(final Status status) {
+        assertEquals(Status.Code.INVALID_ARGUMENT, status.getCode());
+        assertEquals("channel_id must be exactly 32 bytes", status.getDescription());
     }
 
     private static void assertCoversEveryClprEntryPoint(final LinkedHashMap<String, HapiTxnOp<?>> txns) {
@@ -553,7 +507,7 @@ public class ClprDisabledSuite {
                         .map(MethodDescriptor::getBareMethodName)
                         .collect(toSet()),
                 assertedRpcs,
-                "Every ClprService RPC must have an disabled-feature assertion");
+                "Every ClprService RPC must have an enabled-feature assertion");
 
         final var expectedFunctions = EnumSet.noneOf(HederaFunctionality.class);
         for (final var function : HederaFunctionality.values()) {
@@ -569,7 +523,7 @@ public class ClprDisabledSuite {
         assertEquals(
                 expectedFunctions,
                 assertedFunctions,
-                "Every Clpr* HederaFunctionality must have an disabled-feature assertion, or be listed "
+                "Every Clpr* HederaFunctionality must have an enabled-feature assertion, or be listed "
                         + "in NODE_INTERNAL_CLPR_FUNCTIONS with the reason it is unreachable from HAPI");
     }
 
