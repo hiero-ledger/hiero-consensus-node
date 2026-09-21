@@ -1,9 +1,0 @@
-apiVersion: 1
-
-datasources:
-  - name: benchmark-metric-names
-    type: marcusolsson-csv-datasource
-    access: proxy
-    url: /benchmark-data/BenchmarkMetricNames.csv
-    jsonData:
-      storage: local

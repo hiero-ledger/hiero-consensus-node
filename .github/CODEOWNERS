@@ -5,13 +5,6 @@
 *                                               @hiero-ledger/github-maintainers
 **/*.gradle*                                    @hiero-ledger/hiero-consensus-node-execution-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners @hiero-ledger/github-maintainers
 
-#########################
-##### Example apps ######
-#########################
-# Foundation Base Example app
-/example-apps/**/module-info.java               @hiero-ledger/hiero-consensus-node-foundation-codeowners
-/example-apps/swirlds-platform-base-example/    @hiero-ledger/hiero-consensus-node-foundation-codeowners
-
 ############################
 ##### State Validator ######
 ############################

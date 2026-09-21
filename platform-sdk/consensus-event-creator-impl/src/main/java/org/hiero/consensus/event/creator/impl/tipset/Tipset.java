@@ -29,7 +29,7 @@ public class Tipset {
      */
     public Tipset(@NonNull final RosterWrapper roster) {
         this.roster = Objects.requireNonNull(roster);
-        tips = new long[roster.rosterEntries().size()];
+        tips = new long[roster.size()];
 
         Arrays.fill(tips, EventConstants.SEQUENCE_NUMBER_UNDEFINED);
     }
@@ -147,7 +147,7 @@ public class Tipset {
             }
 
             if (this.tips[index] < that.tips[index]) {
-                final RosterEntryWrapper address = roster.rosterEntries().get(index);
+                final RosterEntryWrapper address = roster.rosterEntry(index);
 
                 if (address.weight() == 0) {
                     zeroWeightCount += 1;
@@ -167,7 +167,7 @@ public class Tipset {
     public String toString() {
         final StringBuilder sb = new StringBuilder("(");
         for (int index = 0; index < tips.length; index++) {
-            sb.append(roster.rosterEntries().get(index).nodeId()).append(":").append(tips[index]);
+            sb.append(roster.rosterEntry(index).nodeId()).append(":").append(tips[index]);
             if (index < tips.length - 1) {
                 sb.append(", ");
             }
