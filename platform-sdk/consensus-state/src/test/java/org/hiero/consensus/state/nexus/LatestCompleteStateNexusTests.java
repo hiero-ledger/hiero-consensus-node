@@ -11,7 +11,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.state.config.StateConfig_;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
@@ -93,34 +92,6 @@ public class LatestCompleteStateNexusTests {
             try (final ReservedSignedState nexusState = nexus.getState("check for null")) {
                 assertNull(nexusState, "Nexus should remain empty after the freeze state");
             }
-        }
-    }
-
-    /**
-     * Verifies that disabling async snapshots preserves the existing nexus behavior.
-     */
-    @Test
-    void synchronousFreezeStateCanBeRetainedTest() {
-        final Configuration configuration = new TestConfigBuilder()
-                .withValue(StateConfig_.SAVE_STATE_ASYNC, false)
-                .getOrCreateConfig();
-        final LatestCompleteStateNexus nexus = new DefaultLatestCompleteStateNexus(configuration, new NoOpMetrics());
-        final SignedState freezeState = new RandomSignedStateGenerator()
-                .setRound(456)
-                .setFreezeState(true)
-                .build();
-
-        try (final ReservedSignedState testReservation = freezeState.reserve("test")) {
-            nexus.updatePlatformStatus(PlatformStatus.FREEZING);
-            final ReservedSignedState nexusReservation = freezeState.reserve("nexus state");
-            nexus.setStateIfNewer(nexusReservation);
-
-            assertFalse(nexusReservation.isClosed(), "A synchronous freeze state may be retained");
-            try (final ReservedSignedState nexusState = nexus.getState("check retained state")) {
-                assertNotNull(nexusState, "The synchronous freeze state should be retained");
-            }
-            nexus.clear();
-            assertTrue(nexusReservation.isClosed(), "Clearing the nexus should release the synchronous freeze state");
         }
     }
 

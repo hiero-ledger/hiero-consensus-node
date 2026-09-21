@@ -19,6 +19,7 @@ import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RECONNECT;
+import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.completedFuture;
@@ -29,9 +30,13 @@ import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_RO
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.freezeTimeOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.lastFrozenTimeOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static org.hiero.consensus.roster.RosterUtils.rosterFrom;
+import static org.hiero.consensus.system.SystemExitCode.UPGRADE_FROM_NON_FREEZE_STATE;
+import static org.hiero.consensus.system.SystemExitUtils.exitSystem;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.hapi.block.stream.output.StateChanges;
@@ -784,6 +789,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                     version);
             throw new IllegalStateException("Cannot downgrade from " + deserializedVersion + " to " + version);
         }
+        assertFreezeStateOnUpgrade(state, trigger, deserializedVersion, version);
         try {
             migrateSchemas(state, deserializedVersion, trigger, platformConfig);
             logConfiguration();
@@ -797,6 +803,49 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                     freezeTimeOf(state),
                     lastFrozenTimeOf(state));
         }
+    }
+
+    /**
+     * Fails fast if the node is attempting a software upgrade while resuming from a state that is not a freeze state.
+     * A coordinated upgrade always resumes from the freeze state written at the freeze boundary; every node migrates
+     * from that identical state, which is what keeps the post-migration root hash consistent across the network.
+     * Migrating from any other saved state produces a divergent hash, i.e. an ISS.
+     *
+     * @param state the loaded state
+     * @param trigger the startup trigger
+     * @param deserializedVersion the software version of the loaded state, or null at genesis
+     * @param currentVersion the current node software version
+     */
+    @VisibleForTesting
+    static void assertFreezeStateOnUpgrade(
+            @NonNull final State state,
+            @NonNull final InitTrigger trigger,
+            @Nullable final SemanticVersion deserializedVersion,
+            @NonNull final SemanticVersion currentVersion) {
+        final var isUpgrade = SEMANTIC_VERSION_COMPARATOR.compare(currentVersion, deserializedVersion) > 0;
+        if (isUpgrade && trigger == RESTART && !isFreezeState(state)) {
+            final var message = "Cannot upgrade from " + deserializedVersion + " to " + currentVersion
+                    + " while resuming from a non-freeze state at round " + roundOf(state)
+                    + "; an upgrade must resume from the network freeze state."
+                    + " Restore state from a healthy node before upgrading.";
+            logger.fatal(message);
+            exitSystem(UPGRADE_FROM_NON_FREEZE_STATE, message);
+            // Not reachable in production, where the JVM exits above; reachable in tests that mock the system exit
+            throw new IllegalStateException(message);
+        }
+    }
+
+    /**
+     * Returns whether the given state is a freeze state, i.e. the last state saved before a network freeze. Only a
+     * freeze state has a non-null {@code freezeTime} equal to its {@code lastFrozenTime}, since that equality is
+     * committed to disk atomically with the freeze-state save.
+     *
+     * @param state the state to check
+     * @return true if the state is a freeze state
+     */
+    private static boolean isFreezeState(@NonNull final State state) {
+        final var freezeTime = freezeTimeOf(state);
+        return freezeTime != null && freezeTime.equals(lastFrozenTimeOf(state));
     }
 
     /**

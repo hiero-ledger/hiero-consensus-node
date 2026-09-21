@@ -21,7 +21,7 @@ on:
         description: "NodeJS Version:"
         required: false
         type: string
-        default: "20"
+        default: "24"
       enable-network-log-capture:
         description: "Network Log Capture Enabled"
         required: false

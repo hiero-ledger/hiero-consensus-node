@@ -5,7 +5,6 @@ import static org.hiero.consensus.event.creator.impl.EventCreationStatus.ATTEMPT
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.IDLE;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.NO_ELIGIBLE_PARENTS;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.DoubleGauge;
@@ -35,6 +34,7 @@ import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 
@@ -97,7 +97,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
             @NonNull final Time time,
             @NonNull final SignatureTransactionCheck signatureTransactionCheck,
             @NonNull final EventCreator eventCreator,
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final NodeId selfId) {
         this.creator = Objects.requireNonNull(eventCreator);
         this.syncLagCalculator = new SyncLagCalculator(selfId, roster);

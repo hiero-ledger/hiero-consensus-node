@@ -2,6 +2,16 @@
 version: v1.25.0
 # ignores vulnerabilities until expiry date; change duration by modifying expiry date
 ignore:
+  SNYK-JAVA-ORGXERIALSNAPPY-19778376:
+    - '*':
+        reason: No fixed snappy-java version is available at this time (transitive via besu-evm)
+        expires: 2026-10-16T00:00:00.000Z
+        created: 2026-09-16T00:00:00.000Z
+  SNYK-JAVA-ORGXERIALSNAPPY-19964087:
+    - '*':
+        reason: No fixed snappy-java version is available at this time (transitive via besu-evm)
+        expires: 2026-10-16T00:00:00.000Z
+        created: 2026-09-21T00:00:00.000Z
 patch: {}
 exclude:
   global:

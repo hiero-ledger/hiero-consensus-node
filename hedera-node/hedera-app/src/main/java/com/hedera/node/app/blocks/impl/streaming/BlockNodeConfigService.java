@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.internal.network.BlockNodeConfig;
@@ -185,7 +186,7 @@ public class BlockNodeConfigService {
             final byte[] bytes = Files.readAllBytes(path);
             connectionInfo = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(bytes));
         } catch (final IOException | ParseException e) {
-            logger.warn("Failed to read/parse block node configuration from {}", path, e);
+            logger.warn("Failed to read block node configuration from {}", path, e);
             return;
         }
 
@@ -208,7 +209,9 @@ public class BlockNodeConfigService {
         final Map<String, AtomicInteger> hostCounters = new HashMap<>();
         for (final BlockNodeConfig nodeConfig : connectionInfo.nodes()) {
             try {
-                nodeConfigs.add(BlockNodeConfiguration.from(nodeConfig, defaultHardLimitBytes));
+                final BlockNodeConfiguration parsed = BlockNodeConfiguration.from(nodeConfig, defaultHardLimitBytes);
+                nodeConfigs.add(parsed);
+                logSharedEndpointTls(parsed);
                 hostCounters
                         .computeIfAbsent(
                                 nodeConfig.address() + ":" + nodeConfig.streamingPort(), _ -> new AtomicInteger())
@@ -258,6 +261,47 @@ public class BlockNodeConfigService {
             }
 
             logger.info("{}", sb);
+        }
+    }
+
+    /**
+     * Makes it visible when two APIs sharing one endpoint had their TLS settings reconciled to the more secure one.
+     * Filling in a block the operator left out is logged at INFO; overriding a block the operator explicitly set to
+     * {@code enabled: false} is logged at WARN, because the file then says one thing and the node does another.
+     *
+     * @param config the parsed configuration for one block node
+     */
+    private void logSharedEndpointTls(@NonNull final BlockNodeConfiguration config) {
+        final String upgraded =
+                switch (config.tlsInheritance()) {
+                    case NONE -> null;
+                    case SERVICE_FROM_STREAMING -> "service";
+                    case STREAMING_FROM_SERVICE -> "streaming";
+                };
+        if (upgraded == null) {
+            return;
+        }
+        final String source = "service".equals(upgraded) ? "streaming" : "service";
+        final BlockNodeEndpoint endpoint = config.streamingEndpoint();
+        if (config.tlsInheritanceOverrodeExplicitSetting()) {
+            logger.warn(
+                    "[{}:{}] The {} API explicitly disables TLS but shares its endpoint with the {} API, which"
+                            + " requires it; one listener has one TLS state, so TLS applies to both ({})",
+                    endpoint.host(),
+                    endpoint.port(),
+                    upgraded,
+                    source,
+                    config.streamingTls());
+        } else {
+            logger.info(
+                    "[{}:{}] The {} API shares its endpoint with the {} API; applying the {} API's TLS settings"
+                            + " to both ({})",
+                    endpoint.host(),
+                    endpoint.port(),
+                    upgraded,
+                    source,
+                    source,
+                    config.streamingTls());
         }
     }
 
