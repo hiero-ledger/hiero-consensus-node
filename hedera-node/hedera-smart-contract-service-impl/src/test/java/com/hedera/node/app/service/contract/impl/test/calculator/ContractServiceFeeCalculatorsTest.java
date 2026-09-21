@@ -53,6 +53,8 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -253,25 +255,33 @@ public class ContractServiceFeeCalculatorsTest {
         assertThat(result.totalTinycents()).isEqualTo(570);
     }
 
-    @Test
-    void testContractCallLocalWithNegativeGasChargesBaseFeeOnly() {
-        // A client-supplied negative gas must not produce a negative extra fee: the extra count is
-        // clamped to zero (Math.max(0, gas - included)), so only the base fee is charged.
+    @ParameterizedTest
+    @ValueSource(longs = {-1L, Long.MIN_VALUE + 6, Long.MIN_VALUE})
+    void testContractCallLocalWithNegativeGasChargesBaseFeeOnly(final long gas) {
+        // A client-supplied negative gas must not produce a negative or inflated extra fee: no gas
+        // beyond the included count was used, so only the base fee is charged. The two smallest
+        // inputs sit inside the window where `gas - included` underflows: for any gas in
+        // [Long.MIN_VALUE, Long.MIN_VALUE + included - 1] the subtraction wraps positive, so the
+        // Math.max(0, ...) guard lets a huge count through and the fee saturates to Long.MAX_VALUE.
         final var query = Query.newBuilder()
-                .contractCallLocal(ContractCallLocalQuery.newBuilder().gas(-1L))
+                .contractCallLocal(ContractCallLocalQuery.newBuilder().gas(gas))
                 .build();
         final var result = feeCalculator.calculateQueryFee(query, new SimpleFeeContextImpl(null, queryContext));
 
         assertThat(result.totalTinycents()).isEqualTo(555);
     }
 
-    @Test
-    void testContractCallLocalWithMaxGasSaturatesInsteadOfWrapping() {
-        // A client-supplied Long.MAX_VALUE gas must not wrap the fee product into a negative or
-        // undercharged value: clampedMultiply/clampedAdd saturate at Long.MAX_VALUE, so the fee
-        // overcharges rather than undercharging.
+    @ParameterizedTest
+    @ValueSource(longs = {Long.MAX_VALUE, Long.MAX_VALUE / 3 + 8})
+    void testContractCallLocalWithHugeGasSaturatesInsteadOfWrapping(final long gas) {
+        // A client-supplied huge gas must not wrap the fee product into a negative or undercharged
+        // value: clampedMultiply/clampedAdd saturate at Long.MAX_VALUE, so the fee overcharges
+        // rather than undercharging. Long.MAX_VALUE alone does not pin this -- the wrapped product
+        // lands just short of Long.MAX_VALUE and the base fee saturates it back, so an unclamped
+        // multiply would still produce the expected total. The mid-range input wraps negative and
+        // cannot be rescued by the addition, so it is the one that fails without the clamp.
         final var query = Query.newBuilder()
-                .contractCallLocal(ContractCallLocalQuery.newBuilder().gas(Long.MAX_VALUE))
+                .contractCallLocal(ContractCallLocalQuery.newBuilder().gas(gas))
                 .build();
         final var result = feeCalculator.calculateQueryFee(query, new SimpleFeeContextImpl(null, queryContext));
 
