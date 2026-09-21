@@ -106,6 +106,15 @@ public class RosterWrapper {
     }
 
     /**
+     * Returns a list of {@link NodeId} instances for all entries in this roster.
+     *
+     * @return a list of {@link NodeId} instances
+     */
+    public List<NodeId> nodeIds() {
+        return rosterEntries.stream().map(RosterEntryWrapper::nodeId).toList();
+    }
+
+    /**
      * Returns the index of the given {@link NodeId} in this roster, or -1 if the node is not present.
      *
      * @param nodeId the {@link NodeId} to look up

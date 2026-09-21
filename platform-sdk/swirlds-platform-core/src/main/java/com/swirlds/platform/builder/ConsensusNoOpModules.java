@@ -43,9 +43,9 @@ import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
-import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.SavedStateController;
 import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.state.nexus.DefaultLatestCompleteStateNexus;
@@ -105,8 +105,8 @@ public class ConsensusNoOpModules {
         final NodeId selfId = NodeId.FIRST_NODE_ID;
         final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
         final Roster roster = new Roster(List.of(rosterEntry));
-        final RosterHistory rosterHistory =
-                new RosterHistory(List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, roster));
+        final RosterWrapperHistory rosterHistory =
+                RosterWrapperHistory.of(List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, roster));
         final IntakeEventCounter intakeEventCounter = new NoOpIntakeEventCounter();
         final TransactionLimits transactionLimits = new TransactionLimits(0, 0);
         final EventPipelineTracker eventPipelineTracker = null;
