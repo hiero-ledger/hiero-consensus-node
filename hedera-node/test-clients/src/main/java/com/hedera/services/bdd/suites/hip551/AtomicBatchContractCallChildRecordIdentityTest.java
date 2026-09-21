@@ -29,7 +29,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -59,15 +58,13 @@ import org.junit.jupiter.api.Tag;
 
 /**
  * Verifies that a synthetic account-creation record produced by a {@code ContractCall} inside an Atomic Batch is
- * filed under the identity of the inner transaction that actually caused it, across every arrangement of
- * {@code ContractCall} within a batch.
+ * filed under the identity of the inner transaction that caused it.
  * <p>
- * The EVM's lazy account creation is dispatched in the
+ * Lazy account creation is dispatched in the
  * {@link com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory#PRECEDING} category from inside the
- * savepoint every contract transaction opens, so it is only flushed into the record stream when the EVM transaction
- * commits. It therefore lands <i>after</i> the inner transaction that produced it, unlike the alias auto-creation of
- * a {@code CryptoTransfer}, which lands before. Ownership consequently cannot be inferred from position, and the
- * cases below pin down every arrangement where that mattered.
+ * savepoint every contract transaction opens, so it reaches the record stream only once that transaction commits,
+ * landing after its own inner where the alias auto-creation of a {@code CryptoTransfer} lands before its own. The
+ * cases below cover both kinds appearing in one batch.
  */
 @Tag(ATOMIC_BATCH)
 public class AtomicBatchContractCallChildRecordIdentityTest {
@@ -102,7 +99,7 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
     private static final long SCHEDULE_EXPIRY_SHIFT = 60L;
 
     // ---------------------------------------------------------------------------------------------------------
-    // The ContractCall is the last inner transaction, so no sibling follows it
+    // A batch admits at most one contract operation and only as its last inner, so no sibling can follow it.
     // ---------------------------------------------------------------------------------------------------------
     @Nested
     @DisplayName("ContractCall as the final inner transaction")
@@ -338,175 +335,6 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
     }
 
     // ---------------------------------------------------------------------------------------------------------
-    // The ContractCall is followed by at least one further inner transaction
-    // ---------------------------------------------------------------------------------------------------------
-    @Nested
-    @DisplayName("ContractCall preceding other inner transactions")
-    class ContractCallBeforeOtherInners {
-
-        @HapiTest
-        @DisplayName("Lazy creation from a leading ContractCall is not filed under the following inner")
-        final Stream<DynamicTest> lazyCreationFromLeadingContractCallIsNotFiledUnderTheFollower() {
-            final var hollowKey = "lazyHollowKey";
-            final var evmInner = "leadingEvmInner";
-            final var followerInner = "followingInner";
-            final var lazyCreatedId = new AtomicReference<AccountID>();
-            final var evmRecords = new AtomicReference<List<TransactionRecord>>();
-
-            return hapiTest(
-                    commonSetup(),
-                    newKeyNamed(hollowKey).shape(SECP_256K1_SHAPE),
-                    withAddressOfKey(
-                            hollowKey,
-                            address -> blockingOrder(
-                                    atomicBatch(
-                                                    lazyCreatingCall(address).via(evmInner),
-                                                    cryptoTransfer(movingHbar(1L)
-                                                                    .between(OTHER_PAYER, PLAIN_RECEIVER))
-                                                            .batchKey(BATCH_OPERATOR)
-                                                            .payingWith(OTHER_PAYER)
-                                                            .via(followerInner))
-                                            .signedByPayerAnd(BATCH_OPERATOR),
-                                    createdAccount(address, lazyCreatedId),
-                                    getTxnRecord(followerInner)
-                                            .andAllChildRecords()
-                                            .hasNonStakingChildRecordCount(0),
-                                    getTxnRecord(evmInner)
-                                            .andAllChildRecords()
-                                            .hasNonStakingChildRecordCount(1)
-                                            .exposingAllTo(evmRecords::set),
-                                    assertOwnership(evmRecords, lazyCreatedId, evmInner, followerInner))));
-        }
-
-        @HapiTest
-        @DisplayName("Lazy creation from a middle ContractCall is filed under that call")
-        final Stream<DynamicTest> lazyCreationFromMiddleContractCallIsFiledUnderThatCall() {
-            final var hollowKey = "lazyHollowKey";
-            final var firstInner = "firstInner";
-            final var evmInner = "middleEvmInner";
-            final var lastInner = "lastInner";
-            final var lazyCreatedId = new AtomicReference<AccountID>();
-            final var evmRecords = new AtomicReference<List<TransactionRecord>>();
-
-            return hapiTest(
-                    commonSetup(),
-                    newKeyNamed(hollowKey).shape(SECP_256K1_SHAPE),
-                    withAddressOfKey(
-                            hollowKey,
-                            address -> blockingOrder(
-                                    atomicBatch(
-                                                    cryptoTransfer(movingHbar(1L)
-                                                                    .between(TRANSFER_PAYER, PLAIN_RECEIVER))
-                                                            .batchKey(BATCH_OPERATOR)
-                                                            .payingWith(TRANSFER_PAYER)
-                                                            .via(firstInner),
-                                                    lazyCreatingCall(address).via(evmInner),
-                                                    cryptoTransfer(movingHbar(1L)
-                                                                    .between(OTHER_PAYER, PLAIN_RECEIVER))
-                                                            .batchKey(BATCH_OPERATOR)
-                                                            .payingWith(OTHER_PAYER)
-                                                            .via(lastInner))
-                                            .signedByPayerAnd(BATCH_OPERATOR),
-                                    createdAccount(address, lazyCreatedId),
-                                    getTxnRecord(firstInner)
-                                            .andAllChildRecords()
-                                            .hasNonStakingChildRecordCount(0),
-                                    getTxnRecord(lastInner).andAllChildRecords().hasNonStakingChildRecordCount(0),
-                                    getTxnRecord(evmInner)
-                                            .andAllChildRecords()
-                                            .hasNonStakingChildRecordCount(1)
-                                            .exposingAllTo(evmRecords::set),
-                                    assertOwnership(evmRecords, lazyCreatedId, evmInner, lastInner))));
-        }
-
-        @HapiTest
-        @DisplayName("Two ContractCalls each own the account they lazy-created")
-        final Stream<DynamicTest> twoContractCallsEachOwnTheirOwnLazyCreation() {
-            final var hollowOne = "hollowKeyOne";
-            final var hollowTwo = "hollowKeyTwo";
-            final var firstEvm = "firstEvmInner";
-            final var secondEvm = "secondEvmInner";
-            final var firstCreated = new AtomicReference<AccountID>();
-            final var secondCreated = new AtomicReference<AccountID>();
-            final var firstRecords = new AtomicReference<List<TransactionRecord>>();
-            final var secondRecords = new AtomicReference<List<TransactionRecord>>();
-
-            return hapiTest(
-                    commonSetup(),
-                    newKeyNamed(hollowOne).shape(SECP_256K1_SHAPE),
-                    newKeyNamed(hollowTwo).shape(SECP_256K1_SHAPE),
-                    withAddressOfKey(
-                            hollowOne,
-                            first -> withAddressOfKey(
-                                    hollowTwo,
-                                    second -> blockingOrder(
-                                            atomicBatch(
-                                                            lazyCreatingCall(first)
-                                                                    .payingWith(EVM_PAYER)
-                                                                    .via(firstEvm),
-                                                            contractCall(MAKE_CALLS, CALL_FN, second, new byte[0])
-                                                                    .batchKey(BATCH_OPERATOR)
-                                                                    .payingWith(OTHER_PAYER)
-                                                                    .gas(1_000_000L)
-                                                                    .sending(DEPOSIT)
-                                                                    .via(secondEvm))
-                                                    .signedByPayerAnd(BATCH_OPERATOR),
-                                            createdAccount(first, firstCreated),
-                                            createdAccount(second, secondCreated),
-                                            getTxnRecord(firstEvm)
-                                                    .andAllChildRecords()
-                                                    .hasNonStakingChildRecordCount(1)
-                                                    .exposingAllTo(firstRecords::set),
-                                            getTxnRecord(secondEvm)
-                                                    .andAllChildRecords()
-                                                    .hasNonStakingChildRecordCount(1)
-                                                    .exposingAllTo(secondRecords::set),
-                                            withOpContext((spec, opLog) -> {
-                                                final var firstId =
-                                                        spec.registry().getTxnId(firstEvm);
-                                                final var secondId =
-                                                        spec.registry().getTxnId(secondEvm);
-                                                assertIdentity(
-                                                        onlyCreationOf(firstRecords, firstCreated)
-                                                                .getTransactionID(),
-                                                        firstId);
-                                                assertIdentity(
-                                                        onlyCreationOf(secondRecords, secondCreated)
-                                                                .getTransactionID(),
-                                                        secondId);
-                                            })))));
-        }
-
-        @HapiTest
-        @DisplayName("A leading ContractCall's lazy creation is rolled back when a later inner fails")
-        final Stream<DynamicTest> leadingLazyCreationIsRolledBackWhenALaterInnerFails() {
-            final var hollowKey = "lazyHollowKey";
-            final var brokeAccount = "brokeAccount";
-
-            return hapiTest(
-                    commonSetup(),
-                    cryptoCreate(brokeAccount).balance(0L),
-                    newKeyNamed(hollowKey).shape(SECP_256K1_SHAPE),
-                    withAddressOfKey(
-                            hollowKey,
-                            address -> blockingOrder(
-                                    atomicBatch(
-                                                    lazyCreatingCall(address),
-                                                    // Cannot cover the transfer, so this inner fails and the batch
-                                                    // rolls back
-                                                    cryptoTransfer(movingHbar(ONE_HUNDRED_HBARS)
-                                                                    .between(brokeAccount, PLAIN_RECEIVER))
-                                                            .batchKey(BATCH_OPERATOR)
-                                                            .payingWith(BATCH_OPERATOR)
-                                                            .signedBy(BATCH_OPERATOR, brokeAccount)
-                                                            .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE))
-                                            .signedByPayerAnd(BATCH_OPERATOR)
-                                            .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                                    aliasIsAbsent(address))));
-        }
-    }
-
-    // ---------------------------------------------------------------------------------------------------------
     // Baselines: paths the fix must leave exactly as they were
     // ---------------------------------------------------------------------------------------------------------
     @Nested
@@ -590,35 +418,6 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
     @Nested
     @DisplayName("Code delegations replayed after a batch rollback")
     class CodeDelegationRollbackReplay {
-
-        @LeakyHapiTest(overrides = {CODE_DELEGATIONS_ENABLED})
-        @DisplayName("A code delegation replayed after a later sibling fails belongs to its Ethereum inner")
-        final Stream<DynamicTest> replayAfterSiblingFailureBelongsToTheEthereumInner() {
-            final var ethInner = "delegatingEthInner";
-            final var outerBatch = "rolledBackBatch";
-            final var innerRecords = new AtomicReference<List<TransactionRecord>>();
-            final var batchRecords = new AtomicReference<List<TransactionRecord>>();
-            final var delegationTarget = new AtomicReference<Address>();
-
-            return hapiTest(
-                    overriding(CODE_DELEGATIONS_ENABLED, "true"),
-                    commonSetup(),
-                    delegationSetup(delegationTarget),
-                    withOpContext((spec, opLog) -> allRunFor(
-                            spec,
-                            atomicBatch(
-                                            delegatingEthCall(delegationTarget, TRIVIAL_CONTRACT, TRIVIAL_FN)
-                                                    .via(ethInner),
-                                            // A later sibling fails, so the batch rolls back and the delegation
-                                            // the Ethereum inner applied is replayed by the batch handler
-                                            failingTransfer())
-                                    .payingWith(BATCH_OPERATOR)
-                                    .hasKnownStatus(INNER_TRANSACTION_FAILED)
-                                    .via(outerBatch))),
-                    getTxnRecord(ethInner).andAllChildRecords().exposingAllTo(innerRecords::set),
-                    getTxnRecord(outerBatch).andAllChildRecords().exposingAllTo(batchRecords::set),
-                    assertReplayOwnership(innerRecords, batchRecords, ethInner));
-        }
 
         @LeakyHapiTest(overrides = {CODE_DELEGATIONS_ENABLED})
         @DisplayName("A code delegation replayed after the Ethereum inner itself reverts belongs to that inner")
@@ -833,13 +632,6 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
                 .addCodeDelegationWithSpecNonce(delegationTarget.get(), AUTHORITY)
                 .gasLimit(GAS_LIMIT_2M)
                 .batchKey(BATCH_OPERATOR);
-    }
-
-    /** A transfer out of the zero-balance account, so the enclosing batch always rolls back. */
-    private static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer failingTransfer() {
-        return cryptoTransfer(movingHbar(ONE_HBAR).between(PLAIN_RECEIVER, BATCH_OPERATOR))
-                .batchKey(BATCH_OPERATOR)
-                .hasKnownStatus(INSUFFICIENT_ACCOUNT_BALANCE);
     }
 
     /**
