@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform;
 
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static java.util.Objects.requireNonNull;
@@ -13,6 +14,7 @@ import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.platform.metrics.RuntimeMetrics;
 import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Signature;
@@ -131,6 +133,19 @@ public class SwirldsPlatform implements Platform {
         buildingBlocks.wiringModel().stop();
         buildingBlocks.pcesModule().destroy();
         getMetricsProvider().removePlatformMetrics(selfId);
+        closeMetricRegistry();
+    }
+
+    /**
+     * Closes the metric registry handed to this platform, shutting down its exporter if it has one. Failures
+     * are logged rather than propagated, so that a misbehaving exporter cannot derail platform shutdown.
+     */
+    private void closeMetricRegistry() {
+        try {
+            inputs.metricRegistry().close();
+        } catch (final IOException e) {
+            logger.warn(EXCEPTION.getMarker(), "Failed to close the metric registry of node {}", selfId, e);
+        }
     }
 
     /**

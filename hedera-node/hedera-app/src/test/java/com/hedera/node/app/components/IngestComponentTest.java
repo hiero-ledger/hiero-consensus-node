@@ -126,7 +126,6 @@ class IngestComponentTest {
                 UNAVAILABLE_GOSSIP,
                 () -> configuration,
                 () -> DEFAULT_NODE_INFO,
-                () -> NO_OP_METRICS,
                 throttleFactory,
                 () -> UNIVERSAL_NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(configuration));

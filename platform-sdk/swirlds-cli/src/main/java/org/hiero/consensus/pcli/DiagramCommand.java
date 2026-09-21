@@ -50,6 +50,7 @@ import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.stream.ConsensusEventStream;
 import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
 import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.fakes.noop.NoOpMetricRegistries;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.fakes.noop.NoOpRecycleBin;
 import org.hiero.consensus.gossip.GossipModule;
@@ -159,6 +160,7 @@ public final class DiagramCommand extends AbstractCommand {
         final ConsensusLayerInputs inputs = new ConsensusLayerInputs(
                 configuration,
                 new NoOpMetrics(),
+                NoOpMetricRegistries.create(),
                 Time.getCurrent(),
                 fakeRosterHistory(),
                 KeysAndCertsGenerator.generate(NodeId.FIRST_NODE_ID),

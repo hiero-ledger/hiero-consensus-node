@@ -94,8 +94,10 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.PathsConfig;
+import org.hiero.consensus.fakes.noop.NoOpMetricRegistries;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.metrics.core.MetricRegistry;
 import org.junit.jupiter.api.Assertions;
 
 /**
@@ -135,6 +137,10 @@ public class StateChangesValidator implements BlockStreamValidator {
     private final boolean assertAtLeastOneWraps;
     private final Hash initializedGenesisStateHash;
     private final Path pathToNode0SwirldsLog;
+
+    /** Exporter-free registry required to construct the Hedera instance this validator replays against. */
+    private final MetricRegistry metricRegistry;
+
     private final Bytes expectedRootHash;
     private final StateChangesSummary stateChangesSummary = new StateChangesSummary(new TreeMap<>());
     private final Map<String, Set<Object>> entityChanges = new LinkedHashMap<>();
@@ -342,8 +348,10 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var platformConfig = ServicesMain.buildPlatformConfig();
         final var pathsConfig = platformConfig.getConfigData(PathsConfig.class);
         final var fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
+        // This validator only replays state changes, so the registry has no exporter.
+        this.metricRegistry = NoOpMetricRegistries.create(NodeId.FIRST_NODE_ID.id());
         final var hedera = ServicesMain.newHedera(
-                platformConfig, fileSystemManager, metrics, Time.getCurrent(), NodeId.FIRST_NODE_ID);
+                platformConfig, fileSystemManager, metrics, metricRegistry, Time.getCurrent(), NodeId.FIRST_NODE_ID);
         this.stateLifecycleManager = hedera.getStateLifecycleManager();
         final var genesisState = hedera.getStateLifecycleManager().getMutableState();
         this.state = stateLifecycleManager.copyMutableState();

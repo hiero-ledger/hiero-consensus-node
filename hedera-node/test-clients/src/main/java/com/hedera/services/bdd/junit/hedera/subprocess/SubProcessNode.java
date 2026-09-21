@@ -231,14 +231,17 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
      * @param gossipPort the new gossip port
      * @param tlsGossipPort the new TLS gossip port
      * @param prometheusPort the new Prometheus port
+     * @param openMetricsPort the new OpenMetrics HTTP port
      */
     public void reassignPorts(
             final int grpcPort,
             final int grpcNodeOperatorPort,
             final int gossipPort,
             final int tlsGossipPort,
-            final int prometheusPort) {
-        metadata = metadata.withNewPorts(grpcPort, grpcNodeOperatorPort, gossipPort, tlsGossipPort, prometheusPort);
+            final int prometheusPort,
+            final int openMetricsPort) {
+        metadata = metadata.withNewPorts(
+                grpcPort, grpcNodeOperatorPort, gossipPort, tlsGossipPort, prometheusPort, openMetricsPort);
     }
 
     /**

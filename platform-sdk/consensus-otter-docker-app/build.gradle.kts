@@ -22,6 +22,7 @@ testModuleInfo {
 
 testFixturesModuleInfo {
     runtimeOnly("org.hiero.consensus.event.intake.concurrent")
+    runtimeOnly("org.hiero.metrics.export.file")
     runtimeOnly("io.grpc.netty.shaded")
     runtimeOnly("io.helidon.grpc.core")
     runtimeOnly("io.helidon.webclient")

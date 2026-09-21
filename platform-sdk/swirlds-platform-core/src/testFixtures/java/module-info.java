@@ -15,6 +15,7 @@ open module com.swirlds.platform.core.test.fixtures {
     requires transitive org.hiero.consensus.state;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.utility;
+    requires transitive org.hiero.metrics;
     requires com.swirlds.platform.core;
     requires org.junit.jupiter.api;
     requires org.hiero.consensus.fakes;
