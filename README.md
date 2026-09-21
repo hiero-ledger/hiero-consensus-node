@@ -48,8 +48,8 @@ can get involved.
 
 ## Code of Conduct
 
-This project is governed by the
-[Contributor Covenant Code of Conduct](https://github.com/hashgraph/.github/blob/main/CODE_OF_CONDUCT.md).
+This project is governed by the Linux Foundation Decentralized Trust
+[Code of Conduct](https://www.lfdecentralizedtrust.org/code-of-conduct).
 By participating, you are expected to uphold this code of conduct.
 
 ## License
