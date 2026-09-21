@@ -50,4 +50,11 @@ class CongestionMetricsTest {
 
         verify(longGauge).set(5L);
     }
+
+    @SuppressWarnings("ConstantConditions")
+    @Test
+    void testUpdateMultiplierWithInvalidParameters() {
+        assertThrows(NullPointerException.class, () -> congestionMetrics.updateMultiplier(null, storeFactory));
+        assertThrows(NullPointerException.class, () -> congestionMetrics.updateMultiplier(txnInfo, null));
+    }
 }
