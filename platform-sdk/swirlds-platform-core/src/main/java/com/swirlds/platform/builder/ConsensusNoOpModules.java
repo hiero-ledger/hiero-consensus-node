@@ -8,7 +8,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -104,9 +103,9 @@ public class ConsensusNoOpModules {
         final Time time = Time.getCurrent();
         final NodeId selfId = NodeId.FIRST_NODE_ID;
         final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
-        final Roster roster = new Roster(List.of(rosterEntry));
+        final RosterWrapper roster = RosterWrapper.of(new Roster(List.of(rosterEntry)));
         final RosterWrapperHistory rosterHistory =
-                RosterWrapperHistory.of(List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, roster));
+                new RosterWrapperHistory(List.of(new RosterWrapperHistory.Entry(0L, roster)));
         final IntakeEventCounter intakeEventCounter = new NoOpIntakeEventCounter();
         final TransactionLimits transactionLimits = new TransactionLimits(0, 0);
         final EventPipelineTracker eventPipelineTracker = null;

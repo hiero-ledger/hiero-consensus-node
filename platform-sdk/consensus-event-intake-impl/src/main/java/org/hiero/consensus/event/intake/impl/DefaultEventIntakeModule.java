@@ -193,7 +193,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         branchReporterWiring.getInputWire(BranchReporter::clear);
 
         // Create and bind components
-        final RosterWrapper currentRoster = rosterHistory.currentRoster();
+        final RosterWrapper currentRoster = rosterHistory.activeRoster();
         final EventHasher eventHasher = new DefaultEventHasher();
         eventHasherWiring.bind(eventHasher);
         final InternalEventValidator internalEventValidator = new DefaultInternalEventValidator(

@@ -17,32 +17,32 @@ public class RosterWrapperHistoryFactory {
     /**
      * Create a RosterWrapperHistory with a single roster.
      *
-     * @param startingRound the starting round for the roster
+     * @param firstActiveRound the round in which the roster becomes active
      * @param roster the roster to include in the history
      * @return a {@link RosterWrapperHistory} instance
      */
     @NonNull
     public static RosterWrapperHistory createRosterWrapperHistory(
-            final long startingRound, @NonNull final RosterWrapper roster) {
-        return new RosterWrapperHistory(List.of(new Entry(startingRound, roster)));
+            final long firstActiveRound, @NonNull final RosterWrapper roster) {
+        return new RosterWrapperHistory(List.of(new Entry(firstActiveRound, roster)));
     }
 
     /**
      * Create a RosterWrapperHistory with two rosters.
      *
-     * @param startingRound1 the starting round for the first roster
+     * @param firstActiveRound1 the round in which first roster becomes active
      * @param roster1 the first roster to include in the history
-     * @param startingRound2 the starting round for the second roster
+     * @param firstActiveRound2 the round in which second roster becomes active
      * @param roster2 the second roster to include in the history
      * @return a {@link RosterWrapperHistory} instance
      */
     @NonNull
     public static RosterWrapperHistory createRosterWrapperHistory(
-            final long startingRound1,
+            final long firstActiveRound1,
             @NonNull final RosterWrapper roster1,
-            final long startingRound2,
+            final long firstActiveRound2,
             @NonNull final RosterWrapper roster2) {
         return new RosterWrapperHistory(
-                List.of(new Entry(startingRound1, roster1), new Entry(startingRound2, roster2)));
+                List.of(new Entry(firstActiveRound1, roster1), new Entry(firstActiveRound2, roster2)));
     }
 }

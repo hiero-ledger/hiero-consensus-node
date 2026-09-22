@@ -14,25 +14,29 @@ import java.util.Map;
 public class RosterWrapperHistory {
 
     /**
-     * A record representing an entry in the roster history, consisting of a starting round and a corresponding {@link RosterWrapper}.
+     * A record representing an entry in the roster history, consisting a {@link RosterWrapper} and the round in which
+     * the roster becomes active.
      *
-     * @param startingRound
-     * @param roster
+     * @param firstActiveRound the round number at which the roster becomes active
+     * @param roster the {@link RosterWrapper} that is active starting from the specified round
      */
-    public record Entry(long startingRound, @NonNull RosterWrapper roster) {}
+    public record Entry(long firstActiveRound, @NonNull RosterWrapper roster) {}
 
-    /** The start round of the current roster. Used for optimization: hot path needs no array access. */
-    private final long currentStartingRound;
+    /**
+     *  The latest first active round, i.e., the round in which the currently active roster became active.
+     *  Used for optimization: hot path needs no array access.
+     */
+    private final long latestFirstActiveRound;
 
-    /** The current roster. Used for optimization: hot path needs no array access. */
+    /** The active roster. Used for optimization: hot path needs no array access. */
     @NonNull
-    private final RosterWrapper current;
+    private final RosterWrapper activeRoster;
 
-    /** The start rounds of all rosters, in strictly descending order. */
+    /** The first active rounds of all rosters, in strictly descending order. */
     @NonNull
-    private final long[] startingRounds;
+    private final long[] firstActiveRounds;
 
-    /** The rosters corresponding to the start rounds, in strictly descending order. */
+    /** The rosters corresponding to the first active rounds, in strictly descending order. */
     @NonNull
     private final RosterWrapper[] rosters;
 
@@ -47,15 +51,15 @@ public class RosterWrapperHistory {
             throw new IllegalArgumentException(
                     "RosterWrapperHistory cannot be constructed with an empty list of rosters");
         }
-        // sort the rosters in descending order of starting round
+        // sort the rosters in descending order of first active round
         final List<Entry> sortedEntries = rosterList.stream()
-                .sorted((a, b) -> Long.compare(b.startingRound(), a.startingRound()))
+                .sorted((a, b) -> Long.compare(b.firstActiveRound(), a.firstActiveRound()))
                 .toList();
         this.rosters = sortedEntries.stream().map(Entry::roster).toArray(RosterWrapper[]::new);
-        this.startingRounds =
-                sortedEntries.stream().mapToLong(Entry::startingRound).toArray();
-        this.current = rosters[0];
-        this.currentStartingRound = startingRounds[0];
+        this.firstActiveRounds =
+                sortedEntries.stream().mapToLong(Entry::firstActiveRound).toArray();
+        this.activeRoster = rosters[0];
+        this.latestFirstActiveRound = firstActiveRounds[0];
     }
 
     /**
@@ -67,44 +71,44 @@ public class RosterWrapperHistory {
      */
     public static RosterWrapperHistory of(
             @NonNull final List<RoundRosterPair> history, @NonNull final Map<Bytes, Roster> rosterMap) {
-        final List<Entry> rosterWrappers = history.stream()
+        final List<Entry> entries = history.stream()
                 .map(pair -> {
                     final Roster roster = rosterMap.get(pair.activeRosterHash());
                     return new Entry(pair.roundNumber(), RosterWrapper.of(roster));
                 })
                 .toList();
-        return new RosterWrapperHistory(rosterWrappers);
+        return new RosterWrapperHistory(entries);
     }
 
     /**
-     * Returns the {@link RosterWrapper} for the given round number.
+     * Returns the {@link RosterWrapper} that is active during a given round number.
      *
      * @param round the round number
-     * @return the {@link RosterWrapper} for the given round number
-     * @throws IllegalArgumentException if the round number is before the earliest roster starting round
+     * @return the {@code RosterWrapper} that is active during the given round number
+     * @throws IllegalArgumentException if the round number is before the earliest known first active round
      */
     @NonNull
     public RosterWrapper rosterForRound(final long round) {
-        // optimization: most of the time we want the current roster
-        if (round >= currentStartingRound) {
-            return current;
+        // optimization: most of the time we want the active roster
+        if (round >= latestFirstActiveRound) {
+            return activeRoster;
         }
-        for (int i = 1; i < startingRounds.length; i++) {
-            if (round >= startingRounds[i]) {
+        for (int i = 1; i < firstActiveRounds.length; i++) {
+            if (round >= firstActiveRounds[i]) {
                 return rosters[i];
             }
         }
-        throw new IllegalArgumentException("Round " + round + " is before the earliest roster starting round "
-                + startingRounds[startingRounds.length - 1]);
+        throw new IllegalArgumentException("Round " + round + " is before the earliest known first active round "
+                + firstActiveRounds[firstActiveRounds.length - 1]);
     }
 
     /**
-     * Returns the current {@link RosterWrapper}.
+     * Returns the active {@link RosterWrapper}.
      *
-     * @return the current {@link RosterWrapper}
+     * @return the active {@code RosterWrapper}
      */
     @NonNull
-    public RosterWrapper currentRoster() {
-        return current;
+    public RosterWrapper activeRoster() {
+        return activeRoster;
     }
 }

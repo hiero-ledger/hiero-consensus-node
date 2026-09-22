@@ -275,7 +275,7 @@ public class ConsensusLayerFactory {
     private FallenBehindMonitor createFallenBehindMonitor() {
         final double fallenBehindThreshold =
                 configuration.getConfigData(FallenBehindConfig.class).fallenBehindThreshold();
-        return new FallenBehindMonitor(rosterHistory.currentRoster().toPbj(), selfId, fallenBehindThreshold);
+        return new FallenBehindMonitor(rosterHistory.activeRoster().toPbj(), selfId, fallenBehindThreshold);
     }
 
     @NonNull
@@ -343,7 +343,7 @@ public class ConsensusLayerFactory {
         reconnectModule.initialize(
                 configuration,
                 time,
-                rosterHistory.currentRoster().toPbj(),
+                rosterHistory.activeRoster().toPbj(),
                 buildingBlocks,
                 platform,
                 stateLifecycleManager,
@@ -403,7 +403,7 @@ public class ConsensusLayerFactory {
                 metrics,
                 time,
                 keysAndCerts,
-                rosterHistory.currentRoster().toPbj(),
+                rosterHistory.activeRoster().toPbj(),
                 selfId,
                 version,
                 intakeEventCounter,
@@ -423,7 +423,7 @@ public class ConsensusLayerFactory {
                 configuration,
                 metrics,
                 time,
-                rosterHistory.currentRoster(),
+                rosterHistory.activeRoster(),
                 selfId,
                 instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
                 eventPipelineTracker,
@@ -475,7 +475,7 @@ public class ConsensusLayerFactory {
     @NonNull
     private IntakeEventCounter createIntakeEventCounter() {
         if (configuration.getConfigData(SyncConfig.class).waitForEventsInIntake()) {
-            return new DefaultIntakeEventCounter(rosterHistory.currentRoster().toPbj());
+            return new DefaultIntakeEventCounter(rosterHistory.activeRoster().toPbj());
         } else {
             return new NoOpIntakeEventCounter();
         }
@@ -508,7 +508,7 @@ public class ConsensusLayerFactory {
                 time,
                 secureRandom,
                 keysAndCerts,
-                rosterHistory.currentRoster(),
+                rosterHistory.activeRoster(),
                 selfId,
                 executionLayer,
                 executionLayer);
@@ -555,7 +555,7 @@ public class ConsensusLayerFactory {
                 configuration,
                 metrics,
                 time,
-                rosterHistory.currentRoster().toPbj(),
+                rosterHistory.activeRoster().toPbj(),
                 selfId,
                 fileSystemManager,
                 initialState.get().getRound(),
