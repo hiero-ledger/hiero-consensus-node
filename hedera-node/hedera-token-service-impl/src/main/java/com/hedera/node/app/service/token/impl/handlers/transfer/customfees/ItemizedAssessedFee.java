@@ -14,4 +14,5 @@ import java.util.Map;
  * @param multiPayerDeltas if applicable, the adjustments to the fee's payers in a multi-payer fractional fee scenario
  */
 public record ItemizedAssessedFee(
-        @NonNull AssessedCustomFee assessedCustomFee, @Nullable Map<AccountID, Long> multiPayerDeltas) {}
+        @NonNull AssessedCustomFee assessedCustomFee,
+        @Nullable Map<AccountID, Long> multiPayerDeltas) {}

@@ -41,7 +41,11 @@ public class BlockNodeSuite {
                         blockNodePriorities = {0},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.streamWrappedRecordBlocks", "true",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "tss.forceMockSignatures", "true"
                         })
             })
     @Order(1)
@@ -64,7 +68,11 @@ public class BlockNodeSuite {
                         blockNodePriorities = {0, 0, 0, 0},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.streamWrappedRecordBlocks", "true",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "tss.forceMockSignatures", "true"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
@@ -72,7 +80,11 @@ public class BlockNodeSuite {
                         blockNodePriorities = {0, 0, 0, 0},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.streamWrappedRecordBlocks", "true",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "tss.forceMockSignatures", "true"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 2,
@@ -80,7 +92,11 @@ public class BlockNodeSuite {
                         blockNodePriorities = {0, 0, 0, 0},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.streamWrappedRecordBlocks", "true",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "tss.forceMockSignatures", "true"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 3,
@@ -88,7 +104,11 @@ public class BlockNodeSuite {
                         blockNodePriorities = {0, 0, 0, 0},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.streamWrappedRecordBlocks", "true",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "tss.forceMockSignatures", "true"
                         })
             })
     @Order(2)
@@ -111,17 +131,7 @@ public class BlockNodeSuite {
 
                 // EndOfStream error assertions
                 assertBlockNodeCommsLogDoesNotContainText(
-                        byNodeId(0), "Block node reported an error at block", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContainText(
-                        byNodeId(0), "Block node reported an unknown error at block", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContainText(
-                        byNodeId(0),
-                        "Block node has exceeded the number of allowed EndOfStream responses",
-                        Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContainText(
-                        byNodeId(0),
-                        "Block node reported status indicating immediate restart should be attempted",
-                        Duration.ofSeconds(0)),
+                        byNodeId(0), "Received EndOfStream response", Duration.ofSeconds(0)),
 
                 // Connection state transition error assertions
                 assertBlockNodeCommsLogDoesNotContainText(

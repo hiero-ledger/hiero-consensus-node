@@ -15,7 +15,7 @@ consensus layer, see the
 May depend on:
 - `consensus-model`; any supporting module as needed
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
-`swirlds-component-framework`
+`consensus-wiring-framework`
 
 Must not depend on:
 - Other functional-api modules

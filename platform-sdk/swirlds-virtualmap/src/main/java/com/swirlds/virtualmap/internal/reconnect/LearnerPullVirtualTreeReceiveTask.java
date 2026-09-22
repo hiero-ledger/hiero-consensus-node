@@ -5,7 +5,7 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.sync.LearnerTreeExchanger;
 import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
 import com.swirlds.virtualmap.sync.streams.YieldStrategy;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * A task running on the learner side, which is responsible for getting responses from the teacher.
@@ -15,36 +15,30 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
  * For every response from the teacher, the learner view is notified, which in turn notifies
  * the current traversal order, so it can recalculate the next virtual path to request.
  */
-public class LearnerPullVirtualTreeReceiveTask {
+public class LearnerPullVirtualTreeReceiveTask implements Runnable {
 
-    private static final String NAME = "reconnect-learner-receiver";
-
-    private final StandardWorkGroup workGroup;
     private final AsyncInputStream in;
     private final LearnerTreeExchanger treeExchanger;
+    private final CountDownLatch receiveTasksDone;
 
     /**
      * Create a thread for receiving responses to queries from the teacher.
      *
-     * @param workGroup
-     * 		the work group that will manage this thread
      * @param in
      * 		the input stream, this object is responsible for closing this when finished
      * @param treeExchanger
      * 		the exchanger used to callback on tree node received
+     * @param receiveTasksDone
+     * 		latch counted down when this receiver finishes; lets the ordered leaf-apply thread know
+     * 		when no further responses will arrive
      */
     public LearnerPullVirtualTreeReceiveTask(
-            final StandardWorkGroup workGroup, final AsyncInputStream in, final LearnerTreeExchanger treeExchanger) {
-        this.workGroup = workGroup;
+            final AsyncInputStream in,
+            final LearnerTreeExchanger treeExchanger,
+            final CountDownLatch receiveTasksDone) {
         this.in = in;
         this.treeExchanger = treeExchanger;
-    }
-
-    /**
-     * Start the background thread that receives responses from the teacher.
-     */
-    public void exec() {
-        workGroup.execute(NAME, this::run);
+        this.receiveTasksDone = receiveTasksDone;
     }
 
     /**
@@ -52,7 +46,8 @@ public class LearnerPullVirtualTreeReceiveTask {
      * tracks reconnect statistics, and delegates to the learner view.
      * Terminates when input streams returns no more messages to process.
      */
-    private void run() {
+    @Override
+    public void run() {
         try {
             while (!Thread.currentThread().isInterrupted()) {
                 final byte[] responseBytes = in.readOrWait(YieldStrategy.SLEEP);
@@ -61,14 +56,15 @@ public class LearnerPullVirtualTreeReceiveTask {
                 }
                 final PullVirtualTreeResponse response =
                         PullVirtualTreeResponse.parseFrom(BufferedData.wrap(responseBytes));
-
                 if (response.path() < 0) {
                     throw new IllegalStateException("Invalid path received from learner: " + response.path());
                 }
                 treeExchanger.responseReceived(response);
             }
-        } catch (final Exception ex) {
-            workGroup.handleError(ex);
+        } finally {
+            // Always signal completion, even on exception/interrupt, so the ordered leaf-apply thread
+            // cannot hang waiting for a receiver that has already died.
+            receiveTasksDone.countDown();
         }
     }
 }

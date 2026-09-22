@@ -158,6 +158,11 @@ public class HistoryServiceImpl implements HistoryService {
     }
 
     @Override
+    public void stop() {
+        component.controllers().stop();
+    }
+
+    @Override
     public boolean isReady() {
         // Not ready until there is a chain-of-trust proof for the genesis hinTS verification key
         return historyProof != null && historyProof.hasChainOfTrustProof();

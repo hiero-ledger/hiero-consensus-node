@@ -48,12 +48,10 @@ so on, until fame decides on either side.
 ## In current code
 
 `ConsensusImpl.isCoinRound(diff)` is `diff % config.coinFreq() == 0`
-(line 613 of
-[`ConsensusImpl.java`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java)).
-Coin vote application: `ConsensusImpl.coinVote` (line 630), which
+([`ConsensusImpl.java#isCoinRound`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java#isCoinRound)).
+Coin vote application: `ConsensusImpl.coinVote`, which
 delegates to `ConsensusUtils.coin(event)`
-([`ConsensusUtils.java`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusUtils.java)
-line 28) — the bit is the parity of the voting event's `coin` field:
+([`ConsensusUtils.java`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusUtils.java#coin)) — the bit is the parity of the voting event's `coin` field:
 `event.getEventCore().coin() % 2 == 0`. The field itself is
 `EventCore.coin` (PBJ field 5 in
 [`EventCore`](../../../../hapi/hedera-protobuf-java-api/src/main/proto/platform/event/event_core.proto)),
@@ -63,7 +61,7 @@ populated by
 using a `java.security.SecureRandom`. The value must be genuinely
 unpredictable to any adversary in advance — a deterministic
 pseudo-random source seeded from event content would let an adversary
-predict the bit and exploit it to keep an election undecided. Coin frequency configuration:
+predict the bit and exploit it to keep an election undecided. This unpredictability requirement is INV-013. Coin frequency configuration:
 [`ConsensusConfig#coinFreq`](../../../consensus-hashgraph/src/main/java/org/hiero/consensus/hashgraph/config/ConsensusConfig.java)
 defaulting to `12`.
 
@@ -78,4 +76,5 @@ instead.
 - Sibling concepts:
   [`rounds-and-witnesses.md`](rounds-and-witnesses.md),
   [`judges.md`](judges.md).
+- Invariants: INV-013 (an honest event's coin value is unpredictable to the creators of its ancestors), INV-005 (every honest event eventually reaches consensus or becomes stale).
 - Glossary entry: [`../glossary.md`](../glossary.md).

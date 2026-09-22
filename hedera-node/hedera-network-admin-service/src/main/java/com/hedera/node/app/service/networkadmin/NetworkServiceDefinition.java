@@ -3,10 +3,8 @@ package com.hedera.node.app.service.networkadmin;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.hapi.node.transaction.TransactionResponse;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.pbj.runtime.RpcMethodDefinition;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
@@ -26,7 +24,6 @@ public final class NetworkServiceDefinition implements RpcServiceDefinition {
     private static final Set<RpcMethodDefinition<?, ?>> methods = Set.of(
             new RpcMethodDefinition<>("getVersionInfo", Query.class, Response.class),
             new RpcMethodDefinition<>("getExecutionTime", Query.class, Response.class),
-            new RpcMethodDefinition<>("uncheckedSubmit", Transaction.class, TransactionResponse.class),
             new RpcMethodDefinition<>("getAccountDetails", Query.class, Response.class));
 
     private NetworkServiceDefinition() {

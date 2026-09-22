@@ -2,9 +2,8 @@
 package org.hiero.consensus.event.intake.impl.branching;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -14,16 +13,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 import org.hiero.base.utility.Threshold;
-import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**
  * This class is responsible for logging and producing metrics when a branch is observed.
@@ -40,16 +38,7 @@ public class DefaultBranchReporter implements BranchReporter {
 
     private final RateLimitedLogger excessiveBranchingLogger;
 
-    /**
-     * The current roster.
-     */
-    private final Roster currentRoster;
-
-    /** A map of RosterEntries. */
-    private final Map<Long, RosterEntry> rosterMap;
-
-    /** The total weight of all RosterEntries. */
-    private final long rosterTotalWeight;
+    private final RosterWrapper roster;
 
     /**
      * The node IDs of the nodes in the network in sorted order, provides deterministic iteration order.
@@ -59,7 +48,7 @@ public class DefaultBranchReporter implements BranchReporter {
     /**
      * The current event window.
      */
-    private EventWindow currentEventWindow;
+    private EventWindow currentEventWindow = EventWindow.getGenesisEventWindow();
 
     /**
      * The most recent non-ancient branching event for each node (not present or null if there are none).
@@ -89,14 +78,12 @@ public class DefaultBranchReporter implements BranchReporter {
      * @param currentRoster the current roster
      */
     public DefaultBranchReporter(
-            @NonNull final Metrics metrics, @NonNull final Time time, @NonNull final Roster currentRoster) {
+            @NonNull final Metrics metrics, @NonNull final Time time, @NonNull final RosterWrapper currentRoster) {
 
-        this.currentRoster = Objects.requireNonNull(currentRoster);
-        this.rosterMap = RosterUtils.toMap(currentRoster);
-        this.rosterTotalWeight = RosterUtils.computeTotalWeight(currentRoster);
+        this.roster = requireNonNull(currentRoster);
 
         // The stream MUST be sequential to modify external collections in forEach().
-        currentRoster.rosterEntries().stream().map(re -> NodeId.of(re.nodeId())).forEach(nodeId -> {
+        currentRoster.nodeIds().forEach(nodeId -> {
             nodes.add(nodeId);
             nodeLoggers.put(nodeId, new RateLimitedLogger(logger, time, Duration.ofMinutes(10)));
         });
@@ -113,10 +100,6 @@ public class DefaultBranchReporter implements BranchReporter {
      */
     @Override
     public void reportBranch(@NonNull final PlatformEvent event) {
-        if (currentEventWindow == null) {
-            throw new IllegalStateException("Event window must be set before reporting branches");
-        }
-
         if (currentEventWindow.isAncient(event)) {
             // Ignore ancient events.
             return;
@@ -131,15 +114,15 @@ public class DefaultBranchReporter implements BranchReporter {
         if (previousBranchingEvent == null) {
             // This node is now branching but wasn't previously.
             branchingCount++;
-            branchingWeight += rosterMap.get(creator.id()).weight();
+            branchingWeight += roster.getRosterEntry(creator).weight();
         }
 
         branchingMetrics.reportBranchingEvent();
         branchingMetrics.reportBranchingNodeCount(branchingCount);
-        final double fraction = (double) branchingWeight / rosterTotalWeight;
+        final double fraction = (double) branchingWeight / roster.totalWeight();
         branchingMetrics.reportBranchingWeightFraction(fraction);
 
-        if (Threshold.STRONG_MINORITY.isSatisfiedBy(branchingWeight, rosterTotalWeight)) {
+        if (Threshold.STRONG_MINORITY.isSatisfiedBy(branchingWeight, roster.totalWeight())) {
             // Uh oh. We've violated our assumption that >2/3 nodes in the network are honest.
 
             final List<NodeId> branchingNodes = new ArrayList<>();
@@ -178,11 +161,11 @@ public class DefaultBranchReporter implements BranchReporter {
                 // Branching event is ancient, forget it.
                 mostRecentBranchingEvents.put(nodeId, null);
                 branchingCount--;
-                branchingWeight -= rosterMap.get(nodeId.id()).weight();
+                branchingWeight -= roster.getRosterEntry(nodeId).weight();
             }
         }
         branchingMetrics.reportBranchingNodeCount(branchingCount);
-        branchingMetrics.reportBranchingWeightFraction((double) branchingWeight / rosterTotalWeight);
+        branchingMetrics.reportBranchingWeightFraction((double) branchingWeight / roster.totalWeight());
     }
 
     /**
@@ -190,7 +173,6 @@ public class DefaultBranchReporter implements BranchReporter {
      */
     @Override
     public void clear() {
-        currentEventWindow = null;
         branchingCount = 0;
         branchingWeight = 0;
 

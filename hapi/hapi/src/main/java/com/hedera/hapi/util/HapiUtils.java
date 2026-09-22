@@ -153,22 +153,6 @@ public class HapiUtils {
         return TIMESTAMP_COMPARATOR.compare(t1, t2) < 0;
     }
 
-    /** Given a key, determines the number of cryptographic keys contained within it. */
-    public static int countOfCryptographicKeys(@NonNull final Key key) {
-        return switch (key.key().kind()) {
-            case ECDSA_384, ED25519, RSA_3072, ECDSA_SECP256K1 -> 1;
-            case KEY_LIST ->
-                key.keyListOrThrow().keys().stream()
-                        .mapToInt(HapiUtils::countOfCryptographicKeys)
-                        .sum();
-            case THRESHOLD_KEY ->
-                key.thresholdKeyOrThrow().keysOrElse(KeyList.DEFAULT).keys().stream()
-                        .mapToInt(HapiUtils::countOfCryptographicKeys)
-                        .sum();
-            case CONTRACT_ID, DELEGATABLE_CONTRACT_ID, UNSET -> 0;
-        };
-    }
-
     // Suppressing the warning that this field is not used
     @SuppressWarnings("java:S1068")
     private static final Set<HederaFunctionality> QUERY_FUNCTIONS = EnumSet.of(
@@ -193,7 +177,9 @@ public class HapiUtils {
             HederaFunctionality.TOKEN_GET_NFT_INFOS,
             HederaFunctionality.TOKEN_GET_ACCOUNT_NFT_INFOS,
             HederaFunctionality.NETWORK_GET_EXECUTION_TIME,
-            HederaFunctionality.GET_ACCOUNT_DETAILS);
+            HederaFunctionality.GET_ACCOUNT_DETAILS,
+            HederaFunctionality.CLPR_GET_LEDGER_CONFIGURATION,
+            HederaFunctionality.CLPR_GET_ENDPOINT_MANIFEST);
 
     public static HederaFunctionality functionOf(final TransactionBody txn) throws UnknownHederaFunctionality {
         return switch (txn.data().kind()) {
@@ -266,6 +252,16 @@ public class HapiUtils {
             case REGISTERED_NODE_UPDATE -> HederaFunctionality.REGISTERED_NODE_UPDATE;
             case REGISTERED_NODE_DELETE -> HederaFunctionality.REGISTERED_NODE_DELETE;
             case MIGRATION_ROOT_HASH_VOTE -> HederaFunctionality.MIGRATION_ROOT_HASH_VOTE;
+            case CLPR_UPDATE_LEDGER_CONFIGURATION -> HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION;
+            case CLPR_REGISTER_CHANNEL -> HederaFunctionality.CLPR_REGISTER_CHANNEL;
+            case CLPR_CLOSE_CHANNEL -> HederaFunctionality.CLPR_CLOSE_CHANNEL;
+            case CLPR_COMPLETE_CHANNEL -> HederaFunctionality.CLPR_COMPLETE_CHANNEL;
+            case CLPR_SUBMIT_BUNDLE -> HederaFunctionality.CLPR_SUBMIT_BUNDLE;
+            case CLPR_REDACT_MESSAGE -> HederaFunctionality.CLPR_REDACT_MESSAGE;
+            case CLPR_REGISTER_CONNECTOR -> HederaFunctionality.CLPR_REGISTER_CONNECTOR;
+            case CLPR_COMPLETE_CONNECTOR -> HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
+            case CLPR_DEREGISTER_CONNECTOR -> HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
+            case CLPR_ENDPOINT_PUBLICATION -> HederaFunctionality.CLPR_ENDPOINT_PUBLICATION;
             case UNSET -> throw new UnknownHederaFunctionality();
         };
     }
@@ -297,6 +293,8 @@ public class HapiUtils {
             case TRANSACTION_GET_RECEIPT -> HederaFunctionality.TRANSACTION_GET_RECEIPT;
             case TRANSACTION_GET_RECORD -> HederaFunctionality.TRANSACTION_GET_RECORD;
             case TRANSACTION_GET_FAST_RECORD -> HederaFunctionality.TRANSACTION_GET_FAST_RECORD;
+            case CLPR_GET_LEDGER_CONFIGURATION -> HederaFunctionality.CLPR_GET_LEDGER_CONFIGURATION;
+            case CLPR_GET_ENDPOINT_MANIFEST -> HederaFunctionality.CLPR_GET_ENDPOINT_MANIFEST;
             case UNSET -> throw new UnknownHederaFunctionality();
         };
     }

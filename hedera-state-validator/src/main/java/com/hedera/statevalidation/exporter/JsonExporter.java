@@ -18,7 +18,6 @@ import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedWriter;
@@ -96,7 +95,7 @@ public class JsonExporter {
     }
 
     private List<CompletableFuture<Void>> traverseVmInParallel(@NonNull final VirtualMap virtualMap) {
-        final VirtualMapMetadata metadata = virtualMap.getMetadata();
+        final VirtualMap.Metadata metadata = virtualMap.getMetadata();
 
         // define the first path and last path
         long firstLeafPath;

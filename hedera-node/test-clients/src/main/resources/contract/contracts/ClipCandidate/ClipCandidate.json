@@ -1,0 +1,64 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "numChildren",
+        "type": "uint256"
+      }
+    ],
+    "name": "loopCreations",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "lastChild",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "numLoops",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "calldataSize",
+        "type": "uint256"
+      }
+    ],
+    "name": "loopLargeCalldata",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "result",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes",
+        "name": "callData",
+        "type": "bytes"
+      }
+    ],
+    "name": "receiveAndReturn",
+    "outputs": [
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  }
+]

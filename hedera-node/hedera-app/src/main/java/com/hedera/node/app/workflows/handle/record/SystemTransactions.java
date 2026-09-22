@@ -31,7 +31,6 @@ import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.Key;
@@ -98,8 +97,8 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ConsensusConfig;
-import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -152,6 +151,14 @@ import org.hiero.hapi.support.fees.FeeSchedule;
 public class SystemTransactions {
 
     private static final Logger log = LogManager.getLogger(SystemTransactions.class);
+
+    /**
+     * The number of consensus times a single system transaction dispatch can consume when it applies stake period
+     * side effects; one for the dispatch itself, and an earlier one for a preceding {@code NODE_STAKE_UPDATE}. A
+     * caller choosing the first free time for such a dispatch must thus advance this many nanos past the last used
+     * consensus time.
+     */
+    public static final int MAX_NANOS_PER_SYSTEM_DISPATCH = 2;
 
     private static final int DEFAULT_GENESIS_WEIGHT = 500;
     private static final long FIRST_RESERVED_SYSTEM_CONTRACT = 350L;
@@ -343,6 +350,16 @@ public class SystemTransactions {
                                 .build())
                         .build(),
                 accountsConfig.feeCollectionAccount());
+        // Create CLPR staking account
+        final var clprConfig = config.getConfigData(ClprConfig.class);
+        systemContext.dispatchCreation(
+                b -> b.memo("CLPR staking account creation record")
+                        .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder()
+                                .key(IMMUTABILITY_SENTINEL_KEY)
+                                .autoRenewPeriod(systemAutoRenewPeriod)
+                                .build())
+                        .build(),
+                clprConfig.stakingAccount());
         // Create the miscellaneous accounts
         final var hederaConfig = config.getConfigData(HederaConfig.class);
         for (long i : LongStream.range(FIRST_MISC_ACCOUNT_NUM, hederaConfig.firstUserEntity())
@@ -458,11 +475,6 @@ public class SystemTransactions {
         final var adminConfig = config.getConfigData(NetworkAdminConfig.class);
         final List<AutoEntityUpdate<Bytes>> autoSysFileUpdates = new ArrayList<>(List.of(
                 new AutoEntityUpdate<>(
-                        (ctx, bytes) ->
-                                dispatchSynthFileUpdate(ctx, createFileID(filesConfig.feeSchedules(), config), bytes),
-                        adminConfig.upgradeFeeSchedulesFile(),
-                        SystemTransactions::parseFeeSchedules),
-                new AutoEntityUpdate<>(
                         (ctx, bytes) -> dispatchSynthFileUpdate(
                                 ctx, createFileID(filesConfig.throttleDefinitions(), config), bytes),
                         adminConfig.upgradeThrottlesFile(),
@@ -477,25 +489,22 @@ public class SystemTransactions {
                                 ctx, createFileID(filesConfig.hapiPermissions(), config), bytes),
                         adminConfig.upgradePermissionOverridesFile(),
                         in -> parseConfig("override HAPI permissions", in))));
-        final var feesConfig = config.getConfigData(FeesConfig.class);
-        if (feesConfig.createSimpleFeeSchedule()) {
-            final var simpleFeesFileId = createFileID(filesConfig.simpleFeesSchedules(), config);
-            final var filesState =
-                    state.getReadableStates(FileService.NAME).<FileID, File>get(V0490FileSchema.FILES_STATE_ID);
-            if (filesState.get(simpleFeesFileId) == null) {
-                log.info(
-                        "Creating simple fee schedule file {}.{}.{} (upgrading from pre-simple-fees version)",
-                        simpleFeesFileId.shardNum(),
-                        simpleFeesFileId.realmNum(),
-                        simpleFeesFileId.fileNum());
-                fileService.fileSchema().createGenesisSimpleFeesSchedule(systemContext);
-            }
-            autoSysFileUpdates.add(new AutoEntityUpdate<>(
-                    (ctx, bytes) -> dispatchSynthFileUpdate(
-                            ctx, createFileID(filesConfig.simpleFeesSchedules(), config), bytes),
-                    adminConfig.upgradeSimpleFeeSchedulesFile(),
-                    SystemTransactions::parseSimpleFeesSchedules));
+        final var simpleFeesFileId = createFileID(filesConfig.simpleFeesSchedules(), config);
+        final var filesState =
+                state.getReadableStates(FileService.NAME).<FileID, File>get(V0490FileSchema.FILES_STATE_ID);
+        if (filesState.get(simpleFeesFileId) == null) {
+            log.info(
+                    "Creating simple fee schedule file {}.{}.{} (upgrading from pre-simple-fees version)",
+                    simpleFeesFileId.shardNum(),
+                    simpleFeesFileId.realmNum(),
+                    simpleFeesFileId.fileNum());
+            fileService.fileSchema().createGenesisSimpleFeesSchedule(systemContext);
         }
+        autoSysFileUpdates.add(new AutoEntityUpdate<>(
+                (ctx, bytes) ->
+                        dispatchSynthFileUpdate(ctx, createFileID(filesConfig.simpleFeesSchedules(), config), bytes),
+                adminConfig.upgradeSimpleFeeSchedulesFile(),
+                SystemTransactions::parseSimpleFeesSchedules));
 
         autoSysFileUpdates.forEach(update -> update.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext));
         final var autoNodeAdminKeyUpdates = new AutoEntityUpdate<Map<Long, Key>>(
@@ -844,7 +853,7 @@ public class SystemTransactions {
         final var remainingDispatches = new AtomicInteger(
                 useReserved
                         ? (int) java.time.Duration.between(firstConsTime, now).toNanos()
-                                / (applyStakePeriodSideEffects ? 2 : 1)
+                                / (applyStakePeriodSideEffects ? MAX_NANOS_PER_SYSTEM_DISPATCH : 1)
                         : 1);
         final AtomicReference<Instant> nextConsTime = new AtomicReference<>(firstConsTime);
         final var systemAdminId = idFactory.newAccountId(
@@ -873,7 +882,7 @@ public class SystemTransactions {
                 spec.accept(builder);
                 final var body = builder.build();
                 final var output = dispatch(body, 0, triggerStakePeriodSideEffects);
-                final var statuses = output.preferringBlockRecordSource().identifiedReceipts().stream()
+                final var statuses = output.preferredRecordSource().identifiedReceipts().stream()
                         .map(RecordSource.IdentifiedReceipt::receipt)
                         .map(TransactionReceipt::status)
                         .toList();
@@ -929,7 +938,7 @@ public class SystemTransactions {
                 }
                 final boolean applyStakePeriodSideEffects =
                         triggerStakePeriodSideEffects == TriggerStakePeriodSideEffects.YES;
-                final int maxNanosUsed = applyStakePeriodSideEffects ? 2 : 1;
+                final int maxNanosUsed = applyStakePeriodSideEffects ? MAX_NANOS_PER_SYSTEM_DISPATCH : 1;
                 final var now = nextConsTime.getAndUpdate(then -> then.plusNanos(maxNanosUsed));
                 if (streamMode != BLOCKS) {
                     blockRecordManager.startUserTransaction(now, state);
@@ -949,7 +958,9 @@ public class SystemTransactions {
                     blockRecordManager.endUserTransaction(records.stream(), state);
                 }
                 if (streamMode != RECORDS) {
-                    handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
+                    blockStreamManager.writeSavepointItems(
+                            handleOutput.blockRecordSourceOrThrow().blockItems(),
+                            handleOutput.lastAssignedConsensusTime());
                 }
                 return handleOutput;
             }
@@ -1026,7 +1037,7 @@ public class SystemTransactions {
                     creatorInfo.nodeId(),
                     parentTxn.txnInfo().transactionID(),
                     HederaRecordCache.DueDiligenceFailure.NO,
-                    handleOutput.preferringBlockRecordSource());
+                    handleOutput.preferredRecordSource());
             return handleOutput;
         } catch (final Exception e) {
             log.error("{} - exception thrown while handling system transaction", ALERT_MESSAGE, e);
@@ -1036,16 +1047,6 @@ public class SystemTransactions {
 
     private @Nullable Long currentBlockNumber() {
         return streamMode == BLOCKS ? blockStreamManager.blockNo() : null;
-    }
-
-    private static Bytes parseFeeSchedules(@NonNull final InputStream in) {
-        try {
-            final var bytes = in.readAllBytes();
-            final var feeSchedules = V0490FileSchema.parseFeeSchedules(bytes);
-            return CurrentAndNextFeeSchedule.PROTOBUF.toBytes(feeSchedules);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 
     private static Bytes parseSimpleFeesSchedules(@NonNull final InputStream in) {

@@ -22,10 +22,10 @@ public class Version030AddressChecks implements AddressChecks {
         systemContractNumbers = new int[systemContracts.size()];
         int i = 0;
         for (final var address : systemContracts.keySet()) {
-            if (address.numberOfLeadingZeroBytes() != 18) {
+            if (address.getBytes().numberOfLeadingZeroBytes() != 18) {
                 throw new IllegalArgumentException("Precompile address " + address + " is outside system range");
             }
-            systemContractNumbers[i++] = address.getInt(16);
+            systemContractNumbers[i++] = address.getBytes().getInt(16);
         }
     }
 
@@ -46,7 +46,8 @@ public class Version030AddressChecks implements AddressChecks {
 
     @Override
     public boolean isHederaPrecompile(@NonNull final Address address) {
-        return address.numberOfLeadingZeroBytes() >= 18 && isPrecompile(address.getInt(16));
+        return address.getBytes().numberOfLeadingZeroBytes() >= 18
+                && isPrecompile(address.getBytes().getInt(16));
     }
 
     private boolean isPrecompile(final int number) {

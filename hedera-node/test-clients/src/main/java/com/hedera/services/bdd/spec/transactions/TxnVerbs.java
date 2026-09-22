@@ -36,6 +36,15 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.queries.crypto.ReferenceType;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCloseChannel;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCompleteChannel;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCompleteConnector;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprDeregisterConnector;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprRedactMessage;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprRegisterChannel;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprRegisterConnector;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprSubmitBundle;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprUpdateLedgerConfiguration;
 import com.hedera.services.bdd.spec.transactions.consensus.HapiMessageSubmit;
 import com.hedera.services.bdd.spec.transactions.consensus.HapiTopicCreate;
 import com.hedera.services.bdd.spec.transactions.consensus.HapiTopicDelete;
@@ -57,7 +66,6 @@ import com.hedera.services.bdd.spec.transactions.file.HapiFileAppend;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileCreate;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileDelete;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileUpdate;
-import com.hedera.services.bdd.spec.transactions.network.HapiUncheckedSubmit;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeCreate;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeDelete;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeUpdate;
@@ -225,6 +233,43 @@ public class TxnVerbs {
 
     public static HapiCryptoDeleteAllowance cryptoDeleteAllowance() {
         return new HapiCryptoDeleteAllowance();
+    }
+
+    /* CLPR */
+    public static HapiClprUpdateLedgerConfiguration clprUpdateLedgerConfiguration() {
+        return new HapiClprUpdateLedgerConfiguration();
+    }
+
+    public static HapiClprRegisterChannel clprRegisterChannel() {
+        return new HapiClprRegisterChannel();
+    }
+
+    public static HapiClprCompleteChannel clprCompleteChannel() {
+        return new HapiClprCompleteChannel();
+    }
+
+    public static HapiClprCloseChannel clprCloseChannel() {
+        return new HapiClprCloseChannel();
+    }
+
+    public static HapiClprRegisterConnector clprRegisterConnector() {
+        return new HapiClprRegisterConnector();
+    }
+
+    public static HapiClprCompleteConnector clprCompleteConnector() {
+        return new HapiClprCompleteConnector();
+    }
+
+    public static HapiClprDeregisterConnector clprDeregisterConnector() {
+        return new HapiClprDeregisterConnector();
+    }
+
+    public static HapiClprRedactMessage clprRedactMessage() {
+        return new HapiClprRedactMessage();
+    }
+
+    public static HapiClprSubmitBundle clprSubmitBundle() {
+        return new HapiClprSubmitBundle();
     }
 
     /* CONSENSUS */
@@ -516,11 +561,6 @@ public class TxnVerbs {
 
     public static HapiSysUndelete systemContractUndelete(String target) {
         return new HapiSysUndelete().contract(target);
-    }
-
-    /* NETWORK */
-    public static <T extends HapiTxnOp<T>> HapiUncheckedSubmit<T> uncheckedSubmit(HapiTxnOp<T> subOp) {
-        return new HapiUncheckedSubmit<>(subOp);
     }
 
     /* SMART CONTRACT */

@@ -46,6 +46,14 @@ public class ProcessUtils {
     private static final int FIRST_AGENT_PORT = 5005;
     private static final long NODE_ID_TO_SUSPEND = -1;
     private static final String[] EMPTY_STRING_ARRAY = new String[0];
+    /**
+     * Basename of the per-node, on-disk swap file backing the native WRAPS prover's memory-mapped
+     * allocator. Anchored under each node's (real-disk) working directory so it stays unique per node,
+     * and kept at the working-dir root with a non-log, non-{@code output/} name so CI log/artifact
+     * uploads never sweep this large, sparse file.
+     */
+    private static final String WRAPS_SWAP_FILE_NAME = "wraps-alloc-swap.bin";
+
     public static final String SAVED_STATES_DIR = "saved";
     public static final String RECORD_STREAMS_DIR = "recordStreams";
     public static final String BLOCK_STREAMS_DIR = "blockStreams";
@@ -86,15 +94,21 @@ public class ProcessUtils {
     }
 
     /**
-     * Destroys any process that appears to be a node started from the given metadata, based on the
-     * process command being {@code java} and having a last argument matching the node ID.
+     * Destroys any process that appears to be a node started from the given network and node id, based on the
+     * process command being {@code java}, having a {@code -Dhedera.test.networkName=<networkName>} argument,
+     * and having a last argument matching the node ID.
      *
+     * @param networkName the name of the network whose node processes should be destroyed
      * @param nodeId the id of the node whose processes should be destroyed
      */
-    public static void destroyAnySubProcessNodeWithId(final long nodeId) {
+    public static void destroyAnySubProcessNodeFor(@NonNull final String networkName, final long nodeId) {
+        final var networkNameArg = "-Dhedera.test.networkName=" + networkName;
         ProcessHandle.allProcesses()
                 .filter(p -> p.info().command().orElse("").contains("java"))
-                .filter(p -> endsWith(p.info().arguments().orElse(EMPTY_STRING_ARRAY), Long.toString(nodeId)))
+                .filter(p -> {
+                    final var args = p.info().arguments().orElse(EMPTY_STRING_ARRAY);
+                    return contains(args, networkNameArg) && endsWith(args, Long.toString(nodeId));
+                })
                 .forEach(ProcessHandle::destroyForcibly);
     }
 
@@ -146,7 +160,26 @@ public class ProcessUtils {
         environment.put("TSS_LIB_NUM_OF_CORES", Integer.toString(1));
         // Set path to the (unzipped) https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz,
         // e.g. "/Users/hincadenza/misc/wraps-v1.0.0", to get the WRAPS library ready to produce proofs
-        environment.put("TSS_LIB_WRAPS_ARTIFACTS_PATH", System.getProperty("hapi.spec.tssLibWrapsArtifactsPath", ""));
+        final var wrapsArtifactsPath = System.getProperty("hapi.spec.tssLibWrapsArtifactsPath", "");
+        environment.put("TSS_LIB_WRAPS_ARTIFACTS_PATH", wrapsArtifactsPath);
+        // When WRAPS proving is active, hand the native prover a per-node, on-disk swap file. Its global
+        // allocator diverts every allocation >= 1 KiB into this memory-mapped file instead of anonymous
+        // RAM, holding a proving node's resident set to a few GiB rather than tens of GiB (without it,
+        // concurrent provers exhaust the runner's memory and the container is OOM-killed). The path:
+        //   * MUST be unique per node -- the library opens it with truncate + set_len, so a shared path
+        //     would corrupt every node that maps it; the node working directory is unique per node.
+        //   * MUST live on real disk, not tmpfs -- the node working directory does.
+        //   * is sized sparsely by the library, which silently falls back to RAM if the file cannot be
+        //     created/mapped (e.g. insufficient disk), so this can never turn into a hard failure.
+        // We set it explicitly (overriding any inherited value) so the per-node guarantee always holds,
+        // and clear any inherited value for non-WRAPS nodes so a stray shared path can never leak in.
+        if (!wrapsArtifactsPath.isBlank()) {
+            final var swapFile =
+                    metadata.workingDirOrThrow().resolve(WRAPS_SWAP_FILE_NAME).toAbsolutePath();
+            environment.put("TSS_LIB_WRAPS_SWAP_FILE", swapFile.toString());
+        } else {
+            environment.remove("TSS_LIB_WRAPS_SWAP_FILE");
+        }
         environment.put("hedera.shard", String.valueOf(metadata.accountId().shardNum()));
         environment.put("hedera.realm", String.valueOf(metadata.accountId().realmNum()));
         // Include an PR check overrides from build.gradle.kts
@@ -196,9 +229,10 @@ public class ProcessUtils {
         commandLine.add("-Xlog:gc*:file=" + gcLogPath + ":time,uptime,level,tags");
         // Only activate JDWP if not in CI
         if (System.getenv("CI") == null) {
+            final int debugPort = FIRST_AGENT_PORT + (metadata.grpcPort() % 10000);
             commandLine.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend="
                     + (metadata.nodeId() == NODE_ID_TO_SUSPEND ? "y" : "n") + ",address=*:"
-                    + (FIRST_AGENT_PORT + metadata.nodeId()));
+                    + debugPort);
         }
         commandLine.addAll(List.of(
                 "--module-path",
@@ -210,6 +244,7 @@ public class ProcessUtils {
                 "-Dhedera.recordStream.logDir=" + DATA_DIR + "/" + RECORD_STREAMS_DIR,
                 "-Dhedera.recordStream.wrappedRecordHashesDir=" + DATA_DIR + "/wrappedRecordHashes",
                 "-Dhedera.profiles.active=DEV",
+                "-Dhedera.test.networkName=" + metadata.networkName(),
                 "--module",
                 "com.hedera.node.app/com.hedera.node.app.ServicesMain",
                 "-local",
@@ -302,5 +337,14 @@ public class ProcessUtils {
 
     private static boolean endsWith(final String[] args, final String lastArg) {
         return args.length > 0 && args[args.length - 1].equals(lastArg);
+    }
+
+    private static boolean contains(final String[] args, final String arg) {
+        for (final var a : args) {
+            if (a.equals(arg)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

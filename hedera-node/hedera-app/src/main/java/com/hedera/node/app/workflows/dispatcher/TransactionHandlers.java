@@ -15,6 +15,16 @@ import com.hedera.node.app.service.addressbook.impl.handlers.NodeUpdateHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeCreateHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeDeleteHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.RegisteredNodeUpdateHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprCloseChannelHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprCompleteChannelHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprCompleteConnectorHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprDeregisterConnectorHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprEndpointPublicationHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprRedactMessageHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprRegisterChannelHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprRegisterConnectorHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprSubmitBundleHandler;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprUpdateLedgerConfigurationHandler;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusCreateTopicHandler;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusDeleteTopicHandler;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusSubmitMessageHandler;
@@ -35,7 +45,6 @@ import com.hedera.node.app.service.file.impl.handlers.FileSystemDeleteHandler;
 import com.hedera.node.app.service.file.impl.handlers.FileSystemUndeleteHandler;
 import com.hedera.node.app.service.file.impl.handlers.FileUpdateHandler;
 import com.hedera.node.app.service.networkadmin.impl.handlers.FreezeHandler;
-import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkUncheckedSubmitHandler;
 import com.hedera.node.app.service.schedule.impl.handlers.ScheduleCreateHandler;
 import com.hedera.node.app.service.schedule.impl.handlers.ScheduleDeleteHandler;
 import com.hedera.node.app.service.schedule.impl.handlers.ScheduleSignHandler;
@@ -104,7 +113,6 @@ public record TransactionHandlers(
         @NonNull FileSystemDeleteHandler fileSystemDeleteHandler,
         @NonNull FileSystemUndeleteHandler fileSystemUndeleteHandler,
         @NonNull FreezeHandler freezeHandler,
-        @NonNull NetworkUncheckedSubmitHandler networkUncheckedSubmitHandler,
         @NonNull ScheduleCreateHandler scheduleCreateHandler,
         @NonNull ScheduleSignHandler scheduleSignHandler,
         @NonNull ScheduleDeleteHandler scheduleDeleteHandler,
@@ -143,4 +151,14 @@ public record TransactionHandlers(
         @NonNull HistoryProofSignatureHandler historyProofSignatureHandler,
         @NonNull HistoryProofVoteHandler historyProofVoteHandler,
         @NonNull CrsPublicationHandler crsPublicationHandler,
-        @NonNull MigrationRootHashVoteHandler migrationRootHashVoteHandler) {}
+        @NonNull MigrationRootHashVoteHandler migrationRootHashVoteHandler,
+        @NonNull ClprUpdateLedgerConfigurationHandler clprUpdateLedgerConfigurationHandler,
+        @NonNull ClprRegisterChannelHandler clprRegisterChannelHandler,
+        @NonNull ClprCompleteChannelHandler clprCompleteChannelHandler,
+        @NonNull ClprCloseChannelHandler clprCloseChannelHandler,
+        @NonNull ClprSubmitBundleHandler clprSubmitBundleHandler,
+        @NonNull ClprRedactMessageHandler clprRedactMessageHandler,
+        @NonNull ClprRegisterConnectorHandler clprRegisterConnectorHandler,
+        @NonNull ClprCompleteConnectorHandler clprCompleteConnectorHandler,
+        @NonNull ClprDeregisterConnectorHandler clprDeregisterConnectorHandler,
+        @NonNull ClprEndpointPublicationHandler clprEndpointPublicationHandler) {}

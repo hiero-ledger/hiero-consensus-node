@@ -1,21 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops;
 
-import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
-import com.hederahashgraph.api.proto.java.Transaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 
 public abstract class UtilOp extends HapiSpecOperation {
-    @Override
-    protected long feeFor(HapiSpec spec, Transaction txn, int numPayerSigs) throws Throwable {
-        return 0;
-    }
-
     public UtilOp logged() {
         verboseLoggingOn = true;
         return this;

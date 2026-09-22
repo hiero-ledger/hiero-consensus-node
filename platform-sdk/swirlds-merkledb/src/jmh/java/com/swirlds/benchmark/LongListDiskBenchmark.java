@@ -1,20 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.benchmark;
 
-import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.config.extensions.sources.SimpleConfigSource;
 import com.swirlds.merkledb.collections.LongListDisk;
 import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.config.MerkleDbConfig_;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Random;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
-import org.hiero.consensus.config.PathsConfig;
-import org.junit.jupiter.api.io.TempDir;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Fork;
 import org.openjdk.jmh.annotations.Level;
@@ -28,32 +23,28 @@ import org.openjdk.jmh.annotations.TearDown;
 @Fork(1)
 public class LongListDiskBenchmark {
 
-    private static final Random RANDOM = new Random(98765);
-
     @Param({"100000000"})
     public int fileSize = 100_000_000;
 
     @Param({"1000000"})
     public int chunkSize = 1_000_000;
 
-    @TempDir
-    Path tempDir;
-
+    private Path rootDir;
     private Path srcFile;
 
-    private Configuration configuration;
+    private MerkleDbConfig configuration;
 
     private FileSystemManager fileSystemManager;
 
     @Setup(Level.Trial)
     public void setup() throws IOException {
-        final ConfigurationBuilder configurationBuilder = ConfigurationBuilder.create()
+        configuration = ConfigurationBuilder.create()
                 .autoDiscoverExtensions()
-                .withConfigDataType(MerkleDbConfig.class)
-                .withConfigDataType(PathsConfig.class)
-                .withSource(new SimpleConfigSource("merkleDb.longListChunkSize", "" + chunkSize));
-        configuration = configurationBuilder.build();
-        fileSystemManager = new TestFileSystemManager(tempDir);
+                .withValue(MerkleDbConfig_.LONG_LIST_CHUNK_SIZE, "" + chunkSize)
+                .build()
+                .getConfigData(MerkleDbConfig.class);
+        rootDir = Files.createTempDirectory("LongListDiskBenchmark");
+        fileSystemManager = new FileSystemManager(rootDir);
         try (final LongListHeap list = new LongListHeap(1024, fileSize, 0)) {
             list.updateValidRange(0, fileSize - 1);
             for (int i = 0; i < fileSize; i++) {
@@ -69,7 +60,7 @@ public class LongListDiskBenchmark {
 
     @TearDown
     public void shutdown() throws IOException {
-        Files.delete(srcFile);
+        Files.delete(rootDir);
     }
 
     @Benchmark

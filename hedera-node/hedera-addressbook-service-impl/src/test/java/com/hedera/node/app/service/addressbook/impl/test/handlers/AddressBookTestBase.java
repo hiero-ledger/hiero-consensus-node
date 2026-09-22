@@ -12,6 +12,7 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
+import static org.hiero.consensus.test.fixtures.WeightGenerators.GAUSSIAN;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
@@ -57,8 +58,8 @@ import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.Random;
 import java.util.function.Function;
-import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -401,13 +402,11 @@ public class AddressBookTestBase {
     }
 
     public static List<X509Certificate> generateX509Certificates(final int n) {
-        final var roster = RandomRosterBuilder.create(new Random())
-                .withRealKeysEnabled(true)
-                .withSize(n)
-                .build();
+        final var roster = RosterWrapperFactory.randomRosterWithKeys(new Random(), n, GAUSSIAN)
+                .roster();
 
         return roster.rosterEntries().stream()
-                .map(RosterUtils::fetchGossipCaCertificate)
+                .map(RosterEntryWrapper::gossipCaCertificate)
                 .toList();
     }
 }

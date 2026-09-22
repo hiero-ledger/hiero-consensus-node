@@ -123,6 +123,16 @@ public class ProofControllers {
     }
 
     /**
+     * Stops the current controller, if it exists.
+     */
+    public void stop() {
+        if (controller != null) {
+            controller.cancelPendingWork();
+            controller = null;
+        }
+    }
+
+    /**
      * Returns a new controller for the given active rosters and history proof construction.
      *
      * @param activeRosters the active rosters

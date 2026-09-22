@@ -40,7 +40,7 @@ round, after the member's removal, would not be valid.
 ## Parent invariant
 
 A child's birth round must be greater than or equal to every one of
-its parents' birth rounds. If the network ever allowed a child whose
+its parents' birth rounds — the property cataloged as INV-011. If the network ever allowed a child whose
 birth round was less than a parent's birth round, the ancient
 threshold could advance past the child while leaving the parent
 non-ancient. The child (and any of its own descendants with the same
@@ -81,8 +81,8 @@ buffer until the window advances such that the pending round is 101.
 
 ## In current code
 
-Field accessor: `PlatformEvent.getBirthRound()` (line 266 of
-[`PlatformEvent.java`](../../../consensus-model/src/main/java/org/hiero/consensus/model/event/PlatformEvent.java)).
+Field accessor:
+[`PlatformEvent.getBirthRound()`](../../../consensus-model/src/main/java/org/hiero/consensus/model/event/PlatformEvent.java#getBirthRound).
 Sentinel: `EventConstants.BIRTH_ROUND_UNDEFINED`
 ([`EventConstants.java`](../../../consensus-model/src/main/java/org/hiero/consensus/model/event/EventConstants.java)).
 Ancient drop happens in two places, both inside `ConsensusLinker`.
@@ -113,4 +113,6 @@ generation + 1) to play the same role.
   `../architecture/topics/hashgraph.md#birth-round-filtering`](../architecture/topics/hashgraph.md#birth-round-filtering).
 - Sibling concept:
   [`rounds-and-witnesses.md`](rounds-and-witnesses.md).
+- Invariants: INV-011 (birth round is monotonic along ancestry), INV-012 (the minimum non-ancient round never decreases).
+- Rules: RUL-004 (consensus intake admits only non-ancient parent links whose claimed birth round matches the actual parent).
 - Glossary entry: [`../glossary.md`](../glossary.md).

@@ -17,6 +17,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationProcessor;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
@@ -36,8 +38,10 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.code.CodeFactory;
+import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 
 /**
@@ -46,31 +50,33 @@ import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
  * {@code ContractCallLocal}) can reduce to a single code path.
  */
 public class TransactionProcessor {
+    private static final Logger log = LogManager.getLogger(TransactionProcessor.class);
+
     private final FrameBuilder frameBuilder;
     private final FrameRunner frameRunner;
     private final CustomGasCharging gasCharging;
     private final CustomMessageCallProcessor messageCall;
     private final ContractCreationProcessor contractCreation;
     private final FeatureFlags featureFlags;
-    private final CodeFactory codeFactory;
+    private final GasCalculator gasCalculator;
     private final HEVM hevm;
 
     public TransactionProcessor(
-            @NonNull FrameBuilder frameBuilder,
-            @NonNull FrameRunner frameRunner,
-            @NonNull CustomGasCharging gasCharging,
-            @NonNull CustomMessageCallProcessor messageCall,
-            @NonNull ContractCreationProcessor contractCreation,
-            @NonNull FeatureFlags featureFlags,
-            @NonNull CodeFactory codeFactory,
-            @NonNull HEVM hevm) {
+            @NonNull final FrameBuilder frameBuilder,
+            @NonNull final FrameRunner frameRunner,
+            @NonNull final CustomGasCharging gasCharging,
+            @NonNull final CustomMessageCallProcessor messageCall,
+            @NonNull final ContractCreationProcessor contractCreation,
+            @NonNull final FeatureFlags featureFlags,
+            @NonNull final GasCalculator gasCalculator,
+            final HEVM hevm) {
         this.frameBuilder = requireNonNull(frameBuilder);
         this.frameRunner = requireNonNull(frameRunner);
         this.gasCharging = requireNonNull(gasCharging);
         this.messageCall = requireNonNull(messageCall);
         this.contractCreation = requireNonNull(contractCreation);
         this.featureFlags = requireNonNull(featureFlags);
-        this.codeFactory = codeFactory;
+        this.gasCalculator = requireNonNull(gasCalculator);
         this.hevm = hevm;
     }
 
@@ -82,12 +88,14 @@ public class TransactionProcessor {
      * @param receiverAddress the address of the account receiving the top-level call
      */
     private record InvolvedParties(
-            @NonNull HederaEvmAccount sender,
+            @Nullable HederaEvmAccount sender,
+            @NonNull AccountID senderId,
+            @NonNull Address senderAddress,
             @Nullable HederaEvmAccount relayer,
             @NonNull Address receiverAddress) {
         @NonNull
-        AccountID senderId() {
-            return sender.hederaId();
+        HederaEvmAccount senderOrThrow() {
+            return requireNonNull(sender);
         }
     }
 
@@ -131,10 +139,38 @@ public class TransactionProcessor {
             @NonNull final Configuration config,
             @NonNull final OpsDurationCounter opsDurationCounter,
             @NonNull final InvolvedParties parties) {
-        // If it is hook dispatch, skip gas charging because gas is pre-paid in cryptoTransfer already
-        final var gasCharges = transaction.isHookExecution()
+        // Hook dispatch gas is prepaid in cryptoTransfer; CLPR dispatch gas is prepaid by the connector debit.
+        final var gasIsPrepaid = transaction.isHookExecution() || transaction.isClprDispatch();
+        final var gasCharges = gasIsPrepaid
                 ? GasCharges.NONE
                 : gasCharging.chargeForGas(parties.sender(), parties.relayer(), context, updater, transaction);
+
+        if (transaction.isEthereumTransaction() && !transaction.isHookExecution() && !context.isStaticCall()) {
+            parties.sender().incrementNonce();
+        }
+
+        final var contractsConfig = config.getConfigData(ContractsConfig.class);
+        final var hasCodeDelegations = transaction.codeDelegations() != null
+                && !transaction.codeDelegations().isEmpty();
+
+        final var lazyCreationGasAvailable = transaction.gasLimit() - gasCharges.intrinsicGas();
+        final CodeDelegationResult codeDelegationResult;
+        if (hasCodeDelegations && contractsConfig.codeDelegationsEnabled()) {
+            // Gas amount available for charging Hedera-specific hollow account creation cost
+            // when processing code delegations.
+            // Note that the base EIP-7702 gas cost for authorizations is already deducted in `intrinsicGas`.
+            codeDelegationResult = new CodeDelegationProcessor(contractsConfig.chainId())
+                    .process(updater, lazyCreationGasAvailable, transaction.codeDelegations());
+        } else {
+            codeDelegationResult = CodeDelegationResult.EMPTY;
+        }
+
+        // The initial gas available for code execution is the gas limit
+        // minus intrinsic gas (which includes EIP-7702 code delegation charges)
+        // minus the Hedera-specific charges applied while processing
+        // EIP-7702 code delegations (hollow account creation).
+        final var rootFrameInitialGas =
+                transaction.gasLimit() - gasCharges.intrinsicGas() - codeDelegationResult.totalLazyCreationGasCharged();
         final var initialFrame = frameBuilder.buildInitialFrameWith(
                 transaction,
                 updater,
@@ -142,23 +178,38 @@ public class TransactionProcessor {
                 config,
                 opsDurationCounter,
                 featureFlags,
-                parties.sender().getAddress(),
+                parties.senderAddress(),
                 parties.receiverAddress(),
-                gasCharges.intrinsicGas(),
-                codeFactory);
+                rootFrameInitialGas,
+                gasCalculator,
+                codeDelegationResult.accessedAddresses());
+
+        // As per EIP-7702: add code delegation refund (for setting the delegation on *existing* accounts)
+        // to the global refund counter.
+        final var codeDelegationRefund =
+                gasCalculator.calculateDelegateCodeGasRefund(codeDelegationResult.numAuthorizationsEligibleForRefund());
+        initialFrame.incrementGasRefund(codeDelegationRefund);
 
         // Compute the result of running the frame to completion
-        final var result = frameRunner.runToCompletion(
-                transaction.gasLimit(), parties.senderId(), initialFrame, tracer, messageCall, contractCreation, hevm);
+        var result = frameRunner.runToCompletion(
+                transaction.gasLimit(),
+                parties.senderId(),
+                initialFrame,
+                tracer,
+                messageCall,
+                contractCreation,
+                gasCharges,
+                hevm);
 
-        // Maybe refund some of the charged fees before committing if not a hook dispatch
-        // Note that for hook dispatch, gas is charged during cryptoTransfer and will not be refunded once
-        // hook is executed
-        if (!transaction.isHookExecution()) {
+        // Add code delegation result
+        result = result.withCodeDelegationResult(codeDelegationResult);
+
+        // Maybe refund some of the charged fees before committing if gas was charged in this processor.
+        if (!gasIsPrepaid) {
             gasCharging.maybeRefundGiven(
                     transaction.unusedGas(result.gasUsed()),
                     gasCharges.relayerAllowanceUsed(),
-                    parties.sender(),
+                    parties.senderOrThrow(),
                     parties.relayer(),
                     context,
                     updater);
@@ -178,6 +229,21 @@ public class TransactionProcessor {
         } catch (final HandleException e) {
             throw e;
         } catch (final Exception e) {
+            log.warn(
+                    "TransactionProcessor INVALID_TRANSACTION_BODY: reason=COMPUTE_INVOLVED_PARTIES_EXCEPTION "
+                            + "sender={} relayer={} contract={} gasLimit={} value={} payloadBytes={} "
+                            + "isCreate={} isEthereumTransaction={} isHookExecution={} isClprDispatch={}",
+                    transaction.senderId(),
+                    transaction.relayerId(),
+                    transaction.contractId(),
+                    transaction.gasLimit(),
+                    transaction.value(),
+                    transaction.payload().length(),
+                    transaction.isCreate(),
+                    transaction.isEthereumTransaction(),
+                    transaction.isHookExecution(),
+                    transaction.isClprDispatch(),
+                    e);
             throw new HandleException(INVALID_TRANSACTION_BODY);
         }
     }
@@ -201,7 +267,10 @@ public class TransactionProcessor {
             updater.revert();
             final var sender = updater.getHederaAccount(transaction.senderId());
             return resourceExhaustionFrom(
-                    requireNonNull(sender).hederaId(), transaction.gasLimit(), context.gasPrice(), e.getStatus());
+                    sender == null ? transaction.senderId() : sender.hederaId(),
+                    transaction.gasLimit(),
+                    context.gasPrice(),
+                    e.getStatus());
         }
     }
 
@@ -228,9 +297,17 @@ public class TransactionProcessor {
             @NonNull final HederaWorldUpdater updater,
             @NonNull final Configuration config) {
         final var sender = updater.getHederaAccount(transaction.senderId());
-        validateTrue(sender != null, INVALID_ACCOUNT_ID);
+        final var isNativeClprDispatch = transaction.isClprDispatch();
+        validateTrue(sender != null || isNativeClprDispatch, INVALID_ACCOUNT_ID);
+        final var senderId = isNativeClprDispatch
+                ? transaction.senderId()
+                : requireNonNull(sender).hederaId();
+        final var senderAddress = isNativeClprDispatch
+                ? requireNonNull(transaction.senderAddress())
+                : requireNonNull(sender).getAddress();
         HederaEvmAccount relayer = null;
         if (transaction.isEthereumTransaction()) {
+            validateTrue(sender != null, INVALID_ACCOUNT_ID);
             relayer = updater.getHederaAccount(requireNonNull(transaction.relayerId()));
             validateTrue(relayer != null, INVALID_ACCOUNT_ID);
         }
@@ -239,22 +316,24 @@ public class TransactionProcessor {
             final Address to;
             final var op = requireNonNull(transaction.hapiCreation());
             if (transaction.isEthereumTransaction()) {
-                to = Address.contractAddress(sender.getAddress(), sender.getNonce());
+                to = Address.contractAddress(requireNonNull(sender).getAddress(), sender.getNonce());
                 updater.setupAliasedTopLevelCreate(sponsorCustomizedCreation(op, sender.toNativeAccount()), to);
             } else {
                 to = updater.setupTopLevelCreate(op);
             }
-            parties = new InvolvedParties(sender, relayer, to);
+            parties = new InvolvedParties(sender, senderId, senderAddress, relayer, to);
         } else {
             final var to = updater.getHederaAccount(transaction.contractIdOrThrow());
             if (contractNotRequired(to, config)) {
-                parties = partiesWhenContractNotRequired(to, sender, relayer, transaction, updater);
+                parties = partiesWhenContractNotRequired(
+                        to, sender, senderId, senderAddress, relayer, transaction, updater);
             } else {
-                parties = partiesWhenContractRequired(to, sender, relayer, transaction, updater);
+                parties =
+                        partiesWhenContractRequired(to, sender, senderId, senderAddress, relayer, transaction, updater);
             }
         }
         if (transaction.isEthereumTransaction()) {
-            validateTrue(transaction.nonce() == parties.sender().getNonce(), WRONG_NONCE);
+            validateTrue(transaction.nonce() == parties.senderOrThrow().getNonce(), WRONG_NONCE);
         }
         return parties;
     }
@@ -277,7 +356,9 @@ public class TransactionProcessor {
 
     private InvolvedParties partiesWhenContractRequired(
             @Nullable final HederaEvmAccount to,
-            @NonNull final HederaEvmAccount sender,
+            @Nullable final HederaEvmAccount sender,
+            @NonNull final AccountID senderId,
+            @NonNull final Address senderAddress,
             @Nullable final HederaEvmAccount relayer,
             @NonNull final HederaEvmTransaction transaction,
             @NonNull final HederaWorldUpdater updater) {
@@ -288,18 +369,21 @@ public class TransactionProcessor {
             validateTrue(transaction.hasValue(), INVALID_CONTRACT_ID);
             final var alias = transaction.contractIdOrThrow().evmAddressOrThrow();
             validateTrue(isEvmAddress(alias), INVALID_CONTRACT_ID);
-            parties = new InvolvedParties(sender, relayer, pbjToBesuAddress(alias));
+            parties = new InvolvedParties(sender, senderId, senderAddress, relayer, pbjToBesuAddress(alias));
             updater.setupTopLevelLazyCreate(requireNonNull(parties.receiverAddress));
         } else {
             validateTrue(to != null, INVALID_CONTRACT_ID);
-            parties = new InvolvedParties(sender, relayer, requireNonNull(to).getAddress());
+            parties = new InvolvedParties(
+                    sender, senderId, senderAddress, relayer, requireNonNull(to).getAddress());
         }
         return parties;
     }
 
     private InvolvedParties partiesWhenContractNotRequired(
             @Nullable final HederaEvmAccount to,
-            @NonNull final HederaEvmAccount sender,
+            @Nullable final HederaEvmAccount sender,
+            @NonNull final AccountID senderId,
+            @NonNull final Address senderAddress,
             @Nullable final HederaEvmAccount relayer,
             @NonNull final HederaEvmTransaction transaction,
             @NonNull final HederaWorldUpdater updater) {
@@ -308,12 +392,14 @@ public class TransactionProcessor {
             // Only set up the lazy creation if the transaction has a value and a valid alias
             final var alias = transaction.contractIdOrThrow().evmAddress();
             if (transaction.hasValue() && alias != null) {
-                parties = new InvolvedParties(sender, relayer, pbjToBesuAddress(alias));
+                parties = new InvolvedParties(sender, senderId, senderAddress, relayer, pbjToBesuAddress(alias));
                 updater.setupTopLevelLazyCreate(requireNonNull(parties.receiverAddress));
             } else {
                 updater.setContractNotRequired();
                 parties = new InvolvedParties(
                         sender,
+                        senderId,
+                        senderAddress,
                         relayer,
                         contractIDToBesuAddress(updater.entityIdFactory(), transaction.contractIdOrThrow()));
             }
@@ -321,6 +407,8 @@ public class TransactionProcessor {
             updater.setContractNotRequired();
             parties = new InvolvedParties(
                     sender,
+                    senderId,
+                    senderAddress,
                     relayer,
                     to != null
                             ? to.getAddress()

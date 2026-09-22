@@ -12,10 +12,12 @@ import com.hedera.cryptography.wraps.SchnorrKeys;
 import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.cryptography.wraps.WRAPSVerificationKey;
 import com.hedera.node.app.history.HistoryLibrary;
+import com.hedera.node.app.history.WrapsProvingKeyVerification;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.SecureRandom;
 import java.util.Set;
-import java.util.SplittableRandom;
 import java.util.StringJoiner;
+import org.hiero.base.crypto.CryptoUtils;
 
 /**
  * Default implementation of the {@link HistoryLibrary}.
@@ -23,7 +25,7 @@ import java.util.StringJoiner;
 public class HistoryLibraryImpl implements HistoryLibrary {
     private static final int SCHNORR_PUBLIC_KEY_LENGTH = (int) HistoryLibrary.MISSING_SCHNORR_KEY.length();
 
-    public static final SplittableRandom RANDOM = new SplittableRandom();
+    private static final SecureRandom RANDOM = CryptoUtils.getNonDetRandom();
     public static final WRAPSLibraryBridge WRAPS = WRAPSLibraryBridge.getInstance();
     public static final int WRAPS_VERIFICATION_KEY_LENGTH = 1768;
 
@@ -236,8 +238,12 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     }
 
     @Override
-    public boolean wrapsProverReady() {
-        return WRAPSLibraryBridge.isProofSupported();
+    public boolean wrapsProverReady(@NonNull final String expectedProvingKeyHashHex) {
+        requireNonNull(expectedProvingKeyHashHex);
+        // isProofSupported() only checks the four artifact filenames exist, which is also true of a
+        // different proving key and of an install still publishing its files.
+        return WRAPSLibraryBridge.isProofSupported()
+                && WrapsProvingKeyVerification.artifactsInstalledAndVerified(expectedProvingKeyHashHex);
     }
 
     @Override

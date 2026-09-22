@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.stack.savepoints;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONFIG_FILE_PART_UPLOADED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REVERTED_SUCCESS;
@@ -34,8 +35,12 @@ import java.util.List;
  * that determine how each type of savepoint constructs state change block items.
  */
 public abstract class AbstractSavepoint extends BuilderSinkImpl implements Savepoint {
-    public static final EnumSet<ResponseCodeEnum> SUCCESSES =
-            EnumSet.of(OK, SUCCESS, FEE_SCHEDULE_FILE_PART_UPLOADED, SUCCESS_BUT_MISSING_EXPECTED_OPERATION);
+    public static final EnumSet<ResponseCodeEnum> SUCCESSES = EnumSet.of(
+            OK,
+            SUCCESS,
+            FEE_SCHEDULE_FILE_PART_UPLOADED,
+            CONFIG_FILE_PART_UPLOADED,
+            SUCCESS_BUT_MISSING_EXPECTED_OPERATION);
 
     protected final BuilderSink parent;
     protected final WrappedState state;
@@ -102,12 +107,11 @@ public abstract class AbstractSavepoint extends BuilderSinkImpl implements Savep
     }
 
     @Override
-    public StreamBuilder createBuilder(
+    public StreamBuilder createNonBaseBuilder(
             @NonNull final StreamBuilder.ReversingBehavior reversingBehavior,
             @NonNull final HandleContext.TransactionCategory txnCategory,
             @NonNull final StreamBuilder.SignedTxCustomizer customizer,
-            @NonNull final StreamMode streamMode,
-            final boolean isBaseBuilder) {
+            @NonNull final StreamMode streamMode) {
         requireNonNull(reversingBehavior);
         requireNonNull(txnCategory);
         requireNonNull(customizer);
@@ -118,11 +122,7 @@ public abstract class AbstractSavepoint extends BuilderSinkImpl implements Savep
                     case BOTH -> new PairedStreamBuilder(reversingBehavior, customizer, txnCategory);
                 };
         if (!customizer.isSuppressed()) {
-            // Other code is a bit simpler when we always put the base builder for a stack in its
-            // "following" list, even if the stack is child stack for a preceding child dispatch;
-            // the base builder will still end up in the correct relative position in the parent
-            // sink because of how FirstChildSavepoint implements #commitBuilders()
-            if (txnCategory == PRECEDING && !isBaseBuilder) {
+            if (txnCategory == PRECEDING) {
                 addPrecedingOrThrow(builder);
             } else {
                 addFollowingOrThrow(builder);

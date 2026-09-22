@@ -4,6 +4,9 @@ package com.hedera.node.app.service.contract.impl.test.exec.scope;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
+import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HAPI_RECORD_BUILDER_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_FUNGIBLE_RELATION;
@@ -23,7 +26,10 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYS
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.PARANOID_SOMEBODY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SOMEBODY;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
+import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationWithKeyAndCodeDelegation;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthHollowAccountCreation;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -39,7 +45,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -53,9 +62,14 @@ import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
+import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.key.KeyVerifier;
 import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
+import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
+import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -118,6 +132,9 @@ class HandleHederaNativeOperationsTest {
     @Mock
     EntityIdFactory entityIdFactory;
 
+    @Mock
+    private HookDispatchStreamBuilder hookDispatchStreamBuilder;
+
     private final Deque<MessageFrame> stack = new ArrayDeque<>();
 
     private HandleHederaNativeOperations subject;
@@ -160,12 +177,12 @@ class HandleHederaNativeOperationsTest {
     void resolveAliasReturnsMissingNumIfNotPresent() {
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
-        assertEquals(MISSING_ENTITY_NUMBER, subject.resolveAlias(0, 0, tuweniToPbjBytes(EIP_1014_ADDRESS)));
+        assertEquals(MISSING_ENTITY_NUMBER, subject.resolveAlias(0, 0, tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes())));
     }
 
     @Test
     void resolveAliasReturnsNumIfPresent() {
-        final var alias = tuweniToPbjBytes(EIP_1014_ADDRESS);
+        final var alias = tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes());
         given(context.storeFactory()).willReturn(storeFactory);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(accountStore.getAccountIDByAlias(0, 0, alias)).willReturn(NON_SYSTEM_ACCOUNT_ID);
@@ -210,6 +227,30 @@ class HandleHederaNativeOperationsTest {
         given(context.configuration()).willReturn(DEFAULT_CONFIG);
 
         final var status = assertDoesNotThrow(() -> subject.createHollowAccount(CANONICAL_ALIAS));
+        assertThat(status).isEqualTo(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
+
+        verify(cryptoCreateRecordBuilder, never()).memo(any());
+    }
+
+    @Test
+    void createsAccountWithDelegationByDispatchingDoesNotThrowErrors() {
+        final var key =
+                Key.newBuilder().ecdsaSecp256k1(Bytes.wrap(new byte[32])).build();
+        final var synthLazyCreate = TransactionBody.newBuilder()
+                .cryptoCreateAccount(
+                        synthAccountCreationWithKeyAndCodeDelegation(CANONICAL_ALIAS, key, Bytes.fromHex("1234"), true))
+                .build();
+        given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
+        given(context.dispatch(assertArg(options -> {
+                    assertEquals(synthLazyCreate, options.body());
+                    assertEquals(TransactionCategory.CHILD, options.category());
+                })))
+                .willReturn(cryptoCreateRecordBuilder);
+        given(cryptoCreateRecordBuilder.status()).willReturn(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
+
+        final var status = assertDoesNotThrow(
+                () -> subject.createAccountWithKeyAndCodeDelegation(CANONICAL_ALIAS, key, Bytes.fromHex("1234")));
         assertThat(status).isEqualTo(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
 
         verify(cryptoCreateRecordBuilder, never()).memo(any());
@@ -362,6 +403,36 @@ class HandleHederaNativeOperationsTest {
     }
 
     @Test
+    void dispatchesReadonlyContractCallWithExplicitClprDispatchMetadata() {
+        final var payerId = AccountID.newBuilder().accountNum(50L).build();
+        final var contractId = ContractID.newBuilder().contractNum(9999L).build();
+        final var callData = new byte[] {1, 2, 3, 4};
+        final var evmResult = Bytes.wrap(new byte[] {5, 6});
+        final var dispatchMetadata = new DispatchMetadata(
+                CLPR_DISPATCH, new ClprDispatchMetadata(CLPR_SERVICE_ACCOUNT_ID, CLPR_EVM_ADDRESS_BYTES));
+        given(context.dispatch(any())).willReturn(hookDispatchStreamBuilder);
+        given(hookDispatchStreamBuilder.status()).willReturn(SUCCESS);
+        given(hookDispatchStreamBuilder.getEvmCallResult()).willReturn(evmResult);
+
+        final var result =
+                subject.dispatchReadonlyContractCall(payerId, contractId, callData, 123_456L, dispatchMetadata);
+
+        assertSame(evmResult, result);
+        verify(context).dispatch(assertArg((DispatchOptions<HookDispatchStreamBuilder> options) -> {
+            assertEquals(payerId, options.payerId());
+            assertEquals(dispatchMetadata, options.dispatchMetadata());
+            assertEquals(NOOP_SIGNED_TX_CUSTOMIZER, options.signedTxCustomizer());
+            assertEquals(
+                    ContractCallTransactionBody.newBuilder()
+                            .contractID(contractId)
+                            .gas(123_456L)
+                            .functionParameters(Bytes.wrap(callData))
+                            .build(),
+                    options.body().contractCallOrThrow());
+        }));
+    }
+
+    @Test
     void authorizingSimpleKeysTest() {
         given(context.keyVerifier()).willReturn(keyVerifier);
         given(keyVerifier.authorizingSimpleKeys()).willReturn(keys);
@@ -373,5 +444,21 @@ class HandleHederaNativeOperationsTest {
         final var expected = Bytes.fromHex("deadbeef");
         given(context.ledgerId()).willReturn(expected);
         assertEquals(expected, subject.ledgerId());
+    }
+
+    @Test
+    void createNewChildRecordBuilderUsesSavepointStack() {
+        @SuppressWarnings("unchecked")
+        final var savepointStack = mock(com.hedera.node.app.spi.workflows.HandleContext.SavepointStack.class);
+        given(context.savepointStack()).willReturn(savepointStack);
+        given(savepointStack.addChildRecordBuilder(CryptoCreateStreamBuilder.class, HederaFunctionality.CRYPTO_CREATE))
+                .willReturn(cryptoCreateRecordBuilder);
+
+        final var result =
+                subject.createNewChildRecordBuilder(CryptoCreateStreamBuilder.class, HederaFunctionality.CRYPTO_CREATE);
+
+        assertSame(cryptoCreateRecordBuilder, result);
+        verify(savepointStack)
+                .addChildRecordBuilder(CryptoCreateStreamBuilder.class, HederaFunctionality.CRYPTO_CREATE);
     }
 }

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.ethereum;
 
+import static java.lang.Byte.toUnsignedInt;
+
 import com.esaulpaugh.headlong.rlp.RLPDecoder;
 import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.rlp.RLPItem;
@@ -8,16 +10,17 @@ import com.esaulpaugh.headlong.rlp.RLPList;
 import com.esaulpaugh.headlong.util.Integers;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
-import org.apache.commons.codec.binary.Hex;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
-import org.bouncycastle.util.BigIntegers;
+import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.bytes.Bytes32;
 
 public record EthTxData(
         byte[] rawTx,
@@ -33,10 +36,16 @@ public record EthTxData(
         byte[] callData,
         byte[] accessList,
         Object[] accessListAsRlp,
+        byte[] authorizationList,
+        Object[] authorizationListAsRlp,
         int recId, // "recovery id" part of a v,r,s ECDSA signature - range 0..1
-        byte[] v, // actual `v` value, incoming, recovery id (`recId` above) (possibly) encoded with chain id
+        byte[] v, // actual `v` value, incoming, recovery id (`yParity` above) (possibly) encoded with chain id
         byte[] r,
         byte[] s) {
+
+    private static final int EVM_ADDRESS_LENGTH = 20;
+    private static final int ELEMENTS_IN_ACCESS_LIST_ITEM = 2;
+    private static final int ELEMENTS_IN_AUTHORIZATION_LIST_ITEM = 6;
 
     // Enforce the parser invariant at the type level: chainId is always a byte[] (possibly empty),
     // never null. matchesChainId() and downstream callers can rely on this without re-guarding.
@@ -69,21 +78,63 @@ public record EthTxData(
     public static EthTxData populateEthTxData(final byte[] data) {
         try {
             final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(data);
-            final var rlpItem = decoder.next();
-            if (rlpItem.isList()) {
-                return populateLegacyEthTxData(rlpItem, data);
+            final var firstItem = decoder.next();
+
+            // A legacy transaction is a bare RLP list, so it is its own envelope.
+            if (firstItem.isList()) {
+                return consumesAllOf(firstItem, data) ? populateLegacyEthTxData(firstItem, data) : null;
             }
 
-            return switch (asByte(rlpItem)) {
-                case 1 -> populateEip2390EthTxData(decoder.next(), data);
-                case 2 -> populateEip1559EthTxData(decoder.next(), data);
+            // A typed transaction (EIP-2718) is a one-byte type tag followed by its payload list, so there the
+            // envelope is the second item. Unsupported types fall through to `null` below; decoding their
+            // payload first is wasted work on an already-rejected input, but it keeps the check in one place,
+            // and a malformed payload only raises `IllegalArgumentException`, which this method already maps
+            // to `null`.
+            final var type = asByte(firstItem);
+            final var envelope = decoder.next();
+            if (!consumesAllOf(envelope, data)) {
+                return null;
+            }
+
+            return switch (type) {
+                case 1 -> populateEip2390EthTxData(envelope, data);
+                case 2 -> populateEip1559EthTxData(envelope, data);
                 case 3 -> null; // We don't currently support Cancun "blob" transactions
+                case 4 -> populateEip7702EthTxData(envelope, data);
                 default -> null;
             };
 
         } catch (final IllegalArgumentException | NoSuchElementException e) {
             return null;
         }
+    }
+
+    public static int getTransactionType(byte[] data) {
+        try {
+            var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(data);
+            var rlpItem = decoder.next();
+            if (rlpItem.isList()) {
+                return 0;
+            }
+
+            return toUnsignedInt(asByte(rlpItem));
+        } catch (IllegalArgumentException | NoSuchElementException e) {
+            return -1;
+        }
+    }
+
+    /// Returns an unsigned byte[] representation of a BigInteger, dropping the leading zero byte
+    /// if present. Adopted from org.bouncycastle.util.BigIntegers.asUnsignedByteArray().
+    public static byte[] asUnsignedByteArray(final BigInteger value) {
+        final byte[] bytes = value.toByteArray();
+
+        if (bytes[0] == 0 && bytes.length != 1) {
+            final byte[] tmp = new byte[bytes.length - 1];
+            System.arraycopy(bytes, 1, tmp, 0, tmp.length);
+            return tmp;
+        }
+
+        return bytes;
     }
 
     public EthTxData replaceCallData(final byte[] newCallData) {
@@ -100,7 +151,9 @@ public record EthTxData(
                 value,
                 newCallData,
                 accessList,
-                null,
+                accessListAsRlp,
+                authorizationList,
+                authorizationListAsRlp,
                 recId,
                 v,
                 r,
@@ -121,7 +174,9 @@ public record EthTxData(
                 value,
                 callData,
                 accessList,
-                null,
+                accessListAsRlp,
+                authorizationList,
+                authorizationListAsRlp,
                 recId,
                 v,
                 r,
@@ -143,7 +198,9 @@ public record EthTxData(
                 replacementValue,
                 callData,
                 accessList,
-                null,
+                accessListAsRlp,
+                authorizationList,
+                authorizationListAsRlp,
                 recId,
                 v,
                 r,
@@ -156,9 +213,6 @@ public record EthTxData(
     // For more information on encoding `v` see EIP-155 - https://eips.ethereum.org/EIPS/eip-155
 
     public byte[] encodeTx() {
-        if (accessList != null && accessList.length > 0) {
-            throw new IllegalStateException("Re-encoding access list is unsupported");
-        }
         return switch (type) {
             case LEGACY_ETHEREUM ->
                 RLPEncoder.list(
@@ -182,7 +236,7 @@ public record EthTxData(
                                 to,
                                 Integers.toBytesUnsigned(value),
                                 callData,
-                                List.of(/*accessList*/ ),
+                                accessListAsRlp() != null ? accessListAsRlp() : new Object[0],
                                 Integers.toBytes(recId),
                                 r,
                                 s));
@@ -198,7 +252,24 @@ public record EthTxData(
                                 to,
                                 Integers.toBytesUnsigned(value),
                                 callData,
-                                List.of(/*accessList*/ ),
+                                accessListAsRlp() != null ? accessListAsRlp() : new Object[0],
+                                Integers.toBytes(recId),
+                                r,
+                                s));
+            case EIP7702 ->
+                RLPEncoder.sequence(
+                        Integers.toBytes(0x04),
+                        List.of(
+                                chainId,
+                                Integers.toBytes(nonce),
+                                maxPriorityGas,
+                                maxGas,
+                                Integers.toBytes(gasLimit),
+                                to,
+                                Integers.toBytesUnsigned(value),
+                                callData,
+                                accessListAsRlp() != null ? accessListAsRlp() : new Object[0],
+                                authorizationListAsRlp() != null ? authorizationListAsRlp() : new Object[0],
                                 Integers.toBytes(recId),
                                 r,
                                 s));
@@ -217,7 +288,7 @@ public record EthTxData(
         return switch (type) {
             case LEGACY_ETHEREUM -> new BigInteger(1, gasPrice).multiply(BigInteger.valueOf(multiple));
             case EIP2930 -> new BigInteger(1, gasPrice);
-            case EIP1559 -> new BigInteger(1, maxGas);
+            case EIP1559, EIP7702 -> new BigInteger(1, maxGas);
         };
     }
 
@@ -253,13 +324,14 @@ public record EthTxData(
     }
 
     public byte[] getEthereumHash() {
-        return new Keccak.Digest256().digest(rawTx == null ? encodeTx() : rawTx);
+        return MiscCryptoUtils.keccak256DigestOf(rawTx == null ? encodeTx() : rawTx);
     }
 
     public enum EthTransactionType {
         LEGACY_ETHEREUM,
         EIP2930,
         EIP1559,
+        EIP7702
     }
 
     @Override
@@ -283,6 +355,7 @@ public record EthTxData(
                 && (Arrays.equals(callData, ethTxData.callData))
                 && (Arrays.equals(accessList, ethTxData.accessList))
                 && (Arrays.deepEquals(accessListAsRlp, ethTxData.accessListAsRlp))
+                && (Arrays.equals(authorizationList, ethTxData.authorizationList))
                 && (Arrays.equals(v, ethTxData.v))
                 && (Arrays.equals(r, ethTxData.r))
                 && (Arrays.equals(s, ethTxData.s));
@@ -293,17 +366,18 @@ public record EthTxData(
         int result = Arrays.hashCode(rawTx);
         result = 31 * result + (type != null ? type.hashCode() : 0);
         result = 31 * result + Arrays.hashCode(chainId);
-        result = 31 * result + (int) (nonce ^ (nonce >>> 32));
+        result = 31 * result + Long.hashCode(nonce);
         result = 31 * result + Arrays.hashCode(gasPrice);
         result = 31 * result + Arrays.hashCode(maxPriorityGas);
         result = 31 * result + Arrays.hashCode(maxGas);
-        result = 31 * result + (int) (gasLimit ^ (gasLimit >>> 32));
+        result = 31 * result + Long.hashCode(gasLimit);
         result = 31 * result + Arrays.hashCode(to);
         result = 31 * result + (value != null ? value.hashCode() : 0);
         result = 31 * result + Arrays.hashCode(callData);
-        // accessListAsRlp is not considered when calculating the hash,
-        // as it is simply a different representation of the same dataset.
         result = 31 * result + Arrays.hashCode(accessList);
+        result = 31 * result + Arrays.hashCode(authorizationList);
+        // 'accessListAsRlp' and 'authorizationListAsRlp' are not considered when calculating the hash,
+        // as it is simply a different representation of the same dataset.
         result = 31 * result + recId;
         result = 31 * result + Arrays.hashCode(v);
         result = 31 * result + Arrays.hashCode(r);
@@ -311,25 +385,31 @@ public record EthTxData(
         return result;
     }
 
+    @NonNull
     @Override
     public String toString() {
         return MoreObjects.toStringHelper(this)
-                .add("rawTx", rawTx == null ? null : Hex.encodeHexString(rawTx))
+                .add("rawTx", rawTx == null ? null : HexFormat.of().formatHex(rawTx))
                 .add("type", type)
-                .add("chainId", chainId == null ? null : Hex.encodeHexString(chainId))
+                .add("chainId", chainId == null ? null : HexFormat.of().formatHex(chainId))
                 .add("nonce", nonce)
-                .add("gasPrice", gasPrice == null ? null : Hex.encodeHexString(gasPrice))
-                .add("maxPriorityGas", maxPriorityGas == null ? null : Hex.encodeHexString(maxPriorityGas))
-                .add("maxGas", maxGas == null ? null : Hex.encodeHexString(maxGas))
+                .add("gasPrice", gasPrice == null ? null : HexFormat.of().formatHex(gasPrice))
+                .add(
+                        "maxPriorityGas",
+                        maxPriorityGas == null ? null : HexFormat.of().formatHex(maxPriorityGas))
+                .add("maxGas", maxGas == null ? null : HexFormat.of().formatHex(maxGas))
                 .add("gasLimit", gasLimit)
-                .add("to", to == null ? null : Hex.encodeHexString(to))
+                .add("to", to == null ? null : HexFormat.of().formatHex(to))
                 .add("value", value)
-                .add("callData", Hex.encodeHexString(callData))
-                .add("accessList", accessList == null ? null : Hex.encodeHexString(accessList))
-                .add("recId", recId)
-                .add("v", v == null ? null : Hex.encodeHexString(v))
-                .add("r", Hex.encodeHexString(r))
-                .add("s", Hex.encodeHexString(s))
+                .add("callData", HexFormat.of().formatHex(callData))
+                .add("accessList", accessList == null ? null : HexFormat.of().formatHex(accessList))
+                .add(
+                        "authorizationList",
+                        authorizationList == null ? null : HexFormat.of().formatHex(authorizationList))
+                .add("yParity", recId)
+                .add("v", v == null ? null : HexFormat.of().formatHex(v))
+                .add("r", HexFormat.of().formatHex(r))
+                .add("s", HexFormat.of().formatHex(s))
                 .toString();
     }
 
@@ -362,7 +442,9 @@ public record EthTxData(
                 value,
                 callData,
                 accessList,
-                null,
+                accessListAsRlp,
+                authorizationList,
+                authorizationListAsRlp,
                 recId,
                 v,
                 r,
@@ -384,7 +466,9 @@ public record EthTxData(
                 value,
                 callData,
                 accessList,
-                null,
+                accessListAsRlp,
+                authorizationList,
+                authorizationListAsRlp,
                 newRecId,
                 v,
                 r,
@@ -407,6 +491,8 @@ public record EthTxData(
                 callData,
                 accessList,
                 accessListAsRlp,
+                authorizationList,
+                authorizationListAsRlp,
                 recId,
                 v,
                 newR,
@@ -429,10 +515,131 @@ public record EthTxData(
                 callData,
                 accessList,
                 accessListAsRlp,
+                authorizationList,
+                authorizationListAsRlp,
                 recId,
                 v,
                 r,
                 newS);
+    }
+
+    /**
+     * Parse <a href="https://eips.ethereum.org/EIPS/eip-2930">EIP-2930</a> Access Lists from its RLP bytes.
+     *
+     * @return Parsed access lists. It is @NonNull even if HederaEvmTransaction.accessLists are @Nullable,
+     * because we do not want to deal with nulls elsewhere
+     * @throws IllegalArgumentException if RLP item of the Access list is not a list
+     * @throws IllegalArgumentException if RLP list of the Access list does not contain expected number of elements
+     * @throws IllegalArgumentException if RLP item of the Access list address is not 20 bytes length
+     * @throws IllegalArgumentException if RLP item of the Access list storage keys is not a list
+     * @throws IllegalArgumentException if RLP item of the Access list storage key is not 32 bytes length
+     */
+    @NonNull
+    public List<AccessListItem> extractAccessList() throws IllegalArgumentException {
+        if (accessList() != null) {
+            final List<AccessListItem> accessLists = new ArrayList<>();
+            final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(accessList());
+            while (decoder.hasNext()) {
+                final var accessListItem = decoder.next();
+                if (!accessListItem.isList()) {
+                    throw new IllegalArgumentException("Access list item should be a list");
+                }
+                final var accessListElements = accessListItem.asRLPList().elements();
+                if (accessListElements.size() != ELEMENTS_IN_ACCESS_LIST_ITEM) {
+                    throw new IllegalArgumentException("Access list item does not contain expected number of elements");
+                }
+                final var address = accessListElements.getFirst().data();
+                if (address.length != EVM_ADDRESS_LENGTH) {
+                    throw new IllegalArgumentException("Access list item address is not 20 bytes length");
+                }
+                final var storageKeysItem = accessListElements.get(1);
+                if (!storageKeysItem.isList()) {
+                    throw new IllegalArgumentException("Access list storage keys should be a list");
+                }
+                final var storageKeys = storageKeysItem.asRLPList().elements();
+                accessLists.add(new AccessListItem(
+                        Bytes.wrap(address),
+                        storageKeys.stream()
+                                .map(RLPItem::data)
+                                // this will throw IllegalArgumentException if bytes.length != 32
+                                .map(Bytes32::wrap)
+                                .toList()));
+            }
+            return accessLists;
+        } else {
+            return List.of();
+        }
+    }
+
+    /**
+     * Parse authorization list for a code delegation <a href="https://eips.ethereum.org/EIPS/eip-7702">EIP-7702</a> transaction.
+     *
+     * @return Parsed authorization lists. It is @NonNull event if HederaEvmTransaction.codeDelegations are @Nullable,
+     * because we do not want to deal with nulls elsewhere
+     * @throws IllegalArgumentException if RLP item of the Authorization list is not a list
+     * @throws IllegalArgumentException if RLP list does not contain expected number of elements
+     * @throws IllegalArgumentException if RLP item of the Authorization list address is not 20 bytes length
+     */
+    @NonNull
+    public List<CodeDelegation> extractCodeDelegations() throws IllegalArgumentException {
+        if (authorizationList() != null) {
+            final List<CodeDelegation> codeDelegations = new ArrayList<>();
+            final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(authorizationList());
+            while (decoder.hasNext()) {
+                final var rlpItem = decoder.next();
+                if (!rlpItem.isList()) {
+                    throw new IllegalArgumentException("Authorization list item should be a list");
+                }
+                if (rlpItem.asRLPList().elements().size() != ELEMENTS_IN_AUTHORIZATION_LIST_ITEM) {
+                    throw new IllegalArgumentException(
+                            "Authorization list item does not contain expected number of elements");
+                }
+                final var elements = rlpItem.asRLPList().elements();
+                final var address = elements.get(1).data();
+                if (address.length != EVM_ADDRESS_LENGTH) {
+                    throw new IllegalArgumentException("Authorization list item address is not 20 bytes length");
+                }
+                codeDelegations.add(new CodeDelegation(
+                        elements.get(0).data(), // chainId)
+                        address,
+                        asLong(elements.get(2)), // nonce
+                        asByte(elements.get(3)), // yParity
+                        elements.get(4).data(), // r
+                        elements.get(5).data() // s
+                        ));
+            }
+            return codeDelegations;
+        } else {
+            return List.of();
+        }
+    }
+
+    /**
+     * Returns whether the given envelope item ends exactly at the end of {@code data}, i.e. whether the RLP
+     * encoding consumed the whole input as EIP-2718 requires and as {@code ethereum_data} is specified ("the
+     * complete transaction data").
+     *
+     * <p>{@code RLPDecoder.sequenceIterator} is a <em>sequence</em> reader, so anything past the envelope is
+     * simply left unread rather than reported: {@code tx || extra} would otherwise parse as {@code tx}, yielding
+     * identical fields but a different {@code keccak256(rawTx)} — the value externalized as a record's
+     * {@code ethereum_hash}. Requiring full consumption keeps that hash a function of the transaction rather
+     * than of how its bytes were framed.
+     *
+     * <p>This governs only bytes <em>outside</em> the envelope. It is unrelated to trailing bytes <em>inside</em>
+     * ABI-encoded {@code callData}, which are part of the signed payload and which HIP-1342 deliberately
+     * permits; neither rule generalizes to the other layer.
+     *
+     * <p>A positional comparison is preferred over {@code decoder.hasNext()}, which reaches the same two
+     * outcomes only by way of exception control flow: it returns {@code true} for a well-formed trailing item
+     * but throws headlong's {@code ShortInputException} for a malformed one, relying on that being an
+     * {@code IllegalArgumentException} for {@link #populateEthTxData} to map it to {@code null}.
+     *
+     * @param envelope the RLP item parsed from the start of {@code data}
+     * @param data the complete candidate transaction bytes
+     * @return whether the envelope ends exactly at the end of {@code data}
+     */
+    private static boolean consumesAllOf(@NonNull final RLPItem envelope, @NonNull final byte[] data) {
+        return envelope.endIndex == data.length;
     }
 
     /**
@@ -465,6 +672,8 @@ public record EthTxData(
                 rlpList.get(5).data(), // callData
                 null, // accessList
                 null,
+                null, // authorizationList
+                null,
                 recId,
                 val,
                 rlpList.get(7).data(), // r
@@ -486,6 +695,11 @@ public record EthTxData(
         if (rlpList.size() != 12) {
             return null;
         }
+        // Per EIP-1559 the access list field must always be an RLP list, even when empty
+        // (canonically encoded as 0xc0); a byte-string in this position is malformed.
+        if (!rlpList.get(8).isList()) {
+            return null;
+        }
 
         return new EthTxData(
                 rawTx,
@@ -500,10 +714,10 @@ public record EthTxData(
                 rlpList.get(6).asBigInt(), // value
                 rlpList.get(7).data(), // callData
                 rlpList.get(8).data(), // accessList
-                rlpList.get(8) != null && rlpList.get(8).isList()
-                        ? encodeRlpList(rlpList.get(8).asRLPList())
-                        : new Object[0], // accessList as RLPList
-                asByte(rlpList.get(9)), // recId
+                encodeRlpList(rlpList.get(8).asRLPList()), // accessList as RLPList
+                null, // authorizationList
+                null,
+                asByte(rlpList.get(9)), // yParity
                 null, // v
                 rlpList.get(10).data(), // r
                 rlpList.get(11).data() // s
@@ -511,7 +725,7 @@ public record EthTxData(
     }
 
     /**
-     * Encodes the transaction data into a EthTxData according to EIP 2930 RLP format.
+     * Decodes the transaction data into a EthTxData according to EIP 2930 RLP format.
      *
      * @return the encoded transaction data
      */
@@ -522,6 +736,11 @@ public record EthTxData(
 
         final List<RLPItem> rlpList = rlpItem.asRLPList().elements();
         if (rlpList.size() != 11) {
+            return null;
+        }
+        // Per EIP-2930 the access list field must always be an RLP list, even when empty
+        // (canonically encoded as 0xc0); a byte-string in this position is malformed.
+        if (!rlpList.get(7).isList()) {
             return null;
         }
 
@@ -538,13 +757,56 @@ public record EthTxData(
                 rlpList.get(5).asBigInt(), // value
                 rlpList.get(6).data(), // callData
                 rlpList.get(7).data(), // accessList
-                rlpList.get(7).isList()
-                        ? encodeRlpList(rlpList.get(7).asRLPList())
-                        : new Object[0], // accessList encoded as Object
-                asByte(rlpList.get(8)), // recId
+                encodeRlpList(rlpList.get(7).asRLPList()), // accessList encoded as Object
+                null, // authorizationList
+                null,
+                asByte(rlpList.get(8)), // yParity
                 null, // v
                 rlpList.get(9).data(), // r
                 rlpList.get(10).data() // s
+                );
+    }
+
+    /**
+     * Encodes the transaction data into a EthTxData according to EIP 7702 RLP format.
+     *
+     * @return the encoded transaction data
+     */
+    private static EthTxData populateEip7702EthTxData(RLPItem rlpItem, byte[] rawTx) {
+        if (!rlpItem.isList()) {
+            return null;
+        }
+
+        List<RLPItem> rlpList = rlpItem.asRLPList().elements();
+        if (rlpList.size() != 13) {
+            return null;
+        }
+        // Per EIP-7702 the access list and authorization list fields must always be RLP lists, even
+        // when empty (canonically encoded as 0xc0); a byte-string in either position is malformed.
+        if (!rlpList.get(8).isList() || !rlpList.get(9).isList()) {
+            return null;
+        }
+
+        return new EthTxData(
+                rawTx,
+                EthTransactionType.EIP7702,
+                rlpList.get(0).data(), // chainId
+                asLong(rlpList.get(1)), // nonce
+                null, // gasPrice
+                rlpList.get(2).data(), // maxPriorityGas
+                rlpList.get(3).data(), // maxGas
+                asLong(rlpList.get(4)), // gasLimit
+                rlpList.get(5).data(), // to
+                rlpList.get(6).asBigInt(), // value
+                rlpList.get(7).data(), // callData
+                rlpList.get(8).data(), // accessList
+                encodeRlpList(rlpList.get(8).asRLPList()), // accessList as RLPList
+                rlpList.get(9).data(),
+                encodeRlpList(rlpList.get(9).asRLPList()), // authorizationList - must preserve full RLP encoding
+                asByte(rlpList.get(10)), // yParity
+                null, // v
+                rlpList.get(11).data(), // r
+                rlpList.get(12).data() // s
                 );
     }
 
@@ -569,9 +831,9 @@ public record EthTxData(
             // after EIP155 the chain id is equal to CHAIN_ID = (v - {0,1} - 35) / 2.
             // asUnsignedByteArray avoids the leading sign byte BigInteger.toByteArray adds when the
             // top bit is set — see https://github.com/hashgraph/hedera-services/issues/15953
-            return BigIntegers.asUnsignedByteArray(BigInteger.valueOf((v - 35) >> 1));
+            return EthTxData.asUnsignedByteArray(BigInteger.valueOf((v - 35) >> 1));
         }
-        return BigIntegers.asUnsignedByteArray(
+        return EthTxData.asUnsignedByteArray(
                 vBI.subtract(BigInteger.valueOf(35)).shiftRight(1));
     }
 
@@ -602,10 +864,18 @@ public record EthTxData(
         throw new OutOfRangeException();
     }
 
-    private static Object[] encodeRlpList(final RLPList rlpList) {
+    private static final int MAX_ACCESS_LIST_DEPTH = 2;
 
+    private static Object[] encodeRlpList(final RLPList rlpList) {
+        return encodeRlpList(rlpList, 0);
+    }
+
+    private static Object[] encodeRlpList(final RLPList rlpList, final int depth) {
+        if (depth > MAX_ACCESS_LIST_DEPTH) {
+            throw new IllegalArgumentException("RLP access list nested too deeply");
+        }
         return rlpList.elements().stream()
-                .map(rlpItem -> rlpItem.isList() ? encodeRlpList(rlpItem.asRLPList()) : rlpItem.data())
+                .map(rlpItem -> rlpItem.isList() ? encodeRlpList(rlpItem.asRLPList(), depth + 1) : rlpItem.data())
                 .toArray();
     }
 }

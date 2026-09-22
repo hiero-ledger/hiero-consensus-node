@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.exec;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.*;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -10,6 +11,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.annotations.TransactionScope;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.tracers.AddOnEvmActionTracer;
@@ -21,6 +23,7 @@ import com.hedera.node.app.service.contract.impl.infra.HevmTransactionFactory;
 import com.hedera.node.app.service.contract.impl.state.HederaEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
+import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
@@ -138,11 +141,11 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                                 .transactionIDOrElse(TransactionID.DEFAULT)
                                 .accountIDOrElse(AccountID.DEFAULT),
                         rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId()),
-                        contractsConfig.chargeGasOnEvmHandleException());
+                        !hevmTransaction.isClprDispatch() && contractsConfig.chargeGasOnEvmHandleException());
             }
 
             final var elapsedNanos = System.nanoTime() - startTimeNanos;
-            recordProcessedTransactionToMetrics(hevmTransaction, outcome, elapsedNanos, 0L);
+            recordProcessedTransactionToMetrics(hevmTransaction, outcome, elapsedNanos, 0L, CodeDelegationResult.EMPTY);
 
             return outcome;
         }
@@ -166,7 +169,8 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                         true);
 
                 final var elapsedNanos = System.nanoTime() - startTimeNanos;
-                recordProcessedTransactionToMetrics(hevmTransaction, outcome, elapsedNanos, 0L);
+                recordProcessedTransactionToMetrics(
+                        hevmTransaction, outcome, elapsedNanos, 0L, CodeDelegationResult.EMPTY);
 
                 return outcome;
             }
@@ -231,7 +235,11 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
 
             final var elapsedNanos = System.nanoTime() - startTimeNanos;
             recordProcessedTransactionToMetrics(
-                    hevmTransaction, outcome, elapsedNanos, opsDurationCounter.opsDurationUnitsConsumed());
+                    hevmTransaction,
+                    outcome,
+                    elapsedNanos,
+                    opsDurationCounter.opsDurationUnitsConsumed(),
+                    result.codeDelegationResult());
 
             return outcome;
         } catch (HandleException e) {
@@ -242,7 +250,9 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
                     hevmTransaction.withException(e),
                     senderId,
                     sender,
-                    hevmTransaction.isContractCall() && contractsConfig.chargeGasOnEvmHandleException());
+                    hevmTransaction.isContractCall()
+                            && !hevmTransaction.isClprDispatch()
+                            && contractsConfig.chargeGasOnEvmHandleException());
 
             // Update the ops duration throttle
             if (shouldApplyOpsDurationThrottle) {
@@ -251,29 +261,46 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
 
             final var elapsedNanos = System.nanoTime() - startTimeNanos;
             recordProcessedTransactionToMetrics(
-                    hevmTransaction, outcome, elapsedNanos, opsDurationCounter.opsDurationUnitsConsumed());
+                    hevmTransaction,
+                    outcome,
+                    elapsedNanos,
+                    opsDurationCounter.opsDurationUnitsConsumed(),
+                    CodeDelegationResult.EMPTY);
 
             return outcome;
         }
     }
 
     private void recordProcessedTransactionToMetrics(
-            HederaEvmTransaction hevmTxn, CallOutcome outcome, long elapsedNanos, long opsDurationUnitsConsumed) {
+            @NonNull final HederaEvmTransaction hevmTxn,
+            @NonNull final CallOutcome outcome,
+            final long elapsedNanos,
+            final long opsDurationUnitsConsumed,
+            @NonNull final CodeDelegationResult codeDelegationResult) {
         contractMetrics.recordProcessedTransaction(new ContractMetrics.TransactionProcessingSummary(
                 elapsedNanos,
                 opsDurationUnitsConsumed,
                 outcome.result().gasUsed(),
                 hevmTxn.hasOfferedGasPrice() ? OptionalLong.of(hevmTxn.offeredGasPrice()) : OptionalLong.empty(),
-                outcome.isSuccess()));
+                outcome.isSuccess(),
+                codeDelegationResult.successfullyProcessedAuthorizations(),
+                codeDelegationResult.ignoredCodeDelegations()));
     }
 
     private HederaEvmTransaction safeCreateHevmTransaction() {
+        final var clprDispatchMetadata = context.dispatchMetadata()
+                .getMetadata(CLPR_DISPATCH, ClprDispatchMetadata.class)
+                .orElse(null);
         try {
-            final var hevmTransaction = hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer());
+            final var hevmTransaction =
+                    hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer(), clprDispatchMetadata);
             validatePayloadLength(hevmTransaction);
             return hevmTransaction;
+        } catch (IllegalArgumentException e1) {
+            return hevmTransactionFactory.fromContractTxException(
+                    context.body(), new HandleException(INVALID_TRANSACTION), clprDispatchMetadata);
         } catch (HandleException e) {
-            return hevmTransactionFactory.fromContractTxException(context.body(), e);
+            return hevmTransactionFactory.fromContractTxException(context.body(), e, clprDispatchMetadata);
         }
     }
 

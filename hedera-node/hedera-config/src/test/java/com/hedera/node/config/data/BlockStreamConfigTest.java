@@ -41,6 +41,7 @@ class BlockStreamConfigTest {
                 "/opt/hgcapp/blockStreams",
                 1,
                 Duration.ofSeconds(2),
+                0,
                 8192,
                 Duration.ofMillis(10),
                 100,
@@ -51,6 +52,7 @@ class BlockStreamConfigTest {
                 1024,
                 256,
                 false,
-                streamWrappedRecordBlocks);
+                streamWrappedRecordBlocks,
+                false);
     }
 }

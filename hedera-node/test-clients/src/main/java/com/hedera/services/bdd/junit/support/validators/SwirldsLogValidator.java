@@ -68,7 +68,18 @@ public class SwirldsLogValidator {
                 List.of("PcesFileTracker", "insufficient data to guarantee"),
                 List.of("BestEffortPcesFileCopy", "No preconsensus event files"),
                 List.of("OSHealthChecker"),
-                List.of("DefaultSignedStateSentinel", "Old signed state detected"));
+                List.of("jvmPauseDetectorThread detected JVM paused"),
+                // Transient backpressure under load, e.g. while a node constructs WRAPS proofs
+                List.of("HealthMonitorLogger", "has been unhealthy for"),
+                // High-throughput HAPI tests can briefly overfill this scheduler without affecting test correctness
+                List.of(
+                        "HealthMonitorLogger",
+                        "Task scheduler TransactionHandler has been unhealthy",
+                        "unhandled tasks"),
+                List.of("DefaultSignedStateSentinel", "Old signed state detected"),
+                // A node deliberately exits at startup when it detects an upgrade from a non-freeze state
+                // (see Hedera#assertFreezeStateOnUpgrade), exercised by UpgradeFromNonFreezeStateTest
+                List.of("SystemExitPayload", "UPGRADE_FROM_NON_FREEZE_STATE"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;

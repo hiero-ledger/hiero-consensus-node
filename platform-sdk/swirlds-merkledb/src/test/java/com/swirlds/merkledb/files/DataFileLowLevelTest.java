@@ -4,14 +4,13 @@ package com.swirlds.merkledb.files;
 import static com.swirlds.merkledb.files.DataFileCommon.FILE_EXTENSION;
 import static com.swirlds.merkledb.files.DataFileCommon.createDataFilePath;
 import static com.swirlds.merkledb.files.DataFileCompactor.INITIAL_COMPACTION_LEVEL;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.test.fixtures.files.FilesTestType;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -37,8 +36,6 @@ class DataFileLowLevelTest {
     /** Temporary directory provided by JUnit */
     @TempDir
     static Path tempFileDir;
-
-    private final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
 
     private static final Random RANDOM = new Random(123456);
     private static final Instant TEST_START = Instant.now();
@@ -226,7 +223,7 @@ class DataFileLowLevelTest {
         final Path dataFile = dataFileMap.get(testType);
         final DataFileMetadata dataFileMetadata = dataFileMetadataMap.get(testType);
         final LongArrayList listOfDataItemLocations = listOfDataItemLocationsMap.get(testType);
-        DataFileReader dataFileReader = new DataFileReader(dbConfig, dataFile, dataFileMetadata);
+        DataFileReader dataFileReader = new DataFileReader(DEFAULT_MERKLE_DB_CONFIG, dataFile, dataFileMetadata);
 
         // check by locations returned by write
         for (int i = 0; i < ITEMS_SIZE; i++) {
@@ -266,7 +263,7 @@ class DataFileLowLevelTest {
                     }
                 });
         // some additional asserts to increase DataFileReader's coverage.
-        DataFileReader secondReader = new DataFileReader(dbConfig, dataFile);
+        DataFileReader secondReader = new DataFileReader(DEFAULT_MERKLE_DB_CONFIG, dataFile);
         DataFileIterator firstIterator = dataFileReader.createIterator();
         DataFileIterator secondIterator = secondReader.createIterator();
         assertEquals(firstIterator.getMetadata(), secondIterator.getMetadata(), "unexpected metadata");
@@ -300,7 +297,8 @@ class DataFileLowLevelTest {
         final LongArrayList listOfDataItemLocations = listOfDataItemLocationsMap.get(testType);
 
         int i = 0;
-        try (DataFileIterator fileIterator = new DataFileIterator(dbConfig, dataFile, dataFileMetadata)) {
+        try (DataFileIterator fileIterator =
+                new DataFileIterator(DEFAULT_MERKLE_DB_CONFIG, dataFile, dataFileMetadata)) {
             while (fileIterator.next()) {
                 assertEquals(
                         listOfDataItemLocations.get(i),
@@ -336,7 +334,8 @@ class DataFileLowLevelTest {
         final DataFileMetadata dataFileMetadata = dataFileMetadataMap.get(testType);
         final LongArrayList newDataLocations;
 
-        try (DataFileIterator fileIterator = new DataFileIterator(dbConfig, dataFile, dataFileMetadata)) {
+        try (DataFileIterator fileIterator =
+                new DataFileIterator(DEFAULT_MERKLE_DB_CONFIG, dataFile, dataFileMetadata)) {
             newDataLocations = new LongArrayList(ITEMS_SIZE);
             while (fileIterator.next()) {
                 final BufferedData itemData = fileIterator.getDataItemData();
@@ -347,7 +346,8 @@ class DataFileLowLevelTest {
         newDataFileWriter.close();
         final DataFileMetadata newDataFileMetadata = newDataFileWriter.getMetadata();
         // now read back and check
-        DataFileReader dataFileReader = new DataFileReader(dbConfig, newDataFileWriter.getPath(), newDataFileMetadata);
+        DataFileReader dataFileReader =
+                new DataFileReader(DEFAULT_MERKLE_DB_CONFIG, newDataFileWriter.getPath(), newDataFileMetadata);
         // check by locations returned by write
         for (int i = 0; i < ITEMS_SIZE; i++) {
             long[] dataItem = readDataItem(dataFileReader, newDataLocations.get(i));

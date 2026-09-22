@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows.handle.stack;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.RECURSIVE_SCHEDULING_LIMIT_REACHED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -20,11 +21,13 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.app.workflows.handle.record.TraceDataSizeLimiter;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -35,7 +38,9 @@ import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -101,7 +106,13 @@ class SavepointStackImplTest extends StateTestBase {
                 .transactionValidStart(VALID_START)
                 .build();
         final var subject = SavepointStackImpl.newRootStack(
-                baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, StreamMode.BOTH);
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                StreamMode.BOTH,
+                TraceDataSizeLimiter.NO_LIMIT);
         subject.getBaseBuilder(StreamBuilder.class).transactionID(vanillaBaseId);
 
         final var firstPresetId = subject.nextPresetTxnId(false);
@@ -110,9 +121,117 @@ class SavepointStackImplTest extends StateTestBase {
                 .isInstanceOf(HandleException.class)
                 .hasMessage(NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION.protoName());
         assertThat(firstPresetId)
-                .isEqualTo(vanillaBaseId.copyBuilder().nonce(53).build());
+                .isEqualTo(vanillaBaseId.copyBuilder().nonce(54).build());
         assertThat(secondPresetId)
-                .isEqualTo(vanillaBaseId.copyBuilder().nonce(2 * 53).build());
+                .isEqualTo(vanillaBaseId.copyBuilder().nonce(2 * 54).build());
+    }
+
+    @Test
+    @DisplayName("a preset id cannot collide with a sequentially assigned child nonce at the stride boundary")
+    void presetIdsDoNotCollideWithSequentialChildNonces() {
+        final int maxPreceding = 3;
+        final int maxFollowing = 50;
+        final var baseId = TransactionID.newBuilder()
+                .accountID(PAYER_ID)
+                .transactionValidStart(VALID_START)
+                .build();
+        final var stack = SavepointStackImpl.newRootStack(
+                baseState,
+                maxPreceding,
+                maxFollowing,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                StreamMode.RECORDS,
+                TraceDataSizeLimiter.NO_LIMIT);
+        initialized(stack.getBaseBuilder(StreamBuilder.class)).transactionID(baseId);
+
+        // Saturate the preceding budget, whose builders are numbered ahead of the following ones
+        for (int i = 0; i < maxPreceding; i++) {
+            initialized(stack.createIrreversiblePrecedingBuilder());
+        }
+        // The first child takes the preset id an HSS scheduleCall dispatch would get; it keeps that id, but
+        // still consumes a sequential offset, so a later child can be numbered onto the same nonce
+        final var presetId = stack.nextPresetTxnId(false);
+        addChildTo(stack).transactionID(presetId);
+        for (int i = 1; i < maxFollowing; i++) {
+            addChildTo(stack);
+        }
+        stack.commitFullStack();
+
+        final List<TransactionRecord> records = new ArrayList<>();
+        stack.buildHandleOutput(
+                        Instant.ofEpochSecond(VALID_START.seconds(), VALID_START.nanos()), ExchangeRateSet.DEFAULT)
+                .recordSourceOrThrow()
+                .forEachTxnRecord(records::add);
+
+        assertThat(records).hasSize(1 + maxPreceding + maxFollowing);
+        assertThat(records.stream().map(TransactionRecord::transactionIDOrThrow).toList())
+                .doesNotHaveDuplicates();
+    }
+
+    @Test
+    @DisplayName("a scheduled execution gets no preset id after scheduling a contract call")
+    void scheduledExecutionGetsNoPresetIdAfterSchedulingAContractCall() {
+        final int maxPreceding = 3;
+        final int maxFollowing = 50;
+        // A schedule created by an earlier transaction executes in its own unit, keeping the nonce it was
+        // handed as a preset id and carrying scheduled=true
+        final var scheduledBaseId = TransactionID.newBuilder()
+                .accountID(PAYER_ID)
+                .transactionValidStart(VALID_START)
+                .scheduled(true)
+                .nonce(maxPreceding + maxFollowing + 1)
+                .build();
+        final var stack = rootStackWith(scheduledBaseId, maxPreceding, maxFollowing);
+
+        // Scheduling a contract call is the last preset id a unit may take, c.f. RECURSIVE_FUNCTIONS in
+        // ChildDispatchFactory; without that no further preset range is reserved, and the nonces of a schedule
+        // this one creates cannot reach one
+        final var presetId = stack.nextPresetTxnId(true);
+
+        assertThat(presetId)
+                .isEqualTo(scheduledBaseId
+                        .copyBuilder()
+                        .nonce(scheduledBaseId.nonce() + maxPreceding + maxFollowing + 1)
+                        .build());
+        assertThatThrownBy(() -> stack.nextPresetTxnId(false))
+                .isInstanceOf(HandleException.class)
+                .hasMessage(NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION.protoName());
+    }
+
+    /**
+     * Returns a root stack whose base builder carries the given transaction ID.
+     */
+    private SavepointStackImpl rootStackWith(
+            final TransactionID baseId, final int maxPreceding, final int maxFollowing) {
+        final var stack = SavepointStackImpl.newRootStack(
+                baseState,
+                maxPreceding,
+                maxFollowing,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                StreamMode.RECORDS,
+                TraceDataSizeLimiter.NO_LIMIT);
+        initialized(stack.getBaseBuilder(StreamBuilder.class)).transactionID(baseId);
+        return stack;
+    }
+
+    /**
+     * Adds a committed {@code CHILD} builder to the given root stack's following builders.
+     */
+    private StreamBuilder addChildTo(final SavepointStackImpl root) {
+        final var childStack = SavepointStackImpl.newChildStack(
+                root, REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, StreamMode.RECORDS);
+        final var builder = initialized(childStack.getBaseBuilder(StreamBuilder.class));
+        childStack.commitFullStack();
+        return builder;
+    }
+
+    /**
+     * Sets the minimum fields a builder needs to be externalized as a record.
+     */
+    private StreamBuilder initialized(final StreamBuilder builder) {
+        return builder.signedTx(SignedTransaction.DEFAULT).status(SUCCESS).exchangeRate(ExchangeRateSet.DEFAULT);
     }
 
     @Test
@@ -122,13 +241,19 @@ class SavepointStackImplTest extends StateTestBase {
                 .transactionValidStart(VALID_START)
                 .build();
         final var parent = SavepointStackImpl.newRootStack(
-                baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, StreamMode.BOTH);
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                StreamMode.BOTH,
+                TraceDataSizeLimiter.NO_LIMIT);
         parent.getBaseBuilder(StreamBuilder.class).transactionID(vanillaBaseId);
         final var subject = SavepointStackImpl.newChildStack(
                 parent, REVERSIBLE, SCHEDULED, NOOP_SIGNED_TX_CUSTOMIZER, StreamMode.BOTH);
 
         final var presetId = subject.nextPresetTxnId(false);
-        assertThat(presetId).isEqualTo(vanillaBaseId.copyBuilder().nonce(53).build());
+        assertThat(presetId).isEqualTo(vanillaBaseId.copyBuilder().nonce(54).build());
     }
 
     @Test
@@ -140,7 +265,13 @@ class SavepointStackImplTest extends StateTestBase {
                 .nonce(-53)
                 .build();
         final var subject = SavepointStackImpl.newRootStack(
-                baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, StreamMode.BOTH);
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                StreamMode.BOTH,
+                TraceDataSizeLimiter.NO_LIMIT);
         subject.getBaseBuilder(StreamBuilder.class).transactionID(vanillaBaseId);
         assertThatThrownBy(() -> subject.nextPresetTxnId(false))
                 .isInstanceOf(HandleException.class)
@@ -150,7 +281,13 @@ class SavepointStackImplTest extends StateTestBase {
     @Test
     void topLevelPermitsStakingRewards() {
         final var subject = SavepointStackImpl.newRootStack(
-                baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, StreamMode.BOTH);
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                StreamMode.BOTH,
+                TraceDataSizeLimiter.NO_LIMIT);
         assertThat(subject.permitsStakingRewards()).isTrue();
     }
 
@@ -190,7 +327,13 @@ class SavepointStackImplTest extends StateTestBase {
     @Test
     void rootHasPrecedingCapacityUntilLimitReached() {
         final var subject = SavepointStackImpl.newRootStack(
-                baseState, 2, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                baseState,
+                2,
+                50,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                streamMode,
+                TraceDataSizeLimiter.NO_LIMIT);
         assertThat(subject.rootHasPrecedingCapacity()).isTrue();
 
         subject.createIrreversiblePrecedingBuilder();
@@ -203,7 +346,13 @@ class SavepointStackImplTest extends StateTestBase {
     @Test
     void rootHasPrecedingCapacityThrowsForChildStack() {
         final var root = SavepointStackImpl.newRootStack(
-                baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                streamMode,
+                TraceDataSizeLimiter.NO_LIMIT);
         final var child = SavepointStackImpl.newChildStack(
                 root, REVERSIBLE, HandleContext.TransactionCategory.CHILD, NOOP_SIGNED_TX_CUSTOMIZER, streamMode);
 
@@ -214,7 +363,13 @@ class SavepointStackImplTest extends StateTestBase {
     void testConstructor() {
         // when
         final var stack = SavepointStackImpl.newRootStack(
-                baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                streamMode,
+                TraceDataSizeLimiter.NO_LIMIT);
 
         // then
         assertThat(stack.depth()).isEqualTo(1);
@@ -229,7 +384,13 @@ class SavepointStackImplTest extends StateTestBase {
     @Test
     void testConstructorWithInvalidParameters() {
         assertThatThrownBy(() -> SavepointStackImpl.newRootStack(
-                        null, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode))
+                        null,
+                        3,
+                        50,
+                        roundStateChangeListener,
+                        immediateStateChangeListener,
+                        streamMode,
+                        TraceDataSizeLimiter.NO_LIMIT))
                 .isInstanceOf(NullPointerException.class);
     }
 
@@ -237,7 +398,13 @@ class SavepointStackImplTest extends StateTestBase {
     void testModification() {
         // given
         final var stack = SavepointStackImpl.newRootStack(
-                baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                streamMode,
+                TraceDataSizeLimiter.NO_LIMIT);
         final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
         final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
 
@@ -268,7 +435,13 @@ class SavepointStackImplTest extends StateTestBase {
                 .transactionValidStart(VALID_START)
                 .build();
         final var stack = SavepointStackImpl.newRootStack(
-                baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, StreamMode.RECORDS);
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                StreamMode.RECORDS,
+                TraceDataSizeLimiter.NO_LIMIT);
         stack.getBaseBuilder(StreamBuilder.class)
                 .transactionID(txnId)
                 .signedTx(SignedTransaction.DEFAULT)
@@ -288,6 +461,41 @@ class SavepointStackImplTest extends StateTestBase {
                 .isNull());
     }
 
+    @Test
+    void suppressesOnlyBlockOutputInBothMode() {
+        final var txnId = TransactionID.newBuilder()
+                .accountID(PAYER_ID)
+                .transactionValidStart(VALID_START)
+                .build();
+        final var stack = SavepointStackImpl.newRootStack(
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                StreamMode.BOTH,
+                TraceDataSizeLimiter.NO_LIMIT,
+                () -> true);
+        stack.getBaseBuilder(StreamBuilder.class)
+                .transactionID(txnId)
+                .signedTx(SignedTransaction.DEFAULT)
+                .status(SUCCESS)
+                .exchangeRate(ExchangeRateSet.DEFAULT);
+        stack.commitFullStack();
+
+        final var handleOutput = stack.buildHandleOutput(
+                Instant.ofEpochSecond(VALID_START.seconds(), VALID_START.nanos()),
+                ExchangeRateSet.DEFAULT,
+                BLOCK_NUMBER);
+
+        assertThat(handleOutput.blockRecordSourceOrThrow().blockItems()).isEmpty();
+        assertThat(handleOutput.recordSourceOrThrow().identifiedReceipts())
+                .singleElement()
+                .extracting(receipt -> receipt.txnId())
+                .isEqualTo(txnId);
+        assertThat(handleOutput.preferredRecordSource()).isSameAs(handleOutput.recordSourceOrThrow());
+    }
+
     @Nested
     @DisplayName("Tests for adding new savepoints to the stack")
     class SavepointTests {
@@ -295,7 +503,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testInitialCreatedSavepoint() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode,
+                    TraceDataSizeLimiter.NO_LIMIT);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
 
@@ -319,7 +533,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testModifiedSavepoint() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode,
+                    TraceDataSizeLimiter.NO_LIMIT);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
 
@@ -352,7 +572,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testMultipleSavepoints() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode,
+                    TraceDataSizeLimiter.NO_LIMIT);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
 
@@ -392,7 +618,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testCommittedSavepoint() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode,
+                    TraceDataSizeLimiter.NO_LIMIT);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
@@ -422,7 +654,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testModificationsAfterCommit() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode,
+                    TraceDataSizeLimiter.NO_LIMIT);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
@@ -456,7 +694,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testNewSavepointAfterCommit() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode,
+                    TraceDataSizeLimiter.NO_LIMIT);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
@@ -491,7 +735,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testMultipleCommits() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode,
+                    TraceDataSizeLimiter.NO_LIMIT);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
@@ -532,7 +782,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testCommitInitialStackFails() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode,
+                    TraceDataSizeLimiter.NO_LIMIT);
 
             // then
             assertThatThrownBy(stack::commit).isInstanceOf(IllegalStateException.class);
@@ -542,7 +798,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testTooManyCommitsFail() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode,
+                    TraceDataSizeLimiter.NO_LIMIT);
             stack.createSavepoint();
             stack.createSavepoint();
 
@@ -560,7 +822,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testRolledBackSavepoint() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode,
+                    TraceDataSizeLimiter.NO_LIMIT);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
@@ -587,7 +855,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testModificationsAfterRollback() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode,
+                    TraceDataSizeLimiter.NO_LIMIT);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
@@ -619,7 +893,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testNewSavepointAfterRollback() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode,
+                    TraceDataSizeLimiter.NO_LIMIT);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
@@ -652,7 +932,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testMultipleRollbacks() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode,
+                    TraceDataSizeLimiter.NO_LIMIT);
             final var readableStatesStack = stack.getReadableStates(FOOD_SERVICE);
             final var writableStatesStack = stack.getWritableStates(FOOD_SERVICE);
             stack.createSavepoint();
@@ -689,7 +975,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testRollbackInitialStackFails() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode,
+                    TraceDataSizeLimiter.NO_LIMIT);
 
             // then
             assertThatThrownBy(stack::rollback).isInstanceOf(IllegalStateException.class);
@@ -699,7 +991,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testTooManyRollbacksFail() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode,
+                    TraceDataSizeLimiter.NO_LIMIT);
             stack.createSavepoint();
             stack.createSavepoint();
 
@@ -717,7 +1015,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testCommitFullStack() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode,
+                    TraceDataSizeLimiter.NO_LIMIT);
             final var writableState = stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID);
             writableState.put(A_KEY, ACAI);
             stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID).put(B_KEY, BLUEBERRY);
@@ -739,7 +1043,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testCommitFullStackAfterSingleCommit() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode,
+                    TraceDataSizeLimiter.NO_LIMIT);
             stack.createSavepoint();
             final var writableState = stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID);
             writableState.put(A_KEY, ACAI);
@@ -763,7 +1073,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testCommitFullStackAfterRollback() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode,
+                    TraceDataSizeLimiter.NO_LIMIT);
             stack.createSavepoint();
             final var writableState = stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID);
             writableState.put(A_KEY, ACAI);
@@ -784,7 +1100,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testStackAfterCommitFullStack() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode,
+                    TraceDataSizeLimiter.NO_LIMIT);
 
             // when
             stack.commitFullStack();
@@ -801,7 +1123,13 @@ class SavepointStackImplTest extends StateTestBase {
         void testReuseAfterCommitFullStack() {
             // given
             final var stack = SavepointStackImpl.newRootStack(
-                    baseState, 3, 50, roundStateChangeListener, immediateStateChangeListener, streamMode);
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    streamMode,
+                    TraceDataSizeLimiter.NO_LIMIT);
             final var writableState = stack.getWritableStates(FOOD_SERVICE).get(FRUIT_STATE_ID);
             writableState.put(A_KEY, ACAI);
             final var newData = new HashMap<>(BASE_DATA);

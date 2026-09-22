@@ -3,6 +3,7 @@ package com.hedera.services.bdd.spec.utilops;
 
 import com.hedera.hapi.block.stream.RecordFileItem;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
@@ -225,6 +226,16 @@ public class BlockNodeVerbs {
          */
         public BlockNodeOp exposingRecordFileItems(Consumer<Map<Long, RecordFileItem>> consumer) {
             return BlockNodeOp.exposingRecordFileItems(nodeIndex, consumer).build();
+        }
+
+        /**
+         * Exposes the set of block numbers fully received (header + EndOfBlock) by the block node simulator.
+         *
+         * @param consumer the consumer to receive the set of received block numbers
+         * @return the operation
+         */
+        public BlockNodeOp getReceivedBlockNumbersExposing(Consumer<Set<Long>> consumer) {
+            return BlockNodeOp.getReceivedBlockNumbers(nodeIndex, consumer).build();
         }
     }
 

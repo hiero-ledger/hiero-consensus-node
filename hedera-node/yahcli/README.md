@@ -156,14 +156,14 @@ when running against this network.
 To download the fee schedules from previewnet given the config above, we run,
 
 ```
-$ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -p 2 -n previewnet sysfiles download fees
+$ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -p 2 -n previewnet sysfiles download simpleFees
 Targeting previewnet, paying with 0.0.2
-Downloading the fees...OK
+Downloading the simpleFees...OK
 $ ls previewnet/sysfiles/
-feeSchedules.json
+simpleFeesSchedules.json
 ```
 
-The fee schedules were downloaded in JSON form to _previewnet/sysfiles/feeSchedules.json_.
+The fee schedules were downloaded in JSON form to _previewnet/sysfiles/simpleFeesSchedules.json_.
 To see more options for the `download` subcommand (including a custom download directory),
 we run,
 
@@ -405,7 +405,7 @@ $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -n local
 # Preparing an NMT software upgrade
 
 To prepare for an automatic software upgrade, there must exist a system file in the range `0.0.150-159`
-(by default, `0.0.150`) that is a ZIP archive with artifacts listed in the [NMT requirements document](https://github.com/swirlds/swirlds-docker/blob/main/docs/docker-infrastructure-design.md#toc-phase-1-feat-hedera-node-protobuf-defs-current). The expected
+(by default, `0.0.150`) that is a ZIP archive with artifacts listed in the [NMT requirements document](https://github.com/hashgraph/node-management-tools/blob/main/docs/docker-infrastructure-design.md#toc-phase-1-feat-hedera-node-protobuf-defs-current). The expected
 SHA-384 hash of this ZIP must be given so the nodes can validate the integrity of the upgrade file before
 staging its artifacts for NMT to use. This looks like,
 
@@ -420,7 +420,7 @@ $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -n local
 # Launching an NMT telemetry upgrade
 
 To perform an automatic telemetry upgrade, there must exist a system file in the range `0.0.150-159`
-(by default, `0.0.159`) that is a ZIP archive with artifacts listed in the [NMT requirements document](https://github.com/swirlds/swirlds-docker/blob/main/docs/docker-infrastructure-design.md#toc-phase-1-feat-hedera-node-protobuf-defs-current). The expected
+(by default, `0.0.159`) that is a ZIP archive with artifacts listed in the [NMT requirements document](https://github.com/hashgraph/node-management-tools/blob/main/docs/docker-infrastructure-design.md#toc-phase-1-feat-hedera-node-protobuf-defs-current). The expected
 SHA-384 hash of this ZIP must be known so the nodes can validate the integrity of the upgrade file before
 staging its artifacts for NMT to use.  This looks like,
 
@@ -969,3 +969,68 @@ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG} -p 2 -n lo
 **Important:** Note the one important _difference_ between the original `ValidationScenarios` _config.yml_ and the
 `ivy scenarios` _scenarios/config.yml_ is that the target network is **not** specified in the latter. The yahcli
 configuration now specifies the target network(s), and the yahcli command line controls the choice of target.
+
+## Cross-Ledger Protocol (CLPR)
+
+The `clpr` subcommand family drives the full CLPR lifecycle from an operator machine.
+All subcommands inherit the standard yahcli targeting flags (`-n` network, `-i` node-account,
+`-a` operator-account), so the same binary can be pointed at two different ledgers when
+exercising a cross-ledger flow.
+
+### Channel lifecycle (two-phase commit/reveal)
+
+| Phase  |         Command         |                         Description                         |
+|--------|-------------------------|-------------------------------------------------------------|
+| Commit | `clpr register-channel` | Submits `ClprRegisterChannel` with an ownership commitment. |
+| Reveal | `clpr complete-channel` | Submits `ClprCompleteChannel` opening the commitment.       |
+| Close  | `clpr close-channel`    | Terminates the channel.                                     |
+
+`generate-channel-identity` produces a JSON identity bundle (random id, keypair,
+ownership commitment, reveal signature). Pass it back to `complete-channel` with
+`--identity <path>` and skip the per-flag arguments. The commit/reveal design is in
+[`docs/superpowers/specs/2026-04-29-connector-registration-redesign.md`](../../docs/superpowers/specs/2026-04-29-connector-registration-redesign.md).
+
+### Connector lifecycle
+
+|   Phase    |           Command           |                Description                 |
+|------------|-----------------------------|--------------------------------------------|
+| Commit     | `clpr register-connector`   | Submits `ClprRegisterConnector` (Phase 1). |
+| Reveal     | `clpr complete-connector`   | Submits `ClprCompleteConnector` (Phase 2). |
+| Deregister | `clpr deregister-connector` | Removes the connector and unlocks stake.   |
+
+`generate-connector-identity` produces the matching JSON bundle for `complete-connector`.
+
+### Bundles and messages
+
+|        Command        |                                                        Description                                                         |
+|-----------------------|----------------------------------------------------------------------------------------------------------------------------|
+| `clpr submit-bundle`  | Submits a `ClprSubmitBundle` with a hex/file bundle payload.                                                               |
+| `clpr redact-message` | Submits a `ClprRedactMessage` for a given `(channel-id, message-id)`.                                                      |
+| `clpr send-message`   | Invokes `sendMessage()` on a deployed connector wrapper contract, which forwards to the CLPR system precompile at `0x16e`. |
+
+### Ledger configuration
+
+|              Command               |                                                                                                      Description                                                                                                      |
+|------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `clpr get-ledger-configuration`    | Runs `ClprGetLedgerConfiguration` and prints the configuration as proto3 JSON (the base64 state-proof is always included as `configurationStateProof`); pass `--proof-path <file>` to also write the raw proof bytes. |
+| `clpr update-ledger-configuration` | Reads a JSON `ClprLedgerConfiguration` (`bytes` fields base64-encoded per proto3 JSON) and submits `ClprUpdateLedgerConfiguration`.                                                                                   |
+
+### Verifier deploy
+
+`contracts deploy-clpr-verifier` deploys the bundled `ClprLedgerVerifier.sol`, a thin
+Solidity wrapper around the CLPR system precompile (`0x16e`) that pins a specific peer
+ledgerId. The returned contract id is what you supply as `verifier_contract` when you
+register a channel.
+
+### End-to-end demo
+
+Two helper scripts under `hedera-node/yahcli/` drive the full happy path against a pair of
+local networks:
+
+```bash
+# Spin both networks up with the configured ledger ids, then drive
+# register → complete → message-send → bundle-sync.
+LEDGER_ID_A=<32-byte-hex> LEDGER_ID_B=<32-byte-hex> ./run-clpr-end-to-end.sh
+```
+
+`run-clpr-demo.sh` is the short variant that exercises a single happy-path bundle.

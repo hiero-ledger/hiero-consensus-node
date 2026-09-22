@@ -22,12 +22,24 @@ import com.swirlds.config.api.ConfigProperty;
  * @param maxFileReadMillis
  * 		the maximum number of milliseconds allowed to open a file and read the first byte. If this value is exceeded at
  * 		startup, a warning is logged.
+ * @param performOSHealthChecks        should basic OS health checks be performed on platform startup (this makes
+ *                                     startup longer by around 1 second)
  */
 @ConfigData("os.health")
 public record OSHealthCheckConfig(
-        @ConfigProperty(value = "minClockCallsPerSec", defaultValue = "5000000") long minClockCallsPerSec,
-        @ConfigProperty(value = "entropyTimeoutMillis", defaultValue = "10") long entropyTimeoutMillis,
+        @ConfigProperty(value = "minClockCallsPerSec", defaultValue = "5000000")
+        long minClockCallsPerSec,
+
+        @ConfigProperty(value = "entropyTimeoutMillis", defaultValue = "10")
+        long entropyTimeoutMillis,
+
         @ConfigProperty(value = "maxRandomNumberGenerationMillis", defaultValue = "10")
-                long maxRandomNumberGenerationMillis,
-        @ConfigProperty(value = "fileReadTimeoutMillis", defaultValue = "50") long fileReadTimeoutMillis,
-        @ConfigProperty(value = "maxFileReadMillis", defaultValue = "10") long maxFileReadMillis) {}
+        long maxRandomNumberGenerationMillis,
+
+        @ConfigProperty(value = "fileReadTimeoutMillis", defaultValue = "50")
+        long fileReadTimeoutMillis,
+
+        @ConfigProperty(value = "maxFileReadMillis", defaultValue = "10")
+        long maxFileReadMillis,
+
+        @ConfigProperty(defaultValue = "true") boolean performOSHealthChecks) {}

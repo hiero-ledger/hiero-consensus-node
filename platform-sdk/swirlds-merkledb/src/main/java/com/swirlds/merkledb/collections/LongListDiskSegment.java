@@ -4,7 +4,7 @@ package com.swirlds.merkledb.collections;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static java.lang.Math.toIntExact;
 
-import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -107,11 +107,11 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
     /// chunk and reserved buffer size are read from the provided configuration.
     ///
     /// @param capacity Maximum number of longs permissible for this long list
-    /// @param configuration Platform configuration
+    /// @param configuration Merkle DB configuration
     ///
     public LongListDiskSegment(
             final long capacity,
-            @NonNull final Configuration configuration,
+            @NonNull final MerkleDbConfig configuration,
             @NonNull final FileSystemManager fileSystemManager) {
         super(capacity, configuration);
         initNewFileChannel(DEFAULT_FILE_NAME, fileSystemManager);
@@ -144,14 +144,14 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
     ///
     /// @param snapshotFile The file to load the long list from
     /// @param capacity Maximum number of longs permissible for this long list
-    /// @param configuration Platform configuration
+    /// @param configuration Merkle DB configuration
     /// @param fileSystemManager File system manager to use for resolving temp files
     /// @throws IOException If the file doesn't exist or there was a problem reading the file
     ///
     public LongListDiskSegment(
             @NonNull final Path snapshotFile,
             final long capacity,
-            @NonNull final Configuration configuration,
+            @NonNull final MerkleDbConfig configuration,
             @NonNull final FileSystemManager fileSystemManager)
             throws IOException {
         super(capacity, configuration);
@@ -195,7 +195,7 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
     /// {@link #takeover()} is called.
     ///
     public LongListDiskSegment(
-            @NonNull final Path backingFile, final long capacity, @NonNull final Configuration configuration) {
+            @NonNull final Path backingFile, final long capacity, @NonNull final MerkleDbConfig configuration) {
         super(capacity, configuration);
         initExistingFileChannel(backingFile);
     }
@@ -233,7 +233,7 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
                 throw new IOException("Failed to lock the backing index file: " + backingFile.getFileName());
             }
             header = map(0, HEADER_SIZE);
-            logger.info(MERKLE_DB.getMarker(), "LongListDiskSegment created, new file: " + backingFile.getFileName());
+            logger.info(MERKLE_DB.getMarker(), "LongListDiskSegment created, new file: {}", backingFile.getFileName());
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -249,7 +249,7 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
             fileChannel = FileChannel.open(backingFile, StandardOpenOption.READ, StandardOpenOption.WRITE);
             // File lock and header will be initialized in takeover()
             logger.info(
-                    MERKLE_DB.getMarker(), "LongListDiskSegment created, existing file: " + backingFile.getFileName());
+                    MERKLE_DB.getMarker(), "LongListDiskSegment created, existing file: {}", backingFile.getFileName());
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -275,7 +275,8 @@ public final class LongListDiskSegment extends AbstractLongList<LongListDiskSegm
                 // created from a new/snapshot file
                 logger.warn(
                         MERKLE_DB.getMarker(),
-                        "LongListDiskSegment takeover: the file is already owned: " + backingFile.getFileName());
+                        "LongListDiskSegment takeover: the file is already owned: {}",
+                        backingFile.getFileName());
                 return;
             }
             // Acquire the lock

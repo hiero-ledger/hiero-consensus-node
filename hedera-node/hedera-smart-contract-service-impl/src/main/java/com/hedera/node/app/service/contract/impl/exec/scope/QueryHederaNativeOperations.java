@@ -2,9 +2,14 @@
 package com.hedera.node.app.service.contract.impl.exec.scope;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.node.app.service.clpr.ReadableChannelStore;
+import com.hedera.node.app.service.clpr.ReadableEndpointManifestStore;
 import com.hedera.node.app.service.contract.impl.annotations.QueryScope;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -13,6 +18,8 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -26,6 +33,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  */
 @QueryScope
 public class QueryHederaNativeOperations implements HederaNativeOperations {
+
     private final QueryContext context;
 
     private final EntityIdFactory entityIdFactory;
@@ -86,6 +94,22 @@ public class QueryHederaNativeOperations implements HederaNativeOperations {
      * {@inheritDoc}
      */
     @Override
+    public @NonNull ReadableChannelStore readableChannelStore() {
+        return context.createStore(ReadableChannelStore.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull ReadableEndpointManifestStore readableEndpointManifestStore() {
+        return context.createStore(ReadableEndpointManifestStore.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     public @NonNull WritableEvmHookStore writableEvmHookStore() {
         return context.createStore(WritableEvmHookStore.class);
     }
@@ -110,6 +134,12 @@ public class QueryHederaNativeOperations implements HederaNativeOperations {
     @Override
     public ResponseCodeEnum createHollowAccount(@NonNull final Bytes evmAddress) {
         throw new UnsupportedOperationException("Cannot create hollow account in query context");
+    }
+
+    @Override
+    public ResponseCodeEnum createAccountWithKeyAndCodeDelegation(
+            @NonNull final Bytes evmAddress, @NonNull final Key key, @NonNull final Bytes delegationAddress) {
+        throw new UnsupportedOperationException("Cannot create an account in query context");
     }
 
     /**
@@ -188,9 +218,36 @@ public class QueryHederaNativeOperations implements HederaNativeOperations {
         return context.configuration();
     }
 
+    @Override
+    public @NonNull StoreFactory storeFactory() {
+        throw new UnsupportedOperationException("Cannot access writable stores in query context");
+    }
+
+    @Override
+    public Bytes dispatchReadonlyContractCall(
+            @NonNull final ContractID contractId, @NonNull final byte[] callData, final long gasLimit) {
+        throw new UnsupportedOperationException("Cannot dispatch contract calls in query context");
+    }
+
+    @Override
+    public Bytes dispatchReadonlyContractCall(
+            @NonNull final AccountID payerId,
+            @NonNull final ContractID contractId,
+            @NonNull final byte[] callData,
+            final long gasLimit,
+            @NonNull final DispatchMetadata dispatchMetadata) {
+        throw new UnsupportedOperationException("Cannot dispatch contract calls in query context");
+    }
+
     @NonNull
     @Override
     public Bytes ledgerId() {
         return context.ledgerId();
+    }
+
+    @Override
+    public <T> T createNewChildRecordBuilder(
+            @NonNull Class<T> recordBuilderClass, @NonNull HederaFunctionality functionality) {
+        throw new UnsupportedOperationException("Cannot create child record builder in query context");
     }
 }

@@ -8,44 +8,62 @@ configuration is required to access them.
 
 These metrics relate to the block buffer and are identified by the prefix "buffer".
 
-|               Metric Name               |      Type       |                                     Description                                     |
-|-----------------------------------------|-----------------|-------------------------------------------------------------------------------------|
-| `blockStream_buffer_saturation`         | Gauge (double)  | Latest saturation of the block buffer as a percent (0.0 to 100.0)                   |
-| `blockStream_buffer_latestBlockOpened`  | Gauge (long)    | The block number that was most recently opened                                      |
-| `blockStream_buffer_latestBlockAcked`   | Gauge (long)    | The block number that was most recently acknowledged                                |
-| `blockStream_buffer_numBlocksPruned`    | Counter         | Number of blocks pruned in the latest buffer pruning cycle                          |
-| `blockStream_buffer_numBlocksOpened`    | Counter         | Number of blocks opened/created in the block buffer                                 |
-| `blockStream_buffer_numBlocksClosed`    | Counter         | Number of blocks closed in the block buffer                                         |
-| `blockStream_buffer_numBlocksMissing`   | Counter         | Number of attempts to retrieve a block from the block buffer but it was missing     |
-| `blockStream_buffer_backPressureState`  | Gauge (long)    | Current state of back pressure (0=disabled, 1=action-stage, 2=recovering, 3=active) |
-| `blockStream_buffer_oldestBlock`        | Gauge (long)    | After pruning, the oldest block in the buffer                                       |
-| `blockStream_buffer_newestBlock`        | Gauge (long)    | After pruning, the newest block in the buffer                                       |
-| `blockStream_buffer_blockItemsPerBlock` | Running average | Average number of BlockItems per block                                              |
-| `blockStream_buffer_blockItemBytes`     | Running average | Average size in bytes of a BlockItem                                                |
-| `blockStream_buffer_blockBytes`         | Running average | Average size in bytes of a Block                                                    |
+|               Metric Name                |      Type       |                                     Description                                      |
+|------------------------------------------|-----------------|--------------------------------------------------------------------------------------|
+| `blockStream_buffer_saturation`          | Gauge (double)  | Latest saturation of the block buffer as a percent (0.0 to 100.0)                    |
+| `blockStream_buffer_latestBlockOpened`   | Gauge (long)    | The block number that was most recently opened                                       |
+| `blockStream_buffer_latestBlockAcked`    | Gauge (long)    | The block number that was most recently acknowledged                                 |
+| `blockStream_buffer_numBlocksPruned`     | Counter         | Number of blocks pruned in the latest buffer pruning cycle                           |
+| `blockStream_buffer_numBlocksOpened`     | Counter         | Number of blocks opened/created in the block buffer                                  |
+| `blockStream_buffer_numBlocksClosed`     | Counter         | Number of blocks closed in the block buffer                                          |
+| `blockStream_buffer_numBlocksMissing`    | Counter         | Number of attempts to retrieve a block from the block buffer but it was missing      |
+| `blockStream_buffer_backPressureState`   | Gauge (long)    | Current state of back pressure (0=disabled, 1=action-stage, 2=recovering, 3=active)  |
+| `blockStream_buffer_oldestBlock`         | Gauge (long)    | After pruning, the oldest block in the buffer                                        |
+| `blockStream_buffer_newestBlock`         | Gauge (long)    | After pruning, the newest block in the buffer                                        |
+| `blockStream_buffer_blockItemsPerBlock`  | Running average | Average number of BlockItems per block                                               |
+| `blockStream_buffer_blockItemBytes`      | Running average | Average size in bytes of a BlockItem                                                 |
+| `blockStream_buffer_blockBytes`          | Running average | Average size in bytes of a Block                                                     |
+| `blockStream_buffer_totalBytes`          | Gauge (long)    | The total size of the serialized data held by the block buffer in memory.            |
+| `blockStream_buffer_numBlocks`           | Gauge (long)    | The number of blocks held by the block buffer in memory.                             |
+| `blockStream_buffer_numBlocksPendingAck` | Gauge (long)    | The number of buffered blocks that are awaiting an acknowledgement from a block node |
 
 ## Connectivity Metrics
 
 These metrics relate to general connectivity events between the consensus node and the block node. They are prefixed
 with "conn" for identification.
 
-|                    Metric Name                     |      Type       |                                              Description                                               |
-|----------------------------------------------------|-----------------|--------------------------------------------------------------------------------------------------------|
-| `blockStream_conn_onComplete`                      | Counter         | Number of onComplete handler invocations on block node connections                                     |
-| `blockStream_conn_onError`                         | Counter         | Number of onError handler invocations on block node connections                                        |
-| `blockStream_conn_opened`                          | Counter         | Number of block node connections opened                                                                |
-| `blockStream_conn_closed`                          | Counter         | Number of block node connections closed                                                                |
-| `blockStream_conn_createFailure`                   | Counter         | Number of times establishing a block node connection failed                                            |
-| `blockStream_conn_activeConnIp`                    | Gauge (long)    | The IP address of the active block node connection (Note: The IP address is converted to an integer)   |
-| `blockStream_conn_endOfStreamLimitExceeded`        | Counter         | Number of times an active connection has exceeded the allowed number of EndOfStream responses          |
-| `blockStream_conn_highLatencyEvents`               | Counter         | Count of high latency events from the active block node connection                                     |
-| `blockStream_conn_headerSentToAckLatency`          | Running average | Average latency (µs) between streaming a BlockHeader and receiving its BlockAcknowledgement            |
-| `blockStream_conn_headerProducedToAckLatency`      | Running average | Average latency (µs) between producing a BlockHeader and receiving its BlockAcknowledgement            |
-| `blockStream_conn_blockEndSentToAckLatency`        | Running average | Average latency (µs) between streaming a BlockEnd and receiving its BlockAcknowledgement               |
-| `blockStream_conn_blockClosedToAckLatency`         | Running average | Average latency (µs) between the block closing (Proof produced) and receiving its BlockAcknowledgement |
-| `blockStream_conn_headerSentToBlockEndSentLatency` | Running average | Average latency (µs) between streaming a BlockHeader and streaming the corresponding BlockEnd          |
-| `blockStream_conn_pipelineOperationTimeoutCounter` | Counter         | Number of times a pipeline operation has occured                                                       |
-| `blockStream_conn_activeConnectionCount`           | Gauge (long)    | Current number of streaming connections that are active                                                |
+|                       Metric Name                       |      Type       |                                                 Description                                                 |
+|---------------------------------------------------------|-----------------|-------------------------------------------------------------------------------------------------------------|
+| `blockStream_conn_onComplete`                           | Counter         | Number of onComplete handler invocations on block node connections                                          |
+| `blockStream_conn_onError`                              | Counter         | Number of onError handler invocations on block node connections                                             |
+| `blockStream_conn_opened`                               | Counter         | Number of block node connections opened                                                                     |
+| `blockStream_conn_closed`                               | Counter         | Number of block node connections closed                                                                     |
+| `blockStream_conn_createFailure`                        | Counter         | Number of times establishing a block node connection failed                                                 |
+| `blockStream_conn_activeConnIp`                         | Gauge (long)    | The IP address of the active block node connection (Note: The IP address is converted to an integer)        |
+| `blockStream_conn_endOfStreamLimitExceeded`             | Counter         | Number of times an active connection has exceeded the allowed number of EndOfStream responses               |
+| `blockStream_conn_highLatencyEvents`                    | Counter         | Count of high latency events from the active block node connection                                          |
+| `blockStream_conn_headerSentToAckLatency`               | Running average | Average latency (µs) between streaming a BlockHeader and receiving its BlockAcknowledgement                 |
+| `blockStream_conn_headerProducedToAckLatency`           | Running average | Average latency (µs) between producing a BlockHeader and receiving its BlockAcknowledgement                 |
+| `blockStream_conn_blockEndSentToAckLatency`             | Running average | Average latency (µs) between streaming a BlockEnd and receiving its BlockAcknowledgement                    |
+| `blockStream_conn_blockClosedToAckLatency`              | Running average | Average latency (µs) between the block closing (Proof produced) and receiving its BlockAcknowledgement      |
+| `blockStream_conn_headerSentToBlockEndSentLatency`      | Running average | Average latency (µs) between streaming a BlockHeader and streaming the corresponding BlockEnd               |
+| `blockStream_conn_pipelineOperationTimeoutCounter`      | Counter         | Number of times a pipeline operation has occured                                                            |
+| `blockStream_conn_activeConnectionCount`                | Gauge (long)    | Current number of streaming connections that are active                                                     |
+| `blockStream_conn_connClose_blockNodeBehind`            | Counter         | Number of connections closed because the block node was behind when streaming was attempted                 |
+| `blockStream_conn_connClose_blockNodeHighLatency`       | Counter         | Number of connections closed because there was elevated latency while streaming                             |
+| `blockStream_conn_connClose_bufferSaturation`           | Counter         | Number of connections closed because block buffer saturation is growing and a forceful switch was triggered |
+| `blockStream_conn_connClose_configUpdate`               | Counter         | Number of connections closed because a configuration update was detected                                    |
+| `blockStream_conn_connClose_connectionError`            | Counter         | Number of connections closed because of network/connection errors                                           |
+| `blockStream_conn_connClose_tooManyEndStreamResponses`  | Counter         | Number of connections closed because too many EndOfStream responses were received from the block node       |
+| `blockStream_conn_connClose_endStreamReceived`          | Counter         | Number of connections closed because a non-transient EndOfStream response was received from the block node  |
+| `blockStream_conn_connClose_transientEndStreamReceived` | Counter         | Number of connections closed because of transient EndOfStream responses were received from the block node   |
+| `blockStream_conn_connClose_higherPriorityFound`        | Counter         | Number of connections closed because a higher priority block node was available                             |
+| `blockStream_conn_connClose_internalError`              | Counter         | Number of connections closed because an internal error was encountered                                      |
+| `blockStream_conn_connClose_periodicReset`              | Counter         | Number of connections closed because the connection exceeded the maximum lifetime allowed                   |
+| `blockStream_conn_connClose_newConnection`              | Counter         | Number of connections closed because another connection was created and preempted the existing one          |
+| `blockStream_conn_connClose_shutdown`                   | Counter         | Number of connections closed because the connection manager is shutting down                                |
+| `blockStream_conn_connClose_unknown`                    | Counter         | Number of connections closed for unknown reasons                                                            |
+| `blockStream_conn_connClose_timeout`                    | Counter         | Number of connections closed because of too many timeouts while sending requests to the block node          |
 
 ## Connection Receive Metrics
 

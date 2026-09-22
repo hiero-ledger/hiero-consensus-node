@@ -3,6 +3,8 @@ package com.swirlds.state.test.fixtures.merkle;
 
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapUtils.CONFIGURATION;
 
+import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -13,7 +15,7 @@ import java.nio.file.Path;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.file.FileUtils;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 
 /**
  * Utility methods for creating {@link VirtualMapStateImpl} instances for use in tests.
@@ -81,7 +83,11 @@ public final class VirtualMapStateTestUtils {
      * @return the created virtual map state.
      */
     public static VirtualMapStateImpl createTestState(@NonNull final FileSystemManager fileSystemManager) {
-        return new VirtualMapStateImpl(CONFIGURATION, fileSystemManager, new NoOpMetrics());
+        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
+        final MerkleDbDataSourceBuilder dsBuilder =
+                new MerkleDbDataSourceBuilder(CONFIGURATION, fileSystemManager, merkleDbConfig.initialCapacity());
+        final VirtualMap virtualMap = new VirtualMap(dsBuilder, CONFIGURATION);
+        return new VirtualMapStateImpl(virtualMap, new NoOpMetrics());
     }
 
     private VirtualMapStateTestUtils() {}

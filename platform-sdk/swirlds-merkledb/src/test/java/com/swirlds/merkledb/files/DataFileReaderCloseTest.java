@@ -2,13 +2,12 @@
 package com.swirlds.merkledb.files;
 
 import static com.swirlds.merkledb.files.DataFileCompactor.INITIAL_COMPACTION_LEVEL;
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListOffHeap;
 import com.swirlds.merkledb.collections.LongListSegment;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.file.Path;
@@ -29,8 +28,7 @@ class DataFileReaderCloseTest {
 
     @BeforeAll
     static void setup(@TempDir Path tempDir) throws IOException {
-        final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-        collection = new DataFileCollection(dbConfig, tempDir, "store", null);
+        collection = new DataFileCollection(DEFAULT_MERKLE_DB_CONFIG, tempDir, "store", null);
     }
 
     @AfterAll
@@ -97,7 +95,6 @@ class DataFileReaderCloseTest {
 
     @Test
     void readWhileFinishWritingTest(@TempDir Path testDir) throws IOException {
-        final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final int COUNT = 100;
         for (int i = 0; i < COUNT; i++) {
             final int fi = i;
@@ -115,7 +112,7 @@ class DataFileReaderCloseTest {
                                 o.writeLong(fi * 2 + 1);
                             },
                             2 * Long.BYTES));
-            final DataFileReader reader = new DataFileReader(dbConfig, filePath, metadata);
+            final DataFileReader reader = new DataFileReader(DEFAULT_MERKLE_DB_CONFIG, filePath, metadata);
             // Check the item in parallel to finish writing
             IntStream.of(0, 1).parallel().forEach(t -> {
                 try {

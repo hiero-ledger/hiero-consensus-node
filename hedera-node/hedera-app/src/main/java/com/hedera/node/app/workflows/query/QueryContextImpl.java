@@ -6,11 +6,11 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.records.impl.BlockRecordInfoImpl;
 import com.hedera.node.app.records.impl.BlockStreamInfoImpl;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
-import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
@@ -22,6 +22,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
  * Simple implementation of {@link QueryContext}.
@@ -34,8 +35,8 @@ public class QueryContextImpl implements QueryContext {
     private final RecordCache recordCache;
     private final State state;
     private final ExchangeRateManager exchangeRateManager;
+    private final FeeManager feeManager;
     private final AccountID payer;
-    private final FeeCalculator feeCalculator;
     private BlockRecordInfo blockRecordInfo; // lazily created
     private ExchangeRateInfo exchangeRateInfo; // lazily created
 
@@ -48,7 +49,7 @@ public class QueryContextImpl implements QueryContext {
      * @param configuration the current {@link Configuration}
      * @param recordCache   the {@link RecordCache} used to cache records
      * @param exchangeRateManager the {@link ExchangeRateManager} used to get the current exchange rate
-     * @param feeCalculator the {@link FeeCalculator} used to calculate fees
+     * @param feeManager    the {@link FeeManager} used to get the current fee schedule
      * @param payer         the {@link AccountID} of the payer, if present
      * @throws NullPointerException if {@code query} is {@code null}
      */
@@ -59,7 +60,7 @@ public class QueryContextImpl implements QueryContext {
             @NonNull final Configuration configuration,
             @NonNull final RecordCache recordCache,
             @NonNull final ExchangeRateManager exchangeRateManager,
-            @NonNull final FeeCalculator feeCalculator,
+            @NonNull final FeeManager feeManager,
             @Nullable final AccountID payer) {
         this.state = requireNonNull(state, "state must not be null");
         this.storeFactory = requireNonNull(storeFactory, "storeFactory must not be null");
@@ -67,7 +68,7 @@ public class QueryContextImpl implements QueryContext {
         this.configuration = requireNonNull(configuration, "configuration must not be null");
         this.recordCache = requireNonNull(recordCache, "recordCache must not be null");
         this.exchangeRateManager = requireNonNull(exchangeRateManager, "exchangeRateManager must not be null");
-        this.feeCalculator = requireNonNull(feeCalculator, "feeCalculator must not be null");
+        this.feeManager = requireNonNull(feeManager, "feeManager must not be null");
         this.payer = payer;
     }
 
@@ -138,7 +139,7 @@ public class QueryContextImpl implements QueryContext {
 
     @NonNull
     @Override
-    public FeeCalculator feeCalculator() {
-        return feeCalculator;
+    public FeeSchedule simpleFeesSchedule() {
+        return feeManager.getSimpleFeesSchedule();
     }
 }

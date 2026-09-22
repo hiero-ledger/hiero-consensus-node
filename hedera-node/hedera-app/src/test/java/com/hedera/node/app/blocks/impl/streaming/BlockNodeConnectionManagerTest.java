@@ -32,6 +32,7 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.Retr
 import com.hedera.node.app.blocks.impl.streaming.ConnectionId.ConnectionType;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -168,6 +169,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     private Supplier<ExecutorService> blockingIoExecutorSupplier;
     private BlockNodeConfigService blockNodeConfigService;
     private ConfigProvider configProvider;
+    private BlockStreamingObs streamingObs;
 
     @TempDir
     Path tempDir;
@@ -185,6 +187,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         blockingIoExecutor = mock(ExecutorService.class);
         blockNodeConfigService = mock(BlockNodeConfigService.class);
         blockingIoExecutorSupplier = () -> blockingIoExecutor;
+        streamingObs = mock(BlockStreamingObs.class);
         networkInfo = mock(NetworkInfo.class);
         selfNodeInfo = mock(NodeInfo.class);
         when(networkInfo.selfNodeInfo()).thenReturn(selfNodeInfo);
@@ -195,7 +198,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 metrics,
                 networkInfo,
                 blockingIoExecutorSupplier,
-                blockNodeConfigService);
+                blockNodeConfigService,
+                streamingObs);
 
         // Clear any nodes that might have been loaded
         blockNodes().clear();
@@ -778,7 +782,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final GroupSelectionOutcome outcome = invoke_findAvailableNode(List.of(node));
 
         assertThat(outcome).isNotNull();
-        assertThat(outcome.inRangeCandidates()).hasSize(1).contains(new NodeCandidate(node, 6));
+        assertThat(outcome.inRangeCandidates()).hasSize(1).contains(new NodeCandidate(node, 5));
         assertThat(outcome.lowestAheadCandidates()).isEmpty();
         assertThat(outcome.lowestAheadWantedBlock()).isEqualTo(Long.MAX_VALUE);
 
@@ -798,6 +802,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         when(node1.configuration()).thenReturn(newBlockNodeConfig("localhost", 1234, 1));
         final BlockNode node2 = mock(BlockNode.class);
         when(node2.configuration()).thenReturn(newBlockNodeConfig("localhost", 2345, 1));
+        final BlockNode node3 = mock(BlockNode.class);
+        when(node3.configuration()).thenReturn(newBlockNodeConfig("localhost", 4567, 1));
         when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(10L);
         when(bufferService.getLastBlockNumberProduced()).thenReturn(20L);
         final Future<Object> node1Future = mock(Future.class);
@@ -806,15 +812,18 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final Future<Object> node2Future = mock(Future.class);
         when(node2Future.state()).thenReturn(State.SUCCESS);
         when(node2Future.resultNow()).thenReturn(new BlockNodeStatus(true, 10, 14));
+        final Future<Object> node3Future = mock(Future.class);
+        when(node3Future.state()).thenReturn(State.SUCCESS);
+        when(node3Future.resultNow()).thenReturn(new BlockNodeStatus(true, 10, -100L));
         when(blockingIoExecutor.invokeAll(anyCollection(), anyLong(), any(TimeUnit.class)))
-                .thenReturn(List.of(node1Future, node2Future));
+                .thenReturn(List.of(node1Future, node2Future, node3Future));
 
-        final GroupSelectionOutcome outcome = invoke_findAvailableNode(List.of(node1, node2));
+        final GroupSelectionOutcome outcome = invoke_findAvailableNode(List.of(node1, node2, node3));
 
         assertThat(outcome).isNotNull();
         assertThat(outcome.inRangeCandidates())
                 .hasSize(2)
-                .contains(new NodeCandidate(node1, 13), new NodeCandidate(node2, 15));
+                .contains(new NodeCandidate(node1, 12), new NodeCandidate(node2, 14));
         assertThat(outcome.lowestAheadCandidates()).isEmpty();
         assertThat(outcome.lowestAheadWantedBlock()).isEqualTo(Long.MAX_VALUE);
 
@@ -823,13 +832,18 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(node1Future).resultNow();
         verify(node2Future).state();
         verify(node2Future).resultNow();
+        verify(node3Future).state();
+        verify(node3Future).resultNow();
         verify(node1, times(3)).configuration();
         verify(node2, times(3)).configuration();
+        verify(node3, times(3)).configuration();
         verify(node1).onServerStatusCheck(any(BlockNodeStatus.class));
         verify(node2).onServerStatusCheck(any(BlockNodeStatus.class));
+        verify(node3).onServerStatusCheck(any(BlockNodeStatus.class));
+        verify(node3).applyCoolDown(any(BlockNodeOutOfRange.class));
         verifyNoMoreInteractions(blockingIoExecutor);
-        verifyNoMoreInteractions(node1Future, node2Future);
-        verifyNoMoreInteractions(node1, node2);
+        verifyNoMoreInteractions(node1Future, node2Future, node3Future);
+        verifyNoMoreInteractions(node1, node2, node3);
     }
 
     @Test
@@ -853,8 +867,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         assertThat(outcome).isNotNull();
         assertThat(outcome.inRangeCandidates()).isEmpty();
-        assertThat(outcome.lowestAheadCandidates()).hasSize(1).contains(new NodeCandidate(node1, 22));
-        assertThat(outcome.lowestAheadWantedBlock()).isEqualTo(22);
+        assertThat(outcome.lowestAheadCandidates()).hasSize(1).contains(new NodeCandidate(node1, 21));
+        assertThat(outcome.lowestAheadWantedBlock()).isEqualTo(21);
 
         verify(blockingIoExecutor).invokeAll(anyList(), anyLong(), any(TimeUnit.class));
         verify(node1Future).state();
@@ -883,6 +897,22 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         verify(svcConnection).initialize();
         verify(svcConnection).getBlockNodeStatus();
+        verify(svcConnection).close();
+        verifyNoMoreInteractions(svcConnection);
+    }
+
+    @Test
+    void testRetrieveBlockNodeStatusTask_closeCalledWhenInitializeThrows() {
+        final BlockNodeServiceConnection svcConnection = mock(BlockNodeServiceConnection.class);
+        final RuntimeException initError = new RuntimeException("initialization failed");
+        doThrow(initError).when(svcConnection).initialize();
+
+        final RetrieveBlockNodeStatusTask task = new RetrieveBlockNodeStatusTask(svcConnection);
+
+        assertThatThrownBy(task::call).isInstanceOf(RuntimeException.class).hasMessage("initialization failed");
+
+        // close() must be called even when initialize() throws to prevent resource leaks
+        verify(svcConnection).initialize();
         verify(svcConnection).close();
         verifyNoMoreInteractions(svcConnection);
     }
@@ -1258,7 +1288,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         }
 
         // the second constructor argument is the BlockNode associated with the connection
-        assertThat(newConnectionConstructorArgs).hasSize(9);
+        assertThat(newConnectionConstructorArgs).hasSize(10);
         final BlockNode newConnectionNode = (BlockNode) newConnectionConstructorArgs.get(1);
         assertThat(newConnectionNode).isEqualTo(node1);
 
@@ -1348,7 +1378,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         }
 
         // the seventh constructor argument is the block number to initialize the stream with
-        assertThat(newConnectionConstructorArgs).hasSize(9);
+        assertThat(newConnectionConstructorArgs).hasSize(10);
         final Long initialBlockToStream = (Long) newConnectionConstructorArgs.get(6);
         // The block node server status API indicated that the last block available was 12, thus the next 'wanted' block
         // is 13 and that is what the connection should be initialized to start streaming
@@ -1783,7 +1813,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                 metrics,
                 networkInfo,
                 blockingIoExecutorSupplier,
-                blockNodeConfigService);
+                blockNodeConfigService,
+                streamingObs);
         connectionManager.start();
 
         assertThat(isConnectionManagerActive()).isFalse();

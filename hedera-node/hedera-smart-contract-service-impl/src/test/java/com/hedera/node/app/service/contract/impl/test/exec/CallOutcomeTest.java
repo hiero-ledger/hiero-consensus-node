@@ -18,6 +18,7 @@ import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
@@ -80,6 +81,7 @@ class CallOutcomeTest {
                 EvmTransactionResult.DEFAULT,
                 null,
                 null,
+                null,
                 null);
         abortedCall.addCallDetailsTo(contractCallRecordBuilder, context, entityIdFactory);
         verify(contractCallRecordBuilder).contractCallResult(any());
@@ -99,7 +101,8 @@ class CallOutcomeTest {
                 EvmTransactionResult.DEFAULT,
                 null,
                 null,
-                null);
+                null,
+                CodeDelegationResult.EMPTY);
         abortedCall.addCallDetailsTo(contractCallRecordBuilder, context, entityIdFactory);
         verify(contractCallRecordBuilder, never()).contractCallResult(any(ContractFunctionResult.class));
     }
@@ -118,7 +121,8 @@ class CallOutcomeTest {
                 EvmTransactionResult.DEFAULT,
                 null,
                 null,
-                null);
+                null,
+                CodeDelegationResult.EMPTY);
         createOutcome.addCreateDetailsTo(contractCreateRecordBuilder, context, entityIdFactory);
         verify(contractCreateRecordBuilder).contractCreateResult(any());
     }
@@ -137,7 +141,8 @@ class CallOutcomeTest {
                 EvmTransactionResult.DEFAULT,
                 null,
                 null,
-                null);
+                null,
+                CodeDelegationResult.EMPTY);
         createOutcome.addCreateDetailsTo(contractCreateRecordBuilder, context, entityIdFactory);
         verify(contractCreateRecordBuilder, never()).contractCreateResult(any());
     }
@@ -157,6 +162,7 @@ class CallOutcomeTest {
                 SUCCESS_RESULT.asEvmTxResultOf(null, updater, null, null),
                 SUCCESS_RESULT.signerNonce(),
                 Bytes.EMPTY,
+                null,
                 null);
         assertEquals(CALLED_CONTRACT_ID, outcome.recipientIdIfCreated());
     }
@@ -176,6 +182,7 @@ class CallOutcomeTest {
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(ethTxData, updater, Bytes.EMPTY, null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 Bytes.EMPTY,
+                null,
                 null);
         assertEquals(
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
@@ -196,6 +203,7 @@ class CallOutcomeTest {
                 SUCCESS_RESULT.asEvmTxResultOf(null, updater, null, null),
                 SUCCESS_RESULT.signerNonce(),
                 null,
+                null,
                 null);
         assertNull(outcome.recipientIdIfCreated());
     }
@@ -213,6 +221,7 @@ class CallOutcomeTest {
                 null,
                 SUCCESS_RESULT.asEvmTxResultOf(null, updater, null, null),
                 SUCCESS_RESULT.signerNonce(),
+                null,
                 null,
                 null);
         assertEquals(CALLED_CONTRACT_ID, outcome.recipientId());

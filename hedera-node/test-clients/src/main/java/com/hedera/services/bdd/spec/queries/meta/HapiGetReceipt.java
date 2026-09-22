@@ -202,11 +202,6 @@ public class HapiGetReceipt extends HapiQueryOp<HapiGetReceipt> {
     }
 
     @Override
-    protected long costOnlyNodePayment(HapiSpec spec) {
-        return 0L;
-    }
-
-    @Override
     protected MoreObjects.ToStringHelper toStringHelper() {
         return super.toStringHelper().add("txn", txn).add("explicit Txn :", explicitTxnId);
     }

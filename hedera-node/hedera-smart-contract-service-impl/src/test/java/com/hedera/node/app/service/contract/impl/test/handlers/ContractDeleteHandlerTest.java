@@ -75,6 +75,29 @@ class ContractDeleteHandlerTest {
     }
 
     @Test
+    void preHandleRejectsPlainEoaContractId() {
+        given(preHandleContext.createStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+        given(readableAccountStore.getContractById(VALID_CONTRACT_ADDRESS)).willReturn(null);
+        final var txn = TransactionBody.newBuilder()
+                .contractDeleteInstance(deletion(VALID_CONTRACT_ADDRESS, CALLED_EOA_ID))
+                .build();
+        given(preHandleContext.body()).willReturn(txn);
+
+        final var ex = assertThrows(PreCheckException.class, () -> subject.preHandle(preHandleContext));
+        assertEquals(INVALID_CONTRACT_ID, ex.responseCode());
+    }
+
+    @Test
+    void handleRejectsPlainEoaContractId() {
+        given(context.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
+        given(readableAccountStore.getContractById(VALID_CONTRACT_ADDRESS)).willReturn(null);
+        givenFailContextWith(deletion(VALID_CONTRACT_ADDRESS, CALLED_EOA_ID));
+
+        assertFailsWith(INVALID_CONTRACT_ID, () -> subject.handle(context));
+    }
+
+    @Test
     void preHandleRecognizesContractIdKeyAsImmutable() {
         given(preHandleContext.createStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
         given(readableAccountStore.getContractById(VALID_CONTRACT_ADDRESS)).willReturn(TBD_CONTRACT);

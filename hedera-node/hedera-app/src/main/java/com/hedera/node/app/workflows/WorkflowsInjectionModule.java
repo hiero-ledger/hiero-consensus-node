@@ -6,7 +6,10 @@ import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACK
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleMetrics;
 import com.hedera.node.app.throttle.annotations.BackendThrottle;
+import com.hedera.node.app.workflows.clpr.ClprSyncWorkflowInjectionModule;
 import com.hedera.node.app.workflows.handle.HandleWorkflowModule;
+import com.hedera.node.app.workflows.handle.dispatch.LiveNodeControlledPayerGuard;
+import com.hedera.node.app.workflows.handle.dispatch.NodeControlledPayerGuard;
 import com.hedera.node.app.workflows.ingest.IngestWorkflowInjectionModule;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflowInjectionModule;
 import com.hedera.node.app.workflows.query.QueryWorkflowInjectionModule;
@@ -25,6 +28,7 @@ import javax.inject.Singleton;
  */
 @Module(
         includes = {
+            ClprSyncWorkflowInjectionModule.class,
             HandleWorkflowModule.class,
             IngestWorkflowInjectionModule.class,
             PreHandleWorkflowInjectionModule.class,
@@ -36,6 +40,16 @@ public interface WorkflowsInjectionModule {
     @Singleton
     static AtomicBoolean provideMaybeSystemEntitiesCreatedFlag(@NonNull final InitTrigger initTrigger) {
         return initTrigger == InitTrigger.GENESIS ? new AtomicBoolean(false) : null;
+    }
+
+    /**
+     * A real consensus node enforces the NODE-category foreign-payer guard; only the in-process standalone transaction
+     * executor (see {@code StandaloneModule}) binds a no-op.
+     */
+    @Provides
+    @Singleton
+    static NodeControlledPayerGuard provideNodeControlledPayerGuard() {
+        return new LiveNodeControlledPayerGuard();
     }
 
     @Provides

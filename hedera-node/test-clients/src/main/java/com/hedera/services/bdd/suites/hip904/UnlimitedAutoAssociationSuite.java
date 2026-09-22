@@ -26,6 +26,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertCloseEnough;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithChild;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -38,12 +39,9 @@ import static com.hedera.services.bdd.suites.contract.Utils.ocWith;
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.FUNGIBLE_TOKEN;
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.NON_FUNGIBLE_TOKEN;
 import static com.hedera.services.bdd.suites.crypto.CryptoDeleteSuite.TREASURY;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFeesWithChild;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.MULTI_KEY;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCall;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
@@ -122,12 +120,7 @@ public class UnlimitedAutoAssociationSuite {
                     // tinycent from the fee schedule; and then dividing by 1e13 to convert to USD
                     final var approxUsdDiff = (1.0
                                     * gasDiff
-                                    * spec.fees()
-                                            .getCurrentOpFeeData()
-                                            .get(ContractCall)
-                                            .get(DEFAULT)
-                                            .getServicedata()
-                                            .getGas()
+                                    * spec.ratesProvider().gasPriceInThousandthsOfTinycent()
                                     / 1000
                                     / TINY_PARTS_PER_WHOLE)
                             / 100.0;
@@ -186,8 +179,8 @@ public class UnlimitedAutoAssociationSuite {
                         .hasAlreadyUsedAutomaticAssociations(2)
                         .logged(),
                 // Total fee should include  a token association fee ($0.05) and CryptoTransfer fee ($0.001)
-                validateFeesWithChild(transferFungible, 0.051, 0.051, 0.1),
-                validateFeesWithChild(transferNonFungible, 0.051, 0.051, 0.1));
+                validateChargedUsdWithChild(transferFungible, 0.051, 0.1),
+                validateChargedUsdWithChild(transferNonFungible, 0.051, 0.1));
     }
 
     @HapiTest
@@ -305,8 +298,7 @@ public class UnlimitedAutoAssociationSuite {
                 getAliasedAccountInfo(hollowKey)
                         .has(accountWith().key(hollowKey).maxAutoAssociations(-1))
                         .hasAlreadyUsedAutomaticAssociations(2),
-                validateFeesWithChild(
-                        hollowAccountTxn, transferAndAssociationFee, simpleFeesTransferAndAssociationFee, 1.0));
+                validateChargedUsdWithChild(hollowAccountTxn, simpleFeesTransferAndAssociationFee, 1.0));
     }
 
     @DisplayName("Hollow account creation with NFT transfer has correct auto associations")
@@ -407,8 +399,7 @@ public class UnlimitedAutoAssociationSuite {
                         getAliasedAccountInfo(hollowAccountKey)
                                 .has(accountWith().key(hollowAccountKey).maxAutoAssociations(-1))
                                 .hasAlreadyUsedAutomaticAssociations(2))),
-                validateFeesWithChild(
-                        hollowTransferTxn, transferAndAssociationFee, simpleFeesTransferAndAssociationFee, 1.0));
+                validateChargedUsdWithChild(hollowTransferTxn, simpleFeesTransferAndAssociationFee, 1.0));
     }
 
     @DisplayName("Hollow account creation with multiple senders correct auto associations")
@@ -484,10 +475,7 @@ public class UnlimitedAutoAssociationSuite {
                                 .payingWith(CAROL)
                                 .signedBy(CAROL, DAVE)
                                 .sigMapPrefixes(uniqueWithFullPrefixesFor(CAROL)),
-                        validateFeesWithChild(
-                                transfersToHollowAccountTxn,
-                                expectedCryptoTransferAndAssociationUsd,
-                                expectedCryptoTransferAndAssociationUsd,
-                                1.0))));
+                        validateChargedUsdWithChild(
+                                transfersToHollowAccountTxn, expectedCryptoTransferAndAssociationUsd, 1.0))));
     }
 }

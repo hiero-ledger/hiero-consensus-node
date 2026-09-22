@@ -52,6 +52,7 @@ class FileBlockItemWriterTest {
     private static final String BLK_GZ = "000000000000000000000000000000000001.blk.gz";
     private static final String PENDING_BLK_GZ = "000000000000000000000000000000000001.pnd.gz";
     private static final String PENDING_PROOF_JSON = "000000000000000000000000000000000001.pnd.json";
+    private static final String OPEN_GZ = "000000000000000000000000000000000001.open.gz";
 
     @TempDir
     Path tempDir;
@@ -373,6 +374,53 @@ class FileBlockItemWriterTest {
     }
 
     @Test
+    void flushingIncompleteBlockRenamesToIssWithoutMarkerOrProofSidecar() {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.blockFileDir()).thenReturn(tempDir.toString());
+
+        final var subject = new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, FileSystems.getDefault());
+        subject.openBlock(1);
+        subject.writeItem(BlockItem.PROTOBUF
+                .toBytes(BlockItem.newBuilder()
+                        .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
+                        .build())
+                .toByteArray());
+
+        subject.flushIncompleteBlock();
+
+        final var dir = tempDir.resolve("block-0.0.3");
+        // The partial .blk.gz is renamed to .open.gz; deliberately no completion marker and no pending-proof sidecar,
+        // so it is never treated as complete nor picked up by pending-block recovery.
+        assertFalse(new File(dir.resolve(BLK_GZ).toString()).exists(), "Complete block file should be renamed away");
+        assertFalse(new File(dir.resolve(MF).toString()).exists(), "No completion marker for an incomplete block");
+        assertFalse(new File(dir.resolve(PENDING_PROOF_JSON).toString()).exists(), "No pending-proof sidecar");
+        assertTrue(new File(dir.resolve(OPEN_GZ).toString()).exists(), "Incomplete (.open.gz) artifact should exist");
+
+        // Calling again in a non-OPEN state is a no-op (best-effort, never throws)
+        assertDoesNotThrow(subject::flushIncompleteBlock);
+    }
+
+    @Test
+    void flushIncompleteBlockSwallowsRenameFailure() throws IOException {
+        when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
+        when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        when(blockStreamConfig.blockFileDir()).thenReturn(tempDir.toString());
+
+        final var subject = new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, FileSystems.getDefault());
+        subject.openBlock(1);
+        subject.writeItem(BlockItem.PROTOBUF
+                .toBytes(BlockItem.newBuilder()
+                        .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
+                        .build())
+                .toByteArray());
+
+        // Pre-create the .open.gz target so the rename fails; the flush must swallow it (best-effort, never throws).
+        Files.writeString(tempDir.resolve("block-0.0.3").resolve(OPEN_GZ), "blocker");
+        assertDoesNotThrow(subject::flushIncompleteBlock);
+    }
+
+    @Test
     void loadContiguousPendingBlocksDeserializesSignedTransaction() throws IOException {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
@@ -397,7 +445,8 @@ class FileBlockItemWriterTest {
                 .siblingHashesFromPrevBlockRoot(List.of(
                         new MerkleSiblingHash(true, Bytes.fromHex("1111")),
                         new MerkleSiblingHash(true, Bytes.fromHex("2222")),
-                        new MerkleSiblingHash(true, Bytes.fromHex("3333"))))
+                        new MerkleSiblingHash(true, Bytes.fromHex("3333")),
+                        new MerkleSiblingHash(true, Bytes.fromHex("4444"))))
                 .build();
         subject.flushPendingBlock(pendingProof);
 

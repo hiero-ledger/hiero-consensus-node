@@ -4,9 +4,7 @@ package org.hiero.consensus.event.intake.impl.branching;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,9 +12,10 @@ import java.util.Comparator;
 import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.Test;
 
@@ -53,42 +52,23 @@ class BranchDetectorTests {
     }
 
     @Test
-    void requiresEventWindow() {
-        final Randotron randotron = Randotron.create();
-        final Roster roster = RandomRosterBuilder.create(randotron).withSize(8).build();
-
-        final PlatformEvent event = new TestingEventBuilder(randotron)
-                .setCreatorId(NodeId.of(roster.rosterEntries().get(0).nodeId()))
-                .setBirthRound(1)
-                .build();
-
-        final BranchDetector branchDetector = new DefaultBranchDetector(roster);
-
-        // We expect this to throw if we haven't yet specified the event window.
-        assertThrows(IllegalStateException.class, () -> branchDetector.checkForBranches(event));
-    }
-
-    @Test
     void noBranchesTest() {
         final Randotron randotron = Randotron.create();
 
         final int nodeCount = 8;
 
-        final Roster roster =
-                RandomRosterBuilder.create(randotron).withSize(nodeCount).build();
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(randotron, nodeCount);
 
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
         final List<PlatformEvent> events = new ArrayList<>();
-        for (final NodeId nodeId : roster.rosterEntries().stream()
-                .map(re -> NodeId.of(re.nodeId()))
-                .toList()) {
+        for (final NodeId nodeId : roster.nodeIds()) {
             events.addAll(generateSimpleSequenceOfEvents(randotron, nodeId, initialBirthRound, 512));
         }
 
         // Create a random topological ordering
         Collections.shuffle(events, randotron);
-        events.sort(Comparator.comparingLong(x -> x.getBirthRound()));
+        events.sort(Comparator.comparingLong(PlatformEvent::getBirthRound));
 
         long ancientThreshold = initialBirthRound;
 
@@ -129,21 +109,17 @@ class BranchDetectorTests {
 
         final int nodeCount = 8;
 
-        final Roster roster =
-                RandomRosterBuilder.create(randotron).withSize(nodeCount).build();
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(randotron, nodeCount);
 
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
-        final NodeId branchingNode = NodeId.of(roster.rosterEntries()
-                .get(randotron.nextInt(0, roster.rosterEntries().size()))
-                .nodeId());
+        final NodeId branchingNode =
+                roster.nodeIds().get(randotron.nextInt(0, roster.nodeIds().size()));
         PlatformEvent branchingEvent = null;
         PlatformEvent siblingEvent = null;
 
         final List<PlatformEvent> events = new ArrayList<>();
-        for (final NodeId nodeId : roster.rosterEntries().stream()
-                .map(re -> NodeId.of(re.nodeId()))
-                .toList()) {
+        for (final NodeId nodeId : roster.nodeIds()) {
             final List<PlatformEvent> nodeEvents =
                     generateSimpleSequenceOfEvents(randotron, nodeId, initialBirthRound, 64);
 
@@ -164,7 +140,7 @@ class BranchDetectorTests {
 
         // Create a random topological ordering
         Collections.shuffle(events, randotron);
-        events.sort(Comparator.comparingLong(x -> x.getBirthRound()));
+        events.sort(Comparator.comparingLong(PlatformEvent::getBirthRound));
 
         long ancientThreshold = initialBirthRound;
 
@@ -225,20 +201,16 @@ class BranchDetectorTests {
 
         final int nodeCount = 8;
 
-        final Roster roster =
-                RandomRosterBuilder.create(randotron).withSize(nodeCount).build();
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(randotron, nodeCount);
 
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
-        final NodeId branchingNode = NodeId.of(roster.rosterEntries()
-                .get(randotron.nextInt(0, roster.rosterEntries().size()))
-                .nodeId());
+        final NodeId branchingNode =
+                roster.nodeIds().get(randotron.nextInt(0, roster.nodeIds().size()));
         PlatformEvent branchingEvent = null;
 
         final List<PlatformEvent> events = new ArrayList<>();
-        for (final NodeId nodeId : roster.rosterEntries().stream()
-                .map(re -> NodeId.of(re.nodeId()))
-                .toList()) {
+        for (final NodeId nodeId : roster.nodeIds()) {
             final List<PlatformEvent> nodeEvents =
                     generateSimpleSequenceOfEvents(randotron, nodeId, initialBirthRound, 64);
 
@@ -257,7 +229,7 @@ class BranchDetectorTests {
 
         // Create a random topological ordering
         Collections.shuffle(events, randotron);
-        events.sort(Comparator.comparingLong(x -> x.getBirthRound()));
+        events.sort(Comparator.comparingLong(PlatformEvent::getBirthRound));
 
         long ancientThreshold = initialBirthRound;
 
@@ -301,20 +273,16 @@ class BranchDetectorTests {
 
         final int nodeCount = 8;
 
-        final Roster roster =
-                RandomRosterBuilder.create(randotron).withSize(nodeCount).build();
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(randotron, nodeCount);
 
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
-        final NodeId branchingNode = NodeId.of(roster.rosterEntries()
-                .get(randotron.nextInt(0, roster.rosterEntries().size()))
-                .nodeId());
+        final NodeId branchingNode =
+                roster.nodeIds().get(randotron.nextInt(0, roster.nodeIds().size()));
         PlatformEvent branchingEvent = null;
 
         final List<PlatformEvent> events = new ArrayList<>();
-        for (final NodeId nodeId : roster.rosterEntries().stream()
-                .map(re -> NodeId.of(re.nodeId()))
-                .toList()) {
+        for (final NodeId nodeId : roster.nodeIds()) {
             final List<PlatformEvent> nodeEvents =
                     generateSimpleSequenceOfEvents(randotron, nodeId, initialBirthRound, 64);
 
@@ -335,7 +303,7 @@ class BranchDetectorTests {
 
         // Create a random topological ordering
         Collections.shuffle(events, randotron);
-        events.sort(Comparator.comparingLong(x -> x.getBirthRound()));
+        events.sort(Comparator.comparingLong(PlatformEvent::getBirthRound));
 
         long ancientThreshold = initialBirthRound;
 
@@ -378,20 +346,16 @@ class BranchDetectorTests {
 
         final int nodeCount = 8;
 
-        final Roster roster =
-                RandomRosterBuilder.create(randotron).withSize(nodeCount).build();
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(randotron, nodeCount);
 
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
-        final NodeId branchingNode = NodeId.of(roster.rosterEntries()
-                .get(randotron.nextInt(0, roster.rosterEntries().size()))
-                .nodeId());
+        final NodeId branchingNode =
+                roster.nodeIds().get(randotron.nextInt(0, roster.nodeIds().size()));
         PlatformEvent branchingEvent = null;
 
         final List<PlatformEvent> events = new ArrayList<>();
-        for (final NodeId nodeId : roster.rosterEntries().stream()
-                .map(re -> NodeId.of(re.nodeId()))
-                .toList()) {
+        for (final NodeId nodeId : roster.nodeIds()) {
             final List<PlatformEvent> nodeEvents =
                     generateSimpleSequenceOfEvents(randotron, nodeId, initialBirthRound, 64);
 
@@ -409,7 +373,7 @@ class BranchDetectorTests {
 
         // Create a random topological ordering
         Collections.shuffle(events, randotron);
-        events.sort(Comparator.comparingLong(x -> x.getBirthRound()));
+        events.sort(Comparator.comparingLong(PlatformEvent::getBirthRound));
 
         long ancientThreshold = initialBirthRound;
 
@@ -450,20 +414,16 @@ class BranchDetectorTests {
 
         final int nodeCount = 8;
 
-        final Roster roster =
-                RandomRosterBuilder.create(randotron).withSize(nodeCount).build();
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(randotron, nodeCount);
 
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
-        final NodeId branchingNode = NodeId.of(roster.rosterEntries()
-                .get(randotron.nextInt(0, roster.rosterEntries().size()))
-                .nodeId());
+        final NodeId branchingNode =
+                roster.nodeIds().get(randotron.nextInt(0, roster.nodeIds().size()));
         PlatformEvent branchingEvent = null;
 
         final List<PlatformEvent> events = new ArrayList<>();
-        for (final NodeId nodeId : roster.rosterEntries().stream()
-                .map(re -> NodeId.of(re.nodeId()))
-                .toList()) {
+        for (final NodeId nodeId : roster.nodeIds()) {
             final List<PlatformEvent> nodeEvents =
                     generateSimpleSequenceOfEvents(randotron, nodeId, initialBirthRound, 64);
 
@@ -485,7 +445,7 @@ class BranchDetectorTests {
 
         // Create a random topological ordering
         Collections.shuffle(events, randotron);
-        events.sort(Comparator.comparingLong(x -> x.getBirthRound()));
+        events.sort(Comparator.comparingLong(PlatformEvent::getBirthRound));
 
         long ancientThreshold = initialBirthRound;
 

@@ -21,7 +21,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import org.hiero.consensus.event.IntakeEventCounter;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.node.NodeId;
@@ -81,8 +81,7 @@ class EventDeduplicatorTests {
             @NonNull final Set<Bytes> emittedEvents) {
         if (event != null) {
             assertFalse(
-                    event.getDescriptor().eventDescriptor().birthRound() < minimumRoundNonAncient,
-                    "Ancient events shouldn't be emitted");
+                    event.getDescriptor().birthRound() < minimumRoundNonAncient, "Ancient events shouldn't be emitted");
             assertTrue(
                     emittedEvents.add(GossipEvent.PROTOBUF.toBytes(event.getGossipEvent())), "Event was emitted twice");
         }
@@ -150,7 +149,7 @@ class EventDeduplicatorTests {
                         platformEvent.getOrigin());
                 duplicateEvent.setHash(platformEvent.getHash());
 
-                if (duplicateEvent.getDescriptor().eventDescriptor().birthRound() < minimumRoundNonAncient) {
+                if (duplicateEvent.getDescriptor().birthRound() < minimumRoundNonAncient) {
                     ancientEventCount++;
                 }
 

@@ -8,7 +8,6 @@ import static java.lang.Math.min;
 import static java.lang.Math.toIntExact;
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -135,10 +134,9 @@ public abstract class AbstractLongList<C> implements LongList {
      * reserved buffer size are read from the provided configuration.
      *
      * @param capacity Maximum number of longs permissible for this long list
-     * @param configuration Platform configuration
+     * @param merkleDbConfig merkle db config
      */
-    protected AbstractLongList(final long capacity, final Configuration configuration) {
-        final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
+    protected AbstractLongList(final long capacity, final MerkleDbConfig merkleDbConfig) {
         checkCapacity(capacity);
         this.capacity = capacity;
         this.longsPerChunk = merkleDbConfig.longListChunkSize();
@@ -176,7 +174,7 @@ public abstract class AbstractLongList<C> implements LongList {
      * Loads index data from a file, which was previously saved using {@link #writeToFile(Path)}.
      *
      * @param file The file to load from
-     * @throws IOException
+     * @throws IOException IO exception if any
      */
     protected void loadFromFile(@NonNull final Path file) throws IOException {
         requireNonNull(file);

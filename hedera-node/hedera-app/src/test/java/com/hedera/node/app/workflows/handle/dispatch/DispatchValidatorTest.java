@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -57,10 +58,12 @@ import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
@@ -106,7 +109,15 @@ class DispatchValidatorTest {
 
     @BeforeEach
     void setUp() {
-        subject = new DispatchValidator(recordCache, transactionChecker, new AppFeeCharging(solvencyPreCheck), null);
+        // A live consensus node that booted from a restart/reconnect: system-entities flag is null (only a genesis
+        // boot has it), and the live guard is bound (a no-op only in the standalone executor). This is the boot state
+        // where the NODE-payer guard must apply.
+        subject = new DispatchValidator(
+                recordCache,
+                transactionChecker,
+                new AppFeeCharging(solvencyPreCheck),
+                null,
+                new LiveNodeControlledPayerGuard());
     }
 
     @Test
@@ -197,6 +208,86 @@ class DispatchValidatorTest {
                         NOT_INGEST,
                         CHECK_OFFERED_FEE);
         assertEquals(newSuccess(dispatch.creatorInfo().accountId(), payerAccount), report);
+    }
+
+    @Test
+    void nodeCategoryForeignPayerAllowedInStandaloneExecutor() throws PreCheckException {
+        // The in-process standalone transaction executor legitimately dispatches NODE-category transactions
+        // (empty signature map) with a caller-chosen, non-node payer. It binds a no-op guard (never rejects), so the
+        // dispatch proceeds to a normal success.
+        final var standaloneSubject = new DispatchValidator(
+                recordCache,
+                transactionChecker,
+                new AppFeeCharging(solvencyPreCheck),
+                null,
+                new NoOpNodeControlledPayerGuard());
+        givenCreatorInfo();
+        givenNodeDispatch();
+        givenNonDuplicate();
+        givenSolvencyCheckSetup();
+        given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
+        final var payerAccount = givenPayer(payer -> payer.tinybarBalance(1L));
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+
+        final var report = standaloneSubject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newSuccess(dispatch.creatorInfo().accountId(), payerAccount), report);
+    }
+
+    @Test
+    void nodeCategoryForeignPayerRejectedOnRestartedNode() {
+        // Regression guard: a restarted/reconnected live node has a null system-entities flag but still binds the live
+        // guard. The NODE-payer guard must still fire (it is bound per component, not gated on the genesis flag), so a
+        // foreign payer is a node due-diligence failure. Under the old flag-based gate this dispatch was wrongly
+        // allowed. The default subject is exactly this boot state (flag=null, live guard bound).
+        givenCreatorInfo();
+        givenNodeDispatch();
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.config()).willReturn(HederaTestConfigBuilder.createConfig());
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INVALID_PAYER_ACCOUNT_ID), report);
+    }
+
+    @Test
+    void nodeCategoryForeignPayerRejectedOnGenesisBootedNode() {
+        // Companion to nodeCategoryForeignPayerRejectedOnRestartedNode. A node that booted at genesis and finished
+        // creating system entities holds a present, set flag (new AtomicBoolean(true)) — a real production state. The
+        // live guard fires independently of the flag, so a foreign NODE payer is rejected just as on a restarted node.
+        // Together the two tests show the guard fires identically regardless of boot type.
+        final var genesisBootedNode = new DispatchValidator(
+                recordCache,
+                transactionChecker,
+                new AppFeeCharging(solvencyPreCheck),
+                new AtomicBoolean(true),
+                new LiveNodeControlledPayerGuard());
+        givenCreatorInfo();
+        givenNodeDispatch();
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.config()).willReturn(HederaTestConfigBuilder.createConfig());
+
+        final var report = genesisBootedNode.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INVALID_PAYER_ACCOUNT_ID), report);
+    }
+
+    @Test
+    void nodeCategoryCreatorPayerAllowedOnLiveNode() throws PreCheckException {
+        // The creator node's own account is a legitimate NODE-category payer (gossiped node-submitted votes), so the
+        // guard permits it on a live node. Uses the default subject (a live node with the live guard bound), which is
+        // all the guard depends on; the genesis flag is irrelevant to this decision.
+        givenCreatorInfo();
+        givenNodeDispatch();
+        givenNonDuplicate();
+        givenSolvencyCheckSetup();
+        given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
+        final var payerAccount = givenPayer(CREATOR_ACCOUNT_ID, payer -> payer.tinybarBalance(1L));
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newSuccess(CREATOR_ACCOUNT_ID, payerAccount), report);
     }
 
     @Test
@@ -467,19 +558,27 @@ class DispatchValidatorTest {
         given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.SCHEDULED);
     }
 
+    private void givenNodeDispatch() {
+        given(dispatch.txnCategory()).willReturn(HandleContext.TransactionCategory.NODE);
+    }
+
     private void givenCreatorInfo() {
         given(dispatch.creatorInfo()).willReturn(creatorInfo);
         given(creatorInfo.accountId()).willReturn(CREATOR_ACCOUNT_ID);
     }
 
     private Account givenPayer(@NonNull final Consumer<Account.Builder> spec) {
-        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        return givenPayer(PAYER_ACCOUNT_ID, spec);
+    }
+
+    private Account givenPayer(@NonNull final AccountID payerId, @NonNull final Consumer<Account.Builder> spec) {
+        given(dispatch.payerId()).willReturn(payerId);
         given(dispatch.readableStoreFactory()).willReturn(storeFactory);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
-        final var payer = Account.newBuilder().accountId(PAYER_ACCOUNT_ID).key(Key.DEFAULT);
+        final var payer = Account.newBuilder().accountId(payerId).key(Key.DEFAULT);
         spec.accept(payer);
         final var payerAccount = payer.build();
-        given(readableAccountStore.getAccountById(PAYER_ACCOUNT_ID)).willReturn(payerAccount);
+        given(readableAccountStore.getAccountById(payerId)).willReturn(payerAccount);
         return payerAccount;
     }
 

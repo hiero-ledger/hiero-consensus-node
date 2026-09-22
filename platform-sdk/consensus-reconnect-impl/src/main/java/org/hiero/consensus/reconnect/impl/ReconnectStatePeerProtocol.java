@@ -14,7 +14,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
@@ -24,8 +23,8 @@ import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.BlockingResourceProvider;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
-import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
+import org.hiero.base.concurrent.manager.ThreadManager;
+import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 import org.hiero.consensus.exceptions.ThrowableUtilities;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.impl.network.Connection;
@@ -83,7 +82,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
 
     private final Configuration configuration;
     private final Metrics metrics;
-    private final Time time;
     private final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultProvider;
     private final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager;
 
@@ -121,7 +119,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
 
         this.configuration = requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
-        this.time = requireNonNull(time);
         this.threadManager = requireNonNull(threadManager);
         this.peerId = requireNonNull(peerId);
         this.teacherThrottle = requireNonNull(teacherThrottle);
@@ -360,7 +357,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             try {
                 teacher = new ReconnectStateTeacher(
                         configuration,
-                        time,
                         threadManager,
                         connection,
                         reconnectSocketTimeout,

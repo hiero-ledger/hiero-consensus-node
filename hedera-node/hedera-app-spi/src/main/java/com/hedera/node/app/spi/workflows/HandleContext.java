@@ -30,6 +30,8 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
+import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
  * Represents the context of a single {@code handle()}-call.
@@ -182,6 +184,12 @@ public interface HandleContext {
              */
             EXPLICIT_WRITE_TRACING,
             /**
+             * Signals that the dispatched contract call must execute in a static EVM frame. State-modifying
+             * opcodes (SSTORE, LOG*, CREATE*, SELFDESTRUCT, value-bearing CALL) halt with ILLEGAL_STATE_CHANGE.
+             * Used by system-contract sub-calls that must not mutate state.
+             */
+            STATIC_CALL,
+            /**
              * Batch inner transaction bytes. Used to pre-handle inner transaction while dispatching them.
              */
             INNER_TRANSACTION_BYTES,
@@ -191,6 +199,10 @@ public interface HandleContext {
              * This is used to ensure that all needed side effects (nonce updates, code delegations) are kept.
              */
             BATCH_ROLLBACK_CALLBACK_CONSUMER,
+            /**
+             * Metadata for a contract child dispatch executed by the native CLPR service.
+             */
+            CLPR_DISPATCH,
             /**
              * An entity num to be created by transplant system transactions.
              */
@@ -496,6 +508,16 @@ public interface HandleContext {
         @NonNull
         <T> T addRemovableChildRecordBuilder(
                 @NonNull Class<T> recordBuilderClass, @NonNull HederaFunctionality functionality);
+
+        /**
+         * For each stream builder in this stack other than the base builder, invokes the given consumer
+         * with the builder cast to the given type.
+         *
+         * @param builderClass the type to cast the builders to
+         * @param consumer     the consumer to invoke
+         * @param <T>          the type to cast the builders to
+         */
+        <T> void forEachNonBaseBuilder(@NonNull Class<T> builderClass, @NonNull Consumer<T> consumer);
     }
 
     /**
@@ -536,4 +558,11 @@ public interface HandleContext {
      * @return the gas price in tiny cents
      */
     long getGasPriceInTinycents();
+
+    /**
+     * Returns the simple fees schedule.
+     * @return the simple fees schedule
+     */
+    @NonNull
+    FeeSchedule simpleFeesSchedule();
 }

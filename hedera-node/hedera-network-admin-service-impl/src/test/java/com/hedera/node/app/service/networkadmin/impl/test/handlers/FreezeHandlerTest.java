@@ -19,7 +19,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
-import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
@@ -28,17 +27,14 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.freeze.FreezeTransactionBody;
 import com.hedera.hapi.node.freeze.FreezeType;
-import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.impl.WritableFreezeStore;
 import com.hedera.node.app.service.networkadmin.impl.handlers.FreezeHandler;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -48,7 +44,6 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.io.IOException;
-import java.util.List;
 import java.util.concurrent.ForkJoinPool;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -85,12 +80,6 @@ class FreezeHandlerTest {
     @Mock(strictness = LENIENT)
     private Account account;
 
-    @Mock(strictness = LENIENT)
-    private ReadableNodeStore nodeStore;
-
-    @Mock
-    private ReadableStakingInfoStore stakingInfoStore;
-
     @Mock
     private EntityIdFactory entityIdFactory;
 
@@ -125,15 +114,11 @@ class FreezeHandlerTest {
 
         given(preHandleContext.createStore(ReadableAccountStore.class)).willReturn(accountStore);
         given(preHandleContext.createStore(ReadableUpgradeFileStore.class)).willReturn(upgradeFileStore);
-        given(preHandleContext.createStore(ReadableNodeStore.class)).willReturn(nodeStore);
-        given(preHandleContext.createStore(ReadableStakingInfoStore.class)).willReturn(stakingInfoStore);
 
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.readableStore(ReadableUpgradeFileStore.class)).willReturn(upgradeFileStore);
         given(storeFactory.writableStore(WritableFreezeStore.class)).willReturn(freezeStore);
-        given(storeFactory.readableStore(ReadableNodeStore.class)).willReturn(nodeStore);
-        given(storeFactory.readableStore(ReadableStakingInfoStore.class)).willReturn(stakingInfoStore);
     }
 
     @Test
@@ -371,7 +356,6 @@ class FreezeHandlerTest {
         given(upgradeFileStore.peek(fileUpgradeFileId))
                 .willReturn(File.newBuilder().build());
         given(upgradeFileStore.getFull(fileUpgradeFileId)).willReturn(UPGRADE_FILE_CONTENTS);
-        given(nodeStore.keys()).willReturn(mock(List.class));
 
         for (FreezeType freezeType : freezeTypes) {
             TransactionID txnId = TransactionID.newBuilder()
@@ -403,9 +387,6 @@ class FreezeHandlerTest {
         given(upgradeFileStore.peek(fileUpgradeFileId))
                 .willReturn(File.newBuilder().build());
         given(upgradeFileStore.getFull(fileUpgradeFileId)).willReturn(UPGRADE_FILE_CONTENTS);
-        given(nodeStore.keys()).willReturn(List.of(new EntityNumber(0)));
-        given(nodeStore.sizeOfState()).willReturn(1L);
-
         TransactionID txnId = TransactionID.newBuilder()
                 .accountID(nonAdminAccount)
                 .transactionValidStart(Timestamp.newBuilder().seconds(1000).build())
@@ -433,9 +414,6 @@ class FreezeHandlerTest {
         given(upgradeFileStore.peek(anotherFileUpgradeFileId))
                 .willReturn(File.newBuilder().build());
         given(upgradeFileStore.getFull(anotherFileUpgradeFileId)).willReturn(UPGRADE_FILE_CONTENTS);
-        given(nodeStore.keys()).willReturn(List.of(new EntityNumber(0)));
-        given(nodeStore.sizeOfState()).willReturn(1L);
-
         TransactionID txnId = TransactionID.newBuilder()
                 .accountID(nonAdminAccount)
                 .transactionValidStart(Timestamp.newBuilder().seconds(1000).build())

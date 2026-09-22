@@ -13,6 +13,7 @@ status: accepted
 date: 2026-06-04
 deciders: []   # foundational design decision; individual authors not recorded — see Notes
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # ADR-006 — Upgrade Software via a Coordinated Network-Wide Freeze Rather Than Rolling Upgrades
@@ -133,7 +134,7 @@ side-by-side handover, which share the single network-agreed boundary.
   the same point this decision rests on: every node restarts from exactly the same state, which is
   what makes it safe to bring up a software version that may interpret transactions or state
   differently than the prior one.
-- [ADR-002](ADR-002-execution-freeze-signature-handoff.md) — freeze-block signature handoff that
+- ADR-002 — freeze-block signature handoff that
   runs during the coordinated freeze this decision adopts.
 
 ## Notes

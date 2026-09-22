@@ -159,7 +159,6 @@ public class TransactionDispatcher {
         return switch (kind) {
             case NODE_STAKE_UPDATE,
                     FREEZE,
-                    UNCHECKED_SUBMIT,
                     CRYPTO_ADD_LIVE_HASH,
                     CRYPTO_DELETE_LIVE_HASH,
                     STATE_SIGNATURE_TRANSACTION,
@@ -233,8 +232,6 @@ public class TransactionDispatcher {
             case REGISTERED_NODE_UPDATE -> handlers.registeredNodeUpdateHandler();
             case REGISTERED_NODE_DELETE -> handlers.registeredNodeDeleteHandler();
 
-            case UNCHECKED_SUBMIT -> handlers.networkUncheckedSubmitHandler();
-
             case SCHEDULE_CREATE -> handlers.scheduleCreateHandler();
             case SCHEDULE_SIGN -> handlers.scheduleSignHandler();
             case SCHEDULE_DELETE -> handlers.scheduleDeleteHandler();
@@ -272,6 +269,17 @@ public class TransactionDispatcher {
             case HINTS_PREPROCESSING_VOTE -> handlers.hintsPreprocessingVoteHandler();
             case CRS_PUBLICATION -> handlers.crsPublicationHandler();
             case MIGRATION_ROOT_HASH_VOTE -> handlers.migrationRootHashVoteHandler();
+
+            case CLPR_UPDATE_LEDGER_CONFIGURATION -> handlers.clprUpdateLedgerConfigurationHandler();
+            case CLPR_REGISTER_CHANNEL -> handlers.clprRegisterChannelHandler();
+            case CLPR_COMPLETE_CHANNEL -> handlers.clprCompleteChannelHandler();
+            case CLPR_CLOSE_CHANNEL -> handlers.clprCloseChannelHandler();
+            case CLPR_SUBMIT_BUNDLE -> handlers.clprSubmitBundleHandler();
+            case CLPR_REDACT_MESSAGE -> handlers.clprRedactMessageHandler();
+            case CLPR_REGISTER_CONNECTOR -> handlers.clprRegisterConnectorHandler();
+            case CLPR_COMPLETE_CONNECTOR -> handlers.clprCompleteConnectorHandler();
+            case CLPR_DEREGISTER_CONNECTOR -> handlers.clprDeregisterConnectorHandler();
+            case CLPR_ENDPOINT_PUBLICATION -> handlers.clprEndpointPublicationHandler();
 
             case SYSTEM_DELETE ->
                 switch (txBody.systemDeleteOrThrow().id().kind()) {

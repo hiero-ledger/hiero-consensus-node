@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_MERKLE_DB_CONFIG;
 import static org.junit.jupiter.api.Assertions.*;
 
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,8 +15,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 class DataFileReaderTest {
 
-    private final MerkleDbConfig dbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
-
     private final DataFileMetadata dataFileMetadata = new DataFileMetadata(0, Instant.now(), 0, 0);
 
     private DataFileReader dataFileReader;
@@ -25,7 +22,7 @@ class DataFileReaderTest {
     @BeforeEach
     void setUp(@TempDir Path tmpDir) throws IOException {
         Path readerFile = Files.createFile(tmpDir.resolve("file-reader"));
-        dataFileReader = new DataFileReader(dbConfig, readerFile, dataFileMetadata);
+        dataFileReader = new DataFileReader(DEFAULT_MERKLE_DB_CONFIG, readerFile, dataFileMetadata);
     }
 
     @AfterEach

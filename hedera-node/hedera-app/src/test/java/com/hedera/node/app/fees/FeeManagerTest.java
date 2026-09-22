@@ -2,28 +2,21 @@
 package com.hedera.node.app.fees;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
-import com.hedera.hapi.node.base.FeeComponents;
-import com.hedera.hapi.node.base.FeeData;
-import com.hedera.hapi.node.base.FeeSchedule;
-import com.hedera.hapi.node.base.SubType;
-import com.hedera.hapi.node.base.TimestampSeconds;
-import com.hedera.hapi.node.base.TransactionFeeSchedule;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import java.time.Instant;
-import java.util.List;
 import java.util.Set;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.NetworkFee;
 import org.hiero.hapi.support.fees.NodeFee;
-import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -47,46 +40,14 @@ class FeeManagerTest {
     }
 
     @Test
-    void updateParsesCurrentAndNextFeeSchedule() {
-        final var feeComponents = feeComponents();
-        final var feeData = FeeData.newBuilder()
-                .networkdata(feeComponents)
-                .nodedata(feeComponents)
-                .servicedata(feeComponents)
-                .subType(SubType.DEFAULT)
-                .build();
-        final var expiryTime = TimestampSeconds.newBuilder().seconds(9_999_999L).build();
-        final var txFeeSchedule = TransactionFeeSchedule.newBuilder()
-                .hederaFunctionality(CRYPTO_CREATE)
-                .fees(List.of(feeData))
-                .build();
-        final var feeSchedule = FeeSchedule.newBuilder()
-                .transactionFeeSchedule(List.of(txFeeSchedule))
-                .expiryTime(expiryTime)
-                .build();
-        final var schedules = CurrentAndNextFeeSchedule.newBuilder()
-                .currentFeeSchedule(feeSchedule)
-                .nextFeeSchedule(feeSchedule)
-                .build();
-        final var bytes = CurrentAndNextFeeSchedule.PROTOBUF.toBytes(schedules);
-
-        final var result = subject.update(bytes);
-
-        assertEquals(SUCCESS, result);
-        final var loadedFeeData = subject.getFeeData(CRYPTO_CREATE, Instant.ofEpochSecond(1L), SubType.DEFAULT);
-        assertEquals(100L, loadedFeeData.networkdataOrThrow().min());
-        assertEquals(50_000L, loadedFeeData.networkdataOrThrow().max());
-        assertEquals(1L, loadedFeeData.networkdataOrThrow().bpt());
-    }
-
-    @Test
     void updateSimpleFeesParsesFeeSchedule() {
         final var validSchedule = org.hiero.hapi.support.fees.FeeSchedule.DEFAULT
                 .copyBuilder()
                 .extras(
                         makeExtraDef(Extra.KEYS, 1),
                         makeExtraDef(Extra.STATE_BYTES, 1),
-                        makeExtraDef(Extra.SIGNATURES, 1))
+                        makeExtraDef(Extra.SIGNATURES, 1),
+                        makeExtraDef(Extra.GAS, 852))
                 .node(NodeFee.DEFAULT
                         .copyBuilder()
                         .baseFee(100)
@@ -102,18 +63,38 @@ class FeeManagerTest {
         assertEquals(SUCCESS, result);
     }
 
-    private static @NonNull FeeComponents feeComponents() {
-        return FeeComponents.newBuilder()
-                .min(100L)
-                .max(50_000L)
-                .bpt(1L)
-                .vpt(2L)
-                .rbh(3L)
-                .sbh(4L)
-                .gas(5L)
-                .tv(6L)
-                .bpr(7L)
-                .sbpr(8L)
+    @Test
+    void getGasPriceInTinyCentsUsesSimpleFeesWhenGasExtraPresent() {
+        final var simpleSchedule = org.hiero.hapi.support.fees.FeeSchedule.DEFAULT
+                .copyBuilder()
+                .extras(makeExtraDef(Extra.GAS, 100_000L))
+                .node(NodeFee.DEFAULT.copyBuilder().baseFee(0).build())
+                .network(NetworkFee.DEFAULT.copyBuilder().multiplier(1).build())
+                .services(makeService("Crypto", makeServiceFee(CRYPTO_CREATE, 0)))
                 .build();
+        subject.updateSimpleFees(org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.toBytes(simpleSchedule));
+
+        assertEquals(100_000L, subject.getGasPriceInTinyCents(Instant.now()));
+    }
+
+    @Test
+    void updateSimpleFeesRejectsScheduleWithoutGasExtra() {
+        final var simpleSchedule = org.hiero.hapi.support.fees.FeeSchedule.DEFAULT
+                .copyBuilder()
+                .extras(makeExtraDef(Extra.KEYS, 1_000L))
+                .node(NodeFee.DEFAULT.copyBuilder().baseFee(0).build())
+                .network(NetworkFee.DEFAULT.copyBuilder().multiplier(1).build())
+                .services(makeService("Crypto", makeServiceFee(CRYPTO_CREATE, 0)))
+                .build();
+
+        final var result =
+                subject.updateSimpleFees(org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.toBytes(simpleSchedule));
+
+        assertEquals(FEE_SCHEDULE_FILE_PART_UPLOADED, result);
+    }
+
+    @Test
+    void getGasPriceInTinyCentsThrowsWhenSimpleFeesNotLoaded() {
+        assertThrows(IllegalStateException.class, () -> subject.getGasPriceInTinyCents(Instant.ofEpochSecond(1L)));
     }
 }

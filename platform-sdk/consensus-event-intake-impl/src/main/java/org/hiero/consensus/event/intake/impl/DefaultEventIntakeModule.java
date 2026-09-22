@@ -1,16 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.intake.impl;
 
-import static com.swirlds.component.framework.wires.SolderType.INJECT;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.wiring.framework.wires.SolderType.INJECT;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.transformers.WireTransformer;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -37,18 +31,27 @@ import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
-import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.transaction.TransactionLimits;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.transformers.WireTransformer;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * The default implementation of the {@link EventIntakeModule}.
  */
 public class DefaultEventIntakeModule implements EventIntakeModule {
 
-    /** Transformer to dispatch event windows to components that need them. */
+    @Nullable
+    private WireTransformer<ConsensusRound, EventWindow> eventWindowExtractor;
+
     @Nullable
     private WireTransformer<EventWindow, EventWindow> eventWindowDispatcher;
 
@@ -85,7 +88,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final RosterHistory rosterHistory,
+            @NonNull final RosterWrapperHistory rosterHistory,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final TransactionLimits transactionLimits,
             @Nullable final EventPipelineTracker pipelineTracker) {
@@ -95,6 +98,8 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         }
 
         // Set up wiring
+        this.eventWindowExtractor = new WireTransformer<>(
+                model, "EventIntake_EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow);
         this.eventWindowDispatcher =
                 new WireTransformer<>(model, "EventWindowDispatcher", "event window", UnaryOperator.identity());
         this.clearCommandDispatcher =
@@ -113,6 +118,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         this.branchReporterWiring = new ComponentWiring<>(model, BranchReporter.class, wiringConfig.branchReporter());
 
         // Wire components
+        eventWindowExtractor.getOutputWire().solderTo(eventWindowDispatcher.getInputWire(), INJECT);
         eventHasherWiring
                 .getOutputWire()
                 .solderTo(eventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
@@ -187,7 +193,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         branchReporterWiring.getInputWire(BranchReporter::clear);
 
         // Create and bind components
-        final Roster currentRoster = rosterHistory.getCurrentRoster();
+        final RosterWrapper currentRoster = rosterHistory.activeRoster();
         final EventHasher eventHasher = new DefaultEventHasher();
         eventHasherWiring.bind(eventHasher);
         final InternalEventValidator internalEventValidator = new DefaultInternalEventValidator(
@@ -239,7 +245,16 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
      */
     @Override
     @NonNull
-    public InputWire<EventWindow> eventWindowInputWire() {
+    public InputWire<ConsensusRound> consensusRoundInputWire() {
+        return requireNonNull(eventWindowExtractor, "Not initialized").getInputWire();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public InputWire<EventWindow> initialEventWindowInputWire() {
         return requireNonNull(eventWindowDispatcher, "Not initialized").getInputWire();
     }
 
@@ -248,7 +263,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
      */
     @Override
     @NonNull
-    public InputWire<RosterHistory> rosterHistoryInputWire() {
+    public InputWire<RosterWrapperHistory> rosterHistoryInputWire() {
         return requireNonNull(eventSignatureValidatorWiring, "Not initialized")
                 .getInputWire(EventSignatureValidator::updateRosterHistory);
     }

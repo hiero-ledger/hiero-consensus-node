@@ -62,40 +62,37 @@ This document lists the privileged transactions recognized by the Hedera network
 
 ## Authorization privileges
 
-First we consider the four transaction types that always require authorization to execute. These include:
+First we consider the three transaction types that always require authorization to execute. These include:
 1. The `Freeze` transaction that schedules a maintenance window in which the network
 will stop accepting transactions and possibly perform a software update.
 2. The `SystemDelete` transaction that deletes a file or contract (even an immutable
 file or contract), without requiring the target entity's key to sign the transaction.
 3. The `SystemUndelete` transaction that reverses the action of a `SystemDelete`
 transaction, if within the window during which such a reversal is possible.
-4. The `UncheckedSubmit` transaction that submits a transaction to the network
-without enforcing standard prechecks. (The only real use cases for `UncheckedSubmit`
-are in development environments, where it can be invaluable for testing.)
 
 ### Authorization privileges for special transactions
 
-|               Payer               | `Freeze` | `SystemDelete` | `SystemUndelete` | `UncheckedSubmit` |
-|-----------------------------------|:--------:|:--------------:|:----------------:|:-----------------:|
-| `accounts.treasury=2`             |    X     |       X        |        X         |         X         |
-| `accounts.systemAdmin=50`         |    X     |       X        |        X         |         X         |
-| `accounts.freezeAdmin=58`         |    X     |                |                  |                   |
-| `accounts.systemDeleteAdmin=59`   |          |       X        |                  |                   |
-| `accounts.systemUndeleteAdmin=60` |          |                |        X         |                   |
+|               Payer               | `Freeze` | `SystemDelete` | `SystemUndelete` |
+|-----------------------------------|:--------:|:--------------:|:----------------:|
+| `accounts.treasury=2`             |    X     |       X        |        X         |
+| `accounts.systemAdmin=50`         |    X     |       X        |        X         |
+| `accounts.freezeAdmin=58`         |    X     |                |                  |
+| `accounts.systemDeleteAdmin=59`   |          |       X        |                  |
+| `accounts.systemUndeleteAdmin=60` |          |                |        X         |
 
 ### Authorization privileges for file updates and appends
 
 Next we consider `FileUpdate` and `FileAppend` transactions when targeting one of the system files.
 
-|               Payer               | `files.addressBook=101` / `files.nodeDetails=102` | `files.networkProperties=121` / `files.hapiPermissions=122` | `files.feeSchedules=111` / `files.simpleFeesSchedules=113` | `files.exchangeRates=112` | `files.softwareUpdateRange=150-159` | `files.throttleDefinitions=123` |
-|-----------------------------------|:-------------------------------------------------:|:-----------------------------------------------------------:|:----------------------------------------------------------:|:-------------------------:|:-----------------------------------:|:-------------------------------:|
-| `accounts.treasury=2`             |                         X                         |                              X                              |                             X                              |             X             |                  X                  |                X                |
-| `accounts.systemAdmin=50`         |                         X                         |                              X                              |                             X                              |             X             |                  X                  |                X                |
-| `accounts.softwareUpdateAdmin=54` |                                                   |                                                             |                                                            |                           |                  X                  |                                 |
-| `accounts.addressBookAdmin=55`    |                         X                         |                              X                              |                                                            |                           |                                     |                X                |
-| `accounts.feeSchedulesAdmin=56`   |                                                   |                                                             |                             X                              |                           |                                     |                                 |
-| `accounts.exchangeRatesAdmin=57`  |                                                   |                              X                              |                                                            |             X             |                                     |                X                |
-| `accounts.freezeAdmin=58`         |                                                   |                                                             |                                                            |                           |                  X                  |                                 |
+|               Payer               | `files.addressBook=101` / `files.nodeDetails=102` | `files.networkProperties=121` / `files.hapiPermissions=122` | `files.simpleFeesSchedules=113` | `files.exchangeRates=112` | `files.softwareUpdateRange=150-159` | `files.throttleDefinitions=123` |
+|-----------------------------------|:-------------------------------------------------:|:-----------------------------------------------------------:|:-------------------------------:|:-------------------------:|:-----------------------------------:|:-------------------------------:|
+| `accounts.treasury=2`             |                         X                         |                              X                              |                X                |             X             |                  X                  |                X                |
+| `accounts.systemAdmin=50`         |                         X                         |                              X                              |                X                |             X             |                  X                  |                X                |
+| `accounts.softwareUpdateAdmin=54` |                                                   |                                                             |                                 |                           |                  X                  |                                 |
+| `accounts.addressBookAdmin=55`    |                         X                         |                              X                              |                                 |                           |                                     |                X                |
+| `accounts.feeSchedulesAdmin=56`   |                                                   |                                                             |                X                |                           |                                     |                                 |
+| `accounts.exchangeRatesAdmin=57`  |                                                   |                              X                              |                                 |             X             |                                     |                X                |
+| `accounts.freezeAdmin=58`         |                                                   |                                                             |                                 |                           |                  X                  |                                 |
 
 ### Authorization for crypto updates
 

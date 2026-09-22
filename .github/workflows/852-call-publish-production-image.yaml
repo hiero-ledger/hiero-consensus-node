@@ -72,7 +72,10 @@ jobs:
   publish-image:
     name: ${{ inputs.custom-job-name || 'Publish Production Image (GCP)' }}
     runs-on: hl-cn-default-lin-lg
-    if: ${{ !github.event.workflow_call.repository.fork }}
+    # Repository-pinning holds regardless of the caller's trigger (pull_request,
+    # pull_request_target, workflow_run, push) and of a fork being renamed — unlike
+    # github.event.repository.fork, which is `false` when a fork PR targets upstream.
+    if: ${{ github.repository == 'hiero-ledger/hiero-consensus-node' }}
     outputs:
       docker-registry: ${{ steps.set-registry.outputs.docker-registry }}
       docker-image: ${{ steps.set-registry.outputs.docker-tag-base }}/consensus-node:${{ inputs.version }}
@@ -81,7 +84,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
@@ -124,19 +127,23 @@ jobs:
 
       - name: Set Image Registry
         id: set-registry
+        env:
+          VERSION_POLICY: ${{ inputs.version-policy }}
+          REGISTRY_NAME: ${{ inputs.registry-name }}
+          DRY_RUN_ENABLED: ${{ inputs.dry-run-enabled }}
         run: |
           DOCKER_REGISTRY="gcr.io"
-          [[ "${{ inputs.version-policy }}" == "branch-commit" && "${{ inputs.registry-name }}" == "gcp" ]] && DOCKER_REGISTRY="us-docker.pkg.dev"
-          [[ "${{ inputs.registry-name }}" == "jfrog" ]] && DOCKER_REGISTRY="artifacts.hashgraph.io"
+          [[ "${VERSION_POLICY}" == "branch-commit" && "${REGISTRY_NAME}" == "gcp" ]] && DOCKER_REGISTRY="us-docker.pkg.dev"
+          [[ "${REGISTRY_NAME}" == "jfrog" ]] && DOCKER_REGISTRY="artifacts.hashgraph.io"
           echo "docker-registry=${DOCKER_REGISTRY}" >>"${GITHUB_OUTPUT}"
 
           DOCKER_TAG_BASE="gcr.io/hedera-registry"
-          [[ "${{ inputs.registry-name }}" == "jfrog" ]] && DOCKER_TAG_BASE="artifacts.hashgraph.io/consensus-node-docker-release"
+          [[ "${REGISTRY_NAME}" == "jfrog" ]] && DOCKER_TAG_BASE="artifacts.hashgraph.io/consensus-node-docker-release"
 
-          if [[ "${{ inputs.version-policy }}" == "branch-commit" && "${{ inputs.dry-run-enabled }}" != true ]]; then
-             [[ "${{ inputs.registry-name }}" == "gcp" ]] && DOCKER_TAG_BASE="us-docker.pkg.dev/swirlds-registry/docker-adhoc-commits"
-             [[ "${{ inputs.registry-name }}" == "jfrog" ]] && DOCKER_TAG_BASE="artifacts.hashgraph.io/consensus-node-docker-dev"
-          elif [[ "${{ inputs.dry-run-enabled }}" == true ]]; then
+          if [[ "${VERSION_POLICY}" == "branch-commit" && "${DRY_RUN_ENABLED}" != true ]]; then
+             [[ "${REGISTRY_NAME}" == "gcp" ]] && DOCKER_TAG_BASE="us-docker.pkg.dev/swirlds-registry/docker-adhoc-commits"
+             [[ "${REGISTRY_NAME}" == "jfrog" ]] && DOCKER_TAG_BASE="artifacts.hashgraph.io/consensus-node-docker-dev"
+          elif [[ "${DRY_RUN_ENABLED}" == true ]]; then
              DOCKER_TAG_BASE="localhost:5000"
           fi
 

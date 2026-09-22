@@ -6,11 +6,11 @@ import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.networkadmin.FreezeService;
-import com.hedera.node.app.service.networkadmin.NetworkService;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.util.UtilService;
@@ -69,8 +69,6 @@ public class ServiceScopeLookup {
 
             case FREEZE -> FreezeService.NAME;
 
-            case UNCHECKED_SUBMIT -> NetworkService.NAME;
-
             case SCHEDULE_CREATE, SCHEDULE_SIGN, SCHEDULE_DELETE -> ScheduleService.NAME;
 
             case TOKEN_CREATION,
@@ -119,6 +117,17 @@ public class ServiceScopeLookup {
             case HINTS_KEY_PUBLICATION, HINTS_PARTIAL_SIGNATURE, HINTS_PREPROCESSING_VOTE, CRS_PUBLICATION ->
                 HintsService.NAME;
             case MIGRATION_ROOT_HASH_VOTE -> BlockRecordService.NAME;
+
+            case CLPR_UPDATE_LEDGER_CONFIGURATION,
+                    CLPR_REGISTER_CHANNEL,
+                    CLPR_COMPLETE_CHANNEL,
+                    CLPR_CLOSE_CHANNEL,
+                    CLPR_SUBMIT_BUNDLE,
+                    CLPR_REDACT_MESSAGE,
+                    CLPR_REGISTER_CONNECTOR,
+                    CLPR_COMPLETE_CONNECTOR,
+                    CLPR_DEREGISTER_CONNECTOR,
+                    CLPR_ENDPOINT_PUBLICATION -> ClprService.NAME;
 
             default -> NON_EXISTING_SERVICE;
         };

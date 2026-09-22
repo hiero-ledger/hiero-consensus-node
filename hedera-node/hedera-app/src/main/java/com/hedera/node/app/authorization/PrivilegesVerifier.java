@@ -66,7 +66,6 @@ public class PrivilegesVerifier {
             case FREEZE -> checkFreeze(payerId);
             case SYSTEM_DELETE -> checkSystemDelete(payerId, txBody.systemDeleteOrThrow());
             case SYSTEM_UNDELETE -> checkSystemUndelete(payerId, txBody.systemUndeleteOrThrow());
-            case UNCHECKED_SUBMIT -> checkUncheckedSubmit(payerId);
 
             // Authorization privileges for file updates and appends
             case FILE_UPDATE ->
@@ -85,6 +84,7 @@ public class PrivilegesVerifier {
                 checkCryptoDelete(
                         effectiveNumber(txBody.cryptoDeleteOrThrow().deleteAccountIDOrElse(AccountID.DEFAULT)));
             case NODE_CREATE -> checkNodeCreate(payerId);
+            case CLPR_UPDATE_LEDGER_CONFIGURATION, CLPR_CLOSE_CHANNEL, CLPR_REDACT_MESSAGE -> checkClprAdmin(payerId);
             default -> SystemPrivilege.UNNECESSARY;
         };
     }
@@ -152,10 +152,6 @@ public class PrivilegesVerifier {
         return hasSystemUndeletePrivilege(accountID) ? AUTHORIZED : UNAUTHORIZED;
     }
 
-    private SystemPrivilege checkUncheckedSubmit(@NonNull final AccountID accountID) {
-        return isSuperUser(accountID) ? AUTHORIZED : UNAUTHORIZED;
-    }
-
     private SystemPrivilege checkFileChange(@NonNull final AccountID accountID, final long entityNum) {
         if (!isSystemEntity(entityNum)) {
             return UNNECESSARY;
@@ -166,8 +162,6 @@ public class PrivilegesVerifier {
             return hasAddressBookPrivilege(accountID) || hasExchangeRatePrivilege(accountID)
                     ? AUTHORIZED
                     : UNAUTHORIZED;
-        } else if (entityNum == filesConfig.feeSchedules()) {
-            return hasFeeSchedulePrivilege(accountID) ? AUTHORIZED : UNAUTHORIZED;
         } else if (entityNum == filesConfig.simpleFeesSchedules()) {
             return hasFeeSchedulePrivilege(accountID) ? AUTHORIZED : UNAUTHORIZED;
         } else if (entityNum == filesConfig.exchangeRates()) {
@@ -204,6 +198,10 @@ public class PrivilegesVerifier {
 
     private SystemPrivilege checkNodeCreate(@NonNull final AccountID payerId) {
         return hasNodeCreatePrivilege(payerId) ? AUTHORIZED : UNAUTHORIZED;
+    }
+
+    private SystemPrivilege checkClprAdmin(@NonNull final AccountID payerId) {
+        return isSuperUser(payerId) ? AUTHORIZED : UNAUTHORIZED;
     }
 
     private SystemPrivilege checkEntityDelete(final long entityNum) {

@@ -48,6 +48,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.SignaturePair;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.SignatureGenerator;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -60,14 +61,13 @@ import com.hedera.services.bdd.utils.Signing;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
-import org.bouncycastle.jcajce.provider.digest.SHA384.Digest;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -126,7 +126,7 @@ class AtomicIsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
 
                         final var privateKey = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                         final var addressBytes = recoverAddressFromPrivateKey(privateKey);
@@ -158,7 +158,7 @@ class AtomicIsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
 
                         final var privateKey = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                         final var addressBytes = recoverAddressFromPrivateKey(privateKey);
@@ -188,8 +188,8 @@ class AtomicIsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
-                        final var differentHash = new Keccak.Digest256().digest("submit1".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
+                        final var differentHash = MiscCryptoUtils.keccak256DigestOf("submit1".getBytes());
 
                         final var privateKey = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                         final var addressBytes = recoverAddressFromPrivateKey(privateKey);
@@ -221,7 +221,7 @@ class AtomicIsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
 
                         final var privateKey = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                         final var addressBytes = recoverAddressFromPrivateKey(privateKey);
@@ -260,7 +260,7 @@ class AtomicIsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
 
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
@@ -299,8 +299,8 @@ class AtomicIsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
-                        final var differentHash = new Keccak.Digest256().digest("submit1".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
+                        final var differentHash = MiscCryptoUtils.keccak256DigestOf("submit1".getBytes());
 
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
@@ -339,7 +339,8 @@ class AtomicIsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Digest().digest("submit".getBytes());
+                        final var messageHash =
+                                MessageDigest.getInstance("SHA-384").digest("submit".getBytes());
 
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
@@ -376,7 +377,7 @@ class AtomicIsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
 
                         final var callECSigWithLongZero = atomicBatch(contractCall(
                                                 HRC632_CONTRACT,
@@ -427,7 +428,8 @@ class AtomicIsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Digest().digest("submit".getBytes());
+                        final var messageHash =
+                                MessageDigest.getInstance("SHA-384").digest("submit".getBytes());
                         final var privateKey = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                         final var signedBytes = Signing.signMessage(messageHash, privateKey);
 
@@ -470,7 +472,8 @@ class AtomicIsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Digest().digest("submit".getBytes());
+                        final var messageHash =
+                                MessageDigest.getInstance("SHA-384").digest("submit".getBytes());
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
                                 .getEd25519PrivateKey(
@@ -532,8 +535,8 @@ class AtomicIsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
-                        final var messageHash32Bytes = new Keccak.Digest256().digest("submit".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
+                        final var messageHash32Bytes = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
 
                         // Sign message with ED25519
                         final var edKey = spec.registry().getKey(ED25519_KEY);
@@ -643,7 +646,7 @@ class AtomicIsAuthorizedTest {
                                 uploadInitCode(HRC632_CONTRACT),
                                 contractCreate(HRC632_CONTRACT))
                         .when(withOpContext((spec, opLog) -> {
-                            final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                            final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
 
                             final var privateKey = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                             final var addressBytes = recoverAddressFromPrivateKey(privateKey);
@@ -710,7 +713,7 @@ class AtomicIsAuthorizedTest {
                                 uploadInitCode(HRC632_CONTRACT),
                                 contractCreate(HRC632_CONTRACT))
                         .when(withOpContext((spec, opLog) -> {
-                            final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                            final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
 
                             final var edKey = spec.registry().getKey(ED25519_KEY);
                             final var privateKey = spec.keys()
@@ -761,7 +764,7 @@ class AtomicIsAuthorizedTest {
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
                         final var message = "submit".getBytes();
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
                         final var privateKey = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                         final var publicKey = spec.registry().getKey(ECDSA_KEY).getECDSASecp256K1();
                         final var addressBytes = recoverAddressFromPrivateKey(privateKey);
@@ -856,7 +859,7 @@ class AtomicIsAuthorizedTest {
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
                         final var message = "submit".getBytes();
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
                         final var privateKeyEcdsa = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                         final var publicKeyEcdsa =
                                 spec.registry().getKey(ECDSA_KEY).getECDSASecp256K1();
@@ -915,7 +918,7 @@ class AtomicIsAuthorizedTest {
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
                         final var message = "submit".getBytes();
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
                         final var privateKeyEcdsa = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                         final var publicKeyEcdsa =
                                 spec.registry().getKey(ECDSA_KEY).getECDSASecp256K1();
@@ -976,7 +979,7 @@ class AtomicIsAuthorizedTest {
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
                         final var message = "submit".getBytes();
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
                         final var privateKeyEcdsa = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                         final var publicKeyEcdsa =
                                 spec.registry().getKey(ECDSA_KEY).getECDSASecp256K1();

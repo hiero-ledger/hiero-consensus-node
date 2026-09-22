@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.schedule;
 
 import static com.hedera.services.bdd.suites.utils.DynamicTestUtils.extractAllTestAnnotatedMethods;
 
-import com.hedera.services.bdd.junit.ContextRequirement;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -52,8 +51,7 @@ public class AllLeakyTestsWithLongTermFlagEnabledTest {
                 "ledger.transfers.maxLen",
                 "ledger.tokenTransfers.maxLen",
                 "scheduling.whitelist"
-            },
-            requirement = ContextRequirement.FEE_SCHEDULE_OVERRIDES)
+            })
     final Stream<DynamicTest> runAllTests() {
         var allDynamicTests = extractAllTestAnnotatedMethods(ALL_TESTS, IGNORED_TESTS, LeakyHapiTest.class);
         return allDynamicTests.stream().flatMap(s -> s);

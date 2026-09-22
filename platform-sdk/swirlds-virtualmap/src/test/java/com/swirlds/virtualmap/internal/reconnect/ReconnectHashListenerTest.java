@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.reconnect;
 
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_CONFIGURATION;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_VIRTUAL_MAP_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -16,8 +16,8 @@ import com.swirlds.virtualmap.datasource.DataSourceHashChunkPreloader;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.internal.VirtualMapStatistics;
 import com.swirlds.virtualmap.internal.hash.VirtualHasher;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryBuilder;
@@ -96,7 +96,7 @@ class ReconnectHashListenerTest {
             final VirtualMapStatistics statistics = new VirtualMapStatistics("test");
             final int hashChunkHeight = ds.getHashChunkHeight();
             final ReconnectHashLeafFlusher flusher =
-                    new ReconnectHashLeafFlusher(ds, VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), statistics);
+                    new ReconnectHashLeafFlusher(ds, DEFAULT_VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), statistics);
 
             // 100 leaves would have firstLeafPath = 99, lastLeafPath = 198
             final int first = size - 1;
@@ -106,7 +106,7 @@ class ReconnectHashListenerTest {
 
             DataSourceHashChunkPreloader hashChunkPreloader = new DataSourceHashChunkPreloader(ds);
             final ReconnectHashListener listener = new ReconnectHashListener(flusher, hashChunkPreloader);
-            final VirtualHasher hasher = new VirtualHasher(CONFIGURATION.getConfigData(VirtualMapConfig.class));
+            final VirtualHasher hasher = new VirtualHasher(DEFAULT_CONFIGURATION.getConfigData(VirtualMapConfig.class));
 
             try {
                 hasher.hash(

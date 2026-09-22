@@ -40,9 +40,9 @@ round 2.
 
 ## In current code
 
-`ConsensusImpl.stronglySeeP` (line 1045),
-`ConsensusImpl.timedStronglySeeP` (line 871), and
-`ConsensusImpl.lastSee` (line 956), in
+`ConsensusImpl.stronglySeeP`,
+`ConsensusImpl.timedStronglySeeP`, and
+`ConsensusImpl.lastSee`, in
 [`ConsensusImpl.java`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java).
 The super-majority test uses `Threshold.SUPER_MAJORITY`
 ([`Threshold.java`](../../../base-utility/src/main/java/org/hiero/base/utility/Threshold.java)).
@@ -54,4 +54,5 @@ The super-majority test uses `Threshold.SUPER_MAJORITY`
 - Sibling concepts:
   [`rounds-and-witnesses.md`](rounds-and-witnesses.md),
   [`judges.md`](judges.md).
+- Invariants: INV-001 (voting round is monotonic along ancestry).
 - Glossary entry: [`../glossary.md`](../glossary.md).

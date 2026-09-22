@@ -11,8 +11,6 @@ import com.hedera.hapi.node.hooks.HookStoreTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.contract.impl.handlers.HookStoreHandler;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import java.util.List;
 import org.assertj.core.api.Assertions;
@@ -37,12 +35,6 @@ public class HookStoreHandlerTest {
 
     @Mock
     private FeeResult feeResult;
-
-    @Mock
-    private FeeCalculatorFactory feeCalculatorFactory;
-
-    @Mock
-    private FeeCalculator feeCalculator;
 
     @Test
     void simpleFeeCalculatorSimplyScalesBaseByCount() {

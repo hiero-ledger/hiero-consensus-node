@@ -8,6 +8,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -51,6 +52,46 @@ public class CustomCallCodeOperation extends CallCodeOperation implements BasicC
     @Override
     public Address to(@NonNull MessageFrame frame) {
         return super.to(frame);
+    }
+
+    @Override
+    public GasCalculator gasCalculator() {
+        return super.gasCalculator();
+    }
+
+    @Override
+    public long gas(@NonNull MessageFrame frame) {
+        return super.gas(frame);
+    }
+
+    @Override
+    public long inputDataOffset(@NonNull MessageFrame frame) {
+        return super.inputDataOffset(frame);
+    }
+
+    @Override
+    public long inputDataLength(@NonNull MessageFrame frame) {
+        return super.inputDataLength(frame);
+    }
+
+    @Override
+    public long outputDataOffset(@NonNull MessageFrame frame) {
+        return super.outputDataOffset(frame);
+    }
+
+    @Override
+    public long outputDataLength(@NonNull MessageFrame frame) {
+        return super.outputDataLength(frame);
+    }
+
+    @Override
+    public Wei value(@NonNull MessageFrame frame) {
+        return super.value(frame);
+    }
+
+    @Override
+    public Address address(@NonNull MessageFrame frame) {
+        return super.address(frame);
     }
 
     @Override

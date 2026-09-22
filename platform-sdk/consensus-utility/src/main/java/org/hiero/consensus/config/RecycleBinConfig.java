@@ -10,7 +10,7 @@ import java.time.Duration;
  * Settings for the recycle bin
  *
  * @param dirName          the name of the recycle bin directory, relative to the root path defined in
- *                         {@link PathsConfig#savedStateDir}
+ *                         {@code PathsConfig#savedStateDir}
  * @param maximumFileAge   the maximum age of a file in the recycle bin before it is deleted
  * @param collectionPeriod the period between recycle bin collection runs
  */

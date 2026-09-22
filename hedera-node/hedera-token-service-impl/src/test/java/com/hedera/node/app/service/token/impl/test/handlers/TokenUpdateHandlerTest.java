@@ -27,6 +27,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NAME_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_SYMBOL_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
 import static com.hedera.hapi.node.base.TokenType.FUNGIBLE_COMMON;
 import static com.hedera.hapi.node.base.TokenType.NON_FUNGIBLE_UNIQUE;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
@@ -504,6 +505,88 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(ACCOUNT_FROZEN_FOR_TOKEN));
+    }
+
+    @Test
+    void failsIfNewTreasuryOwnsNftsWhenOldTreasuryIsEmpty() {
+        givenTreasuryBalances(0, 1);
+        txn = new TokenUpdateBuilder()
+                .withTreasury(payerId)
+                .withToken(nonFungibleTokenId)
+                .build();
+        given(handleContext.body()).willReturn(txn);
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES));
+    }
+
+    @Test
+    void reportsMissingKycBeforeNonZeroBalanceWhenBothTreasuriesHoldNfts() {
+        // Dropping the kycKey stops updateTreasuryTitles() from resetting kycGranted on the incoming
+        // relation, leaving validateFrozenAndKey() something to reject. It must be reported ahead of
+        // the zero-balance check; hoisting that check above it would silently change this status.
+        writableTokenStore.put(writableTokenStore
+                .get(nonFungibleTokenId)
+                .copyBuilder()
+                .kycKey((Key) null)
+                .build());
+        given(storeFactory.readableStore(ReadableTokenStore.class)).willReturn(writableTokenStore);
+        givenTreasuryBalances(1, 1);
+        writableTokenRelStore.put(writableTokenRelStore
+                .get(payerId, nonFungibleTokenId)
+                .copyBuilder()
+                .kycGranted(false)
+                .build());
+        txn = new TokenUpdateBuilder()
+                .withTreasury(payerId)
+                .withToken(nonFungibleTokenId)
+                .build();
+        given(handleContext.body()).willReturn(txn);
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(TOKEN_HAS_NO_KYC_KEY));
+    }
+
+    @Test
+    void worksWhenBothTreasuriesAreEmptyForNFT() {
+        givenTreasuryBalances(0, 0);
+        txn = new TokenUpdateBuilder()
+                .withTreasury(payerId)
+                .withToken(nonFungibleTokenId)
+                .build();
+        given(handleContext.body()).willReturn(txn);
+
+        assertThatNoException().isThrownBy(() -> subject.handle(handleContext));
+
+        assertThat(writableTokenStore.get(nonFungibleTokenId).treasuryAccountId())
+                .isEqualTo(payerId);
+        // Nothing was moved, so neither relation's balance changed
+        assertThat(writableTokenRelStore.get(treasuryId, nonFungibleTokenId).balance())
+                .isZero();
+        assertThat(writableTokenRelStore.get(payerId, nonFungibleTokenId).balance())
+                .isZero();
+    }
+
+    @Test
+    void worksWhenOldTreasuryIsEmptyForFungibleToken() {
+        final var emptyOldRel = writableTokenRelStore
+                .get(treasuryId, fungibleTokenId)
+                .copyBuilder()
+                .balance(0)
+                .build();
+        writableTokenRelStore.put(emptyOldRel);
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
+                .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
+        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
+        given(storeFactory.readableStore(ReadableTokenRelationStore.class)).willReturn(writableTokenRelStore);
+        txn = new TokenUpdateBuilder().build();
+        given(handleContext.body()).willReturn(txn);
+
+        assertThatNoException().isThrownBy(() -> subject.handle(handleContext));
+
+        assertThat(writableTokenStore.get(fungibleTokenId).treasuryAccountId()).isEqualTo(ownerId);
+        assertThat(writableTokenRelStore.get(treasuryId, fungibleTokenId).balance())
+                .isZero();
     }
 
     @Test
@@ -1249,6 +1332,27 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     }
 
     /* --------------------------------- Helpers --------------------------------- */
+    /**
+     * Sets the NFT relation balances of the outgoing ({@code treasuryId}) and incoming
+     * ({@code payerId}) treasuries, and stubs the expiry validation the handler needs.
+     */
+    private void givenTreasuryBalances(final long oldTreasuryBalance, final long newTreasuryBalance) {
+        writableTokenRelStore.put(writableTokenRelStore
+                .get(treasuryId, nonFungibleTokenId)
+                .copyBuilder()
+                .balance(oldTreasuryBalance)
+                .build());
+        writableTokenRelStore.put(writableTokenRelStore
+                .get(payerId, nonFungibleTokenId)
+                .copyBuilder()
+                .balance(newTreasuryBalance)
+                .build());
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
+                .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
+        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
+        given(storeFactory.readableStore(ReadableTokenRelationStore.class)).willReturn(writableTokenRelStore);
+    }
+
     /**
      * A builder for {@link com.hedera.hapi.node.transaction.TransactionBody} instances.
      */

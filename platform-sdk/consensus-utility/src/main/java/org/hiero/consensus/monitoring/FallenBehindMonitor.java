@@ -5,7 +5,6 @@ import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashSet;
@@ -14,10 +13,10 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import javax.annotation.concurrent.GuardedBy;
-import org.hiero.consensus.config.FallenBehindConfig;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterLookup;
 
 /**
  * Detects when this node has fallen behind the network.
@@ -35,18 +34,26 @@ public class FallenBehindMonitor {
     private final Condition fallenBehindCondition = lock.newCondition();
     private final Condition gossipSyncPausedCondition = lock.newCondition();
 
+    private final RosterLookup rosterLookup;
+
     /**
-     * the number of peers in the roster
+     * Total weight of the roster except for self node
      */
-    private final int peersSize;
+    private final long totalWeightExceptSelf;
+
+    /**
+     * Over that weight we assume that we have fallen behind and we need to reconnect.
+     */
+    private final long fallenBehindWeightThreshold;
 
     /**
      * set of peers that reported this node has fallen behind
      */
+    @GuardedBy("lock")
     private final Set<NodeId> reportFallenBehind = new HashSet<>();
 
     @GuardedBy("lock")
-    private final double fallenBehindThreshold;
+    private long fallenBehindWeight;
 
     @GuardedBy("lock")
     private boolean isBehind;
@@ -55,30 +62,36 @@ public class FallenBehindMonitor {
     private boolean pausedNotificationReceived;
 
     public FallenBehindMonitor(
-            @NonNull final Roster roster, @NonNull final Configuration config, @NonNull final Metrics metrics) {
-        this(
-                requireNonNull(roster).rosterEntries().size() - 1,
-                requireNonNull(config).getConfigData(FallenBehindConfig.class).fallenBehindThreshold());
+            @NonNull final Roster roster,
+            @NonNull final Metrics metrics,
+            @NonNull final NodeId selfId,
+            final double fallenBehindThreshold) {
+        this(roster, selfId, fallenBehindThreshold);
         requireNonNull(metrics)
                 .getOrCreate(new FunctionGauge.Config<>(
                                 INTERNAL_CATEGORY, "hasFallenBehind", Object.class, this::hasFallenBehind)
                         .withDescription("has this node fallen behind?"));
         metrics.getOrCreate(new FunctionGauge.Config<>(
                         INTERNAL_CATEGORY, "numReportFallenBehind", Integer.class, this::reportedSize)
-                .withDescription("the number of nodes that have fallen behind")
+                .withDescription("the number of nodes that have reported we are behind")
                 .withUnit("count"));
+        metrics.getOrCreate(new FunctionGauge.Config<>(
+                        INTERNAL_CATEGORY, "weightReportFallenBehind", Double.class, this::reportedWeight)
+                .withDescription("the fraction of node weight that has reported we are behind")
+                .withUnit("fraction"));
     }
 
-    public FallenBehindMonitor(final int peersSize, final double fallenBehindThreshold) {
-        this.peersSize = peersSize;
-        this.fallenBehindThreshold = fallenBehindThreshold;
+    public FallenBehindMonitor(
+            @NonNull final Roster roster, @NonNull final NodeId selfId, final double fallenBehindThreshold) {
+        this.rosterLookup = new RosterLookup(requireNonNull(roster));
+        this.totalWeightExceptSelf = rosterLookup.rosterTotalWeight() - rosterLookup.getWeight(selfId);
+        this.fallenBehindWeightThreshold = Math.round(totalWeightExceptSelf * fallenBehindThreshold);
     }
 
     private void checkAndNotify() {
-        boolean wasNotBehind = !isBehind;
-        // Fall behind if reports > threshold OR if all peers have reported (handles threshold = 1.0 edge case)
-        isBehind = peersSize * fallenBehindThreshold < reportFallenBehind.size()
-                || (peersSize > 0 && reportFallenBehind.size() == peersSize);
+        final boolean wasNotBehind = !isBehind;
+        // Fall behind if reports > threshold
+        isBehind = fallenBehindWeight > fallenBehindWeightThreshold;
         if (wasNotBehind && isBehind) {
             fallenBehindCondition.signalAll(); // notify waiting threads
         }
@@ -94,6 +107,7 @@ public class FallenBehindMonitor {
         lock.lock();
         try {
             if (reportFallenBehind.add(id)) {
+                fallenBehindWeight += rosterLookup.getWeight(id);
                 checkAndNotify();
             }
         } finally {
@@ -110,7 +124,9 @@ public class FallenBehindMonitor {
     void clear(@NonNull final NodeId id) {
         lock.lock();
         try {
-            reportFallenBehind.remove(id);
+            if (reportFallenBehind.remove(id)) {
+                fallenBehindWeight -= rosterLookup.getWeight(id);
+            }
             checkAndNotify();
         } finally {
             lock.unlock();
@@ -155,6 +171,7 @@ public class FallenBehindMonitor {
         try {
             reportFallenBehind.clear();
             isBehind = false;
+            fallenBehindWeight = 0;
         } finally {
             lock.unlock();
         }
@@ -167,6 +184,22 @@ public class FallenBehindMonitor {
         lock.lock();
         try {
             return reportFallenBehind.size();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * @return the weight fraction of nodes that have told us we have fallen behind
+     */
+    public double reportedWeight() {
+
+        if (totalWeightExceptSelf == 0) {
+            return 0;
+        }
+        lock.lock();
+        try {
+            return fallenBehindWeight / (double) totalWeightExceptSelf;
         } finally {
             lock.unlock();
         }

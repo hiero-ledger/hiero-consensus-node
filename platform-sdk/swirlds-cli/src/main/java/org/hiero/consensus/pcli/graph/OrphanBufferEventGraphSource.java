@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli.graph;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedList;
 import java.util.List;
@@ -39,13 +39,13 @@ public class OrphanBufferEventGraphSource implements EventGraphSource {
      * Creates a source that wraps an underlying source and processes events through hasher and orphan buffer.
      *
      * @param underlyingSource the underlying source providing raw events
-     * @param context          platform context for configuration and metrics
+     * @param metrics          metrics instance
      */
     public OrphanBufferEventGraphSource(
-            @NonNull final EventGraphSource underlyingSource, @NonNull final PlatformContext context) {
+            @NonNull final EventGraphSource underlyingSource, @NonNull final Metrics metrics) {
         this.underlyingSource = underlyingSource;
         this.eventHasher = new PbjStreamHasher();
-        this.orphanBuffer = new DefaultOrphanBuffer(context.getMetrics(), new NoOpIntakeEventCounter());
+        this.orphanBuffer = new DefaultOrphanBuffer(metrics, new NoOpIntakeEventCounter());
         this.releasedEventsBuffer = new LinkedList<>();
     }
 

@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ALIAS_ALREADY_ASSIGNED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALIAS_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_INITIAL_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
@@ -175,14 +176,23 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
-    @DisplayName("pureChecks fail when delegation address is not empty")
-    void whenDelegationAddressIsNonEmpty() {
+    void cryptoCreateWithDelegationAddressIsRejectedWithDefaultConfig() {
         txn = new CryptoCreateBuilder()
-                .withDelegationAddress(Bytes.fromHex("cafebabe"))
+                .withDelegationAddress(Bytes.fromHex("00000000000000000000000000000000000000AA"))
+                .withStakedAccountId(3)
+                .withShardId(0)
+                .withRealmId(0)
                 .build();
-        given(pureChecksContext.body()).willReturn(txn);
-        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-        assertThat(NOT_SUPPORTED).isEqualTo(msg.responseCode());
+        given(handleContext.body()).willReturn(txn);
+
+        given(handleContext.consensusNow()).willReturn(consensusInstant);
+        given(handleContext.payer()).willReturn(id);
+        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(config);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(NOT_SUPPORTED));
     }
 
     @Test
@@ -292,6 +302,41 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
 
         final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertThat(msg.responseCode()).isEqualTo(PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED);
+    }
+
+    @Test
+    @DisplayName("pureChecks fail when delegation address is wrong size")
+    void wrongSizeDelegationAddressShouldFailPureChecks() throws PreCheckException {
+        final var txn = new CryptoCreateBuilder()
+                .withDelegationAddress(Bytes.fromHex("1234"))
+                .build();
+        given(pureChecksContext.body()).willReturn(txn);
+
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_CONTRACT_ID));
+    }
+
+    @Test
+    @DisplayName("pureChecks succeed when delegation address is zero size")
+    void zeroSizeDelegationAddressShouldPassPureChecks() throws PreCheckException {
+        final var txn =
+                new CryptoCreateBuilder().withDelegationAddress(Bytes.EMPTY).build();
+        given(pureChecksContext.body()).willReturn(txn);
+
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
+    }
+
+    @Test
+    @DisplayName("pureChecks succeed when delegation address is evm address size")
+    void addressSizeDelegationAddressShouldPassPureChecks() throws PreCheckException {
+        final Bytes LONG_ZERO_ADDRESS_BYTES = Bytes.fromHex("0000000000000000000000000000000000000123");
+        final var txn = new CryptoCreateBuilder()
+                .withDelegationAddress(LONG_ZERO_ADDRESS_BYTES)
+                .build();
+        given(pureChecksContext.body()).willReturn(txn);
+
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
     }
 
     @Test
@@ -420,6 +465,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         assertEquals(0, createdAccount.numberTreasuryTitles());
         assertFalse(createdAccount.expiredAndPendingRemoval());
         assertEquals(0, createdAccount.firstContractStorageKey().length());
+        assertEquals(Bytes.EMPTY, createdAccount.delegationAddress());
 
         // validate payer balance reduced
         assertEquals(9_900L, writableStore.get(id).tinybarBalance());
@@ -490,6 +536,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         assertEquals(0, createdAccount.numberTreasuryTitles());
         assertFalse(createdAccount.expiredAndPendingRemoval());
         assertEquals(0, createdAccount.firstContractStorageKey().length());
+        assertEquals(Bytes.EMPTY, createdAccount.delegationAddress());
 
         // validate payer balance reduced
         assertEquals(9_900L, writableStore.get(id).tinybarBalance());
@@ -602,6 +649,58 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         assertEquals(
                 Bytes.wrap(evmAddress),
                 writableStore.get(idFactory.newAccountId(1000L)).alias());
+    }
+
+    @Test
+    @DisplayName("handle commits delegation address mentioned in the transaction")
+    void handleCommitsDelegationAddress() {
+        final var evmAddress = "6aeb3773ea468a814d954e6dec795bfee7d76e26";
+        txn = new CryptoCreateBuilder()
+                .withDelegationAddress(Bytes.fromHex(evmAddress))
+                .withStakedAccountId(3)
+                .build();
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.payer()).willReturn(idFactory.newAccountId(id.accountNum()));
+
+        given(handleContext.consensusNow()).willReturn(consensusInstant);
+        given(entityNumGenerator.newEntityNum()).willReturn(1000L);
+
+        setupExpiryValidator();
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("contracts.codeDelegations.enabled", true)
+                .getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(config);
+
+        subject.handle(handleContext);
+
+        assertEquals(
+                Bytes.fromHex(evmAddress),
+                writableStore.get(idFactory.newAccountId(1000L)).delegationAddress());
+    }
+
+    @Test
+    @DisplayName("handle does not store a 0x00..00 address in code delegation")
+    void handleDoesNotCommitZeroDelegationAddress() {
+        txn = new CryptoCreateBuilder()
+                .withDelegationAddress(Bytes.fromHex("0000000000000000000000000000000000000000"))
+                .withStakedAccountId(3)
+                .build();
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.payer()).willReturn(idFactory.newAccountId(id.accountNum()));
+
+        given(handleContext.consensusNow()).willReturn(consensusInstant);
+        given(entityNumGenerator.newEntityNum()).willReturn(1000L);
+
+        setupExpiryValidator();
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("contracts.codeDelegations.enabled", true)
+                .getOrCreateConfig();
+        given(handleContext.configuration()).willReturn(config);
+
+        subject.handle(handleContext);
+
+        assertEquals(
+                Bytes.EMPTY, writableStore.get(idFactory.newAccountId(1000L)).delegationAddress());
     }
 
     @Test

@@ -1,71 +1,85 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state;
 
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractNativeSystemContract.FUNCTION_SELECTOR_LENGTH;
+import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 
-import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Set;
 import org.apache.tuweni.bytes.Bytes;
-import org.hyperledger.besu.datatypes.Address;
+import org.apache.tuweni.bytes.Bytes32;
 import org.hyperledger.besu.datatypes.Hash;
 import org.hyperledger.besu.evm.Code;
-import org.hyperledger.besu.evm.code.CodeFactory;
 
 /**
- * A concrete subclass of {@link AbstractProxyEvmAccount} that represents a contract account.
- *
- * Responsible for retrieving the redirectForAccount proxy contract byte code from {@link EvmFrameState}
- * if the function selector is eligible for proxy redirection.
- * Otherwise, it returns the 0x bytecode.
- *
+ * A concrete subclass of {@link AbstractProxyEvmAccount} that represents a regular account.
+ * Responsible for retrieving the delegation address from the Account entity
+ * and returning the appropriate code - either EIP-7702 delegation indicator or empty.
  */
 public class ProxyEvmAccount extends AbstractProxyEvmAccount {
 
-    /*
-     * Four byte function selectors for the functions that are eligible for proxy redirection
-     * in the Hedera Account Service system contract
-     */
-    private static final Set<Integer> ACCOUNT_PROXY_FUNCTION_SELECTOR = Set.of(
-            // hbarAllowance(address spender)
-            0xbbee989e,
-            // hbarApprove(address spender, int256 amount)
-            0x86aff07c,
-            // setUnlimitedAutomaticAssociations(bool enableAutoAssociations
-            0xf5677e99);
+    private static final com.hedera.pbj.runtime.io.buffer.Bytes CODE_DELEGATION_PREFIX_PJB =
+            com.hedera.pbj.runtime.io.buffer.Bytes.wrap(CODE_DELEGATION_PREFIX.toArray());
 
-    // Only pass in a non-null account address if the function selector is eligible for proxy redirection.
-    // A null address will return the 0x bytecode.
-    @Nullable
-    private Address address;
+    private final Account account;
 
-    public ProxyEvmAccount(final AccountID accountID, @NonNull final DispatchingEvmFrameState state) {
-        super(accountID, state);
+    /// A cache for the code. No synchronization for performance reasons.
+    private Bytes $code;
+    /// A cache for the codePBJ. No synchronization for performance reasons.
+    private com.hedera.pbj.runtime.io.buffer.Bytes $codePBJ;
+
+    public ProxyEvmAccount(final Account account, @NonNull final DispatchingEvmFrameState state) {
+        super(account.accountId(), state);
+
+        this.account = account;
     }
 
-    @Override
-    public @NonNull Code getEvmCode(@NonNull final Bytes functionSelector, @NonNull final CodeFactory codeFactory) {
-        // Check to see if the account needs to return the proxy redirect for account bytecode
-        final int selector = functionSelector.size() >= FUNCTION_SELECTOR_LENGTH ? functionSelector.getInt(0) : 0;
-        if (ACCOUNT_PROXY_FUNCTION_SELECTOR.contains(selector)) {
-            address = state.getAddress(accountID);
-        }
-        return codeFactory.createCode(getCode(), false);
-    }
-
+    /// {@inheritDoc}
+    /// Returns an eventually cached Bytes with the code prefixed by the CODE_DELEGATION_PREFIX.
+    /// Assumes that the caller does NOT modify the underlying bytes, even if they use toArrayUnsafe().
     @Override
     public @NonNull Bytes getCode() {
-        return state.getAccountRedirectCode(address);
+        if ($code == null) {
+            if (account.delegationAddress().length() == 0) {
+                $code = Bytes.EMPTY;
+            } else {
+                $code = Bytes.wrap(getCodeByteArray(account.delegationAddress()));
+            }
+        }
+        return $code;
     }
 
     @Override
     public com.hedera.pbj.runtime.io.buffer.Bytes getCodePBJ() {
-        return state.getAccountRedirectCodePBJ(address);
+        if ($codePBJ == null) {
+            $codePBJ = com.hedera.pbj.runtime.io.buffer.Bytes.wrap(getCode().toArrayUnsafe());
+        }
+        return $codePBJ;
+    }
+
+    public static com.hedera.pbj.runtime.io.buffer.Bytes createDelegationIndicatorPJB(
+            com.hedera.pbj.runtime.io.buffer.Bytes delegationAddress) {
+        return com.hedera.pbj.runtime.io.buffer.Bytes.wrap(getCodeByteArray(delegationAddress));
+    }
+
+    /// An efficient builder for a code byte[] that returns an unsafe array (because it's mutable).
+    /// Assumes delegationAddress isn't empty, but shouldn't fail with an empty one.
+    /// Up to the caller to decide if an empty delegationAddress should be treated differently.
+    private static byte[] getCodeByteArray(final com.hedera.pbj.runtime.io.buffer.Bytes delegationAddress) {
+        final byte[] code = new byte[Math.toIntExact(delegationAddress.length() + CODE_DELEGATION_PREFIX.size())];
+        System.arraycopy(CODE_DELEGATION_PREFIX.toArrayUnsafe(), 0, code, 0, CODE_DELEGATION_PREFIX.size());
+        // The below call performs an efficient System.arraycopy() as well:
+        delegationAddress.writeTo(code, CODE_DELEGATION_PREFIX.size());
+        return code;
     }
 
     @Override
     public @NonNull Hash getCodeHash() {
-        return state.getAccountRedirectCodeHash(address);
+        if (account.delegationAddress().length() == 0) {
+            return Code.EMPTY_CODE.getCodeHash();
+        } else {
+            return Hash.wrap(
+                    Bytes32.wrap(MiscCryptoUtils.keccak256DigestOf(getCode().toArrayUnsafe())));
+        }
     }
 }

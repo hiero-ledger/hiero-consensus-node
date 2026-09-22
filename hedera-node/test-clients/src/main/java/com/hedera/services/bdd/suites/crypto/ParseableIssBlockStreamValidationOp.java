@@ -19,8 +19,10 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
 
 /**
- * A {@link UtilOp} that validates the streams produced in an ISS scenario, where the ISS node
- * block stream diverges from the block streams of the other nodes.
+ * A {@link UtilOp} that validates the block streams produced in an ISS scenario, where the ISS node block stream
+ * diverges from the other nodes. Per issue #25827 the ISS node keeps streaming through the ISS but stops its block
+ * stream when the platform reaches {@code CATASTROPHIC_FAILURE}, so it falls behind the other nodes (which continue to
+ * the network freeze) — this op asserts that divergence plus that every non-ISS node froze and all streams are parseable.
  */
 // (FUTURE) Split up into more granular ops
 public class ParseableIssBlockStreamValidationOp extends UtilOp {
@@ -55,17 +57,17 @@ public class ParseableIssBlockStreamValidationOp extends UtilOp {
                     spec.getNetworkNodes().size());
         }
 
-        // We cause the ISS in node1
-        final var deviatingBlockStream = blocksPerNode.get(1);
-
-        // Verify the non-ISS block streams
+        // We cause the ISS in node1. Per issue #25827 it keeps streaming through the ISS, but stops its block stream
+        // when the platform reaches CATASTROPHIC_FAILURE, so it falls behind the other nodes (which continue to the
+        // network freeze). The ISS-specific behaviour (ISS detected, then "Block stream fatal shutdown complete") is
+        // additionally asserted via logs in IssHandlingTest.
+        final var deviatingBlockStream = blocksPerNode.get((int) ISS_NODE_ID);
         for (int i = 0, n = blocksPerNode.size(); i < n; i++) {
             if (i != ISS_NODE_ID) {
                 final var nodeBlocks = blocksPerNode.get(i);
-                // Assert the stream has a freeze transaction
+                // Assert the stream has a freeze transaction (the non-ISS nodes continued and froze the network)
                 assertTrue(hasFreeze(nodeBlocks), "No freeze transaction found in stream for node" + i);
-                // Assert that this node has more blocks than the ISS node, since it should have continued processing
-                // transactions
+                // Assert this node has more blocks than the ISS node, which stopped streaming at CATASTROPHIC_FAILURE
                 assertTrue(
                         nodeBlocks.size() > deviatingBlockStream.size(),
                         "Non-ISS node" + i + " should have more blocks than ISS node" + ISS_NODE_ID);

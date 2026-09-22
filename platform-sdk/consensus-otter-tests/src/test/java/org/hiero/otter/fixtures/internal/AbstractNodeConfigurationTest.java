@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal;
 
-import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.SEQUENTIAL;
 import static java.util.Optional.ofNullable;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
+import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerType.SEQUENTIAL;
 
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import com.swirlds.config.api.Configuration;
@@ -21,6 +19,8 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerType;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
 import org.junit.jupiter.api.BeforeEach;

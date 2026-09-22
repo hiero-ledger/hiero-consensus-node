@@ -8,6 +8,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.DataInputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.Queue;
@@ -16,7 +17,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import org.hiero.base.concurrent.pool.StandardWorkGroup;
 
 /**
  * <p>
@@ -37,11 +38,11 @@ import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
  *
  * <p>
  * Lifecycle is tracked by {@link Status}: {@link Status#NOT_STARTED} → {@link Status#RUNNING} (set by a successful
- * {@link #start()}) → {@link Status#DONE} (set by the background thread when it exits — normal EOF marker, I/O error,
+ * {@link #start(StandardWorkGroup)}) → {@link Status#DONE} (set by the background thread when it exits — normal EOF marker, I/O error,
  * or interrupt). Shutdown is driven by either an {@link IOException} (EOF marker, socket timeout, etc.) on the stream
- * or by an interrupt delivered through {@link StandardWorkGroup} (e.g. {@code handleError} → {@code shutdownNow}). An
- * I/O error is reported through the work group rather than the status, so {@link Status#DONE} does not distinguish
- * clean shutdown from a failure — callers that care should consult {@link StandardWorkGroup#hasExceptions()}.
+ * or by an interrupt delivered through {@link StandardWorkGroup}.
+ * An I/O error is reported through the work group rather than the status, so {@link Status#DONE} does not distinguish
+ * clean shutdown from a failure.
  * </p>
  */
 public class AsyncInputStream {
@@ -50,12 +51,9 @@ public class AsyncInputStream {
 
     private static final String THREAD_NAME = "async-input-stream";
 
-    // maximum message size in bytes - 8mb
-    static final int MAX_MESSAGE_SIZE = 8 * 1024 * 1024;
-
     /** Lifecycle states of the background reader thread. Transitions are monotonic. */
     public enum Status {
-        /** {@link #start()} has not been called yet. */
+        /** {@link #start(StandardWorkGroup)} has not been called yet. */
         NOT_STARTED,
         /** The background reader thread is running and may be enqueuing messages. */
         RUNNING,
@@ -75,28 +73,26 @@ public class AsyncInputStream {
     // thread sets DONE on exit.
     private final AtomicReference<Status> status = new AtomicReference<>(Status.NOT_STARTED);
 
-    private final StandardWorkGroup workGroup;
-
     private final int queueSizeThreshold;
 
     private final long timeoutNanos;
+
+    private final long maxMessageSizeBytes;
 
     /**
      * Create a new async input stream.
      *
      * @param inputStream           the base stream to read from
-     * @param workGroup             the work group that is managing this stream's thread
      * @param queueSizeThreshold    max size of the queue for reader thread backpressure
      * @param timeout               maximum time {@link #readOrWait(YieldStrategy)} will wait when the buffer is full;
      *                              must be non-null and positive
      */
     public AsyncInputStream(
             @NonNull final DataInputStream inputStream,
-            @NonNull final StandardWorkGroup workGroup,
             final int queueSizeThreshold,
-            @NonNull final Duration timeout) {
+            @NonNull final Duration timeout,
+            final int maxMessageSizeBytes) {
         this.inputStream = Objects.requireNonNull(inputStream, "inputStream must not be null");
-        this.workGroup = Objects.requireNonNull(workGroup, "workGroup must not be null");
         Objects.requireNonNull(timeout, "timeout must not be null");
 
         if (queueSizeThreshold <= 0) {
@@ -105,9 +101,13 @@ public class AsyncInputStream {
         if (!timeout.isPositive()) {
             throw new IllegalArgumentException("timeout must be positive");
         }
+        if (maxMessageSizeBytes <= 0) {
+            throw new IllegalArgumentException("maxMessageSizeBytes must be greater than 0");
+        }
 
         this.queueSizeThreshold = queueSizeThreshold;
         this.timeoutNanos = timeout.toNanos();
+        this.maxMessageSizeBytes = maxMessageSizeBytes;
     }
 
     /**
@@ -115,19 +115,20 @@ public class AsyncInputStream {
      * This method can be called only once.
      *
      * @throws IllegalStateException if background thread is already started or terminated
-     * @throws MerkleSynchronizationException if background thread cannot be submitted for execution
+     * @throws RuntimeException if background thread cannot be submitted for execution
      */
-    public void start() {
+    public void start(final @NonNull StandardWorkGroup workGroup) {
+        Objects.requireNonNull(workGroup, "workGroup must not be null");
+
         if (!status.compareAndSet(Status.NOT_STARTED, Status.RUNNING)) {
             throw new IllegalStateException("Stream status has already been set: " + status.get());
         }
 
         try {
-            workGroup.execute(THREAD_NAME, this::run);
+            workGroup.fork(THREAD_NAME, this::run);
         } catch (Exception e) {
             status.set(Status.DONE);
-            workGroup.handleError(e); // terminate other tasks that already running
-            throw new MerkleSynchronizationException("Background reading thread cannot be submitted for execution", e);
+            throw e;
         }
     }
 
@@ -144,9 +145,9 @@ public class AsyncInputStream {
                 if (len < 0) {
                     logger.info(RECONNECT.getMarker(), "Async input stream is done");
                     return;
-                } else if (len > MAX_MESSAGE_SIZE) {
+                } else if (len > maxMessageSizeBytes) {
                     throw new MerkleSynchronizationException(
-                            "Message size exceeds maximum size of " + MAX_MESSAGE_SIZE);
+                            "Message size exceeds maximum size of " + maxMessageSizeBytes + " bytes");
                 }
 
                 final byte[] messageBytes = new byte[len];
@@ -162,7 +163,7 @@ public class AsyncInputStream {
             }
         } catch (final IOException e) {
             logger.warn(RECONNECT.getMarker(), "Async input stream failed due to I/O error", e);
-            workGroup.handleError(e);
+            throw new UncheckedIOException(e);
         } finally {
             status.set(Status.DONE);
             logger.debug(RECONNECT.getMarker(), "Background reader thread stopped");

@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -72,10 +72,8 @@ class ReadableRosterStoreImplTest {
     @Test
     void testCreateRosterHistory() {
         final Random random = new Random();
-        final Roster currentRoster =
-                RandomRosterBuilder.create(random).withSize(4).build();
-        final Roster previousRoster =
-                RandomRosterBuilder.create(random).withSize(3).build();
+        final Roster currentRoster = RosterFactory.randomRoster(random, 4);
+        final Roster previousRoster = RosterFactory.randomRoster(random, 3);
 
         setup(currentRoster, 16L, previousRoster);
 
@@ -87,10 +85,8 @@ class ReadableRosterStoreImplTest {
     @Test
     void testCreateRosterHistoryVerifyRound() {
         final Random random = RandomUtils.getRandomPrintSeed();
-        final Roster currentRoster =
-                RandomRosterBuilder.create(random).withSize(4).build();
-        final Roster previousRoster =
-                RandomRosterBuilder.create(random).withSize(3).build();
+        final Roster currentRoster = RosterFactory.randomRoster(random, 4);
+        final Roster previousRoster = RosterFactory.randomRoster(random, 3);
         setup(currentRoster, 16L, previousRoster);
 
         final RosterHistory rosterHistory = subject.getRosterHistory();

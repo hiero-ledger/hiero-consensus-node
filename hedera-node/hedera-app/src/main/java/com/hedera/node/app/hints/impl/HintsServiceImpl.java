@@ -172,7 +172,7 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     }
 
     @Override
-    public void handoff(
+    public boolean handoff(
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Roster previousRoster,
             @NonNull final Roster adoptedRoster,
@@ -186,7 +186,9 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             final var activeConstruction = requireNonNull(hintsStore.getActiveConstruction());
             component.signingContext().setConstruction(activeConstruction);
             logger.info("Updated hinTS construction in signing context to #{}", activeConstruction.constructionId());
+            return true;
         }
+        return false;
     }
 
     @Override

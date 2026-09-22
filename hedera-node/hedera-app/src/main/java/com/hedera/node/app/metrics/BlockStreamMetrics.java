@@ -96,6 +96,9 @@ public class BlockStreamMetrics {
     private Counter buffer_numBlocksMissingCounter;
     private LongGauge buffer_oldestBlockGauge;
     private LongGauge buffer_newestBlockGauge;
+    private LongGauge buffer_totBytesGauge;
+    private LongGauge buffer_numBlocksGauge;
+    private LongGauge buffer_numBlocksPendingAckGauge;
 
     // wrapped record hashes (record stream) metrics
     // (FUTURE) Remove after cutover
@@ -179,6 +182,18 @@ public class BlockStreamMetrics {
                 .withDescription("The average size in bytes of a Block in the buffer")
                 .withFormat("%,.2f");
         buffer_blockBytes = metrics.getOrCreate(blockBytesCfg);
+
+        final LongGauge.Config bufferTotBytes = newLongGauge(GROUP_BUFFER, "totalBytes")
+                .withDescription("The total size of the serialized data held by the block buffer (in bytes)");
+        buffer_totBytesGauge = metrics.getOrCreate(bufferTotBytes);
+
+        final LongGauge.Config numBlocksBuffered = newLongGauge(GROUP_BUFFER, "numBlocks")
+                .withDescription("The number of blocks currently held in the block buffer");
+        buffer_numBlocksGauge = metrics.getOrCreate(numBlocksBuffered);
+
+        final LongGauge.Config numBlocksPendingAck = newLongGauge(GROUP_BUFFER, "numBlocksPendingAck")
+                .withDescription("The number of blocks buffered that are pending acknowledgement");
+        buffer_numBlocksPendingAckGauge = metrics.getOrCreate(numBlocksPendingAck);
     }
 
     private void registerWrappedRecordHashesMetrics() {
@@ -205,6 +220,33 @@ public class BlockStreamMetrics {
 
     public void recordWrappedRecordHashesHasGaps(final boolean hasGaps) {
         recordHashes_hasGapsGauge.set(hasGaps ? 1 : 0);
+    }
+
+    /**
+     * Record the number of buffered blocks currently pending acknowledgements.
+     *
+     * @param numBlocks the number of blocks
+     */
+    public void recordBufferedBlocksPendingAck(final int numBlocks) {
+        buffer_numBlocksPendingAckGauge.set(numBlocks);
+    }
+
+    /**
+     * Record the number of blocks currently held by the block buffer.
+     *
+     * @param numBlocks the number of blocks
+     */
+    public void recordBufferedBlocks(final int numBlocks) {
+        buffer_numBlocksGauge.set(numBlocks);
+    }
+
+    /**
+     * Record the size of the block buffer (in bytes).
+     *
+     * @param bytes the total number of bytes consumed by the block buffer
+     */
+    public void recordBufferSizeInBytes(final long bytes) {
+        buffer_totBytesGauge.set(bytes);
     }
 
     /**

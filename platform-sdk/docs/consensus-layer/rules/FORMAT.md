@@ -1,7 +1,7 @@
 # Rules — Entry Format
 
 Specification for `rules/RUL-NNN-short-slug.md` entries. This file defines the
-structure only; allowed values for the `topics` field are the eleven topic
+structure only; allowed values for the `topics` field are the topic
 slugs under `architecture/topics/`. The test for whether something is a rule
 rather than an invariant is defined in `README.md` — apply it before filing
 here.
@@ -32,6 +32,7 @@ status: holds                          # holds | divergent | retired
 confidence: medium                     # low | medium | high
 provenance: extraction-2026-05-xx      # where this entry came from
 curated_by: Full Name (@github-handle) # the person responsible for this entry
+last_reviewed: TBD
 ---
 ```
 
@@ -63,6 +64,10 @@ Field discipline:
 - **no `source` field** — a rule has no external authority; that absence is
   precisely what separates it from an invariant. Its justification lives in
   the `## Why it holds now` body section, not in a citation.
+- **`last_reviewed`** — the trailing key. `TBD` until the entry's
+  code-anchored claims have been reviewed against current code, then the date
+  of that review. Written only by the KB freshness checker's
+  `--mark-reviewed` — never by hand.
 
 ## Body
 
@@ -129,6 +134,7 @@ status: holds
 confidence: medium
 provenance: ...
 curated_by: ...
+last_reviewed: TBD
 ---
 
 # RUL-NNN — Title

@@ -8,7 +8,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SPENDER_DOES_NOT_HAVE_ALLOWANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.service.contract.impl.exec.gas.DispatchType.ASSOCIATE;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.tuweniEncodedRc;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ALIASED_RECEIVER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
@@ -51,12 +53,16 @@ import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.commo
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
+import org.hyperledger.besu.datatypes.Log;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.log.Log;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -65,6 +71,10 @@ import org.mockito.Mockito;
 
 class ClassicTransfersCallTest extends CallTestBase {
     private static final TupleType<Tuple> INT64_ENCODER = TupleType.parse(ReturnTypes.INT_64);
+    private static final Configuration NO_UNLIMITED_ASSOCIATIONS_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("entities.unlimitedAutoAssociationsEnabled", false)
+            .getOrCreateConfig();
+    private static final long CANONICAL_ASSOCIATE_GAS = 704_000L;
 
     @Mock
     private VerificationStrategy verificationStrategy;
@@ -112,8 +122,55 @@ class ClassicTransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(tuweniEncodedRc(SUCCESS), result.getOutput());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertEquals(tuweniEncodedRc(SUCCESS), result.output());
+    }
+
+    @Test
+    void chargesGasForAutoAssociationsCreatedByTransfer() {
+        givenRetryingSubject();
+        givenFrameConfig(DEFAULT_CONFIG);
+        given(systemContractOperations.dispatch(
+                        any(TransactionBody.class),
+                        eq(verificationStrategy),
+                        eq(A_NEW_ACCOUNT_ID),
+                        eq(ContractCallStreamBuilder.class)))
+                .willReturn(recordBuilder);
+        given(recordBuilder.status()).willReturn(SUCCESS);
+        given(recordBuilder.getNumAutoAssociations()).willReturn(2);
+        given(systemContractGasCalculator.canonicalGasRequirement(ASSOCIATE)).willReturn(CANONICAL_ASSOCIATE_GAS);
+        given(systemContractOperations.signatureTestWith(verificationStrategy)).willReturn(signatureTest);
+        given(approvalSwitchHelper.switchToApprovalsAsNeededIn(
+                        CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
+                .willReturn(CryptoTransferTransactionBody.DEFAULT);
+
+        final var result = subject.execute(frame).fullResult();
+
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.result().state());
+        assertEquals(2 * CANONICAL_ASSOCIATE_GAS, result.gasRequirement());
+    }
+
+    @Test
+    void doesNotChargeAutoAssociationGasIfUnlimitedAssociationsDisabled() {
+        givenRetryingSubject();
+        givenFrameConfig(NO_UNLIMITED_ASSOCIATIONS_CONFIG);
+        given(systemContractOperations.dispatch(
+                        any(TransactionBody.class),
+                        eq(verificationStrategy),
+                        eq(A_NEW_ACCOUNT_ID),
+                        eq(ContractCallStreamBuilder.class)))
+                .willReturn(recordBuilder);
+        given(recordBuilder.status()).willReturn(SUCCESS);
+        given(recordBuilder.getNumAutoAssociations()).willReturn(2);
+        given(systemContractOperations.signatureTestWith(verificationStrategy)).willReturn(signatureTest);
+        given(approvalSwitchHelper.switchToApprovalsAsNeededIn(
+                        CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
+                .willReturn(CryptoTransferTransactionBody.DEFAULT);
+
+        final var result = subject.execute(frame).fullResult();
+
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.result().state());
+        assertEquals(0L, result.gasRequirement());
     }
 
     @Test
@@ -122,7 +179,7 @@ class ClassicTransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.EXCEPTIONAL_HALT, result.getState());
+        assertEquals(MessageFrame.State.EXCEPTIONAL_HALT, result.state());
     }
 
     @Test
@@ -142,10 +199,9 @@ class ClassicTransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
-                asBytesResult(INT64_ENCODER.encode(Tuple.singleton((long) SUCCESS.protoOrdinal()))),
-                result.getOutput());
+                asBytesResult(INT64_ENCODER.encode(Tuple.singleton((long) SUCCESS.protoOrdinal()))), result.output());
     }
 
     @Test
@@ -170,8 +226,8 @@ class ClassicTransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(tuweniEncodedRc(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE), result.getOutput());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertEquals(tuweniEncodedRc(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE), result.output());
         verify(recordBuilder).status(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE);
     }
 
@@ -185,8 +241,8 @@ class ClassicTransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.EXCEPTIONAL_HALT, result.getState());
-        assertEquals(Optional.of(CustomExceptionalHaltReason.NOT_SUPPORTED), result.getHaltReason());
+        assertEquals(MessageFrame.State.EXCEPTIONAL_HALT, result.state());
+        assertEquals(Optional.of(CustomExceptionalHaltReason.NOT_SUPPORTED), result.haltReason());
     }
 
     @Test
@@ -201,8 +257,8 @@ class ClassicTransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(readableRevertReason(INVALID_RECEIVING_NODE_ACCOUNT), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(readableRevertReason(INVALID_RECEIVING_NODE_ACCOUNT), result.output());
     }
 
     @Test
@@ -218,11 +274,11 @@ class ClassicTransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 asBytesResult(
                         INT64_ENCODER.encode(Tuple.singleton((long) SPENDER_DOES_NOT_HAVE_ALLOWANCE.protoOrdinal()))),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -317,6 +373,13 @@ class ClassicTransfersCallTest extends CallTestBase {
     private static final TransactionBody PRETEND_TRANSFER = TransactionBody.newBuilder()
             .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT)
             .build();
+
+    private void givenFrameConfig(@NonNull final Configuration config) {
+        final Deque<MessageFrame> stack = new ArrayDeque<>();
+        stack.push(frame);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(config);
+    }
 
     private void givenRetryingSubject() {
         subject = new ClassicTransfersCall(
@@ -441,8 +504,8 @@ class ClassicTransfersCallTest extends CallTestBase {
 
         final var result = localSubject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(tuweniEncodedRc(SUCCESS), result.getOutput());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertEquals(tuweniEncodedRc(SUCCESS), result.output());
         // check that events was added
         TransferEventLoggingUtilsTest.validateFtLogEvent(logs, expectedTransfers);
     }
@@ -478,8 +541,8 @@ class ClassicTransfersCallTest extends CallTestBase {
 
         final var result = localSubject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(tuweniEncodedRc(SUCCESS), result.getOutput());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertEquals(tuweniEncodedRc(SUCCESS), result.output());
         // check that events was added
         TransferEventLoggingUtilsTest.validateNftLogEvent(logs, expectedTransfers);
     }

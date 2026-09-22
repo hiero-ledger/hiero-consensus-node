@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -18,6 +19,8 @@ import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.node.app.service.clpr.ReadableChannelStore;
+import com.hedera.node.app.service.clpr.ReadableEndpointManifestStore;
 import com.hedera.node.app.service.contract.impl.state.DispatchingEvmFrameState;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -26,6 +29,8 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
+import com.hedera.node.app.spi.store.StoreFactory;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -81,6 +86,25 @@ public interface HederaNativeOperations {
      */
     @NonNull
     ReadableScheduleStore readableScheduleStore();
+
+    /**
+     * Returns the {@link ReadableChannelStore} for this {@link HederaNativeOperations}.
+     * Available in both query and handle contexts.
+     *
+     * @return the {@link ReadableChannelStore}
+     */
+    @NonNull
+    ReadableChannelStore readableChannelStore();
+
+    /**
+     * Returns the {@link ReadableEndpointManifestStore} for this {@link HederaNativeOperations}.
+     * Available in both query and handle contexts.
+     *
+     * @return the {@link ReadableEndpointManifestStore}
+     */
+    @NonNull
+    ReadableEndpointManifestStore readableEndpointManifestStore();
+
     /**
      * Returns the {@link WritableEvmHookStore} for this {@link HederaNativeOperations}.
      *
@@ -203,6 +227,22 @@ public interface HederaNativeOperations {
     ResponseCodeEnum createHollowAccount(@NonNull Bytes evmAddress);
 
     /**
+     * Creates a new account with the given EVM address and key. The implementation of this call should
+     * consume a new entity number for the created new account.
+     * <p>
+     * If this fails due to some non-EVM resource constraint (for example, insufficient preceding child
+     * records), returns the corresponding failure code, and {@link ResponseCodeEnum#OK} otherwise.
+     * The dispatch options will be set to immediately save the state.
+     *
+     * @param evmAddress the EVM address of the new account
+     * @param key the key of the new account
+     * @param delegationAddress the address to delegate the created account to
+     * @return the result of the creation
+     */
+    ResponseCodeEnum createAccountWithKeyAndCodeDelegation(
+            @NonNull Bytes evmAddress, @NonNull Key key, @NonNull Bytes delegationAddress);
+
+    /**
      * Finalizes an existing hollow account with the given address as a contract by setting
      * {@code isContract=true}, {@code key=Key{contractID=...}}, and {@code nonce=1}.
      *
@@ -276,6 +316,47 @@ public interface HederaNativeOperations {
     Configuration configuration();
 
     /**
+     * Gets the {@link StoreFactory} for accessing service stores and APIs.
+     *
+     * @return the store factory
+     */
+    @NonNull
+    StoreFactory storeFactory();
+
+    /**
+     * Dispatches a read-only (static) contract call and returns the EVM output bytes.
+     *
+     * <p>Returns {@code null} if the call reverts or otherwise fails.
+     *
+     * @param contractId the contract to call
+     * @param callData the ABI-encoded call data (selector + params)
+     * @param gasLimit the gas limit for the sub-call
+     * @return the raw EVM return data, or {@code null} on revert/failure
+     */
+    @Nullable
+    Bytes dispatchReadonlyContractCall(@NonNull ContractID contractId, @NonNull byte[] callData, long gasLimit);
+
+    /**
+     * Dispatches a read-only (static) contract call with explicit dispatch metadata and returns the EVM output bytes.
+     *
+     * <p>Returns {@code null} if the call reverts or otherwise fails.
+     *
+     * @param payerId the payer to use for the child dispatch
+     * @param contractId the contract to call
+     * @param callData the ABI-encoded call data (selector + params)
+     * @param gasLimit the gas limit for the sub-call
+     * @param dispatchMetadata metadata to attach to the child dispatch
+     * @return the raw EVM return data, or {@code null} on revert/failure
+     */
+    @Nullable
+    Bytes dispatchReadonlyContractCall(
+            @NonNull AccountID payerId,
+            @NonNull ContractID contractId,
+            @NonNull byte[] callData,
+            long gasLimit,
+            @NonNull DispatchMetadata dispatchMetadata);
+
+    /**
      * Returns the ledger id to use when encoding system contract responses. By default this is the configured ledger
      * id; implementations may override it with an externalized ledger id from state when one is available so that EVM
      * precompiles agree with the {@code ledgerId} returned by GRPC query responses.
@@ -286,4 +367,13 @@ public interface HederaNativeOperations {
     default Bytes ledgerId() {
         return configuration().getConfigData(LedgerConfig.class).id();
     }
+
+    /**
+     * Creates a new child record builder for the given functionality.
+     * @param recordBuilderClass the class of the record builder to create
+     * @param functionality the Hedera functionality for which the record builder is created
+     *
+     * @return The new record builder
+     */
+    <T> T createNewChildRecordBuilder(@NonNull Class<T> recordBuilderClass, @NonNull HederaFunctionality functionality);
 }

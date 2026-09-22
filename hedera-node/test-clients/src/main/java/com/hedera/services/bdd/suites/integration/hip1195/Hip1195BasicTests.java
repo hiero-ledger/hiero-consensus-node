@@ -37,6 +37,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withAddressOfKey;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -46,7 +47,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFees;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_CREATE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CONTRACT_UPDATE_BASE_FEE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.HOOK_UPDATES_FEE_USD;
@@ -1100,13 +1100,13 @@ public class Hip1195BasicTests {
                         .gas(5_000_000L)
                         .via("contractWithHookCreation")
                         .payingWith("payer"),
-                validateFees(
+                validateChargedUsdWithin(
                         "contractWithHookCreation",
-                        1.74,
                         CONTRACT_CREATE_BASE_FEE
                                 + HOOK_UPDATES_FEE_USD
                                 + 2 * KEYS_FEE_USD
-                                + SIGNATURE_FEE_AFTER_MULTIPLIER),
+                                + SIGNATURE_FEE_AFTER_MULTIPLIER,
+                        0.1),
                 contractCreate("CreateTrivial")
                         .withHooks(
                                 accountAllowanceHook(400L, TRUE_ALLOWANCE_HOOK.name()),
@@ -1117,13 +1117,13 @@ public class Hip1195BasicTests {
                         .via("contractsWithHookCreation")
                         .payingWith("payer"),
                 // One hook price 1 USD and contractCreate price 1 USD and 0.02 for keys and 0.001 for signature
-                validateFees(
+                validateChargedUsdWithin(
                         "contractsWithHookCreation",
-                        4.74,
                         CONTRACT_CREATE_BASE_FEE
                                 + 4 * HOOK_UPDATES_FEE_USD
                                 + 2 * KEYS_FEE_USD
-                                + SIGNATURE_FEE_AFTER_MULTIPLIER),
+                                + SIGNATURE_FEE_AFTER_MULTIPLIER,
+                        0.1),
                 contractUpdate("CreateTrivial")
                         .removingHook(400L)
                         .withHooks(
@@ -1133,10 +1133,10 @@ public class Hip1195BasicTests {
                         .blankMemo()
                         .via("hookUpdates")
                         .payingWith("payer"),
-                validateFees(
+                validateChargedUsdWithin(
                         "hookUpdates",
-                        4.026,
-                        CONTRACT_UPDATE_BASE_FEE + 4 * HOOK_UPDATES_FEE_USD + SIGNATURE_FEE_AFTER_MULTIPLIER));
+                        CONTRACT_UPDATE_BASE_FEE + 4 * HOOK_UPDATES_FEE_USD + SIGNATURE_FEE_AFTER_MULTIPLIER,
+                        0.1));
     }
 
     @HapiTest

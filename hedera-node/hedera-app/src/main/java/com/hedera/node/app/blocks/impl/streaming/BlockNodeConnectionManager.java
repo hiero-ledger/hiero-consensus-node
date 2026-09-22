@@ -7,6 +7,7 @@ import static java.util.stream.Collectors.toList;
 import com.hedera.node.app.blocks.impl.streaming.BlockNode.BlockNodeOutOfRange;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeEndpoint;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.config.ConfigProvider;
@@ -143,6 +144,8 @@ public class BlockNodeConnectionManager {
     private static final long MASK_HIGHER_PRIORITY_CONNECTION = 1 << 3;
     private static final long MASK_AUTO_RESET = 1 << 4;
 
+    private final BlockStreamingObs streamingObs;
+
     /**
      * A record that holds a candidate node configuration along with the block number it wants to stream.
      *
@@ -177,7 +180,8 @@ public class BlockNodeConnectionManager {
             @NonNull final BlockStreamMetrics blockStreamMetrics,
             @NonNull final NetworkInfo networkInfo,
             @NonNull @Named("bn-blockingio-exec") final Supplier<ExecutorService> blockingIoExecutorSupplier,
-            @NonNull final BlockNodeConfigService blockNodeConfigService) {
+            @NonNull final BlockNodeConfigService blockNodeConfigService,
+            @NonNull final BlockStreamingObs streamingObs) {
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
@@ -188,6 +192,7 @@ public class BlockNodeConnectionManager {
                 requireNonNull(blockingIoExecutorSupplier, "Blocking I/O executor supplier is required");
         this.clientFactory = new BlockNodeClientFactory();
         this.blockNodeConfigService = requireNonNull(blockNodeConfigService, "Block node config service is required");
+        this.streamingObs = requireNonNull(streamingObs);
 
         blockingIoExecutorRef.set(blockingIoExecutorSupplier.get());
     }
@@ -359,9 +364,8 @@ public class BlockNodeConnectionManager {
 
         @Override
         public BlockNodeStatus call() {
-            svcConnection.initialize();
-
             try {
+                svcConnection.initialize();
                 return svcConnection.getBlockNodeStatus();
             } finally {
                 svcConnection.close();
@@ -419,7 +423,7 @@ public class BlockNodeConnectionManager {
         // collect the results and filter out nodes that either are unavailable or nodes that require a block we don't
         // have available in the buffer
         final long earliestAvailableBlock = blockBufferService.getEarliestAvailableBlockNumber();
-        final long latestAvailableBlock = blockBufferService.getLastBlockNumberProduced();
+        final long latestProducedBlock = blockBufferService.getLastBlockNumberProduced();
         final List<NodeCandidate> eligibleCandidates = new ArrayList<>();
 
         for (int i = 0; i < nodes.size(); ++i) {
@@ -446,11 +450,22 @@ public class BlockNodeConnectionManager {
                             }
                         }
                         case FAILED -> {
-                            logger.warn(
-                                    "[{}:{}] Failed to retrieve block node status",
-                                    serviceEndpoint.host(),
-                                    serviceEndpoint.port(),
-                                    future.exceptionNow());
+                            final Throwable error = future.exceptionNow();
+                            final FailureType failureType = FailureType.findFailureType(error);
+                            if (failureType.isCommonFailure()) {
+                                logger.warn(
+                                        "[{}:{}] Failed to retrieve block node status (error: {})",
+                                        serviceEndpoint.host(),
+                                        serviceEndpoint.port(),
+                                        failureType);
+                            } else {
+                                logger.warn(
+                                        "[{}:{}] Failed to retrieve block node status",
+                                        serviceEndpoint.host(),
+                                        serviceEndpoint.port(),
+                                        error);
+                            }
+
                             yield BlockNodeStatus.notReachable();
                         }
                         case CANCELLED, RUNNING -> {
@@ -473,6 +488,8 @@ public class BlockNodeConnectionManager {
                 continue;
             }
 
+            final BlockNodeEndpoint streamingEndpoint = node.configuration().streamingEndpoint();
+
             /*
             There is a scenario in which this consensus node may not have any blocks loaded. For example, this node may
             be initializing for the first time or the node may have restarted but there aren't any buffered blocks that
@@ -483,21 +500,27 @@ public class BlockNodeConnectionManager {
             node, then existing reconnect operations will engage to sort things out.
              */
 
-            final BlockNodeEndpoint streamingEndpoint = node.configuration().streamingEndpoint();
-            final long wantedBlock = status.latestBlockAvailable() == -1 ? -1 : status.latestBlockAvailable() + 1;
-            if (latestAvailableBlock != -1) {
-                if (wantedBlock != -1 && wantedBlock < earliestAvailableBlock) {
-                    final long numBlocksBehind = earliestAvailableBlock - wantedBlock;
-                    node.applyCoolDown(new BlockNodeOutOfRange(numBlocksBehind));
-                    logger.info(
-                            "[{}:{}] Block node is not a candidate for streaming (reason: block out of range (wantedBlock: {}, blocksAvailable: {}-{}))",
-                            streamingEndpoint.host(),
-                            streamingEndpoint.port(),
-                            wantedBlock,
-                            earliestAvailableBlock,
-                            latestAvailableBlock);
-                    continue;
-                }
+            final long wantedBlock = status.nextExpectedBlock();
+
+            if (wantedBlock < -1) {
+                node.applyCoolDown(new BlockNodeOutOfRange(status.nextExpectedBlock()));
+                logger.info(
+                        "[{}:{}] Block node is not a candidate for streaming (reason: block out of range (wantedBlock: {}))",
+                        streamingEndpoint.host(),
+                        streamingEndpoint.port(),
+                        status.nextExpectedBlock());
+                continue;
+            } else if (latestProducedBlock != -1 && wantedBlock != -1 && wantedBlock < earliestAvailableBlock) {
+                final long numBlocksBehind = earliestAvailableBlock - wantedBlock;
+                node.applyCoolDown(new BlockNodeOutOfRange(numBlocksBehind));
+                logger.info(
+                        "[{}:{}] Block node is not a candidate for streaming (reason: block out of range (wantedBlock: {}, blocksAvailable: {}-{}))",
+                        streamingEndpoint.host(),
+                        streamingEndpoint.port(),
+                        wantedBlock,
+                        earliestAvailableBlock,
+                        latestProducedBlock);
+                continue;
             }
 
             logger.info(
@@ -512,13 +535,13 @@ public class BlockNodeConnectionManager {
             return null;
         }
 
-        if (latestAvailableBlock == -1) {
+        if (latestProducedBlock == -1) {
             // Startup case: treat all reachable candidates as immediately streamable.
             return new GroupSelectionOutcome(eligibleCandidates, List.of(), Long.MAX_VALUE);
         }
 
         final List<NodeCandidate> inRangeCandidates = eligibleCandidates.stream()
-                .filter(c -> c.wantedBlock() <= latestAvailableBlock)
+                .filter(c -> c.wantedBlock() <= latestProducedBlock)
                 .toList();
         if (!inRangeCandidates.isEmpty()) {
             return new GroupSelectionOutcome(inRangeCandidates, List.of(), Long.MAX_VALUE);
@@ -1026,7 +1049,8 @@ public class BlockNodeConnectionManager {
                 blockingIoExecutorSupplier.get(),
                 wantedBlock,
                 clientFactory,
-                selfNodeId);
+                selfNodeId,
+                streamingObs);
 
         try {
             connection.initialize();

@@ -102,20 +102,20 @@ Thus, for selecting which block node to connect to, we first read which block no
 file and then filter out block nodes that are in a cool down. Once a set of candidates nodes is chosen, these nodes are
 grouped by configured priority (lower number = higher priority), and each group is evaluated in ascending priority order.
 
-For each node in a priority group, a service connection is used to retrieve status (`lastAvailableBlock`). For each
+For each node in a priority group, a service connection is used to retrieve status (`nextExpectedBlock`). For each
 reachable node, the manager derives:
 
-- `wantedBlock = lastAvailableBlock + 1` (or `-1` if the block node reports `-1`)
+- `wantedBlock = nextExpectedBlock`
 - whether the node is in range for immediate streaming based on CN buffer range
 
 Filtering and candidate classification:
 
 - Unreachable/timed-out nodes are excluded.
 - Nodes with `wantedBlock < earliestAvailableBlock` are excluded (CN no longer has those blocks).
-- If CN has no buffered blocks (`latestAvailableBlock == -1`), all reachable nodes are considered immediately eligible.
+- If CN has no buffered blocks (`latestProducedBlock == -1`), all reachable nodes are considered immediately eligible.
 - For CNs with buffered blocks:
-  - **In-range candidate**: `wantedBlock <= latestAvailableBlock`
-  - **Ahead candidate**: `wantedBlock > latestAvailableBlock`
+  - **In-range candidate**: `wantedBlock <= latestProducedBlock`
+  - **Ahead candidate**: `wantedBlock > latestProducedBlock`
 
 Selection algorithm (cross-priority):
 

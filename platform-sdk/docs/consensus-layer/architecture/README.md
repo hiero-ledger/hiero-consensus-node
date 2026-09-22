@@ -1,6 +1,6 @@
 # Architecture
 
-The topic-organized lens on the consensus layer. Eleven topics, plus an overview and the module-boundary APIs.
+The topic-organized lens on the consensus layer: one file per topic, plus an overview and the module-boundary APIs.
 
 Where `../concepts/` defines foundational mental models and the catalog directories (`../invariants/`, `../rules/`, `../decisions/`, `../scenarios/`, `../heuristics/`) capture cross-cutting claims, this directory walks the consensus layer one topic at a time. Each topic file describes its responsibilities, state, contracts, and code anchors, and cross-references the catalog entries that touch it.
 
@@ -10,7 +10,7 @@ Where `../concepts/` defines foundational mental models and the catalog director
 
 ## Topics
 
-One file per topic, in `topics/`. Twelve topics total.
+One file per topic, in `topics/`; the full set is the table below.
 
 |                 Topic file                  |              Topic              |                                                                        Summary                                                                         |
 |---------------------------------------------|---------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------|---|
@@ -26,6 +26,7 @@ One file per topic, in `topics/`. Twelve topics total.
 | `topics/restart-and-pces.md`                | Restart and PCES                | The Preconsensus Event Stream and the replay path that restores consensus position after a crash.                                                      |
 | `topics/freeze-and-upgrade.md`              | Freeze and upgrade              | Coordinated network freeze for software upgrades, including the signature handoff to execution.                                                        |
 | `topics/reconnect.md`                       | Reconnect                       | Recovery path for a node that has fallen far behind and cannot catch up via gossip.                                                                    |
+| `topics/platform-status.md`                 | Platform status                 | The node's lifecycle state machine — statuses, the actions that drive transitions, and the components that gate on the current status.                 |
 | `topics/quiescence.md`                      | Quiescence                      | Opt-in feature affecting stale-events routing to Execution.                                                                                            |   |
 
 ## Interfaces
