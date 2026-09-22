@@ -180,7 +180,19 @@ public class HapiUtils {
             HederaFunctionality.GET_ACCOUNT_DETAILS);
 
     public static HederaFunctionality functionOf(final TransactionBody txn) throws UnknownHederaFunctionality {
-        return switch (txn.data().kind()) {
+        return functionOf(txn.data().kind());
+    }
+
+    /**
+     * Returns the {@link HederaFunctionality} for the given transaction body kind.
+     *
+     * @param kind the transaction body kind
+     * @return the functionality
+     * @throws UnknownHederaFunctionality if the kind is {@code UNSET}
+     */
+    public static HederaFunctionality functionOf(final TransactionBody.DataOneOfType kind)
+            throws UnknownHederaFunctionality {
+        return switch (kind) {
             case ATOMIC_BATCH -> HederaFunctionality.ATOMIC_BATCH;
             case CONSENSUS_CREATE_TOPIC -> HederaFunctionality.CONSENSUS_CREATE_TOPIC;
             case CONSENSUS_UPDATE_TOPIC -> HederaFunctionality.CONSENSUS_UPDATE_TOPIC;
@@ -255,7 +267,18 @@ public class HapiUtils {
     }
 
     public static HederaFunctionality functionOf(final Query txn) throws UnknownHederaFunctionality {
-        return switch (txn.query().kind()) {
+        return functionOf(txn.query().kind());
+    }
+
+    /**
+     * Returns the {@link HederaFunctionality} for the given query kind.
+     *
+     * @param kind the query kind
+     * @return the functionality
+     * @throws UnknownHederaFunctionality if the kind is {@code UNSET}
+     */
+    public static HederaFunctionality functionOf(final Query.QueryOneOfType kind) throws UnknownHederaFunctionality {
+        return switch (kind) {
             case TOKEN_GET_ACCOUNT_NFT_INFOS -> HederaFunctionality.TOKEN_GET_ACCOUNT_NFT_INFOS;
             case TOKEN_GET_NFT_INFOS -> HederaFunctionality.TOKEN_GET_NFT_INFOS;
             case ACCOUNT_DETAILS -> HederaFunctionality.GET_ACCOUNT_DETAILS;
