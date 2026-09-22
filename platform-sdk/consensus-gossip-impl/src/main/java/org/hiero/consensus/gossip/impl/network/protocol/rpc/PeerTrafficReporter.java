@@ -30,6 +30,7 @@ public class PeerTrafficReporter {
     private final TrafficShapingConfig config;
     private final NodeId peerId;
     private final Time time;
+    private final RateLimiter errorLimiter;
     private final RateLimiter warningLimiter;
 
     public PeerTrafficReporter(
@@ -37,6 +38,7 @@ public class PeerTrafficReporter {
         this.time = Objects.requireNonNull(time);
         this.config = Objects.requireNonNull(config);
         this.peerId = Objects.requireNonNull(peerId);
+        this.errorLimiter = new RateLimiter(time, config.reportInterval());
         this.warningLimiter = new RateLimiter(time, config.reportInterval());
     }
 
@@ -48,7 +50,7 @@ public class PeerTrafficReporter {
      */
     public void report(final double occupancy, final long delayNanos) {
 
-        if (occupancy >= config.highWatermark()) {
+        if (occupancy >= config.highWatermark() && errorLimiter.requestAndTrigger()) {
             // here, possible integration with Sheriff module should be added to report breaches
             // disconnect and possibly shun offending node
             // for now, reporting it as an error, as it indicates either broken code or misconfigured limits

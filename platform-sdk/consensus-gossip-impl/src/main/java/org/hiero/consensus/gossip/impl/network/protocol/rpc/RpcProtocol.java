@@ -286,6 +286,11 @@ public class RpcProtocol implements Protocol, GossipController {
     private static void validateTrafficShapingConfig(
             @NonNull final TrafficShapingConfig traffic, @NonNull final BroadcastConfig broadcast) {
 
+        if (!traffic.enabled()) {
+            // if the traffic shaping is completely disabled, then skip all the validity checks
+            return;
+        }
+
         if (traffic.peerBytesPerSecond() <= 0) {
             throw new IllegalArgumentException("trafficShaping.peerBytesPerSecond must be positive");
         }

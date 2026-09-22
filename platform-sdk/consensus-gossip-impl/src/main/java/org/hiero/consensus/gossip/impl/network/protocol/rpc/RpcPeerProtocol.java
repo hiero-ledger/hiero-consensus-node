@@ -173,6 +173,12 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
             () -> logger.error(EXCEPTION.getMarker(), "Poison pill should never be executed");
 
     /**
+     * True while the dispatch thread is running its loop in {@link #dispatchInputMessages()}. Lets
+     * {@link #enqueuePoisonPill()} tell whether there is still a thread to kill
+     */
+    private volatile boolean dispatchActive;
+
+    /**
      * Helper class for checking if rpc communication is overloaded (ping or output queue) and informs to disable
      * broadcast if it is the case
      */
@@ -348,6 +354,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
      */
     private void dispatchInputMessages() throws InterruptedException {
         syncMetrics.rpcDispatchThreadRunning(+1);
+        dispatchActive = true;
         try {
             while (true) {
                 final Runnable message =
@@ -369,6 +376,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                 overloadMonitor.reportOutputQueueSize(outputQueue.size());
             }
         } finally {
+            dispatchActive = false;
             syncMetrics.rpcDispatchThreadRunning(-1);
         }
     }
@@ -552,7 +560,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
         final long byteCount = byteCounter.getTotalCount();
         final long delayNanos = shaper.charge(byteCount - lastByteCount);
 
-        syncMetrics.reportShaperOccupancy(shaper.lastOccupancy());
+        syncMetrics.reportShaperOccupancy(remotePeerId, shaper.lastOccupancy());
         trafficReporter.report(shaper.lastOccupancy(), trafficConfig.enforce() ? delayNanos : 0L);
 
         if (delayNanos > 0) {
@@ -581,18 +589,26 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                 message, syncConfig.rpcIdleDispatchPollTimeout().toMillis(), TimeUnit.MILLISECONDS)) {
             if (time.currentTimeMillis() > deadline) {
                 throw new SyncTimeoutException(
-                        syncConfig.maxSyncTime(), Duration.ofMillis(deadline - time.currentTimeMillis()));
+                        Duration.ofMillis(deadline - time.currentTimeMillis()), syncConfig.maxSyncTime());
             }
         }
     }
 
     /**
      * The dispatch thread only exits when it sees {@link #POISON_PILL}, so it has to be delivered even when the queue
-     * is full.
+     * is full. If the dispatch thread has already exited (e.g. an exception escaped from a message it was
+     * processing), there is nothing left to kill, so we stop trying instead of waiting on a queue nobody drains.
      */
     private void enqueuePoisonPill() {
-        while (!inputQueue.offer(POISON_PILL)) {
-            Thread.yield();
+        try {
+            while (dispatchActive
+                    && !inputQueue.offer(
+                            POISON_PILL, syncConfig.rpcIdleDispatchPollTimeout().toMillis(), TimeUnit.MILLISECONDS)) {
+                // loop rechecks dispatchActive after every timed offer, so a dispatch thread that dies while we wait
+                // is noticed within one poll interval instead of spinning forever
+            }
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

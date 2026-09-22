@@ -4,6 +4,7 @@ package org.hiero.consensus.gossip.impl.gossip.sync;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_0;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_3;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_15_3;
+import static com.swirlds.metrics.api.FloatFormats.FORMAT_4_2;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_8_1;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
@@ -200,7 +201,7 @@ public class SyncMetrics {
     private final ConcurrentHashMap<NodeId, PhaseTimer<SyncPhase>> syncPhasePerNode = new ConcurrentHashMap<>();
     private final Metrics metrics;
     private final AverageAndMax outputQueuePollTime;
-    private final AverageAndMax shaperOccupancy;
+    private final ConcurrentHashMap<NodeId, AverageAndMax> shaperOccupancy = new ConcurrentHashMap<>();
     private final AverageAndMax readThrottleTime;
     private final Time time;
     private final IntegerGauge rpcReadThreadRunning;
@@ -296,21 +297,12 @@ public class SyncMetrics {
                 FORMAT_10_0);
         rpcReadThrottled = new CountPerSecond(metrics, RPC_READ_THROTTLED_CONFIG);
 
-        shaperOccupancy = new AverageAndMax(
-                metrics,
-                PLATFORM_CATEGORY,
-                "rpc_shaper_occupancy",
-                "per-mille of the per-peer inbound byte budget consumed, sampled once per incoming message",
-                FORMAT_10_0);
-
         readThrottleTime = new AverageAndMax(
                 metrics,
                 PLATFORM_CATEGORY,
                 "rpc_read_throttle_time",
-                "amount of us the rpc read thread was paused by the per-peer byte shaper",
+                "amount of microseconds the rpc read thread was paused by the per-peer byte shaper",
                 FORMAT_10_0);
-
-        precreateDynamicMetrics(peers);
 
         precreateDynamicMetrics(peers);
     }
@@ -324,6 +316,7 @@ public class SyncMetrics {
         for (final PeerInfo peer : peers) {
             final NodeId nodeId = peer.nodeId();
             reportSyncPhase(nodeId, SyncPhase.OUTSIDE_OF_RPC);
+            reportShaperOccupancy(nodeId, 0);
         }
     }
 
@@ -635,8 +628,17 @@ public class SyncMetrics {
      *
      * @param occupancy fraction of the burst budget consumed, from 0.0 to 1.0
      */
-    public void reportShaperOccupancy(final double occupancy) {
-        shaperOccupancy.update(Math.round(occupancy * 1000));
+    public void reportShaperOccupancy(NodeId nodeId, final double occupancy) {
+        shaperOccupancy
+                .computeIfAbsent(
+                        nodeId,
+                        (id) -> new AverageAndMax(
+                                metrics,
+                                PLATFORM_CATEGORY,
+                                String.format("rpc_shaper_occupancy_%02d", nodeId.id()),
+                                "fraction of the per-peer inbound byte budget consumed, scale 0-1000 per-mille",
+                                FORMAT_4_2))
+                .update(Math.round(occupancy * 1000));
     }
 
     /**
