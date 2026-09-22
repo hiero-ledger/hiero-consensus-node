@@ -389,12 +389,12 @@ verifier's bytecode, or 32 zero bytes if a custom verifier has no available byte
 Built-in verifiers instead use fixed identity hashes computed as
 `keccak256(UTF8("hiero.clpr.builtin-verifier/" + name))`:
 
-| Verifier address | Permanent name | Fingerprint (hex) |
-|---|---|---|
-| `0x16e` | `hiero-tss` | `9a0239cbc7be7e16347b8bfe6ab37f7a55d4eb688a0c8b6b141cc5035acac51e` |
-| `0x16f` | `besu-qbft` | `9bb5a67f672529e6928db26e11d0a93f56f2f3581fda619f737e3e1615c3e909` |
-| `0x170` | `sei-cometbft` | `ee0783a29d06bd654e54a8fd53a8553af7a43b0e601b1a0a1b59034b10e2ff45` |
-| `0x171` | `ethereum-sync-committee` | `962abc985d9e3cd97cc8598b2399f85e948187d8e56cbb988b4dad04e60c398c` |
+| Verifier address |      Permanent name       |                         Fingerprint (hex)                          |
+|------------------|---------------------------|--------------------------------------------------------------------|
+| `0x16e`          | `hiero-tss`               | `9a0239cbc7be7e16347b8bfe6ab37f7a55d4eb688a0c8b6b141cc5035acac51e` |
+| `0x16f`          | `besu-qbft`               | `9bb5a67f672529e6928db26e11d0a93f56f2f3581fda619f737e3e1615c3e909` |
+| `0x170`          | `sei-cometbft`            | `ee0783a29d06bd654e54a8fd53a8553af7a43b0e601b1a0a1b59034b10e2ff45` |
+| `0x171`          | `ethereum-sync-committee` | `962abc985d9e3cd97cc8598b2399f85e948187d8e56cbb988b4dad04e60c398c` |
 
 Numeric contract IDs and their corresponding 20-byte EVM addresses resolve to the same
 fingerprint. These permanent names identify verifier types and remain unchanged across native
