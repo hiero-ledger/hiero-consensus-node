@@ -507,12 +507,12 @@ public abstract class AbstractLongList<C> implements LongList {
     /// @throws IOException if a range cannot be written
     private void writeLongsDataInParallel(final FileChannel fc, final Executor executor, final int threadCount)
             throws IOException {
-        // First chunk containing list data, used as the partition's inclusive lower bound.
-        final int firstChunkWithDataIndex = toIntExact(minValidIndex.get() / longsPerChunk);
+        // Chunk containing the minimum valid index, used as the partition's inclusive lower bound.
+        final int firstValidChunkIndex = toIntExact(minValidIndex.get() / longsPerChunk);
         // Chunk index just past the list's end, used as the partition's exclusive upper bound.
         final int totalNumOfChunks = calculateNumberOfChunks(size());
         // Number of chunks to write, used to bound and balance the writer ranges.
-        final int activeChunkCount = totalNumOfChunks - firstChunkWithDataIndex;
+        final int activeChunkCount = totalNumOfChunks - firstValidChunkIndex;
         if (activeChunkCount <= 0) {
             return;
         }
@@ -527,7 +527,7 @@ public abstract class AbstractLongList<C> implements LongList {
         final List<CompletableFuture<Void>> tasks = new ArrayList<>(taskCount);
 
         // Start of the next range, advanced as writer ranges are assigned.
-        int rangeFirstChunkInclusive = firstChunkWithDataIndex;
+        int rangeFirstChunkInclusive = firstValidChunkIndex;
         Throwable failure = null;
         try {
             // Chunks are equal-sized except at the edges, so balanced contiguous ranges keep writes moving forward.
