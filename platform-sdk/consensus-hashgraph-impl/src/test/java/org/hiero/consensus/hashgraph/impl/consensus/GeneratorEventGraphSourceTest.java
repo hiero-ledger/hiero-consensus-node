@@ -102,7 +102,7 @@ class GeneratorEventGraphSourceTest {
         final GeneratorEventGraphSource generator =
                 GeneratorEventGraphSourceBuilder.builder().numNodes(numNodes).build();
 
-        assertEquals(numNodes, generator.getRoster().rosterEntries().size());
+        assertEquals(numNodes, generator.getRoster().size());
     }
 
     @Test
@@ -125,7 +125,7 @@ class GeneratorEventGraphSourceTest {
 
         final RosterWrapper roster = generator.getRoster();
         for (int i = 0; i < numNodes; i++) {
-            final NodeId nodeId = roster.rosterEntries().get(i).nodeId();
+            final NodeId nodeId = roster.rosterEntry(i).nodeId();
             assertTrue(creators.contains(nodeId), "node " + nodeId + " should have created at least one event");
         }
     }
@@ -138,7 +138,7 @@ class GeneratorEventGraphSourceTest {
             final GeneratorEventGraphSource generator =
                     GeneratorEventGraphSourceBuilder.builder().numNodes(size).build();
 
-            assertEquals(size, generator.getRoster().rosterEntries().size());
+            assertEquals(size, generator.getRoster().size());
         }
     }
 
@@ -152,7 +152,7 @@ class GeneratorEventGraphSourceTest {
                 GeneratorEventGraphSourceBuilder.builder().roster(roster).build();
 
         assertEquals(roster, generator.getRoster());
-        assertEquals(3, generator.getRoster().rosterEntries().size());
+        assertEquals(3, generator.getRoster().size());
 
         final List<PlatformEvent> events = generator.nextEvents(50);
         assertEquals(50, events.size());
@@ -318,8 +318,7 @@ class GeneratorEventGraphSourceTest {
         final List<PlatformEvent> events = generator.nextEvents(50);
 
         assertEquals(50, events.size());
-        final NodeId expectedCreator =
-                generator.getRoster().rosterEntries().get(0).nodeId();
+        final NodeId expectedCreator = generator.getRoster().rosterEntry(0).nodeId();
 
         for (final PlatformEvent event : events) {
             assertEquals(expectedCreator, event.getCreatorId(), "all events should be from the single node");

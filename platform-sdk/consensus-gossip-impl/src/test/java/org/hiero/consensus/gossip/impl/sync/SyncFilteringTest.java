@@ -111,12 +111,8 @@ class SyncFilteringTest {
                 .setNumNodes(32)
                 .build();
 
-        final NodeId selfId = eventEmitter
-                .getGraphGenerator()
-                .getRoster()
-                .rosterEntries()
-                .getFirst()
-                .nodeId();
+        final NodeId selfId =
+                eventEmitter.getGraphGenerator().getRoster().rosterEntry(0).nodeId();
 
         final Instant startingTime = Instant.ofEpochMilli(random.nextInt());
         final Duration timeStep = Duration.ofMillis(10);
@@ -208,12 +204,8 @@ class SyncFilteringTest {
                 .setNumNodes(16)
                 .build();
 
-        final NodeId selfId = eventEmitter
-                .getGraphGenerator()
-                .getRoster()
-                .rosterEntries()
-                .getFirst()
-                .nodeId();
+        final NodeId selfId =
+                eventEmitter.getGraphGenerator().getRoster().rosterEntry(0).nodeId();
 
         // Create enough events to almost certainly include:
         // - at least one self event near the end of the list (candidate to send first)
@@ -254,12 +246,8 @@ class SyncFilteringTest {
                 .setNumNodes(16)
                 .build();
 
-        final NodeId selfId = eventEmitter
-                .getGraphGenerator()
-                .getRoster()
-                .rosterEntries()
-                .getFirst()
-                .nodeId();
+        final NodeId selfId =
+                eventEmitter.getGraphGenerator().getRoster().rosterEntry(0).nodeId();
 
         // Create enough events to almost certainly include:
         // - at least one self event near the end of the list (candidate to send first)

@@ -139,8 +139,7 @@ class TipsetWeightCalculatorTests {
             totalWeight += address.weight();
         }
 
-        final NodeId selfId =
-                roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId();
+        final NodeId selfId = roster.rosterEntry(random.nextInt(nodeCount)).nodeId();
 
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
@@ -156,8 +155,7 @@ class TipsetWeightCalculatorTests {
         Tipset previousSnapshot = calculator.getSnapshot();
 
         for (int eventIndex = 0; eventIndex < 1000; eventIndex++) {
-            final NodeId creator =
-                    roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId();
+            final NodeId creator = roster.rosterEntry(random.nextInt(nodeCount)).nodeId();
             final long nGen;
             if (latestEvents.containsKey(creator)) {
                 nGen = latestEvents.get(creator).getNGen() + 1;
@@ -170,7 +168,7 @@ class TipsetWeightCalculatorTests {
             final int maxParentCount = random.nextInt(nodeCount);
             for (int parentIndex = 0; parentIndex < maxParentCount; parentIndex++) {
                 final NodeId parent =
-                        roster.rosterEntries().get(random.nextInt(nodeCount)).nodeId();
+                        roster.rosterEntry(random.nextInt(nodeCount)).nodeId();
 
                 // We are only trying to generate a random number of parents, the exact count is unimportant.
                 // So it doesn't matter if the actual number of parents is less than the number we requested.
@@ -278,10 +276,10 @@ class TipsetWeightCalculatorTests {
         final RosterWrapper roster = randomRoster(random, nodeCount, WeightGenerators.BALANCED);
 
         // In this test, we simulate from the perspective of node A. All nodes have 1 weight.
-        final NodeId nodeA = roster.rosterEntries().get(0).nodeId();
-        final NodeId nodeB = roster.rosterEntries().get(1).nodeId();
-        final NodeId nodeC = roster.rosterEntries().get(2).nodeId();
-        final NodeId nodeD = roster.rosterEntries().get(3).nodeId();
+        final NodeId nodeA = roster.rosterEntry(0).nodeId();
+        final NodeId nodeB = roster.rosterEntry(1).nodeId();
+        final NodeId nodeC = roster.rosterEntry(2).nodeId();
+        final NodeId nodeD = roster.rosterEntry(3).nodeId();
 
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();
@@ -582,10 +580,10 @@ class TipsetWeightCalculatorTests {
 
         final RosterWrapper roster = randomRoster(random, nodeCount, WeightGenerators.BALANCED);
 
-        final NodeId nodeA = roster.rosterEntries().get(0).nodeId();
-        final NodeId nodeB = roster.rosterEntries().get(1).nodeId();
-        final NodeId nodeC = roster.rosterEntries().get(2).nodeId();
-        final NodeId nodeD = roster.rosterEntries().get(3).nodeId();
+        final NodeId nodeA = roster.rosterEntry(0).nodeId();
+        final NodeId nodeB = roster.rosterEntry(1).nodeId();
+        final NodeId nodeC = roster.rosterEntry(2).nodeId();
+        final NodeId nodeD = roster.rosterEntry(3).nodeId();
 
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();

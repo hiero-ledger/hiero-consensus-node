@@ -272,8 +272,8 @@ jobs:
     needs:
       - release-branch
       - deploy-xts-ci-trigger
-    if:
-      ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run-enabled == false &&
+    if: ${{ (github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.dry-run-enabled == false)) &&
       (needs.release-branch.result != 'success' || needs.deploy-xts-ci-trigger.result != 'success') &&
       !cancelled() }}
     steps:

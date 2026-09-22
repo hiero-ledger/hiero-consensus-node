@@ -96,13 +96,13 @@ public final class AnchorResolver {
             case METHOD_ON_CLASS -> resolveMethodOnClass(a);
             case METHOD_REF -> resolveMethodRef(a);
             case METHOD_SIGNATURE -> resolveMethodSignature(a);
-            // These kinds are never resolved per-anchor: the config kinds and INTERFACE_METHOD are
-            // produced and checked by the Tier-2 diff assemblers, and ENUM_CONSTANT is not extracted in
-            // this version. Reaching here with one is a wiring error, not a symbol result.
-            case ENUM_CONSTANT, CONFIG_KEY, CONFIG_PREFIX, CONFIG_DEFAULT, INTERFACE_METHOD ->
+            // These kinds are never resolved per-anchor: the config kinds are produced and checked by the
+            // Tier-2 tunables diff assembler, and ENUM_CONSTANT is not extracted in this version. Reaching
+            // here with one is a wiring error, not a symbol result.
+            case ENUM_CONSTANT, CONFIG_KEY, CONFIG_PREFIX, CONFIG_DEFAULT ->
                 throw new IllegalArgumentException("Anchor kind " + a.kind()
-                        + " is not resolved by the per-anchor pipeline (config/interface kinds are handled by the "
-                        + "Tier-2 diff assemblers; ENUM_CONSTANT is unused).");
+                        + " is not resolved by the per-anchor pipeline (config kinds are handled by the "
+                        + "Tier-2 tunables diff assembler; ENUM_CONSTANT is unused).");
         };
     }
 

@@ -19,6 +19,7 @@ import java.util.Random;
 import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -34,6 +35,7 @@ import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.simulator.SecureRandomBuilder;
 import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
+import org.hiero.otter.fixtures.network.simulation.EventReceiver;
 import org.hiero.otter.fixtures.network.simulation.SimulatedNetworkConnectivity;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
@@ -46,7 +48,7 @@ import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 /**
  * An implementation of {@link Node} that is based on the Falcon framework.
  */
-public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
+public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, EventReceiver {
 
     private final Random random;
     private final SimulatorTimeManager timeManager;
@@ -80,19 +82,41 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver {
         this.random = requireNonNull(random);
         this.timeManager = requireNonNull(timeManager);
         this.networkConnectivity = requireNonNull(networkConnectivity);
-        this.networkConnectivity.addNode(selfId, this::onEventReceived);
 
         this.nodeConfiguration =
                 new FalconNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
         this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
     }
 
-    private boolean onEventReceived(@NonNull final PlatformEvent event) {
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public NodeId getNodeId() {
+        return selfId;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean receiveEvent(@NonNull final PlatformEvent event) {
         if (wiring != null) {
             wiring.receivedGossipEventsInputWire().put(event);
             return true;
         }
         return false;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Nothing consumes a peer's event window yet. The network delivers them so that the machinery is in place, but
+     * this node has nowhere to route them until fallen-behind detection is wired up.
+     */
+    @Override
+    public boolean receiveEventWindow(@NonNull final NodeId sender, @NonNull final EventWindow eventWindow) {
+        return wiring != null;
     }
 
     /**
