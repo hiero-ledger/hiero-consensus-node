@@ -276,6 +276,11 @@ public final class TssStartupNetworks {
         if (!hasTssMetadata(network)) {
             return;
         }
+        // Mirrors the export side; a startup network JSON must never source private keys under PROD
+        if (isProdProfile(config)) {
+            log.warn("Refusing to write dev-only TSS private keys from startup network under the PROD profile");
+            return;
+        }
         final var tssMetadata = network.tssMetadataOrElse(TssMetadata.DEFAULT);
         final var selfMetadata = network.nodeTssMetadata().stream()
                 .filter(metadata -> metadata.nodeId() == selfNodeId)
