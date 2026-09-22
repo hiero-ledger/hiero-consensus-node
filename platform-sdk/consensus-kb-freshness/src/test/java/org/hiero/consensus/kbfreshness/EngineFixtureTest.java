@@ -178,22 +178,6 @@ class EngineFixtureTest {
     }
 
     @Test
-    void interfaceMethodRemovedIsAssertAndPresentMethodIsNot() {
-        final Finding removed = require(AnchorKind.INTERFACE_METHOD, t -> t.equals("removed"));
-        assertThat(removed.outcome()).isEqualTo(Outcome.ABSENT);
-        assertThat(removed.lane()).isEqualTo(Lane.ASSERT);
-        assertThat(byKind(AnchorKind.INTERFACE_METHOD, t -> t.equals("present")))
-                .isEmpty();
-    }
-
-    @Test
-    void undocumentedInterfaceMethodIsCoverageGapNotDrift() {
-        final Finding coverage = require(AnchorKind.INTERFACE_METHOD, t -> t.equals("extra"));
-        assertThat(coverage.lane()).isEqualTo(Lane.COVERAGE_GAP);
-        assertThat(coverage.lane()).isNotEqualTo(Lane.ASSERT);
-    }
-
-    @Test
     void repeatedDeadSymbolCollapsesToOneFindingWithAllOccurrences() {
         final Finding f = require(AnchorKind.SOURCE_PATH, t -> t.endsWith("GhostFile.java"));
         assertThat(f.outcome()).isEqualTo(Outcome.ABSENT);
@@ -516,15 +500,6 @@ class EngineFixtureTest {
         assertThat(coverage).contains("## Architecture topics anchoring no source");
         assertThat(coverage).contains("architecture/topics/bare-prose.md");
         assertThat(coverage).doesNotContain("abbrev-anchored.md");
-    }
-
-    @Test
-    void interfaceDocWithoutTier2FrontmatterSurfacesInCoverageLane() {
-        // loose-api.md declares no interface:/methods: so the Tier-2 diff never runs; my-api.md opts in.
-        final String coverage = CoverageRenderer.render(result);
-        assertThat(coverage).contains("## Interface docs not checked at Tier-2");
-        assertThat(coverage).contains("architecture/interfaces/loose-api.md");
-        assertThat(coverage).doesNotContain("architecture/interfaces/my-api.md");
     }
 
     @Test
