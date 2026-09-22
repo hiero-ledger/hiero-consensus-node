@@ -59,6 +59,8 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.AbstractTask;
+import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.file.FileSystemManager;
@@ -271,11 +273,12 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 .setThreadGroup(threadGroup)
                 .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Snapshot"))
                 .setExceptionHandler(
-                        (t, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during snapshots", ex))
+                        (_, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during snapshots", e))
                 .buildFactory());
         // thread pool to run tasks during flushes
-        final int flushThreadCount = config.getNumFlushThreads();
-        flushPool = new ForkJoinPool(flushThreadCount);
+        final ExecutorFactory flushPoolFactory = ExecutorFactory.create(
+                "MerkleDbFlusher", (_, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during flush", e));
+        flushPool = flushPoolFactory.createForkJoinPool(config.getNumFlushThreads());
 
         dbPaths = new MerkleDbPaths(storageDir);
 
@@ -572,10 +575,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final Future<Void> waitForHashes = writeHashes(lastLeafPath, dirtyHashes);
 
             final VirtualLeafBytes<?>[] dirtyLeaves = leafRecordsToAddOrUpdate.toArray(VirtualLeafBytes[]::new);
-            final VirtualLeafBytes<?>[] deletedLeaves = leafRecordsToDelete.toArray(VirtualLeafBytes[]::new);
             // Store leaves
             final Future<Void> waitForLeaves = writeLeavesToPathToKeyValue(firstLeafPath, lastLeafPath, dirtyLeaves);
 
+            final VirtualLeafBytes<?>[] deletedLeaves = leafRecordsToDelete.toArray(VirtualLeafBytes[]::new);
             // Store key/path mappings. This call is blocking, it returns after all mappings are updated in HDHM
             writeLeavesToKeyToPath(firstLeafPath, lastLeafPath, dirtyLeaves, deletedLeaves, isReconnectContext);
 
@@ -1048,45 +1051,59 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             hashChunkStore.updateValidKeyRange(0, VirtualHashChunk.lastChunkIdForPaths(maxValidPath, hashChunkHeight));
         }
 
-        if (maxValidPath < 0) {
+        if ((maxValidPath < 0) || (dirtyHashes.length == 0)) {
             // nothing to do
             return null;
         }
 
-        final int taskCount = 8;
-        final CompletableFuture<Void> result = new CompletableFuture<>();
-        final AtomicInteger done = new AtomicInteger(taskCount + 1);
-
         hashChunkStore.startWriting();
 
+        final CompletableFuture<Void> result = new CompletableFuture<>();
+        // A counter to check how many tasks have been finished. Once it reaches zero, the result
+        // future is marked complete
+        final AtomicInteger tasksRemaining = new AtomicInteger(dirtyHashes.length);
+        // Hash index in the dirtyHashes array. Every task gets and increments the index to
+        // find out what hash chunk to write
         final AtomicInteger index = new AtomicInteger(0);
-        for (int i = 0; i < taskCount; i++) {
-            flushPool.execute(() -> {
-                try {
-                    for (int j = index.getAndIncrement(); j < dirtyHashes.length; j = index.getAndIncrement()) {
-                        final VirtualHashChunk chunk = dirtyHashes[j];
-                        final long chunkId = chunk.getChunkId();
-                        if (chunkId < hashChunkCacheThreshold) {
-                            hashChunkCache.put(chunkId, chunk);
-                        } else {
-                            hashChunkStore.put(chunkId, chunk::writeTo, chunk.getSerializedSizeInBytes());
-                        }
-                    }
-                } catch (final IOException e) {
-                    logger.error(EXCEPTION.getMarker(), "[{}] IOException writing hash chunks", tableName, e);
-                    result.completeExceptionally(e);
-                    throw new UncheckedIOException(e);
-                } finally {
-                    if (done.decrementAndGet() == 0) {
-                        result.complete(null);
-                    }
+
+        final class StoreHashChunkTask extends AbstractTask {
+
+            StoreHashChunkTask() {
+                super(flushPool, 1);
+            }
+
+            @Override
+            protected boolean onExecute() throws IOException {
+                final int chunkIndex = index.getAndIncrement();
+                if (chunkIndex >= dirtyHashes.length) {
+                    return true;
                 }
-            });
+                if (chunkIndex < dirtyHashes.length - 1) {
+                    new StoreHashChunkTask().send();
+                }
+                final VirtualHashChunk chunk = dirtyHashes[chunkIndex];
+                final long chunkId = chunk.getChunkId();
+                if (chunkId < hashChunkCacheThreshold) {
+                    hashChunkCache.put(chunkId, chunk);
+                } else {
+                    hashChunkStore.put(chunkId, chunk::writeTo, chunk.getSerializedSizeInBytes());
+                }
+                statisticsUpdater.countFlushHashesWritten(); // Count hash chunk as one hash write
+                if (tasksRemaining.decrementAndGet() == 0) {
+                    result.complete(null);
+                }
+                return true;
+            }
+
+            @Override
+            protected void onException(final Throwable t) {
+                logger.error(MERKLE_DB.getMarker(), "Failed to write a hash chunk to disk", t);
+                result.completeExceptionally(t);
+            }
         }
 
-        if (done.decrementAndGet() == 0) {
-            result.complete(null);
-        }
+        // Schedule the first task. It will schedule more tasks when run
+        new StoreHashChunkTask().send();
 
         return result.thenRun(() -> {
             // Finish writing to the data file and update file stats
@@ -1116,10 +1133,12 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             keyValueStore.updateValidKeyRange(firstLeafPath, lastLeafPath);
         }
 
-        if (dirtyLeaves.length == 0) {
+        if ((lastLeafPath < 0) || (dirtyLeaves.length == 0)) {
             // Nothing to do
             return null;
         }
+
+        keyValueStore.startWriting();
 
         // Functionally, leaves don't have to be sorted. However, performance wise, sorting
         // is beneficial, as adjacent leaves are written together, which reduces the number
@@ -1127,37 +1146,48 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         VirtualLeafBytes<?>[] sortedDirtyLeaves = dirtyLeaves.clone();
         Arrays.parallelSort(sortedDirtyLeaves, Comparator.comparingLong(VirtualLeafBytes::path));
 
-        final int taskCount = 8;
         final CompletableFuture<Void> result = new CompletableFuture<>();
-        final AtomicInteger done = new AtomicInteger(taskCount + 1);
-
-        keyValueStore.startWriting();
-
-        // The index is used to keep the leaves mostly sorted in the file
+        // A counter to check how many tasks have been finished. Once it reaches zero, the result
+        // future is marked complete
+        final AtomicInteger tasksRemaining = new AtomicInteger(sortedDirtyLeaves.length);
+        // Leaf record index in the sortedDirtyLeaves array. Every task gets and increments the index
+        // to find out what leaf to write. This (almost) preserves the sorted order in which leaves
+        // are written to disk
         final AtomicInteger index = new AtomicInteger(0);
-        for (int i = 0; i < taskCount; i++) {
-            flushPool.execute(() -> {
-                try {
-                    for (int j = index.getAndIncrement(); j < sortedDirtyLeaves.length; j = index.getAndIncrement()) {
-                        final VirtualLeafBytes<?> leafBytes = sortedDirtyLeaves[j];
-                        keyValueStore.put(leafBytes.path(), leafBytes::writeTo, leafBytes.getSizeInBytes());
-                        statisticsUpdater.countFlushLeavesWritten();
-                    }
-                } catch (final IOException e) {
-                    logger.error(EXCEPTION.getMarker(), "[{}] IOException writing leaves", tableName, e);
-                    result.completeExceptionally(e);
-                    throw new UncheckedIOException(e);
-                } finally {
-                    if (done.decrementAndGet() == 0) {
-                        result.complete(null);
-                    }
+
+        final class StoreLeafTask extends AbstractTask {
+
+            StoreLeafTask() {
+                super(flushPool, 1);
+            }
+
+            @Override
+            protected boolean onExecute() throws Exception {
+                final int leafIndex = index.getAndIncrement();
+                if (leafIndex >= sortedDirtyLeaves.length) {
+                    return true;
                 }
-            });
+                if (leafIndex < sortedDirtyLeaves.length - 1) {
+                    new StoreLeafTask().send();
+                }
+                final VirtualLeafBytes<?> leafBytes = sortedDirtyLeaves[leafIndex];
+                keyValueStore.put(leafBytes.path(), leafBytes::writeTo, leafBytes.getSizeInBytes());
+                statisticsUpdater.countFlushLeavesWritten();
+                if (tasksRemaining.decrementAndGet() == 0) {
+                    result.complete(null);
+                }
+                return true;
+            }
+
+            @Override
+            protected void onException(final Throwable t) {
+                logger.error(MERKLE_DB.getMarker(), "Failed to write a leaf record to disk", t);
+                result.completeExceptionally(t);
+            }
         }
 
-        if (done.decrementAndGet() == 0) {
-            result.complete(null);
-        }
+        // Schedule the first task. It will schedule more tasks when run
+        new StoreLeafTask().send();
 
         return result.thenRun(() -> {
             try {
