@@ -21,24 +21,26 @@ public final class ClprVerifierAbi {
     private ClprVerifierAbi() {}
 
     /**
-     * {@code verifyConfig(bytes,bytes32,bytes)} V3 (context + manifest) return: the config fields (7-field
-     * throttles) followed by the {@link ClprEndpointManifest} struct. Registered as the return type of the
-     * V3 config method by each config translator and decoded by {@link EvmClprVerifier}.
+     * Manifest-aware {@code verifyConfig(bytes,bytes32,bytes)} return: the config fields (7-field throttles)
+     * followed by the {@link ClprEndpointManifest} struct. Registered as the return type of the
+     * manifest-aware config method by each config translator and decoded by {@link EvmClprVerifier}.
      */
-    public static final String VERIFY_CONFIG_V3_OUTPUTS =
+    public static final String VERIFY_CONFIG_WITH_MANIFEST_OUTPUTS =
             "(bytes,string,bytes,uint96,(uint32,uint64,uint64,uint32,uint64,uint32,uint32),bytes,bytes,(uint64,bytes,(string,uint32,bytes,bytes)[]))";
 
-    /** {@link #VERIFY_CONFIG_V3_OUTPUTS} parsed, for the decode side. */
-    public static final TupleType<Tuple> VERIFY_CONFIG_V3_RETURN = TupleType.parse(VERIFY_CONFIG_V3_OUTPUTS);
+    /** {@link #VERIFY_CONFIG_WITH_MANIFEST_OUTPUTS} parsed, for the decode side. */
+    public static final TupleType<Tuple> VERIFY_CONFIG_WITH_MANIFEST_RETURN =
+            TupleType.parse(VERIFY_CONFIG_WITH_MANIFEST_OUTPUTS);
 
     /**
-     * {@code verifyBundle} V3 return: the V2 members (queue metadata, message payloads, new trust anchor +
-     * id) plus a trailing {@link ClprEndpointManifest}. V3 reuses the V2 selector — only the return grows —
-     * so, unlike the config V3, it is not a registered {@code SystemContractMethod}; each {@code *BundleCall}
-     * encodes this {@link TupleType} directly and {@link EvmClprVerifier} decodes it. A {@code version == 0}
+     * Manifest-aware {@code verifyBundle} return: queue metadata, message payloads, new trust anchor and
+     * anchor id, followed by a {@link ClprEndpointManifest}. Both modes use the same bundle selector;
+     * only the return grows. This return type is not a separate registered {@code SystemContractMethod};
+     * each {@code *BundleCall} encodes this {@link TupleType} directly and {@link EvmClprVerifier} decodes it.
+     * A {@code version == 0}
      * manifest member means "absent".
      */
-    public static final TupleType<Tuple> VERIFY_BUNDLE_V3_RETURN = TupleType.parse(
+    public static final TupleType<Tuple> VERIFY_BUNDLE_WITH_MANIFEST_RETURN = TupleType.parse(
             "((uint64,bytes32,uint64,bytes32,uint8),bytes[],bytes,bytes,(uint64,bytes,(string,uint32,bytes,bytes)[]))");
 
     /**
@@ -67,7 +69,7 @@ public final class ClprVerifierAbi {
     /**
      * Encodes a {@link ClprEndpointManifest} as the ABI struct
      * {@code (uint64 version, bytes serviceAddress, (string,uint32,bytes,bytes)[] endpoints)} — the manifest
-     * member of the V3 config and bundle returns.
+     * member of the manifest-aware config and bundle returns.
      */
     @NonNull
     public static Tuple manifestStructTuple(@NonNull final ClprEndpointManifest manifest) {

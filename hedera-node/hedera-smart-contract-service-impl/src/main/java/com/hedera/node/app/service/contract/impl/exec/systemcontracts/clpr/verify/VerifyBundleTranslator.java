@@ -15,11 +15,11 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 
 /**
- * Translates {@code verifyBundle(bytes bundlePayload, bytes trustAnchor) returns (bytes)} calls.
+ * Translates {@code verifyBundle(bytes bundlePayload, bytes trustAnchor, bytes channelContext)} calls.
  *
  * <p>Implements the spec-defined verifier ABI for Hiero TSS: verifies each Merkle path against
  * the proof's block-root signature using {@code trustAnchor} as the peer ledger_id, accumulates
- * the channel metadata + message payloads, and returns the serialized {@code ClprBundleContent}
+ * the channel metadata + message payloads, and returns an ABI tuple containing the verified bundle content
  * (including a {@code new_trust_anchor} / {@code new_trust_anchor_id} successor pair when the
  * source ledger has signalled an in-band ledger-ID succession).
  */
@@ -31,10 +31,7 @@ public class VerifyBundleTranslator extends AbstractCallTranslator<ClprCallAttem
 
     static final int TRUST_ANCHOR_INDEX = 1;
 
-    public static final SystemContractMethod VERIFY_BUNDLE =
-            SystemContractMethod.declare("verifyBundle(bytes,bytes)", "(bytes)").withCategories(Category.CLPR);
-
-    public static final SystemContractMethod VERIFY_BUNDLE_V2 = SystemContractMethod.declare(
+    public static final SystemContractMethod VERIFY_BUNDLE = SystemContractMethod.declare(
                     "verifyBundle(bytes,bytes,bytes)", "((uint64,bytes32,uint64,bytes32,uint8),bytes[],bytes,bytes)")
             .withCategories(Category.CLPR);
 
@@ -47,34 +44,27 @@ public class VerifyBundleTranslator extends AbstractCallTranslator<ClprCallAttem
             @NonNull final TssVerifier tssVerifier) {
         super(SystemContractMethod.SystemContract.CLPR, systemContractMethodRegistry, contractMetrics);
         this.tssVerifier = tssVerifier;
-        registerMethods(VERIFY_BUNDLE, VERIFY_BUNDLE_V2);
+        registerMethods(VERIFY_BUNDLE);
     }
 
     @Override
     @NonNull
     public Optional<SystemContractMethod> identifyMethod(@NonNull final ClprCallAttempt attempt) {
-        return attempt.isMethod(VERIFY_BUNDLE_V2).or(() -> attempt.isMethod(VERIFY_BUNDLE));
+        return attempt.isMethod(VERIFY_BUNDLE);
     }
 
     @Override
     public Call callFrom(@NonNull final ClprCallAttempt attempt) {
-        if (attempt.isMethod(VERIFY_BUNDLE_V2).isPresent()) {
-            final var call = VERIFY_BUNDLE_V2.decodeCall(attempt.inputBytes());
-            final var bundlePayload = (byte[]) call.get(BUNDLE_PAYLOAD_INDEX);
-            final var trustAnchor = (byte[]) call.get(TRUST_ANCHOR_INDEX);
-            final var channelContext = (byte[]) call.get(2);
-            return new VerifyBundleCall(
-                    attempt.enhancement(),
-                    attempt.systemContractGasCalculator(),
-                    bundlePayload,
-                    trustAnchor,
-                    channelContext,
-                    tssVerifier);
-        }
         final var call = VERIFY_BUNDLE.decodeCall(attempt.inputBytes());
         final var bundlePayload = (byte[]) call.get(BUNDLE_PAYLOAD_INDEX);
         final var trustAnchor = (byte[]) call.get(TRUST_ANCHOR_INDEX);
+        final var channelContext = (byte[]) call.get(2);
         return new VerifyBundleCall(
-                attempt.enhancement(), attempt.systemContractGasCalculator(), bundlePayload, trustAnchor, tssVerifier);
+                attempt.enhancement(),
+                attempt.systemContractGasCalculator(),
+                bundlePayload,
+                trustAnchor,
+                channelContext,
+                tssVerifier);
     }
 }

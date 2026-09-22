@@ -22,7 +22,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Cal
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.math.BigInteger;
 import java.util.ArrayDeque;
@@ -42,7 +41,6 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
     private static final byte[] SENT_HASH = filled(32, 0x02);
     private static final byte[] RECEIVED_HASH = filled(32, 0x03);
     private static final byte[] LAST_HASH = filled(32, 0x04);
-    // Present channel context => the V2/V3 (flag-gated) return path rather than the V1 single-bytes return.
     private static final byte[] CHANNEL_CONTEXT = {0x0A, 0x0B};
     private static final byte[] SERVICE_ADDR = filled(20, 0x55);
 
@@ -52,7 +50,8 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
     }
 
     @Test
-    void returnsVerifiedBundleContentWithoutRotation() throws ParseException {
+    void returnsVerifiedBundleContentWithoutRotation() {
+        stubManifestFlag(false);
         final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
 
         try (final var ignored = mockVerifier(verified(content, null, null))) {
@@ -60,34 +59,46 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
             assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.COMPLETED_SUCCESS);
-            assertThat(decodedContent(result.fullResult().output().toArray())).isEqualTo(content);
+            final var out = decodedTuple(result.fullResult().output().toArray());
+            assertThat((Tuple) out.get(0))
+                    .isEqualTo(Tuple.of(
+                            BigInteger.valueOf(42),
+                            SENT_HASH,
+                            BigInteger.valueOf(17),
+                            RECEIVED_HASH,
+                            ClprChannelStatus.ACTIVE.protoOrdinal()));
+            assertThat((byte[][]) out.get(1)).isEmpty();
+            assertThat((byte[]) out.get(2)).isEmpty();
+            assertThat((byte[]) out.get(3)).isEmpty();
         }
     }
 
     @Test
-    void injectsVerifiedRotationWhenContentOmitsIt() throws ParseException {
+    void injectsVerifiedRotationWhenContentOmitsIt() {
+        stubManifestFlag(false);
         final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
 
         try (final var ignored = mockVerifier(verified(content, NEXT_ANCHOR, NEXT_ANCHOR_ID))) {
-            final var out = decodedContent(
-                    subject().execute(frame).fullResult().output().toArray());
+            final var out =
+                    decodedTuple(subject().execute(frame).fullResult().output().toArray());
 
-            assertThat(out.newTrustAnchor().toByteArray()).isEqualTo(NEXT_ANCHOR);
-            assertThat(out.newTrustAnchorId().toByteArray()).isEqualTo(NEXT_ANCHOR_ID);
+            assertThat((byte[]) out.get(2)).isEqualTo(NEXT_ANCHOR);
+            assertThat((byte[]) out.get(3)).isEqualTo(NEXT_ANCHOR_ID);
         }
     }
 
     @Test
-    void acceptsMatchingClaimedRotationAndRewritesId() throws ParseException {
+    void acceptsMatchingClaimedRotationAndRewritesId() {
+        stubManifestFlag(false);
         // Content claims a different ID — the verifier's ID must win.
         final var content = content(metadata(), Bytes.wrap(NEXT_ANCHOR), Bytes.wrap(new byte[] {3, 3, 3}));
 
         try (final var ignored = mockVerifier(verified(content, NEXT_ANCHOR, NEXT_ANCHOR_ID))) {
-            final var out = decodedContent(
-                    subject().execute(frame).fullResult().output().toArray());
+            final var out =
+                    decodedTuple(subject().execute(frame).fullResult().output().toArray());
 
-            assertThat(out.newTrustAnchor().toByteArray()).isEqualTo(NEXT_ANCHOR);
-            assertThat(out.newTrustAnchorId().toByteArray()).isEqualTo(NEXT_ANCHOR_ID);
+            assertThat((byte[]) out.get(2)).isEqualTo(NEXT_ANCHOR);
+            assertThat((byte[]) out.get(3)).isEqualTo(NEXT_ANCHOR_ID);
         }
     }
 
@@ -155,7 +166,7 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
     }
 
     @Test
-    void v3ReturnAppendsManifestWhenFlagOn() throws ParseException {
+    void returnAppendsManifestWhenFlagOn() {
         stubManifestFlag(true);
         final var manifest = ClprEndpointManifest.newBuilder()
                 .version(5L)
@@ -164,14 +175,10 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
         final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
 
         try (final var ignored = mockVerifier(verifiedWithManifest(content, manifest))) {
-            final var out = subject(CHANNEL_CONTEXT)
-                    .execute(frame)
-                    .fullResult()
-                    .output()
-                    .toArray();
+            final var out = subject().execute(frame).fullResult().output().toArray();
 
-            // Flag on => 5-member V3 return; the trailing member is the manifest struct.
-            final Tuple tuple = ClprVerifierAbi.VERIFY_BUNDLE_V3_RETURN.decode(out);
+            // Flag on => 5-member manifest-aware return; the trailing member is the manifest struct.
+            final Tuple tuple = ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN.decode(out);
             assertThat(tuple.size()).isEqualTo(5);
             final Tuple manifestTuple = tuple.get(4);
             assertThat(((BigInteger) manifestTuple.get(0)).longValueExact()).isEqualTo(5L);
@@ -179,26 +186,22 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
     }
 
     @Test
-    void v2ReturnHasFourMembersWhenFlagOff() throws ParseException {
+    void returnHasFourMembersWhenFlagOff() {
         stubManifestFlag(false);
         final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
 
         try (final var ignored = mockVerifier(verified(content, null, null))) {
-            final var out = subject(CHANNEL_CONTEXT)
-                    .execute(frame)
-                    .fullResult()
-                    .output()
-                    .toArray();
+            final var out = subject().execute(frame).fullResult().output().toArray();
 
-            // Flag off => 4-member V2 return (no manifest member).
+            // Flag off => 4-member manifest-disabled return (no manifest member).
             final Tuple tuple =
-                    EthereumVerifyBundleTranslator.VERIFY_BUNDLE_V2.getOutputs().decode(out);
+                    EthereumVerifyBundleTranslator.VERIFY_BUNDLE.getOutputs().decode(out);
             assertThat(tuple.size()).isEqualTo(4);
         }
     }
 
     @Test
-    void manifestOnlyReturnsV3WhenFlagOn() {
+    void manifestOnlyReturnsManifestWhenFlagOn() {
         // Manifest-only recovery bundle (spec §8.1.4): the verifier returns empty content + a manifest.
         stubManifestFlag(true);
         final var manifest = ClprEndpointManifest.newBuilder()
@@ -206,17 +209,13 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
                 .serviceAddress(Bytes.wrap(SERVICE_ADDR))
                 .build();
 
-        // Manifest-only is V3-only: it is reachable only via the V2 selector (channel context present),
-        // so exercise it through the 5-arg form to assert what the design actually guarantees.
+        // Manifest-only recovery requires the manifest-enabled return format.
         try (final var ignored = mockVerifier(manifestOnly(manifest))) {
-            final var out = subject(CHANNEL_CONTEXT)
-                    .execute(frame)
-                    .fullResult()
-                    .output()
-                    .toArray();
+            final var out = subject().execute(frame).fullResult().output().toArray();
 
-            // Flag on => 5-member V3 return; metadata absent (nextMessageId == 0 sentinel); trailing manifest.
-            final Tuple tuple = ClprVerifierAbi.VERIFY_BUNDLE_V3_RETURN.decode(out);
+            // Flag on => 5-member manifest-aware return; metadata absent (nextMessageId == 0 sentinel); trailing
+            // manifest.
+            final Tuple tuple = ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN.decode(out);
             assertThat(tuple.size()).isEqualTo(5);
             final Tuple metaTuple = tuple.get(0);
             assertThat(((BigInteger) metaTuple.get(0)).longValueExact()).isZero();
@@ -234,17 +233,13 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
                 .build();
 
         try (final var ignored = mockVerifier(manifestOnly(manifest))) {
-            assertFailed(subject(CHANNEL_CONTEXT).execute(frame));
+            assertFailed(subject().execute(frame));
         }
     }
 
     private EthereumVerifyBundleCall subject() {
-        return new EthereumVerifyBundleCall(mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR);
-    }
-
-    private EthereumVerifyBundleCall subject(final byte[] channelContext) {
         return new EthereumVerifyBundleCall(
-                mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR, channelContext);
+                mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT);
     }
 
     private void stubManifestFlag(final boolean enabled) {
@@ -323,11 +318,8 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
                 .build();
     }
 
-    private static ClprBundleContent decodedContent(final byte[] output) throws ParseException {
-        final var tuple =
-                EthereumVerifyBundleTranslator.VERIFY_BUNDLE.getOutputs().decode(output);
-        return ClprBundleContent.PROTOBUF.parse(
-                Bytes.wrap((byte[]) tuple.get(0)).toReadableSequentialData());
+    private static Tuple decodedTuple(final byte[] output) {
+        return EthereumVerifyBundleTranslator.VERIFY_BUNDLE.getOutputs().decode(output);
     }
 
     private static void assertFailed(final PricedResult result) {

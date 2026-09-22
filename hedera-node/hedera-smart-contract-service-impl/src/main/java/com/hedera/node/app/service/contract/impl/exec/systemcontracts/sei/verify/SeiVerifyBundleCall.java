@@ -3,7 +3,7 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.sei.verif
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.VERIFY_BUNDLE_V3_RETURN;
+import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN;
 import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.absentMetadataTuple;
 import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.manifestStructTuple;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.ordinalRevertResult;
@@ -25,22 +25,20 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
- * Implements {@code verifyBundle(bytes bundlePayload, bytes trustAnchor) returns (bytes)} for the
+ * Implements {@code verifyBundle(bytes bundlePayload, bytes trustAnchor, bytes channelContext)} for the
  * Sei verifier system contract (EVM address {@code 0x170}).
  *
  * <p>The {@code bundlePayload} is a proto-encoded {@code ClprSeiBundlePayload}; the
  * {@code trustAnchor} is the proto-encoded {@code SeiTrustAnchor} stored on the Channel.
  * Verification is delegated to {@link SeiCometBftProofVerifier#verifyBundle(byte[], byte[])}.
  *
- * <p>Unlike the QBFT verifier — which returns the relayed {@code ClprBundleContent} verbatim —
- * the Sei verifier enforces two service-level invariants before returning, because a Sei bundle's
+ * <p>The Sei verifier enforces two service-level invariants before returning, because a Sei bundle's
  * trust anchor is <i>computed</i> from proven validator-set rotation rather than echoed from the
  * payload:
  * <ul>
@@ -56,20 +54,6 @@ public class SeiVerifyBundleCall extends AbstractCall {
     private final byte[] bundlePayload;
     private final byte[] trustAnchor;
 
-    @Nullable
-    private final byte[] channelContext;
-
-    public SeiVerifyBundleCall(
-            @NonNull final HederaWorldUpdater.Enhancement enhancement,
-            @NonNull final SystemContractGasCalculator gasCalculator,
-            @NonNull final byte[] bundlePayload,
-            @NonNull final byte[] trustAnchor) {
-        super(gasCalculator, enhancement, true);
-        this.bundlePayload = requireNonNull(bundlePayload);
-        this.trustAnchor = requireNonNull(trustAnchor);
-        this.channelContext = null;
-    }
-
     public SeiVerifyBundleCall(
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
             @NonNull final SystemContractGasCalculator gasCalculator,
@@ -79,7 +63,7 @@ public class SeiVerifyBundleCall extends AbstractCall {
         super(gasCalculator, enhancement, true);
         this.bundlePayload = requireNonNull(bundlePayload);
         this.trustAnchor = requireNonNull(trustAnchor);
-        this.channelContext = requireNonNull(channelContext);
+        requireNonNull(channelContext);
     }
 
     @Override
@@ -113,8 +97,8 @@ public class SeiVerifyBundleCall extends AbstractCall {
 
         // Content-less result: a state-update-only bundle with no queue content — either a manifest-only
         // recovery (spec §8.1.4) or a trust-anchor rotation. Its queue metadata is absent, so it flows
-        // through the SAME selector-aware return path as a normal bundle (legacy bytes vs V2/V3 tuple):
-        // v2Success emits the zero-nextMessageId sentinel for the null metadata, which EvmClprVerifier
+        // through the same manifest-disabled and manifest-enabled tuple return path as a normal bundle:
+        // bundleSuccess emits the zero-nextMessageId sentinel for the null metadata, which EvmClprVerifier
         // decodes back to null metadata so ClprSubmitBundleHandler takes its state-update-only path. (This
         // wire shape is not yet produced by the clpr-evm-endpoint relay — cross-repo follow-up.)
         if (verified.bundleContentBytes() == null) {
@@ -124,11 +108,9 @@ public class SeiVerifyBundleCall extends AbstractCall {
                 log.warn("verifyBundle (Sei): bundle proved neither content, a trust-anchor rotation, nor a manifest");
                 return fail();
             }
-            // Only the manifest check and the tuple (v2Success) path need the flag; the legacy trust-anchor
-            // return does not, so avoid the config lookup there.
-            final boolean manifestEnabled = (hasManifest || channelContext != null)
-                    && configOf(frame).getConfigData(ClprConfig.class).endpointManifestEnabled();
-            // Manifest-only recovery is a V3-only feature; reject it when the flag is off.
+            final boolean manifestEnabled =
+                    configOf(frame).getConfigData(ClprConfig.class).endpointManifestEnabled();
+            // Manifest-only recovery is a feature that requires endpoint manifests; reject it when the flag is off.
             if (hasManifest && !manifestEnabled) {
                 log.warn("verifyBundle (Sei): manifest-only recovery bundle rejected (endpoint-manifest feature off)");
                 return fail();
@@ -140,26 +122,7 @@ public class SeiVerifyBundleCall extends AbstractCall {
                         .newTrustAnchor(Bytes.wrap(verified.newTrustAnchor()))
                         .newTrustAnchorId(Bytes.wrap(requireNonNull(verified.newTrustAnchorId())));
             }
-            if (hasManifest) {
-                // Carried inline so the legacy (bytes) return conveys it; the V2/V3 tuple sources the
-                // manifest from `verified` in v2Success.
-                final ClprEndpointManifest manifest;
-                try {
-                    manifest = ClprEndpointManifest.PROTOBUF.parse(
-                            Bytes.wrap(verified.newEndpointManifestBytes()).toReadableSequentialData());
-                } catch (final Exception e) {
-                    // The verifier already strict-parsed this preimage; a re-parse failure is a defect,
-                    // not a proof failure — surface as a bundle verification failure rather than escaping.
-                    log.warn("verifyBundle (Sei): manifest-only recovery bytes are not a ClprEndpointManifest", e);
-                    return fail();
-                }
-                stateBuilder.newEndpointManifest(manifest);
-            }
-            final var stateUpdate = stateBuilder.build();
-            // Return the selector-correct shape, exactly like a normal bundle — no special case.
-            return channelContext == null
-                    ? legacyBytesSuccess(stateUpdate, verified)
-                    : v2Success(stateUpdate, verified, manifestEnabled);
+            return bundleSuccess(stateBuilder.build(), verified, manifestEnabled);
         }
 
         final ClprBundleContent content;
@@ -232,43 +195,13 @@ public class SeiVerifyBundleCall extends AbstractCall {
                     .build();
         }
 
-        if (channelContext != null) {
-            // On the V2 path the manifest advance is surfaced as a trailing return member when the
-            // endpoint-manifest feature is on (mirrors the Hiero/Besu VERIFY_BUNDLE_V3 return); the
-            // shared EvmClprVerifier decodes 4-member (off) vs 5-member (on) keyed on the same flag.
-            final boolean manifestEnabled =
-                    configOf(frame).getConfigData(ClprConfig.class).endpointManifestEnabled();
-            return v2Success(outContent, verified, manifestEnabled);
-        }
-        return legacyBytesSuccess(outContent, verified);
-    }
-
-    /**
-     * Legacy {@code verifyBundle(bytes,bytes) -> (bytes)} success return: {@code outContent}
-     * protobuf-serialized into a single {@code bytes}. Used for the 2-arg method (no channel context).
-     * An absent {@code metadata} field on {@code outContent} conveys a state-update-only bundle.
-     */
-    @NonNull
-    private PricedResult legacyBytesSuccess(
-            @NonNull final ClprBundleContent outContent,
-            @NonNull final SeiCometBftProofVerifier.VerifiedBundle verified) {
-        final var contentBytesOut = ClprBundleContent.PROTOBUF.toBytes(outContent);
-        log.info(
-                "verifyBundle (Sei) EXIT: SUCCESS (legacy bytes) blockHash={} content={} bytes",
-                verified.blockHash32() == null ? "none" : Bytes.wrap(verified.blockHash32()),
-                contentBytesOut.length());
-        return gasOnly(
-                successResult(
-                        SeiVerifyBundleTranslator.VERIFY_BUNDLE
-                                .getOutputs()
-                                .encode(Tuple.singleton(contentBytesOut.toByteArray())),
-                        GAS_REQUIREMENT),
-                SUCCESS,
-                false);
+        final boolean manifestEnabled =
+                configOf(frame).getConfigData(ClprConfig.class).endpointManifestEnabled();
+        return bundleSuccess(outContent, verified, manifestEnabled);
     }
 
     @NonNull
-    private PricedResult v2Success(
+    private PricedResult bundleSuccess(
             @NonNull final ClprBundleContent outContent,
             @NonNull final SeiCometBftProofVerifier.VerifiedBundle verified,
             final boolean manifestEnabled) {
@@ -289,7 +222,7 @@ public class SeiVerifyBundleCall extends AbstractCall {
         final byte[] newTrustAnchor = outContent.newTrustAnchor().toByteArray();
         final byte[] newTrustAnchorId = outContent.newTrustAnchorId().toByteArray();
         log.info(
-                "verifyBundle V2 (Sei) EXIT: SUCCESS blockHash={} messages={} manifestEnabled={}",
+                "verifyBundle (Sei) EXIT: SUCCESS blockHash={} messages={} manifestEnabled={}",
                 verified.blockHash32() == null ? "none" : Bytes.wrap(verified.blockHash32()),
                 messageBytes.length,
                 manifestEnabled);
@@ -310,7 +243,7 @@ public class SeiVerifyBundleCall extends AbstractCall {
             }
             return gasOnly(
                     successResult(
-                            VERIFY_BUNDLE_V3_RETURN.encode(Tuple.of(
+                            VERIFY_BUNDLE_WITH_MANIFEST_RETURN.encode(Tuple.of(
                                     metaTuple,
                                     messageBytes,
                                     newTrustAnchor,
@@ -322,7 +255,7 @@ public class SeiVerifyBundleCall extends AbstractCall {
         }
         return gasOnly(
                 successResult(
-                        SeiVerifyBundleTranslator.VERIFY_BUNDLE_V2
+                        SeiVerifyBundleTranslator.VERIFY_BUNDLE
                                 .getOutputs()
                                 .encode(Tuple.of(metaTuple, messageBytes, newTrustAnchor, newTrustAnchorId)),
                         GAS_REQUIREMENT),
