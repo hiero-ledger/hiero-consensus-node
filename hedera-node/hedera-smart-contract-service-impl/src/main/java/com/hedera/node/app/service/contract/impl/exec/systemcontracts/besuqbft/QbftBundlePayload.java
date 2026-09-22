@@ -10,11 +10,11 @@ import java.util.List;
  * ({@code org.hiero.clpr.relay.evm.QbftBundleConstructor.QbftBundlePayload} in the
  * {@code clpr-evm-endpoint} repo).
  *
- * <p>Top-level RLP layout (5 items):
+ * <p>Top-level RLP layout (4 items):
  * <pre>
  *   [ blockHeader,            // RLP list of header fields (variable count by hard fork)
  *     accountProof,           // RLP list: MPT account-proof trie nodes (each item is bytes)
- *     storageProof,           // RLP list: each entry is [key, value, proofNodes[]]
+ *     storageProof,           // RLP list: each entry is [key, proofNodes[]]
  *     innerContentBytes ]     // RLP bytes: protobuf-serialized ClprBundleContent
  *                             //            (or ClprLedgerConfiguration for verifyConfig)
  * </pre>
@@ -35,14 +35,14 @@ public record QbftBundlePayload(
      */
     @NonNull
     public static QbftBundlePayload decode(@NonNull final byte[] rlp) {
-        final var top = RlpDecoder.decode(rlp).list();
+        final var top = PayloadPieces.decodePayloadList(rlp);
         if (top.size() != 4) {
             throw new IllegalArgumentException("QbftProofPayload: expected 4 top-level RLP items, got " + top.size());
         }
-        final var blockHeader = PayloadPieces.decodeBlockHeader(top.get(0).list());
-        final var accountProof = PayloadPieces.decodeBytesList(top.get(1).list());
-        final var storageProof = PayloadPieces.decodeStorageProof(top.get(2).list());
-        final var innerContentBytes = Bytes.wrap(top.get(3).bytes());
+        final var blockHeader = PayloadPieces.decodeBlockHeader(PayloadPieces.decodeList(top.get(0)));
+        final var accountProof = PayloadPieces.decodeBytesList(PayloadPieces.decodeList(top.get(1)));
+        final var storageProof = PayloadPieces.decodeStorageProof(PayloadPieces.decodeList(top.get(2)));
+        final var innerContentBytes = Bytes.wrap(PayloadPieces.decodeBytes(top.get(3)));
         return new QbftBundlePayload(blockHeader, accountProof, storageProof, innerContentBytes);
     }
 }

@@ -30,25 +30,23 @@ public record QbftLedgerConfigPayload(
      */
     @NonNull
     public static QbftLedgerConfigPayload decode(@NonNull final byte[] rlp) {
-        final var top = RlpDecoder.decode(rlp).list();
+        final var top = PayloadPieces.decodePayloadList(rlp);
         if (top.size() != 5) {
             throw new IllegalArgumentException(
                     "QbftLedgerConfigPayload: expected 5 top-level RLP items, got " + top.size());
         }
-        final var genesisBlockHeader =
-                PayloadPieces.decodeBlockHeader(top.get(0).list());
-        final var currentBlockHeader =
-                PayloadPieces.decodeBlockHeader(top.get(1).list());
+        final var genesisBlockHeader = PayloadPieces.decodeBlockHeader(PayloadPieces.decodeList(top.get(0)));
+        final var currentBlockHeader = PayloadPieces.decodeBlockHeader(PayloadPieces.decodeList(top.get(1)));
         final ClprLedgerConfiguration ledgerConfiguration;
         try {
             ledgerConfiguration = ClprLedgerConfiguration.PROTOBUF.parse(
-                    Bytes.wrap(top.get(2).bytes()).toReadableSequentialData());
+                    Bytes.wrap(PayloadPieces.decodeBytes(top.get(2))).toReadableSequentialData());
         } catch (final Exception e) {
             throw new IllegalArgumentException(
                     "QbftLedgerConfigPayload: item 2 is not a valid ClprLedgerConfiguration", e);
         }
-        final var accountProof = PayloadPieces.decodeBytesList(top.get(3).list());
-        final var storageProof = PayloadPieces.decodeStorageProof(top.get(4).list());
+        final var accountProof = PayloadPieces.decodeBytesList(PayloadPieces.decodeList(top.get(3)));
+        final var storageProof = PayloadPieces.decodeStorageProof(PayloadPieces.decodeList(top.get(4)));
         return new QbftLedgerConfigPayload(
                 genesisBlockHeader, currentBlockHeader, ledgerConfiguration, accountProof, storageProof);
     }
