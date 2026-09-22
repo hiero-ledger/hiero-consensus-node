@@ -283,6 +283,7 @@ public class HandleWorkflow {
             @NonNull final Round round,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         logStartRound(round);
+        stakePeriodManager.setCurrentStakePeriodFor(round.getConsensusTimestamp());
         blockBufferService.ensureNewBlocksPermitted();
         cacheWarmer.warm(state, round);
         final var firstEvent = round.iterator().next();
