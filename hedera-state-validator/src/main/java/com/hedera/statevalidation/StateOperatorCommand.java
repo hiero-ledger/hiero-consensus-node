@@ -144,10 +144,12 @@ public class StateOperatorCommand implements Runnable {
     private void initializeTmpDirIfUnset() {
         final String existingTmpDir = System.getProperty(TMP_DIR_PROPERTY, "");
         if (!existingTmpDir.isBlank()) {
+            // paths.tmpDir is resolved relative to savedStateDir, so a relative value gets
+            // nested under it and FileSystemManager can't create it. Pin it to an absolute path.
+            System.setProperty(TMP_DIR_PROPERTY, Path.of(existingTmpDir).toAbsolutePath().toString());
             return;
         }
-        System.setProperty(
-                TMP_DIR_PROPERTY, "state-validator-" + ProcessHandle.current().pid());
+        System.setProperty(TMP_DIR_PROPERTY, "state-validator-" + ProcessHandle.current().pid());
     }
 
     /**
