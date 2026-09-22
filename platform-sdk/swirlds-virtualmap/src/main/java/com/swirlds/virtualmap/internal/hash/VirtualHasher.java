@@ -440,11 +440,11 @@ public final class VirtualHasher {
                 () -> hashImpl(hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, pool)));
         if (rootTask != null) {
             try {
-                rootTask.join();
+                rootTask.get();
             } catch (final Exception e) {
                 if (!shutdown.get()) {
                     logger.error(EXCEPTION.getMarker(), "Failed to wait for all hashing tasks", e);
-                    throw e;
+                    throw new RuntimeException(e);
                 }
             }
         }

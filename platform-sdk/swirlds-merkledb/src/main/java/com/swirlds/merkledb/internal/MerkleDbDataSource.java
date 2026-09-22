@@ -582,9 +582,12 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             // Store key/path mappings. This call is blocking, it returns after all mappings are updated in HDHM
             writeLeavesToKeyToPath(firstLeafPath, lastLeafPath, dirtyLeaves, deletedLeaves, isReconnectContext);
 
-            // We need to have all writing done before we return as when we return the state version
-            // we are writing is deleted from the cache and the flood gates are opened for reads through
-            // to the data we have written here
+            // As soon as this method returns, virtual node cache will start deleting the flushed
+            // data from memory. To avoid data loss, it's critical to wait till all data is written
+            // to disk before returning from this method. If there is a request to read an object
+            // while this method is still running, the object will be found in the cache. If a
+            // read request is made after the flush is complete, the object will be found on disk
+            // (or in the cache, if not purged from memory yet - purging is asynchronous)
             try {
                 waitForMetadata.get();
                 if (waitForHashes != null) {

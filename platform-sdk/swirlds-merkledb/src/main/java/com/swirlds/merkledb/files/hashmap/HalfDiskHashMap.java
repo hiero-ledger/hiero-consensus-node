@@ -514,7 +514,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 final AbstractTask notifyTask = new NotifyTask(flushPool, size);
                 final SubmitBucketTask submitTask = new SubmitBucketTask(flushPool, notifyTask);
                 submitTask.send();
-                notifyTask.join();
+                notifyTask.get();
                 // close files session
                 dataFileReader = fileCollection.endWriting();
                 logger.info(
