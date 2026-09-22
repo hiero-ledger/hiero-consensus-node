@@ -38,8 +38,6 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.TextFormat;
 import com.hedera.hapi.node.hooks.EvmHook;
 import com.hedera.hapi.node.hooks.HookExtensionPoint;
-import com.hedera.node.app.hapi.fees.usage.SigUsage;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -400,10 +398,6 @@ public class TxnUtils {
                 .setRealmNum(contract.getRealmNum())
                 .setAccountNum(contract.getContractNum())
                 .build();
-    }
-
-    public static SigUsage suFrom(final SigValueObj svo) {
-        return new SigUsage(svo.getTotalSigCount(), svo.getSignatureSize(), svo.getPayerAcctSigCount());
     }
 
     private static final int NANOS_IN_A_SECOND = 1_000_000_000;

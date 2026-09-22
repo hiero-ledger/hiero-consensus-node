@@ -21,7 +21,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -79,19 +78,9 @@ public class ScheduleRecordTest {
                         .withEntityMemo("" + new SecureRandom().nextLong())
                         .designatingPayer(UNWILLING_PAYER)
                         .savingExpectedScheduledTxnId(),
-                doWithStartupConfig(
-                        "fees.simpleFeesEnabled",
-                        flag -> "true".equals(flag)
-                                // With simple fees the scheduled CryptoTransfer service fee is ~0,
-                                // so 1 tinybar is sufficient and the transaction succeeds
-                                ? getTxnRecord(SIMPLE_XFER_SCHEDULE)
-                                        .scheduledBy(SCHEDULE)
-                                        .hasPriority(recordWith().status(SUCCESS))
-                                : getTxnRecord(SIMPLE_XFER_SCHEDULE)
-                                        .scheduledBy(SCHEDULE)
-                                        .hasPriority(recordWith()
-                                                .transfers(exactParticipants(ignore -> Collections.emptyList()))
-                                                .status(INSUFFICIENT_TX_FEE))));
+                getTxnRecord(SIMPLE_XFER_SCHEDULE)
+                        .scheduledBy(SCHEDULE)
+                        .hasPriority(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
@@ -105,19 +94,9 @@ public class ScheduleRecordTest {
                         .withEntityMemo("" + new SecureRandom().nextLong())
                         .designatingPayer(INSOLVENT_PAYER)
                         .savingExpectedScheduledTxnId(),
-                doWithStartupConfig(
-                        "fees.simpleFeesEnabled",
-                        flag -> "true".equals(flag)
-                                // With simple fees the scheduled CryptoTransfer service fee is ~0,
-                                // so a 0-balance payer can still afford it and the transaction succeeds
-                                ? getTxnRecord(SIMPLE_XFER_SCHEDULE)
-                                        .scheduledBy(SCHEDULE)
-                                        .hasPriority(recordWith().status(SUCCESS))
-                                : getTxnRecord(SIMPLE_XFER_SCHEDULE)
-                                        .scheduledBy(SCHEDULE)
-                                        .hasPriority(recordWith()
-                                                .transfers(exactParticipants(ignore -> Collections.emptyList()))
-                                                .status(INSUFFICIENT_PAYER_BALANCE))));
+                getTxnRecord(SIMPLE_XFER_SCHEDULE)
+                        .scheduledBy(SCHEDULE)
+                        .hasPriority(recordWith().status(SUCCESS)));
     }
 
     @HapiTest

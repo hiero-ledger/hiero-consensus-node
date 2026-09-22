@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.intake.config;
 
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 
 /**
  * Contains configuration values for the {@link EventIntakeWiringConfig}'s internal wiring.
@@ -13,6 +13,8 @@ import com.swirlds.config.api.ConfigProperty;
  * @param eventDeduplicator configuration for the event deduplicator scheduler
  * @param eventSignatureValidator configuration for the event signature validator scheduler
  * @param orphanBuffer configuration for the orphan buffer scheduler
+ * @param branchDetector configuration for the branch detector scheduler
+ * @param branchReporter configuration for the branch reporter scheduler
  */
 @ConfigData("event.intake.wiring")
 public record EventIntakeWiringConfig(
@@ -29,4 +31,10 @@ public record EventIntakeWiringConfig(
         TaskSchedulerConfiguration eventSignatureValidator,
 
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
-        TaskSchedulerConfiguration orphanBuffer) {}
+        TaskSchedulerConfiguration orphanBuffer,
+
+        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
+        TaskSchedulerConfiguration branchDetector,
+
+        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
+        TaskSchedulerConfiguration branchReporter) {}

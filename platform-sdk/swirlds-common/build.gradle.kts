@@ -17,9 +17,8 @@ tasks.withType<JavaCompile>().configureEach {
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 testModuleInfo {
-    requires("com.hedera.pbj.runtime")
+    requires("com.swirlds.base")
     requires("com.swirlds.common.test.fixtures")
-    requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.junit.jupiter.api")
 
@@ -28,14 +27,10 @@ testModuleInfo {
 
 timingSensitiveModuleInfo {
     requires("com.swirlds.base")
-    requires("com.swirlds.common")
     requires("com.swirlds.common.test.fixtures")
-    requires("com.swirlds.config.api")
-    requires("com.swirlds.config.extensions.test.fixtures")
-    requires("com.swirlds.metrics.api")
     requires("org.hiero.base.concurrent")
+    requires("org.hiero.base.concurrent.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
-    requires("org.hiero.consensus.concurrent.test.fixtures")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
 }

@@ -4,7 +4,6 @@ package org.hiero.consensus.gossip.impl.gossip.shadowgraph;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
-import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -26,7 +25,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.Clearable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
@@ -37,7 +35,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
  * The primary purpose of the shadowgraph is to unlink events when it is safe to do so. In order to decide when it is
  * safe to unlink an event, it allows for batches of events (by ancient indicator) to be reserved.
  */
-public class Shadowgraph implements Clearable {
+public class Shadowgraph {
 
     private static final Logger logger = LogManager.getLogger(Shadowgraph.class);
 
@@ -47,7 +45,7 @@ public class Shadowgraph implements Clearable {
     public static final int NO_RESERVATION = -1;
 
     /**
-     * The shadowgraph represented in a map from has to shadow event.
+     * The shadowgraph represented in a map from hash to shadow event.
      */
     private final HashMap<Hash, ShadowEvent> hashToShadowEvent;
 
@@ -109,16 +107,14 @@ public class Shadowgraph implements Clearable {
         hashToShadowEvent = new HashMap<>();
         indicatorToShadowEvent = new HashMap<>();
         reservationList = new LinkedList<>();
+        eventWindow = EventWindow.getGenesisEventWindow();
+        oldestUnexpiredIndicator = eventWindow.expiredThreshold();
     }
 
     /**
-     * Define the starting event window for the shadowgraph
-     *
-     * @param eventWindow the starting event window
+     * Log the initial state of the shadowgraph.
      */
-    private void startWithEventWindow(@NonNull final EventWindow eventWindow) {
-        this.eventWindow = eventWindow;
-        oldestUnexpiredIndicator = eventWindow.expiredThreshold();
+    public void logInitialState() {
         logger.info(
                 STARTUP.getMarker(),
                 "Shadowgraph starting from expiration threshold {}",
@@ -129,13 +125,13 @@ public class Shadowgraph implements Clearable {
      * Reset the shadowgraph manager to its constructed state.
      */
     public synchronized void clear() {
-        eventWindow = null;
-        oldestUnexpiredIndicator = ROUND_FIRST;
         disconnectShadowEvents();
         tips.clear();
         hashToShadowEvent.clear();
         indicatorToShadowEvent.clear();
         reservationList.clear();
+        eventWindow = EventWindow.getGenesisEventWindow();
+        oldestUnexpiredIndicator = eventWindow.expiredThreshold();
     }
 
     /**
@@ -316,23 +312,26 @@ public class Shadowgraph implements Clearable {
      * @param eventWindow describes the current window of non-expired events
      */
     public synchronized void updateEventWindow(@NonNull final EventWindow eventWindow) {
-        if (this.eventWindow == null) {
-            startWithEventWindow(eventWindow);
-            return;
-        }
+        final long currentExpiredThreshold = this.eventWindow.expiredThreshold();
+        final long newExpiredThreshold = eventWindow.expiredThreshold();
 
-        final long expiredThreshold = eventWindow.expiredThreshold();
-
-        if (expiredThreshold < eventWindow.expiredThreshold()) {
+        if (newExpiredThreshold < currentExpiredThreshold) {
             logger.error(
                     EXCEPTION.getMarker(),
-                    "A request to expire below {} is less than request of {}. Ignoring expiration request",
-                    expiredThreshold,
-                    eventWindow.expiredThreshold());
+                    "A request to expire below {} is less than the current threshold of {}. Ignoring expiration request",
+                    newExpiredThreshold,
+                    currentExpiredThreshold);
             // The value of expireBelow must never decrease, so if we receive an invalid request like this, ignore it
             return;
         }
         this.eventWindow = eventWindow;
+
+        if (hashToShadowEvent.isEmpty()) {
+            // No events are tracked, so there is nothing to expire. Adopt the new window directly instead of
+            // walking the indicator range up to its expired threshold.
+            oldestUnexpiredIndicator = eventWindow.expiredThreshold();
+            return;
+        }
 
         // Remove reservations for events that can and should be expired, and
         // keep track of the oldest threshold that can be expired

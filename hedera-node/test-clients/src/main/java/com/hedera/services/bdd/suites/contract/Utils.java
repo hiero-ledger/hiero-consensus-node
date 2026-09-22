@@ -13,8 +13,6 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.CONSTRUCTOR;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ContractCall;
-import static com.hederahashgraph.api.proto.java.SubType.DEFAULT;
 import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
@@ -27,8 +25,7 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.HookCall;
-import com.hedera.hapi.node.base.ScheduleID;
-import com.hedera.node.app.hapi.fees.pricing.AssetsLoader;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
@@ -40,6 +37,7 @@ import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.NftTransfer;
+import com.hederahashgraph.api.proto.java.ScheduleID;
 import com.hederahashgraph.api.proto.java.SubType;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TokenID;
@@ -57,7 +55,9 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -68,9 +68,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
-import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
-import org.hyperledger.besu.crypto.Hash;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.json.JSONTokener;
@@ -84,7 +82,7 @@ public class Utils {
     private static final String JSON_EXTENSION = ".json";
 
     public static ByteString eventSignatureOf(String event) {
-        return ByteString.copyFrom(Hash.keccak256(Bytes.wrap(event.getBytes())).toArray());
+        return ByteString.copyFrom(MiscCryptoUtils.keccak256DigestOf(event.getBytes()));
     }
 
     public static ByteString parsedToByteString(long shard, long realm, long n) {
@@ -168,8 +166,8 @@ public class Utils {
 
     public static ByteString extractBytecodeUnhexed(final String path) {
         try {
-            final var bytes = Files.readAllBytes(Path.of(path));
-            return ByteString.copyFrom(Hex.decode(bytes));
+            final var string = Files.readString(Path.of(path));
+            return ByteString.copyFrom(HexFormat.of().parseHex(string));
         } catch (IOException e) {
             log.warn("An error occurred while reading file", e);
             return ByteString.EMPTY;
@@ -194,7 +192,7 @@ public class Utils {
      * This method extracts the function ABI by the name of the desired function and the name of the
      * respective contract. Depending on the desired function type, it can deliver either a
      * constructor ABI, or function ABI from the contract ABI
-     *
+     * <p>
      * This overloaded method allows for a variant contract root folder
      *
      * @param variant variant contract root folder
@@ -493,6 +491,13 @@ public class Utils {
                         (int) contractId.getShardNum(), contractId.getRealmNum(), contractId.getContractNum()))));
     }
 
+    public static Address mirrorAddrWith(ScheduleID scheduleId) {
+        return Address.wrap(toChecksumAddress(new BigInteger(
+                1,
+                asSolidityAddress(
+                        (int) scheduleId.getShardNum(), scheduleId.getRealmNum(), scheduleId.getScheduleNum()))));
+    }
+
     public static Address mirrorAddrWith(HapiSpec spec, final long num) {
         return Address.wrap(
                 toChecksumAddress(new BigInteger(1, asSolidityAddress((int) spec.shard(), spec.realm(), num))));
@@ -614,21 +619,17 @@ public class Utils {
                 .build());
     }
 
+    /** Canonical USD prices formerly loaded from the legacy {@code canonical-prices.json}. */
+    private static final Map<HederaFunctionality, Map<SubType, BigDecimal>> CANONICAL_USD_PRICES = Map.of(
+            HederaFunctionality.TokenMint,
+            Map.of(
+                    SubType.TOKEN_FUNGIBLE_COMMON, new BigDecimal("0.001"),
+                    SubType.TOKEN_NON_FUNGIBLE_UNIQUE, new BigDecimal("0.02")));
+
     public static long expectedPrecompileGasFor(
             final HapiSpec spec, final HederaFunctionality function, final SubType type) {
-        final var gasThousandthsOfTinycentPrice = spec.fees()
-                .getCurrentOpFeeData()
-                .get(ContractCall)
-                .get(DEFAULT)
-                .getServicedata()
-                .getGas();
-        final var assetsLoader = new AssetsLoader();
-        final BigDecimal hapiUsdPrice;
-        try {
-            hapiUsdPrice = assetsLoader.loadCanonicalPrices().get(function).get(type);
-        } catch (final IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        final var gasThousandthsOfTinycentPrice = spec.ratesProvider().gasPriceInThousandthsOfTinycent();
+        final BigDecimal hapiUsdPrice = CANONICAL_USD_PRICES.get(function).get(type);
         final var precompileTinycentPrice = hapiUsdPrice
                 .multiply(BigDecimal.valueOf(1.2))
                 .multiply(BigDecimal.valueOf(100 * 100_000_000L))
@@ -669,7 +670,7 @@ public class Utils {
      * @param address the EVM address
      * @return the {@link ScheduleID}
      */
-    public static com.hederahashgraph.api.proto.java.ScheduleID asScheduleId(
+    public static ScheduleID asScheduleId(
             @NonNull final HapiSpec spec, @NonNull final com.esaulpaugh.headlong.abi.Address address) {
         var addressHex = toChecksumAddress(address.value());
         if (addressHex.startsWith("0x")) {
@@ -677,7 +678,7 @@ public class Utils {
         }
         var scheduleNum = addressHex.substring(24, 40);
 
-        return com.hederahashgraph.api.proto.java.ScheduleID.newBuilder()
+        return ScheduleID.newBuilder()
                 .setShardNum(spec.shard())
                 .setRealmNum(spec.realm())
                 .setScheduleNum(new BigInteger(scheduleNum, 16).longValue())

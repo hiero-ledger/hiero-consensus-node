@@ -11,6 +11,7 @@ import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static com.hedera.services.bdd.spec.HapiSpecSetup.getDefaultInstance;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.services.bdd.GenesisSubProcessTest;
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
@@ -30,6 +31,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -38,6 +40,8 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.platform.engine.TestExecutionResult;
 import org.junit.platform.engine.support.descriptor.ClassSource;
 import org.junit.platform.launcher.LauncherSession;
@@ -95,6 +99,8 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
             REPEATABLE
         }
 
+        private static final Object EMBEDDING_LOCK = new Object();
+
         private Embedding embedding;
         private boolean subprocessConcurrent;
 
@@ -105,9 +111,10 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
             // Validate high-volume pricing curves before starting any tests
             HighVolumePricingValidator.validateGenesisFeeSchedule();
 
-            // Skip standard setup if any test in the plan uses HapiBlockNode
-            if (hasAnnotatedTestNode(testPlan, Set.of(HapiBlockNode.class))) {
-                log.info("Test plan includes HapiBlockNode annotation, skipping shared network startup.");
+            // Skip standard setup if any test in the plan starts its own per-method subprocess network
+            if (hasAnnotatedTestNode(testPlan, Set.of(HapiBlockNode.class, GenesisSubProcessTest.class))) {
+                log.info(
+                        "Test plan includes HapiBlockNode or GenesisSubProcessTest annotation, skipping shared network startup.");
                 embedding = Embedding.NA;
                 return;
             }
@@ -138,9 +145,9 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                         // For the default Test task, we need to run some tests in concurrent embedded mode and
                         // some in repeatable embedded mode, depending on the value of their @TargetEmbeddedMode
                         // annotation; this PER_CLASS value supports that requirement
-                        case PER_CLASS -> null;
-                        case CONCURRENT -> EmbeddedNetwork.newSharedNetwork(EmbeddedMode.CONCURRENT);
-                        case REPEATABLE -> EmbeddedNetwork.newSharedNetwork(EmbeddedMode.REPEATABLE);
+                        // Embedded networks are created lazily on first demand, so that a
+                        // @GenesisHapiTest running before any other test is the only live instance
+                        case PER_CLASS, CONCURRENT, REPEATABLE -> null;
                     };
             if (network != null) {
                 checkPrOverridesForBlockNodeStreaming(network);
@@ -205,6 +212,14 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
          */
         public static void ensureEmbedding(@NonNull final EmbeddedMode mode) {
             requireNonNull(mode);
+            // Tests run concurrently, so creating the shared network lazily must be atomic; otherwise
+            // several threads each re-init the same working directory and corrupt it
+            synchronized (EMBEDDING_LOCK) {
+                ensureEmbeddingLocked(mode);
+            }
+        }
+
+        private static void ensureEmbeddingLocked(@NonNull final EmbeddedMode mode) {
             if (SHARED_NETWORK.get() != null) {
                 if (SHARED_NETWORK.get() instanceof EmbeddedNetwork embeddedNetwork) {
                     if (embeddedNetwork.mode() != mode) {
@@ -265,11 +280,12 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         }
 
         private static void startSharedEmbedded(@NonNull final EmbeddedMode mode) {
-            SHARED_NETWORK.set(EmbeddedNetwork.newSharedNetwork(mode));
-            SHARED_NETWORK.get().start();
+            final var network = EmbeddedNetwork.newSharedNetwork(mode);
+            network.start();
+            SHARED_NETWORK.set(network);
         }
 
-        private static void reconfigureSharedSubProcessLogging(@NonNull final SubProcessNetwork network) {
+        public static void reconfigureSharedSubProcessLogging(@NonNull final SubProcessNetwork network) {
             final var outputDir = network.nodes()
                     .getFirst()
                     .getExternalPath(ExternalPath.APPLICATION_LOG)
@@ -305,6 +321,18 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
             return count;
         }
 
+        /**
+         * Returns the embedded mode implied by the session's {@code hapi.spec.embedded.mode}, if it
+         * implies one; empty for subprocess and per-class sessions.
+         */
+        public static Optional<EmbeddedMode> sessionEmbeddedMode() {
+            return switch (embeddingMode()) {
+                case CONCURRENT -> Optional.of(EmbeddedMode.CONCURRENT);
+                case REPEATABLE -> Optional.of(EmbeddedMode.REPEATABLE);
+                case NA, PER_CLASS -> Optional.empty();
+            };
+        }
+
         private static Embedding embeddingMode() {
             final var mode = Optional.ofNullable(System.getProperty("hapi.spec.embedded.mode"))
                     .orElse("");
@@ -330,17 +358,18 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                         "PR Check Override: blockStream.writerMode={} is set, configuring a Block Node network with mode {}",
                         writerMode,
                         blockNodeMode);
-                BlockNodeNetwork blockNodeNetwork = new BlockNodeNetwork();
+                final SubProcessNetwork subProcessNetwork = (SubProcessNetwork) network;
+                final BlockNodeNetwork blockNodeNetwork = new BlockNodeNetwork();
+                blockNodeNetwork.getBlockNodeModeById().put(0L, blockNodeMode);
                 network.nodes().forEach(node -> {
-                    blockNodeNetwork.getBlockNodeModeById().put(node.getNodeId(), blockNodeMode);
-                    blockNodeNetwork
-                            .getBlockNodeIdsBySubProcessNodeId()
-                            .put(node.getNodeId(), new long[] {node.getNodeId()});
+                    blockNodeNetwork.getBlockNodeIdsBySubProcessNodeId().put(node.getNodeId(), new long[] {0});
                     blockNodeNetwork.getBlockNodePrioritiesBySubProcessNodeId().put(node.getNodeId(), new long[] {0});
                 });
+                if (blockNodeMode == BlockNodeMode.REAL) {
+                    blockNodeNetwork.setRsaBootstrapJson(buildRsaBootstrapJson(subProcessNetwork.getNodeKeys()));
+                }
                 blockNodeNetwork.start();
                 SHARED_BLOCK_NODE_NETWORK.set(blockNodeNetwork);
-                SubProcessNetwork subProcessNetwork = (SubProcessNetwork) network;
                 subProcessNetwork.setBlockNodeMode(blockNodeMode);
                 subProcessNetwork
                         .getPostInitWorkingDirActions()
@@ -350,5 +379,20 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                         .add(node -> subProcessNetwork.configureBlockNodeCommunicationLogLevel(node, "DEBUG"));
             }
         }
+    }
+
+    public static String buildRsaBootstrapJson(final Map<NodeId, KeysAndCerts> nodeKeys) {
+        final var sb = new StringBuilder("{\"nodeAddress\": [");
+        boolean first = true;
+        for (final Map.Entry<NodeId, KeysAndCerts> entry : nodeKeys.entrySet()) {
+            if (!first) sb.append(", ");
+            first = false;
+            final String hexKey = HexFormat.of()
+                    .formatHex(entry.getValue().sigKeyPair().getPublic().getEncoded());
+            sb.append("{\"nodeId\": ").append(entry.getKey().id());
+            sb.append(", \"RSAPubKey\": \"").append(hexKey).append("\"}");
+        }
+        sb.append("]}");
+        return sb.toString();
     }
 }

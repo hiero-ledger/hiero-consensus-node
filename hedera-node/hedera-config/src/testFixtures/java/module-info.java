@@ -7,16 +7,16 @@ module com.hedera.node.config.test.fixtures {
     requires transitive com.swirlds.config.extensions.test.fixtures;
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.hapi;
-    requires com.swirlds.common;
     requires com.swirlds.merkledb;
     requires com.swirlds.platform.core;
     requires com.swirlds.virtualmap;
+    requires org.hiero.base.concurrent;
     requires org.hiero.base.crypto;
-    requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.event.stream;
     requires org.hiero.consensus.gossip;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.reconnect;
     requires org.hiero.consensus.state;
-    requires org.hiero.consensus.utility;
+    requires org.hiero.consensus.status.monitor;
     requires static transitive com.github.spotbugs.annotations;
 }

@@ -13,7 +13,6 @@ import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkGetVersionI
 import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkTransactionGetFastRecordHandler;
 import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkTransactionGetReceiptHandler;
 import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkTransactionGetRecordHandler;
-import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkUncheckedSubmitHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -34,8 +33,6 @@ class NetworkAdminHandlersTest {
 
     private NetworkTransactionGetFastRecordHandler networkTransactionGetFastRecordHandler;
 
-    private NetworkUncheckedSubmitHandler networkUncheckedSubmitHandler;
-
     private NetworkAdminHandlers networkAdminHandlers;
 
     @BeforeEach
@@ -48,7 +45,6 @@ class NetworkAdminHandlersTest {
         networkTransactionGetReceiptHandler = mock(NetworkTransactionGetReceiptHandler.class);
         networkTransactionGetRecordHandler = mock(NetworkTransactionGetRecordHandler.class);
         networkTransactionGetFastRecordHandler = mock(NetworkTransactionGetFastRecordHandler.class);
-        networkUncheckedSubmitHandler = mock(NetworkUncheckedSubmitHandler.class);
 
         networkAdminHandlers = new NetworkAdminHandlers(
                 freezeHandler,
@@ -58,8 +54,7 @@ class NetworkAdminHandlersTest {
                 networkGetVersionInfoHandler,
                 networkTransactionGetReceiptHandler,
                 networkTransactionGetRecordHandler,
-                networkTransactionGetFastRecordHandler,
-                networkUncheckedSubmitHandler);
+                networkTransactionGetFastRecordHandler);
     }
 
     @Test
@@ -122,13 +117,5 @@ class NetworkAdminHandlersTest {
                 networkTransactionGetFastRecordHandler,
                 networkAdminHandlers.networkTransactionGetFastRecordHandler(),
                 "networkTransactionGetFastRecordHandler does not return correct instance");
-    }
-
-    @Test
-    void networkUncheckedSubmitHandlerReturnsCorrectInstance() {
-        assertEquals(
-                networkUncheckedSubmitHandler,
-                networkAdminHandlers.networkUncheckedSubmitHandler(),
-                "networkUncheckSubmitHandler does not return correct instance");
     }
 }

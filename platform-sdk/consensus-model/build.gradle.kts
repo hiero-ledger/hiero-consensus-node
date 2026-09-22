@@ -9,20 +9,19 @@ plugins {
 description = "Consensus Model"
 
 testModuleInfo {
-    requires("com.swirlds.platform.core")
-    requires("com.swirlds.platform.core.test.fixtures")
+    requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.model.test.fixtures")
     requires("org.hiero.consensus.utility")
     requires("org.hiero.consensus.utility.test.fixtures")
+    requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.mockito")
 }
 
 timingSensitiveModuleInfo {
     requires("org.hiero.base.concurrent")
-    requires("org.hiero.consensus.concurrent")
-    requires("org.hiero.consensus.concurrent.test.fixtures")
+    requires("org.hiero.base.concurrent.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")

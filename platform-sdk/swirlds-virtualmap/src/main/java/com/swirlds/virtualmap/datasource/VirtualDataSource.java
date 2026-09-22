@@ -158,10 +158,13 @@ public interface VirtualDataSource {
      */
     void enableBackgroundCompaction();
 
-    /**
-     * Cancels all compactions that are currently running and disables background compaction process.
-     */
-    void stopAndDisableBackgroundCompaction();
+    ///
+    /// Disables background compaction and interrupts all compactions that are currently running.
+    ///
+    /// @param waitForTasksToComplete whether to wait, up to the implementation's shutdown timeout,
+    ///     for all current background compaction tasks, including scanner tasks, to complete
+    ///
+    void stopAndDisableBackgroundCompaction(boolean waitForTasksToComplete);
 
     /**
      * Returns the first leaf path stored in this data source.
@@ -174,9 +177,7 @@ public interface VirtualDataSource {
     long getLastLeafPath();
 
     /**
-     * Returns the height of hash chunks stored in this data source. If the data
-     * source is empty, the value from {@link com.swirlds.virtualmap.config.VirtualMapConfig}
-     * is returned.
+     * Returns the height of hash chunks stored in this data source.
      */
     int getHashChunkHeight();
 }

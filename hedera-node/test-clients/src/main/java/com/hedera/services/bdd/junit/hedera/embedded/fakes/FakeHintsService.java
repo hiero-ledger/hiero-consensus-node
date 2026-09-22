@@ -17,16 +17,19 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.tss.TssSubmissions;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
+import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentMap;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import java.util.function.Supplier;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 
 public class FakeHintsService implements HintsService {
     private final HintsService delegate;
@@ -36,7 +39,8 @@ public class FakeHintsService implements HintsService {
             @NonNull final AppContext appContext,
             @NonNull final Configuration bootstrapConfig,
             @NonNull final RsaContext rsaContext,
-            @NonNull final ConcurrentMap<Bytes, BlockHashSigning> rsaSignings) {
+            @NonNull final ConcurrentMap<Bytes, BlockHashSigning> rsaSignings,
+            @NonNull final Supplier<Network> genesisNetworkSupplier) {
         delegate = new HintsServiceImpl(
                 new NoOpMetrics(),
                 pendingHintsSubmissions::offer,
@@ -44,7 +48,8 @@ public class FakeHintsService implements HintsService {
                 new HintsLibraryImpl(),
                 bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod(),
                 rsaContext,
-                rsaSignings);
+                rsaSignings,
+                genesisNetworkSupplier);
     }
 
     @Override
@@ -68,6 +73,11 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
+    public void onBlockStarted(final long blockNumber) {
+        delegate.onBlockStarted(blockNumber);
+    }
+
+    @Override
     public @NonNull TssSubmissions submissions() {
         return delegate.submissions();
     }
@@ -83,13 +93,13 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public void handoff(
+    public boolean handoff(
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Roster previousRoster,
             @NonNull final Roster adoptedRoster,
             @NonNull final Bytes adoptedRosterHash,
             final boolean forceHandoff) {
-        delegate.handoff(hintsStore, previousRoster, adoptedRoster, adoptedRosterHash, forceHandoff);
+        return delegate.handoff(hintsStore, previousRoster, adoptedRoster, adoptedRosterHash, forceHandoff);
     }
 
     @Override
@@ -112,6 +122,14 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
+    public boolean doGenesisSetup(
+            @NonNull final WritableStates writableStates,
+            @NonNull final Configuration configuration,
+            final int networkSize) {
+        return delegate.doGenesisSetup(writableStates, configuration, networkSize);
+    }
+
+    @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         delegate.registerSchemas(registry);
     }
@@ -119,5 +137,10 @@ public class FakeHintsService implements HintsService {
     @Override
     public @Nullable HintsConstruction activeConstruction() {
         return delegate.activeConstruction();
+    }
+
+    @Override
+    public void setActiveConstruction(@NonNull final HintsConstruction construction) {
+        delegate.setActiveConstruction(construction);
     }
 }

@@ -8,11 +8,13 @@ import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubK
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.explicitFromHeadlong;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_LOG;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_NODE_COMMS_LOG;
 import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.LEDGER_ID_TIMEOUT;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureDir;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
+import static com.hedera.services.bdd.spec.HapiPropertySource.inPriorityOrder;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.TargetNetworkType.EMBEDDED_NETWORK;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
@@ -48,7 +50,6 @@ import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleIte
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATE_CONTROL;
-import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -67,6 +68,7 @@ import static com.hederahashgraph.api.proto.java.FreezeType.FREEZE_UPGRADE;
 import static com.hederahashgraph.api.proto.java.FreezeType.PREPARE_UPGRADE;
 import static com.hederahashgraph.api.proto.java.FreezeType.TELEMETRY_UPGRADE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONFIG_FILE_PART_UPLOADED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -115,6 +117,7 @@ import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
 import com.hedera.services.bdd.spec.infrastructure.OpProvider;
 import com.hedera.services.bdd.spec.infrastructure.RegistryNotFound;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.spec.queries.HapiQueryOp;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
@@ -126,7 +129,6 @@ import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumContractCr
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileAppend;
-import com.hedera.services.bdd.spec.transactions.file.HapiFileCreate;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileUpdate;
 import com.hedera.services.bdd.spec.transactions.file.UploadProgress;
 import com.hedera.services.bdd.spec.transactions.system.HapiFreeze;
@@ -167,13 +169,13 @@ import com.hedera.services.bdd.spec.utilops.streams.LogContainmentTimeframeOp;
 import com.hedera.services.bdd.spec.utilops.streams.LogValidationOp;
 import com.hedera.services.bdd.spec.utilops.streams.StreamValidationOp;
 import com.hedera.services.bdd.spec.utilops.streams.UntilLogContainsOp;
-import com.hedera.services.bdd.spec.utilops.streams.assertions.AbstractEventualStreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.AssertingBiConsumer;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.BlockStreamAssertion;
-import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualBlockStreamAssertion;
-import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualRecordStreamAssertion;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.EventualStreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.RecordStreamAssertion;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedBlockItemsAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.StreamAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.TransactionBodyAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.ValidContractIdsAssertion;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion;
@@ -187,18 +189,12 @@ import com.hedera.services.bdd.spec.utilops.upgrade.VerifyLiveWrappedHashOp;
 import com.hedera.services.bdd.spec.utilops.upgrade.VerifyWrappedHashesCoverageOp;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.bdd.suites.perf.PerfTestLoadSettings;
-import com.hedera.services.bdd.suites.utils.sysfiles.serdes.FeesJsonToGrpcBytes;
-import com.hedera.services.bdd.suites.utils.sysfiles.serdes.SysFileSerde;
 import com.hedera.services.stream.proto.RecordStreamItem;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractFunctionResult;
 import com.hederahashgraph.api.proto.java.ContractID;
-import com.hederahashgraph.api.proto.java.CurrentAndNextFeeSchedule;
 import com.hederahashgraph.api.proto.java.ExchangeRate;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.FeeSchedule;
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
@@ -211,7 +207,6 @@ import com.hederahashgraph.api.proto.java.TransactionRecord;
 import com.swirlds.config.api.converter.ConfigConverter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -956,20 +951,18 @@ public class UtilVerbs {
     }
 
     /**
-     * Verifies the node's jumpstart hash computation via three-way comparison:
-     * file entries, .rcd replay, and the node's logged hash.
+     * Verifies the node's jumpstart hash computation by independently replaying {@code .rcd} files
+     * from the jumpstart block through the freeze block and comparing against the node's logged hash.
      *
      * @param jumpstartConfig            the jumpstart config properties
-     * @param wrappedHashes              per-block entries from the wrapped record hashes file
      * @param nodeComputedHash           the hash the node logged during migration
      * @param freezeBlockNum             the last block the migration processed
      */
     public static VerifyJumpstartHashOp verifyJumpstartHash(
             @NonNull final BlockStreamJumpstartConfig jumpstartConfig,
-            @NonNull final List<WrappedRecordFileBlockHashes> wrappedHashes,
             @NonNull final String nodeComputedHash,
             @NonNull final String freezeBlockNum) {
-        return new VerifyJumpstartHashOp(jumpstartConfig, wrappedHashes, nodeComputedHash, freezeBlockNum);
+        return new VerifyJumpstartHashOp(jumpstartConfig, nodeComputedHash, freezeBlockNum);
     }
 
     /**
@@ -1003,23 +996,23 @@ public class UtilVerbs {
     }
 
     /**
-     * Returns an operation that validates that each node's generated <i>config.txt</i> in its upgrade
-     * artifacts directory passes the given validator.
+     * Returns an operation that validates that each node's exported <i>candidate-roster.json</i> in its
+     * working directory passes the given validator.
      *
-     * @param rosterValidator the validator to apply to each node's <i>config.txt</i>
-     * @return the operation that validates the <i>config.txt</i> files
+     * @param rosterValidator the validator to apply to each node's candidate roster
+     * @return the operation that validates the <i>candidate-roster.json</i> files
      */
     public static CandidateRosterValidationOp validateCandidateRoster(@NonNull final Consumer<Roster> rosterValidator) {
         return validateCandidateRoster(NodeSelector.allNodes(), rosterValidator);
     }
 
     /**
-     * Returns an operation that validates that each node's generated <i>config.txt</i> in its upgrade
-     * artifacts directory passes the given validator.
+     * Returns an operation that validates that each node's exported <i>candidate-roster.json</i> in its
+     * working directory passes the given validator.
      *
      * @param selector the selector for the nodes to validate
-     * @param rosterValidator the validator to apply to each node's <i>config.txt</i>
-     * @return the operation that validates the <i>config.txt</i> files
+     * @param rosterValidator the validator to apply to each node's candidate roster
+     * @return the operation that validates the <i>candidate-roster.json</i> files
      */
     public static CandidateRosterValidationOp validateCandidateRoster(
             @NonNull final NodeSelector selector, @NonNull final Consumer<Roster> rosterValidator) {
@@ -1190,15 +1183,66 @@ public class UtilVerbs {
     private static final String EXTERNALIZED_LEDGER_ID_LOG_PATTERN = "Externalizing ledger id ([0-9a-fA-F]+)";
 
     /**
-     * Returns an operation that uses a {@link com.hedera.services.bdd.spec.queries.crypto.HapiGetAccountInfo} query
-     * against the {@code 0.0.2} account to look up the ledger id of the target network; and then passes the ledger
-     * id to the given callback.
+     * Returns an operation that looks up the ledger id of the target network and passes it to the given callback.
+     * <p>
+     * On a subprocess network with {@code tss.historyEnabled=true} the active ledger id changes once during the
+     * lifetime of the network: the configured {@code ledger.id} is replaced by the address-book hash externalized
+     * by the genesis chain-of-trust proof, and the change is announced by an {@code Externalizing ledger id} log
+     * line. Because the proof runs asynchronously while the test framework is already issuing transactions, a
+     * spec that reads the ledger id naively can observe the old configured value once and the externalized value
+     * a few rounds later (failing any byte-exact assertion that captures the id early and re-reads it later). To
+     * avoid that race this operation waits for the externalization log to appear before returning - driving rounds
+     * via small system transfers so the proof can finish even if the surrounding spec is otherwise quiescent. With
+     * history disabled, {@code blockStream.streamMode=RECORDS} (which deactivates TSS regardless of
+     * {@code tss.historyEnabled}), or on non-subprocess networks, the externalization log never appears and we
+     * fall back to a plain {@code getAccountInfo(GENESIS)} query, which returns the configured ledger id directly.
      *
      * @param ledgerIdConsumer the callback to pass the ledger id to
      * @return the operation exposing the ledger id to the callback
      */
     public static HapiSpecOperation exposeTargetLedgerIdTo(@NonNull final Consumer<ByteString> ledgerIdConsumer) {
-        return getAccountInfo(GENESIS).payingWith(GENESIS).exposingLedgerIdTo(ledgerIdConsumer::accept);
+        return sourcingContextual(spec -> {
+            // Match TssBlockHashSigner's gating: TSS only runs when history is enabled AND the block stream is
+            // active (streamMode != RECORDS); otherwise the "Externalizing ledger id" log never appears.
+            //
+            // tss.historyEnabled is read via inPriorityOrder(node application.properties,
+            // spec.startupProperties()) so that overrides written by copyBootstrapAssets() (e.g.
+            // configuration/dev tss.historyEnabled=false) take precedence over spec defaults.
+            //
+            // blockStream.streamMode is read exclusively from spec.startupProperties() because it is
+            // a test-framework-level override (e.g. blockStream.streamMode=RECORDS for hapiTestMiscRecords)
+            // passed as a system property and NOT written to application.properties by copyBootstrapAssets().
+            // Using inPriorityOrder for streamMode would cause application.properties' bootstrap default
+            // of BOTH to override the spec's RECORDS setting, incorrectly enabling the wait.
+            final boolean isSubProcess = spec.targetNetworkOrThrow() instanceof SubProcessNetwork;
+            final boolean historyEnabled;
+            if (isSubProcess) {
+                final var nodeProps = inPriorityOrder(
+                        new JutilPropertySource(((SubProcessNetwork) spec.targetNetworkOrThrow())
+                                .getRequiredNode(NodeSelector.byNodeId(0))
+                                .getExternalPath(APPLICATION_PROPERTIES)),
+                        spec.startupProperties());
+                historyEnabled = nodeProps.getBoolean("tss.historyEnabled");
+            } else {
+                historyEnabled = spec.startupProperties().getBoolean("tss.historyEnabled");
+            }
+            final boolean waitForExternalization = isSubProcess
+                    && historyEnabled
+                    && !"RECORDS".equals(spec.startupProperties().get("blockStream.streamMode"));
+            if (waitForExternalization) {
+                return exposeExternalizedLedgerIdFromHgcaaLogTo(
+                        NodeSelector.byNodeId(0),
+                        LEDGER_ID_TIMEOUT,
+                        Duration.ofSeconds(1),
+                        () -> new SpecOperation[] {
+                            cryptoTransfer(tinyBarsFromTo(GENESIS, STAKING_REWARD, 1L))
+                                    .payingWith(GENESIS),
+                            sleepFor(250L)
+                        },
+                        ledgerIdConsumer);
+            }
+            return getAccountInfo(GENESIS).payingWith(GENESIS).exposingLedgerIdTo(ledgerIdConsumer::accept);
+        });
     }
 
     /**
@@ -1660,86 +1704,39 @@ public class UtilVerbs {
                 }));
     }
 
-    /* Stream validation. */
-    public static EventualRecordStreamAssertion recordStreamMustIncludeNoFailuresFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
-        return EventualRecordStreamAssertion.eventuallyAssertingNoFailures(assertion)
-                .withBackgroundTraffic();
+    /* ── Stream-mode-aware validation ──
+     * These verbs dynamically route to the record or block stream based on the active streamMode.
+     * Accepts both RecordStreamAssertion and BlockStreamAssertion via the common StreamAssertion type.
+     * Prefer these over the record-specific or block-specific variants below. */
+
+    public static EventualStreamAssertion streamMustIncludeNoFailuresFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion) {
+        return EventualStreamAssertion.streamMustIncludeNoFailures(assertion, true);
     }
 
-    public static EventualRecordStreamAssertion recordStreamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
-        return EventualRecordStreamAssertion.eventuallyAssertingNoFailures(assertion);
+    public static EventualStreamAssertion streamMustIncludeNoFailuresWithoutBackgroundTrafficFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion) {
+        return EventualStreamAssertion.streamMustIncludeNoFailures(assertion, false);
     }
 
-    public static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion) {
-        return EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(assertion)
-                .withBackgroundTraffic();
+    public static EventualStreamAssertion streamMustIncludePassFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion) {
+        return EventualStreamAssertion.streamMustIncludePass(assertion, null, true);
     }
 
-    /**
-     * Returns an operation that asserts that the record stream must include a pass from the given assertion
-     * before its timeout elapses.
-     * @param assertion the assertion to apply to the record stream
-     * @param timeout the timeout for the assertion
-     * @return the operation that asserts a passing record stream
-     */
-    public static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, @NonNull final Duration timeout) {
-        return recordStreamMustIncludePassFrom(assertion, timeout, true);
+    public static EventualStreamAssertion streamMustIncludePassFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion, @NonNull final Duration timeout) {
+        return EventualStreamAssertion.streamMustIncludePass(assertion, timeout, true);
     }
 
-    /**
-     * Returns an operation that asserts that the record stream must include a pass from the given assertion
-     * before its timeout elapses, and that background traffic is running.
-     * @param assertion the assertion to apply to the record stream
-     * @param timeout the timeout for the assertion
-     * @return the operation that asserts a passing record stream
-     */
-    public static EventualRecordStreamAssertion recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion, @NonNull final Duration timeout) {
-        return recordStreamMustIncludePassFrom(assertion, timeout, false);
+    public static EventualStreamAssertion streamMustIncludePassWithoutBackgroundTrafficFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion, @NonNull final Duration timeout) {
+        return EventualStreamAssertion.streamMustIncludePass(assertion, timeout, false);
     }
 
-    /**
-     * Returns an operation that asserts that the record stream must include a pass from the given assertion
-     * before its timeout elapses, and if the background traffic should be running.
-     * @param assertion the assertion to apply to the record stream
-     * @param timeout the timeout for the assertion
-     * @param needsBackgroundTraffic whether background traffic should be running
-     * @return the operation that asserts a passing record stream
-     */
-    private static EventualRecordStreamAssertion recordStreamMustIncludePassFrom(
-            @NonNull final Function<HapiSpec, RecordStreamAssertion> assertion,
-            @NonNull final Duration timeout,
-            final boolean needsBackgroundTraffic) {
-        requireNonNull(assertion);
-        requireNonNull(timeout);
-        final var result = EventualRecordStreamAssertion.eventuallyAssertingExplicitPass(assertion, timeout);
-        return needsBackgroundTraffic ? result.withBackgroundTraffic() : result;
-    }
-
-    /**
-     * Returns an operation that asserts that the block stream must include no failures from the given assertion
-     * before its timeout elapses.
-     * @param assertion the assertion to apply to the block stream
-     * @return the operation that asserts no block stream problems
-     */
-    public static EventualBlockStreamAssertion blockStreamMustIncludeNoFailuresFrom(
-            @NonNull final Function<HapiSpec, BlockStreamAssertion> assertion) {
-        return EventualBlockStreamAssertion.eventuallyAssertingNoFailures(assertion);
-    }
-
-    /**
-     * Returns an operation that asserts that the block stream must include a pass from the given assertion
-     * before its timeout elapses.
-     * @param assertion the assertion to apply to the block stream
-     * @return the operation that asserts a passing block stream
-     */
-    public static AbstractEventualStreamAssertion blockStreamMustIncludePassFrom(
-            @NonNull final Function<HapiSpec, BlockStreamAssertion> assertion) {
-        return EventualBlockStreamAssertion.eventuallyAssertingExplicitPass(assertion);
+    public static EventualStreamAssertion streamMustIncludePassWithReplayFrom(
+            @NonNull final Function<HapiSpec, ? extends StreamAssertion> assertion, @NonNull final Duration timeout) {
+        return EventualStreamAssertion.streamMustIncludePassWithReplay(assertion, timeout);
     }
 
     public static RunnableOp verify(@NonNull final Runnable runnable) {
@@ -1815,6 +1812,21 @@ public class UtilVerbs {
         requireNonNull(validator);
         requireNonNull(test);
         return spec -> new SelectedItemsAssertion(n, spec, test, validator);
+    }
+
+    /**
+     * Block-stream analog of {@link #selectedItems}. Translates each incoming {@link
+     * com.hedera.hapi.block.stream.Block} back to {@link RecordStreamItem}s so the existing
+     * predicate and {@link VisibleItemsValidator} APIs can be reused under
+     * {@code streamMode=BLOCKS} without re-implementing per-test selection logic.
+     */
+    public static Function<HapiSpec, BlockStreamAssertion> selectedBlockItems(
+            @NonNull final VisibleItemsValidator validator,
+            final int n,
+            @NonNull final BiPredicate<HapiSpec, RecordStreamItem> test) {
+        requireNonNull(validator);
+        requireNonNull(test);
+        return spec -> new SelectedBlockItemsAssertion(n, spec, test, validator);
     }
 
     public static Function<HapiSpec, RecordStreamAssertion> visibleNonSyntheticItems(
@@ -1967,108 +1979,6 @@ public class UtilVerbs {
 
             CustomSpecAssert.allRunFor(spec, opsList);
         });
-    }
-
-    public static HapiSpecOperation reduceFeeFor(
-            HederaFunctionality function,
-            long tinyBarMaxNodeFee,
-            long tinyBarMaxNetworkFee,
-            long tinyBarMaxServiceFee) {
-        return reduceFeeFor(List.of(function), tinyBarMaxNodeFee, tinyBarMaxNetworkFee, tinyBarMaxServiceFee);
-    }
-
-    public static HapiSpecOperation reduceFeeFor(
-            List<HederaFunctionality> functions,
-            long tinyBarMaxNodeFee,
-            long tinyBarMaxNetworkFee,
-            long tinyBarMaxServiceFee) {
-        return withOpContext((spec, opLog) -> {
-            if (!spec.setup().defaultNode().equals(asAccount(spec, 3))) {
-                opLog.info("Sleeping to wait for fee reduction...");
-                Thread.sleep(20000);
-                return;
-            }
-            opLog.info("Reducing fee for {}...", functions);
-            var query = getFileContents(FEE_SCHEDULE).payingWith(GENESIS);
-            allRunFor(spec, query);
-            byte[] rawSchedules = query.getResponse()
-                    .getFileGetContents()
-                    .getFileContents()
-                    .getContents()
-                    .toByteArray();
-
-            // Convert from tinyBar to one-thousandth of a tinyCent, the unit of max field
-            // in FeeComponents
-            long centEquiv = spec.ratesProvider().rates().getCentEquiv();
-            long hbarEquiv = spec.ratesProvider().rates().getHbarEquiv();
-            long maxNodeFee = tinyBarMaxNodeFee * centEquiv * 1000L / hbarEquiv;
-            long maxNetworkFee = tinyBarMaxNetworkFee * centEquiv * 1000L / hbarEquiv;
-            long maxServiceFee = tinyBarMaxServiceFee * centEquiv * 1000L / hbarEquiv;
-
-            var perturbedSchedules = CurrentAndNextFeeSchedule.parseFrom(rawSchedules).toBuilder();
-            for (final var function : functions) {
-                reduceFeeComponentsFor(
-                        perturbedSchedules.getCurrentFeeScheduleBuilder(),
-                        function,
-                        maxNodeFee,
-                        maxNetworkFee,
-                        maxServiceFee);
-                reduceFeeComponentsFor(
-                        perturbedSchedules.getNextFeeScheduleBuilder(),
-                        function,
-                        maxNodeFee,
-                        maxNetworkFee,
-                        maxServiceFee);
-            }
-            var rawPerturbedSchedules = perturbedSchedules.build().toByteString();
-            allRunFor(spec, updateLargeFile(GENESIS, FEE_SCHEDULE, rawPerturbedSchedules));
-        });
-    }
-
-    private static void reduceFeeComponentsFor(
-            FeeSchedule.Builder feeSchedule,
-            HederaFunctionality function,
-            long maxNodeFee,
-            long maxNetworkFee,
-            long maxServiceFee) {
-        var feesList = feeSchedule.getTransactionFeeScheduleBuilderList().stream()
-                .filter(tfs -> tfs.getHederaFunctionality() == function)
-                .findAny()
-                .orElseThrow()
-                .getFeesBuilderList();
-
-        for (FeeData.Builder builder : feesList) {
-            builder.getNodedataBuilder().setMax(maxNodeFee);
-            builder.getNetworkdataBuilder().setMax(maxNetworkFee);
-            builder.getServicedataBuilder().setMax(maxServiceFee);
-        }
-    }
-
-    public static HapiSpecOperation uploadScheduledContractPrices(@NonNull final String payer) {
-        return withOpContext((spec, opLog) -> {
-            allRunFor(spec, updateLargeFile(payer, FEE_SCHEDULE, feeSchedulesWith("scheduled-contract-fees.json")));
-            if (!spec.tryReinitializingFees()) {
-                throw new IllegalStateException("New fee schedules won't be available, dying!");
-            }
-        });
-    }
-
-    private static ByteString feeSchedulesWith(String feeSchedules) {
-        SysFileSerde<String> serde = new FeesJsonToGrpcBytes();
-        var baos = new ByteArrayOutputStream();
-        try {
-            var schedulesIn = HapiFileCreate.class.getClassLoader().getResourceAsStream(feeSchedules);
-            if (schedulesIn == null) {
-                throw new IllegalStateException("No " + feeSchedules + " resource available!");
-            }
-            schedulesIn.transferTo(baos);
-            baos.close();
-            baos.flush();
-        } catch (IOException e) {
-            throw new IllegalArgumentException(e);
-        }
-        var stylized = new String(baos.toByteArray());
-        return ByteString.copyFrom(serde.toRawFile(stylized, null));
     }
 
     public static HapiSpecOperation createLargeFile(String payer, String fileName, ByteString byteString) {
@@ -2281,7 +2191,10 @@ public class UtilVerbs {
             HapiFileUpdate updateSubOp = fileUpdate(fileName)
                     .contents(byteString.substring(0, position))
                     .hasKnownStatusFrom(
-                            SUCCESS, FEE_SCHEDULE_FILE_PART_UPLOADED, SUCCESS_BUT_MISSING_EXPECTED_OPERATION)
+                            SUCCESS,
+                            FEE_SCHEDULE_FILE_PART_UPLOADED,
+                            CONFIG_FILE_PART_UPLOADED,
+                            SUCCESS_BUT_MISSING_EXPECTED_OPERATION)
                     .noLogging()
                     .payingWith(payer);
             updateCustomizer.accept(updateSubOp);
@@ -2300,7 +2213,7 @@ public class UtilVerbs {
                 int newPosition = Math.min(fileSize, position + BYTES_4K);
                 var appendSubOp = fileAppend(fileName)
                         .content(byteString.substring(position, newPosition).toByteArray())
-                        .hasKnownStatusFrom(SUCCESS, FEE_SCHEDULE_FILE_PART_UPLOADED)
+                        .hasKnownStatusFrom(SUCCESS, FEE_SCHEDULE_FILE_PART_UPLOADED, CONFIG_FILE_PART_UPLOADED)
                         .noLogging()
                         .payingWith(payer);
                 appendCustomizer.accept(appendSubOp, totalAppendsRequired - numAppends);
@@ -2467,13 +2380,7 @@ public class UtilVerbs {
     }
 
     public static SpecOperation safeValidateChargedUsd(String txnName, double oldPrice, double newPrice) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equalsIgnoreCase(flag)) {
-                return validateChargedUsd(txnName, newPrice);
-            } else {
-                return validateChargedUsd(txnName, oldPrice);
-            }
-        });
+        return validateChargedUsd(txnName, newPrice);
     }
 
     public static SpecOperation safeValidateChargedUsdWithin(
@@ -2482,13 +2389,7 @@ public class UtilVerbs {
             double oldAllowedPercentDiff,
             double newPrice,
             double newAllowedPercentDiff) {
-        return doWithStartupConfig("fees.simpleFeesEnabled", flag -> {
-            if ("true".equalsIgnoreCase(flag)) {
-                return validateChargedUsdWithin(txnName, newPrice, newAllowedPercentDiff);
-            } else {
-                return validateChargedUsdWithin(txnName, oldPrice, oldAllowedPercentDiff);
-            }
-        });
+        return validateChargedUsdWithin(txnName, newPrice, newAllowedPercentDiff);
     }
 
     public static SpecOperation recordCurrentOwnerEvmHookSlotUsage(
@@ -2519,13 +2420,8 @@ public class UtilVerbs {
             OpsProvider provider, String txName, double simpleFee, double simpleDiff, double oldFee, double oldDiff) {
         List<SpecOperation> opsList = new ArrayList<>();
 
-        opsList.add(overriding("fees.simpleFeesEnabled", "true"));
         opsList.addAll(provider.provide());
         opsList.add(validateChargedSimpleFees("Simple Fees", txName, simpleFee, simpleDiff));
-
-        opsList.add(overriding("fees.simpleFeesEnabled", "false"));
-        opsList.addAll(provider.provide());
-        opsList.add(validateChargedSimpleFees("Old Fees", txName, oldFee, oldDiff));
 
         return hapiTest(opsList.toArray(new SpecOperation[opsList.size()]));
     }
@@ -2620,39 +2516,6 @@ public class UtilVerbs {
                     String.format(
                             "%s fee (%s) more than %.2f percent different than expected!",
                             sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
-        });
-    }
-
-    public static CustomSpecAssert safeValidateInnerTxnChargedUsd(
-            String txn,
-            String parent,
-            double oldPrice,
-            double oldAllowedPercentDiff,
-            double newPrice,
-            double newAllowedPercentDiff) {
-        return assertionsHold((spec, assertLog) -> {
-            final var flag = spec.targetNetworkOrThrow().startupProperties().get("fees.simpleFeesEnabled");
-            if ("true".equalsIgnoreCase(flag)) {
-                final var effectivePercentDiff = Math.max(newAllowedPercentDiff, 1.0);
-                final var actualUsdCharged = getChargedUsedForInnerTxn(spec, parent, txn);
-                assertEquals(
-                        newPrice,
-                        actualUsdCharged,
-                        (effectivePercentDiff / 100.0) * newPrice,
-                        String.format(
-                                "%s fee (%s) more than %.2f percent different than expected!",
-                                sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
-            } else {
-                final var effectivePercentDiff = Math.max(oldAllowedPercentDiff, 1.0);
-                final var actualUsdCharged = getChargedUsedForInnerTxn(spec, parent, txn);
-                assertEquals(
-                        oldPrice,
-                        actualUsdCharged,
-                        (effectivePercentDiff / 100.0) * oldPrice,
-                        String.format(
-                                "%s fee (%s) more than %.2f percent different than expected!",
-                                sdec(actualUsdCharged, 4), txn, effectivePercentDiff));
-            }
         });
     }
 
@@ -2784,7 +2647,7 @@ public class UtilVerbs {
                         .map(account -> balanceSnapshot(
                                         spec -> asAccountString(spec.registry().getAccountID(account)) + "Snapshot",
                                         account)
-                                .payingWith(EXCHANGE_RATE_CONTROL))
+                                .payingWith(GENESIS))
                         .toArray(n -> new SpecOperation[n]));
     }
 
@@ -2919,6 +2782,10 @@ public class UtilVerbs {
                 }
                 long expectedBalance = change.getValue() + Math.max(0L, oldBalance);
                 long actualBalance = actualBalances.getOrDefault(account, -1L);
+                /* Skip accounts that were not tracked: no prior snapshot and not in the checked accounts list. */
+                if (oldBalance == -1L && actualBalance == -1L) {
+                    return;
+                }
                 assertLog.info(
                         "Balance of {} was expected to be {}, is actually" + " {}...",
                         account,

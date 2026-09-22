@@ -5,6 +5,7 @@ import com.hedera.hapi.streams.SidecarType;
 import com.hedera.node.config.NetworkProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
+import com.swirlds.config.api.validation.annotation.Min;
 import java.util.Set;
 
 @ConfigData("contracts")
@@ -53,6 +54,9 @@ public record ContractsConfig(
         // c.f. https://hips.hedera.com/hip/hip-26 for reference
         @ConfigProperty(defaultValue = "295") @NetworkProperty
         int chainId,
+
+        @ConfigProperty(defaultValue = "262144") @Min(0) @NetworkProperty
+        int maxSerializedTraceDataBytes,
 
         @ConfigProperty(defaultValue = "CONTRACT_STATE_CHANGE,CONTRACT_BYTECODE,CONTRACT_ACTION") @NetworkProperty
         Set<SidecarType> sidecars,
@@ -151,11 +155,14 @@ public record ContractsConfig(
         @ConfigProperty(value = "evm.nonExtantContractsFail", defaultValue = "0") @NetworkProperty
         Set<Long> evmNonExtantContractsFail,
 
-        @ConfigProperty(value = "evm.version", defaultValue = "v0.67") @NetworkProperty
+        @ConfigProperty(value = "evm.version", defaultValue = "v0.70") @NetworkProperty
         String evmVersion,
 
         @ConfigProperty(value = "evm.nativeLibVerification.halt.enabled", defaultValue = "false") @NetworkProperty
         boolean nativeLibVerificationHaltEnabled,
+
+        @ConfigProperty(value = "codeDelegations.enabled", defaultValue = "false") @NetworkProperty
+        boolean codeDelegationsEnabled,
 
         @ConfigProperty(value = "metrics.smartContract.primary.enabled", defaultValue = "true") @NetworkProperty
         boolean metricsSmartContractPrimaryEnabled,
@@ -164,4 +171,7 @@ public record ContractsConfig(
         boolean metricsSmartContractSecondaryEnabled,
 
         @ConfigProperty(value = "evm.UseBonnevilleEVM", defaultValue = "false") @NetworkProperty
-        boolean useBonnevilleEVM) {}
+        boolean useBonnevilleEVM,
+
+        @ConfigProperty(value = "maxInitcodeSize", defaultValue = "49152") @NetworkProperty
+        int maxInitcodeSize) {}

@@ -3,7 +3,7 @@ package com.swirlds.benchmark;
 
 import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
 import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.LongGauge;
@@ -14,7 +14,8 @@ import java.util.concurrent.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
+import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -196,8 +197,7 @@ public class CryptoBench extends VirtualMapEditBench {
                 TimeUnit.SECONDS,
                 queue,
                 new ThreadConfiguration(getStaticThreadManager())
-                        .setComponent("benchmark")
-                        .setThreadName("prefetch")
+                        .setThreadNameProvider(CompositeThreadNameProvider.createNumbered("benchmark", "prefetch"))
                         .setExceptionHandler((t, ex) -> logger.error("Uncaught exception during prefetching", ex))
                         .buildFactory());
 

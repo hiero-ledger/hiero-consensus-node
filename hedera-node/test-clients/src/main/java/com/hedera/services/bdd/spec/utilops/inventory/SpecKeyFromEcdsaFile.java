@@ -62,7 +62,7 @@ public class SpecKeyFromEcdsaFile extends UtilOp {
         }
     }
 
-    static void createAndLinkEcdsaKey(
+    public static void createAndLinkEcdsaKey(
             final HapiSpec spec,
             final ECPrivateKey privateKey,
             final String name,

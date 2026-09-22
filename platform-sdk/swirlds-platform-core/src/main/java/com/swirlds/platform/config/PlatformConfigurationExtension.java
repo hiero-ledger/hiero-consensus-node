@@ -1,24 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.config;
 
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.platform.NodeIdConverter;
-import com.swirlds.component.framework.WiringConfig;
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.config.api.ConfigurationExtension;
 import com.swirlds.logging.api.internal.configuration.InternalLoggingConfig;
-import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.builder.ModulesConfig;
 import com.swirlds.platform.health.OSHealthCheckConfig;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
-import com.swirlds.platform.system.status.PlatformStatusConfig;
-import com.swirlds.platform.uptime.UptimeConfig;
-import com.swirlds.platform.wiring.PlatformSchedulersConfig;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
+import org.hiero.consensus.BasicConfig;
+import org.hiero.consensus.FallenBehindConfig;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.wiring.framework.WiringConfig;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 
 /**
  * Registers configuration types for the platform.
@@ -35,16 +31,12 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
 
         // Load Configuration Definitions
         return Set.of(
-                MerkleDbConfig.class,
+                BasicConfig.class,
+                PathsConfig.class,
                 ModulesConfig.class,
+                FallenBehindConfig.class,
                 OSHealthCheckConfig.class,
                 PlatformMetricsConfig.class,
-                PlatformSchedulersConfig.class,
-                PlatformStatusConfig.class,
-                StateCommonConfig.class,
-                TemporaryFileConfig.class,
-                UptimeConfig.class,
-                VirtualMapConfig.class,
                 WiringConfig.class,
                 InternalLoggingConfig.class);
     }

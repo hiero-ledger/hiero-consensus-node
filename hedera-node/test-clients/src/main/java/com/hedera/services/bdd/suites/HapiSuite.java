@@ -29,9 +29,6 @@ import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.DynamicTest;
 
 public abstract class HapiSuite {
-    // The first 0 refers to the shard of the target network.
-    // The second 0 refers to the realm.
-    public static final String DEFAULT_SHARD_REALM = "0.0.";
     public static final String FALSE_VALUE = "false";
     public static final String EVM_VERSION_046 = "v0.46";
     public static final String EVM_VERSION_050 = "v0.50";
@@ -137,7 +134,6 @@ public abstract class HapiSuite {
     public static final String ADDRESS_BOOK = HapiSpecSetup.getDefaultInstance().addressBookName();
     public static final String EXCHANGE_RATES =
             HapiSpecSetup.getDefaultInstance().exchangeRatesName();
-    public static final String FEE_SCHEDULE = HapiSpecSetup.getDefaultInstance().feeScheduleName();
     public static final String SIMPLE_FEE_SCHEDULE =
             HapiSpecSetup.getDefaultInstance().simpleFeesScheduleName();
     public static final String APP_PROPERTIES =

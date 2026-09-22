@@ -16,7 +16,6 @@ import com.swirlds.merkledb.files.DataFileMetadata;
 import com.swirlds.merkledb.files.hashmap.Bucket;
 import com.swirlds.merkledb.files.hashmap.ParsedBucket;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -57,7 +56,6 @@ public class ChunkedFileIterator implements AutoCloseable {
     /** The file metadata providing file index for data location calculation */
     private final DataFileMetadata metadata;
 
-    /** Hash chunk height. It is read from {@link VirtualMapConfig#hashChunkHeight()} */
     private final int hashChunkHeight;
 
     /** The starting byte offset in the file for this chunk, adjusted to the nearest valid data item boundary */

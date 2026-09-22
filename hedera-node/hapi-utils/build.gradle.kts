@@ -6,8 +6,14 @@ description = "Hedera Services API Utilities"
 mainModuleInfo { annotationProcessor("dagger.compiler") }
 
 testModuleInfo {
+    requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
-    requires("org.assertj.core")
+}
+
+tasks.test {
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1"
+    )
 }

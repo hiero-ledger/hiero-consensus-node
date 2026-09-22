@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -35,7 +36,6 @@ import com.hedera.hapi.node.token.GrantedNftAllowance;
 import com.hedera.hapi.node.token.GrantedTokenAllowance;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage;
 import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkGetAccountDetailsHandler;
 import com.hedera.node.app.service.networkadmin.impl.utils.NetworkAdminServiceUtil;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -55,12 +55,10 @@ class NetworkGetAccountDetailsHandlerTest extends NetworkAdminHandlerTestBase {
     private QueryContext context;
 
     private NetworkGetAccountDetailsHandler networkGetAccountDetailsHandler;
-    private CryptoOpsUsage cryptoOpsUsage;
 
     @BeforeEach
     void setUp() {
-        this.cryptoOpsUsage = new CryptoOpsUsage();
-        networkGetAccountDetailsHandler = new NetworkGetAccountDetailsHandler(cryptoOpsUsage);
+        networkGetAccountDetailsHandler = new NetworkGetAccountDetailsHandler();
         final var configuration = HederaTestConfigBuilder.createConfig();
         lenient().when(context.configuration()).thenReturn(configuration);
         lenient().when(context.ledgerId()).thenReturn(ledgerId);
@@ -215,6 +213,31 @@ class NetworkGetAccountDetailsHandlerTest extends NetworkAdminHandlerTestBase {
         when(context.createStore(ReadableAccountStore.class)).thenReturn(readableAccountStore);
         when(context.createStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
         when(context.createStore(ReadableTokenRelationStore.class)).thenReturn(readableTokenRelStore);
+
+        final var response = networkGetAccountDetailsHandler.findResponse(context, responseHeader);
+        final var accountDetailsResponse = response.accountDetailsOrThrow();
+        assertEquals(ResponseCodeEnum.OK, accountDetailsResponse.header().nodeTransactionPrecheckCode());
+        assertEquals(expectedInfo, accountDetailsResponse.accountDetails());
+    }
+
+    @Test
+    void getsResponseIfQueriedByAlias() {
+        final var responseHeader = ResponseHeader.newBuilder()
+                .nodeTransactionPrecheckCode(ResponseCodeEnum.OK)
+                .build();
+        final var expectedInfo = getExpectedInfo(
+                false,
+                Collections.emptyList(),
+                Collections.emptyList(),
+                Collections.emptyList(),
+                Collections.emptyList());
+        final var accountStore = mock(ReadableAccountStore.class);
+
+        when(context.query()).thenReturn(createGetAccountDetailsQuery(alias));
+        when(context.createStore(ReadableAccountStore.class)).thenReturn(accountStore);
+        when(context.createStore(ReadableTokenStore.class)).thenReturn(readableTokenStore);
+        when(context.createStore(ReadableTokenRelationStore.class)).thenReturn(readableTokenRelStore);
+        when(accountStore.getAliasedAccountById(alias)).thenReturn(account);
 
         final var response = networkGetAccountDetailsHandler.findResponse(context, responseHeader);
         final var accountDetailsResponse = response.accountDetailsOrThrow();

@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "104: [USER] WRAPS Runner Smoke Test"
+# Validates that a runner pool exposes the WRAPS proving-key artifacts expected by the
+# hapi-tests-wraps job in zxc-execute-hapi-tests.yaml: four files at the mount path whose
+# SHA-384 hashes match the published artifact set (see
+# hedera-node/infrastructure/docker/containers/production-next/wraps-proving-key/README.md).
+# Dispatch this against a candidate runner label before enabling the WRAPS HAPI tests.
+on:
+  workflow_dispatch:
+    inputs:
+      artifacts-path:
+        description: "Expected mount path of the WRAPS proving-key artifacts"
+        type: string
+        required: false
+        default: "/opt/wraps-v1.0.0"
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    name: "WRAPS Artifacts Smoke Test"
+    runs-on: hl-cn-hapi-wraps-lin-lg
+    timeout-minutes: 15
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Verify WRAPS proving-key artifacts
+        env:
+          ARTIFACTS_PATH: ${{ inputs.artifacts-path }}
+        run: |
+          status=0
+          echo "Checking ${ARTIFACTS_PATH}"
+          ls -la "${ARTIFACTS_PATH}" || { echo "::error::${ARTIFACTS_PATH} does not exist"; exit 1; }
+
+          # Verify the two control files against known-good hashes
+          declare -A expected_control_hashes=(
+            [wraps.sha384]="4eb1beccf1303ad182459ad9238ef371fdd14d3c1b69ed628957d162bbd1365d8c7f6c7b3b73e2f6c160bb94557cf6e8"
+            [wraps-artifacts.sha384]="21a72f28756f9ab4a134afbf69daf1c7148cf416ad0ae40e958a070adca6589c9b3a8cf12cf419b6895650ea64ef18d8"
+          )
+          for f in wraps.sha384 wraps-artifacts.sha384; do
+            path="${ARTIFACTS_PATH}/${f}"
+            if [[ ! -f "${path}" ]]; then
+              echo "::error::Missing control file: ${path}"
+              status=1
+              continue
+            fi
+            actual="$(sha384sum "${path}" | awk '{print $1}')"
+            if [[ "${actual}" == "${expected_control_hashes[$f]}" ]]; then
+              echo "OK ${f} ($(stat -c%s "${path}" 2>/dev/null || stat -f%z "${path}") bytes)"
+            else
+              echo "::error::Hash mismatch for ${f}: expected ${expected_control_hashes[$f]}, got ${actual}"
+              status=1
+            fi
+          done
+
+          # Verify all four artifact files using the manifest (avoids hardcoding individual hashes here)
+          echo "Verifying artifact files via ${ARTIFACTS_PATH}/wraps-artifacts.sha384 ..."
+          (cd "${ARTIFACTS_PATH}" && sha384sum -c wraps-artifacts.sha384) || {
+            echo "::error::Artifact hash verification failed"
+            status=1
+          }
+          exit "${status}"

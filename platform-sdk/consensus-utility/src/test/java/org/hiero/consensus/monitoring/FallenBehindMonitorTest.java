@@ -17,7 +17,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Order;
@@ -25,12 +26,18 @@ import org.junit.jupiter.api.Test;
 
 class FallenBehindMonitorTest {
     private FallenBehindMonitor monitor;
+    private Roster roster;
+    private NodeId[] nodeIds;
 
     @BeforeEach
     void setUp() {
 
         final int numNodes = 11;
-        monitor = new FallenBehindMonitor(numNodes - 1, 0.5);
+        this.roster = RosterFactory.randomRoster(getRandomPrintSeed(), numNodes, WeightGenerators.BALANCED);
+        this.nodeIds = roster.rosterEntries().stream()
+                .map(entry -> NodeId.of(entry.nodeId()))
+                .toArray(NodeId[]::new);
+        monitor = new FallenBehindMonitor(roster, nodeIds[0], 0.5);
     }
 
     @Test
@@ -38,32 +45,32 @@ class FallenBehindMonitorTest {
         assertFallenBehind(false, 0, "default should be none report fallen behind");
 
         // node 1 reports fallen behind
-        monitor.report(NodeId.of(1));
+        monitor.report(nodeIds[1]);
         assertFallenBehind(false, 1, "one node only reported fallen behind");
 
         // if the same node reports again, nothing should change
-        monitor.report(NodeId.of(1));
+        monitor.report(nodeIds[1]);
         assertFallenBehind(false, 1, "if the same node reports again, nothing should change");
 
-        monitor.report(NodeId.of(2));
-        monitor.report(NodeId.of(3));
-        monitor.report(NodeId.of(4));
-        monitor.report(NodeId.of(5));
+        monitor.report(nodeIds[2]);
+        monitor.report(nodeIds[3]);
+        monitor.report(nodeIds[4]);
+        monitor.report(nodeIds[5]);
         assertFallenBehind(false, 5, "we should still be missing one for fallen behind");
 
-        monitor.report(NodeId.of(6));
+        monitor.report(nodeIds[6]);
         assertFallenBehind(true, 6, "we should be fallen behind");
 
-        monitor.report(NodeId.of(1));
-        monitor.report(NodeId.of(2));
-        monitor.report(NodeId.of(3));
-        monitor.report(NodeId.of(4));
-        monitor.report(NodeId.of(5));
-        monitor.report(NodeId.of(6));
+        monitor.report(nodeIds[1]);
+        monitor.report(nodeIds[2]);
+        monitor.report(nodeIds[3]);
+        monitor.report(nodeIds[4]);
+        monitor.report(nodeIds[5]);
+        monitor.report(nodeIds[6]);
         assertFallenBehind(true, 6, "if the same nodes report again, nothing should change");
 
-        monitor.report(NodeId.of(7));
-        monitor.report(NodeId.of(8));
+        monitor.report(nodeIds[7]);
+        monitor.report(nodeIds[8]);
         assertFallenBehind(true, 8, "more nodes reported, but the status should be the same");
 
         monitor.clear();
@@ -71,34 +78,68 @@ class FallenBehindMonitorTest {
     }
 
     @Test
+    void multipleRemovalsShouldBeNoOp() {
+        assertFallenBehind(false, 0, "default should be none report fallen behind");
+
+        // node 1 reports fallen behind
+        monitor.report(nodeIds[1]);
+        assertFallenBehind(false, 1, "one node only reported fallen behind");
+
+        // if the same node reports again, nothing should change
+        monitor.report(nodeIds[1]);
+        assertFallenBehind(false, 1, "if the same node reports again, nothing should change");
+
+        monitor.report(nodeIds[2]);
+        monitor.report(nodeIds[3]);
+        monitor.report(nodeIds[4]);
+        monitor.report(nodeIds[5]);
+        assertFallenBehind(false, 5, "we should still be missing one for fallen behind");
+
+        monitor.report(nodeIds[6]);
+        assertFallenBehind(true, 6, "we should be fallen behind");
+
+        monitor.report(nodeIds[7]);
+        monitor.report(nodeIds[8]);
+        assertFallenBehind(true, 8, "more nodes reported, but the status should be the same");
+
+        monitor.clear(nodeIds[8]);
+        monitor.clear(nodeIds[8]);
+        monitor.clear(nodeIds[8]);
+        monitor.clear(nodeIds[8]);
+        monitor.clear(nodeIds[8]);
+        monitor.clear(nodeIds[8]);
+        assertFallenBehind(true, 7, "Multiple removals of single node shouldn't recover the situation");
+    }
+
+    @Test
     void testRemoveFallenBehind() {
         assertFallenBehind(false, 0, "default should be none report fallen behind");
 
         // node 1 reports fallen behind
-        monitor.report(NodeId.of(1));
+        monitor.report(nodeIds[1]);
         assertFallenBehind(false, 1, "one node only reported fallen behind");
 
         // if the same node reports again, nothing should change
-        monitor.report(NodeId.of(1));
+        monitor.report(nodeIds[1]);
         assertFallenBehind(false, 1, "if the same node reports again, nothing should change");
 
-        monitor.report(NodeId.of(2));
-        monitor.report(NodeId.of(3));
-        monitor.report(NodeId.of(4));
-        monitor.report(NodeId.of(5));
+        monitor.report(nodeIds[2]);
+        monitor.report(nodeIds[3]);
+        monitor.report(nodeIds[4]);
+        monitor.report(nodeIds[5]);
         assertFallenBehind(false, 5, "we should still be missing one for fallen behind");
 
-        monitor.report(NodeId.of(6));
-        monitor.clear(NodeId.of(4));
+        monitor.report(nodeIds[6]);
+        monitor.clear(nodeIds[4]);
         assertFallenBehind(false, 5, "we should still be missing one for fallen behind");
 
-        monitor.report(NodeId.of(7));
+        monitor.report(nodeIds[7]);
         assertFallenBehind(true, 6, "we should be fallen behind");
-        assertTrue(monitor.isBehindPeer(NodeId.of(6)));
-        assertFalse(monitor.isBehindPeer(NodeId.of(4)));
+        assertTrue(monitor.isBehindPeer(nodeIds[6]));
+        assertFalse(monitor.isBehindPeer(nodeIds[4]));
 
-        monitor.report(NodeId.of(4));
-        monitor.report(NodeId.of(8));
+        monitor.report(nodeIds[4]);
+        monitor.report(nodeIds[8]);
         assertFallenBehind(true, 8, "more nodes reported, but the status should be the same");
 
         monitor.clear();
@@ -109,6 +150,7 @@ class FallenBehindMonitorTest {
             final boolean expectedFallenBehind, final int expectedNumFallenBehind, final String message) {
         assertEquals(expectedFallenBehind, monitor.hasFallenBehind(), message);
         assertEquals(expectedNumFallenBehind, monitor.reportedSize(), message);
+        assertEquals(expectedNumFallenBehind / (double) (nodeIds.length - 1), monitor.reportedWeight(), 0.001, message);
     }
 
     /**
@@ -122,10 +164,9 @@ class FallenBehindMonitorTest {
         public FallenBehindMonitorTestData() {
             final Random random = getRandomPrintSeed();
 
-            this.roster = RandomRosterBuilder.create(random).withSize(41).build();
-            this.selfId = NodeId.of(roster.rosterEntries().get(0).nodeId());
-
-            this.fallenBehindMonitor = new FallenBehindMonitor(40, .25);
+            this.roster = RosterFactory.randomRoster(random, 41, WeightGenerators.BALANCED);
+            this.selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+            this.fallenBehindMonitor = new FallenBehindMonitor(roster, selfId, 0.25);
         }
     }
 
@@ -139,7 +180,6 @@ class FallenBehindMonitorTest {
 
         final List<NodeId> peers = test.roster.rosterEntries().stream()
                 .map(RosterEntry::nodeId)
-                .filter(nodeId -> nodeId != test.selfId.id())
                 .map(NodeId::of)
                 .toList();
 
@@ -147,15 +187,15 @@ class FallenBehindMonitorTest {
         assertFalse(test.fallenBehindMonitor.hasFallenBehind());
 
         // neighbors 0 and 1 report fallen behind
-        test.fallenBehindMonitor.report(peers.get(0));
         test.fallenBehindMonitor.report(peers.get(1));
+        test.fallenBehindMonitor.report(peers.get(2));
 
         // we still dont have enough reports that we have fallen behind, we need more than [fallenBehindThreshold] of
         // the neighbors
         assertFalse(test.fallenBehindMonitor.hasFallenBehind());
 
         // add more reports
-        for (int i = 2; i < 10; i++) {
+        for (int i = 3; i < 11; i++) {
             test.fallenBehindMonitor.report(peers.get(i));
         }
 
@@ -163,7 +203,7 @@ class FallenBehindMonitorTest {
         assertFalse(test.fallenBehindMonitor.hasFallenBehind());
 
         // add the report that will go over the [fallenBehindThreshold]
-        test.fallenBehindMonitor.report(peers.get(10));
+        test.fallenBehindMonitor.report(peers.get(12));
 
         // we should now say we have fallen behind
         assertTrue(test.fallenBehindMonitor.hasFallenBehind());
@@ -203,7 +243,7 @@ class FallenBehindMonitorTest {
 
         // Report enough nodes to cross threshold
         for (int i = 1; i <= 6; i++) {
-            monitor.report(NodeId.of(i));
+            monitor.report(nodeIds[i]);
         }
 
         // Wait for the waiting thread to be notified
@@ -219,7 +259,7 @@ class FallenBehindMonitorTest {
     void testAwaitFallenBehindWhenAlreadyBehind() {
         // Set up fallen behind state
         for (int i = 1; i <= 6; i++) {
-            monitor.report(NodeId.of(i));
+            monitor.report(nodeIds[i]);
         }
         assertTrue(monitor.hasFallenBehind());
 
@@ -260,7 +300,7 @@ class FallenBehindMonitorTest {
     void testCheckMethodSelfFallenBehind() {
         final EventWindow selfWindow = new EventWindow(100, 105, 90, 85);
         final EventWindow peerWindow = new EventWindow(110, 115, 100, 95);
-        final NodeId peer = NodeId.of(1);
+        final NodeId peer = nodeIds[1];
 
         // Self is behind because self.ancientThreshold (90) < peer.expiredThreshold (95)
         final FallenBehindStatus status = monitor.check(selfWindow, peerWindow, peer);
@@ -275,7 +315,7 @@ class FallenBehindMonitorTest {
     void testCheckMethodOtherFallenBehind() {
         final EventWindow selfWindow = new EventWindow(110, 115, 100, 95);
         final EventWindow peerWindow = new EventWindow(100, 105, 90, 85);
-        final NodeId peer = NodeId.of(1);
+        final NodeId peer = nodeIds[1];
 
         // Other is behind because other.ancientThreshold (90) < self.expiredThreshold (95)
         final FallenBehindStatus status = monitor.check(selfWindow, peerWindow, peer);
@@ -290,7 +330,7 @@ class FallenBehindMonitorTest {
     void testCheckMethodNoneFallenBehind() {
         final EventWindow selfWindow = new EventWindow(100, 105, 90, 85);
         final EventWindow peerWindow = new EventWindow(102, 107, 92, 87);
-        final NodeId peer = NodeId.of(1);
+        final NodeId peer = nodeIds[1];
 
         // Neither is behind (windows are compatible)
         final FallenBehindStatus status = monitor.check(selfWindow, peerWindow, peer);
@@ -303,7 +343,7 @@ class FallenBehindMonitorTest {
     @Test
     @DisplayName("Test check() method clears previous reports when no longer behind")
     void testCheckMethodClearsPreviousReports() {
-        final NodeId peer = NodeId.of(1);
+        final NodeId peer = nodeIds[1];
 
         // First, report as behind
         final EventWindow selfBehind = new EventWindow(100, 105, 90, 85);
@@ -330,7 +370,7 @@ class FallenBehindMonitorTest {
 
         // Check with multiple peers
         for (int i = 1; i <= 6; i++) {
-            monitor.check(selfWindow, peerAheadWindow, NodeId.of(i));
+            monitor.check(selfWindow, peerAheadWindow, nodeIds[i]);
         }
 
         assertTrue(monitor.hasFallenBehind(), "Should be fallen behind after threshold");
@@ -340,9 +380,9 @@ class FallenBehindMonitorTest {
     @Test
     @DisplayName("Test wasReportedByPeer for various scenarios")
     void testIsBehindPeer() {
-        final NodeId peer1 = NodeId.of(1);
-        final NodeId peer2 = NodeId.of(2);
-        final NodeId peer3 = NodeId.of(3);
+        final NodeId peer1 = nodeIds[1];
+        final NodeId peer2 = nodeIds[2];
+        final NodeId peer3 = nodeIds[3];
 
         assertFalse(monitor.isBehindPeer(peer1), "Initially no peer reported");
 
@@ -368,57 +408,29 @@ class FallenBehindMonitorTest {
     @DisplayName("Test threshold boundary conditions")
     void testThresholdBoundaries() {
         // With 10 peers and 0.5 threshold, need > 5 reports to fall behind
-        assertEquals(10, 10); // Sanity check - we have 10 peers from setUp
 
         // Exactly at threshold (5 reports) - should NOT be fallen behind
         for (int i = 1; i <= 5; i++) {
-            monitor.report(NodeId.of(i));
+            monitor.report(nodeIds[i]);
         }
         assertFalse(monitor.hasFallenBehind(), "Should not be fallen behind at exactly threshold");
         assertEquals(5, monitor.reportedSize());
 
         // Just over threshold (6 reports) - should be fallen behind
-        monitor.report(NodeId.of(6));
+        monitor.report(nodeIds[6]);
         assertTrue(monitor.hasFallenBehind(), "Should be fallen behind just over threshold");
         assertEquals(6, monitor.reportedSize());
     }
 
     @Test
-    @DisplayName("Test edge case with zero peers")
-    void testZeroPeers() {
-        final FallenBehindMonitor emptyMonitor = new FallenBehindMonitor(0, 0.5);
-
-        // With 0 peers, any report should immediately cause fallen behind
-        assertFalse(emptyMonitor.hasFallenBehind());
-
-        emptyMonitor.report(NodeId.of(1));
-        assertTrue(emptyMonitor.hasFallenBehind(), "Should fall behind with any report when there are 0 peers");
-    }
-
-    @Test
-    @DisplayName("Test edge case with threshold of 1.0")
-    void testThresholdOfOne() {
-        final FallenBehindMonitor strictMonitor = new FallenBehindMonitor(10, 1.0);
-
-        // With threshold of 1.0, need ALL 10 peers to report
-        for (int i = 1; i <= 9; i++) {
-            strictMonitor.report(NodeId.of(i));
-        }
-        assertFalse(strictMonitor.hasFallenBehind(), "Should not fall behind until all peers report");
-
-        strictMonitor.report(NodeId.of(10));
-        assertTrue(strictMonitor.hasFallenBehind(), "Should fall behind when all peers report");
-    }
-
-    @Test
     @DisplayName("Test edge case with threshold of 0.0")
     void testThresholdOfZero() {
-        final FallenBehindMonitor permissiveMonitor = new FallenBehindMonitor(10, 0.0);
+        final FallenBehindMonitor permissiveMonitor = new FallenBehindMonitor(roster, nodeIds[0], 0.0);
 
         // With threshold of 0.0, need > 0 reports to fall behind
         assertFalse(permissiveMonitor.hasFallenBehind());
 
-        permissiveMonitor.report(NodeId.of(1));
+        permissiveMonitor.report(nodeIds[5]);
         assertTrue(permissiveMonitor.hasFallenBehind(), "Should fall behind with just 1 report");
     }
 
@@ -436,10 +448,10 @@ class FallenBehindMonitorTest {
             new Thread(() -> {
                         try {
                             startLatch.await(); // Wait for all threads to be ready
-                            monitor.report(NodeId.of(nodeId));
+                            monitor.report(nodeIds[nodeId]);
                             monitor.hasFallenBehind();
                             monitor.reportedSize();
-                            monitor.isBehindPeer(NodeId.of(nodeId));
+                            monitor.isBehindPeer(nodeIds[nodeId]);
                         } catch (Exception e) {
                             failed.set(true);
                         } finally {
@@ -484,7 +496,7 @@ class FallenBehindMonitorTest {
 
         // Cross the threshold
         for (int i = 1; i <= 6; i++) {
-            monitor.report(NodeId.of(i));
+            monitor.report(nodeIds[i]);
         }
 
         // All waiting threads should be notified
@@ -494,15 +506,15 @@ class FallenBehindMonitorTest {
     @Test
     @DisplayName("Test clear on non-existent peer does nothing")
     void testClearNonExistentPeer() {
-        monitor.report(NodeId.of(1));
+        monitor.report(nodeIds[1]);
         assertEquals(1, monitor.reportedSize());
 
         // Clear a peer that hasn't reported
-        monitor.clear(NodeId.of(99));
+        monitor.clear(NodeId.of(131238712));
 
         // State should be unchanged
         assertEquals(1, monitor.reportedSize());
-        assertTrue(monitor.isBehindPeer(NodeId.of(1)));
+        assertTrue(monitor.isBehindPeer(nodeIds[1]));
     }
 
     @Test
@@ -510,16 +522,16 @@ class FallenBehindMonitorTest {
     void testReportedSizeAccuracy() {
         assertEquals(0, monitor.reportedSize(), "Initial size should be 0");
 
-        monitor.report(NodeId.of(1));
+        monitor.report(nodeIds[1]);
         assertEquals(1, monitor.reportedSize());
 
-        monitor.report(NodeId.of(1)); // Duplicate
+        monitor.report(nodeIds[1]); // Duplicate
         assertEquals(1, monitor.reportedSize(), "Duplicate reports shouldn't increase size");
 
-        monitor.report(NodeId.of(2));
+        monitor.report(nodeIds[2]);
         assertEquals(2, monitor.reportedSize());
 
-        monitor.clear(NodeId.of(1));
+        monitor.clear(nodeIds[1]);
         assertEquals(1, monitor.reportedSize());
 
         monitor.clear();
@@ -564,5 +576,53 @@ class FallenBehindMonitorTest {
                 .start();
 
         assertTrue(allCompleted.await(2, TimeUnit.SECONDS), "The waiting thread should be notified and complete");
+    }
+
+    @Test
+    void testUnevenWeights() {
+        final int numNodes = 11;
+        final Roster roster =
+                RosterFactory.randomRoster(getRandomPrintSeed(), numNodes, WeightGenerators.SINGLE_NODE_SUPERMAJORITY);
+        final NodeId[] nodeIds = roster.rosterEntries().stream()
+                .map(entry -> NodeId.of(entry.nodeId()))
+                .toArray(NodeId[]::new);
+        final FallenBehindMonitor monitor = new FallenBehindMonitor(roster, nodeIds[5], 0.5);
+
+        assertFalse(monitor.hasFallenBehind());
+        monitor.report(nodeIds[0]); // this node alone has supermajority
+        assertTrue(monitor.hasFallenBehind());
+        assertEquals(1.0, monitor.reportedWeight(), 0.01);
+        monitor.clear(nodeIds[0]); // this node alone has supermajority
+        assertFalse(monitor.hasFallenBehind());
+        assertEquals(0.0, monitor.reportedWeight());
+        for (int i = 1; i < numNodes; i++) {
+            monitor.report(nodeIds[i]);
+        }
+        assertEquals(0.0011, monitor.reportedWeight(), 0.001);
+
+        assertFalse(
+                monitor.hasFallenBehind()); // even if we fall behind everybody else, one with supermajority keeps us
+        // alive
+    }
+
+    @Test
+    void testIgnoreZeroWeights() {
+        final int numNodes = 30;
+        final Roster roster =
+                RosterFactory.randomRoster(getRandomPrintSeed(), numNodes, WeightGenerators.ONE_THIRD_ZERO_WEIGHT);
+        final NodeId[] nodeIds = roster.rosterEntries().stream()
+                .map(entry -> NodeId.of(entry.nodeId()))
+                .toArray(NodeId[]::new);
+        final FallenBehindMonitor monitor = new FallenBehindMonitor(roster, nodeIds[0], 0.0);
+
+        assertFalse(monitor.hasFallenBehind());
+        for (int i = 1; i < 8; i++) {
+            // all these have zero weights
+            monitor.report(nodeIds[i]);
+        }
+        assertFalse(monitor.hasFallenBehind());
+
+        monitor.report(nodeIds[15]);
+        assertTrue(monitor.hasFallenBehind());
     }
 }

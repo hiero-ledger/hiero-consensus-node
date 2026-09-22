@@ -7,7 +7,6 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.util.Random;
 
 public final class ExampleFixedValue extends ExampleByteArrayVirtualValue {
@@ -87,18 +86,17 @@ public final class ExampleFixedValue extends ExampleByteArrayVirtualValue {
                 boolean strictMode,
                 boolean parseUnknownFields,
                 int maxDepth,
-                int maxSize)
-                throws ParseException {
+                int maxSize) {
             return new ExampleFixedValue(in);
         }
 
         @Override
-        public void write(@NonNull ExampleFixedValue value, @NonNull WritableSequentialData out) throws IOException {
+        public void write(@NonNull ExampleFixedValue value, @NonNull WritableSequentialData out) {
             value.writeTo(out);
         }
 
         @Override
-        public int measure(@NonNull ReadableSequentialData in) throws ParseException {
+        public int measure(@NonNull ReadableSequentialData in) {
             throw new UnsupportedOperationException("ExampleFixedValueCodec.measure() not implemented");
         }
 

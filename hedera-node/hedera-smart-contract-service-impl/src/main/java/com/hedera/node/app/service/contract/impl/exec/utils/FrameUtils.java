@@ -18,6 +18,7 @@ import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.node.config.data.HederaConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -54,8 +55,22 @@ public class FrameUtils {
         return requireNonNull(initialFrameOf(frame).getContextVariable(CONFIG_CONTEXT_VARIABLE));
     }
 
+    /**
+     * Gets ContractsConfig from the current frame
+     * @param frame the current frame
+     * @return ContractsConfig
+     */
     public static @NonNull ContractsConfig contractsConfigOf(@NonNull final MessageFrame frame) {
         return configOf(frame).getConfigData(ContractsConfig.class);
+    }
+
+    /**
+     * Gets HederaConfig from the current frame
+     * @param frame the current frame
+     * @return HederaConfig
+     */
+    public static @NonNull HederaConfig hederaConfigOf(@NonNull final MessageFrame frame) {
+        return configOf(frame).getConfigData(HederaConfig.class);
     }
 
     public static boolean hasBytecodeSidecarsEnabled(@NonNull final MessageFrame frame) {

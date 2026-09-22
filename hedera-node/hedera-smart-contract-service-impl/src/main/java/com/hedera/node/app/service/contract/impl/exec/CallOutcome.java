@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.exec;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
@@ -11,12 +12,14 @@ import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
 import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.streams.ContractAction;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.TxStorageUsage;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -48,7 +51,8 @@ public record CallOutcome(
         @NonNull EvmTransactionResult txResult,
         @Nullable Long newSenderNonce,
         @Nullable Bytes createdEvmAddress,
-        @Nullable TxStorageUsage txStorageUsage) {
+        @Nullable TxStorageUsage txStorageUsage,
+        @Nullable CodeDelegationResult codeDelegationResult) {
 
     /**
      * Returns whether there is a new sender nonce after the call.
@@ -148,7 +152,8 @@ public record CallOutcome(
                 txResult,
                 hevmResult.signerNonce(),
                 evmAddress,
-                hevmResult.txStorageUsage());
+                hevmResult.txStorageUsage(),
+                hevmResult.codeDelegationResult());
     }
 
     /**
@@ -178,6 +183,7 @@ public record CallOutcome(
                 txResult,
                 hevmResult.signerNonce(),
                 evmAddress,
+                null,
                 null);
     }
 
@@ -224,8 +230,12 @@ public record CallOutcome(
         requireNonNull(context);
         requireNonNull(idFactory);
         addCalledContractIfNotAborted(streamBuilder);
-        // (FUTURE) Remove after switching to block stream
-        streamBuilder.contractCallResult(result);
+        // (FUTURE) Remove after switching to block stream — BlockStreamBuilder doesn't support contractCallResult.
+        final var streamMode =
+                context.configuration().getConfigData(BlockStreamConfig.class).streamMode();
+        if (streamMode != BLOCKS) {
+            streamBuilder.contractCallResult(result);
+        }
         // No-op for the RecordStreamBuilder
         streamBuilder.evmCallTransactionResult(txResult);
         streamBuilder.withCommonFieldsSetFrom(this, context, idFactory);
@@ -255,8 +265,12 @@ public record CallOutcome(
             @NonNull final EntityIdFactory idFactory) {
         requireNonNull(streamBuilder);
         requireNonNull(context);
-        // (FUTURE) Remove after switching to block stream
-        streamBuilder.contractCreateResult(result);
+        // (FUTURE) Remove after switching to block stream — BlockStreamBuilder doesn't support contractCreateResult.
+        final var streamMode =
+                context.configuration().getConfigData(BlockStreamConfig.class).streamMode();
+        if (streamMode != BLOCKS) {
+            streamBuilder.contractCreateResult(result);
+        }
         streamBuilder
                 .createdContractID(recipientIdIfCreated())
                 .createdEvmAddress(createdEvmAddress)

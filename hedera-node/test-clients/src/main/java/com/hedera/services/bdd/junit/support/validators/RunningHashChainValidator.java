@@ -18,6 +18,15 @@ public class RunningHashChainValidator implements RecordStreamValidator {
                         String.format(
                                 "Block %d startObjectRunningHash does not match endObjectRunningHash of preceding block %d",
                                 file.getBlockNumber(), previous.getBlockNumber()));
+                Assertions.assertEquals(
+                        previous.getBlockNumber() + 1,
+                        file.getBlockNumber(),
+                        String.format(
+                                "Block %d %s blockNumber is not one less than the next Block %d %s",
+                                previous.getBlockNumber(),
+                                previous.getStartObjectRunningHash(),
+                                file.getBlockNumber(),
+                                file.getStartObjectRunningHash()));
             }
             previous = file;
         }

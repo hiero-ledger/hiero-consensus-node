@@ -14,14 +14,10 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.randomUtf8Bytes;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.resourceAsString;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.sysFileUpdateTo;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.simulatePostUpgradeTransaction;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.allVisibleItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
@@ -31,23 +27,22 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.given;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.nOps;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresFrom;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedBlockItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassWithReplayFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.writeToNodeWorkingDirs;
 import static com.hedera.services.bdd.spec.utilops.grouping.GroupingVerbs.getSystemFiles;
-import static com.hedera.services.bdd.spec.utilops.streams.assertions.EventualRecordStreamAssertion.eventuallyAssertingExplicitPassWithReplay;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsAssertion.ALL_TX_IDS;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.utils.sysfiles.serdes.StandardSerdes.SYS_FILE_SERDES;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileCreate;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.FileUpdate;
@@ -82,13 +77,11 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.grouping.SysFileLookups;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItems;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
-import com.hederahashgraph.api.proto.java.CurrentAndNextFeeSchedule;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.NodeUpdateTransactionBody;
 import com.hederahashgraph.api.proto.java.ServicesConfigurationList;
 import com.hederahashgraph.api.proto.java.ThrottleDefinitions;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.math.BigInteger;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
@@ -102,7 +95,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.utility.CommonUtils;
-import org.hiero.consensus.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
@@ -114,8 +107,8 @@ import org.junit.jupiter.api.Order;
  * and tests if they needed to ensure a transaction was handled before issuing any {@code FileGetContents} queries
  * or submitting {@code FileUpdate} transactions.)
  */
-// Run just before stream validation to avoid state pollution
-@Order(Integer.MAX_VALUE - 1)
+// Genesis tests build their own network, so they must run before any shared network exists
+@Order(Integer.MIN_VALUE)
 public class SystemFileExportsTest {
     private static final String DESCRIPTION_PREFIX = "Revision #";
 
@@ -126,11 +119,11 @@ public class SystemFileExportsTest {
         };
         final AtomicReference<Map<Long, X509Certificate>> gossipCertificates = new AtomicReference<>();
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         nodeDetailsExportValidator(grpcCertHashes, gossipCertificates),
                         1,
                         sysFileUpdateTo("files.nodeDetails"))),
-                recordStreamMustIncludeNoFailuresFrom(allVisibleItems(uniqueConsTimesValidator())),
+                streamMustIncludeNoFailuresFrom(allVisibleItems(uniqueConsTimesValidator())),
                 given(() -> gossipCertificates.set(generateCertificates(CLASSIC_HAPI_TEST_NETWORK_SIZE))),
                 // This is the genesis transaction
                 cryptoCreate("firstUser"),
@@ -155,7 +148,7 @@ public class SystemFileExportsTest {
         };
         final AtomicReference<Map<Long, X509Certificate>> gossipCertificates = new AtomicReference<>();
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         addressBookExportValidator("files.addressBook", grpcCertHashes), 2, TxnUtils::isSysFileUpdate)),
                 given(() -> gossipCertificates.set(generateCertificates(CLASSIC_HAPI_TEST_NETWORK_SIZE))),
                 // This is the genesis transaction
@@ -175,52 +168,12 @@ public class SystemFileExportsTest {
     }
 
     @GenesisHapiTest
-    final Stream<DynamicTest> syntheticFeeSchedulesUpdateHappensAtUpgradeBoundary()
-            throws InvalidProtocolBufferException {
-        final var feeSchedulesJson = resourceAsString("scheduled-contract-fees.json");
-        final var upgradeFeeSchedules =
-                CurrentAndNextFeeSchedule.parseFrom(SYS_FILE_SERDES.get(111L).toRawFile(feeSchedulesJson, null));
-        return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
-                        sysFileExportValidator(
-                                "files.feeSchedules", upgradeFeeSchedules, SystemFileExportsTest::parseFeeSchedule),
-                        3,
-                        TxnUtils::isSysFileUpdate)),
-                // This is the genesis transaction
-                sourcingContextual(spec -> overriding("scheduling.whitelist", "ContractCall")),
-                // Write the upgrade file to the node's working dirs
-                doWithStartupConfig(
-                        "networkAdmin.upgradeFeeSchedulesFile",
-                        feeSchedulesFile ->
-                                writeToNodeWorkingDirs(feeSchedulesJson, "data", "config", feeSchedulesFile)),
-                waitUntilNextBlock().withBackgroundTraffic(true),
-                // And now simulate an upgrade boundary
-                simulatePostUpgradeTransaction(),
-                // Verify the new fee schedules (which include a subtype for scheduled contract fees) are in effect
-                uploadInitCode("SimpleUpdate"),
-                withOpContext((spec, opLog) -> spec.tryReinitializingFees()),
-                contractCreate("SimpleUpdate").gas(300_000L),
-                cryptoCreate("civilian"),
-                scheduleCreate(
-                                "contractCall",
-                                contractCall("SimpleUpdate", "set", BigInteger.valueOf(5), BigInteger.valueOf(42))
-                                        .gas(24_000)
-                                        .memo("")
-                                        .fee(ONE_HBAR))
-                        .payingWith("civilian")
-                        .via("contractCall"),
-                validateChargedUsdWithin("contractCall", 0.1, 3.0),
-                // Trigger block closure to ensure block is closed
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
-    }
-
-    @GenesisHapiTest
     final Stream<DynamicTest> syntheticThrottlesUpdateHappensAtUpgradeBoundary() throws InvalidProtocolBufferException {
         final var throttlesJson = resourceAsString("testSystemFiles/one-tps-nft-mint.json");
         final var upgradeThrottleDefs =
                 ThrottleDefinitions.parseFrom(SYS_FILE_SERDES.get(123L).toRawFile(throttlesJson, null));
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         sysFileExportValidator(
                                 "files.throttleDefinitions",
                                 upgradeThrottleDefs,
@@ -256,7 +209,7 @@ public class SystemFileExportsTest {
         final var upgradePropOverrides =
                 ServicesConfigurationList.parseFrom(SYS_FILE_SERDES.get(121L).toRawFile(overrideProperties, null));
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         sysFileExportValidator(
                                 "files.networkProperties",
                                 upgradePropOverrides,
@@ -289,7 +242,7 @@ public class SystemFileExportsTest {
     @GenesisHapiTest
     final Stream<DynamicTest> syntheticPropertyOverridesUpdateCanBeEmptyFile() {
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         sysFileExportValidator(
                                 "files.networkProperties",
                                 ServicesConfigurationList.getDefaultInstance(),
@@ -325,7 +278,7 @@ public class SystemFileExportsTest {
         final var upgradePermissionOverrides =
                 ServicesConfigurationList.parseFrom(SYS_FILE_SERDES.get(122L).toRawFile(overridePermissions, null));
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         sysFileExportValidator(
                                 "files.hapiPermissions",
                                 upgradePermissionOverrides,
@@ -360,7 +313,7 @@ public class SystemFileExportsTest {
     @GenesisHapiTest
     final Stream<DynamicTest> syntheticNodeAdminKeysUpdateHappensAtUpgradeBoundary() {
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         nodeUpdatesValidator(),
                         // Our node admin key file will contain two override keys
                         2,
@@ -412,10 +365,12 @@ public class SystemFileExportsTest {
         final AtomicReference<Map<FileID, Bytes>> preGenesisContents = new AtomicReference<>();
         return hapiTest(
                 getSystemFiles(preGenesisContents::set),
-                eventuallyAssertingExplicitPassWithReplay(
-                        selectedItems(
+                // Replay existing block files so we can still see synthetic file creations
+                // emitted at network startup, before this assertion subscribed.
+                streamMustIncludePassWithReplayFrom(
+                        selectedBlockItems(
                                 validatorFor(preGenesisContents),
-                                19,
+                                18,
                                 (ignore, item) -> item.getRecord().getReceipt().hasFileID()
                                         || item.getRecord().getMemo().equals(END_OF_PERIOD_MEMO)),
                         Duration.ofSeconds(10)),
@@ -425,11 +380,6 @@ public class SystemFileExportsTest {
                         spec.startupProperties().getLong("hedera.firstUserEntity"),
                         spec.registry().getAccountID("firstUser").getAccountNum(),
                         "First user entity num doesn't match config")));
-    }
-
-    private static CurrentAndNextFeeSchedule parseFeeSchedule(final byte[] bytes)
-            throws InvalidProtocolBufferException {
-        return CurrentAndNextFeeSchedule.parseFrom(bytes);
     }
 
     private static ThrottleDefinitions parseThrottleDefs(final byte[] bytes) throws InvalidProtocolBufferException {

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gui.internal.hashgraph.util;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.gui.internal.GuiEventStorage;
@@ -9,6 +8,8 @@ import org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiConstants;
 import org.hiero.consensus.gui.internal.hashgraph.HashgraphGuiSource;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
+import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**
  * A {@link HashgraphGuiSource} that wraps another source but caches the results until {@link #refresh()} is called
@@ -16,9 +17,9 @@ import org.hiero.consensus.model.event.EventConstants;
 public class CachingGuiSource implements HashgraphGuiSource {
     private final HashgraphGuiSource source;
     private List<EventImpl> events = null;
-    private Roster roster = null;
+    private RosterWrapper roster = null;
     private final GuiEventStorage eventStorage;
-    private long maxGeneration = EventConstants.GENERATION_UNDEFINED;
+    private long maxGeneration = NonDeterministicGeneration.GENERATION_UNDEFINED;
     private long startGeneration = EventConstants.FIRST_GENERATION;
     private int numGenerations = HashgraphGuiConstants.DEFAULT_GENERATIONS_TO_DISPLAY;
 
@@ -42,13 +43,13 @@ public class CachingGuiSource implements HashgraphGuiSource {
 
     @Override
     @NonNull
-    public Roster getRoster() {
+    public RosterWrapper getRoster() {
         return roster;
     }
 
     @Override
     public boolean isReady() {
-        return events != null && roster != null && maxGeneration != EventConstants.GENERATION_UNDEFINED;
+        return events != null && roster != null && maxGeneration != NonDeterministicGeneration.GENERATION_UNDEFINED;
     }
 
     /**

@@ -17,7 +17,7 @@ import java.util.Optional;
  *                          deployments, where custom network interfaces may be required.
  *                          Each entry specifies how the node should bind to its network
  *                          interfaces.
- * @param endpointOverrides A list of endpoint overrides used in {@code OutboundConnectionCreator}.
+ * @param endpointOverrides A list of endpoint overrides used in {@code OutboundConnectionManager}.
  *                          These overrides provide the ability to replace the default IP
  *                          address and port of endpoints obtained from the roster. This is
  *                          particularly useful in cases where the actual network configuration

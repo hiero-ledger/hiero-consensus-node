@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.hash;
 
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_VIRTUAL_MAP_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -9,16 +10,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.swirlds.config.api.Configuration;
-import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
+import com.swirlds.virtualmap.MerklePathUtils;
+import com.swirlds.virtualmap.VirtualTestBase;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.Path;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
-import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -81,7 +79,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     @Test
     @Tag(TestComponentTags.VMAP)
     @DisplayName("Empty stream results in a null hash")
-    @SuppressWarnings({"MismatchedQueryAndUpdateOfCollection", "RedundantOperationOnEmptyContainer"})
+    @SuppressWarnings({"RedundantOperationOnEmptyContainer"})
     void emptyStreamProducesNull() {
         final TestDataSource ds = new TestDataSource(1, 2, CHUNK_HEIGHT);
         final List<VirtualLeafBytes> leaves = new ArrayList<>();
@@ -97,7 +95,8 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     @Tag(TestComponentTags.VMAP)
     @DisplayName("Invalid leaf paths")
     void invalidLeafPaths() {
-        final TestDataSource ds = new TestDataSource(Path.INVALID_PATH, Path.INVALID_PATH, CHUNK_HEIGHT);
+        final TestDataSource ds =
+                new TestDataSource(MerklePathUtils.INVALID_PATH, MerklePathUtils.INVALID_PATH, CHUNK_HEIGHT);
         final List<VirtualLeafBytes> emptyLeaves = new ArrayList<>();
         // Empty dirty leaves stream -> null hash
         assertNull(
@@ -105,15 +104,17 @@ class VirtualHasherTest extends VirtualHasherTestBase {
                         CHUNK_HEIGHT,
                         ds::loadHashChunk,
                         emptyLeaves.iterator(),
-                        Path.INVALID_PATH,
-                        Path.INVALID_PATH,
+                        MerklePathUtils.INVALID_PATH,
+                        MerklePathUtils.INVALID_PATH,
                         null),
                 "Call should have produced null");
         assertNull(
-                defaultHasher.hash(CHUNK_HEIGHT, ds::loadHashChunk, emptyLeaves.iterator(), Path.INVALID_PATH, 2, null),
+                defaultHasher.hash(
+                        CHUNK_HEIGHT, ds::loadHashChunk, emptyLeaves.iterator(), MerklePathUtils.INVALID_PATH, 2, null),
                 "Call should have produced null");
         assertNull(
-                defaultHasher.hash(CHUNK_HEIGHT, ds::loadHashChunk, emptyLeaves.iterator(), 1, Path.INVALID_PATH, null),
+                defaultHasher.hash(
+                        CHUNK_HEIGHT, ds::loadHashChunk, emptyLeaves.iterator(), 1, MerklePathUtils.INVALID_PATH, null),
                 "Call should have produced null");
         assertNull(
                 defaultHasher.hash(CHUNK_HEIGHT, ds::loadHashChunk, emptyLeaves.iterator(), 0, 2, null),
@@ -130,8 +131,8 @@ class VirtualHasherTest extends VirtualHasherTestBase {
                         CHUNK_HEIGHT,
                         ds::loadHashChunk,
                         nonEmptyLeaves.iterator(),
-                        Path.INVALID_PATH,
-                        Path.INVALID_PATH,
+                        MerklePathUtils.INVALID_PATH,
+                        MerklePathUtils.INVALID_PATH,
                         null),
                 "Non-null leaves iterator + invalid paths should throw an exception");
         assertThrows(
@@ -183,7 +184,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
                 if (chunk.path() == 0) {
                     break;
                 }
-                chunk = ds.loadHashChunk(Path.getGrandParentPath(chunk.path(), CHUNK_HEIGHT));
+                chunk = ds.loadHashChunk(MerklePathUtils.getGrandParentPath(chunk.path(), CHUNK_HEIGHT));
                 assertNotNull(chunk);
             }
         }
@@ -196,7 +197,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
 
         for (int i = 0; i < leaves.size(); i++) {
             final long leafPath = leaves.get(i).path();
-            final long siblingPath = Path.getSiblingPath(leafPath);
+            final long siblingPath = MerklePathUtils.getSiblingPath(leafPath);
             if ((siblingPath >= firstLeafPath) && (siblingPath <= lastLeafPath)) {
                 final VirtualLeafBytes sibling = ds.getLeaf(siblingPath);
                 leaves.set(i, sibling);
@@ -402,17 +403,12 @@ class VirtualHasherTest extends VirtualHasherTestBase {
     void listenerCallCounts() throws Exception {
         // This test relies on hash chunk height to be 5
         final int hashChunkHeight = 5;
-        final Configuration config = ConfigurationBuilder.create()
-                .withConfigDataType(VirtualMapConfig.class)
-                .withValue("virtualMap.hashChunkHeight", "" + hashChunkHeight)
-                .build();
-        final VirtualMapConfig virtualMapConfig = config.getConfigData(VirtualMapConfig.class);
 
         final long firstLeafPath = 52L;
         final long lastLeafPath = firstLeafPath * 2;
         final TestDataSource ds = new TestDataSource(firstLeafPath, lastLeafPath, hashChunkHeight);
         final HashingListener listener = new HashingListener();
-        final VirtualHasher hasher = new VirtualHasher(virtualMapConfig);
+        final VirtualHasher hasher = new VirtualHasher(DEFAULT_VIRTUAL_MAP_CONFIG);
         hashTree(ds);
         final List<Long> dirtyLeafPaths = List.of(
                 53L, 56L, 59L, 63L, 66L, 72L, 76L, 77L, 80L, 81L, 82L, 83L, 85L, 87L, 88L, 94L, 96L, 100L, 104L);

@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.pipeline;
 
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_CONFIGURATION;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_VIRTUAL_MAP_CONFIG;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -14,8 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import com.swirlds.config.api.Configuration;
-import com.swirlds.config.extensions.sources.SimpleConfigSource;
-import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
@@ -35,10 +36,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
@@ -54,8 +56,6 @@ import org.junit.jupiter.params.provider.ValueSource;
 class VirtualPipelineTests {
 
     private Metrics metrics;
-    private final VirtualMapConfig config =
-            new TestConfigBuilder().getOrCreateConfig().getConfigData(VirtualMapConfig.class);
 
     /**
      * Run an operation on a thread, interrupt and throw an exception if the thread does not complete before timeout.
@@ -74,8 +74,7 @@ class VirtualPipelineTests {
         final CountDownLatch latch = new CountDownLatch(1);
 
         final Thread thread = new ThreadConfiguration(getStaticThreadManager())
-                .setComponent("test")
-                .setThreadName("interrupt-on-timeout")
+                .setSingleThreadName(CompositeThreadNameProvider.create("test", "interrupt-on-timeout"))
                 .setRunnable(() -> {
                     try {
                         runnable.run();
@@ -194,7 +193,7 @@ class VirtualPipelineTests {
         DummyVirtualRoot mutableCopy = null;
         for (int index = 0; index < copyCount; index++) {
             if (mutableCopy == null) {
-                mutableCopy = new DummyVirtualRoot("VirtualPipelineTests", config);
+                mutableCopy = new DummyVirtualRoot("VirtualPipelineTests", DEFAULT_VIRTUAL_MAP_CONFIG);
                 mutableCopy.setShouldFlushPredicate(shouldBeFlushed);
                 mutableCopy.registerMetrics(metrics);
             } else {
@@ -214,8 +213,7 @@ class VirtualPipelineTests {
     }
 
     private static Metrics createMetrics() {
-        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-        final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
+        final MetricsConfig metricsConfig = DEFAULT_CONFIGURATION.getConfigData(MetricsConfig.class);
         final MetricKeyRegistry registry = new MetricKeyRegistry();
         return new DefaultPlatformMetrics(
                 null,
@@ -251,7 +249,7 @@ class VirtualPipelineTests {
     @Tag(TestComponentTags.VMAP)
     @DisplayName("registerCopy rejects nulls")
     void registerCopyRejectsNull() {
-        final DummyVirtualRoot root = new DummyVirtualRoot("registerCopyRejectsNull", config);
+        final DummyVirtualRoot root = new DummyVirtualRoot("registerCopyRejectsNull", DEFAULT_VIRTUAL_MAP_CONFIG);
         final VirtualPipeline pipeline = root.getPipeline();
         assertNotNull(pipeline, "Pipeline should never be null");
         assertThrows(NullPointerException.class, () -> pipeline.registerCopy(null), "Should have thrown NPE");
@@ -321,9 +319,7 @@ class VirtualPipelineTests {
     @Tag(TestComponentTags.VMAP)
     @DisplayName("Reject Immutable Registration")
     void rejectImmutableRegistration() throws InterruptedException {
-        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-        final VirtualPipeline pipeline =
-                new VirtualPipeline(configuration.getConfigData(VirtualMapConfig.class), "rejectImmutableRegistration");
+        final VirtualPipeline pipeline = new VirtualPipeline(DEFAULT_VIRTUAL_MAP_CONFIG, "rejectImmutableRegistration");
         final NoOpVirtualRoot root = new NoOpVirtualRoot();
         root.makeImmutable();
 
@@ -332,7 +328,7 @@ class VirtualPipelineTests {
                 () -> pipeline.registerCopy(root),
                 "pipeline should reject immutable copy");
 
-        pipeline.terminate();
+        pipeline.shutdown(false);
         assertTrue(pipeline.awaitTermination(2, TimeUnit.SECONDS), "thread should stop");
     }
 
@@ -388,9 +384,9 @@ class VirtualPipelineTests {
 
     @Test
     @Tag(TestComponentTags.VMAP)
-    @DisplayName("Terminate waits for jobs to complete")
-    void terminateWaitsForJobs() {
-        final SlowVirtualRoot root = new SlowVirtualRoot("terminateWaitsForJobs", config);
+    @DisplayName("Shutdown and await for jobs to complete")
+    void shutdownAndAwaitForJobs() throws InterruptedException {
+        final SlowVirtualRoot root = new SlowVirtualRoot("terminateWaitsForJobs", DEFAULT_VIRTUAL_MAP_CONFIG);
         final SlowVirtualRoot copy1 = root.copy();
         final SlowVirtualRoot copy2 = copy1.copy();
         final SlowVirtualRoot copy3 = copy2.copy();
@@ -416,8 +412,8 @@ class VirtualPipelineTests {
         // copy1 or detached it.
         copy1.mergeFinishedLatch.countDown();
 
-        // By the time this returns, I know for certain previous tasks are done.
-        root.getPipeline().terminate();
+        root.getPipeline().shutdown(false);
+        assertTrue(root.getPipeline().awaitTermination(3, SECONDS), "Pipeline should shut down");
 
         // Root will have finished, but the others will not have done anything.
         assertTrue(root.isFlushed(), "Should have flushed before terminate finished");
@@ -541,28 +537,6 @@ class VirtualPipelineTests {
 
     @Test
     @Tag(TestComponentTags.VMAP)
-    @DisplayName("Datasource is closed when pipeline is terminated")
-    void dataSourceClosedWhenPipelineTerminates() throws InterruptedException {
-        // Create 10 copies. Copy 3, 6, and 9 are flush eligible.
-        final int copyCount = 10;
-        final List<DummyVirtualRoot> copies = setupCopies(copyCount, i -> i != 0 && i % 3 == 0);
-
-        // I'll release half of them and then terminate the pipeline.
-        for (int i = 0; i < copyCount / 2; i++) {
-            final var copy = copies.get(i);
-            assertFalse(copy.isShutdownHandlerCalled(), "Should not be invoked yet");
-            copy.release();
-            assertFalse(copy.isShutdownHandlerCalled(), "Should not be invoked yet");
-        }
-
-        copies.get(0).getPipeline().terminate();
-        final var lastCopy = copies.get(copyCount - 1);
-        assertTrue(lastCopy.getPipeline().awaitTermination(5, SECONDS), "Timed out");
-        assertTrue(lastCopy.isShutdownHandlerCalled(), "Callback should now be invoked");
-    }
-
-    @Test
-    @Tag(TestComponentTags.VMAP)
     @DisplayName("Datasource is closed when pipeline terminates due to error")
     void dataSourceClosedWhenPipelineTerminatesDueToError() throws InterruptedException {
         // Create 10 copies. Let's them all be flush eligible for simplicity in the test
@@ -640,18 +614,15 @@ class VirtualPipelineTests {
     @ValueSource(ints = {11, 50, 99, 100, 500, 1000, 1111})
     @DisplayName("Size based flushes")
     public void sizeBasedFlushes(int copyCount) throws InterruptedException {
-        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-        final VirtualMapConfig config = configuration.getConfigData(VirtualMapConfig.class);
-
         final List<DummyVirtualRoot> copies = setupCopies(copyCount, i -> false);
-        DummyVirtualRoot last = copies.get(copies.size() - 1);
+        DummyVirtualRoot last = copies.getLast();
         DummyVirtualRoot afterCopy = last.copy();
         afterCopy.setShouldBeFlushed(true);
         afterCopy.copy(); // make it immutable and eligible to flush
         for (int i = 0; i < copyCount; i++) {
             DummyVirtualRoot copy = copies.get(i);
             // Every 11th copy should be flushed
-            copy.setEstimatedSize(config.copyFlushCandidateThreshold() / 10 - 1);
+            copy.setEstimatedSize(DEFAULT_VIRTUAL_MAP_CONFIG.copyFlushCandidateThreshold() / 10 - 1);
         }
         // Release all copies to make them mergeable / flushable. Note that when the first copy is
         // released, a thread race between this thread and the pipeline thread starts. It may
@@ -680,15 +651,13 @@ class VirtualPipelineTests {
     @DisplayName("Small copies are never flushed")
     void smallCopiesAreNeverFlushed() throws InterruptedException {
         final int copyCount = 1000;
-        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-        final VirtualMapConfig config = configuration.getConfigData(VirtualMapConfig.class);
         final List<DummyVirtualRoot> copies = setupCopies(copyCount, i -> false);
         for (int i = 0; i < copyCount; i++) {
             DummyVirtualRoot copy = copies.get(i);
             // Set all copies small enough, so none of them should be flushed even after merge
-            copy.setEstimatedSize(config.copyFlushCandidateThreshold() / (copyCount + 1));
+            copy.setEstimatedSize(DEFAULT_VIRTUAL_MAP_CONFIG.copyFlushCandidateThreshold() / (copyCount + 1));
         }
-        DummyVirtualRoot last = copies.get(copies.size() - 1);
+        DummyVirtualRoot last = copies.getLast();
         DummyVirtualRoot afterCopy = last.copy();
         afterCopy.setShouldBeFlushed(true);
         afterCopy.copy(); // make afterCopy immutable / eligible to flush
@@ -797,11 +766,10 @@ class VirtualPipelineTests {
         final int familyThrottleThreshold = 10000;
         final int estimatedSize = 100;
 
-        final Configuration config = new TestConfigBuilder()
-                .withSource(new SimpleConfigSource()
-                        .withValue(VirtualMapConfig_.FAMILY_THROTTLE_THRESHOLD, familyThrottleThreshold + ""))
-                .withConfigDataType(VirtualMapConfig.class)
-                .getOrCreateConfig();
+        final Configuration config = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue(VirtualMapConfig_.FAMILY_THROTTLE_THRESHOLD, familyThrottleThreshold + "")
+                .build();
 
         final Deque<DummyVirtualRoot> copies = new LinkedList<>();
 
@@ -846,11 +814,9 @@ class VirtualPipelineTests {
         final List<DummyVirtualRoot> copies = setupCopies(NUM_COPIES, i -> false);
 
         final DummyVirtualRoot penultimate = copies.get(copies.size() - 2);
-        final DummyVirtualRoot last = copies.get(copies.size() - 1);
+        final DummyVirtualRoot last = copies.getLast();
         final Hash[] hashes = new Hash[NUM_COPIES];
-        IntStream.range(0, NUM_THREADS).parallel().forEach(i -> {
-            hashes[i] = penultimate.getHash();
-        });
+        IntStream.range(0, NUM_THREADS).parallel().forEach(i -> hashes[i] = penultimate.getHash());
         for (final Hash hash : hashes) {
             assertSame(hash, hashes[0]);
         }

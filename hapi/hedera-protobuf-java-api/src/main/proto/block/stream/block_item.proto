@@ -91,38 +91,42 @@ import "block/stream/output/block_footer.proto";
  * coordinate deployments of different systems creating and processing
  * block streams in the future, the following rules SHALL be followed
  * for field numbering in this message.
- * - The first 19 field numbers SHALL be assigned to the fields present
- *   in the first release. Unused fields in this range SHALL remain reserved
- *   until needed for additional options that do not fit into existing
- *   subtree categories.
  * - Fields numbered 20 and above MUST be numbered as follows.
- *    - Calculate the category number as N modulo 10, where N is the actual field number.
- *        - 0 - Consensus Headers
- *        - 1 - Inputs
- *        - 2 - Outputs
- *        - 3 - State Changes
- *        - 4 - Trace Data
- *        - 5 - Extension 0
- *        - 6 - Extension 1
- *        - 7 - Extension 2
- *        - 8 - Extension 3
- *        - 9 - Not hashed (not part of the block proof merkle tree)
+ *    - Calculate the category number as N modulo 20, where N is the actual field number.
+ *        - 0  - Not Hashed (not part of the block proof merkle tree)
+ *        - 1  - Requires Specific Handling (not forward compatible)
+ *        - 2  - Requires Specific Handling (not forward compatible)
+ *        - 3  - Consensus Headers
+ *        - 4  - Inputs
+ *        - 5  - Outputs
+ *        - 6  - State Changes
+ *        - 7  - Trace Data
+ *        - 8  - Extension 0
+ *        - 9  - Extension 1
+ *        - 10 - Extension 2
+ *        - 11 - Extension 3
+ *        - 12 - Extension 4
+ *        - 13 - Extension 5
+ *        - 14 - Extension 6
+ *        - 15 - Extension 7
+ *        - 16-18 - Reserved for Future Use
+ *        - 19 - Not Hashed (not part of the block proof merkle tree)
  *
  * #### Forward Compatibility Example
  * A future update adding three new items. A "BlockTrailer" item which is
  * not part of the merkle tree, a new "ConsensusTransform" which is in Consensus Headers,
  * and a new "BridgeTransform" which is in Trace Data.
  * - All three fields are at least 20, so they are additions.
- * - The "BlockTrailer" is field 29.
- * - The "ConsensusTransform" is field 20 (20 modulo 10 is 0, so it is a Consensus Header).
- * - The "BridgeTransform" field is 24 (24 modulo 10 is 4, so it is Trace Data).
+ * - The "BlockTrailer" is field 39 (39 modulo 20 is 19).
+ * - The "ConsensusTransform" is field 23 (23 modulo 20 is 3, so it is a Consensus Header).
+ * - The "BridgeTransform" field is 27 (27 modulo 20 is 7, so it is Trace Data).
  *
  * #### Initial Field assignment to subtree categories.
  * - Consensus Headers
  *    - `event_header`
  *    - `round_header`
  * - Inputs
- *    - `event_transaction`
+ *    - `signed_transaction`
  * - Outputs
  *    - `block_header`
  *    - `transaction_result`
@@ -135,6 +139,7 @@ import "block/stream/output/block_footer.proto";
  * - Any subtree (depending on what was filtered).
  *   This item contains it's path in the tree and must be fully parsed.
  *    - `filtered_single_item`
+ *    - `redacted_item`
  * - No subtree (not hashed directly into the block merkle tree)
  *    - `block_footer` — a container for the first three leaves of the block
  *      root tree (previous block root hash, all block hashes tree root, and

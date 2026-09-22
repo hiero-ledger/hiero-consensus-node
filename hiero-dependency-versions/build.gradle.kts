@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 dependencies {
-    api(platform("io.netty:netty-bom:4.2.4.Final"))
+    api(platform("io.netty:netty-bom:4.2.17.Final"))
 
     // forward logging from modules using SLF4J (e.g. 'org.hyperledger.besu.evm') to Log4J
     runtime("org.apache.logging.log4j:log4j-slf4j2-impl") {
@@ -8,26 +8,28 @@ dependencies {
     }
 }
 
-val besu = "25.2.2"
-val bouncycastle = "1.83"
+val besu = "26.2.0"
+val bouncycastle = "1.85"
 val dagger = "2.59.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.81.0"
-val hederaCryptography = "3.7.8"
-val helidon = "4.4.1"
-val jackson = "2.21.1"
+val hederaCryptography = "3.15.0"
+val helidon = "4.5.0"
+val jackson = "2.22.2"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
-val log4j = "2.25.3"
-val mockito = "5.18.0"
+val log4j = "2.26.0"
+val mockito = "5.23.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
 val prometheusSimpleclient = "0.16.0"
-val protobuf = "4.33.5"
-val blockNodeProtobufSources = "0.30.2"
+val protobuf = "4.34.0"
+val blockNodeProtobufSources = "0.41.0"
 val testContainers = "2.0.3"
-val tuweni = "2.4.2"
+val tuweni = "2.7.2"
+val vertx = "4.5.30"
 val webcompare = "2.1.8"
 
 dependencies.constraints {
+    api("io.netty:netty-codec-http:4.2.17.Final") { because("io.netty.codec.http") }
     api("io.helidon.common:helidon-common:$helidon") { because("io.helidon.common") }
     api("io.helidon.webclient:helidon-webclient:$helidon") { because("io.helidon.webclient") }
     api("io.helidon.webclient:helidon-webclient-grpc:$helidon") {
@@ -43,8 +45,9 @@ dependencies.constraints {
     api("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:$jackson") {
         because("com.fasterxml.jackson.dataformat.yaml")
     }
-    api("com.github.ben-manes.caffeine:caffeine:3.2.0") { because("com.github.benmanes.caffeine") }
-    api("com.github.docker-java:docker-java-api:3.7.0") { because("com.github.dockerjava.api") }
+    api("com.github.ben-manes.caffeine:caffeine:3.2.4") { because("com.github.benmanes.caffeine") }
+    api("com.github.docker-java:docker-java-api:3.7.1") { because("com.github.dockerjava.api") }
+    api("com.github.luben:zstd-jni:1.5.7-16") { because("com.github.luben.zstd_jni") }
     api("com.github.spotbugs:spotbugs-annotations:4.9.8") {
         because("com.github.spotbugs.annotations")
     }
@@ -58,14 +61,14 @@ dependencies.constraints {
     api("com.hedera.pbj:pbj-grpc-helidon:${pbj}") { because("com.hedera.pbj.grpc.helidon") }
     api("com.hedera.pbj:pbj-runtime:$pbj") { because("com.hedera.pbj.runtime") }
     api("com.squareup:javapoet:1.13.0") { because("com.squareup.javapoet") }
-    api("net.java.dev.jna:jna:5.18.1") { because("com.sun.jna") }
+    api("net.java.dev.jna:jna:5.19.0") { because("com.sun.jna") }
     api("com.google.dagger:dagger:$dagger") { because("dagger") }
     api("com.google.dagger:dagger-compiler:$dagger") { because("dagger.compiler") }
     api("io.grpc:grpc-netty:$grpc") { because("io.grpc.netty") }
     api("io.grpc:grpc-protobuf:$grpc") { because("io.grpc.protobuf") }
     api("io.grpc:grpc-stub:$grpc") { because("io.grpc.stub") }
     api("io.grpc:grpc-netty-shaded:$grpc") { because("io.grpc.netty.shaded") }
-    api("com.esaulpaugh:headlong:13.3.0") { because("com.esaulpaugh.headlong") }
+    api("com.esaulpaugh:headlong:13.3.1") { because("com.esaulpaugh.headlong") }
     api("info.picocli:picocli:4.7.7") { because("info.picocli") }
     api("io.github.classgraph:classgraph:4.8.184") { because("io.github.classgraph") }
     api("io.perfmark:perfmark-api:0.27.0") { because("io.perfmark") }
@@ -76,13 +79,13 @@ dependencies.constraints {
     api("io.prometheus:simpleclient_tracer_common:$prometheusSimpleclient") {
         because("simpleclient.tracer.common")
     }
+    api("io.vertx:vertx-core:$vertx") { because("io.vertx.core") }
     api("jakarta.inject:jakarta.inject-api:2.0.1") { because("jakarta.inject") }
     api("javax.inject:javax.inject:1") { because("javax.inject") }
-    api("com.goterl:lazysodium-java:5.2.0") { because("com.goterl.lazysodium") }
     api("net.i2p.crypto:eddsa:0.3.0") { because("net.i2p.crypto.eddsa") }
     api("org.antlr:antlr4-runtime:4.13.2") { because("org.antlr.antlr4.runtime") }
-    api("commons-codec:commons-codec:1.21.0") { because("org.apache.commons.codec") }
-    api("commons-io:commons-io:2.20.0") { because("org.apache.commons.io") }
+    api("commons-codec:commons-codec:1.22.0") { because("org.apache.commons.codec") }
+    api("commons-io:commons-io:2.22.0") { because("org.apache.commons.io") }
     api("org.apache.commons:commons-lang3:3.20.0") { because("org.apache.commons.lang3") }
     api("org.apache.commons:commons-compress:1.28.0") { because("org.apache.commons.compress") }
     api("org.apache.logging.log4j:log4j-api:$log4j") { because("org.apache.logging.log4j") }
@@ -100,11 +103,11 @@ dependencies.constraints {
         because("org.eclipse.collections.impl")
     }
     api("org.hyperledger.besu:besu-datatypes:$besu") { because("org.hyperledger.besu.datatypes") }
-    api("org.hyperledger.besu:evm:$besu") { because("org.hyperledger.besu.evm") }
-    api("org.hyperledger.besu:secp256k1:1.3.0") {
-        because("org.hyperledger.besu.nativelib.secp256k1")
-    }
-    api("org.jetbrains:annotations:26.0.2") { because("org.jetbrains.annotations") }
+    api("org.hyperledger.besu:besu-evm:$besu") { because("org.hyperledger.besu.evm") }
+    api("org.hyperledger.besu:gnark:1.4.2")
+    api("org.hyperledger.besu:secp256r1:1.4.2")
+    api("org.hyperledger.besu:arithmetic:1.4.2")
+    api("org.jetbrains:annotations:26.1.0") { because("org.jetbrains.annotations") }
     api("org.json:json:20250517") { because("org.json") }
     api("org.junit.jupiter:junit-jupiter-api:$junit5") { because("org.junit.jupiter.api") }
     api("org.junit.jupiter:junit-jupiter-engine:$junit5") { because("org.junit.jupiter.engine") }
@@ -113,9 +116,9 @@ dependencies.constraints {
     api("org.mockito:mockito-junit-jupiter:$mockito") { because("org.mockito.junit.jupiter") }
     api("org.opentest4j:opentest4j:1.3.0") { because("org.opentest4j") }
     api("org.testcontainers:testcontainers:$testContainers") { because("org.testcontainers") }
-    api("org.yaml:snakeyaml:2.5") { because("org.yaml.snakeyaml") }
-    api("io.tmio:tuweni-bytes:$tuweni") { because("tuweni.bytes") }
-    api("io.tmio:tuweni-units:$tuweni") { because("tuweni.units") }
+    api("org.yaml:snakeyaml:2.6") { because("org.yaml.snakeyaml") }
+    api("io.consensys.tuweni:tuweni-bytes:$tuweni") { because("tuweni.bytes") }
+    api("io.consensys.tuweni:tuweni-units:$tuweni") { because("tuweni.units") }
     api("uk.org.webcompere:system-stubs-core:$webcompare") {
         because("uk.org.webcompere.systemstubs.core")
     }
@@ -127,6 +130,15 @@ dependencies.constraints {
     }
     api("com.hedera.cryptography:hedera-cryptography-hints:$hederaCryptography") {
         because("com.hedera.cryptography.hints")
+    }
+    api("com.hedera.cryptography:libsodium:$hederaCryptography") {
+        because("com.hedera.cryptography.libsodium")
+    }
+    api("com.hedera.cryptography:libsecp256k1:$hederaCryptography") {
+        because("com.hedera.cryptography.libsecp256k1")
+    }
+    api("com.hedera.cryptography:libxkcp:$hederaCryptography") {
+        because("com.hedera.cryptography.libxkcp")
     }
 
     // Versions of additional tools that are not part of the product or test module paths

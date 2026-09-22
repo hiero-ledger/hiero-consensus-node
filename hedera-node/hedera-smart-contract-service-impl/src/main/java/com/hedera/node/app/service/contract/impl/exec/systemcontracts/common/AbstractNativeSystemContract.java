@@ -9,7 +9,9 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CallType.UNQUALIFIED_DELEGATE;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hederaConfigOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static com.hedera.node.app.service.contract.impl.utils.SystemContractUtils.contractFunctionResultFailedFor;
@@ -17,6 +19,7 @@ import static com.hedera.node.app.service.contract.impl.utils.SystemContractUtil
 import static com.hedera.node.app.service.contract.impl.utils.SystemContractUtils.txResultFailedFor;
 import static com.hedera.node.app.service.contract.impl.utils.SystemContractUtils.txSuccessResultOf;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static java.util.Objects.requireNonNull;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INVALID_OPERATION;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.PRECOMPILE_ERROR;
@@ -33,6 +36,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemC
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.data.BlockStreamConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -79,8 +83,15 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
         final Call call;
         AbstractCallAttempt<?> attempt = null;
         try {
-            validateTrue(input.size() >= FUNCTION_SELECTOR_LENGTH, INVALID_TRANSACTION_BODY);
+            // Input boundary size validation.
+            // With "input <= transactionMaxBytes()" we ensure nobody can send a huge input for parsing or execution,
+            // because parsing or execution can happen before any rejection, e.g. by gas or function param length.
+            validateTrue(
+                    input.size() >= FUNCTION_SELECTOR_LENGTH
+                            && input.size() <= hederaConfigOf(frame).transactionMaxBytes(),
+                    INVALID_TRANSACTION_BODY);
             attempt = callFactory.createCallAttemptFrom(contractID, input, callType, frame);
+            // check if the calldata size of the call to
             call = attempt.asExecutableCall();
             if (call == null) {
                 return successResult(Bytes.EMPTY, 0);
@@ -127,20 +138,26 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
             final var insufficientGas = frame.getRemainingGas() < gasRequirement;
             final var dispatchedRecordBuilder = pricedResult.fullResult().recordBuilder();
             if (dispatchedRecordBuilder != null) {
+                // (FUTURE) Remove after switching to block stream — BlockStreamBuilder doesn't support
+                // contractCallResult.
+                final var streamMode =
+                        configOf(frame).getConfigData(BlockStreamConfig.class).streamMode();
                 if (insufficientGas) {
                     dispatchedRecordBuilder.status(INSUFFICIENT_GAS);
                     final var callData = tuweniToPbjBytes(input);
-                    dispatchedRecordBuilder
-                            .contractCallResult(pricedResult.asResultOfInsufficientGasRemaining(
-                                    attempt.senderId(), contractID, callData, frame.getRemainingGas()))
-                            .evmCallTransactionResult(pricedResult.txAsResultOfInsufficientGasRemaining(
-                                    attempt.senderId(), contractID, callData, frame.getRemainingGas()));
+                    if (streamMode != BLOCKS) {
+                        dispatchedRecordBuilder.contractCallResult(pricedResult.asResultOfInsufficientGasRemaining(
+                                attempt.senderId(), contractID, callData, frame.getRemainingGas()));
+                    }
+                    dispatchedRecordBuilder.evmCallTransactionResult(pricedResult.txAsResultOfInsufficientGasRemaining(
+                            attempt.senderId(), contractID, callData, frame.getRemainingGas()));
                 } else {
-                    dispatchedRecordBuilder
-                            .contractCallResult(pricedResult.asResultOfCall(
-                                    attempt.senderId(), contractID, tuweniToPbjBytes(input), frame.getRemainingGas()))
-                            .evmCallTransactionResult(pricedResult.txAsResultOfCall(
-                                    attempt.senderId(), contractID, tuweniToPbjBytes(input), frame.getRemainingGas()));
+                    if (streamMode != BLOCKS) {
+                        dispatchedRecordBuilder.contractCallResult(pricedResult.asResultOfCall(
+                                attempt.senderId(), contractID, tuweniToPbjBytes(input), frame.getRemainingGas()));
+                    }
+                    dispatchedRecordBuilder.evmCallTransactionResult(pricedResult.txAsResultOfCall(
+                            attempt.senderId(), contractID, tuweniToPbjBytes(input), frame.getRemainingGas()));
                 }
             } else if (pricedResult.isViewCall()) {
                 final var proxyWorldUpdater = proxyUpdaterFor(frame);
@@ -195,7 +212,7 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
 
     private void reportToMetrics(@NonNull final Call call, @NonNull final FullResult fullResult) {
         contractMetrics.incrementSystemMethodCall(
-                call.getSystemContractMethod(), fullResult.result().getState());
+                call.getSystemContractMethod(), fullResult.result().state());
     }
 
     private static void externalizeFailure(
@@ -216,7 +233,9 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
                         txResultFailedFor(attempt.senderId(), output, gasRequirement, status.toString(), contractID));
     }
 
-    // potentially other cases could be handled here if necessary
+    // potentially other cases could be handled here if necessary; a re-thrown exception is
+    // resolved by FrameRunner as an exceptional halt of the whole EVM transaction that
+    // preserves the exception's status
     private static FullResult haltHandleException(
             @NonNull final HandleException handleException, final long remainingGas) {
         if (handleException.getStatus().equals(MAX_CHILD_RECORDS_EXCEEDED)) {

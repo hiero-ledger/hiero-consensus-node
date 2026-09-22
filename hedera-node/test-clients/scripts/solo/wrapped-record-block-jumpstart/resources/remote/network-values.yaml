@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Solo network-deploy value overrides for the REMOTE multi-tenant cluster (e.g. solo-sdlt-n6).
+#
+# Scheduling: every worker node carries a taint solo.hashgraph.io/{role,owner,network-id}. We add
+# Exists tolerations so our pods are allowed onto any of them. We deliberately do NOT set a
+# nodeSelector: unlike the CITR perf controller, this jumpstart runs no node allocation/labeling
+# step, so no node carries matching owner/network-id *labels* — a nodeSelector would leave every pod
+# Pending ("didn't match Pod's node affinity/selector"). Tolerations alone let the scheduler place
+# pods on any tolerated worker with capacity.
+#
+# Storage: the cluster has no default StorageClass and MinIO defaults to a non-existent "standard"
+# class, so we pin MinIO to "local-path". Consensus nodes deploy with --pvcs false (emptyDir), so
+# they need no StorageClass for a single short jumpstart run.
+#
+# Resources are right-sized for a lightweight records-mode jumpstart (NOT the 256Gi perf profile).
+
+defaults:
+  root:
+    resources:
+      requests:
+        cpu: "1"
+        memory: 4Gi
+      limits:
+        cpu: "8"
+        memory: 16Gi
+
+deployment:
+  tolerations: &soloTolerations
+    - key: "solo.hashgraph.io/role"
+      operator: "Exists"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/owner"
+      operator: "Exists"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/network-id"
+      operator: "Exists"
+      effect: "NoSchedule"
+
+haproxyDeployment:
+  tolerations: *soloTolerations
+
+envoyDeployment:
+  tolerations: *soloTolerations
+
+minio-server:
+  tenant:
+    pools:
+      - servers: 1
+        name: pool-1
+        volumesPerServer: 1
+        size: 50Gi
+        storageClassName: local-path
+        tolerations: *soloTolerations

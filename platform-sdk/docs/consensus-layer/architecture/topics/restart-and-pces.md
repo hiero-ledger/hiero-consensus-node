@@ -1,0 +1,187 @@
+---
+type: architecture-topic
+title: Restart and PCES
+last_reviewed: 2026-08-12
+---
+
+# Restart and PCES
+
+## Responsibilities
+
+This topic owns the preconsensus event stream (PCES) — how the platform persists every validated event in topological
+order so the in-memory hashgraph can be rebuilt after a crash, how PCES files are replayed at restart, and the offline
+procedure for recovering from a network-wide ISS by replaying PCES on top of a known-good signed state.
+
+Owns:
+
+- The PCES write path and its durability model.
+- The persisted-before-observed invariant for consensus, gossip, and parent selection.
+- Restart-time replay of PCES files into the intake pipeline.
+- The offline ISS-recovery procedure (replay-on-top-of-state, dump fixed state to disk).
+
+Does not own:
+
+- Online recovery from falling behind — see `reconnect.md`.
+- Freeze and upgrade orchestration — see `freeze-and-upgrade.md`.
+- On-disk signed-state layout and lifecycle — see `signed-state-management.md`.
+
+## Write path
+
+PCES exists so that consensus can recover its in-memory state after a crash. Events live in the hashgraph in memory; if
+every node in the network crashes simultaneously, every node loses every non-ancient event it has not yet written down.
+Replaying PCES at startup is what rebuilds the hashgraph so consensus can resume. For this to work, PCES must persist
+every validated, deduplicated event in topological order — not only self-events. The writer's input is the event-intake
+module's validated-events output (`ConsensusLayerWiring.java#wireEventIntakeOutputs`), so every event that survives intake validation is
+written.
+
+The writer is synchronous: it accepts a `PlatformEvent` on its input wire and emits the same event on its output wire
+only after the write completes. The interface is `InlinePcesWriter` (
+`platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/writer/InlinePcesWriter.java`); the
+default implementation is `DefaultInlinePcesWriter` (
+`platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/writer/DefaultInlinePcesWriter.java#writeEvent`).
+`writeEvent` writes the event to the current mutable file unconditionally; the
+underlying file writer is either a `PcesFileChannelWriter` (Linux default) or `PcesOutputStreamFileWriter` (macOS
+default, where `FileChannel` is ~150× slower).
+
+### Persisted-before-observed (consensus, gossip, parent selection)
+
+No downstream component sees an event before the writer has written it. The writer's output wire is soldered to
+consensus, gossip, and the event creator's parent-selection input:
+
+```text
+// platform-sdk/swirlds-platform-core/src/main/java/org/hiero/consensus/ConsensusLayerWiring.java#wirePcesOutputs
+// Make sure that an event is persisted before being sent to consensus. This avoids the situation where we
+// reach consensus with events that might be lost due to a crash
+writtenEventOutputWire.solderTo(buildingBlocks.hashgraphModule().eventInputWire());
+
+// Make sure events are persisted before being gossipped. This prevents accidental branching in the case
+// where an event is created, gossipped, and then the node crashes before the event is persisted.
+// After restart, a node will not be aware of this event, so it can create a branch
+writtenEventOutputWire.solderTo(buildingBlocks.gossipModule().eventToGossipInputWire(), INJECT);
+
+// Avoid using events as parents before they are persisted
+writtenEventOutputWire.solderTo(buildingBlocks.eventCreatorModule().orderedEventInputWire());
+```
+
+The general guarantee applies to every event: consensus never observes an event whose write has not returned. Applied
+specifically to self-events on the gossip path, the same guarantee also serves an anti-branching role. If a node
+gossiped a self-event and crashed before it was written, on restart the node would not know the event existed and could
+build a new self-event on the same self-parent — a hashgraph branch (a Byzantine fault; see
+[`../../concepts/branching.md`](../../concepts/branching.md)). Persisting self-events before they reach gossip eliminates that gap.
+
+The `OBSERVING` status provides a secondary defense against branching in case PCES data is lost from disk: a restarting
+node gossips without creating events for a window, giving it time to relearn any of its own self-events that the network
+still holds. Under normal operation, the inline write keeps every gossipped self-event on local disk, so this fallback is
+not exercised. For the status mechanics see [`platform-status.md`](platform-status.md); for why the status is retained
+despite the PCES guarantee, see [ADR-004](../../decisions/ADR-004-retain-observing-status-for-self-event-recovery.md).
+
+### Durability model
+
+"Persisted" here means the event's bytes have been handed to the OS, not that `fsync()` has returned. The
+`event.preconsensus.inlinePcesSyncOption` config (
+`platform-sdk/consensus-pces/src/main/java/org/hiero/consensus/pces/config/PcesConfig.java#inlinePcesSyncOption`, enum at
+`platform-sdk/consensus-pces/src/main/java/org/hiero/consensus/pces/config/FileSyncOption.java#EVERY_SELF_EVENT`) defaults to
+`DONT_SYNC` (TUN-129): no `fsync()` is forced per event (dispatch at `DefaultInlinePcesWriter.java#writeEvent`). `EVERY_EVENT`
+and `EVERY_SELF_EVENT` are available as alternatives but are not the production defaults.
+
+Where the bytes sit when `writeEvent` returns depends on which file writer is configured:
+
+- `PcesFileChannelWriter` (Linux default, TUN-130) issues a `FileChannel.write` per event (
+  `PcesFileChannelWriter.java#flipWriteClear`). The bytes are in the kernel page cache before `writeEvent` returns.
+- `PcesOutputStreamFileWriter` (macOS default, TUN-131) writes into a `BufferedOutputStream` and does not flush (
+  `PcesOutputStreamFileWriter.java#writeEvent`). The most recently written events stay in JVM heap until the buffer
+  fills.
+
+A JVM shutdown hook, registered in the `DefaultInlinePcesWriter` constructor (
+`platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/writer/DefaultInlinePcesWriter.java#destroy`),
+runs `sync()` followed by `close()` on the current file (`CommonPcesWriter.java#destroy`) when the JVM exits. Under
+graceful shutdown — `SIGTERM`, `System.exit`, normal exit — this flushes both buffers before the process terminates.
+
+The residual failure modes are therefore not the same on both paths:
+
+- **On the `FILE_CHANNEL` path, process death alone loses nothing.** The shutdown hook does not run under `SIGKILL`,
+  but the page cache belongs to the kernel, not the dying process, so a restarting node reads back every event the
+  writer emitted. Only loss of host power or a kernel panic drops un-`fsync`ed bytes. This risk is accepted: no event
+  loss in this window leads to an unrecoverable network state, including the loss of a keystone event — a network-wide
+  loss of an in-flight keystone is recoverable.
+- **On the `OUTPUT_STREAM` path, `SIGKILL` loses whatever is still in the JVM buffer**, which can include self-events
+  already handed to gossip — the branching hazard that the [persisted-before-observed](#persisted-before-observed-consensus-gossip-parent-selection)
+  ordering exists to prevent. This path is not the production default.
+
+## Restart sequence
+
+Restart has two phases. State load and replay-bound derivation happen in `PlatformBuilder.build()`, before
+`SwirldsPlatform.start()` is called. Replay, then the enabling of gossip and event creation, happens inside `start()`.
+
+1. **Load the initial signed state.** The application supplies the initial state to `PlatformBuilder`, which reads it
+   during `build()` (
+   `platform-sdk/swirlds-platform-core/src/main/java/com/swirlds/platform/builder/PlatformBuilder.java#build` —
+   `initialState.get()`).
+2. **Derive replay bounds from the loaded state.** `startingRound` is set to the loaded state's last consensus round (
+   `initialSignedState.getRound()`) and the replay lower bound to its initial ancient threshold (`ancientThresholdOf(...)`);
+   both are passed to the `SwirldsPlatform` constructor. For a genesis start, both are 0.
+3. **Bring up core platform components.** `start()` brings up the recycle bin, metrics, and the wiring model (
+   `SwirldsPlatform.java#start`).
+4. **Replay PCES.** `buildingBlocks.pcesModule().replayPcesEvents(initialAncientThreshold, startingRound)` runs the
+   replay synchronously; control does not return until replay is done. See [Replay](#replay) for details.
+5. **Start gossip; event creation remains off.** Only after replay completes does
+   `buildingBlocks.gossipModule().startInputWire().inject(NoInput.getInstance())` run.
+   Neither gossip nor event creation observes a partially-replayed state: gossip because it is started here, and event
+   creation because it is gated on platform status. See [`event-creator.md`](event-creator.md#permission-gates) (the
+   `PlatformStatusRule` gate) for the gating details.
+
+## Replay
+
+PCES replay reuses the platform's normal intake pipeline; the only difference at replay time is that events come from
+on-disk PCES files rather than gossip.
+
+- **Entry point.** `PcesModule.replayPcesEvents(lowerBound, startingRound)` (
+  `platform-sdk/consensus-pces/src/main/java/org/hiero/consensus/pces/PcesModule.java#replayPcesEvents`); the default implementation
+  in `DefaultPcesModule.replayPcesEvents` (
+  `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/DefaultPcesModule.java#initialize`) delegates
+  to `PcesCoordinator.replayPcesEvents` (
+  `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/PcesCoordinator.java#replayPcesEvents`).
+- **Read side.** `PcesFileTracker.getEventIterator(...)` (
+  `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/common/PcesFileTracker.java#getEventIterator`) opens
+  an iterator over the PCES files for the requested round window. The coordinator injects this iterator into the
+  replayer's input wire.
+- **Emit side.** `PcesReplayer.replayPces(...)` (
+  `platform-sdk/consensus-pces-impl/src/main/java/org/hiero/consensus/pces/impl/replayer/PcesReplayer.java#replayPces`) drives
+  the iterator and forwards each event onto its output wire; from there the event flows
+  through the same intake pipeline that gossip-delivered events use.
+- **Backpressure.** The replay loop calls `waitUntilHealthy()` (`PcesReplayer.java#waitUntilHealthy`)
+  before emitting, blocking when the wiring model reports an unhealthy duration above `replayHealthThreshold` (
+  `PcesConfig.java#replayHealthThreshold`). Because the iterator is lazy — `PcesMultiFileIterator` opens the next file only when the
+  current one is exhausted (`PcesMultiFileIterator.java#findNext`), and `PcesFileIterator` reads one event at a time from a
+  `BufferedInputStream` (`PcesFileIterator.java#PcesFileIterator`, `PcesFileIterator.java#findNext`) — files are read just in time. While
+  `waitUntilHealthy()` blocks, the iterator does not advance, no further events are read, and no new files are opened;
+  read-side throughput is throttled implicitly by the emit-side block. See `health-monitor-and-backpressure.md` for the
+  health-monitor mechanism.
+
+## Consensus initialization and the init-judge gate
+
+Replay (above) feeds events back through the consensus algorithm, but many of them already reached consensus in the run
+that produced the signed state being loaded — their transactions are already reflected in that state. Re-emitting those
+rounds would corrupt the resulting state, and even if the application detected and dropped the duplicates, recomputing
+them is wasted work.
+
+To prevent that, consensus emits no rounds during initialization until the snapshot round's judges have been replayed,
+then marks the events they already decided as consensus *without* emitting them — so no round that fed the loaded state
+flows out of the hashgraph a second time (upholding INV-008). The gate lives in the consensus algorithm, not in PCES;
+its mechanics are detailed in [`hashgraph.md`](hashgraph.md#algorithm-in-current-code) under *Init-judge gate*.
+
+## Offline ISS recovery
+
+A network-wide ISS that prevents progress is resolved offline by replaying PCES on top of a known-good signed state
+from before the divergence and distributing the resulting fixed state to all nodes. The platform does not carry a
+built-in entry point for this; a one-off driver is written at the moment of need. See ADR-003 for the decision, the
+recipe any driver must follow, and the record/block-file coordination with the execution team.
+
+## Cross-references
+
+- **Topics:** `hashgraph.md`, `signed-state-management.md`, `reconnect.md`, `freeze-and-upgrade.md`, `event-creator.md`,
+  `event-intake.md`, `health-monitor-and-backpressure.md`.
+- **Source docs:** `../../../core/inlinePces/inlinePces.md`, `../../../core/pces-disaster-recovery.md`.
+- **Invariants:** INV-008 — consensus, once reached, is permanent; INV-005 — every honest event eventually reaches consensus or becomes stale.
+- **Decisions:** ADR-003 (offline ISS recovery is performed via an on-the-spot driver, not a built-in method).
+- **Scenarios:** [TBD: SCN-NNN — ISS-recovery is a likely seed scenario].

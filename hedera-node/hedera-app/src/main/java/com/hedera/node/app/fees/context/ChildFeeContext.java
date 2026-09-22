@@ -1,22 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees.context;
 
-import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.FeeManager;
-import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
@@ -45,6 +38,9 @@ public class ChildFeeContext implements FeeContext {
     private final AppKeyVerifier verifier;
 
     private final int signatureMapSize;
+    // The number of signatures to charge for when there is no verifier to consult (e.g. an externally
+    // supplied signature map, as with the HSS signSchedule(address,bytes) system contract call).
+    private final int signatureCount;
     private final HederaFunctionality functionality;
 
     public ChildFeeContext(
@@ -58,6 +54,7 @@ public class ChildFeeContext implements FeeContext {
             @NonNull final Instant consensusNow,
             @Nullable final AppKeyVerifier verifier,
             final int signatureMapSize,
+            final int signatureCount,
             @NonNull final HederaFunctionality functionality) {
         this.feeManager = requireNonNull(feeManager);
         this.context = requireNonNull(context);
@@ -69,6 +66,7 @@ public class ChildFeeContext implements FeeContext {
         this.consensusNow = requireNonNull(consensusNow);
         this.verifier = verifier;
         this.signatureMapSize = signatureMapSize;
+        this.signatureCount = signatureCount;
         this.functionality = requireNonNull(functionality);
     }
 
@@ -80,30 +78,6 @@ public class ChildFeeContext implements FeeContext {
     @Override
     public @NonNull TransactionBody body() {
         return body;
-    }
-
-    private @NonNull FeeCalculator createFeeCalculator(@NonNull final SubType subType) {
-        try {
-            return feeManager.createFeeCalculator(
-                    body,
-                    getPayerKey(),
-                    functionOf(body),
-                    numTxnSignatures(),
-                    signatureMapSize,
-                    consensusNow,
-                    subType,
-                    computeFeesAsInternalDispatch,
-                    storeFactory);
-        } catch (UnknownHederaFunctionality e) {
-            throw new IllegalStateException(
-                    "Child fee context was constructed with invalid transaction body " + body, e);
-        }
-    }
-
-    @NonNull
-    @Override
-    public FeeCalculatorFactory feeCalculatorFactory() {
-        return this::createFeeCalculator;
     }
 
     @Override
@@ -133,7 +107,7 @@ public class ChildFeeContext implements FeeContext {
 
     @Override
     public int numTxnSignatures() {
-        return verifier == null ? 0 : verifier.numSignaturesVerified();
+        return verifier == null ? signatureCount : verifier.numSignaturesVerified();
     }
 
     @Override
@@ -144,23 +118,6 @@ public class ChildFeeContext implements FeeContext {
     @Override
     public Fees dispatchComputeFees(@NonNull final TransactionBody txBody, @NonNull final AccountID syntheticPayerId) {
         return context.dispatchComputeFees(txBody, syntheticPayerId);
-    }
-
-    /**
-     * Determines which key to use for fee calculations.
-     * <p>
-     * For regular transactions and batch inner transactions, we need the payer's actual key
-     * to properly calculate fees.
-     * <p>
-     * When processing as an internal dispatch (synthetic operation), we use a default key
-     * since normal fee calculation rules don't apply.
-     *
-     * @return the payer's actual key, or {@code Key.DEFAULT} if this is an internal dispatch or
-     * the payer account can't be found
-     */
-    private Key getPayerKey() {
-        final var account = context.readableStore(ReadableAccountStore.class).getAccountById(payerId);
-        return computeFeesAsInternalDispatch || account == null ? Key.DEFAULT : account.keyOrThrow();
     }
 
     public ExchangeRate activeRate() {

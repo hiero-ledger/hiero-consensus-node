@@ -5,6 +5,7 @@ module org.hiero.metrics {
 
     exports org.hiero.metrics;
     exports org.hiero.metrics.core;
+    exports org.hiero.metrics.export;
 
     requires static transitive com.swirlds.config.api;
     requires static transitive com.github.spotbugs.annotations;

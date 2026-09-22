@@ -18,12 +18,12 @@ public final class InvalidAddressContext {
      * See: {@link ActionStack}.
      */
     public enum InvalidAddressType {
-        InvalidCallTarget,
-        NonCallTarget,
+        INVALID_CALL_TARGET,
+        NON_CALL_TARGET,
     }
 
     private Address culpritAddress = Address.ZERO;
-    private InvalidAddressType type = InvalidAddressType.NonCallTarget;
+    private InvalidAddressType type = InvalidAddressType.NON_CALL_TARGET;
 
     public void set(@NonNull final Address culpritAddress, @NonNull final InvalidAddressType type) {
         this.culpritAddress = requireNonNull(culpritAddress);

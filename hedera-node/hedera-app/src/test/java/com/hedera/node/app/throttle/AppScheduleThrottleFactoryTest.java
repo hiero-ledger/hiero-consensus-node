@@ -5,9 +5,14 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -78,6 +83,9 @@ class AppScheduleThrottleFactoryTest {
     private DeterministicThrottle lastThrottle;
 
     @Mock
+    private DeterministicThrottle highVolumeThrottle;
+
+    @Mock
     private LeakyBucketDeterministicThrottle gasThrottle;
 
     @Mock
@@ -129,5 +137,82 @@ class AppScheduleThrottleFactoryTest {
         given(gasThrottle.usageSnapshot()).willReturn(FAKE_SNAPSHOTS.gasThrottleOrThrow());
         given(opsDurationThrottle.usageSnapshot()).willReturn(FAKE_SNAPSHOTS.evmOpsDurationThrottleOrThrow());
         assertEquals(FAKE_SNAPSHOTS, throttle.usageSnapshots());
+    }
+
+    @Test
+    void throwsWhenSnapshotCountIsFewerThanThrottles() {
+        given(throttleAccumulatorFactory.newThrottleAccumulator(
+                        eq(config), argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR), eq(BACKEND_THROTTLE)))
+                .willReturn(throttleAccumulator);
+        // Two active throttles but only one usage snapshot: the legacy positional loop would throw
+        // IndexOutOfBoundsException mid-restore; we now fail fast before mutating any throttle.
+        given(throttleAccumulator.allActiveThrottlesIncludingHighVolume())
+                .willReturn(List.of(firstThrottle, lastThrottle));
+        given(throttleAccumulator.allActiveThrottles()).willReturn(List.of(firstThrottle, lastThrottle));
+        final var oneSnapshot = new ThrottleUsageSnapshots(
+                List.of(new ThrottleUsageSnapshot(1L, new Timestamp(234567, 8))),
+                ThrottleUsageSnapshot.DEFAULT,
+                ThrottleUsageSnapshot.DEFAULT);
+
+        final var e =
+                assertThrows(IllegalStateException.class, () -> subject.newScheduleThrottle(SPLIT_FACTOR, oneSnapshot));
+        assertTrue(e.getMessage().contains("1 usage snapshots"));
+        assertTrue(e.getMessage().contains("2 active throttles"));
+        verify(firstThrottle, never()).resetUsageTo(any());
+        verify(lastThrottle, never()).resetUsageTo(any());
+    }
+
+    @Test
+    void throwsWhenSnapshotCountExceedsThrottles() {
+        given(throttleAccumulatorFactory.newThrottleAccumulator(
+                        eq(config), argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR), eq(BACKEND_THROTTLE)))
+                .willReturn(throttleAccumulator);
+        // One active throttle but two usage snapshots: the trailing snapshot would previously be
+        // dropped silently (usage lost -> throttle under-count); we now fail fast so the caller rebuilds.
+        given(throttleAccumulator.allActiveThrottlesIncludingHighVolume()).willReturn(List.of(firstThrottle));
+        given(throttleAccumulator.allActiveThrottles()).willReturn(List.of(firstThrottle));
+
+        final var e = assertThrows(
+                IllegalStateException.class, () -> subject.newScheduleThrottle(SPLIT_FACTOR, FAKE_SNAPSHOTS));
+        assertTrue(e.getMessage().contains("2 usage snapshots"));
+        assertTrue(e.getMessage().contains("1 active throttles"));
+        verify(firstThrottle, never()).resetUsageTo(any());
+    }
+
+    @Test
+    void restoresNormalThrottlesForLegacySnapshots() {
+        given(throttleAccumulatorFactory.newThrottleAccumulator(
+                        eq(config), argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR), eq(BACKEND_THROTTLE)))
+                .willReturn(throttleAccumulator);
+        // Legacy snapshots contain only the normal TPS throttles; the guard must compare against the
+        // selected (normal) list size, not the larger including-high-volume size, and not falsely trip.
+        given(throttleAccumulator.allActiveThrottlesIncludingHighVolume())
+                .willReturn(List.of(firstThrottle, lastThrottle, highVolumeThrottle));
+        given(throttleAccumulator.allActiveThrottles()).willReturn(List.of(firstThrottle, lastThrottle));
+        given(throttleAccumulator.gasLimitThrottle()).willReturn(gasThrottle);
+
+        subject.newScheduleThrottle(SPLIT_FACTOR, FAKE_SNAPSHOTS);
+
+        verify(firstThrottle).resetUsageTo(FAKE_SNAPSHOTS.tpsThrottles().getFirst());
+        verify(lastThrottle).resetUsageTo(FAKE_SNAPSHOTS.tpsThrottles().getLast());
+        verify(highVolumeThrottle, never()).resetUsageTo(any());
+        verify(gasThrottle).resetUsageTo(FAKE_SNAPSHOTS.gasThrottleOrThrow());
+    }
+
+    @Test
+    void propagatesWhenSnapshotContentIsIncompatible() {
+        given(throttleAccumulatorFactory.newThrottleAccumulator(
+                        eq(config), argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR), eq(BACKEND_THROTTLE)))
+                .willReturn(throttleAccumulator);
+        given(throttleAccumulator.allActiveThrottlesIncludingHighVolume())
+                .willReturn(List.of(firstThrottle, lastThrottle));
+        // Counts match, but restoring a snapshot fails (e.g. used exceeds the throttle's capacity after a
+        // same-size bucket replacement). The exception must propagate so the caller rebuilds and replays;
+        // we deliberately do not swallow it and reset to zero usage.
+        willThrow(new IllegalArgumentException("usage exceeds capacity"))
+                .given(lastThrottle)
+                .resetUsageTo(any());
+
+        assertThrows(IllegalArgumentException.class, () -> subject.newScheduleThrottle(SPLIT_FACTOR, FAKE_SNAPSHOTS));
     }
 }

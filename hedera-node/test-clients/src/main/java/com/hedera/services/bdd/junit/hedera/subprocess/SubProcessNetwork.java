@@ -881,4 +881,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     public Map<Long, List<String>> getApplicationPropertyOverrides() {
         return applicationPropertyOverrides;
     }
+
+    public Map<NodeId, KeysAndCerts> getNodeKeys() {
+        return nodeKeys;
+    }
 }

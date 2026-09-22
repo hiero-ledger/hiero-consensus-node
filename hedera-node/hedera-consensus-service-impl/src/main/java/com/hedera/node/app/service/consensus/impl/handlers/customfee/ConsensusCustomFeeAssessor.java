@@ -17,7 +17,6 @@ import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
@@ -35,16 +34,17 @@ public class ConsensusCustomFeeAssessor {
     }
 
     /**
-     * Constructs a map of synthetic crypto transfer transaction bodies.
-     * Each entry in the map represents a custom fee payment, with one transaction body per custom fee.
+     * Builds a synthetic crypto transfer body for each custom fee, one entry per fee.
+     * Returns a list (not a map) so identical duplicate fees are not collapsed: two equal
+     * {@link FixedCustomFee} entries would map to the same key, dropping one charge.
      *
      * @param customFees List of custom fees to be charged
      * @param payer The payer Account ID
-     * @return A map where each key is a FixedCustomFee and each value is a corresponding CryptoTransferTransactionBody.
+     * @return One (fee, CryptoTransferTransactionBody) pair per custom fee, preserving duplicates.
      */
-    public Map<FixedCustomFee, CryptoTransferTransactionBody> assessCustomFee(
+    public List<Map.Entry<FixedCustomFee, CryptoTransferTransactionBody>> assessCustomFee(
             @NonNull final List<FixedCustomFee> customFees, @NonNull final AccountID payer) {
-        final Map<FixedCustomFee, CryptoTransferTransactionBody> transactionBodies = new HashMap<>();
+        final List<Map.Entry<FixedCustomFee, CryptoTransferTransactionBody>> transactionBodies = new ArrayList<>();
 
         // build crypto transfer bodies for the first layer of custom fees,
         // if there is a second or third layer it will be assessed in crypto transfer handler
@@ -65,7 +65,7 @@ public class ConsensusCustomFeeAssessor {
                     .transfers(hbarTransfers.build())
                     .tokenTransfers(tokenTransfers);
 
-            transactionBodies.put(fee, syntheticBodyBuilder.build());
+            transactionBodies.add(Map.entry(fee, syntheticBodyBuilder.build()));
         }
 
         return transactionBodies;

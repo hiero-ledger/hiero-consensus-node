@@ -9,20 +9,12 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.test.fixtures.roster.RosterServiceStateMock;
-import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.state.spi.ReadableStates;
 import java.security.cert.CertificateEncodingException;
 import java.util.List;
-import java.util.Random;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.platformstate.PlatformStateService;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
 import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 public class RosterUtilsTest {
 
@@ -146,63 +138,6 @@ public class RosterUtilsTest {
                                         .build()))
                                 .build(),
                         0));
-    }
-
-    @Test
-    void testCreateRosterHistory() {
-        final Random random = new Random();
-        final VirtualMapState state = Mockito.mock(VirtualMapState.class);
-        final ReadableStates readableStates = Mockito.mock(ReadableStates.class);
-        Mockito.when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(readableStates);
-
-        final Roster currentRoster =
-                RandomRosterBuilder.create(random).withSize(4).build();
-        final Roster previousRoster =
-                RandomRosterBuilder.create(random).withSize(3).build();
-        RosterServiceStateMock.setup(state, currentRoster, 16L, previousRoster);
-
-        final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
-        assertEquals(previousRoster, rosterHistory.getPreviousRoster());
-        assertEquals(currentRoster, rosterHistory.getCurrentRoster());
-    }
-
-    @Test
-    void testCreateRosterHistoryVerifyRound() {
-        final Random random = RandomUtils.getRandomPrintSeed();
-        final VirtualMapState state = Mockito.mock(VirtualMapState.class);
-        final Roster currentRoster =
-                RandomRosterBuilder.create(random).withSize(4).build();
-        final Roster previousRoster =
-                RandomRosterBuilder.create(random).withSize(3).build();
-        RosterServiceStateMock.setup(state, currentRoster, 16L, previousRoster);
-
-        final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
-        assertEquals(currentRoster, rosterHistory.getCurrentRoster());
-        assertEquals(previousRoster, rosterHistory.getPreviousRoster());
-
-        assertEquals(currentRoster, rosterHistory.getRosterForRound(16));
-        assertEquals(currentRoster, rosterHistory.getRosterForRound(18));
-        assertEquals(currentRoster, rosterHistory.getRosterForRound(100));
-        assertEquals(currentRoster, rosterHistory.getRosterForRound(Integer.MAX_VALUE));
-        assertEquals(previousRoster, rosterHistory.getRosterForRound(15));
-        assertEquals(previousRoster, rosterHistory.getRosterForRound(0));
-        assertNull(rosterHistory.getRosterForRound(-1));
-    }
-
-    @Test
-    void testCreateRosterHistoryNoActiveRosters() {
-        final VirtualMapState state = Mockito.mock(VirtualMapState.class);
-        Mockito.when(state.getReadableStates(RosterStateId.SERVICE_NAME)).thenReturn(null);
-
-        assertThrows(NullPointerException.class, () -> RosterStateUtils.createRosterHistory(state));
-    }
-
-    @Test
-    void testCreateRosterHistoryNoRosters() {
-        final VirtualMapState state = Mockito.mock(VirtualMapState.class);
-        RosterServiceStateMock.setup(state, null, 16L, null);
-
-        assertThrows(IllegalArgumentException.class, () -> RosterStateUtils.createRosterHistory(state));
     }
 
     @Test

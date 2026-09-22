@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import java.lang.management.ManagementFactory
+import org.hiero.gradle.environment.EnvAccess
 
 plugins {
     id("org.hiero.gradle.module.application")
@@ -9,48 +11,71 @@ plugins {
 description = "Hedera Services Test Clients for End to End Tests (EET)"
 
 // Detect available resources and scale JVM settings accordingly
-val availableCpus = Runtime.getRuntime().availableProcessors()
-val totalMemoryGib: Double =
-    try {
-        val osName = System.getProperty("os.name", "").lowercase()
-        if (osName.contains("linux")) {
-            // Try cgroup limit first (container-aware), fall back to /proc/meminfo
-            val cgroupV2 = File("/sys/fs/cgroup/memory.max")
-            val cgroupV1 = File("/sys/fs/cgroup/memory/memory.limit_in_bytes")
-            val cgroupBytes: Long? =
-                when {
-                    cgroupV2.exists() -> cgroupV2.readText().trim().toLongOrNull()
-                    cgroupV1.exists() -> cgroupV1.readText().trim().toLongOrNull()
-                    else -> null
+class TestResourceArgumentsProvider : CommandLineArgumentProvider {
+    override fun asArguments(): Iterable<String> {
+        val logger =
+            org.slf4j.LoggerFactory.getLogger(TestResourceArgumentsProvider::class.java) as Logger
+        val availableCpus = Runtime.getRuntime().availableProcessors()
+        val totalMemoryGib: Double =
+            try {
+                val osName = System.getProperty("os.name", "").lowercase()
+                if (osName.contains("linux")) {
+                    // Try cgroup limit first (container-aware), fall back to /proc/meminfo
+                    val cgroupV2 = File("/sys/fs/cgroup/memory.max")
+                    val cgroupV1 = File("/sys/fs/cgroup/memory/memory.limit_in_bytes")
+                    val cgroupBytes: Long? =
+                        when {
+                            cgroupV2.exists() -> cgroupV2.readText().trim().toLongOrNull()
+                            cgroupV1.exists() -> cgroupV1.readText().trim().toLongOrNull()
+                            else -> null
+                        }
+                    if (cgroupBytes != null && cgroupBytes < Long.MAX_VALUE / 2) {
+                        cgroupBytes / 1024.0 / 1024.0 / 1024.0
+                    } else {
+                        val memLine =
+                            File("/proc/meminfo").readLines().first { line ->
+                                line.startsWith("MemTotal")
+                            }
+                        memLine.split("\\s+".toRegex())[1].toLong() / 1024.0 / 1024.0
+                    }
+                } else {
+                    val os =
+                        ManagementFactory.getOperatingSystemMXBean()
+                            as com.sun.management.OperatingSystemMXBean
+                    os.totalMemorySize / 1024.0 / 1024.0 / 1024.0
                 }
-            if (cgroupBytes != null && cgroupBytes < Long.MAX_VALUE / 2) {
-                cgroupBytes / 1024.0 / 1024.0 / 1024.0
-            } else {
-                val memLine =
-                    File("/proc/meminfo").readLines().first { line -> line.startsWith("MemTotal") }
-                memLine.split("\\s+".toRegex())[1].toLong() / 1024.0 / 1024.0
+            } catch (_: Exception) {
+                16.0
             }
-        } else {
-            // macOS/other: use Gradle JVM max memory as a proxy, fallback to 16 GiB
-            // This is the Gradle daemon's max heap, not physical RAM, but provides a
-            // reasonable lower bound for scaling test settings
-            Runtime.getRuntime().maxMemory() / 1024.0 / 1024.0 / 1024.0
-        }
-    } catch (_: Exception) {
-        16.0
-    }
-// Use all available processors but cap at 8 to avoid excessive thread contention
-val testProcessorCount = availableCpus.coerceAtMost(8)
-// Parallelism is set per-task based on actual node count (see testSubprocessConcurrent below)
-// Reserve ~half of total memory for the test client JVM, leave the rest for forked node JVMs and OS
-val testClientHeapGib = (totalMemoryGib / 2).toInt().coerceIn(4, 8)
-val testMaxHeap = "${testClientHeapGib}g"
-// Pass remaining memory pool to ProcessUtils, which divides by actual node count at runtime
-val nodePoolMib = ((totalMemoryGib - testClientHeapGib) * 1024 * 0.8).toInt().coerceAtLeast(2048)
 
-logger.lifecycle(
-    "Test resource detection: cpus=$availableCpus, totalMem=${String.format("%.1f", totalMemoryGib)}GiB -> processorCount=$testProcessorCount, clientHeap=$testMaxHeap, nodePool=${nodePoolMib}m"
-)
+        // Use all available processors but cap at 8 to avoid excessive thread contention
+        val testProcessorCount = availableCpus.coerceAtMost(8)
+        // Parallelism is set per-task based on actual node count (see testSubprocessConcurrent
+        // below)
+        // Reserve ~half of total memory for the test client JVM, leave the rest for forked node
+        // JVMs and OS
+        val testClientHeapGib = (totalMemoryGib / 2).toInt().coerceIn(4, 8)
+        val testMaxHeap = "${testClientHeapGib}g"
+        // Pass remaining memory pool to ProcessUtils, which divides by actual node count at
+        // runtime; HAPI_TEST_NODE_POOL_MIB overrides the computed pool for memory-hungry suites
+        // whose peak usage is dominated by native (non-JVM) allocations
+        val nodePoolMib =
+            System.getenv("HAPI_TEST_NODE_POOL_MIB")?.trim()?.toIntOrNull()
+                ?: ((totalMemoryGib - testClientHeapGib) * 1024 * 0.8).toInt().coerceAtLeast(2048)
+
+        logger.lifecycle(
+            "Test resource detection: cpus=$availableCpus, totalMem=${String.format("%.1f", totalMemoryGib)}GiB -> processorCount=$testProcessorCount, clientHeap=$testMaxHeap, nodePool=${nodePoolMib}m"
+        )
+
+        return listOf(
+            // Scale heap and processor count to match available resources
+            "-Xmx$testMaxHeap",
+            "-XX:ActiveProcessorCount=$testProcessorCount",
+            // Limit forked node JVM heap to avoid overcommitting container/runner memory
+            "-Dhapi.spec.node.poolMib=$nodePoolMib",
+        )
+    }
+}
 
 mainModuleInfo {
     runtimeOnly("org.junit.jupiter.engine")
@@ -66,48 +91,12 @@ tasks.register<JavaExec>("runTestClient") {
     description = "Run a test client via -PtestClient=<Class>"
 
     classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    mainModule = application.mainModule
     mainClass = providers.gradleProperty("testClient")
 }
 
-tasks.jacocoTestReport {
-    classDirectories.setFrom(files(project(":app").layout.buildDirectory.dir("classes/java/main")))
-    sourceDirectories.setFrom(files(project(":app").projectDir.resolve("src/main/java")))
-    reports {
-        xml.required.set(true)
-        html.required.set(true)
-    }
-}
-
-tasks.test {
-    testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-
-    // Unlike other tests, these intentionally corrupt embedded state to test FAIL_INVALID
-    // code paths; hence we do not run LOG_VALIDATION after the test suite finishes
-    useJUnitPlatform { includeTags("(INTEGRATION|STREAM_VALIDATION)") }
-
-    systemProperty("junit.jupiter.execution.parallel.enabled", true)
-    systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
-    // Surprisingly, the Gradle JUnitPlatformTestExecutionListener fails to gather result
-    // correctly if test classes run in parallel (concurrent execution WITHIN a test class
-    // is fine). So we need to force the test classes to run in the same thread. Luckily this
-    // is not a huge limitation, as our test classes generally have enough non-leaky tests to
-    // get a material speed up. See https://github.com/gradle/gradle/issues/6453.
-    systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "same_thread")
-    systemProperty(
-        "junit.jupiter.testclass.order.default",
-        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
-    )
-    // Tell our launcher to target an embedded network whose mode is set per-class
-    systemProperty("hapi.spec.embedded.mode", "per-class")
-
-    // Scale heap and processor count to match available resources
-    maxHeapSize = testMaxHeap
-    jvmArgs("-XX:ActiveProcessorCount=$testProcessorCount")
-}
-
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|GENESIS_SUBPROCESS|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD)"
 val miscTagsSerial = "$miscTags&SERIAL"
 
 val prCheckTags =
@@ -184,39 +173,40 @@ val prCheckPropOverrides =
     mapOf(
         "hapiTestAdhoc" to
             "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,block.stateproof.verification.enabled=true",
-        "hapiTestToken" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        "hapiTestToken" to
+            "hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestCrypto" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestCryptoSerial" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,block.stateproof.verification.enabled=true",
         "hapiTestSmartContract" to
-            "tss.historyEnabled=false,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,tss.historyEnabled=false,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestSmartContractSerial" to "tss.historyEnabled=false",
+        // hapiTestRestart exercises repeated freeze/upgrade/restart cycles. On main this ran with
+        // tss.historyEnabled=false by config default; with the new branch default of true the
+        // genesis chain-of-trust proof (and its real-crypto signatures, since this test sets
+        // forceMockSignatures=false) needs to make progress concurrently with multi-restart
+        // pressure. The interaction is fragile enough that DabEnabledUpgradeTest's upgrade flows
+        // start timing out as the network falls behind. Pin historyEnabled to its main-branch
+        // value here to preserve the test's original (hints-only) TSS surface.
         "hapiTestRestart" to
-            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
+            "tss.hintsEnabled=true,tss.historyEnabled=false,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestWrapsDownload" to
-            "tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyDownloadEnabled=true,tss.wrapsProvingKeyPath=testfiles/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=da83f3ae5eaa8575f5bedf583de2826ccfa5bff80bd6f58a54b0bf7e934e98919b5bcdaa074b3ae248f161317b87a22a",
+            "tss.wrapsEnabled=true,tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyPath=data/keys/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=76bf521149f6b6a35590b8c9089c40bbd44034c4b30c17fa6ac3537a8a0b4143ebdbff25e156c8c4c1553c11f35769a1",
         "hapiTestMisc" to
-            "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestMiscSerial" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
         "hapiTestTimeConsuming" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestWraps" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,staking.periodMins=16",
-        // Superseded by the entry below which adds tss.initialCrsParties=8; the original
-        // buildMap had two put() calls for hapiTestCutover and the second silently overwrote the
-        // first. Kept here for reference in case tss.forceMockSignatures=false needs to be
-        // restored.
-        // "hapiTestCutover" to
-        //
-        // "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.forceMockSignatures=false,staking.periodMins=16",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,staking.periodMins=25,blockStream.maxBlockSizeBytes=0",
         "hapiTestCutover" to
-            "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.initialCrsParties=8,staking.periodMins=16",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.forceMockSignatures=false,tss.initialCrsParties=8,staking.periodMins=25,blockStream.maxBlockSizeBytes=0",
         "hapiTestTimeConsumingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestStateThrottling" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestMiscRecords" to
-            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestMiscRecordsSerial" to
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true",
         "hapiTestSimpleFees" to
@@ -227,12 +217,26 @@ val prCheckPropOverrides =
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
     )
-val prCheckPlatformOverrides = mapOf("hapiTestRestart" to "platformStatus.observingStatusDelay=10s")
+// hapiTestRestart reconnects the same node repeatedly; the 10m production throttle would starve it.
+val prCheckPlatformOverrides =
+    mapOf(
+        "hapiTestRestart" to
+            "platformStatus.observingStatusDelay=10s,reconnect.minimumTimeBetweenReconnects=10s"
+    )
 val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
-val prCheckAssertAtLeastOneWraps = setOf("hapiTestWraps", "hapiTestCutover")
-// (FUTURE) Determine what the TSS_LIB_WRAPS_ARTIFACTS_PATH will be for each task in CI; set it here
+val prCheckAssertAtLeastOneWraps =
+    gradle.startParameter.taskNames.any { setOf("hapiTestWraps", "hapiTestCutover").contains(it) }
+val prCheckIsSimpleFeesEmbedded =
+    gradle.startParameter.taskNames.contains("hapiTestSimpleFeesEmbedded")
+// Path to the extracted WRAPS proving-key artifacts (decider_pp.bin, decider_vp.bin,
+// nova_pp.bin, nova_vp.bin); blank disables WRAPS proof assertions in the ceremony tests
+val tssLibWrapsArtifactsPath = System.getenv("TSS_LIB_WRAPS_ARTIFACTS_PATH") ?: ""
 val prCheckTssLibWrapsArtifactsPaths =
-    mapOf("hapiTestWraps" to "", "hapiTestCutover" to "", "hapiTestWrapsDownload" to "data/keys")
+    mapOf(
+        "hapiTestWraps" to tssLibWrapsArtifactsPath,
+        "hapiTestCutover" to tssLibWrapsArtifactsPath,
+        "hapiTestWrapsDownload" to "data/keys",
+    )
 // Use to override the default network size for a specific test task
 val prCheckNetSizeOverrides =
     mapOf(
@@ -248,12 +252,59 @@ val prCheckNetSizeOverrides =
         "hapiTestAtomicBatch" to "3",
         "hapiTestAtomicBatchSerial" to "3",
         "hapiTestStateThrottling" to "3",
+        // Each node runs a native WRAPS prover during proof construction; 3 nodes keeps
+        // peak memory within the dedicated runner pool's limits
+        "hapiTestWraps" to "3",
+        "hapiTestCutover" to "3",
+        "hapiTestWrapsDownload" to "3",
     )
+
+val embeddedBaseTags =
+    mapOf(
+        "hapiTestMiscEmbedded" to "EMBEDDED&!(SIMPLE_FEES|CRYPTO|ATOMIC_BATCH)",
+        "hapiTestSimpleFeesEmbedded" to "EMBEDDED&SIMPLE_FEES",
+        "hapiTestCryptoEmbedded" to "EMBEDDED&CRYPTO",
+        "hapiTestAtomicBatchEmbedded" to "EMBEDDED&ATOMIC_BATCH",
+    )
+val prEmbeddedCheckTags = embeddedBaseTags.mapValues { (_, tags) -> "($tags)" }
+
+val repeatableBaseTags = mapOf("hapiTestMiscRepeatable" to "REPEATABLE&!CRYPTO")
+val prRepeatableCheckTags = repeatableBaseTags.mapValues { (_, tags) -> "($tags)" }
+
+// Choose a different initial port for each test task if running as PR check
+val initialPort =
+    gradle.startParameter.taskNames
+        .map { prCheckStartPorts[it] ?: "" }
+        .filter { it.isNotBlank() }
+        .firstOrNull() ?: ""
+
+// Gather platform-level overrides (settings.txt) into a single comma-separated list
+val platformOverrides =
+    gradle.startParameter.taskNames
+        .mapNotNull { prCheckPlatformOverrides[it] }
+        .joinToString(separator = ",")
+
+val networkSize =
+    gradle.startParameter.taskNames
+        .map { prCheckNetSizeOverrides[it] ?: "" }
+        .filter { it.isNotBlank() }
+        .firstOrNull() ?: "4"
+
+val prepareUpgradeOffsets =
+    gradle.startParameter.taskNames
+        .mapNotNull { prCheckPrepareUpgradeOffsets[it] }
+        .joinToString(",")
+
+// Gather overrides into a single comma‐separated list
+val testOverrides =
+    gradle.startParameter.taskNames
+        .mapNotNull { prCheckPropOverrides[it] }
+        .joinToString(separator = ",")
 
 tasks {
     prCheckTags.forEach { (taskName, _) ->
         register(taskName) {
-            getByName(taskName).group = "hapi-test"
+            group = "hapi-test"
             dependsOn(
                 if (
                     (taskName.contains("Crypto") ||
@@ -270,509 +321,272 @@ tasks {
         }
     }
     remoteCheckTags.forEach { (taskName, _) -> register(taskName) { dependsOn("testRemote") } }
-}
-
-tasks.register<Test>("testSubprocess") {
-    testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
-
-    // Isolate each subtask's working directory so logs are not overwritten
-    val subtaskName =
-        gradle.startParameter.taskNames.firstOrNull { prCheckTags.containsKey(it) } ?: ""
-    if (subtaskName.isNotBlank()) {
-        systemProperty("hapi.spec.subtask.name", subtaskName)
-    }
-
-    val ciTagExpression =
-        gradle.startParameter.taskNames
-            .stream()
-            .map { prCheckTags[it] ?: "" }
-            .filter { it.isNotBlank() }
-            .toList()
-            .joinToString("|")
-    useJUnitPlatform {
-        includeTags(
-            if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE)"
-            // We don't want to run typical stream or log validation for ISS or BLOCK_NODE
-            // cases
-            else if (ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE"))
-                "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE)"
-        )
-        excludeTags("CONCURRENT_SUBPROCESS_VALIDATION")
-    }
-
-    // Choose a different initial port for each test task if running as PR check
-    val initialPort =
-        gradle.startParameter.taskNames
-            .stream()
-            .map { prCheckStartPorts[it] ?: "" }
-            .filter { it.isNotBlank() }
-            .findFirst()
-            .orElse("")
-    systemProperty("hapi.spec.initial.port", initialPort)
-    // There's nothing special about shard/realm 11.12, except that they are non-zero values.
-    // We want to run all tests that execute as part of `testSubprocess`–that is to say,
-    // the majority of the hapi tests - with a nonzero shard/realm
-    // to maintain confidence that we haven't fallen back into the habit of assuming 0.0
-    systemProperty("hapi.spec.default.shard", 11)
-    systemProperty("hapi.spec.default.realm", 12)
-
-    // Gather overrides into a single comma‐separated list
-    val testOverrides =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckPropOverrides[it] }
-            .joinToString(separator = ",")
-    // Only set the system property if non-empty
-    if (testOverrides.isNotBlank()) {
-        systemProperty("hapi.spec.test.overrides", testOverrides)
-    }
-
-    // Gather platform-level overrides (settings.txt) into a single comma-separated list
-    val platformOverrides =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckPlatformOverrides[it] }
-            .joinToString(separator = ",")
-    if (platformOverrides.isNotBlank()) {
-        systemProperty("hapi.spec.platform.overrides", platformOverrides)
-    }
-
-    if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
-        systemProperty("hapi.spec.assertAtLeastOneWraps", "true")
-    }
-    gradle.startParameter.taskNames
-        .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
-        ?.let {
-            systemProperty(
-                "hapi.spec.tssLibWrapsArtifactsPath",
-                prCheckTssLibWrapsArtifactsPaths.getValue(it),
-            )
-        }
-
-    val prepareUpgradeOffsets =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckPrepareUpgradeOffsets[it] }
-            .joinToString(",")
-    if (prepareUpgradeOffsets.isNotEmpty()) {
-        systemProperty("hapi.spec.prepareUpgradeOffsets", prepareUpgradeOffsets)
-    }
-
-    val networkSize =
-        gradle.startParameter.taskNames
-            .stream()
-            .map { prCheckNetSizeOverrides[it] ?: "" }
-            .filter { it.isNotBlank() }
-            .findFirst()
-            .orElse("4")
-    systemProperty("hapi.spec.network.size", networkSize)
-
-    // Note the 1/4 threshold for the restart check; DabEnabledUpgradeTest is a chaotic
-    // churn of fast upgrades with heavy use of override networks, and there is a node
-    // removal step that happens without giving enough time for the next hinTS scheme
-    // to be completed, meaning a 1/3 threshold in the *actual* roster only accounts for
-    // 1/4 total weight in the out-of-date hinTS verification key,
-    val hintsThresholdDenominator =
-        if (gradle.startParameter.taskNames.contains("hapiTestRestart")) "4" else "3"
-    systemProperty("hapi.spec.hintsThresholdDenominator", hintsThresholdDenominator)
-    systemProperty("hapi.spec.block.stateproof.verification", "false")
-
-    // Default quiet mode is "false" unless we are running in CI or set it explicitly to "true"
-    systemProperty(
-        "hapi.spec.quiet.mode",
-        System.getProperty("hapi.spec.quiet.mode")
-            ?: if (ciTagExpression.isNotBlank()) "true" else "false",
-    )
-    systemProperty("junit.jupiter.execution.parallel.enabled", true)
-    systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
-    // Surprisingly, the Gradle JUnitPlatformTestExecutionListener fails to gather result
-    // correctly if test classes run in parallel (concurrent execution WITHIN a test class
-    // is fine). So we need to force the test classes to run in the same thread. Luckily this
-    // is not a huge limitation, as our test classes generally have enough non-leaky tests to
-    // get a material speed up. See https://github.com/gradle/gradle/issues/6453.
-    systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "same_thread")
-    systemProperty(
-        "junit.jupiter.testclass.order.default",
-        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
-    )
-
-    // Scale heap and processor count to match available resources
-    maxHeapSize = testMaxHeap
-    // Limit forked node JVM heap to avoid overcommitting container/runner memory
-    systemProperty("hapi.spec.node.poolMib", "$nodePoolMib")
-    // Fix testcontainers module system access to commons libraries
-    // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
-    jvmArgs(
-        "-XX:ActiveProcessorCount=$testProcessorCount",
-        "--add-reads=org.testcontainers=org.apache.commons.lang3",
-        "--add-reads=org.testcontainers=org.apache.commons.compress",
-        "--add-reads=org.testcontainers=org.apache.commons.io",
-        "--add-reads=org.testcontainers=org.apache.commons.codec",
-    )
-    maxParallelForks = 1
-}
-
-tasks.register<Test>("testSubprocessConcurrent") {
-    testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
-
-    // Isolate each subtask's working directory so logs are not overwritten
-    val subtaskName =
-        gradle.startParameter.taskNames.firstOrNull { prCheckTags.containsKey(it) } ?: ""
-    if (subtaskName.isNotBlank()) {
-        systemProperty("hapi.spec.subtask.name", subtaskName)
-    }
-
-    val ciTagExpression =
-        gradle.startParameter.taskNames
-            .stream()
-            .map { prCheckTags[it] ?: "" }
-            .filter { it.isNotBlank() }
-            .toList()
-            .joinToString("|")
-    useJUnitPlatform {
-        includeTags(
-            if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE|ISS)"
-            // We don't want to run typical stream or log validation for ISS or BLOCK_NODE
-            // cases
-            else if (ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE"))
-                "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
-            else "(${ciTagExpression}|CONCURRENT_SUBPROCESS_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
-        )
-        // Exclude SERIAL tests except CONCURRENT_SUBPROCESS_VALIDATION which runs validation last
-        // via @Isolated
-        excludeTags("SERIAL&!CONCURRENT_SUBPROCESS_VALIDATION")
-    }
-
-    // Choose a different initial port for each test task if running as PR check
-    val initialPort =
-        gradle.startParameter.taskNames
-            .stream()
-            .map { prCheckStartPorts[it] ?: "" }
-            .filter { it.isNotBlank() }
-            .findFirst()
-            .orElse("")
-    systemProperty("hapi.spec.initial.port", initialPort)
-    // There's nothing special about shard/realm 11.12, except that they are non-zero values.
-    // We want to run all tests that execute as part of `testSubprocess`–that is to say,
-    // the majority of the hapi tests - with a nonzero shard/realm
-    // to maintain confidence that we haven't fallen back into the habit of assuming 0.0
-    systemProperty("hapi.spec.default.shard", 11)
-    systemProperty("hapi.spec.default.realm", 12)
-
-    // Gather overrides into a single comma‐separated list
-    val testOverrides =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckPropOverrides[it] }
-            .joinToString(separator = ",")
-    // Only set the system property if non-empty
-    if (testOverrides.isNotBlank()) {
-        systemProperty("hapi.spec.test.overrides", testOverrides)
-    }
-
-    // Gather platform-level overrides (settings.txt) into a single comma-separated list
-    val platformOverrides =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckPlatformOverrides[it] }
-            .joinToString(separator = ",")
-    if (platformOverrides.isNotBlank()) {
-        systemProperty("hapi.spec.platform.overrides", platformOverrides)
-    }
-
-    if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
-        systemProperty("hapi.spec.assertAtLeastOneWraps", "true")
-    }
-    gradle.startParameter.taskNames
-        .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
-        ?.let {
-            systemProperty(
-                "hapi.spec.tssLibWrapsArtifactsPath",
-                prCheckTssLibWrapsArtifactsPaths.getValue(it),
-            )
-        }
-
-    val prepareUpgradeOffsets =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckPrepareUpgradeOffsets[it] }
-            .joinToString(",")
-    if (prepareUpgradeOffsets.isNotEmpty()) {
-        systemProperty("hapi.spec.prepareUpgradeOffsets", prepareUpgradeOffsets)
-    }
-
-    val networkSize =
-        gradle.startParameter.taskNames
-            .stream()
-            .map { prCheckNetSizeOverrides[it] ?: "" }
-            .filter { it.isNotBlank() }
-            .findFirst()
-            .orElse("4")
-    systemProperty("hapi.spec.network.size", networkSize)
-
-    // Note the 1/4 threshold for the restart check; DabEnabledUpgradeTest is a chaotic
-    // churn of fast upgrades with heavy use of override networks, and there is a node
-    // removal step that happens without giving enough time for the next hinTS scheme
-    // to be completed, meaning a 1/3 threshold in the *actual* roster only accounts for
-    // 1/4 total weight in the out-of-date hinTS verification key,
-    val hintsThresholdDenominator =
-        if (gradle.startParameter.taskNames.contains("hapiTestRestart")) "4" else "3"
-    systemProperty("hapi.spec.hintsThresholdDenominator", hintsThresholdDenominator)
-    systemProperty("hapi.spec.block.stateproof.verification", "false")
-
-    // Default quiet mode is "false" unless we are running in CI or set it explicitly to "true"
-    systemProperty(
-        "hapi.spec.quiet.mode",
-        System.getProperty("hapi.spec.quiet.mode")
-            ?: if (ciTagExpression.isNotBlank()) "true" else "false",
-    )
-    // Signal to SharedNetworkLauncherSessionListener that this is subprocess concurrent mode,
-    // so it arms the validation latch for ConcurrentSubprocessValidationTest
-    systemProperty("hapi.spec.subprocess.concurrent", "true")
-    systemProperty("junit.jupiter.execution.parallel.enabled", true)
-    systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
-    systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "concurrent")
-    // Limit concurrent test classes to prevent transaction backlog
-    // Use fixed strategy with parallelism based on node count: 3 nodes → 3 threads, 4 nodes → 2
-    // threads
-    val testParallelism = if ((networkSize.toIntOrNull() ?: 4) <= 3) 3 else 2
-    systemProperty("junit.jupiter.execution.parallel.config.strategy", "fixed")
-    systemProperty("junit.jupiter.execution.parallel.config.fixed.parallelism", "$testParallelism")
-    systemProperty(
-        "junit.jupiter.testclass.order.default",
-        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
-    )
-
-    // Scale heap and processor count to match available resources
-    maxHeapSize = testMaxHeap
-    // Limit forked node JVM heap to avoid overcommitting container/runner memory
-    systemProperty("hapi.spec.node.poolMib", "$nodePoolMib")
-    // Fix testcontainers module system access to commons libraries
-    // testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
-    jvmArgs(
-        "-XX:ActiveProcessorCount=$testProcessorCount",
-        "--add-reads=org.testcontainers=org.apache.commons.lang3",
-        "--add-reads=org.testcontainers=org.apache.commons.compress",
-        "--add-reads=org.testcontainers=org.apache.commons.io",
-        "--add-reads=org.testcontainers=org.apache.commons.codec",
-    )
-    maxParallelForks = 1
-}
-
-tasks.register<Test>("testRemote") {
-    testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
-
-    // Isolate each subtask's working directory so logs are not overwritten
-    val subtaskName =
-        gradle.startParameter.taskNames.firstOrNull { remoteCheckTags.containsKey(it) } ?: ""
-    if (subtaskName.isNotBlank()) {
-        systemProperty("hapi.spec.subtask.name", subtaskName)
-    }
-
-    systemProperty("hapi.spec.remote", "true")
-    // Support overriding a single remote target network for all executing specs
-    System.getenv("REMOTE_TARGET")?.let { systemProperty("hapi.spec.nodes.remoteYml", it) }
-
-    val ciTagExpression =
-        gradle.startParameter.taskNames
-            .stream()
-            .map { remoteCheckTags[it] ?: "" }
-            .filter { it.isNotBlank() }
-            .toList()
-            .joinToString("|")
-    useJUnitPlatform {
-        includeTags(
-            if (ciTagExpression.isBlank()) "none()|!(EMBEDDED|REPEATABLE)"
-            else "(${ciTagExpression}&!(EMBEDDED|REPEATABLE))"
-        )
-    }
-
-    if (gradle.startParameter.taskNames.any(prCheckAssertAtLeastOneWraps::contains)) {
-        systemProperty("hapi.spec.assertAtLeastOneWraps", "true")
-    }
-    gradle.startParameter.taskNames
-        .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
-        ?.let {
-            systemProperty(
-                "hapi.spec.tssLibWrapsArtifactsPath",
-                prCheckTssLibWrapsArtifactsPaths.getValue(it),
-            )
-        }
-
-    val prepareUpgradeOffsets =
-        gradle.startParameter.taskNames
-            .mapNotNull { prCheckPrepareUpgradeOffsets[it] }
-            .joinToString(",")
-    if (prepareUpgradeOffsets.isNotEmpty()) {
-        systemProperty("hapi.spec.prepareUpgradeOffsets", prepareUpgradeOffsets)
-    }
-
-    // Default quiet mode is "false" unless we are running in CI or set it explicitly to "true"
-    systemProperty(
-        "hapi.spec.quiet.mode",
-        System.getProperty("hapi.spec.quiet.mode")
-            ?: if (ciTagExpression.isNotBlank()) "true" else "false",
-    )
-    systemProperty("junit.jupiter.execution.parallel.enabled", true)
-    systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
-    // Surprisingly, the Gradle JUnitPlatformTestExecutionListener fails to gather result
-    // correctly if test classes run in parallel (concurrent execution WITHIN a test class
-    // is fine). So we need to force the test classes to run in the same thread. Luckily this
-    // is not a huge limitation, as our test classes generally have enough non-leaky tests to
-    // get a material speed up. See https://github.com/gradle/gradle/issues/6453.
-    systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "same_thread")
-    systemProperty(
-        "junit.jupiter.testclass.order.default",
-        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
-    )
-
-    // Scale heap and processor count to match available resources
-    maxHeapSize = testMaxHeap
-    jvmArgs("-XX:ActiveProcessorCount=$testProcessorCount")
-    maxParallelForks = 1
-}
-
-val embeddedTasks =
-    setOf(
-        "hapiTestCryptoEmbedded",
-        "hapiTestMiscEmbedded",
-        "hapiTestSimpleFeesEmbedded",
-        "hapiTestAtomicBatchEmbedded",
-    )
-
-val embeddedBaseTags =
-    mapOf(
-        "hapiTestMiscEmbedded" to "EMBEDDED&!(SIMPLE_FEES|CRYPTO|ATOMIC_BATCH)",
-        "hapiTestSimpleFeesEmbedded" to "EMBEDDED&SIMPLE_FEES",
-        "hapiTestCryptoEmbedded" to "EMBEDDED&CRYPTO",
-        "hapiTestAtomicBatchEmbedded" to "EMBEDDED&ATOMIC_BATCH",
-    )
-
-val prEmbeddedCheckTags = embeddedBaseTags.mapValues { (_, tags) -> "($tags)" }
-
-tasks {
     prEmbeddedCheckTags.forEach { (taskName, _) ->
         register(taskName) {
-            getByName(taskName).group = "hapi-test-embedded"
+            group = "hapi-test-embedded"
             dependsOn("testEmbedded")
         }
     }
-}
-
-// Runs tests against an embedded network that supports concurrent tests
-tasks.register<Test>("testEmbedded") {
-    testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
-
-    // Isolate each subtask's working directory so logs are not overwritten
-    val subtaskName =
-        gradle.startParameter.taskNames.firstOrNull { prEmbeddedCheckTags.containsKey(it) } ?: ""
-    if (subtaskName.isNotBlank()) {
-        systemProperty("hapi.spec.subtask.name", subtaskName)
-    }
-
-    val ciTagExpression =
-        gradle.startParameter.taskNames
-            .stream()
-            .map { prEmbeddedCheckTags[it] ?: "" }
-            .filter { it.isNotBlank() }
-            .toList()
-            .joinToString("|")
-    useJUnitPlatform {
-        includeTags(
-            if (ciTagExpression.isBlank())
-                "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS)"
-        )
-    }
-
-    systemProperty("junit.jupiter.execution.parallel.enabled", true)
-    systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
-    // Surprisingly, the Gradle JUnitPlatformTestExecutionListener fails to gather result
-    // correctly if test classes run in parallel (concurrent execution WITHIN a test class
-    // is fine). So we need to force the test classes to run in the same thread. Luckily this
-    // is not a huge limitation, as our test classes generally have enough non-leaky tests to
-    // get a material speed up. See https://github.com/gradle/gradle/issues/6453.
-    systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "same_thread")
-    systemProperty(
-        "junit.jupiter.testclass.order.default",
-        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
-    )
-    // Tell our launcher to target a concurrent embedded network
-    systemProperty("hapi.spec.embedded.mode", "concurrent")
-    // Running all the tests that are executed in testEmbedded with 0 for shard and realm,
-    // so we can maintain confidence that there are no regressions in the code.
-    systemProperty("hapi.spec.default.shard", 0)
-    systemProperty("hapi.spec.default.realm", 0)
-
-    if (gradle.startParameter.taskNames.contains("hapiTestSimpleFeesEmbedded")) {
-        systemProperty("fees.createSimpleFeeSchedule", "true")
-        systemProperty("fees.simpleFeesEnabled", "true")
-    }
-
-    // Scale heap and processor count to match available resources
-    maxHeapSize = testMaxHeap
-    jvmArgs("-XX:ActiveProcessorCount=$testProcessorCount")
-}
-
-val repeatableBaseTags = mapOf("hapiTestMiscRepeatable" to "REPEATABLE&!CRYPTO")
-
-val prRepeatableCheckTags = repeatableBaseTags.mapValues { (_, tags) -> "($tags)" }
-
-tasks {
     prRepeatableCheckTags.forEach { (taskName, _) ->
         register(taskName) { dependsOn("testRepeatable") }
     }
 }
 
+// Unlike other tests, these intentionally corrupt embedded state to test FAIL_INVALID
+// code paths; hence we do not run LOG_VALIDATION after the test suite finishes
+tasks.registerHapiTest(
+    "test",
+    emptyMap(),
+    "(INTEGRATION|STREAM_VALIDATION)",
+    embeddedMode = "per-class",
+    junitParallelMode = "same_thread",
+)
+
+tasks.registerHapiTest(
+    "testSubprocess",
+    prCheckTags,
+    "none()|!(EMBEDDED|REPEATABLE)",
+    ciDefaultTags = "|CONCURRENT_SUBPROCESS_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS",
+    ciDefaultTagsWithoutStreamAndLogValidation = ")&!(EMBEDDED|REPEATABLE",
+    excludeTags = "CONCURRENT_SUBPROCESS_VALIDATION",
+    junitParallelMode = "same_thread",
+    initialPort = initialPort,
+    // There's nothing special about shard/realm 11.12, except that they are non-zero values.
+    // We want to run all tests that execute as part of `testSubprocess`–that is to say,
+    // the majority of the hapi tests - with a nonzero shard/realm
+    // to maintain confidence that we haven't fallen back into the habit of assuming 0.0
+    defaultShard = 11,
+    defaultRealm = 12,
+    // Note the 1/4 threshold for the restart check; DabEnabledUpgradeTest is a chaotic
+    // churn of fast upgrades with heavy use of override networks, and there is a node
+    // removal step that happens without giving enough time for the next hinTS scheme
+    // to be completed, meaning a 1/3 threshold in the *actual* roster only accounts for
+    // 1/4 total weight in the out-of-date hinTS verification key.
+    hapiSpecHintsThresholdDenominator =
+        if (gradle.startParameter.taskNames.contains("hapiTestRestart")) "4" else "3",
+    hapiSpecBlockStateproofVerificationOff = true,
+)
+
+tasks.registerHapiTest(
+    "testSubprocessConcurrent",
+    prCheckTags,
+    "none()|!(EMBEDDED|REPEATABLE|ISS)",
+    ciDefaultTags = "|CONCURRENT_SUBPROCESS_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS",
+    ciDefaultTagsWithoutStreamAndLogValidation = ")&!(EMBEDDED|REPEATABLE",
+    excludeTags = "SERIAL&!CONCURRENT_SUBPROCESS_VALIDATION",
+    junitParallelMode = "concurrent",
+    junitFixedParallelism = if (networkSize.toInt() <= 3) 3 else 2,
+    initialPort = initialPort,
+    // There's nothing special about shard/realm 11.12, except that they are non-zero values.
+    // We want to run all tests that execute as part of `testSubprocess`–that is to say,
+    // the majority of the hapi tests - with a nonzero shard/realm
+    // to maintain confidence that we haven't fallen back into the habit of assuming 0.0
+    defaultShard = 11,
+    defaultRealm = 12,
+    // Note the 1/4 threshold for the restart check; DabEnabledUpgradeTest is a chaotic
+    // churn of fast upgrades with heavy use of override networks, and there is a node
+    // removal step that happens without giving enough time for the next hinTS scheme
+    // to be completed, meaning a 1/3 threshold in the *actual* roster only accounts for
+    // 1/4 total weight in the out-of-date hinTS verification key.
+    hapiSpecSubprocessConcurrent = true,
+    hapiSpecHintsThresholdDenominator =
+        if (gradle.startParameter.taskNames.contains("hapiTestRestart")) "4" else "3",
+    hapiSpecBlockStateproofVerificationOff = true,
+)
+
+tasks.registerHapiTest(
+    "testRemote",
+    remoteCheckTags,
+    "none()|!(EMBEDDED|REPEATABLE)",
+    ciDefaultTags = "&!(EMBEDDED|REPEATABLE)",
+    junitParallelMode = "same_thread",
+    hapiSpecRemote = true,
+)
+
+// Runs tests against an embedded network that supports concurrent tests
+tasks.registerHapiTest(
+    "testEmbedded",
+    prEmbeddedCheckTags,
+    "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS)",
+    ciDefaultTags = "|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS",
+    // Tell our launcher to target a concurrent embedded network
+    embeddedMode = "concurrent",
+    junitParallelMode = "same_thread",
+    // Running all the tests that are executed in testEmbedded with 0 for shard and realm,
+    // so we can maintain confidence that there are no regressions in the code.
+    defaultShard = 0,
+    defaultRealm = 0,
+)
+
 // Runs tests against an embedded network that achieves repeatable results by running tests in a
 // single thread
-tasks.register<Test>("testRepeatable") {
-    testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
-    outputs.upToDateWhen { false } // Don't skip execution of hapi test tasks
+tasks.registerHapiTest(
+    "testRepeatable",
+    prRepeatableCheckTags,
+    "none()|!(RESTART|ND_RECONNECT|UPGRADE|EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS|ISS)",
+    ciDefaultTags = "|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|EMBEDDED",
+    embeddedMode = "repeatable",
+)
 
-    // Isolate each subtask's working directory so logs are not overwritten
-    val subtaskName =
-        gradle.startParameter.taskNames.firstOrNull { prRepeatableCheckTags.containsKey(it) } ?: ""
-    if (subtaskName.isNotBlank()) {
-        systemProperty("hapi.spec.subtask.name", subtaskName)
-    }
+fun TaskContainer.registerHapiTest(
+    name: String,
+    ciTags: Map<String, String>,
+    defaultTags: String,
+    ciDefaultTags: String? = null,
+    ciDefaultTagsWithoutStreamAndLogValidation: String? = null,
+    excludeTags: String? = null,
+    embeddedMode: String? = null,
+    // Surprisingly, the Gradle JUnitPlatformTestExecutionListener fails to gather result
+    // correctly if test classes run in parallel (concurrent execution WITHIN a test class
+    // is fine). So we need to force the test classes to run in the same thread. Luckily this
+    // is not a huge limitation, as our test classes generally have enough non-leaky tests to
+    // get a material speed up. See https://github.com/gradle/gradle/issues/6453.
+    // That's why parallel mode is set to 'same_thread' for certain cases
+    junitParallelMode: String? = null,
+    junitFixedParallelism: Int? = null,
+    initialPort: String? = null,
+    defaultShard: Int? = null,
+    defaultRealm: Int? = null,
+    hapiSpecSubprocessConcurrent: Boolean = false,
+    hapiSpecHintsThresholdDenominator: String? = null,
+    hapiSpecBlockStateproofVerificationOff: Boolean = false,
+    hapiSpecRemote: Boolean = false,
+) {
+    (if (name == "test") test else register<Test>(name)).configure {
+        val ciTagExpression =
+            gradle.startParameter.taskNames
+                .map { ciTags[it] ?: "" }
+                .filter { it.isNotBlank() }
+                .toList()
+                .joinToString("|")
 
-    val ciTagExpression =
-        gradle.startParameter.taskNames
-            .stream()
-            .map { prRepeatableCheckTags[it] ?: "" }
-            .filter { it.isNotBlank() }
-            .toList()
-            .joinToString("|")
-    useJUnitPlatform {
-        includeTags(
-            if (ciTagExpression.isBlank())
-                "none()|!(RESTART|ND_RECONNECT|UPGRADE|EMBEDDED|NOT_REPEATABLE|ONLY_SUBPROCESS|ISS)"
-            else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|EMBEDDED)"
+        val subtaskName =
+            gradle.startParameter.taskNames.firstOrNull { ciTags.containsKey(it) } ?: ""
+
+        // Shared configuration of all test tasks
+        testClassesDirs = sourceSets.main.get().output.classesDirs
+        classpath = configurations.testRuntimeClasspath.get().plus(files(jar))
+
+        if (!EnvAccess.isCiServer(providers))
+            doNotTrackState("Don't skip execution of hapi test tasks locally")
+
+        // Scale heap and processor count to match available resources
+        jvmArgumentProviders.add(TestResourceArgumentsProvider())
+        // Enable native access for hedera cryptography modules
+        jvmArgs(
+            "--enable-native-access=" +
+                "com.hedera.common.nativesupport," +
+                "com.hedera.cryptography.libsecp256k1," +
+                "com.hedera.cryptography.libsodium"
         )
+        // Isolate each subtask's working directory so logs are not overwritten
+        if (subtaskName.isNotBlank()) {
+            systemProperty("hapi.spec.subtask.name", subtaskName)
+        }
+        if (testOverrides.isNotBlank()) {
+            systemProperty("hapi.spec.test.overrides", testOverrides)
+        }
+        if (platformOverrides.isNotBlank()) {
+            systemProperty("hapi.spec.platform.overrides", platformOverrides)
+        }
+        if (prepareUpgradeOffsets.isNotBlank()) {
+            systemProperty("hapi.spec.prepareUpgradeOffsets", prepareUpgradeOffsets)
+        }
+        if (prCheckAssertAtLeastOneWraps) {
+            systemProperty("hapi.spec.assertAtLeastOneWraps", "true")
+        }
+        if (prCheckIsSimpleFeesEmbedded) {
+            systemProperty("fees.createSimpleFeeSchedule", "true")
+            systemProperty("fees.simpleFeesEnabled", "true")
+        }
+        systemProperty("hapi.spec.network.size", networkSize)
+        // Default quiet mode is "false" unless we are running in CI or set it explicitly to "true"
+        systemProperty(
+            "hapi.spec.quiet.mode",
+            providers
+                .systemProperty("hapi.spec.quiet.mode")
+                .getOrElse(if (ciTagExpression.isNotBlank()) "true" else "false"),
+        )
+        gradle.startParameter.taskNames
+            .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
+            ?.let {
+                systemProperty(
+                    "hapi.spec.tssLibWrapsArtifactsPath",
+                    prCheckTssLibWrapsArtifactsPaths.getValue(it),
+                )
+            }
+        // Pass a system property "KEY=VALUE" to the test JVM via "-PsysProp.KEY=VALUE"
+        providers.gradlePropertiesPrefixedBy("sysProp.").get().forEach { (k, v) ->
+            systemProperty(k.removePrefix("sysProp."), v)
+        }
+
+        // Configuration controlled by parameters
+        useJUnitPlatform {
+            if (ciDefaultTags == null) {
+                includeTags(defaultTags)
+            } else {
+                includeTags(
+                    if (ciTagExpression.isBlank()) defaultTags
+                    // We don't want to run stream or log validation for ISS or BLOCK_NODE cases
+                    else if (
+                        ciDefaultTagsWithoutStreamAndLogValidation != null &&
+                            (ciTagExpression.contains("ISS") ||
+                                ciTagExpression.contains("BLOCK_NODE"))
+                    )
+                        "(${ciTagExpression}${ciDefaultTagsWithoutStreamAndLogValidation})"
+                    else "(${ciTagExpression}${ciDefaultTags})"
+                )
+            }
+            if (excludeTags != null) {
+                excludeTags(excludeTags)
+            }
+        }
+        if (junitParallelMode != null) {
+            systemProperty("junit.jupiter.execution.parallel.enabled", true)
+            systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
+            systemProperty(
+                "junit.jupiter.execution.parallel.mode.classes.default",
+                junitParallelMode,
+            )
+            systemProperty(
+                "junit.jupiter.testclass.order.default",
+                "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
+            )
+        }
+        if (junitFixedParallelism != null) {
+            systemProperty("junit.jupiter.execution.parallel.config.strategy", "fixed")
+            systemProperty(
+                "junit.jupiter.execution.parallel.config.fixed.parallelism",
+                "$junitFixedParallelism",
+            )
+        }
+        if (embeddedMode != null) {
+            systemProperty("hapi.spec.embedded.mode", embeddedMode)
+        }
+        if (initialPort != null) {
+            systemProperty("hapi.spec.initial.port", initialPort)
+        }
+        if (defaultShard != null) {
+            systemProperty("hapi.spec.default.shard", defaultShard)
+        }
+        if (defaultRealm != null) {
+            systemProperty("hapi.spec.default.realm", defaultRealm)
+        }
+        if (hapiSpecSubprocessConcurrent) {
+            systemProperty("hapi.spec.subprocess.concurrent", "true")
+        }
+        if (hapiSpecHintsThresholdDenominator != null) {
+            systemProperty("hapi.spec.hintsThresholdDenominator", hapiSpecHintsThresholdDenominator)
+        }
+        if (hapiSpecBlockStateproofVerificationOff) {
+            systemProperty("hapi.spec.block.stateproof.verification", "false")
+        }
+        if (hapiSpecRemote) {
+            systemProperty("hapi.spec.remote", "true")
+            // Support overriding a single remote target network for all executing specs
+            System.getenv("REMOTE_TARGET")?.let { systemProperty("hapi.spec.nodes.remoteYml", it) }
+        }
     }
-
-    // Disable all parallelism
-    systemProperty("junit.jupiter.execution.parallel.enabled", false)
-    systemProperty(
-        "junit.jupiter.testclass.order.default",
-        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
-    )
-    // Tell our launcher to target a repeatable embedded network
-    systemProperty("hapi.spec.embedded.mode", "repeatable")
-
-    // Scale heap and processor count to match available resources
-    maxHeapSize = testMaxHeap
-    jvmArgs("-XX:ActiveProcessorCount=$testProcessorCount")
-
-    // Pass a system property "KEY=VALUE" to the test JVM via "-PsysProp.KEY=VALUE"
-    project.properties
-        .filter { (k, _) -> k.startsWith("sysProp.") }
-        .forEach { (k, v) -> systemProperty(k.removePrefix("sysProp."), v.toString()) }
 }
 
 application.mainClass = "com.hedera.services.bdd.suites.SuiteRunner"

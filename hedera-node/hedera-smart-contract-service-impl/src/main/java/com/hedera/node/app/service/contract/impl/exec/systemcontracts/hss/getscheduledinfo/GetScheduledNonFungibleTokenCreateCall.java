@@ -16,7 +16,6 @@ import com.hedera.hapi.node.base.TokenType;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater.Enhancement;
-import com.hedera.node.config.data.LedgerConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
@@ -64,8 +63,9 @@ public class GetScheduledNonFungibleTokenCreateCall extends AbstractCall {
         }
 
         // Return the token create transaction body parsed to fungible token info tuple
-        final var ledgerConfig = configuration.getConfigData(LedgerConfig.class);
-        final var ledgerId = Bytes.wrap(ledgerConfig.id().toByteArray()).toString();
+        final var ledgerId = Bytes.wrap(
+                        enhancement.nativeOperations().ledgerId().toByteArray())
+                .toString();
         return gasOnly(
                 successResult(
                         GET_SCHEDULED_CREATE_NON_FUNGIBLE_TOKEN_INFO

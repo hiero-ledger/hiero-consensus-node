@@ -166,7 +166,6 @@ public interface HandleWorkflowModule {
                 fileHandlers.fileSystemDeleteHandler(),
                 fileHandlers.fileSystemUndeleteHandler(),
                 networkAdminHandlers.freezeHandler(),
-                networkAdminHandlers.networkUncheckedSubmitHandler(),
                 scheduleHandlers.scheduleCreateHandler(),
                 scheduleHandlers.scheduleSignHandler(),
                 scheduleHandlers.scheduleDeleteHandler(),

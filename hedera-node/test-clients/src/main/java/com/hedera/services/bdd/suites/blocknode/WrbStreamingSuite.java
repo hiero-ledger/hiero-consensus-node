@@ -47,13 +47,16 @@ public class WrbStreamingSuite {
                             "blockStream.streamMode", "BOTH",
                             // writerMode=FILE is the production WRB topology (preview blocks to
                             // disk, only WRBs over gRPC); see #24775.
-                            "blockStream.writerMode", "FILE",
+                            "blockStream.writerMode", "FILE_AND_GRPC",
                             "blockStream.streamWrappedRecordBlocks", "true",
                             "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true",
                             // Forces votingBlockNumInitialized() so WRB emission fires without
                             // waiting for migration voting; matches the unit-test pattern in
                             // BlockRecordManagerImplWrappedRecordFileBlockHashesTest.
-                            "blockStream.jumpstart.blockNum", "1"
+                            "blockStream.jumpstart.blockNum", "1",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "tss.forceMockSignatures", "true"
                         })
             })
     @Order(0)
@@ -118,7 +121,10 @@ public class WrbStreamingSuite {
                             // never forwarded to the block node.
                             "hedera.recordStream.liveWritePrevWrappedRecordHashes", "true",
                             "blockStream.jumpstart.blockNum", "1",
-                            "blockStream.streamWrappedRecordBlocks", "false"
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockStream.enableCutover", "false",
+                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
+                            "tss.forceMockSignatures", "true"
                         })
             })
     @Order(1)

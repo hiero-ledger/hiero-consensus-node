@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
-
-import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.config.MerkleDbConfig;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.stream.Stream;
@@ -12,7 +10,7 @@ import org.junit.jupiter.params.provider.Arguments;
 public class LongListHeapTest extends AbstractLongListTest<LongListHeap> {
 
     @Override
-    protected LongListHeap createLongList(long capacity, Configuration config) {
+    protected LongListHeap createLongList(long capacity, MerkleDbConfig config) {
         return new LongListHeap(capacity, config);
     }
 
@@ -26,7 +24,7 @@ public class LongListHeapTest extends AbstractLongListTest<LongListHeap> {
     protected LongListHeap createLongList(
             final Path file, final int longsPerChunk, final long capacity, final long reservedBufferLength)
             throws IOException {
-        return new LongListHeap(file, longsPerChunk, capacity, reservedBufferLength, CONFIGURATION);
+        return new LongListHeap(file, longsPerChunk, capacity, reservedBufferLength);
     }
 
     /**

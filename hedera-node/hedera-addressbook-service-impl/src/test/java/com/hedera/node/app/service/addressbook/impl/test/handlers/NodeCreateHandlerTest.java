@@ -20,7 +20,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doThrow;
@@ -44,10 +43,6 @@ import com.hedera.node.app.service.addressbook.impl.handlers.NodeCreateHandler;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
@@ -60,6 +55,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -93,6 +89,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     private TransactionBody txn;
     private NodeCreateHandler subject;
 
+    private static final Instant VALID_CERT_TIME = Instant.parse("2010-01-01T00:00:00Z");
     private static List<X509Certificate> certList;
 
     @BeforeAll
@@ -530,6 +527,27 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
+    void handleFailsWhenGossipCaCertificateIsInvalid() {
+        txn = new NodeCreateBuilder()
+                .withAccountId(accountId)
+                .withDescription("Description")
+                .withGossipEndpoint(List.of(endpoint1, endpoint2))
+                .withServiceEndpoint(List.of(endpoint1, endpoint3))
+                .withGossipCaCertificate(Bytes.wrap("not a cert"))
+                .withAdminKey(key)
+                .build(payerId);
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 12)
+                .withValue("nodes.maxGossipEndpoint", 4)
+                .withValue("nodes.maxServiceEndpoint", 3)
+                .getOrCreateConfig();
+        setupHandle(config);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(INVALID_GOSSIP_CA_CERTIFICATE, msg.getStatus());
+    }
+
+    @Test
     void handleWorksAsExpected() throws CertificateEncodingException {
         txn = new NodeCreateBuilder()
                 .withAccountId(accountId)
@@ -805,26 +823,6 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    @DisplayName("check that fees are 1 for delete node trx")
-    void testCalculateFeesInvocations() {
-        final var feeCtx = mock(FeeContext.class);
-        final var feeCalcFact = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
-        given(feeCalcFact.feeCalculator(any())).willReturn(feeCalc);
-
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("nodes.enableDAB", true)
-                .getOrCreateConfig();
-        given(feeCtx.configuration()).willReturn(config);
-
-        given(feeCalc.addVerificationsPerTransaction(anyLong())).willReturn(feeCalc);
-        given(feeCalc.calculate()).willReturn(new Fees(1, 0, 0));
-
-        assertThat(subject.calculateFees(feeCtx)).isEqualTo(new Fees(1, 0, 0));
-    }
-
-    @Test
     void constructorThrowsOnNullValidator() {
         assertThrows(NullPointerException.class, () -> new NodeCreateHandler(null));
     }
@@ -885,6 +883,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .getOrCreateConfig();
 
         given(handleContext.body()).willReturn(txn);
+        given(handleContext.consensusNow()).willReturn(VALID_CERT_TIME);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
@@ -941,6 +940,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .getOrCreateConfig();
 
         given(handleContext.body()).willReturn(txn);
+        given(handleContext.consensusNow()).willReturn(VALID_CERT_TIME);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
@@ -997,6 +997,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
                 .getOrCreateConfig();
 
         given(handleContext.body()).willReturn(txn);
+        given(handleContext.consensusNow()).willReturn(VALID_CERT_TIME);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
@@ -1064,6 +1065,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
 
     private void setupHandle(Configuration config) {
         given(handleContext.body()).willReturn(txn);
+        given(handleContext.consensusNow()).willReturn(VALID_CERT_TIME);
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(handleContext.configuration()).willReturn(config);
         given(handleContext.storeFactory()).willReturn(storeFactory);

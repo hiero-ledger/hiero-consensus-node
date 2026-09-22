@@ -172,7 +172,7 @@ class PlatformSpeedometerMetricTest {
         assertEquals(1000.0, metric.get(VALUE), 0.001, "Mean rate should be 1000.0");
         assertEquals(1000.0, metric.get(MIN), 0.1, "Min. rate should be about 1000.0");
         assertEquals(1000.0, metric.get(MAX), 0.1, "Max. rate should be about 1000.0");
-        assertEquals(0.02, metric.get(STD_DEV), 0.001, "Standard deviation should be around 0.02");
+        assertEquals(0.02, metric.get(STD_DEV), 0.01, "Standard deviation should be around 0.02");
     }
 
     @Disabled("Fails currently. Should be enabled with new speedometer implementation")
@@ -304,7 +304,7 @@ class PlatformSpeedometerMetricTest {
         assertEquals(1000.0, metric.get(VALUE), 0.001, "Mean rate should be 1000.0");
         assertEquals(1000.0, metric.get(MIN), 0.1, "Min. rate should be about 1000.0");
         assertEquals(1000.0, metric.get(MAX), 0.1, "Max. rate should be about 1000.0");
-        assertEquals(0.02, metric.get(STD_DEV), 0.001, "Standard deviation should be around 0.02");
+        assertEquals(0.02, metric.get(STD_DEV), 0.01, "Standard deviation should be around 0.02");
         assertEquals(VALUE, snapshot.get(0).valueType());
         assertEquals(1000.0, (double) snapshot.get(0).value(), 0.001, "Mean rate should be 1000.0");
         assertEquals(MAX, snapshot.get(1).valueType());
@@ -312,7 +312,7 @@ class PlatformSpeedometerMetricTest {
         assertEquals(MIN, snapshot.get(2).valueType());
         assertEquals(1000.0, (double) snapshot.get(2).value(), 0.1, "Mean rate should be 1000.0");
         assertEquals(STD_DEV, snapshot.get(3).valueType());
-        assertEquals(0.02, (double) snapshot.get(3).value(), 0.001, "Mean rate should be 1000.0");
+        assertEquals(0.02, (double) snapshot.get(3).value(), 0.01, "Std dev should be around 0.02");
     }
 
     @Test

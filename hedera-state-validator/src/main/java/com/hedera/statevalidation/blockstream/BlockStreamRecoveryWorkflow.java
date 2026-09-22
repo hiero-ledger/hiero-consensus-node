@@ -17,9 +17,9 @@ import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.statevalidation.util.ProgressReporter;
 import com.hedera.statevalidation.util.StateUtils;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
+import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.state.BinaryState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -38,9 +38,10 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.throttle.RateLimiter;
 import org.hiero.base.crypto.CryptoUtils;
-import org.hiero.consensus.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.state.SignedStateFileWriter;
 import org.hiero.consensus.state.signed.SignedState;
 
 /**
@@ -160,6 +161,12 @@ public class BlockStreamRecoveryWorkflow {
                 ? new RateLimiter(platformContext.getTime(), roundsPerSecond)
                 : null;
 
+        // Progress reporting: percentage-based when targetRound is known, count-based otherwise
+        final boolean bounded = targetRound != DEFAULT_TARGET_ROUND;
+        final ProgressReporter progress = bounded
+                ? new ProgressReporter("Block stream recovery", targetRound - initRound)
+                : new ProgressReporter("Block stream recovery", 1); // unbounded fallback
+
         blocks.forEach(block -> {
             for (final BlockItem item : block.items()) {
                 // if the first block item belongs to the round after the first round to apply, we can't proceed
@@ -197,6 +204,11 @@ public class BlockStreamRecoveryWorkflow {
                         // requestAndTrigger() always succeeds .
                         rateLimit(rateLimiter);
                         currentRound.incrementAndGet();
+                        if (bounded) {
+                            progress.advance(1);
+                        } else {
+                            progress.advanceUnbounded(1);
+                        }
                     }
                 }
 
@@ -213,7 +225,7 @@ public class BlockStreamRecoveryWorkflow {
                             .formatted(targetRound, currentRound.get()));
         }
 
-        // To make sure that VirtualMapMetadata is persisted after all changes from the block stream were applied
+        // To make sure that VirtualMap.Metadata is persisted after all changes from the block stream were applied
         stateLifecycleManager.copyMutableState();
         state.getHash();
         final var rootHash = requireNonNull(state.getHash()).getBytes();
@@ -235,7 +247,8 @@ public class BlockStreamRecoveryWorkflow {
                         platformContext.getFileSystemManager());
         try {
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext,
+                    platformContext.getConfiguration(),
+                    platformContext.getFileSystemManager(),
                     selfId,
                     outputPath,
                     signedState.reserve("BlockStreamWorkflow.applyBlocks()"),

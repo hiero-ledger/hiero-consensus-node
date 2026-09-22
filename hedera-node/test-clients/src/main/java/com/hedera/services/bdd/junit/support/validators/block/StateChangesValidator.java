@@ -11,14 +11,12 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.stateNameOf;
 import static com.hedera.node.app.history.impl.HistoryLibraryImpl.WRAPS;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.SAVED_STATES_DIR;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.SWIRLDS_LOG;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.*;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.STATE_METADATA_FILE;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.junit.support.validators.block.RootHashUtils.extractRootMnemonic;
+import static com.hedera.services.bdd.spec.HapiPropertySource.inPriorityOrder;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
@@ -60,6 +58,7 @@ import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.HapiSpec;
+import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.swirlds.base.time.Time;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.Service;
@@ -94,8 +93,9 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.config.PathsConfig;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.PathsConfig;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
 
 /**
@@ -210,7 +210,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                 Bytes.fromHex(
                         "50ea5c2588457b952dba215bcefc5f54a1b87c298e5c0f2a534a8eb7177354126c55ee5c23319187e964443e4c17c007"),
                 node0Dir.resolve("output/swirlds.log"),
-                node0Dir.resolve("data/config/application.properties"),
                 node0Dir.resolve("data/config"),
                 HintsEnabled.YES,
                 HistoryEnabled.YES,
@@ -263,10 +262,21 @@ public class StateChangesValidator implements BlockStreamValidator {
         }
 
         final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
-        final boolean isHintsEnabled = spec.startupProperties().getBoolean("tss.hintsEnabled");
-        final boolean isHistoryEnabled = spec.startupProperties().getBoolean("tss.historyEnabled");
-        final boolean stateProofsEnabled = spec.startupProperties().getBoolean("block.stateproof.verification.enabled");
+        // Read TSS config from the node's actual application.properties so that properties written
+        // by copyBootstrapAssets() (e.g. tss.wrapsEnabled=false from configuration/dev) are
+        // respected. Fall back to spec.startupProperties() for anything not explicitly in the file
+        // (e.g. @ConfigProperty annotation defaults such as tss.forceMockSignatures=true).
+        final var nodeStartupProperties = inPriorityOrder(
+                new JutilPropertySource(node0.getExternalPath(APPLICATION_PROPERTIES)), spec.startupProperties());
+        final boolean isHintsEnabled = nodeStartupProperties.getBoolean("tss.hintsEnabled");
+        final boolean isHistoryEnabled = nodeStartupProperties.getBoolean("tss.historyEnabled");
+        final boolean stateProofsEnabled = nodeStartupProperties.getBoolean("block.stateproof.verification.enabled");
         final boolean adaptiveChecksEnabled = ADAPTIVE_SIGNATURE_CHECKS_ENABLED.get();
+        // When forceMockSignatures=true, nodes emit SHA-384 hashes instead of real TSS signatures;
+        // the TSS libraries cannot verify these, so skip them unless adaptive checks are enabled
+        // (which detects and handles 48-byte mock signatures via assertMockSignature())
+        final boolean isForceMockSignatures = nodeStartupProperties.getBoolean("tss.forceMockSignatures");
+        final boolean useTssLibraries = !isForceMockSignatures || adaptiveChecksEnabled;
         // Detect if cutover executed by checking for preserved preview blocks on disk
         final Path preservedPreviewBlocksDir =
                 node0.metadata().workingDir().resolve("data").resolve("cutover").resolve("preservedPreviewBlocks");
@@ -274,11 +284,12 @@ public class StateChangesValidator implements BlockStreamValidator {
         return new StateChangesValidator(
                 rootHash,
                 node0.getExternalPath(SWIRLDS_LOG),
-                node0.getExternalPath(APPLICATION_PROPERTIES),
                 node0.getExternalPath(DATA_CONFIG_DIR),
-                (adaptiveChecksEnabled || isHintsEnabled) ? HintsEnabled.YES : HintsEnabled.NO,
-                (adaptiveChecksEnabled || isHistoryEnabled) ? HistoryEnabled.YES : HistoryEnabled.NO,
-                adaptiveChecksEnabled || spec.startupProperties().getBoolean("tss.wrapsEnabled"),
+                (useTssLibraries && (adaptiveChecksEnabled || isHintsEnabled)) ? HintsEnabled.YES : HintsEnabled.NO,
+                (useTssLibraries && (adaptiveChecksEnabled || isHistoryEnabled))
+                        ? HistoryEnabled.YES
+                        : HistoryEnabled.NO,
+                useTssLibraries && (adaptiveChecksEnabled || nodeStartupProperties.getBoolean("tss.wrapsEnabled")),
                 Optional.ofNullable(System.getProperty("hapi.spec.hintsThresholdDenominator"))
                         .map(Long::parseLong)
                         .orElse(DEFAULT_HINTS_THRESHOLD_DENOMINATOR),
@@ -295,7 +306,6 @@ public class StateChangesValidator implements BlockStreamValidator {
     public StateChangesValidator(
             @NonNull final Bytes expectedRootHash,
             @NonNull final Path pathToNode0SwirldsLog,
-            @NonNull final Path pathToOverrideProperties,
             @NonNull final Path pathToUpgradeSysFilesLoc,
             @NonNull final HintsEnabled hintsEnabled,
             @NonNull final HistoryEnabled historyEnabled,
@@ -332,7 +342,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var platformConfig = ServicesMain.buildPlatformConfig();
         final var pathsConfig = platformConfig.getConfigData(PathsConfig.class);
         final var fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
-        final var hedera = ServicesMain.newHedera(platformConfig, fileSystemManager, metrics, Time.getCurrent());
+        final var hedera = ServicesMain.newHedera(
+                platformConfig, fileSystemManager, metrics, Time.getCurrent(), NodeId.FIRST_NODE_ID);
         this.stateLifecycleManager = hedera.getStateLifecycleManager();
         final var genesisState = hedera.getStateLifecycleManager().getMutableState();
         this.state = stateLifecycleManager.copyMutableState();
@@ -369,12 +380,18 @@ public class StateChangesValidator implements BlockStreamValidator {
 
             for (final var block : previewBlocks) {
                 // Apply state changes from preview blocks to build up state
+                long eventNodeId = -1;
                 for (final var item : block.items()) {
                     if (item.hasStateChanges()) {
                         final var changes = item.stateChangesOrThrow();
                         lastStateChanges = changes;
                         lastStateChangesTime = asInstant(changes.consensusTimestampOrThrow());
                         applyStateChanges(changes);
+                    } else if (item.hasEventHeader()) {
+                        eventNodeId =
+                                item.eventHeaderOrThrow().eventCoreOrThrow().creatorNodeId();
+                    } else if (item.hasSignedTransaction()) {
+                        observeSignedTransaction(item, eventNodeId);
                     }
                 }
 
@@ -552,34 +569,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 } else if (item.hasEventHeader()) {
                     eventNodeId = item.eventHeaderOrThrow().eventCoreOrThrow().creatorNodeId();
                 } else if (item.hasSignedTransaction()) {
-                    final var parts = TransactionParts.from(item.signedTransactionOrThrow());
-                    if (parts.function() == HINTS_PARTIAL_SIGNATURE) {
-                        final var op = parts.body().hintsPartialSignatureOrThrow();
-                        final var all = signers.computeIfAbsent(op.message(), k -> new HashSet<>());
-                        all.add(eventNodeId);
-                        if (blockNumbers.containsKey(op.message())) {
-                            logger.info(
-                                    "#{} ({}...) now signed by {}",
-                                    blockNumbers.get(op.message()),
-                                    op.message().toString().substring(0, 8),
-                                    all);
-                        }
-                    } else if (parts.function() == LEDGER_ID_PUBLICATION) {
-                        ledgerIdPublication = parts.body().ledgerIdPublicationOrThrow();
-                        final int k = ledgerIdPublication.nodeContributions().size();
-                        final long[] nodeIds = new long[k];
-                        final long[] weights = new long[k];
-                        final byte[][] publicKeys = new byte[k][];
-                        for (int j = 0; j < k; j++) {
-                            final var contribution =
-                                    ledgerIdPublication.nodeContributions().get(j);
-                            nodeIds[j] = contribution.nodeId();
-                            weights[j] = contribution.weight();
-                            publicKeys[j] = contribution.historyProofKey().toByteArray();
-                        }
-                        // Set the relevant public keys for later verification
-                        TSS.setAddressBook(publicKeys, weights, nodeIds);
-                    }
+                    observeSignedTransaction(item, eventNodeId);
                 }
             }
             assertNotNull(firstConsensusTimestamp, "No parseable timestamp found for block #" + i);
@@ -821,19 +811,22 @@ public class StateChangesValidator implements BlockStreamValidator {
         return Bytes.wrap(digest.digest());
     }
 
-    private static Bytes hashInternalNodeSingleChild(final Bytes hash) {
-        final var digest = sha384DigestOrThrow();
-        digest.update(BlockImplUtils.SINGLE_CHILD_INTERNAL_NODE_PREFIX);
-        digest.update(hash.toByteArray());
-        return Bytes.wrap(digest.digest());
-    }
-
     private static Bytes hashInternalNode(final Bytes leftChildHash, final Bytes rightChildHash) {
         final var digest = sha384DigestOrThrow();
         digest.update(BlockImplUtils.INTERNAL_NODE_PREFIX);
         digest.update(leftChildHash.toByteArray());
         digest.update(rightChildHash.toByteArray());
         return Bytes.wrap(digest.digest());
+    }
+
+    /**
+     * The root of the eight empty reserved branches 9-16, derived here rather than read from production.
+     * Expected value: {@code cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8}.
+     */
+    private static Bytes emptyReservedHalf() {
+        final var pairOfEmpties = hashInternalNode(BlockStreamManager.HASH_OF_ZERO, BlockStreamManager.HASH_OF_ZERO);
+        final var fourEmpties = hashInternalNode(pairOfEmpties, pairOfEmpties);
+        return hashInternalNode(fourEmpties, fourEmpties);
     }
 
     private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
@@ -854,31 +847,28 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var outputTreeHash = Bytes.wrap(outputTreeHasher.computeRootHash());
         final var traceDataHash = Bytes.wrap(traceDataHasher.computeRootHash());
 
-        // Compute depth five hashes
-        final var depth5Node1 = hashInternalNode(previousBlockHash, prevBlocksRootHash);
-        final var depth5Node2 = hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
-        final var depth5Node3 = hashInternalNode(inputTreeHash, outputTreeHash);
-        final var depth5Node4 = hashInternalNode(finalStateChangesHash, traceDataHash);
+        // Built by hand, on purpose. This validator must not share the block root tree implementation with
+        // block production: if it did, any error in that implementation would be reproduced here and the
+        // validator would pass regardless. Branches 1-8 carry data, branches 9-16 are reserved and empty.
+        final var branches12 = hashInternalNode(previousBlockHash, prevBlocksRootHash);
+        final var branches34 = hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
+        final var branches56 = hashInternalNode(inputTreeHash, outputTreeHash);
+        final var branches78 = hashInternalNode(finalStateChangesHash, traceDataHash);
+        final var branches1234 = hashInternalNode(branches12, branches34);
+        final var branches5678 = hashInternalNode(branches56, branches78);
+        final var assignedHalf = hashInternalNode(branches1234, branches5678);
 
-        // Compute depth four hashes
-        final var depth4Node1 = hashInternalNode(depth5Node1, depth5Node2);
-        final var depth4Node2 = hashInternalNode(depth5Node3, depth5Node4);
+        final var reservedHalf = emptyReservedHalf();
+        final var subtreesRoot = hashInternalNode(assignedHalf, reservedHalf);
+        final var timestampLeaf = hashLeaf(Timestamp.PROTOBUF.toBytes(blockTimestamp));
+        final var root = hashInternalNode(timestampLeaf, subtreesRoot);
 
-        // Compute depth three hash (no 'node 2' at this level since reserved subroots 9-16 aren't encoded in the tree)
-        final var depth3Node1 = hashInternalNode(depth4Node1, depth4Node2);
-
-        // Compute depth two hashes (timestamp + last right sibling)
-        final var timestamp = Timestamp.PROTOBUF.toBytes(blockTimestamp);
-        final var depth2Node1 = hashLeaf(timestamp);
-        final var depth2Node2 = hashInternalNodeSingleChild(depth3Node1);
-
-        // Compute the block's root hash (depth 1)
-        final var root = hashInternalNode(depth2Node1, depth2Node2);
-
+        // The right sibling of branch 1's ancestor at each level, bottom-up
         return new RootAndSiblingHashes(root, new MerkleSiblingHash[] {
             new MerkleSiblingHash(false, prevBlocksRootHash),
-            new MerkleSiblingHash(false, depth5Node2),
-            new MerkleSiblingHash(false, depth4Node2),
+            new MerkleSiblingHash(false, branches34),
+            new MerkleSiblingHash(false, branches5678),
+            new MerkleSiblingHash(false, reservedHalf)
         });
     }
 
@@ -950,8 +940,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 // C.f. cases in BlockStreamManagerImpl.finishProofWithSignature(); cannot use the
                 // convenience API directly here since we don't have a chain-of-trust proof
                 final var vk = signature.slice(0, HintsLibraryImpl.VK_LENGTH);
-                final var sig =
-                        signature.slice(HintsLibraryImpl.VK_LENGTH, signature.length() - HintsLibraryImpl.VK_LENGTH);
+                final var sig = signature.slice(HintsLibraryImpl.VK_LENGTH, HintsLibraryImpl.SIGNATURE_LENGTH);
                 final boolean valid =
                         hintsLibrary.verifyAggregate(sig, expectedBlockHash, vk, 1, hintsThresholdDenominator);
                 if (!valid) {
@@ -981,6 +970,36 @@ public class StateChangesValidator implements BlockStreamValidator {
             }
         } else {
             assertMockSignature(proof, expectedBlockHash);
+        }
+    }
+
+    private void observeSignedTransaction(@NonNull final BlockItem item, final long eventNodeId) {
+        final var parts = TransactionParts.from(item.signedTransactionOrThrow());
+        if (parts.function() == HINTS_PARTIAL_SIGNATURE) {
+            final var op = parts.body().hintsPartialSignatureOrThrow();
+            final var all = signers.computeIfAbsent(op.message(), k -> new HashSet<>());
+            all.add(eventNodeId);
+            if (blockNumbers.containsKey(op.message())) {
+                logger.info(
+                        "#{} ({}...) now signed by {}",
+                        blockNumbers.get(op.message()),
+                        op.message().toString().substring(0, 8),
+                        all);
+            }
+        } else if (parts.function() == LEDGER_ID_PUBLICATION) {
+            ledgerIdPublication = parts.body().ledgerIdPublicationOrThrow();
+            final int k = ledgerIdPublication.nodeContributions().size();
+            final long[] nodeIds = new long[k];
+            final long[] weights = new long[k];
+            final byte[][] publicKeys = new byte[k][];
+            for (int j = 0; j < k; j++) {
+                final var contribution = ledgerIdPublication.nodeContributions().get(j);
+                nodeIds[j] = contribution.nodeId();
+                weights[j] = contribution.weight();
+                publicKeys[j] = contribution.historyProofKey().toByteArray();
+            }
+            // Set the relevant public keys for later verification
+            TSS.setAddressBook(publicKeys, weights, nodeIds);
         }
     }
 

@@ -53,7 +53,6 @@ message MerkleDbTableMetadata {
   uint64 minValidKey                = 1;  // optional — omitted when 0
   uint64 maxValidKey                = 2;  // optional — omitted when 0
   uint64 initialCapacity            = 3;  // optional — always > 0, always written
-  uint64 hashesRamToDiskThreshold   = 4;  // optional, @Deprecated — legacy migration only
   // field 5, 6 — reserved
   uint32 hashChunkHeight            = 7;  // optional — validated against config on load
 }
@@ -61,7 +60,7 @@ message MerkleDbTableMetadata {
 
 `(minValidKey, maxValidKey)` = the valid leaf-path range, i.e. the VirtualMap’s
 `(firstLeafPath, lastLeafPath)`. `VirtualMap` reconstructs its
-`VirtualMapMetadata` on load directly from these two values; no separate virtual
+`VirtualMap.Metadata` on load directly from these two values; no separate virtual
 map metadata file is written.
 
 ### 2. `idToDiskLocationHashChunks.ll` & `pathToDiskLocationLeafNodes.ll` — index flush
@@ -303,13 +302,12 @@ message BucketEntry  { int32 hashCode = 1; optional int64 value = 2; bytes keyBy
 
 **`MerkleDbDataSource` — `table_metadata.pbj`**
 
-| # |            Name            |  Type  |            Notes            |
-|---|----------------------------|--------|-----------------------------|
-| 1 | `minValidKey`              | UINT64 | optional, omitted when 0    |
-| 2 | `maxValidKey`              | UINT64 | optional, omitted when 0    |
-| 3 | `initialCapacity`          | UINT64 | always written              |
-| 4 | `hashesRamToDiskThreshold` | UINT64 | optional, `@Deprecated`     |
-| 7 | `hashChunkHeight`          | UINT32 | optional, validated on load |
+| # |       Name        |  Type  |            Notes            |
+|---|-------------------|--------|-----------------------------|
+| 1 | `minValidKey`     | UINT64 | optional, omitted when 0    |
+| 2 | `maxValidKey`     | UINT64 | optional, omitted when 0    |
+| 3 | `initialCapacity` | UINT64 | always written              |
+| 7 | `hashChunkHeight` | UINT32 | optional, validated on load |
 
 **`DataFileCollection` — `<store>_metadata.pbj`**
 

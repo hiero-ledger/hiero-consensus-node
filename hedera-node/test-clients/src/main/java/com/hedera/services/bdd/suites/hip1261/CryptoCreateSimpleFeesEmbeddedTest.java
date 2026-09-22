@@ -55,9 +55,7 @@ public class CryptoCreateSimpleFeesEmbeddedTest {
     private static final String CRYPTO_CREATE_TXN_INNER_ID = "crypto-create-txn-inner-id";
 
     @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "true"));
-    }
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {}
 
     @Nested
     @DisplayName("CryptoCreate Simple Fees Failures on Pre-Handle")

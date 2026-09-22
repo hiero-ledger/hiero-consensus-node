@@ -10,6 +10,7 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.spi.migrate.HederaMigrationContext;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.data.NetworkAdminConfig;
+import com.hedera.node.internal.network.Network;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.spi.WritableStates;
@@ -17,6 +18,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -43,8 +45,35 @@ public interface RosterTransplantSchema {
             @NonNull final HederaMigrationContext ctx,
             @NonNull final BiConsumer<Roster, Roster> onAdopt,
             @NonNull final Function<WritableStates, WritableRosterStore> rosterStoreFactory) {
+        return restart(ctx, onAdopt, rosterStoreFactory, network -> {});
+    }
+
+    /**
+     * Restart the {@link RosterService} by copying any roster overrides from the startup assets into the state.
+     *
+     * @param ctx the migration context
+     * @param onAdopt a callback to invoke with an outgoing roster being replaced by a new roster hash
+     * @param rosterStoreFactory the factory to use to create the writable roster store
+     * @param onOverrideNetwork a callback to invoke with the adopted override network
+     */
+    default boolean restart(
+            @NonNull final HederaMigrationContext ctx,
+            @NonNull final BiConsumer<Roster, Roster> onAdopt,
+            @NonNull final Function<WritableStates, WritableRosterStore> rosterStoreFactory,
+            @NonNull final Consumer<Network> onOverrideNetwork) {
         requireNonNull(ctx);
+        requireNonNull(onAdopt);
+        requireNonNull(rosterStoreFactory);
+        requireNonNull(onOverrideNetwork);
         final long roundNumber = ctx.roundNumber();
+        if (ctx.isReconnect()) {
+            // A reconnected node's state already reflects whatever roster the network is running; adopting an
+            // override network here would be a unilateral change to the active roster, the transplant flag, and
+            // the TSS constructions, putting this node into an ISS within a few rounds. A transplant is only
+            // ever applied when the whole network restarts onto it.
+            log.info("Skipping any override network on reconnect in round {}", roundNumber + 1);
+            return false;
+        }
         final StartupNetworks startupNetworks = ctx.startupNetworks();
         final var overrideNetwork = startupNetworks.overrideNetworkFor(roundNumber, ctx.platformConfig());
         overrideNetwork.ifPresent(network -> {
@@ -59,6 +88,7 @@ public interface RosterTransplantSchema {
                     : overrideRoster;
             rosterStore.putActiveRoster(roster, activeRoundNumber);
             rosterStore.updateTransplantInProgress(true);
+            onOverrideNetwork.accept(network);
             onAdopt.accept(outgoingRoster, roster);
             startupNetworks.setOverrideRound(roundNumber);
         });

@@ -7,8 +7,6 @@ import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString
 import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.state.signed.SignedStateValidationData;
-import com.swirlds.platform.state.signed.SignedStateValidator;
 import com.swirlds.state.State;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

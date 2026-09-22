@@ -13,6 +13,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.lenient;
 
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
@@ -110,7 +111,7 @@ class CustomDelegateCallOperationTest {
                             anyLong(),
                             anyLong(),
                             anyLong(),
-                            any(),
+                            anyLong(),
                             any(),
                             any(),
                             anyBoolean()))
@@ -123,9 +124,9 @@ class CustomDelegateCallOperationTest {
     }
 
     private void givenWellKnownFrameWithNoGasCalc(final long value, final Address to, final long gas) {
-        given(frame.getWorldUpdater()).willReturn(worldUpdater);
+        lenient().when(frame.getWorldUpdater()).thenReturn(worldUpdater);
         given(frame.getStackItem(0)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(gas)));
-        given(frame.getStackItem(1)).willReturn(to);
+        lenient().when(frame.getStackItem(1)).thenReturn(to.getBytes());
         given(frame.getStackItem(2)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(value)));
         given(frame.getStackItem(3)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(3)));
         given(frame.getStackItem(4)).willReturn(Bytes32.leftPad(Bytes.ofUnsignedLong(4)));
@@ -142,7 +143,7 @@ class CustomDelegateCallOperationTest {
                         anyLong(),
                         anyLong(),
                         anyLong(),
-                        any(),
+                        anyLong(),
                         any(),
                         any(),
                         anyBoolean()))
@@ -154,45 +155,7 @@ class CustomDelegateCallOperationTest {
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             frameUtils.when(() -> FrameUtils.isHookExecution(frame)).thenReturn(true);
-            given(frame.getRecipientAddress()).willReturn(SYSTEM_ADDRESS);
-            given(frame.getWorldUpdater()).willReturn(updater);
-            given(updater.getHederaAccount(frame.getRecipientAddress())).willReturn(hederaAccount);
-            given(hederaAccount.isTokenFacade()).willReturn(false);
-            given(hederaAccount.isScheduleTxnFacade()).willReturn(false);
-            given(hederaAccount.isRegularAccount()).willReturn(false);
-
             final var expected = new Operation.OperationResult(0, INVALID_OPERATION);
-            assertSameResult(expected, subject.execute(frame, evm));
-        }
-    }
-
-    @Test
-    void permitsWhenHookExecutionAndNativeEntity() {
-        try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
-            givenWellKnownFrameWithNoGasCalc(1L, SYSTEM_ADDRESS, 2L);
-            given(frame.getRemainingGas()).willReturn(0L);
-            given(gasCalculator.callOperationGasCost(
-                            any(),
-                            anyLong(),
-                            anyLong(),
-                            anyLong(),
-                            anyLong(),
-                            anyLong(),
-                            any(),
-                            any(),
-                            any(),
-                            anyBoolean()))
-                    .willReturn(REQUIRED_GAS);
-            given(frame.getRecipientAddress()).willReturn(SYSTEM_ADDRESS);
-            frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
-            frameUtils.when(() -> FrameUtils.isHookExecution(frame)).thenReturn(true);
-            given(frame.getRecipientAddress()).willReturn(SYSTEM_ADDRESS);
-            given(frame.getWorldUpdater()).willReturn(updater);
-            given(updater.getHederaAccount(frame.getRecipientAddress())).willReturn(hederaAccount);
-            given(hederaAccount.isTokenFacade()).willReturn(false);
-            given(hederaAccount.isScheduleTxnFacade()).willReturn(true);
-
-            final var expected = new Operation.OperationResult(REQUIRED_GAS, INSUFFICIENT_GAS);
             assertSameResult(expected, subject.execute(frame, evm));
         }
     }

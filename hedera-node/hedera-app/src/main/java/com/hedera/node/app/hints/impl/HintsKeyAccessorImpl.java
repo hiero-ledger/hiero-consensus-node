@@ -6,6 +6,7 @@ import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.tss.SequentialContentManager;
+import com.hedera.node.app.tss.TssKeyFiles;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -69,11 +70,12 @@ public class HintsKeyAccessorImpl
     @NonNull
     @Override
     public Bytes readContent(@NonNull final Path p) throws IOException {
+        TssKeyFiles.ensureKeyFilePermissions(p);
         return Bytes.wrap(Files.readAllBytes(p));
     }
 
     @Override
     public void writeContent(@NonNull final Bytes content, @NonNull final Path p) throws IOException {
-        Files.write(p, content.toByteArray());
+        TssKeyFiles.writeKeyBytes(p, content);
     }
 }

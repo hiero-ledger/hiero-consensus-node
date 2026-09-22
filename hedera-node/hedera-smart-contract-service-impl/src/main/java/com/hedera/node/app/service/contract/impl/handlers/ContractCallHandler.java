@@ -12,25 +12,23 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
-import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.utils.ConstantUtils;
+import com.hedera.node.app.service.contract.impl.utils.EthereumTransactionRollbackHandler;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import javax.inject.Singleton;
-import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 
 /**
@@ -47,7 +45,7 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
     @Inject
     public ContractCallHandler(
             @NonNull final Provider<TransactionComponent.Factory> provider,
-            @NonNull final GasCalculator gasCalculator,
+            @NonNull final HederaGasCalculator gasCalculator,
             @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ContractServiceComponent component) {
         super(provider, gasCalculator, entityIdFactory, component);
@@ -65,7 +63,12 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
         final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
         outcome.addCallDetailsTo(streamBuilder, context, entityIdFactory);
 
-        throwIfUnsuccessfulCall(outcome, component.hederaOperations());
+        throwIfUnsuccessfulCall(
+                outcome,
+                new EthereumTransactionRollbackHandler(
+                        outcome, component.hederaOperations().gasChargingEvents(), component.rootProxyWorldUpdater()),
+                streamBuilder,
+                context);
     }
 
     @Override
@@ -92,22 +95,18 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
                 // call to zero address make no sense, and we are not supporting it
                 validateFalsePreCheck(ConstantUtils.ZERO_CONTRACT_ID.equals(contractId), INVALID_CONTRACT_ID);
             }
-
-            // TODO: Revisit baselineGas with Pectra support epic
-            final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(
-                    Bytes.wrap(op.functionParameters().toByteArray()), false, 0L);
-            validateTruePreCheck(op.gas() >= intrinsicGas, INSUFFICIENT_GAS);
+            // accessLists and codeDelegations are null because both are not supported for 'ContractCall'
+            final var functionParameters = op.functionParameters();
+            final var gasRequirements = gasCalculator.transactionGasRequirements(
+                    (int) functionParameters.length(),
+                    HederaGasCalculator.payloadZeroBytes(functionParameters),
+                    false,
+                    null,
+                    null);
+            validateTruePreCheck(op.gas() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(CONTRACT_CALL, e);
             throw e;
         }
-    }
-
-    @Override
-    protected /*abstract*/ @NonNull FeeData getFeeMatrices(
-            @NonNull final SmartContractFeeBuilder usageEstimator,
-            @NonNull final com.hederahashgraph.api.proto.java.TransactionBody txBody,
-            @NonNull final SigValueObj sigValObj) {
-        return usageEstimator.getContractCallTxFeeMatrices(txBody, sigValObj);
     }
 }

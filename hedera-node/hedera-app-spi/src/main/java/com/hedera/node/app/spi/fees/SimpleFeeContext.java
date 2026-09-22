@@ -75,11 +75,6 @@ public interface SimpleFeeContext extends FeeContext {
     }
 
     @Override
-    default @NonNull FeeCalculatorFactory feeCalculatorFactory() {
-        return requireFeeContext().feeCalculatorFactory();
-    }
-
-    @Override
     default SimpleFeeCalculator getSimpleFeeCalculator() {
         return requireFeeContext().getSimpleFeeCalculator();
     }

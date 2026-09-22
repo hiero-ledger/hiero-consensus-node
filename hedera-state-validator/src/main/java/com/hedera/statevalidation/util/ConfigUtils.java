@@ -39,8 +39,6 @@ import com.hedera.node.config.types.KeyValuePair;
 import com.hedera.node.config.types.LongPair;
 import com.hedera.node.config.types.PermissionedAccountsRange;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
@@ -48,8 +46,8 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.builder.ModulesConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import org.hiero.base.crypto.config.CryptoConfig;
-import org.hiero.consensus.config.BasicConfig;
-import org.hiero.consensus.config.PathsConfig;
+import org.hiero.consensus.BasicConfig;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.state.config.StateConfig;
@@ -104,9 +102,8 @@ public final class ConfigUtils {
                 .withConfigDataType(VirtualMapConfig.class)
                 .withConfigDataType(MerkleDbConfig.class)
                 .withConfigDataType(CryptoConfig.class)
-                .withConfigDataType(StateCommonConfig.class)
+                .withConfigDataType(PathsConfig.class)
                 .withConfigDataType(StateConfig.class)
-                .withConfigDataType(TemporaryFileConfig.class)
                 .withConfigDataType(FilesConfig.class)
                 .withConfigDataType(ApiPermissionConfig.class)
                 .withConfigDataType(BootstrapConfig.class)
@@ -128,6 +125,8 @@ public final class ConfigUtils {
                 .withSource(new SimpleConfigSource().withValue("merkleDb.maxFileChannelsPerFileReader", FILE_CHANNELS))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.maxThreadsPerFileChannel", 1))
                 .withSource(
+                        (new SimpleConfigSource().withValue("event.preconsensus.pcesFileWriterType", "OUTPUT_STREAM")))
+                .withSource(
                         new SimpleConfigSource().withValue("virtualMap.fullRehashTimeoutMs", FULL_REHASH_TIMEOUT_MS))
                 .withConverter(CongestionMultipliers.class, new CongestionMultipliersConverter())
                 .withConverter(EntityScaleFactors.class, new EntityScaleFactorsConverter())
@@ -143,8 +142,9 @@ public final class ConfigUtils {
                 .withConverter(HederaFunctionalitySet.class, new FunctionalitySetConverter())
                 .withConverter(Bytes.class, new BytesConverter());
         if (!TMP_DIR.isEmpty()) {
-            configurationBuilder.withSource(
-                    new SimpleConfigSource().withValue("temporaryFiles.temporaryFilePath", TMP_DIR));
+            configurationBuilder.withSource(new SimpleConfigSource()
+                    .withValue("paths.tmpDir", TMP_DIR)
+                    .withValue("temporaryFiles.temporaryFilePath", TMP_DIR));
         }
         configuration = configurationBuilder.build();
     }

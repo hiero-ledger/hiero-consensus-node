@@ -32,11 +32,15 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import org.apache.logging.log4j.LogManager;
@@ -64,7 +68,7 @@ public class ProofControllerImpl implements ProofController {
 
     private final Map<Long, ExplicitProofVote> votes = new TreeMap<>();
     private final Map<Long, Bytes> targetProofKeys = new TreeMap<>();
-    private final Map<Bytes, Boolean> proofTagValidations = new HashMap<>();
+    private final Map<RecursiveProofValidationKey, Boolean> proofTagValidations = new HashMap<>();
 
     /**
      * The ongoing construction, updated in network state each time the controller makes progress.
@@ -124,6 +128,17 @@ public class ProofControllerImpl implements ProofController {
         }
     }
 
+    private record RecursiveProofValidationKey(
+            @NonNull Bytes proofTag,
+            @NonNull Bytes ledgerId,
+            @NonNull Bytes metadata) {
+        private RecursiveProofValidationKey {
+            requireNonNull(proofTag);
+            requireNonNull(ledgerId);
+            requireNonNull(metadata);
+        }
+    }
+
     public ProofControllerImpl(
             final long selfId,
             @NonNull final SchnorrKeyPair schnorrKeyPair,
@@ -154,8 +169,8 @@ public class ProofControllerImpl implements ProofController {
         this.historyLibrary = requireNonNull(historyLibrary);
         this.historyService = requireNonNull(historyService);
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
-        votes.forEach((nodeId, vote) -> incorporateVote(nodeId, vote, tssConfig));
-        if (!construction.hasTargetProof()) {
+        replayPersistedVotes(votes, tssConfig);
+        if (!isCompleted(construction, tssConfig)) {
             final var cutoffTime = construction.hasGracePeriodEndTime()
                     ? asInstant(construction.gracePeriodEndTimeOrThrow())
                     : Instant.MAX;
@@ -225,16 +240,20 @@ public class ProofControllerImpl implements ProofController {
                 }
                 return;
             }
-            // Cannot make progress on anything without an active network
-            if (!isActive) {
-                return;
-            }
             final var outcome = requireNonNull(prover)
-                    .advance(now, construction, metadata, targetProofKeys, tssConfig, historyStore.getLedgerId());
+                    .advance(
+                            now,
+                            construction,
+                            metadata,
+                            targetProofKeys,
+                            tssConfig,
+                            historyStore.getLedgerId(),
+                            isActive);
             switch (outcome) {
                 case HistoryProver.Outcome.InProgress ignored ->
                     construction = historyStore.getConstructionOrThrow(constructionId());
-                case HistoryProver.Outcome.Completed completed -> finishProof(historyStore, completed.proof(), now);
+                case HistoryProver.Outcome.Completed completed ->
+                    finishProof(historyStore, completed.proof(), now, tssConfig);
                 case HistoryProver.Outcome.Failed failed -> {
                     if (!retryIfRecoverableFailure(failed.reason(), historyStore, tssConfig)) {
                         log.warn("Failed construction #{} due to {}", constructionId(), failed.reason());
@@ -303,22 +322,11 @@ public class ProofControllerImpl implements ProofController {
         if (explicitProofVote.isRecursive()) {
             final var ledgerId = Optional.ofNullable(historyStore.getLedgerId()).orElse(Bytes.EMPTY);
             final var metadata = Optional.ofNullable(targetMetadata).orElse(Bytes.EMPTY);
-            votes.values()
-                    .forEach(v -> proofTagValidations.computeIfAbsent(v.tag(), _ -> {
-                        final boolean valid = historyLibrary.verifyCompressedProof(
-                                v.compressedProofOrEmpty(), ledgerId.toByteArray(), metadata.toByteArray());
-                        log.info(
-                                "{} compressed proof '{}' over ('{}' || '{}')",
-                                valid ? "VALID" : "INVALID",
-                                Bytes.wrap(v.compressedProofOrEmpty()),
-                                ledgerId,
-                                metadata);
-                        return valid;
-                    }));
-            category = proofTagValidations.get(explicitProofVote.tag()) ? VALID_RECURSIVE : INVALID_RECURSIVE;
+            final var explicitProofIsValid = isRecursiveProofValid(explicitProofVote, ledgerId, metadata);
+            category = explicitProofIsValid ? VALID_RECURSIVE : INVALID_RECURSIVE;
             final var weightsByValidity = votes.entrySet().stream()
                     .collect(groupingBy(
-                            entry -> proofTagValidations.get(entry.getValue().tag()),
+                            entry -> isRecursiveProofValid(entry.getValue(), ledgerId, metadata),
                             summingLong(entry -> weights.sourceWeightOf(entry.getKey()))));
             final long validWeight =
                     Optional.ofNullable(weightsByValidity.get(Boolean.TRUE)).orElse(0L);
@@ -327,12 +335,11 @@ public class ProofControllerImpl implements ProofController {
                 // Votes for valid recursive proofs are treated as congruent, we pick the valid proof
                 // submitted by the node with the lowest id as a tiebreaker
                 final var winningVote = votes.entrySet().stream()
-                        .filter(entry ->
-                                proofTagValidations.get(entry.getValue().tag()))
+                        .filter(entry -> isRecursiveProofValid(entry.getValue(), ledgerId, metadata))
                         .findFirst()
                         .map(Map.Entry::getValue)
                         .orElseThrow();
-                finishProof(historyStore, winningVote.historyProofVote().proofOrThrow(), now);
+                finishProof(historyStore, winningVote.historyProofVote().proofOrThrow(), now, tssConfig);
             }
         } else {
             category = NOT_RECURSIVE;
@@ -356,7 +363,7 @@ public class ProofControllerImpl implements ProofController {
                         .orElseThrow()
                         .historyProofVote()
                         .proofOrThrow();
-                finishProof(historyStore, proof, now);
+                finishProof(historyStore, proof, now, tssConfig);
             });
             thresholdCrossed = maybeWinningTag.isPresent();
         }
@@ -384,17 +391,20 @@ public class ProofControllerImpl implements ProofController {
     }
 
     /**
-     * Incorporates the given vote into the in-memory state of this controller; used to determine when a particular
-     * proof has enough votes to be completed.
+     * Incorporates a single live vote into the in-memory state of this controller; used to determine when a
+     * particular proof has enough votes to be completed. This is the path taken by {@link #addProofVote} as votes
+     * arrive in consensus order, so a congruent vote whose referent is not yet known is rejected rather than held.
+     * Rebuilding the tally from persisted votes instead uses {@link #replayPersistedVotes}, which does not assume
+     * consensus order.
      *
      * @param nodeId the ID of the node that cast the vote
      * @param vote the vote to incorporate
      * @param tssConfig the TSS configuration
+     * @return whether the vote could still be incorporated (false once the proof is finished)
      */
     private boolean incorporateVote(
             final long nodeId, @NonNull final HistoryProofVote vote, @NonNull final TssConfig tssConfig) {
-        if (construction.hasTargetProof()
-                && tssConfig.wrapsEnabled() == isWrapsExtensible(construction.targetProofOrThrow())) {
+        if (hasWrapsAdequateTargetProof(tssConfig)) {
             log.info(
                     "Skipping vote from node{} for construction #{} because the proof is already {}",
                     nodeId,
@@ -416,6 +426,77 @@ public class ProofControllerImpl implements ProofController {
     }
 
     /**
+     * Rebuilds the in-memory vote tally from the votes persisted in state, resolving each congruent vote to the
+     * explicit vote it references independent of the order in which the votes are replayed.
+     *
+     * <p>Votes are returned from state in {@link HashMap} iteration order, which is <b>not</b> the consensus order in
+     * which they were cast. The live {@link #incorporateVote} path assumes consensus order and drops a congruent vote
+     * whose referent has not been seen yet; replaying with it would leave a reconnecting node with less counted weight
+     * than the nodes that never restarted, so a later vote could complete the proof on some nodes but not others and
+     * trigger an ISS. This resolver instead loads every explicit vote first and then follows references, so accepted
+     * chains such as {@code node 0 -> node 1 -> node 2 (explicit)} are rebuilt regardless of replay order.
+     *
+     * @param persistedVotes the votes persisted in state, keyed by the node that cast them
+     * @param tssConfig the TSS configuration
+     */
+    private void replayPersistedVotes(
+            @NonNull final Map<Long, HistoryProofVote> persistedVotes, @NonNull final TssConfig tssConfig) {
+        // Mirror incorporateVote's guard: once the target proof matches the WRAPS setting, no vote is incorporated.
+        if (hasWrapsAdequateTargetProof(tssConfig)) {
+            return;
+        }
+        // Load every explicit vote into the tally, and index the congruent votes by the node they reference so their
+        // dependencies can be resolved without relying on replay order.
+        final Map<Long, List<Long>> congruentVotersByReferent = new TreeMap<>();
+        final Deque<Long> resolvedVoters = new ArrayDeque<>();
+        persistedVotes.forEach((nodeId, vote) -> {
+            if (vote.hasProof()) {
+                votes.put(nodeId, new ExplicitProofVote(vote));
+                resolvedVoters.add(nodeId);
+            } else if (vote.hasCongruentNodeId()) {
+                congruentVotersByReferent
+                        .computeIfAbsent(vote.congruentNodeIdOrThrow(), ignore -> new ArrayList<>())
+                        .add(nodeId);
+            }
+        });
+        // Starting from the explicit voters, resolve each congruent vote whose referent is now in the tally,
+        // enqueueing the newly resolved voter so its own dependents resolve too, until no further votes resolve.
+        while (!resolvedVoters.isEmpty()) {
+            final long referent = resolvedVoters.poll();
+            final var dependents = congruentVotersByReferent.remove(referent);
+            if (dependents != null) {
+                final var resolvedVote = votes.get(referent);
+                dependents.forEach(dependent -> {
+                    votes.put(dependent, resolvedVote);
+                    resolvedVoters.add(dependent);
+                });
+            }
+        }
+        // Any congruent votes still unresolved reference a node that never cast a (transitively) explicit vote.
+        // Accepted votes should never do this, so log the missing-reference or cyclic data instead of dropping it
+        // silently.
+        if (!congruentVotersByReferent.isEmpty()) {
+            log.warn(
+                    "Ignoring persisted congruent proof votes {} for construction #{} with unresolved references "
+                            + "(missing referent or cyclic data)",
+                    congruentVotersByReferent,
+                    construction.constructionId());
+        }
+    }
+
+    /**
+     * Returns whether the current construction already has a target proof whose WRAPS-extensibility matches the given
+     * WRAPS setting. When it does, the network will not re-vote to convert the proof and no further votes should be
+     * incorporated.
+     *
+     * @param tssConfig the TSS configuration
+     */
+    private boolean hasWrapsAdequateTargetProof(@NonNull final TssConfig tssConfig) {
+        return construction.hasTargetProof()
+                && tssConfig.wrapsEnabled() == isWrapsExtensible(construction.targetProofOrThrow());
+    }
+
+    /**
      * Finishes the active construction, commits its proof to state, and notifies the history service.
      * @param historyStore the writable history store
      * @param proof the proof
@@ -424,7 +505,8 @@ public class ProofControllerImpl implements ProofController {
     private void finishProof(
             @NonNull final WritableHistoryStore historyStore,
             @NonNull final HistoryProof proof,
-            @NonNull final Instant now) {
+            @NonNull final Instant now,
+            @NonNull final TssConfig tssConfig) {
         construction = historyStore.completeProof(construction.constructionId(), proof);
         historyProofMetrics.observeStage(constructionId(), HistoryProofMetrics.Stage.COMPLETED, now);
         historyProofMetrics.recordProofCompleted(constructionId(), construction.wrapsRetryCount());
@@ -433,8 +515,36 @@ public class ProofControllerImpl implements ProofController {
                 construction.constructionId(),
                 isWrapsExtensible(proof));
         historyService.onFinished(historyStore, construction, weights.targetNodeWeights());
-        // In case we'll vote again on a conversion to a WRAPS proof
+        // Clear the in-memory votes so the network can re-vote to convert this into a
+        // WRAPS-extensible proof. Only purge the PERSISTED votes when such a re-vote actually
+        // follows (wrapsEnabled != isWrapsExtensible): purging then keeps a rebuilt controller from
+        // reloading stale votes and diverging (SELF_ISS); skipping it otherwise avoids a spurious
+        // PROOF_VOTES state change that breaks block-stream/record parity (they are purged at
+        // handoff regardless).
+        if (tssConfig.wrapsEnabled() != isWrapsExtensible(proof)) {
+            historyStore.clearProofVotes(constructionId(), new TreeSet<>(votes.keySet()));
+        }
         votes.clear();
+        proofTagValidations.clear();
+    }
+
+    private boolean isRecursiveProofValid(
+            @NonNull final ExplicitProofVote vote, @NonNull final Bytes ledgerId, @NonNull final Bytes metadata) {
+        requireNonNull(vote);
+        requireNonNull(ledgerId);
+        requireNonNull(metadata);
+        final var validationKey = new RecursiveProofValidationKey(vote.tag(), ledgerId, metadata);
+        return proofTagValidations.computeIfAbsent(validationKey, ignored -> {
+            final boolean valid = historyLibrary.verifyCompressedProof(
+                    vote.compressedProofOrEmpty(), ledgerId.toByteArray(), metadata.toByteArray());
+            log.info(
+                    "{} compressed proof '{}' over ('{}' || '{}')",
+                    valid ? "VALID" : "INVALID",
+                    Bytes.wrap(vote.compressedProofOrEmpty()),
+                    ledgerId,
+                    metadata);
+            return valid;
+        });
     }
 
     /**
@@ -469,6 +579,7 @@ public class ProofControllerImpl implements ProofController {
             prover.cancelPendingWork();
         }
         construction = historyStore.restartWrapsSigning(constructionId(), weights.sourceNodeIds());
+        proofTagValidations.clear();
         historyProofMetrics.recordRetryStarted();
         prover = createProver(tssConfig);
         log.warn(

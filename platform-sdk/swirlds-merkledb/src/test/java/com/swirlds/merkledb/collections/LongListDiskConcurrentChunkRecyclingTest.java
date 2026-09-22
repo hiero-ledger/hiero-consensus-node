@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
@@ -17,14 +16,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.base.file.FileSystemManager;
-import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Tests that verify {@link LongListDisk} correctly handles concurrent reads
@@ -44,7 +40,7 @@ import org.junit.jupiter.api.io.TempDir;
  * because a reader can grab a chunk file-offset that is freed and reused for
  * a different index range between the offset lookup and the file read.
  */
-class LongListDiskConcurrentChunkRecyclingTest {
+class LongListDiskConcurrentChunkRecyclingTest extends AbstractFileManagerAwareTest {
 
     /**
      * Small chunk size to maximize the number of chunk boundaries and therefore
@@ -73,16 +69,6 @@ class LongListDiskConcurrentChunkRecyclingTest {
     /** Number of concurrent reader threads. */
     private static final int READER_THREADS = 4;
 
-    @TempDir
-    static Path tempDir;
-
-    private static FileSystemManager fileSystemManager;
-
-    @BeforeAll
-    static void setupFileSystemManager() {
-        fileSystemManager = new TestFileSystemManager(tempDir);
-    }
-
     private LongListDisk list;
 
     @AfterEach
@@ -101,7 +87,7 @@ class LongListDiskConcurrentChunkRecyclingTest {
     @Test
     @DisplayName("Basic get() returns correct values after put()")
     void basicReadWriteCorrectness() {
-        list = new LongListDisk(LONGS_PER_CHUNK, CAPACITY, RESERVED_BUFFER, CONFIGURATION, fileSystemManager);
+        list = new LongListDisk(LONGS_PER_CHUNK, CAPACITY, RESERVED_BUFFER, fileSystemManager);
         final int count = LONGS_PER_CHUNK * 10; // 10 chunks
         list.updateValidRange(0, count - 1);
 
@@ -120,7 +106,7 @@ class LongListDiskConcurrentChunkRecyclingTest {
     @Test
     @DisplayName("get() returns default for indices whose chunks have been freed")
     void readAfterShrinkReturnsDefault() {
-        list = new LongListDisk(LONGS_PER_CHUNK, CAPACITY, RESERVED_BUFFER, CONFIGURATION, fileSystemManager);
+        list = new LongListDisk(LONGS_PER_CHUNK, CAPACITY, RESERVED_BUFFER, fileSystemManager);
         final int count = LONGS_PER_CHUNK * 10;
         list.updateValidRange(0, count - 1);
 
@@ -149,7 +135,7 @@ class LongListDiskConcurrentChunkRecyclingTest {
     @Test
     @DisplayName("Values written into recycled chunks are read back correctly")
     void recycledChunkWriteReadCorrectness() {
-        list = new LongListDisk(LONGS_PER_CHUNK, CAPACITY, RESERVED_BUFFER, CONFIGURATION, fileSystemManager);
+        list = new LongListDisk(LONGS_PER_CHUNK, CAPACITY, RESERVED_BUFFER, fileSystemManager);
         final int initialCount = LONGS_PER_CHUNK * 6;
         list.updateValidRange(0, CAPACITY - 1);
 
@@ -163,9 +149,8 @@ class LongListDiskConcurrentChunkRecyclingTest {
         list.updateValidRange(newMin, CAPACITY - 1);
 
         // Write into indices beyond the initial range — these should reuse freed chunk offsets
-        final int extendedStart = initialCount;
         final int extendedEnd = initialCount + LONGS_PER_CHUNK * 3;
-        for (int i = extendedStart; i < extendedEnd; i++) {
+        for (int i = initialCount; i < extendedEnd; i++) {
             list.put(i, i + VALUE_MAGIC);
         }
 
@@ -174,7 +159,7 @@ class LongListDiskConcurrentChunkRecyclingTest {
             assertEquals(i + VALUE_MAGIC, list.get(i, 0), "Surviving index " + i + " should retain its value");
         }
         // Verify new values in recycled chunks
-        for (int i = extendedStart; i < extendedEnd; i++) {
+        for (int i = initialCount; i < extendedEnd; i++) {
             assertEquals(
                     i + VALUE_MAGIC,
                     list.get(i, 0),
@@ -191,7 +176,7 @@ class LongListDiskConcurrentChunkRecyclingTest {
     @RepeatedTest(5)
     @DisplayName("Concurrent readers never observe stale values from recycled chunks")
     void concurrentReadersNeverSeeGhostValues() throws Exception {
-        list = new LongListDisk(LONGS_PER_CHUNK, CAPACITY, RESERVED_BUFFER, CONFIGURATION, fileSystemManager);
+        list = new LongListDisk(LONGS_PER_CHUNK, CAPACITY, RESERVED_BUFFER, fileSystemManager);
 
         // ── Initial population: fill the first INITIAL_CHUNKS chunks ──
         final int INITIAL_CHUNKS = 20;
@@ -319,7 +304,7 @@ class LongListDiskConcurrentChunkRecyclingTest {
     @RepeatedTest(5)
     @DisplayName("Concurrent put and get on overlapping indices never return garbage")
     void concurrentPutAndGetNeverReturnGarbage() throws Exception {
-        list = new LongListDisk(LONGS_PER_CHUNK, CAPACITY, RESERVED_BUFFER, CONFIGURATION, fileSystemManager);
+        list = new LongListDisk(LONGS_PER_CHUNK, CAPACITY, RESERVED_BUFFER, fileSystemManager);
         final int INDEX_RANGE = LONGS_PER_CHUNK * 20;
         list.updateValidRange(0, CAPACITY - 1);
 
@@ -413,7 +398,7 @@ class LongListDiskConcurrentChunkRecyclingTest {
         // Even smaller chunks for maximum recycling frequency
         final int stressLongsPerChunk = 2;
         final long stressCapacity = stressLongsPerChunk * 500L;
-        list = new LongListDisk(stressLongsPerChunk, stressCapacity, 0, CONFIGURATION, fileSystemManager);
+        list = new LongListDisk(stressLongsPerChunk, stressCapacity, 0, fileSystemManager);
 
         final int initiallyPopulatedCount = stressLongsPerChunk * 50;
         list.updateValidRange(0, stressCapacity - 1);
@@ -519,7 +504,7 @@ class LongListDiskConcurrentChunkRecyclingTest {
     @Test
     @DisplayName("putIfEqual is not broken by StampedLock changes")
     void putIfEqualStillWorksCorrectly() {
-        list = new LongListDisk(LONGS_PER_CHUNK, CAPACITY, RESERVED_BUFFER, CONFIGURATION, fileSystemManager);
+        list = new LongListDisk(LONGS_PER_CHUNK, CAPACITY, RESERVED_BUFFER, fileSystemManager);
         list.updateValidRange(0, 99);
 
         list.put(42, 100);
@@ -527,12 +512,12 @@ class LongListDiskConcurrentChunkRecyclingTest {
 
         // Wrong expected → no change
         boolean changed = list.putIfEqual(42, 999, 200);
-        assertEquals(false, changed);
+        assertFalse(changed);
         assertEquals(100, list.get(42, 0));
 
         // Correct expected → swap
         changed = list.putIfEqual(42, 100, 200);
-        assertEquals(true, changed);
+        assertTrue(changed);
         assertEquals(200, list.get(42, 0));
     }
 }

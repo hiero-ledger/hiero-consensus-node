@@ -1,29 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.token;
 
-import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
-import static com.hedera.services.bdd.spec.transactions.token.HapiTokenFeeScheduleUpdate.lookupInfo;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
-import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
-import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
-import com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsage;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.keys.KeyRole;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
-import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.SubType;
-import com.hederahashgraph.api.proto.java.TokenInfo;
 import com.hederahashgraph.api.proto.java.TokenMintTransactionBody;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import java.util.Collections;
 import java.util.List;
@@ -39,9 +27,6 @@ public class HapiTokenMint extends HapiTxnOp<HapiTokenMint> {
     private final String token;
     private boolean rememberingNothing = false;
     private final List<ByteString> metadata;
-    private SubType subType;
-
-    private TokenInfo info;
 
     @Override
     public HederaFunctionality type() {
@@ -52,13 +37,11 @@ public class HapiTokenMint extends HapiTxnOp<HapiTokenMint> {
         this.token = token;
         this.amount = amount;
         this.metadata = Collections.emptyList();
-        this.subType = figureSubType();
     }
 
     public HapiTokenMint(final String token, final List<ByteString> metadata) {
         this.token = token;
         this.metadata = metadata;
-        this.subType = figureSubType();
     }
 
     public HapiTokenMint(final String token, final List<ByteString> metadata, final String txNamePrefix) {
@@ -71,7 +54,6 @@ public class HapiTokenMint extends HapiTxnOp<HapiTokenMint> {
         this.token = token;
         this.metadata = metadata;
         this.amount = amount;
-        this.subType = figureSubType();
     }
 
     public HapiTokenMint rememberingNothing() {
@@ -82,41 +64,6 @@ public class HapiTokenMint extends HapiTxnOp<HapiTokenMint> {
     @Override
     protected HapiTokenMint self() {
         return this;
-    }
-
-    @Override
-    protected long feeFor(final HapiSpec spec, final Transaction txn, final int numPayerKeys) throws Throwable {
-        try {
-            info = lookupInfo(spec, token, log, loggingOff);
-        } catch (final Throwable ignore) {
-
-        }
-        return spec.fees()
-                .forActivityBasedOp(HederaFunctionality.TokenMint, subType, this::usageEstimate, txn, numPayerKeys);
-    }
-
-    private FeeData usageEstimate(final TransactionBody txn, final SigValueObj svo) {
-        final UsageAccumulator accumulator = new UsageAccumulator();
-
-        long lifetime = 0L;
-        if (subType == SubType.TOKEN_NON_FUNGIBLE_UNIQUE) {
-            lifetime = info.getExpiry().getSeconds()
-                    - txn.getTransactionID().getTransactionValidStart().getSeconds();
-        }
-        final var tokenMintMeta = TOKEN_OPS_USAGE_UTILS.tokenMintUsageFrom(txn, subType, lifetime);
-        final var baseTransactionMeta =
-                new BaseTransactionMeta(txn.getMemoBytes().size(), 0);
-        final TokenOpsUsage tokenOpsUsage = new TokenOpsUsage();
-        tokenOpsUsage.tokenMintUsage(suFrom(svo), baseTransactionMeta, tokenMintMeta, accumulator, subType);
-        return AdapterUtils.feeDataFrom(accumulator);
-    }
-
-    private SubType figureSubType() {
-        if (metadata.isEmpty()) {
-            return SubType.TOKEN_FUNGIBLE_COMMON;
-        } else {
-            return SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
-        }
     }
 
     @Override

@@ -4,7 +4,7 @@ package org.hiero.metrics.core;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
- * A label is an immutable key-value pair used to differentiate measurements withing same metric.
+ * A label is an immutable key-value pair used to differentiate measurements within same metric.
  */
 public record Label(@NonNull String name, @NonNull String value) implements Comparable<Label> {
 
@@ -21,6 +21,7 @@ public record Label(@NonNull String name, @NonNull String value) implements Comp
         MetricUtils.throwArgBlank(value, "labelValue");
     }
 
+    @NonNull
     @Override
     public String toString() {
         return name + "=" + value;

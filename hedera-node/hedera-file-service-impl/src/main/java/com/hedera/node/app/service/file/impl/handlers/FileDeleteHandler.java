@@ -10,15 +10,10 @@ import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.file.FileDeleteTransactionBody;
 import com.hedera.hapi.node.state.file.File;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
-import com.hedera.node.app.hapi.utils.fee.FileFeeBuilder;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -36,16 +31,9 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class FileDeleteHandler implements TransactionHandler {
-    private final FileFeeBuilder usageEstimator;
-
-    /**
-     * Constructs a {@link FileDeleteHandler} with the given {@link FileFeeBuilder}.
-     *
-     * @param usageEstimator the file fee builder to be used for fee calculation
-     */
     @Inject
-    public FileDeleteHandler(final FileFeeBuilder usageEstimator) {
-        this.usageEstimator = usageEstimator;
+    public FileDeleteHandler() {
+        // Dagger2
     }
 
     /**
@@ -116,16 +104,5 @@ public class FileDeleteHandler implements TransactionHandler {
         /* --- Put the modified file. It will be in underlying state's modifications map.
         It will not be committed to state until commit is called on the state.--- */
         fileStore.put(fileBuilder.build());
-    }
-
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull FeeContext feeContext) {
-        final var txnBody = feeContext.body();
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(
-                        svo -> usageEstimator.getFileDeleteTxFeeMatrices(CommonPbjConverters.fromPbj(txnBody), svo));
     }
 }

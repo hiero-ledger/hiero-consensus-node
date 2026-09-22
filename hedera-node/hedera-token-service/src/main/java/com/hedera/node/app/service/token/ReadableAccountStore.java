@@ -85,11 +85,14 @@ public interface ReadableAccountStore {
     long getNumberOfAccounts();
 
     /**
-     * Fetches an {@link Account} object from state with the given {@link ContractID}. If the contract account could not
-     * be fetched because the given contract doesn't exist, returns {@code null}.
+     * Fetches an {@link Account} object from state with the given {@link ContractID}. If no matching account exists,
+     * or the account is a plain EOA without EIP-7702 code delegation, returns {@code null}.
+     * <p>
+     * Smart contract accounts and delegated EOAs (non-empty {@code delegationAddress}) are returned so that both
+     * HAPI contract operations and EVM resolution can use this lookup.
      *
      * @param contractID given contract id
-     * @return {@link Account} object if successfully fetched or {@code null} if the contract account doesn't exist
+     * @return {@link Account} object if successfully fetched or {@code null} if no suitable account exists
      */
     @Nullable
     default Account getContractById(@NonNull final ContractID contractID) {
@@ -107,7 +110,13 @@ public interface ReadableAccountStore {
         }
 
         final var account = getAliasedAccountById(builder.build());
-        return account == null || !account.smartContract() ? null : account;
+        if (account == null) {
+            return null;
+        }
+        if (!account.smartContract() && account.delegationAddress().length() == 0) {
+            return null;
+        }
+        return account;
     }
 
     /**

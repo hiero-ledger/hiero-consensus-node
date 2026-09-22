@@ -15,6 +15,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
+import static com.hedera.hapi.node.base.HederaFunctionality.UNCHECKED_SUBMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CREATING_SYSTEM_ENTITIES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
@@ -62,6 +63,7 @@ import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleUsage;
+import com.hedera.node.app.workflows.AuthorizationChecker;
 import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
@@ -70,7 +72,6 @@ import com.hedera.node.app.workflows.TransactionChecker.RequireMinValidLifetimeB
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
-import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
@@ -107,7 +108,7 @@ public final class IngestChecker {
             SCHEDULE_CREATE,
             TOKEN_AIRDROP);
     private static final Set<HederaFunctionality> UNSUPPORTED_TRANSACTIONS =
-            EnumSet.of(CRYPTO_ADD_LIVE_HASH, CRYPTO_DELETE_LIVE_HASH);
+            EnumSet.of(CRYPTO_ADD_LIVE_HASH, CRYPTO_DELETE_LIVE_HASH, UNCHECKED_SUBMIT);
     private static final Set<HederaFunctionality> PRIVILEGED_TRANSACTIONS =
             EnumSet.of(FREEZE, SYSTEM_DELETE, SYSTEM_UNDELETE);
 
@@ -122,6 +123,7 @@ public final class IngestChecker {
     private final FeeManager feeManager;
     private final NetworkInfo networkInfo;
     private final Authorizer authorizer;
+    private final AuthorizationChecker authorizationChecker;
     private final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
     private final InstantSource instantSource;
     private final OpWorkflowMetrics workflowMetrics;
@@ -185,6 +187,7 @@ public final class IngestChecker {
             @NonNull final TransactionDispatcher dispatcher,
             @NonNull final FeeManager feeManager,
             @NonNull final Authorizer authorizer,
+            @NonNull final AuthorizationChecker authorizationChecker,
             @NonNull final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator,
             @NonNull final InstantSource instantSource,
             @NonNull final OpWorkflowMetrics workflowMetrics,
@@ -200,6 +203,7 @@ public final class IngestChecker {
         this.dispatcher = requireNonNull(dispatcher, "dispatcher must not be null");
         this.feeManager = requireNonNull(feeManager, "feeManager must not be null");
         this.authorizer = requireNonNull(authorizer, "authorizer must not be null");
+        this.authorizationChecker = requireNonNull(authorizationChecker, "authorizationChecker must not be null");
         this.synchronizedThrottleAccumulator =
                 requireNonNull(synchronizedThrottleAccumulator, "synchronizedThrottleAccumulator must not be null");
         this.instantSource = requireNonNull(instantSource, "instantSource must not be null");
@@ -328,6 +332,12 @@ public final class IngestChecker {
         // (governance accounts may submit larger transactions)
         transactionChecker.checkTransactionSizeLimitBasedOnPayer(txInfo, payerAccountId);
 
+        // 5b. Enforce, at ingest, the payer privileges required by operations whose authorization is decidable from
+        //     the payer and body (today, file operations) — failing fast instead of gossiping a transaction we
+        //     already know will fail at consensus. A no-op for every other functionality. Applies to inner batch
+        //     transactions too, like the checks above.
+        authorizationChecker.enforce(payerAccountId, functionality, txBody);
+
         final var payerKey = payer.key();
         // There should, absolutely, be a key for this account. If there isn't, then something is wrong in
         // state. So we will log this with a warning. We will also have to do something about the fact that
@@ -375,8 +385,7 @@ public final class IngestChecker {
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         final var hooksConfig = configuration.getConfigData(HooksConfig.class);
         final var networkAdminConfig = configuration.getConfigData(NetworkAdminConfig.class);
-        final var feesConfig = configuration.getConfigData(FeesConfig.class);
-        assertThrottlingPreconditions(txInfo, hederaConfig, hooksConfig, networkAdminConfig, feesConfig);
+        assertThrottlingPreconditions(txInfo, hederaConfig, hooksConfig, networkAdminConfig);
         if (hederaConfig.ingestThrottleEnabled()
                 && synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages)) {
             workflowMetrics.incrementThrottled(txInfo.functionality());
@@ -388,14 +397,11 @@ public final class IngestChecker {
             @NonNull final TransactionInfo txInfo,
             @NonNull final HederaConfig hederaConfig,
             @NonNull final HooksConfig hooksConfig,
-            @NonNull final NetworkAdminConfig networkAdminConfig,
-            @NonNull final FeesConfig feesConfig)
+            @NonNull final NetworkAdminConfig networkAdminConfig)
             throws PreCheckException {
         final var function = txInfo.functionality();
-        // Reject transactions with highVolume=true if the feature is not enabled.
-        // High volume entity creation HIP depends on simple fees to be enabled.
-        if (txInfo.txBody().highVolume()
-                && (!feesConfig.simpleFeesEnabled() || !networkAdminConfig.highVolumeThrottlesEnabled())) {
+        // Reject transactions with highVolume=true if the high-volume feature is not enabled.
+        if (txInfo.txBody().highVolume() && !networkAdminConfig.highVolumeThrottlesEnabled()) {
             throw new PreCheckException(NOT_SUPPORTED);
         }
         if (UNSUPPORTED_TRANSACTIONS.contains(function)) {

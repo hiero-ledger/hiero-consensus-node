@@ -13,12 +13,16 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations.GasChargingEvent;
+import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.EthereumTransactionRollbackHandler;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.config.data.EntitiesConfig;
+import com.swirlds.config.api.Configuration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -40,7 +44,10 @@ public final class EthereumTransactionRollbackHandlerTest {
                 new GasChargingEvent(CHARGE, chargeOnlyAccount, chargeOnlyAmount, false),
                 new GasChargingEvent(REFUND, chargeAndRefundAccount, refundAmount, false));
 
-        final var subject = new EthereumTransactionRollbackHandler(mock(CallOutcome.class), gasChargingEvents);
+        final var rootProxyWorldUpdater = mock(RootProxyWorldUpdater.class);
+        when(rootProxyWorldUpdater.entityIdFactory()).thenReturn(new FakeEntityIdFactoryImpl(0, 0));
+        final var subject = new EthereumTransactionRollbackHandler(
+                mock(CallOutcome.class), gasChargingEvents, rootProxyWorldUpdater);
 
         final var feeChargingContext = mock(FeeCharging.Context.class);
         final var handleContext = mock(HandleContext.class);
@@ -48,6 +55,9 @@ public final class EthereumTransactionRollbackHandlerTest {
         final var storeFactory = mock(StoreFactory.class);
         when(storeFactory.serviceApi(TokenServiceApi.class)).thenReturn(tokenServiceApi);
         when(handleContext.storeFactory()).thenReturn(storeFactory);
+        final var configuration = mock(Configuration.class);
+        when(configuration.getConfigData(EntitiesConfig.class)).thenReturn(new EntitiesConfig(0, false, false));
+        when(handleContext.configuration()).thenReturn(configuration);
 
         // When
         subject.replay(feeChargingContext, handleContext);
@@ -60,6 +70,63 @@ public final class EthereumTransactionRollbackHandlerTest {
 
         // Then #2 - verify nonce updates
         verify(tokenServiceApi).incrementSenderNonce(chargeAndRefundAccount);
+        verifyNoMoreInteractions(tokenServiceApi);
+    }
+
+    @Test
+    public void zeroAmountChargeEventStillReplaysNonceIncrement() {
+        // Given the event shape produced by CustomGasCharging when gas fees are free
+        // (fees.simpleFeesAreFree=true or a free ETHEREUM_TRANSACTION simple fee)
+        final var senderAccount = AccountID.newBuilder().accountNum(10_001L).build();
+        final var gasChargingEvents = List.of(new GasChargingEvent(CHARGE, senderAccount, 0L, true));
+
+        final var rootProxyWorldUpdater = mock(RootProxyWorldUpdater.class);
+        when(rootProxyWorldUpdater.entityIdFactory()).thenReturn(new FakeEntityIdFactoryImpl(0, 0));
+        final var subject = new EthereumTransactionRollbackHandler(
+                mock(CallOutcome.class), gasChargingEvents, rootProxyWorldUpdater);
+
+        final var feeChargingContext = mock(FeeCharging.Context.class);
+        final var handleContext = mock(HandleContext.class);
+        final var tokenServiceApi = mock(TokenServiceApi.class);
+        final var storeFactory = mock(StoreFactory.class);
+        when(storeFactory.serviceApi(TokenServiceApi.class)).thenReturn(tokenServiceApi);
+        when(handleContext.storeFactory()).thenReturn(storeFactory);
+        final var configuration = mock(Configuration.class);
+        when(configuration.getConfigData(EntitiesConfig.class)).thenReturn(new EntitiesConfig(0, false, false));
+        when(handleContext.configuration()).thenReturn(configuration);
+
+        // When
+        subject.replay(feeChargingContext, handleContext);
+
+        // Then - the sender's nonce is re-incremented even though nothing was charged
+        verify(feeChargingContext).charge(eq(senderAccount), eq(new Fees(0, 0, 0)), any());
+        verifyNoMoreInteractions(feeChargingContext);
+        verify(tokenServiceApi).incrementSenderNonce(senderAccount);
+        verifyNoMoreInteractions(tokenServiceApi);
+    }
+
+    @Test
+    public void noGasChargingEventsMeansNoReplay() {
+        final var rootProxyWorldUpdater = mock(RootProxyWorldUpdater.class);
+        when(rootProxyWorldUpdater.entityIdFactory()).thenReturn(new FakeEntityIdFactoryImpl(0, 0));
+        final var subject =
+                new EthereumTransactionRollbackHandler(mock(CallOutcome.class), List.of(), rootProxyWorldUpdater);
+
+        final var feeChargingContext = mock(FeeCharging.Context.class);
+        final var handleContext = mock(HandleContext.class);
+        final var tokenServiceApi = mock(TokenServiceApi.class);
+        final var storeFactory = mock(StoreFactory.class);
+        when(storeFactory.serviceApi(TokenServiceApi.class)).thenReturn(tokenServiceApi);
+        when(handleContext.storeFactory()).thenReturn(storeFactory);
+        final var configuration = mock(Configuration.class);
+        when(configuration.getConfigData(EntitiesConfig.class)).thenReturn(new EntitiesConfig(0, false, false));
+        when(handleContext.configuration()).thenReturn(configuration);
+
+        // When
+        subject.replay(feeChargingContext, handleContext);
+
+        // Then - nothing is charged and no nonce is touched
+        verifyNoMoreInteractions(feeChargingContext);
         verifyNoMoreInteractions(tokenServiceApi);
     }
 }

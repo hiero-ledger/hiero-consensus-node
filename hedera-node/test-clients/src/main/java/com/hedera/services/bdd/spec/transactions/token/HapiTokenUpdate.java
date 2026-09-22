@@ -1,34 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.token;
 
-import static com.hedera.node.app.hapi.fees.usage.SingletonEstimatorUtils.ESTIMATOR_UTILS;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.BytesValue;
 import com.google.protobuf.StringValue;
-import com.hedera.node.app.hapi.fees.usage.TxnUsageEstimator;
-import com.hedera.node.app.hapi.fees.usage.token.TokenUpdateUsage;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
 import com.hedera.services.bdd.spec.infrastructure.RegistryNotFound;
 import com.hedera.services.bdd.spec.keys.KeyRole;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
-import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.bdd.suites.utils.contracts.precompile.TokenKeyType;
 import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Timestamp;
-import com.hederahashgraph.api.proto.java.TokenInfo;
 import com.hederahashgraph.api.proto.java.TokenKeyValidation;
 import com.hederahashgraph.api.proto.java.TokenUpdateTransactionBody;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import java.util.ArrayList;
 import java.util.List;
@@ -263,50 +255,6 @@ public class HapiTokenUpdate extends HapiTxnOp<HapiTokenUpdate> {
     @Override
     protected HapiTokenUpdate self() {
         return this;
-    }
-
-    @Override
-    protected long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) throws Throwable {
-        try {
-            final TokenInfo info = HapiTokenFeeScheduleUpdate.lookupInfo(spec, token, log, loggingOff);
-            FeeCalculator.ActivityMetrics metricsCalc = (_txn, svo) -> {
-                var estimate =
-                        TokenUpdateUsage.newEstimate(_txn, new TxnUsageEstimator(suFrom(svo), _txn, ESTIMATOR_UTILS));
-                estimate.givenCurrentExpiry(info.getExpiry().getSeconds())
-                        .givenCurrentMemo(info.getMemo())
-                        .givenCurrentName(info.getName())
-                        .givenCurrentSymbol(info.getSymbol());
-                if (info.hasFreezeKey()) {
-                    estimate.givenCurrentFreezeKey(Optional.of(info.getFreezeKey()));
-                }
-                if (info.hasAdminKey()) {
-                    estimate.givenCurrentAdminKey(Optional.of(info.getAdminKey()));
-                }
-                if (info.hasSupplyKey()) {
-                    estimate.givenCurrentSupplyKey(Optional.of(info.getSupplyKey()));
-                }
-                if (info.hasKycKey()) {
-                    estimate.givenCurrentKycKey(Optional.of(info.getKycKey()));
-                }
-                if (info.hasWipeKey()) {
-                    estimate.givenCurrentWipeKey(Optional.of(info.getWipeKey()));
-                }
-                if (info.hasFeeScheduleKey()) {
-                    estimate.givenCurrentFeeScheduleKey(Optional.of(info.getFeeScheduleKey()));
-                }
-                if (info.hasPauseKey()) {
-                    estimate.givenCurrentPauseKey(Optional.of(info.getPauseKey()));
-                }
-                if (info.hasAutoRenewAccount()) {
-                    estimate.givenCurrentlyUsingAutoRenewAccount();
-                }
-                return estimate.get();
-            };
-            return spec.fees().forActivityBasedOp(HederaFunctionality.TokenUpdate, metricsCalc, txn, numPayerKeys);
-        } catch (Throwable t) {
-            log.warn("Couldn't estimate usage", t);
-            return HapiSuite.ONE_HBAR;
-        }
     }
 
     @Override

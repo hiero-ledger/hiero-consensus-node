@@ -11,8 +11,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.BDDAssertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -26,6 +33,7 @@ import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody.DataOneOfType;
 import com.hedera.hapi.node.scheduled.ScheduleCreateTransactionBody;
 import com.hedera.hapi.node.state.schedule.Schedule;
+import com.hedera.hapi.node.state.schedule.ScheduledCounts;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -280,6 +288,48 @@ class ScheduleCreateHandlerTest extends ScheduleHandlerTestBase {
         }
         // verify that all the whitelisted txns actually executed and verified.
         assertThat(successCount).isEqualTo(configuredWhitelist.size());
+    }
+
+    @Test
+    void loadThrottleRebuildsAndReplaysWhenSnapshotRestoreFails() {
+        final long then = 1_234_567L;
+        final var store = mock(WritableScheduleStore.class);
+        given(store.numSchedulesInState()).willReturn(0L);
+        final var snapshots = ThrottleUsageSnapshots.DEFAULT;
+        given(store.usageSnapshotsForScheduled(then)).willReturn(snapshots);
+        // Restoring from the snapshot fails (e.g. throttle definitions changed since it was taken)...
+        willThrow(new IllegalStateException("snapshot count mismatch"))
+                .given(throttleFactory)
+                .newScheduleThrottle(anyInt(), eq(snapshots));
+        // ...so the handler must rebuild a fresh throttle and replay the already-scheduled transactions.
+        given(throttleFactory.newScheduleThrottle(anyInt(), isNull())).willReturn(throttle);
+        given(store.scheduledCountsAt(then)).willReturn(new ScheduledCounts(2, 0));
+        given(store.getByOrder(any())).willReturn(scheduleInState.scheduleId());
+        given(store.get(any(ScheduleID.class))).willReturn(scheduleInState);
+        given(throttle.allow(any(), any(), any(), any())).willReturn(true);
+
+        final var result = subject.loadThrottle(store, scheduleConfig, then);
+
+        assertThat(result).contains(throttle);
+        verify(throttleFactory).newScheduleThrottle(anyInt(), eq(snapshots));
+        verify(throttleFactory).newScheduleThrottle(anyInt(), isNull());
+        verify(throttle, times(2)).allow(any(), any(), any(), any());
+    }
+
+    @Test
+    void loadThrottleDoesNotRebuildWhenSnapshotRestoreSucceeds() {
+        final long then = 1_234_567L;
+        final var store = mock(WritableScheduleStore.class);
+        given(store.numSchedulesInState()).willReturn(0L);
+        final var snapshots = ThrottleUsageSnapshots.DEFAULT;
+        given(store.usageSnapshotsForScheduled(then)).willReturn(snapshots);
+        given(throttleFactory.newScheduleThrottle(anyInt(), eq(snapshots))).willReturn(throttle);
+
+        final var result = subject.loadThrottle(store, scheduleConfig, then);
+
+        assertThat(result).contains(throttle);
+        verify(throttleFactory, never()).newScheduleThrottle(anyInt(), isNull());
+        verify(store, never()).scheduledCountsAt(anyLong());
     }
 
     private void verifyHandleSucceededForWhitelist(final Schedule next, final int startCount) {

@@ -29,8 +29,6 @@ public class NetworkAdminHandlers {
 
     private final NetworkTransactionGetFastRecordHandler networkTransactionGetFastRecordHandler;
 
-    private final NetworkUncheckedSubmitHandler networkUncheckedSubmitHandler;
-
     /**
      * Creates a new AdminHandlers.
      */
@@ -43,8 +41,7 @@ public class NetworkAdminHandlers {
             @NonNull final NetworkGetVersionInfoHandler networkGetVersionInfoHandler,
             @NonNull final NetworkTransactionGetReceiptHandler networkTransactionGetReceiptHandler,
             @NonNull final NetworkTransactionGetRecordHandler networkTransactionGetRecordHandler,
-            @NonNull final NetworkTransactionGetFastRecordHandler networkTransactionGetFastRecordHandler,
-            @NonNull final NetworkUncheckedSubmitHandler networkUncheckedSubmitHandler) {
+            @NonNull final NetworkTransactionGetFastRecordHandler networkTransactionGetFastRecordHandler) {
         this.freezeHandler = requireNonNull(freezeHandler, "freezeHandler must not be null");
         this.networkGetAccountDetailsHandler =
                 requireNonNull(networkGetAccountDetailsHandler, "networkGetAccountDetailsHandler must not be null");
@@ -59,8 +56,6 @@ public class NetworkAdminHandlers {
                 networkTransactionGetRecordHandler, "networkTransactionGetRecordHandler must not be null");
         this.networkTransactionGetFastRecordHandler = requireNonNull(
                 networkTransactionGetFastRecordHandler, "networkTransactionGetFastRecordHandler must not be null");
-        this.networkUncheckedSubmitHandler =
-                requireNonNull(networkUncheckedSubmitHandler, "networkUncheckedSubmitHandler must not be null");
     }
 
     /**
@@ -119,14 +114,6 @@ public class NetworkAdminHandlers {
      */
     public NetworkTransactionGetRecordHandler networkTransactionGetRecordHandler() {
         return networkTransactionGetRecordHandler;
-    }
-
-    /**
-     * Returns the network unchecked submit handler.
-     * @return the network unchecked submit handler
-     */
-    public NetworkUncheckedSubmitHandler networkUncheckedSubmitHandler() {
-        return networkUncheckedSubmitHandler;
     }
 
     /**

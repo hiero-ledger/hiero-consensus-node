@@ -92,4 +92,79 @@ final class AuthorizerTest {
         final var authorized = authorizer.isAuthorized(accountID, hapiFunction);
         assertThat(authorized).isTrue();
     }
+
+    @Test
+    @DisplayName("Super-user status requires the configured shard and realm")
+    void superUserRequiresMatchingShardAndRealm() {
+        // given the default ledger shard/realm of 0.0, with treasury=2 and systemAdmin=50:
+        final var authorizer = new AuthorizerImpl(configProvider, privilegesVerifier);
+
+        // the canonical treasury and system-admin accounts are super-users:
+        assertThat(authorizer.isSuperUser(accountId(0, 0, 2))).isTrue();
+        assertThat(authorizer.isSuperUser(accountId(0, 0, 50))).isTrue();
+
+        // but an id that only matches on the account number is not, regardless of shard or realm:
+        assertThat(authorizer.isSuperUser(accountId(1, 0, 2))).isFalse();
+        assertThat(authorizer.isSuperUser(accountId(0, 1, 2))).isFalse();
+        assertThat(authorizer.isSuperUser(accountId(1, 0, 50))).isFalse();
+        assertThat(authorizer.isSuperUser(accountId(0, 1, 50))).isFalse();
+    }
+
+    @Test
+    @DisplayName("Treasury status requires the configured shard and realm")
+    void treasuryRequiresMatchingShardAndRealm() {
+        // given the default ledger shard/realm of 0.0, with treasury=2:
+        final var authorizer = new AuthorizerImpl(configProvider, privilegesVerifier);
+
+        assertThat(authorizer.isTreasury(accountId(0, 0, 2))).isTrue();
+        assertThat(authorizer.isTreasury(accountId(1, 0, 2))).isFalse();
+        assertThat(authorizer.isTreasury(accountId(0, 1, 2))).isFalse();
+    }
+
+    @Test
+    @DisplayName("Super-user status is scoped to a non-zero configured shard and realm")
+    void superUserScopedToConfiguredNonZeroShardRealm() {
+        // given a ledger configured for shard 1, realm 2:
+        configProvider = () -> new VersionedConfigImpl(
+                HederaTestConfigBuilder.create()
+                        .withValue("hedera.shard", "1")
+                        .withValue("hedera.realm", "2")
+                        .getOrCreateConfig(),
+                1);
+        final var authorizer = new AuthorizerImpl(configProvider, privilegesVerifier);
+
+        // the treasury account lives at 1.2.2 and is a super-user:
+        assertThat(authorizer.isSuperUser(accountId(1, 2, 2))).isTrue();
+        assertThat(authorizer.isTreasury(accountId(1, 2, 2))).isTrue();
+
+        // while the same number in shard/realm 0.0 is not:
+        assertThat(authorizer.isSuperUser(accountId(0, 0, 2))).isFalse();
+        assertThat(authorizer.isTreasury(accountId(0, 0, 2))).isFalse();
+    }
+
+    @Test
+    @DisplayName("A foreign-shard treasury number does not bypass API permissions")
+    void foreignShardTreasuryNumberIsNotAuthorized() {
+        // given a permission list that excludes the treasury and system-admin numbers:
+        configProvider = () -> new VersionedConfigImpl(
+                HederaTestConfigBuilder.create()
+                        .withValue("createTopic", "1000-2000")
+                        .getOrCreateConfig(),
+                1);
+        final var authorizer = new AuthorizerImpl(configProvider, privilegesVerifier);
+
+        // the canonical treasury account still bypasses the permission list as a super-user:
+        assertThat(authorizer.isAuthorized(accountId(0, 0, 2), hapiFunction)).isTrue();
+
+        // but a foreign-shard id with the treasury number is neither a super-user nor permission-listed:
+        assertThat(authorizer.isAuthorized(accountId(1, 0, 2), hapiFunction)).isFalse();
+    }
+
+    private static AccountID accountId(final long shard, final long realm, final long num) {
+        return AccountID.newBuilder()
+                .shardNum(shard)
+                .realmNum(realm)
+                .accountNum(num)
+                .build();
+    }
 }

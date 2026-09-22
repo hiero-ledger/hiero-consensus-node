@@ -411,7 +411,7 @@ public class MetricRegistryTest {
     @Test
     void testDiscoverAvailableMetricsExporterFactoryAndExportDisabled() {
         Configuration config = ConfigurationBuilder.create()
-                .withValue("hiero.metrics.export.discovery.diasbled", "true")
+                .withValue("hiero.metrics.export.discovery.disabled", "true")
                 .build();
 
         MetricsExporterFactory exporterFactory = mock(MetricsExporterFactory.class);

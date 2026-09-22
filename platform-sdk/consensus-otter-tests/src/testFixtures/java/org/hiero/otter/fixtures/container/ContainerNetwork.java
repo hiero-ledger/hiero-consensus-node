@@ -117,6 +117,17 @@ public class ContainerNetwork extends AbstractNetwork {
      * {@inheritDoc}
      */
     @Override
+    protected void recreateConnections(@NonNull final Map<ConnectionKey, ConnectionState> connections) {
+        if (networkBehavior != null && toxiproxyContainer != null) {
+            toxiproxyContainer.restart();
+            networkBehavior.reconnect(toxiproxyContainer.getHost(), toxiproxyContainer.getControlPort(), connections);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
     @NonNull
     protected ContainerNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));

@@ -1,31 +1,47 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils;
 
+import com.hedera.cryptography.libsecp256k1.ContextualLibsecp256k1;
+import com.hedera.cryptography.libsecp256k1.Libsecp256k1;
+import com.hedera.cryptography.libxkcp.Libxkcp;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.sun.jna.ptr.LongByReference;
-import java.nio.ByteBuffer;
-import java.security.MessageDigest;
+import java.lang.foreign.MemorySegment;
 import java.util.Arrays;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
-import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 
 public class MiscCryptoUtils {
+    private static final ContextualLibsecp256k1 LIBSECP256K1 = ContextualLibsecp256k1.getInstance();
+    private static final Libxkcp LIBXKCP = Libxkcp.getInstance();
+
     private static final int EVM_ADDRESS_SIZE = 20;
 
     /**
      * Record for caching thread local variables to avoid allocating memory for each verification.
      */
     private record ThreadLocalCache(
-            LibSecp256k1.secp256k1_pubkey pubKey,
+            byte[] pubKey,
+            MemorySegment pubKeySeg,
             byte[] uncompressedPublicKeyInput,
-            ByteBuffer uncompressedPublicKeyByteBuffer,
-            LongByReference length) {
+            MemorySegment uncompressedPublicKeyInputSeg,
+            byte[] uncompressedPublicKeyByteBuffer,
+            MemorySegment uncompressedPublicKeyByteBufferSeg,
+            long[] length,
+            MemorySegment lengthSeg) {
         public ThreadLocalCache() {
+            byte[] pubKey = new byte[Libsecp256k1.PUBLIC_KEY_BYTES];
+            byte[] uncompressedPublicKeyInput = new byte[ECDSA_UNCOMPRESSED_KEY_SIZE_WITH_HEADER_BYTE];
+            byte[] uncompressedPublicKeyByteBuffer = new byte[ECDSA_UNCOMPRESSED_KEY_SIZE_WITH_HEADER_BYTE];
+            long[] length = new long[1];
+
             this(
-                    new LibSecp256k1.secp256k1_pubkey(),
-                    new byte[ECDSA_UNCOMPRESSED_KEY_SIZE_WITH_HEADER_BYTE],
-                    ByteBuffer.allocate(ECDSA_UNCOMPRESSED_KEY_SIZE_WITH_HEADER_BYTE),
-                    new LongByReference());
+                    pubKey,
+                    MemorySegment.ofArray(pubKey),
+                    uncompressedPublicKeyInput,
+                    MemorySegment.ofArray(uncompressedPublicKeyInput),
+                    uncompressedPublicKeyByteBuffer,
+                    MemorySegment.ofArray(uncompressedPublicKeyByteBuffer),
+                    length,
+                    MemorySegment.ofArray(length));
+
             // set the type header byte for uncompressed public keys, this is always the same
             uncompressedPublicKeyInput[0] = 0x04;
         }
@@ -47,14 +63,45 @@ public class MiscCryptoUtils {
         throw new UnsupportedOperationException("Utility Class");
     }
 
+    public static byte[] keccak256DigestOf(final MemorySegment msgSegment) {
+        final byte[] hashInstance = new byte[LIBXKCP.sizeOfKeccakHashInstance];
+        final MemorySegment hashInstanceSeg = MemorySegment.ofArray(hashInstance);
+        int ret;
+
+        ret = LIBXKCP.keccakHashInitialize(
+                hashInstanceSeg,
+                Libxkcp.SHA3_256_RATE,
+                Libxkcp.SHA3_256_CAPACITY,
+                Libxkcp.SHA3_256_HASHBITLEN,
+                Libxkcp.SHA3_256_DELIMITED_SUFFIX_ORIGINAL);
+        if (ret != Libxkcp.KECCAK_SUCCESS) {
+            throw new RuntimeException("keccakHashInitialize returned " + ret);
+        }
+
+        // Libxkcp currently requires a non-zero length of data to hash.
+        // We'll support this eventually: https://github.com/hiero-ledger/hiero-cryptography/issues/679
+        // But we cannot upgrade hiero-cryptography now due to a set of incompatible changes there.
+        if (msgSegment.byteSize() > 0) {
+            ret = LIBXKCP.keccakHashUpdate(hashInstanceSeg, msgSegment, msgSegment.byteSize() * 8L);
+            if (ret != Libxkcp.KECCAK_SUCCESS) {
+                throw new RuntimeException("keccakHashUpdate returned " + ret);
+            }
+        }
+
+        final byte[] hash = new byte[Libxkcp.SHA3_256_HASHVAL_LENGTH_BYTES];
+        ret = LIBXKCP.keccakHashFinal(hashInstanceSeg, MemorySegment.ofArray(hash));
+        if (ret != Libxkcp.KECCAK_SUCCESS) {
+            throw new RuntimeException("keccakHashFinal returned " + ret);
+        }
+        return hash;
+    }
+
     public static byte[] keccak256DigestOf(final byte[] msg) {
-        return new Keccak.Digest256().digest(msg);
+        return keccak256DigestOf(MemorySegment.ofArray(msg));
     }
 
     public static Bytes keccak256DigestOf(final Bytes msg) {
-        final MessageDigest digest = new Keccak.Digest256();
-        msg.writeTo(digest);
-        return Bytes.wrap(digest.digest());
+        return Bytes.wrap(keccak256DigestOf(msg.toMemorySegment()));
     }
 
     /**
@@ -69,49 +116,20 @@ public class MiscCryptoUtils {
     public static byte[] decompressSecp256k1(final byte[] compressedKey) {
         final ThreadLocalCache cache = CACHE.get();
         // convert public key to native format
-        final LibSecp256k1.secp256k1_pubkey publicKey = cache.pubKey;
-        final int keyParseResult = LibSecp256k1.secp256k1_ec_pubkey_parse(
-                LibSecp256k1.CONTEXT, publicKey, compressedKey, compressedKey.length);
+        final int keyParseResult = LIBSECP256K1.secp256k1EcPubkeyParse(
+                cache.pubKeySeg, MemorySegment.ofArray(compressedKey), compressedKey.length);
         if (keyParseResult != 1) throw new IllegalArgumentException("Failed to parse public key");
-        final ByteBuffer outputBuffer = cache.uncompressedPublicKeyByteBuffer;
-        final LongByReference outputLength = cache.length;
-        outputLength.setValue(ECDSA_UNCOMPRESSED_KEY_SIZE_WITH_HEADER_BYTE);
-        final int keySerializeResult = LibSecp256k1.secp256k1_ec_pubkey_serialize(
-                LibSecp256k1.CONTEXT, outputBuffer, outputLength, publicKey, LibSecp256k1.SECP256K1_EC_UNCOMPRESSED);
+        cache.length[0] = ECDSA_UNCOMPRESSED_KEY_SIZE_WITH_HEADER_BYTE;
+        final int keySerializeResult = LIBSECP256K1.secp256k1EcPubkeySerialize(
+                cache.uncompressedPublicKeyByteBufferSeg,
+                cache.lengthSeg,
+                cache.pubKeySeg,
+                Libsecp256k1.SECP256K1_EC_UNCOMPRESSED);
         if (keySerializeResult != 1) throw new IllegalArgumentException("Failed to serialize public key");
         // chop off header first byte
         final var rawKey = new byte[64];
-        outputBuffer.get(1, rawKey);
+        System.arraycopy(cache.uncompressedPublicKeyByteBuffer, 1, rawKey, 0, rawKey.length);
         return rawKey;
-    }
-
-    /**
-     * Given a 64-byte decompressed ECDSA(secp256k1) public key, returns the compressed key as a
-     * 33-byte array whose first byte is the parity of the y coordinate and the following 32 bytes
-     * are the x-coordinate of the key.
-     *
-     * @param decompressedKey a decompressed ECDSA(secp256k1) public key
-     * @return the raw bytes of the compressed public key
-     * @throws IllegalArgumentException if the decompressed key not parsable
-     */
-    public static byte[] compressSecp256k1(final byte[] decompressedKey) {
-        final ThreadLocalCache cache = CACHE.get();
-        // add header byte on to decompressed key
-        final byte[] decompressedBytes = cache.uncompressedPublicKeyInput;
-        System.arraycopy(decompressedKey, 0, decompressedBytes, 1, ECDSA_UNCOMPRESSED_KEY_SIZE);
-        // convert public key to native format
-        final LibSecp256k1.secp256k1_pubkey publicKey = cache.pubKey;
-        final int keyParseResult = LibSecp256k1.secp256k1_ec_pubkey_parse(
-                LibSecp256k1.CONTEXT, publicKey, decompressedBytes, decompressedBytes.length);
-        if (keyParseResult != 1) throw new IllegalArgumentException("Failed to parse public key");
-        // serialize public key to compressed format
-        final ByteBuffer outputBuffer = ByteBuffer.allocate(33);
-        final LongByReference outputLength = cache.length;
-        outputLength.setValue(33);
-        final int keySerializeResult = LibSecp256k1.secp256k1_ec_pubkey_serialize(
-                LibSecp256k1.CONTEXT, outputBuffer, outputLength, publicKey, LibSecp256k1.SECP256K1_EC_COMPRESSED);
-        if (keySerializeResult != 1) throw new IllegalArgumentException("Failed to serialize public key");
-        return outputBuffer.array();
     }
 
     /**

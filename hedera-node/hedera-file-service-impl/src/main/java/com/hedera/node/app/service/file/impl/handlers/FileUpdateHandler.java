@@ -6,7 +6,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_FILE_SIZE_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
-import static com.hedera.node.app.service.file.impl.FileServiceImpl.DEFAULT_MEMO;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.preValidate;
 import static com.hedera.node.app.service.file.impl.utils.FileServiceUtils.validateAndAddRequiredKeys;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
@@ -18,22 +17,14 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.file.FileUpdateTransactionBody;
 import com.hedera.hapi.node.state.file.File;
-import com.hedera.node.app.hapi.fees.usage.SigUsage;
-import com.hedera.node.app.hapi.fees.usage.file.ExtantFileContext;
-import com.hedera.node.app.hapi.fees.usage.file.FileOpsUsage;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.file.FileSignatureWaivers;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
 import com.hedera.node.app.service.file.impl.WritableUpgradeFileStore;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -46,8 +37,6 @@ import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.types.LongPair;
-import com.hederahashgraph.api.proto.java.FeeData;
-import com.hederahashgraph.api.proto.java.KeyList;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -59,17 +48,14 @@ import javax.inject.Singleton;
 public class FileUpdateHandler implements TransactionHandler {
     private static final Timestamp EXPIRE_NEVER =
             Timestamp.newBuilder().seconds(Long.MAX_VALUE - 1).build();
-    private final FileOpsUsage fileOpsUsage;
     private final FileSignatureWaivers fileSignatureWaivers;
 
     /**
-     * Constructs a {@link FileUpdateHandler} with the given {@link FileOpsUsage} and {@link FileSignatureWaivers}.
-     * @param fileOpsUsage the file operation usage calculator
+     * Constructs a {@link FileUpdateHandler} with the given {@link FileSignatureWaivers}.
      * @param fileSignatureWaivers the file signature waivers
      */
     @Inject
-    public FileUpdateHandler(final FileOpsUsage fileOpsUsage, final FileSignatureWaivers fileSignatureWaivers) {
-        this.fileOpsUsage = fileOpsUsage;
+    public FileUpdateHandler(final FileSignatureWaivers fileSignatureWaivers) {
         this.fileSignatureWaivers = fileSignatureWaivers;
     }
 
@@ -170,32 +156,6 @@ public class FileUpdateHandler implements TransactionHandler {
         fileStore.put(builder.build());
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull FeeContext feeContext) {
-        final var op = feeContext.body();
-        final var file = feeContext
-                .readableStore(ReadableFileStore.class)
-                .getFileLeaf(op.fileUpdateOrThrow().fileIDOrThrow());
-
-        final AccountID payerId = op.transactionID().accountID();
-
-        final SystemPrivilege privilege =
-                feeContext.authorizer().hasPrivilegedAuthorization(payerId, HederaFunctionality.FILE_UPDATE, op);
-
-        // Even if the privilege is UNAUTHORIZED or IMPERMISSIBLE continue with a free fee
-        // The appropriate error is thrown at a later stage of the workflow
-        if (privilege != SystemPrivilege.UNNECESSARY) {
-            return Fees.FREE;
-        }
-
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj ->
-                        usageGiven(CommonPbjConverters.fromPbj(op), sigValueObj, CommonPbjConverters.fromPbj(file)));
-    }
-
     private void handleUpdateUpgradeFile(FileUpdateTransactionBody fileUpdate, HandleContext handleContext) {
         final var fileStore = handleContext.storeFactory().writableStore(WritableUpgradeFileStore.class);
         // empty old upgrade file
@@ -294,34 +254,5 @@ public class FileUpdateHandler implements TransactionHandler {
         if (op.hasMemo()) {
             attributeValidator.validateMemo(op.memo());
         }
-    }
-
-    private FeeData usageGiven(
-            final com.hederahashgraph.api.proto.java.TransactionBody txn,
-            final SigValueObj svo,
-            final com.hederahashgraph.api.proto.java.File file) {
-        final var sigUsage = new SigUsage(svo.getTotalSigCount(), svo.getSignatureSize(), svo.getPayerAcctSigCount());
-        if (file != null) {
-            final var contents = file.getContents();
-            final var ctx = ExtantFileContext.newBuilder()
-                    .setCurrentSize(contents == null ? 0 : contents.size())
-                    .setCurrentWacl(file.getKeys())
-                    .setCurrentMemo(file.getMemo())
-                    .setCurrentExpiry(file.getExpirationSecond())
-                    .build();
-            return fileOpsUsage.fileUpdateUsage(txn, sigUsage, ctx);
-        } else {
-            final long now = txn.getTransactionID().getTransactionValidStart().getSeconds();
-            return fileOpsUsage.fileUpdateUsage(txn, sigUsage, missingCtx(now));
-        }
-    }
-
-    static ExtantFileContext missingCtx(final long now) {
-        return ExtantFileContext.newBuilder()
-                .setCurrentExpiry(now)
-                .setCurrentMemo(DEFAULT_MEMO)
-                .setCurrentWacl(KeyList.getDefaultInstance())
-                .setCurrentSize(0)
-                .build();
     }
 }

@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.operations;
 
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertSameResult;
+import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.CODE_TOO_LARGE;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_GAS;
 import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCreateOperation;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import java.lang.reflect.Field;
 import java.util.Deque;
 import org.apache.tuweni.bytes.Bytes;
@@ -38,6 +41,15 @@ import org.mockito.Mockito;
 class CustomCreateOperationTest extends CreateOperationTestBase {
     private static final Address EXPECTED_CREATE1_ADDRESS = Address.contractAddress(RECIEVER_ADDRESS, NONCE - 1);
 
+    // A limit small enough that the 10-byte initcode operand from givenGasCostPrereqs() exceeds it
+    private static final ContractsConfig CONFIG_WITH_SMALL_INITCODE_LIMIT = HederaTestConfigBuilder.create()
+            .withValue("contracts.maxInitcodeSize", INPUT_SIZE - 1)
+            .getOrCreateConfig()
+            .getConfigData(ContractsConfig.class);
+    // The default limit (49152), large enough that the test initcode operands stay under it
+    private static final ContractsConfig CONFIG_WITH_DEFAULT_INITCODE_LIMIT =
+            HederaTestConfigBuilder.create().getOrCreateConfig().getConfigData(ContractsConfig.class);
+
     @Mock
     private WorldUpdater updater;
 
@@ -57,7 +69,7 @@ class CustomCreateOperationTest extends CreateOperationTestBase {
 
     @BeforeEach
     void setUp() {
-        subject = new CustomCreateOperation(gasCalculator, CODE_FACTORY);
+        subject = new CustomCreateOperation(gasCalculator);
     }
 
     @Test
@@ -110,6 +122,7 @@ class CustomCreateOperationTest extends CreateOperationTestBase {
         givenGasCostPrereqs();
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
             frameUtils.when(() -> FrameUtils.isHookExecution(frame)).thenReturn(false);
+            frameUtils.when(() -> FrameUtils.contractsConfigOf(frame)).thenReturn(CONFIG_WITH_DEFAULT_INITCODE_LIMIT);
             final var expected = new Operation.OperationResult(GAS_COST, null);
 
             assertSameResult(expected, subject.execute(frame, evm));
@@ -124,6 +137,7 @@ class CustomCreateOperationTest extends CreateOperationTestBase {
         givenGasCostPrereqs();
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
             frameUtils.when(() -> FrameUtils.isHookExecution(frame)).thenReturn(false);
+            frameUtils.when(() -> FrameUtils.contractsConfigOf(frame)).thenReturn(CONFIG_WITH_DEFAULT_INITCODE_LIMIT);
             final var expected = new Operation.OperationResult(GAS_COST, null);
             assertSameResult(expected, subject.execute(frame, evm));
         }
@@ -154,6 +168,7 @@ class CustomCreateOperationTest extends CreateOperationTestBase {
         txValuesField.set(frame, txValues);
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
             frameUtils.when(() -> FrameUtils.isHookExecution(frame)).thenReturn(false);
+            frameUtils.when(() -> FrameUtils.contractsConfigOf(frame)).thenReturn(CONFIG_WITH_DEFAULT_INITCODE_LIMIT);
             final var expected = new Operation.OperationResult(GAS_COST, null);
             assertSameResult(expected, subject.execute(frame, evm));
         }
@@ -189,6 +204,7 @@ class CustomCreateOperationTest extends CreateOperationTestBase {
         txValuesField.set(frame, txValues);
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
             frameUtils.when(() -> FrameUtils.isHookExecution(frame)).thenReturn(false);
+            frameUtils.when(() -> FrameUtils.contractsConfigOf(frame)).thenReturn(CONFIG_WITH_DEFAULT_INITCODE_LIMIT);
             final var expected = new Operation.OperationResult(GAS_COST, null);
             assertSameResult(expected, subject.execute(frame, evm));
         }
@@ -199,5 +215,22 @@ class CustomCreateOperationTest extends CreateOperationTestBase {
         childFrame.setState(MessageFrame.State.COMPLETED_FAILED);
         childFrame.notifyCompletion();
         verify(frame).pushStackItem(UInt256.ZERO);
+    }
+
+    @Test
+    void haltsOnInitcodeExceedingMaxSize() {
+        // EIP-3860: an initcode larger than contracts.maxInitcodeSize halts the CREATE with
+        // CODE_TOO_LARGE before any child CONTRACT_CREATION frame is spawned. The 10-byte initcode
+        // size operand from givenGasCostPrereqs() exceeds the small limit configured above.
+        given(frame.stackSize()).willReturn(3);
+        given(frame.getRemainingGas()).willReturn(GAS_COST);
+        givenGasCostPrereqs();
+        try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
+            frameUtils.when(() -> FrameUtils.contractsConfigOf(frame)).thenReturn(CONFIG_WITH_SMALL_INITCODE_LIMIT);
+            final var expected = new Operation.OperationResult(GAS_COST, CODE_TOO_LARGE);
+            assertSameResult(expected, subject.execute(frame, evm));
+        }
+        // Halted before attempting to spawn the child creation
+        verify(frame, never()).getWorldUpdater();
     }
 }

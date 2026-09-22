@@ -14,11 +14,7 @@ import java.time.Duration;
  *                                               allowed to reconnect. If -1 then a node is always allowed to reconnect.
  *                                               Respects {@link #active} -- if active is false then reconnect is never
  *                                               allowed.
- * @param asyncStreamTimeout                     The amount of time that an {@code AsyncInputStream} and
- *                                               {@code AsyncOutputStream} will wait before throwing a timeout.
- * @param asyncOutputStreamFlush                 In order to ensure that data is not languishing in the
- *                                               asyncOutputStream buffer a periodic flush is performed.
- * @param asyncStreamBufferSize                  The size of the buffers for async input and output streams.
+ * @param socketTimeout                          Socket timeout for input streams used during reconnect.
  * @param maxAckDelay                            The maximum amount of time to wait for an ACK message. If no ACK is
  *                                               received and sufficient time passes then send the potentially redundant
  *                                               node.
@@ -28,27 +24,12 @@ import java.time.Duration;
  *                                               intentionally or unintentionally slowing another node down by
  *                                               continuously reconnecting with it. Time is measured starting from when
  *                                               a reconnect attempt is initialized.
- * @param teacherMaxNodesPerSecond               The maximum number of nodes that a teacher will send per second. If 0
- *                                               then there is no limit.
- * @param teacherRateLimiterSleep                The amount of time that a teacher will sleep when throttling is
- *                                               engaged
- * @param pullLearnerRootResponseTimeout         In pull-based reconnect implementations, the timeout on the learner
- *                                               side to get a virtual root node response from teacher
- * @param allMessagesReceivedTimeout             In pull-based reconnect implementations, the timeout on the learner
- *                                               side to wait until all virtual view messages are completely processed,
- *                                               after the teacher sent a final response
  */
 @ConfigData("reconnect")
 public record ReconnectConfig(
         @ConfigProperty(defaultValue = "true") boolean active,
         @ConfigProperty(defaultValue = "-1") int reconnectWindowSeconds,
-        @ConfigProperty(defaultValue = "300s") Duration asyncStreamTimeout,
-        @ConfigProperty(defaultValue = "8ms") Duration asyncOutputStreamFlush,
-        @ConfigProperty(defaultValue = "10000") int asyncStreamBufferSize,
+        @ConfigProperty(defaultValue = "60s") Duration socketTimeout,
         @ConfigProperty(defaultValue = "10ms") Duration maxAckDelay,
         @ConfigProperty(defaultValue = "10") int maximumReconnectFailuresBeforeShutdown,
-        @ConfigProperty(defaultValue = "10m") Duration minimumTimeBetweenReconnects,
-        @ConfigProperty(defaultValue = "0") int teacherMaxNodesPerSecond,
-        @ConfigProperty(defaultValue = "1us") Duration teacherRateLimiterSleep,
-        @ConfigProperty(defaultValue = "60s") Duration pullLearnerRootResponseTimeout,
-        @ConfigProperty(defaultValue = "300s") Duration allMessagesReceivedTimeout) {}
+        @ConfigProperty(defaultValue = "10m") Duration minimumTimeBetweenReconnects) {}

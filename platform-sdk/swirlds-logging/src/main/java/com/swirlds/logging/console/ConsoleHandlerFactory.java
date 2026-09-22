@@ -31,7 +31,7 @@ public class ConsoleHandlerFactory implements LogHandlerFactory {
     @Override
     @NonNull
     public LogHandler create(@NonNull final String handlerName, @NonNull final Configuration configuration) {
-        return new ConsoleHandler(handlerName, configuration, true);
+        return new ConsoleHandler(handlerName, configuration);
     }
 
     @NonNull

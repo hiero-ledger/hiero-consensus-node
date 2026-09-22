@@ -7,6 +7,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_TRANSACTION_IN_BL
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
@@ -18,12 +20,10 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -37,6 +37,8 @@ import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.consensus.ConsensusDeleteTopicTransactionBody;
+import com.hedera.hapi.node.contract.ContractCallTransactionBody;
+import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.freeze.FreezeTransactionBody;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
@@ -46,9 +48,7 @@ import com.hedera.node.app.service.util.impl.cache.TransactionParser;
 import com.hedera.node.app.service.util.impl.handlers.AtomicBatchHandler;
 import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
 import com.hedera.node.app.spi.AppContext;
-import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCharging;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
@@ -64,10 +64,13 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -104,6 +107,8 @@ class AtomicBatchHandlerTest {
     private static final Key SIMPLE_KEY_B = Key.newBuilder()
             .ed25519(Bytes.wrap("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".getBytes()))
             .build();
+    private static final AccountID ATOMIC_BATCH_NODE_ACCOUNT_ID =
+            AccountID.newBuilder().accountNum(0).build();
     private final AccountID payerId1 = AccountID.newBuilder().accountNum(1001).build();
     private final AccountID payerId2 = AccountID.newBuilder().accountNum(1002).build();
     private final AccountID payerId3 = AccountID.newBuilder().accountNum(1003).build();
@@ -272,6 +277,65 @@ class AtomicBatchHandlerTest {
         assertEquals(MISSING_BATCH_KEY, msg.responseCode());
     }
 
+    @ParameterizedTest
+    @EnumSource(
+            value = TransactionBody.DataOneOfType.class,
+            names = {"ETHEREUM_TRANSACTION", "CONTRACT_CALL", "CONTRACT_CREATE_INSTANCE"})
+    void failsIfEvmTransactionIsNotLast(final TransactionBody.DataOneOfType evmTxnType) throws PreCheckException {
+        final var innerTxn1 = innerTxnFrom("123");
+        final var innerTxn2 = innerTxnFrom("456");
+        final var bytes = transactionsToBytes(innerTxn1, innerTxn2);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        final var evmTxnBody = evmTxnBody(evmTxnType, payerId2);
+        final var nonEvmTxnBody = newTxnBodyBuilder(payerId3, consensusTimestamp, SIMPLE_KEY_A)
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.DEFAULT)
+                .nodeAccountID(ATOMIC_BATCH_NODE_ACCOUNT_ID)
+                .build();
+        given(pureChecksContext.body()).willReturn(txnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(evmTxnBody);
+        given(transactionParser.parse(eq(bytes.getLast()), any())).willReturn(nonEvmTxnBody);
+
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        assertEquals(INVALID_TRANSACTION_BODY, msg.responseCode());
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = TransactionBody.DataOneOfType.class,
+            names = {"ETHEREUM_TRANSACTION", "CONTRACT_CALL", "CONTRACT_CREATE_INSTANCE"})
+    void allowsOneEvmTransactionWhenItIsLast(final TransactionBody.DataOneOfType evmTxnType) throws PreCheckException {
+        final var innerTxn1 = innerTxnFrom("123");
+        final var innerTxn2 = innerTxnFrom("456");
+        final var bytes = transactionsToBytes(innerTxn1, innerTxn2);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        final var nonEvmTxnBody = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.DEFAULT)
+                .nodeAccountID(ATOMIC_BATCH_NODE_ACCOUNT_ID)
+                .build();
+        final var evmTxnBody = evmTxnBody(evmTxnType, payerId3);
+        given(pureChecksContext.body()).willReturn(txnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(nonEvmTxnBody);
+        given(transactionParser.parse(eq(bytes.getLast()), any())).willReturn(evmTxnBody);
+
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
+    }
+
+    @Test
+    void failsIfBatchContainsMultipleEvmTransactions() throws PreCheckException {
+        final var innerTxn1 = innerTxnFrom("123");
+        final var innerTxn2 = innerTxnFrom("456");
+        final var bytes = transactionsToBytes(innerTxn1, innerTxn2);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        given(pureChecksContext.body()).willReturn(txnBody);
+        given(transactionParser.parse(eq(bytes.getFirst()), any()))
+                .willReturn(evmTxnBody(TransactionBody.DataOneOfType.ETHEREUM_TRANSACTION, payerId2));
+        given(transactionParser.parse(eq(bytes.getLast()), any()))
+                .willReturn(evmTxnBody(TransactionBody.DataOneOfType.CONTRACT_CALL, payerId3));
+
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        assertEquals(INVALID_TRANSACTION_BODY, msg.responseCode());
+    }
+
     @Test
     void preHandleBatchWithBatchKeyIsNull() throws PreCheckException {
         final var innerTxnBody1 = newTxnBodyBuilder(payerId1, consensusTimestamp)
@@ -398,6 +462,58 @@ class AtomicBatchHandlerTest {
     }
 
     @Test
+    void priorInnerFeesAreReplayedWhenNextInnerDispatchThrowsEagerly() throws PreCheckException {
+        // inner[0] is an EthereumTransaction that succeeds and registers a rollback side effect;
+        // inner[1]'s dispatch throws MAX_CHILD_RECORDS_EXCEEDED eagerly (as it does when the next
+        // inner's base record slot cannot be allocated against an already-full following sink),
+        // escaping context.dispatch() before inner[1]'s fee replay could be registered.
+        final var innerTxn1 = innerTxnFrom("123");
+        final var innerTxn2 = innerTxnFrom("456");
+        final var innerTxnBody1 = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
+                .ethereumTransaction(EthereumTransactionBody.newBuilder().build())
+                .build();
+        final var innerTxnBody2 = newTxnBodyBuilder(payerId2, consensusTimestamp, SIMPLE_KEY_A)
+                .consensusCreateTopic(ConsensusCreateTopicTransactionBody.DEFAULT)
+                .build();
+        final var bytes = transactionsToBytes(innerTxn1, innerTxn2);
+        final var txnBody = newAtomicBatch(payerId1, consensusTimestamp, bytes);
+        final var storeFactoryMock = mock(StoreFactory.class);
+        given(handleContext.body()).willReturn(txnBody);
+        given(handleContext.storeFactory()).willReturn(storeFactoryMock);
+        given(handleContext.consensusNow()).willReturn(Instant.ofEpochSecond(1_234_567L));
+        given(transactionParser.parse(eq(bytes.getFirst()), any())).willReturn(innerTxnBody1);
+        given(transactionParser.parse(eq(bytes.getLast()), any())).willReturn(innerTxnBody2);
+
+        final var rollbackCallbackCalledFlag = new AtomicBoolean(false);
+        final var dispatchCount = new AtomicInteger(0);
+        given(handleContext.dispatch(any())).willAnswer(answer -> {
+            if (dispatchCount.getAndIncrement() == 0) {
+                // inner[0]: register the EthereumTransaction rollback side effect and succeed
+                final var options = (DispatchOptions<StreamBuilder>) answer.getArgument(0);
+                options.dispatchMetadata()
+                        .getMetadata(BATCH_ROLLBACK_CALLBACK_CONSUMER, Consumer.class)
+                        .ifPresent(consumer -> ((Consumer<HandleException.OnRollback>) consumer)
+                                .accept((_, _) -> rollbackCallbackCalledFlag.set(true)));
+                return recordBuilder;
+            }
+            // inner[1]: a HandleException escapes from within dispatch itself
+            throw new HandleException(MAX_CHILD_RECORDS_EXCEEDED);
+        });
+        given(recordBuilder.status()).willReturn(SUCCESS);
+
+        final var handleException = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        // The batch surfaces the original status of the escaping exception, not INNER_TRANSACTION_FAILED
+        assertEquals(MAX_CHILD_RECORDS_EXCEEDED, handleException.getStatus());
+
+        // The rethrown exception carries the rollback queue accumulated so far, so replaying it
+        // re-applies the already-processed inner's side effects: its EthereumTransaction callback and
+        // its fee replay.
+        handleException.maybeReplay(mock(FeeCharging.Context.class), handleContext);
+        assertTrue(rollbackCallbackCalledFlag.get());
+        verify(recordBuilder).setReplayedFees(any());
+    }
+
+    @Test
     void handleBatchSizeExceedsMaxBatchSize() {
         final var innerTxn1 = innerTxnFrom("123");
         final var innerTxn2 = innerTxnFrom("456");
@@ -446,24 +562,6 @@ class AtomicBatchHandlerTest {
         given(recordBuilder.status()).willReturn(SUCCESS);
         subject.handle(handleContext);
         verify(handleContext, times(2)).dispatch(any());
-    }
-
-    @Test
-    void calculateFeesReturnsExpectedFees() {
-        var feeContext = mock(FeeContext.class);
-        var calculator = mock(FeeCalculator.class);
-        var expectedFees = mock(Fees.class);
-
-        when(feeContext.feeCalculatorFactory()).thenReturn(type -> calculator);
-        when(calculator.resetUsage()).thenReturn(calculator);
-        // Use doReturn/when pattern to avoid strict stubbing issues
-        doReturn(calculator).when(calculator).addVerificationsPerTransaction(anyLong());
-        when(calculator.calculate()).thenReturn(expectedFees);
-        when(feeContext.numTxnSignatures()).thenReturn(1);
-
-        var result = subject.calculateFees(feeContext);
-
-        assertSame(expectedFees, result);
     }
 
     @Test
@@ -550,6 +648,21 @@ class AtomicBatchHandlerTest {
         return batchKey.length == 0
                 ? TransactionBody.newBuilder().transactionID(txnId)
                 : TransactionBody.newBuilder().transactionID(txnId).batchKey(batchKey[0]);
+    }
+
+    private TransactionBody evmTxnBody(final TransactionBody.DataOneOfType evmTxnType, final AccountID payerId) {
+        final var builder = newTxnBodyBuilder(payerId, consensusTimestamp, SIMPLE_KEY_A)
+                .nodeAccountID(ATOMIC_BATCH_NODE_ACCOUNT_ID);
+        return switch (evmTxnType) {
+            case ETHEREUM_TRANSACTION ->
+                builder.ethereumTransaction(EthereumTransactionBody.DEFAULT).build();
+            case CONTRACT_CALL ->
+                builder.contractCall(ContractCallTransactionBody.DEFAULT).build();
+            case CONTRACT_CREATE_INSTANCE ->
+                builder.contractCreateInstance(ContractCreateTransactionBody.DEFAULT)
+                        .build();
+            default -> throw new IllegalArgumentException("Not an EVM transaction type: " + evmTxnType);
+        };
     }
 
     private List<Bytes> transactionsToBytes(Transaction... transactions) {

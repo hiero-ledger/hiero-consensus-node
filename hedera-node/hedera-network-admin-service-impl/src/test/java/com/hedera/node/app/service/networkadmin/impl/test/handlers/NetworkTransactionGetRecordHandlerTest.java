@@ -8,7 +8,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.QueryHeader;
@@ -22,15 +21,12 @@ import com.hedera.hapi.node.transaction.TransactionGetRecordQuery;
 import com.hedera.hapi.node.transaction.TransactionGetRecordResponse;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkTransactionGetRecordHandler;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fixtures.fees.FakeFeeCalculator;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.PartialRecordSource;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 
@@ -239,35 +235,6 @@ class NetworkTransactionGetRecordHandlerTest extends NetworkAdminHandlerTestBase
         assertThat(op.transactionRecord()).isEqualTo(otherRecord);
         assertThat(op.childTransactionRecords()).isEqualTo(expectedChildRecordList);
         assertThat(op.childTransactionRecords().size()).isEqualTo(expectedChildRecordList.size());
-    }
-
-    @Test
-    @DisplayName("test computeFees When Free")
-    void testComputeFees() {
-        final var query = createGetTransactionRecordQuery(transactionID, false, false);
-        given(context.query()).willReturn(query);
-        given(context.recordCache()).willReturn(cache);
-        given(context.feeCalculator()).willReturn(feeCalculator);
-        feeCalculator.addNetworkRamByteSeconds(6);
-        assertThatCode(() -> networkTransactionGetRecordHandler.computeFees(context))
-                .doesNotThrowAnyException();
-        verify(feeCalculator).addNetworkRamByteSeconds(6);
-    }
-
-    @Test
-    @DisplayName("test computeFees with duplicates and children")
-    void testComputeFeesWithDuplicatesAndChildRecords() {
-        final var query = createGetTransactionRecordQuery(transactionID, true, true);
-        given(context.query()).willReturn(query);
-        given(context.recordCache()).willReturn(cache);
-        FeeCalculator feeCalc = new FakeFeeCalculator();
-        feeCalc.addBytesPerTransaction(1000L);
-        feeCalc.addNetworkRamByteSeconds(6);
-        given(context.feeCalculator()).willReturn(feeCalc);
-        assertThatCode(() -> networkTransactionGetRecordHandler.computeFees(context))
-                .doesNotThrowAnyException();
-        var networkFee = networkTransactionGetRecordHandler.computeFees(context).networkFee();
-        assertThat(networkFee).isZero();
     }
 
     private TransactionRecord getExpectedRecord() {

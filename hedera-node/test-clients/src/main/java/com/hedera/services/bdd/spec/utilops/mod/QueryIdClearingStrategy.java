@@ -20,7 +20,6 @@ public class QueryIdClearingStrategy extends IdClearingStrategy<QueryModificatio
     private static final Map<String, ExpectedAnswer> CLEARED_ID_ANSWERS = Map.ofEntries(
             Map.entry("proto.ContractGetInfoQuery.contractID", ExpectedAnswer.onCostAnswer(INVALID_CONTRACT_ID)),
             Map.entry("proto.ContractCallLocalQuery.contractID", ExpectedAnswer.onCostAnswer(INVALID_CONTRACT_ID)),
-            Map.entry("proto.CryptoGetAccountBalanceQuery.accountID", ExpectedAnswer.onAnswerOnly(INVALID_ACCOUNT_ID)),
             Map.entry("proto.CryptoGetAccountRecordsQuery.accountID", ExpectedAnswer.onCostAnswer(INVALID_ACCOUNT_ID)),
             Map.entry("proto.CryptoGetInfoQuery.accountID", ExpectedAnswer.onCostAnswer(INVALID_ACCOUNT_ID)),
             Map.entry("proto.ContractGetBytecodeQuery.contractID", ExpectedAnswer.onCostAnswer(INVALID_CONTRACT_ID)),

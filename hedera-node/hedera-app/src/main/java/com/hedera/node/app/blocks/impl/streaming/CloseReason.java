@@ -29,10 +29,6 @@ public enum CloseReason {
      */
     CONNECTION_ERROR(CoolDownType.BASIC),
     /**
-     * The connection was closed because it was determined to be stalled.
-     */
-    CONNECTION_STALLED(CoolDownType.BASIC),
-    /**
      * The connection was closed due to receiving an end stream response AND as a result the associated block node is
      * considered degraded because several end stream responses have been received in a short period of time.
      */
@@ -70,7 +66,11 @@ public enum CloseReason {
     /**
      * The connection was closed for an unknown reason. Spooky.
      */
-    UNKNOWN(CoolDownType.NONE);
+    UNKNOWN(CoolDownType.NONE),
+    /**
+     * The connection was closed due to too many timeouts sending requests to the block node.
+     */
+    TIMEOUT(CoolDownType.BASIC);
 
     private final CoolDownType coolDownType;
 

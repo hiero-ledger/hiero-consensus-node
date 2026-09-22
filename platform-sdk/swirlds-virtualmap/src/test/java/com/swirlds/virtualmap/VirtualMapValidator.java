@@ -29,7 +29,6 @@ public class VirtualMapValidator {
         this.subject = subject;
     }
 
-    @SuppressWarnings("unchecked")
     public void put(final Bytes key, final Bytes value) {
         reference.put(key, value);
         subject.putBytes(key, value);

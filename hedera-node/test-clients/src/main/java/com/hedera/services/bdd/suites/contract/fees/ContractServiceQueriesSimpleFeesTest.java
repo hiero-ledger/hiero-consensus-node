@@ -33,7 +33,6 @@ import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
@@ -63,7 +62,6 @@ public class ContractServiceQueriesSimpleFeesTest {
 
     @BeforeAll
     public static void setup(final TestLifecycle lifecycle) {
-        lifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "true"));
         lifecycle.doAdhoc(contract.getInfo(), largeBytecodeContract.getInfo(), civilian.getInfo(), relayer.getInfo());
     }
 

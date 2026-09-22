@@ -31,6 +31,7 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
@@ -297,6 +298,28 @@ class TokenAccountWipeHandlerTest extends ParityTestBase {
             writableTokenStore = newWritableStoreWithTokens(newFungibleToken531(totalFungibleSupply)
                     .copyBuilder()
                     .wipeKey((Key) null) // Intentionally missing wipe key
+                    .build());
+            writableTokenRelStore = newWritableStoreWithTokenRels(newAccount4680Token531Rel(totalFungibleSupply));
+            final var txn = newWipeTxn(ACCOUNT_4680, TOKEN_531, totalFungibleSupply + 1);
+            final var context = mockContext(txn);
+
+            assertThatThrownBy(() -> subject.handle(context))
+                    .isInstanceOf(HandleException.class)
+                    .has(responseCode(TOKEN_HAS_NO_WIPE_KEY));
+        }
+
+        @Test
+        void tokenHasEmptyKeyListWipeKey() {
+            // An empty key list is the HIP-540 removal sentinel; on an existing token it means the wipe
+            // function is disabled, so a wipe must be rejected rather than treated as needing no signature.
+            mockOkExpiryValidator();
+            writableAccountStore = newWritableStoreWithAccounts(
+                    Account.newBuilder().accountId(ACCOUNT_4680).build(),
+                    Account.newBuilder().accountId(TREASURY_ACCOUNT_9876).build());
+            final var totalFungibleSupply = 5;
+            writableTokenStore = newWritableStoreWithTokens(newFungibleToken531(totalFungibleSupply)
+                    .copyBuilder()
+                    .wipeKey(Key.newBuilder().keyList(KeyList.DEFAULT).build())
                     .build());
             writableTokenRelStore = newWritableStoreWithTokenRels(newAccount4680Token531Rel(totalFungibleSupply));
             final var txn = newWipeTxn(ACCOUNT_4680, TOKEN_531, totalFungibleSupply + 1);

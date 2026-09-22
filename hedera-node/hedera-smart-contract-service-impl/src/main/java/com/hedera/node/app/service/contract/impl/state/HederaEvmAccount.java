@@ -4,11 +4,7 @@ package com.hedera.node.app.service.contract.impl.state;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.apache.tuweni.bytes.Bytes;
-import org.hyperledger.besu.evm.Code;
-import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.account.MutableAccount;
-import org.hyperledger.besu.evm.code.CodeFactory;
 
 /**
  * A Hedera specialization of a Besu {@link MutableAccount} that provides additional Hedera-specific information.
@@ -58,20 +54,4 @@ public interface HederaEvmAccount extends MutableAccount {
      */
     @NonNull
     ContractID hederaContractId();
-
-    /**
-     * Returns the EVM code for this account. Added here to avoid client code needing to manage a
-     * cache of {@link org.hyperledger.besu.evm.Code} wrappers around raw bytecode returned by
-     * {@link Account#getCode()}.
-     *
-     * @param functionSelector the function selector to use when fetching the code.  If more than 4 bytes for the
-     *                         function selector is passed in, only the first 4 bytes will be used.
-     *                         Only relevant for regular accounts.
-     *
-     * @param codeFactory the factory used to construct an instance of {@link org.hyperledger.besu.evm.Code}
-     *      *                    from the raw bytecode associated with this account.
-     * @return the EVM code for this account
-     */
-    @NonNull
-    Code getEvmCode(@NonNull final Bytes functionSelector, @NonNull CodeFactory codeFactory);
 }

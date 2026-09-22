@@ -32,6 +32,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 /**
  * Provides read access to the {@link HintsConstruction} and {@link PreprocessingVote} instances in state.
@@ -144,8 +146,8 @@ public class ReadableHintsStoreImpl implements ReadableHintsStore {
     }
 
     @Override
-    public Map<Long, CrsPublicationTransactionBody> getOrderedCrsPublications(@NonNull final Set<Long> nodeIds) {
-        final Map<Long, CrsPublicationTransactionBody> publications = new HashMap<>();
+    public SortedMap<Long, CrsPublicationTransactionBody> getOrderedCrsPublications(@NonNull final Set<Long> nodeIds) {
+        final SortedMap<Long, CrsPublicationTransactionBody> publications = new TreeMap<>();
         for (final var nodeId : nodeIds) {
             final var publication = crsPublications.get(new NodeId(nodeId));
             if (publication != null) {

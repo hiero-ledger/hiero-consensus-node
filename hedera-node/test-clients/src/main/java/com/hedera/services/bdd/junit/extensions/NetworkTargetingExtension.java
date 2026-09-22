@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.extensions;
 
-import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
+import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.SharedNetworkExecutionListener.reconfigureSharedSubProcessLogging;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.SharedNetworkExecutionListener.sharedSubProcessNetwork;
+import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.buildRsaBootstrapJson;
 import static com.hedera.services.bdd.junit.extensions.ExtensionUtils.hapiTestMethodOf;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
@@ -18,6 +19,7 @@ import static org.junit.platform.commons.support.AnnotationSupport.isAnnotated;
 
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.fixtures.state.FakeState;
+import com.hedera.services.bdd.GenesisSubProcessTest;
 import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.HapiBlockNode.BlockNodeConfig;
 import com.hedera.services.bdd.HapiBlockNode.SubProcessNodeConfig;
@@ -30,6 +32,7 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
+import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
@@ -43,6 +46,7 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -76,6 +80,7 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
     public void beforeEach(@NonNull final ExtensionContext extensionContext) {
         hapiTestMethodOf(extensionContext).ifPresent(method -> {
             if (isAnnotated(method, GenesisHapiTest.class)) {
+                assertNoSharedEmbeddedNetwork(method);
                 final var targetNetwork =
                         new EmbeddedNetwork(method.getName().toUpperCase(), method.getName(), CONCURRENT);
                 final var a = method.getAnnotation(GenesisHapiTest.class);
@@ -84,6 +89,7 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 targetNetwork.startWith(bootstrapOverrides);
                 HapiSpec.TARGET_NETWORK.set(targetNetwork);
             } else if (isAnnotated(method, RestartHapiTest.class)) {
+                assertNoSharedEmbeddedNetwork(method);
                 final var targetNetwork =
                         new EmbeddedNetwork(method.getName().toUpperCase(), method.getName(), REPEATABLE);
                 final var a = method.getAnnotation(RestartHapiTest.class);
@@ -130,6 +136,9 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                     targetBlockNodeNetwork
                             .getBlockNodeHighLatencyById()
                             .put(blockNodeConfig.nodeId(), blockNodeConfig.highLatency());
+                    targetBlockNodeNetwork
+                            .getBlockNodeTlsModeById()
+                            .put(blockNodeConfig.nodeId(), blockNodeConfig.tls());
                 }
 
                 for (final SubProcessNodeConfig subProcessNodeConfig : annotation.subProcessNodeConfigs()) {
@@ -148,13 +157,35 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                     }
                 }
 
+                final boolean hasRealBlockNode =
+                        Arrays.stream(annotation.blockNodeConfigs()).anyMatch(c -> c.mode() == BlockNodeMode.REAL);
+                if (hasRealBlockNode) {
+                    targetBlockNodeNetwork.setRsaBootstrapJson(buildRsaBootstrapJson(targetNetwork.getNodeKeys()));
+                }
                 targetBlockNodeNetwork.start();
                 SHARED_BLOCK_NODE_NETWORK.set(targetBlockNodeNetwork);
                 targetNetwork.start();
+                reconfigureSharedSubProcessLogging(targetNetwork);
                 SHARED_NETWORK.set(targetNetwork);
 
                 // Set both the thread-local and the static shared network reference
                 HapiSpec.TARGET_BLOCK_NODE_NETWORK.set(targetBlockNodeNetwork);
+                HapiSpec.TARGET_NETWORK.set(targetNetwork);
+            } else if (isAnnotated(method, GenesisSubProcessTest.class)) {
+                logger.info("GenesisSubProcessTest annotation found on method: " + method.getName());
+                final var annotation = method.getAnnotation(GenesisSubProcessTest.class);
+                final SubProcessNetwork targetNetwork =
+                        (SubProcessNetwork) sharedSubProcessNetwork(method.getName(), annotation.networkSize());
+                for (final GenesisSubProcessTest.SubProcessNodeConfig nodeConfig : annotation.subProcessNodeConfigs()) {
+                    if (nodeConfig.applicationPropertiesOverrides().length > 0) {
+                        targetNetwork
+                                .getApplicationPropertyOverrides()
+                                .put(nodeConfig.nodeId(), Arrays.asList(nodeConfig.applicationPropertiesOverrides()));
+                    }
+                }
+                targetNetwork.start();
+                reconfigureSharedSubProcessLogging(targetNetwork);
+                SHARED_NETWORK.set(targetNetwork);
                 HapiSpec.TARGET_NETWORK.set(targetNetwork);
             } else {
                 ensureEmbeddedNetwork(extensionContext);
@@ -164,13 +195,13 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 // thread before executing the test factory
                 if (isAnnotated(method, LeakyHapiTest.class)) {
                     final var a = method.getAnnotation(LeakyHapiTest.class);
-                    bindThreadTargets(a.requirement(), a.overrides(), a.throttles(), a.fees());
+                    bindThreadTargets(a.requirement(), a.overrides(), a.throttles());
                 } else if (isAnnotated(method, LeakyEmbeddedHapiTest.class)) {
                     final var a = method.getAnnotation(LeakyEmbeddedHapiTest.class);
-                    bindThreadTargets(a.requirement(), a.overrides(), a.throttles(), a.fees());
+                    bindThreadTargets(a.requirement(), a.overrides(), a.throttles());
                 } else if (isAnnotated(method, LeakyRepeatableHapiTest.class)) {
                     final var a = method.getAnnotation(LeakyRepeatableHapiTest.class);
-                    bindThreadTargets(new ContextRequirement[] {}, a.overrides(), a.throttles(), a.fees());
+                    bindThreadTargets(new ContextRequirement[] {}, a.overrides(), a.throttles());
                 }
             }
         });
@@ -179,7 +210,7 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
     @Override
     public void afterEach(@NonNull final ExtensionContext extensionContext) {
         hapiTestMethodOf(extensionContext).ifPresent(method -> {
-            if (isAnnotated(method, HapiBlockNode.class)) {
+            if (isAnnotated(method, HapiBlockNode.class) || isAnnotated(method, GenesisSubProcessTest.class)) {
                 // If a per-method network exists, run validation and terminate it
                 try {
                     // Skip validation if the network was never started
@@ -231,7 +262,6 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                     // Default cleanup if no per-method network was found
                     HapiSpec.TARGET_NETWORK.remove();
                     HapiSpec.TARGET_BLOCK_NODE_NETWORK.remove();
-                    HapiSpec.FEES_OVERRIDE.remove();
                     HapiSpec.THROTTLES_OVERRIDE.remove();
                     HapiSpec.PROPERTIES_TO_PRESERVE.remove();
                 }
@@ -239,11 +269,30 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 // Default cleanup if no per-method network was found
                 HapiSpec.TARGET_NETWORK.remove();
                 HapiSpec.TARGET_BLOCK_NODE_NETWORK.remove();
-                HapiSpec.FEES_OVERRIDE.remove();
                 HapiSpec.THROTTLES_OVERRIDE.remove();
                 HapiSpec.PROPERTIES_TO_PRESERVE.remove();
             }
         });
+    }
+
+    /**
+     * Fails fast if a shared embedded network is already running, since starting a per-method network
+     * would then leave two embedded Hedera instances live in this JVM. A shared subprocess network is
+     * fine, as its nodes run in their own processes.
+     *
+     * <p>Three things keep this from tripping: the class is ordered {@code @Order(Integer.MIN_VALUE)},
+     * it is not {@code @HapiTestLifecycle} (whose {@code beforeAll} builds the shared network), and it
+     * holds no other kind of {@code HapiTest} method (whose {@code beforeEach} would build it too).
+     *
+     * @param method the test method about to build a per-method network
+     * @throws IllegalStateException if a shared embedded network is already running
+     */
+    private static void assertNoSharedEmbeddedNetwork(@NonNull final Method method) {
+        if (SHARED_NETWORK.get() instanceof EmbeddedNetwork) {
+            throw new IllegalStateException(
+                    "A shared embedded network is already running, cannot build a per-method network for "
+                            + method.getName());
+        }
     }
 
     /**
@@ -254,6 +303,7 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
     public static void ensureEmbeddedNetwork(@NonNull final ExtensionContext extensionContext) {
         requireNonNull(extensionContext);
         requiredEmbeddedMode(extensionContext)
+                .or(SharedNetworkLauncherSessionListener.SharedNetworkExecutionListener::sessionEmbeddedMode)
                 .ifPresent(SharedNetworkLauncherSessionListener.SharedNetworkExecutionListener::ensureEmbedding);
     }
 
@@ -275,11 +325,9 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
     private void bindThreadTargets(
             @NonNull final ContextRequirement[] requirement,
             @NonNull final String[] overrides,
-            @NonNull final String throttles,
-            @NonNull final String fees) {
+            @NonNull final String throttles) {
         HapiSpec.PROPERTIES_TO_PRESERVE.set(List.of(overrides));
         HapiSpec.THROTTLES_OVERRIDE.set(effectiveResource(requirement, THROTTLE_OVERRIDES, throttles));
-        HapiSpec.FEES_OVERRIDE.set(effectiveResource(requirement, FEE_SCHEDULE_OVERRIDES, fees));
     }
 
     /**

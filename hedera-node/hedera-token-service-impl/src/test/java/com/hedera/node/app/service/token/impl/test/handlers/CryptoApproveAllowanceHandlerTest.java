@@ -21,33 +21,26 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.state.token.AccountApprovalForAllAllowance;
 import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.token.CryptoAllowance;
 import com.hedera.hapi.node.token.CryptoApproveAllowanceTransactionBody;
 import com.hedera.hapi.node.token.NftAllowance;
 import com.hedera.hapi.node.token.TokenAllowance;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.handlers.CryptoApproveAllowanceHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHandlerTestBase;
 import com.hedera.node.app.service.token.impl.validators.ApproveAllowanceValidator;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -353,6 +346,95 @@ class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
+    void delegatingSpenderCannotRevokeAnotherSpendersApproveForAll() {
+        final var victimApproval = AccountApprovalForAllAllowance.newBuilder()
+                .tokenId(nonFungibleTokenId)
+                .spenderId(spenderId)
+                .build();
+        final var delegatingApproval = AccountApprovalForAllAllowance.newBuilder()
+                .tokenId(nonFungibleTokenId)
+                .spenderId(delegatingSpenderId)
+                .build();
+        // The owner has granted approve-for-all to both the (victim) spender and the delegating spender.
+        writableAccountStore.put(writableAccountStore
+                .getAccountById(ownerId)
+                .copyBuilder()
+                .approveForAllNftAllowances(victimApproval, delegatingApproval)
+                .build());
+
+        // The delegating spender sub-delegates individual serials to the (victim) spender with approvedForAll=false.
+        // This must NOT strip the victim's owner-granted approve-for-all (nftAllowanceWithDelegatingSpender uses
+        // spender=spenderId, delegatingSpender=delegatingSpenderId, approvedForAll=false, serials=[1, 2]).
+        final var txn = cryptoApproveAllowanceTransaction(payerId, true, List.of(), List.of(), List.of());
+        given(handleContext.body()).willReturn(txn);
+        assertThat(writableAccountStore.getAccountById(ownerId).approveForAllNftAllowances())
+                .containsExactlyInAnyOrder(victimApproval, delegatingApproval);
+
+        subject.handle(handleContext);
+
+        final var modifiedOwner = writableAccountStore.getAccountById(ownerId);
+        // Both approve-for-all grants remain intact - the delegating spender cannot revoke a peer's grant.
+        assertThat(modifiedOwner.approveForAllNftAllowances())
+                .containsExactlyInAnyOrder(victimApproval, delegatingApproval);
+        // The legitimate per-serial sub-delegation still takes effect.
+        assertThat(writableNftStore.get(nftIdSl1).spenderId()).isEqualTo(spenderId);
+        assertThat(writableNftStore.get(nftIdSl2).spenderId()).isEqualTo(spenderId);
+    }
+
+    @Test
+    void delegatingSpenderWithEmptySerialsIsRejected() {
+        // Owner has granted approve-for-all to the delegating spender, so it is otherwise a valid delegating spender.
+        writableAccountStore.put(writableAccountStore
+                .getAccountById(ownerId)
+                .copyBuilder()
+                .approveForAllNftAllowances(AccountApprovalForAllAllowance.newBuilder()
+                        .tokenId(nonFungibleTokenId)
+                        .spenderId(delegatingSpenderId)
+                        .build())
+                .build());
+
+        // A delegated allowance with no serials can accomplish nothing (it is the shape of the exploit) and must be
+        // rejected rather than silently no-op'd.
+        final var delegatedWithNoSerials = NftAllowance.newBuilder()
+                .owner(ownerId)
+                .spender(spenderId)
+                .tokenId(nonFungibleTokenId)
+                .approvedForAll(Boolean.FALSE)
+                .delegatingSpender(delegatingSpenderId)
+                .build();
+        final var txn = cryptoApproveAllowanceTransaction(
+                payerId, false, List.of(), List.of(), List.of(delegatedWithNoSerials));
+        given(handleContext.body()).willReturn(txn);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(EMPTY_ALLOWANCES));
+    }
+
+    @Test
+    void ownerCanRevokeApproveForAllWithEmptySerials() {
+        // A non-delegated approvedForAll=false with empty serials is the legitimate way an owner revokes a blanket
+        // grant - the new delegated-empty-serials guard must NOT reject it. (Owner already holds a single
+        // approve-for-all grant to spenderId from the base setup.)
+        final var revoke = NftAllowance.newBuilder()
+                .owner(ownerId)
+                .spender(spenderId)
+                .tokenId(nonFungibleTokenId)
+                .approvedForAll(Boolean.FALSE)
+                .build();
+        final var txn = cryptoApproveAllowanceTransaction(payerId, false, List.of(), List.of(), List.of(revoke));
+        given(handleContext.body()).willReturn(txn);
+        assertThat(writableAccountStore.getAccountById(ownerId).approveForAllNftAllowances())
+                .hasSize(1);
+
+        // Must not throw EMPTY_ALLOWANCES; it should simply remove the owner's blanket grant.
+        subject.handle(handleContext);
+
+        assertThat(writableAccountStore.getAccountById(ownerId).approveForAllNftAllowances())
+                .isEmpty();
+    }
+
+    @Test
     void failsIfSenderDoesntOwnNFTSerial() {
         final var txn = cryptoApproveAllowanceTransaction(
                 payerId,
@@ -596,67 +678,6 @@ class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
         Assertions.assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(INVALID_PAYER_ACCOUNT_ID));
-    }
-
-    @Test
-    void calculateFeesHappyPath() {
-        final var txn = cryptoApproveAllowanceTransaction(
-                payerId,
-                Timestamp.newBuilder().seconds(account.expirationSecond() - 1).build(),
-                false,
-                List.of(cryptoAllowance),
-                List.of(tokenAllowance),
-                List.of(nftAllowance));
-        final var feeCtx = mock(FeeContext.class);
-        given(feeCtx.body()).willReturn(txn);
-        given(feeCtx.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
-        given(feeCtx.payer()).willReturn(payerId);
-
-        final var feeCalcFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFactory);
-        given(feeCalcFactory.feeCalculator(notNull())).willReturn(feeCalc);
-        given(feeCalc.addBytesPerTransaction(anyLong())).willReturn(feeCalc);
-        given(feeCalc.addRamByteSeconds(anyLong())).willReturn(feeCalc);
-        // The fees wouldn't be free in this scenario, but we don't care about the actual return
-        // value here since we're using a mock calculator
-        given(feeCalc.calculate()).willReturn(Fees.FREE);
-
-        subject.calculateFees(feeCtx);
-
-        verify(feeCalc).addBytesPerTransaction(128);
-        verify(feeCalc).addRamByteSeconds(112);
-    }
-
-    @Test
-    void calculateFeesAccountNotFound() {
-        final var txn = cryptoApproveAllowanceTransaction(
-                payerId,
-                Timestamp.newBuilder().seconds(account.expirationSecond() - 1).build(),
-                false,
-                List.of(cryptoAllowance),
-                List.of(tokenAllowance),
-                List.of(nftAllowance));
-        final var feeCtx = mock(FeeContext.class);
-        given(feeCtx.body()).willReturn(txn);
-        given(feeCtx.readableStore(ReadableAccountStore.class)).willReturn(readableAccountStore);
-        given(feeCtx.payer())
-                .willReturn(AccountID.newBuilder().accountNum(Long.MAX_VALUE).build());
-
-        final var feeCalcFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFactory);
-        given(feeCalcFactory.feeCalculator(notNull())).willReturn(feeCalc);
-        given(feeCalc.addBytesPerTransaction(anyLong())).willReturn(feeCalc);
-        given(feeCalc.addRamByteSeconds(anyLong())).willReturn(feeCalc);
-        // The fees wouldn't be free in this scenario, but we don't care about the actual return
-        // value here since we're using a mock calculator
-        given(feeCalc.calculate()).willReturn(Fees.FREE);
-
-        subject.calculateFees(feeCtx);
-
-        verify(feeCalc).addBytesPerTransaction(128);
-        verify(feeCalc).addRamByteSeconds(0);
     }
 
     @Test

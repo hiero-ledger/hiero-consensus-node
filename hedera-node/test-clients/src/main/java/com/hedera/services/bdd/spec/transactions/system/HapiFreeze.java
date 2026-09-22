@@ -15,7 +15,6 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hederahashgraph.api.proto.java.FreezeTransactionBody;
 import com.hederahashgraph.api.proto.java.FreezeType;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -136,11 +135,6 @@ public class HapiFreeze extends HapiTxnOp<HapiFreeze> {
                     }
                 });
         return b -> b.setFreeze(opBody);
-    }
-
-    @Override
-    protected long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) {
-        return spec.fees().maxFeeTinyBars();
     }
 
     @Override

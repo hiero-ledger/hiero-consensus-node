@@ -20,7 +20,6 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
-import java.util.List;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
@@ -64,11 +63,17 @@ public class AppScheduleThrottleFactory implements ScheduleThrottle.Factory {
         throttleAccumulator.applyDurationConfig();
         throttleAccumulator.rebuildFor(definitionsSupplier.get());
         if (initialUsageSnapshots != null) {
-            final var tpsThrottles = selectedThrottlesFor(throttleAccumulator, initialUsageSnapshots);
             final var tpsUsageSnapshots = initialUsageSnapshots.tpsThrottles();
-            for (int i = 0, n = tpsThrottles.size(); i < n; i++) {
-                tpsThrottles.get(i).resetUsageTo(tpsUsageSnapshots.get(i));
-            }
+            // Usage snapshots are paired to throttles strictly by position, so a mismatch in counts
+            // means the throttle definitions changed since the snapshot was taken and we cannot safely
+            // restore usage by index. (The converse does not hold: a definitions change that keeps the
+            // same total count still passes this check, since snapshots carry no bucket identity.)
+            // Fail fast before mutating any throttle; the caller (ScheduleCreateHandler#upToDateThrottle)
+            // recovers by rebuilding from scratch and replaying this second's scheduled transactions.
+            ThrottleAccumulator.restoreThrottleUsage(
+                    ThrottleAccumulator.selectedThrottlesFor(throttleAccumulator, tpsUsageSnapshots),
+                    tpsUsageSnapshots,
+                    ThrottleAccumulator.SnapshotMismatchPolicy.FAIL_FAST);
             throttleAccumulator.gasLimitThrottle().resetUsageTo(initialUsageSnapshots.gasThrottleOrThrow());
         }
         // Throttle.allow() has the opposite polarity of ThrottleAccumulator.checkAndEnforceThrottle()
@@ -105,24 +110,5 @@ public class AppScheduleThrottleFactory implements ScheduleThrottle.Factory {
                         throttleAccumulator.opsDurationThrottle().usageSnapshot());
             }
         };
-    }
-
-    /**
-     * Selects the throttle list compatible with the given snapshots.
-     * Legacy snapshots contain only normal TPS throttles.
-     */
-    private static List<DeterministicThrottle> selectedThrottlesFor(
-            @NonNull final ThrottleAccumulator throttleAccumulator,
-            @NonNull final ThrottleUsageSnapshots initialUsageSnapshots) {
-        final var allThrottles = throttleAccumulator.allActiveThrottlesIncludingHighVolume();
-        final var snapshots = initialUsageSnapshots.tpsThrottles();
-        if (allThrottles.size() == snapshots.size()) {
-            return allThrottles;
-        }
-        final var normalThrottles = throttleAccumulator.allActiveThrottles();
-        if (normalThrottles.size() == snapshots.size()) {
-            return normalThrottles;
-        }
-        return allThrottles;
     }
 }

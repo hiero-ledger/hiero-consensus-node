@@ -17,7 +17,14 @@ test suites include:
 | SDLT        | Single Day Longevity Tests    | Production throttled mixed TPS load to test network stability                                       | X         |
 | MDLT        | Multi Day Longevity Tests     | Production throttled mixed TPS load over many days to test long term network stability              | X         |
 | Shortgevity | Short Longevity Tests         | Production throttled mixed TPS load with reconnects on a mainnet-like environment over several days |           |
-| MQPT        | Merge Queue Performance Tests | Combined performance, verification and longevity tests for use in Merge Queues                      | X         |
+
+## Resource Allocation
+
+SDPT, SDLT, and MDLT acquire their Kubernetes environments from [Chewie](https://github.com/swirldslabs/chewie), the
+compute allocation service. Instead of running against a pre-provisioned cluster asset, these suites request the shape
+of environment they need and Chewie provisions a namespace for the duration of the run, then reclaims it.
+
+See [Chewie Resource Allocation](chewie.md) for the configuration files, secrets, and workflow chain involved.
 
 ## MATS
 
@@ -35,32 +42,32 @@ the time constraint. The time limit for MATS is critical because it is also run 
 
 ### Workflows
 
-- MATS is triggered by the [Node: Build Application](/.github/workflows/node-flow-build-application.yaml) workflow.
+- MATS is triggered by the [300: [FLOW] Build Application](/.github/workflows/300-flow-build-application.yaml) workflow.
 - The PR Check equivalent checks are triggered by
-  the [Node: PR Checks](/.github/workflows/node-flow-pull-request-checks.yaml) workflow.
-- MATS Dry-Run is triggered manually via the [[CITR] MATS Dry Run](/.github/workflows/flow-dry-run-mats-suite.yaml)
+  the [600: [FLOW] PR Checks](/.github/workflows/600-flow-pull-request-checks.yaml) workflow.
+- MATS Dry-Run is triggered manually via the [000: [USER] CITR MATS Dry Run](/.github/workflows/000-user-dry-run-mats-suite.yaml)
   workflow.
 
 ### Included Tests
 
-|                       Test Name                        |                                              Workflow                                               |                                                   Required Parameters                                                   |                                               Required Workflow Secrets                                               | Precursor Steps |
-|--------------------------------------------------------|-----------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|-----------------|
-| MATS - Compile and Spotless Check                      | [ZXC: Compile and Spotless Check](/.github/workflows/zxc-compile-and-spotless-check.yaml)           | `ref: <commit-sha>`                                                                                                     | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                |                 |
-| MATS - Dependency (Module Info)                        | [ZXC: Dependency Module Check](/.github/workflows/zxc-dependency-module-check.yaml)                 | `ref: <commit-sha>`                                                                                                     | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
-| MATS - Unit Tests                                      | [ZXC: Execute Unit Tests](/.github/workflows/zxc-execute-unit-tests.yaml)                           | `ref: <commit-sha>`                                                                                                     | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`<br/>`codacy-project-token`<br/>`codecov-token` | build           |
-| MATS - Integration Tests                               | [ZXC: Execute Integration Tests](/.github/workflows/zxc-execute-integration-tests.yaml)             | `ref: <commit-sha>`<br/>`enable-network-log-capture: true`                                                              | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
-| MATS - HAPI Tests (Misc)                               | [ZXC: Execute HAPI Tests](/.github/workflows/zxc-execute-hapi-tests.yaml)                           | `ref: <commit-sha>`<br/>`enable-hapi-tests-misc: true`<br/>`enable-network-log-capture: true`                           | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
-| MATS - HAPI Tests (Misc Records, Crypto & Misc Serial) | [ZXC: Execute HAPI Tests](/.github/workflows/zxc-execute-hapi-tests.yaml)                           | `ref: <commit-sha>`<br/>`enable-hapi-tests-misc-records-crypto-and-serial: true`<br/>`enable-network-log-capture: true` | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
-| MATS - HAPI Tests (Token & Time Consuming)             | [ZXC: Execute HAPI Tests](/.github/workflows/zxc-execute-hapi-tests.yaml)                           | `ref: <commit-sha>`<br/>`enable-hapi-tests-token-and-time-consuming: true`<br/>`enable-network-log-capture: true`       | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
-| MATS - HAPI Tests (Simple Fees & ND Reconnect)         | [ZXC: Execute HAPI Tests](/.github/workflows/zxc-execute-hapi-tests.yaml)                           | `ref: <commit-sha>`<br/>`enable-hapi-tests-simple-fees-and-nd-reconnect: true`<br/>`enable-network-log-capture: true`   | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
-| MATS - HAPI Tests (Atomic Batch)                       | [ZXC: Execute HAPI Tests](/.github/workflows/zxc-execute-hapi-tests.yaml)                           | `ref: <commit-sha>`<br/>`enable-hapi-tests-atomic-batch: true`<br/>`enable-network-log-capture: true`                   | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
-| MATS - HAPI Tests (Smart Contracts & ISS)              | [ZXC: Execute HAPI Tests](/.github/workflows/zxc-execute-hapi-tests.yaml)                           | `ref: <commit-sha>`<br/>`enable-hapi-tests-smart-contract-and-iss: true`<br/>`enable-network-log-capture: true`         | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
-| MATS - HAPI Tests (Restart)                            | [ZXC: Execute HAPI Tests](/.github/workflows/zxc-execute-hapi-tests.yaml)                           | `ref: <commit-sha>`<br/>`enable-hapi-tests-restart: true`<br/>`enable-network-log-capture: true`                        | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
-| MATS - HAPI Tests (State Throttling)                   | [ZXC: Execute HAPI Tests](/.github/workflows/zxc-execute-hapi-tests.yaml)                           | `ref: <commit-sha>`<br/>`enable-hapi-tests-state-throttling: true`<br/>`enable-network-log-capture: true`               | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
-| MATS - Otter Tests                                     | [ZXC: Execute Otter Tests](/.github/workflows/zxc-execute-otter-tests.yaml)                         | `ref: <commit-sha>`<br/>`enable-fast-otter-tests: true`<br/>`enable-network-log-capture: true`                          | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
-| MATS - Snyk Checks                                     | [ZXC: Snyk Scan](/.github/workflows/zxc-snyk-scan.yaml)                                             | `ref: <commit-sha>`                                                                                                     | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`<br/>`snyk-token`                               | build           |
-| MATS - Gradle Determinism                              | [ZXC: Verify Gradle Build Determinism](/.github/workflows/zxc-verify-gradle-build-determinism.yaml) | `ref: <commit-sha>`                                                                                                     | `gradle-cache-username`<br/>`gradle-cache-password`                                                                   | build           |
-| MATS - Docker Determinism                              | [ZXC: Verify Docker Build Determinism](/.github/workflows/zxc-verify-docker-build-determinism.yaml) | `ref: <commit-sha>`                                                                                                     | `gradle-cache-username`<br/>`gradle-cache-password`                                                                   | build           |
+|                       Test Name                        |                                             Workflow                                             |                                                   Required Parameters                                                   |                                               Required Workflow Secrets                                               | Precursor Steps |
+|--------------------------------------------------------|--------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------|-----------------|
+| MATS - Snyk Checks                                     | [801: [CALL] Snyk Scan](/.github/workflows/801-call-snyk-scan.yaml)                              | `ref: <commit-sha>`                                                                                                     | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`<br/>`snyk-token`                               | build           |
+| MATS - Compile and Spotless Check                      | [802: [CALL] Compile And Spotless](/.github/workflows/802-call-compile-and-spotless-check.yaml)  | `ref: <commit-sha>`                                                                                                     | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                |                 |
+| MATS - Unit Tests                                      | [803: [CALL] Exec Unit Tests](/.github/workflows/803-call-execute-unit-tests.yaml)               | `ref: <commit-sha>`                                                                                                     | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`<br/>`codacy-project-token`<br/>`codecov-token` | build           |
+| MATS - Integration Tests                               | [804: [CALL] Exec Integration Tests](/.github/workflows/804-call-execute-integration-tests.yaml) | `ref: <commit-sha>`<br/>`enable-network-log-capture: true`                                                              | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
+| MATS - HAPI Tests (Misc)                               | [805: [CALL] Exec HAPI Tests](/.github/workflows/805-call-execute-hapi-tests.yaml)               | `ref: <commit-sha>`<br/>`enable-hapi-tests-misc: true`<br/>`enable-network-log-capture: true`                           | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
+| MATS - HAPI Tests (Misc Records, Crypto & Misc Serial) | [805: [CALL] Exec HAPI Tests](/.github/workflows/805-call-execute-hapi-tests.yaml)               | `ref: <commit-sha>`<br/>`enable-hapi-tests-misc-records-crypto-and-serial: true`<br/>`enable-network-log-capture: true` | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
+| MATS - HAPI Tests (Token & Time Consuming)             | [805: [CALL] Exec HAPI Tests](/.github/workflows/805-call-execute-hapi-tests.yaml)               | `ref: <commit-sha>`<br/>`enable-hapi-tests-token-and-time-consuming: true`<br/>`enable-network-log-capture: true`       | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
+| MATS - HAPI Tests (Simple Fees & ND Reconnect)         | [805: [CALL] Exec HAPI Tests](/.github/workflows/805-call-execute-hapi-tests.yaml)               | `ref: <commit-sha>`<br/>`enable-hapi-tests-simple-fees-and-nd-reconnect: true`<br/>`enable-network-log-capture: true`   | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
+| MATS - HAPI Tests (Atomic Batch)                       | [805: [CALL] Exec HAPI Tests](/.github/workflows/805-call-execute-hapi-tests.yaml)               | `ref: <commit-sha>`<br/>`enable-hapi-tests-atomic-batch: true`<br/>`enable-network-log-capture: true`                   | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
+| MATS - HAPI Tests (Smart Contracts & ISS)              | [805: [CALL] Exec HAPI Tests](/.github/workflows/805-call-execute-hapi-tests.yaml)               | `ref: <commit-sha>`<br/>`enable-hapi-tests-smart-contract-and-iss: true`<br/>`enable-network-log-capture: true`         | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
+| MATS - HAPI Tests (Restart)                            | [805: [CALL] Exec HAPI Tests](/.github/workflows/805-call-execute-hapi-tests.yaml)               | `ref: <commit-sha>`<br/>`enable-hapi-tests-restart: true`<br/>`enable-network-log-capture: true`                        | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
+| MATS - HAPI Tests (State Throttling)                   | [805: [CALL] Exec HAPI Tests](/.github/workflows/805-call-execute-hapi-tests.yaml)               | `ref: <commit-sha>`<br/>`enable-hapi-tests-state-throttling: true`<br/>`enable-network-log-capture: true`               | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
+| MATS - Otter Tests                                     | [808: [CALL] Exec Otter Tests](/.github/workflows/808-call-execute-otter-tests.yaml)             | `ref: <commit-sha>`<br/>`enable-fast-otter-tests: true`<br/>`enable-network-log-capture: true`                          | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
+| MATS - Dependency (Module Info)                        | [809: [CALL] Dependency Module Chk](/.github/workflows/809-call-dependency-module-check.yaml)    | `ref: <commit-sha>`                                                                                                     | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                | build           |
+| MATS - Docker Determinism                              | [822: [CALL] Verify Docker Build](/.github/workflows/822-call-verify-docker-determinism.yaml)    | `ref: <commit-sha>`                                                                                                     | `gradle-cache-username`<br/>`gradle-cache-password`                                                                   | build           |
+| MATS - Gradle Determinism                              | [823: [CALL] Verify Gradle Build](/.github/workflows/823-call-verify-gradle-determinism.yaml)    | `ref: <commit-sha>`                                                                                                     | `gradle-cache-username`<br/>`gradle-cache-password`                                                                   | build           |
 
 ## XTS
 
@@ -80,26 +87,27 @@ catching regressions without being unnecessarily long-running.
 
 ### Workflows
 
-- XTS is triggered by the [ZXCron: [CITR] Extended Test Suite](/.github/workflows/zxcron-extended-test-suite.yaml)
+- XTS is triggered by the [900: [CRON] CITR Ext Test Suite](/.github/workflows/900-cron-extended-test-suite.yaml)
   workflow.
 - XTS Dry Run is triggered manually via
-  the [[CITR] XTS Dry Run](/.github/workflows/flow-dry-run-extended-test-suite.yaml) workflow.
+  the [001: [USER] CITR XTS Dry Run](/.github/workflows/001-user-dry-run-extended-test-suite.yaml) workflow.
 
 ### Included Tests
 
-|                 Test Name                 |                                             Workflow                                              |                                                                                                                                                     Required Parameters                                                                                                                                                     |                                                                                                                Required Workflow Secrets                                                                                                                 |           Precursor Steps            |
-|-------------------------------------------|---------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------|
-| XTS Compile and Spotless Check            | [ZXC: Compile and Spotless Check](/.github/workflows/zxc-compile-and-spotless-check.yaml)         |                                                                                                                                                                                                                                                                                                                             | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                                                                                                                                                   |                                      |
-| XTS Timing Sensitive Tests                | [ZXC: Execute Timing Sensitive Tests](/.github/workflows/zxc-execute-timing-sensitive-tests.yaml) | `ref: <commit-sha>`                                                                                                                                                                                                                                                                                                         | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                                                                                                                                                   | Fetch XTS Candidate<br/>Compile Code |
-| XTS Hammer Tests                          | [ZXC: Execute Hammer Tests](/.github/workflows/zxc-execute-hammer-tests.yaml)                     | `ref: <commit-sha>`                                                                                                                                                                                                                                                                                                         | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                                                                                                                                                   | Fetch XTS Candidate<br/>Compile Code |
-| XTS HAPI Tests (Block Node Communication) | [ZXC: Execute HAPI Tests](/.github/workflows/zxc-execute-hapi-tests.yaml)                         | `enable-hapi-tests-bn-communication: true`<br/>`enable-network-log-capture: true`<br/>`ref: <commit-sha>`                                                                                                                                                                                                                   | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                                                                                                                                                   | Fetch XTS Candidate<br/>Compile Code |
-| XTS Otter Tests                           | [ZXC: Execute Otter Tests](/.github/workflows/zxc-execute-otter-tests.yaml)                       | `enable-full-otter-tests: true`<br/>`enable-network-log-capture: true`<br/>`ref: <commit-sha>`                                                                                                                                                                                                                              | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                                                                                                                                                   | Fetch XTS Candidate<br/>Compile Code |
-| JRS Panel                                 | [ZXC: Regression](/.github/workflows/zxc-jrs-regression.yaml)                                     | `panel-config: configs/suites/GCP-PRCheck-Abbrev-4N.json`<br/>`ref: <commit-sha>`<br/>`branch-name: <github.head_ref or github.ref_name>`<br/>`base-branch-name: github.base_ref or ''`<br/>`slack-results-channel: regression-test`<br/>`slack-summary-channel: regression-test`<br/>`use-branch-for-slack-channel: false` | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`<br/>`jrs-ssh-user-name`<br/>`jrs-ssh-key-file`<br/>`gcp-project-number`<br/>`gcp-sa-key-contents`<br/>`slack-api-token`<br/>`grafana-agent-username`<br/>`grafana-agent-password` | Fetch XTS Candidate<br/>Compile Code |
-| Hedera Node JRS Panel                     | [ZXC: Regression](/.github/workflows/zxc-jrs-regression.yaml)                                     | `panel-config: configs/services/suites/daily/GCP-Daily-Services-Abbrev-DAB-Update-4N-2C.json`<br/>`ref: <commit-sha>`<br/>`branch-name: <github.head_ref or github.ref_name>`<br/>`hedera-tests-enabled: true`<br/>`use-branch-for-slack-channel: false`                                                                    | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`<br/>`jrs-ssh-user-name`<br/>`jrs-ssh-key-file`<br/>`gcp-project-number`<br/>`gcp-sa-key-contents`<br/>`slack-api-token`<br/>`grafana-agent-username`<br/>`grafana-agent-password` | Fetch XTS Candidate<br/>Compile Code |
-| SDK TCK Regression Panel                  | [ZXC: TCK Regression](/.github/workflows/zxc-tck-regression.yaml)                                 | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              | `access-token`<br/>`slack-tck-report-webhook`<br/>`slack-detailed-report-webhook`                                                                                                                                                                        | Fetch XTS Candidate<br/>Compile Code |
-| Mirror Node Regression Panel              | [ZXC: Mirror Node Regression](/.github/workflows/zxc-mirror-node-regression.yaml)                 | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`<br/>`helm-release-name: mirror or mirror-1`                                                                                                                                                                                                                  | `access-token`<br/>`slack-detailed-report-webhook`                                                                                                                                                                                                       | Fetch XTS Candidate<br/>Compile Code |
-| JSON-RPC Relay Regression Panel           | [ZXC: JSON-RPC Relay Regression](/.github/workflows/zxc-json-rpc-relay-regression.yaml)           | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              | `access-token`<br/>`slack-detailed-report-webhook`                                                                                                                                                                                                       | Fetch XTS Candidate<br/>Compile Code |
-| Block Node Regression Panel               | [ZXC: Block Node Explorer Regression](/.github/workflows/zxc-block-node-regression.yaml)          | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              | `access-token`<br/>`slack-detailed-report-webhook`                                                                                                                                                                                                       | Fetch XTS Candidate<br/>Compile Code |
+|                 Test Name                 |                                             Workflow                                             |                                                                                                                                                     Required Parameters                                                                                                                                                     |                                                                                                                Required Workflow Secrets                                                                                                                 |           Precursor Steps            |
+|-------------------------------------------|--------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------|
+| XTS Compile and Spotless Check            | [802: [CALL] Compile And Spotless](/.github/workflows/802-call-compile-and-spotless-check.yaml)  |                                                                                                                                                                                                                                                                                                                             | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                                                                                                                                                   |                                      |
+| XTS HAPI Tests (Block Node Communication) | [805: [CALL] Exec HAPI Tests](/.github/workflows/805-call-execute-hapi-tests.yaml)               | `enable-hapi-tests-bn-communication: true`<br/>`enable-network-log-capture: true`<br/>`ref: <commit-sha>`                                                                                                                                                                                                                   | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                                                                                                                                                   | Fetch XTS Candidate<br/>Compile Code |
+| XTS Timing Sensitive Tests                | [806: [CALL] Exec Timing Tests](/.github/workflows/806-call-execute-timing-sensitive-tests.yaml) | `ref: <commit-sha>`                                                                                                                                                                                                                                                                                                         | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                                                                                                                                                   | Fetch XTS Candidate<br/>Compile Code |
+| XTS Hammer Tests                          | [807: [CALL] Exec Hammer Tests](/.github/workflows/807-call-execute-hammer-tests.yaml)           | `ref: <commit-sha>`                                                                                                                                                                                                                                                                                                         | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                                                                                                                                                   | Fetch XTS Candidate<br/>Compile Code |
+| XTS Otter Tests                           | [808: [CALL] Exec Otter Tests](/.github/workflows/808-call-execute-otter-tests.yaml)             | `enable-full-otter-tests: true`<br/>`enable-network-log-capture: true`<br/>`ref: <commit-sha>`                                                                                                                                                                                                                              | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`                                                                                                                                                                                   | Fetch XTS Candidate<br/>Compile Code |
+| JRS Panel                                 | [817: [CALL] JRS Regression](/.github/workflows/817-call-jrs-regression.yaml)                    | `panel-config: configs/suites/GCP-PRCheck-Abbrev-4N.json`<br/>`ref: <commit-sha>`<br/>`branch-name: <github.head_ref or github.ref_name>`<br/>`base-branch-name: github.base_ref or ''`<br/>`slack-results-channel: regression-test`<br/>`slack-summary-channel: regression-test`<br/>`use-branch-for-slack-channel: false` | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`<br/>`jrs-ssh-user-name`<br/>`jrs-ssh-key-file`<br/>`gcp-project-number`<br/>`gcp-sa-key-contents`<br/>`slack-api-token`<br/>`grafana-agent-username`<br/>`grafana-agent-password` | Fetch XTS Candidate<br/>Compile Code |
+| Hedera Node JRS Panel                     | [817: [CALL] JRS Regression](/.github/workflows/817-call-jrs-regression.yaml)                    | `panel-config: configs/services/suites/daily/GCP-Daily-Services-Abbrev-DAB-Update-4N-2C.json`<br/>`ref: <commit-sha>`<br/>`branch-name: <github.head_ref or github.ref_name>`<br/>`hedera-tests-enabled: true`<br/>`use-branch-for-slack-channel: false`                                                                    | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password`<br/>`jrs-ssh-user-name`<br/>`jrs-ssh-key-file`<br/>`gcp-project-number`<br/>`gcp-sa-key-contents`<br/>`slack-api-token`<br/>`grafana-agent-username`<br/>`grafana-agent-password` | Fetch XTS Candidate<br/>Compile Code |
+| JSON-RPC Relay Regression Panel           | [818: [CALL] JSON-RPC Relay Reg](/.github/workflows/818-call-json-rpc-relay-regression.yaml)     | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              | `access-token`<br/>`slack-detailed-report-webhook`                                                                                                                                                                                                       | Fetch XTS Candidate<br/>Compile Code |
+| SDK TCK Regression Panel                  | [819: [CALL] TCK Regression](/.github/workflows/819-call-tck-regression.yaml)                    | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              | `access-token`<br/>`slack-tck-report-webhook`<br/>`slack-detailed-report-webhook`                                                                                                                                                                        | Fetch XTS Candidate<br/>Compile Code |
+| Mirror Node Regression Panel              | [820: [CALL] Mirror Node Regress](/.github/workflows/820-call-mirror-node-regression.yaml)       | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`<br/>`helm-release-name: mirror or mirror-1`                                                                                                                                                                                                                  | `access-token`<br/>`slack-detailed-report-webhook`                                                                                                                                                                                                       | Fetch XTS Candidate<br/>Compile Code |
+| Block Node Regression Panel               | [821: [CALL] Block Node Regression](/.github/workflows/821-call-block-node-regression.yaml)      | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              | `access-token`<br/>`slack-detailed-report-webhook`                                                                                                                                                                                                       | Fetch XTS Candidate<br/>Compile Code |
+| Solo 0.78 to 0.79 Cutover Panel           | [826: [CALL] Solo 078-079 Cutover](/.github/workflows/826-call-solo-078-to-079-cutover.yaml)     | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              |                                                                                                                                                                                                                                                          | Fetch XTS Candidate<br/>Compile Code |
 
 ## SDCT
 
@@ -120,7 +128,7 @@ if the E2E SLA is met. It runs on a large, mainnet-like environment.
 ### Workflows
 
 - SDCT is triggered by
-  the [ZXF: [CITR] Single Day Canonical Test (SDCT)](/.github/workflows/zxf-single-day-canonical-test.yaml)
+  the [223: [DISP] CITR SDCT Controller](/.github/workflows/223-disp-sdct-controller.yaml)
   workflow
   - The workflow is currently being updated with a fast-fail enhancement
 
@@ -157,31 +165,38 @@ potential performance regressions.
 ### Workflows
 
 - SDPT is triggered by
-  the [ZXF: [CITR] Single Day Performance Test Controller (SDPT)](/.github/workflows/zxf-single-day-performance-test-controller.yaml)
+  the [221: [DISP] CITR SDPT Controller](/.github/workflows/221-disp-sdpt-controller.yaml)
   workflow.
 - SDPT Dry Run is triggered manually via
-  the [ZXF: [CITR] Adhoc - Single Day Performance Test Controller (SDPT)](/.github/workflows/zxf-single-day-performance-test-controller-adhoc.yaml)
+  the [201: [USER] CITR SDPT Ctrl Adhoc](/.github/workflows/201-user-sdpt-controller-adhoc.yaml)
   workflow.
 
 ### Hardware
 
-Latitude kubernetes cluster
+The environment is allocated by Chewie. The requested shape is defined in
+[sdpt-config.json](/.github/workflows/support/chewie/sdpt-config.json) and is read by
+[861: [CALL] Get Test Config](/.github/workflows/861-call-get-test-config.yaml).
 
-- 7 nodes for Consensus Nodes
-- 1 node for CryptoBench
-- 1 node for aux services and NLG client
+| Instance Group |            Role             | Quantity | CPU | Memory (MB) |
+|----------------|-----------------------------|----------|-----|-------------|
+| `cn-nodes`     | Consensus Nodes, CryptoBench| 9        | 39  | 256000      |
+| `aux-nodes`    | Aux services and NLG client | 1        | 39  | 256000      |
+
+The allocation duration and the time SDPT will wait for capacity come from
+[`.github/chewie.yaml`](/.github/chewie.yaml). Chewie deletes the namespace when the allocation expires; the workflow
+does not tear it down. See [Chewie Resource Allocation](chewie.md).
 
 ### Included Tests
 
-|       Test Name        |                                              Workflow                                              |                Required Parameters                | Run time  |                  Precursor Steps                   |
-|------------------------|----------------------------------------------------------------------------------------------------|---------------------------------------------------|-----------|----------------------------------------------------|
-| NftTransferLoadTest    | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 6 hours   | Code Compiles, Solo deployed CNs/NLG onto Latitude |
-| CryptoBench            | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | maxKey, numRecords, keySize, recordSize, numFiles | 4-5 hours | Code Compiles, Solo deployed CNs/NLG onto Latitude |
-| HCSLoadTest            | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 2 hours   | NftTransferLoadTest                                |
-| CryptoTransferLoadTest | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 2 hours   | HCSLoadTest                                        |
-| HeliSwapLoadTest       | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts                                      | 6 hours   | CryptoTransferLoadTest                             |
-| SmartContractLoadTest  | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 2 hours   | HeliSwapLoadTest                                   |
-| State Validator        | [ZXC: [CITR] Single Day Performance Test](/.github/workflows/zxc-single-day-performance-test.yaml) |                                                   | 30 mins   | All previous tests passed                          |
+|       Test Name        |                                          Workflow                                          |                Required Parameters                | Run time  |                  Precursor Steps                   |
+|------------------------|--------------------------------------------------------------------------------------------|---------------------------------------------------|-----------|----------------------------------------------------|
+| NftTransferLoadTest    | [831: [CALL] CITR Exec SDPT](/.github/workflows/831-call-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 6 hours   | Code Compiles, Solo deployed CNs/NLG onto Latitude |
+| CryptoBench            | [831: [CALL] CITR Exec SDPT](/.github/workflows/831-call-single-day-performance-test.yaml) | maxKey, numRecords, keySize, recordSize, numFiles | 4-5 hours | Code Compiles, Solo deployed CNs/NLG onto Latitude |
+| HCSLoadTest            | [831: [CALL] CITR Exec SDPT](/.github/workflows/831-call-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 2 hours   | NftTransferLoadTest                                |
+| CryptoTransferLoadTest | [831: [CALL] CITR Exec SDPT](/.github/workflows/831-call-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 2 hours   | HCSLoadTest                                        |
+| HeliSwapLoadTest       | [831: [CALL] CITR Exec SDPT](/.github/workflows/831-call-single-day-performance-test.yaml) | nlg-accounts                                      | 6 hours   | CryptoTransferLoadTest                             |
+| SmartContractLoadTest  | [831: [CALL] CITR Exec SDPT](/.github/workflows/831-call-single-day-performance-test.yaml) | nlg-accounts,nlg-time                             | 2 hours   | HeliSwapLoadTest                                   |
+| State Validator        | [831: [CALL] CITR Exec SDPT](/.github/workflows/831-call-single-day-performance-test.yaml) |                                                   | 30 mins   | All previous tests passed                          |
 
 ### Runtime durations, practical settings
 
@@ -205,25 +220,33 @@ environment to quickly identify regressions in overall network stability and rob
 ### Workflows
 
 - SDLT is triggered by
-  the [ZXF: [CITR] Single Day Longevity Test Controller](/.github/workflows/zxf-single-day-longevity-test-controller.yaml)
+  the [222: [DISP] CITR SDLT Controller](/.github/workflows/222-disp-sdlt-controller.yaml)
   workflow.
 - SDLT Dry Run is triggered manually via
-  the [ZXF: [CITR] Adhoc - Single Day Longevity Test Controller](/.github/workflows/zxf-single-day-longevity-test-controller-adhoc.yaml)
+  the [202: [USER] CITR SDLT Ctrl Adhoc](/.github/workflows/202-user-sdlt-controller-adhoc.yaml)
   workflow.
 
 ### Hardware
 
-Latitude kubernetes cluster
+The environment is allocated by Chewie. The requested shape is defined in
+[sdlt-config.json](/.github/workflows/support/chewie/sdlt-config.json) and is read by
+[861: [CALL] Get Test Config](/.github/workflows/861-call-get-test-config.yaml).
 
-- 7 nodes for Consensus Nodes
-- 1 node for aux services and NLG client
+| Instance Group |            Role             | Quantity | CPU | Memory (MB) |
+|----------------|-----------------------------|----------|-----|-------------|
+| `cn-nodes`     | Consensus Nodes             | 8        | 39  | 256000      |
+| `aux-nodes`    | Aux services and NLG client | 1        | 39  | 256000      |
+
+The allocation duration and the time SDLT will wait for capacity come from
+[`.github/chewie.yaml`](/.github/chewie.yaml). Chewie deletes the namespace when the allocation expires; the workflow
+does not tear it down. See [Chewie Resource Allocation](chewie.md).
 
 ### Included Tests
 
-|     Test Name     |                                            Workflow                                            |  Required Parameters  | Run time |                  Precursor Steps                   |
-|-------------------|------------------------------------------------------------------------------------------------|-----------------------|----------|----------------------------------------------------|
-| LongevityLoadTest | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) | nlg-accounts,nlg-time | 16 hours | Code Compiles, Solo deployed CNs/NLG onto Latitude |
-| State Validator   | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) |                       | 30 mins  | LongevityLoadTest                                  |
+|     Test Name     |                                         Workflow                                         |  Required Parameters  | Run time |                  Precursor Steps                   |
+|-------------------|------------------------------------------------------------------------------------------|-----------------------|----------|----------------------------------------------------|
+| LongevityLoadTest | [833: [CALL] CITR Exec SDLT](/.github/workflows/833-call-single-day-longevity-test.yaml) | nlg-accounts,nlg-time | 16 hours | Code Compiles, Solo deployed CNs/NLG onto Latitude |
+| State Validator   | [833: [CALL] CITR Exec SDLT](/.github/workflows/833-call-single-day-longevity-test.yaml) |                       | 30 mins  | LongevityLoadTest                                  |
 
 ### LongevityLoadTest consists of the following tests, running in parallel with pre-defined throttling:
 
@@ -245,37 +268,78 @@ Latitude kubernetes cluster
 ### Purpose
 
 MDLT (Multi Day Longevity Test) is designed to run a production throttled mixed TPS load for an extended period of
-time (7 days) to identify regressions in overall network stability and robustness under load. It serves as a longer
-running version of SDLT to catch potential issues that may not surface within the shorter SDLT.
+time (5 days / 7200 minutes) to identify regressions in overall network stability and robustness under load. It serves
+as a longer running version of SDLT to catch potential issues that may not surface within the shorter SDLT.
 
 ### Environment
 
-- MDLT runs inside self-hosted github runners on demand, against any PR, tag, or branch, assuming release candidate
-- MDLT is expected to complete within 7 days of the test suite starting.
-- MDLT has a dry-run equivalent to SDLT
+- MDLT runs against a promoted build tag (`build-XXXXX`) that has already passed SDPT and SDLT.
+- Like SDPT and SDLT, MDLT deploys three block nodes into the allocated namespace, pinned to the
+  version in `block-node-version` in [.citr-env](/.github/workflows/support/citr/.citr-env) and passed
+  through as the `bnref` input. The consensus nodes stream to those block nodes; there is no longer a
+  stand-in block node hosted on the load generator pod.
+- The kickoff workflow runs only a short (~3 minute) smoke on a Chewie-allocated cluster, launches the 5-day
+  (7200 minute) production run in the background, and then exits so the GitHub runner is released (runners are
+  capped at 6 hours).
+- Chewie owns the namespace and its teardown; status is checked out-of-band via the monitor workflow.
 
 ### Workflows
 
-- MDLT is triggered by
-  the [ZXF: [CITR] Single Day Longevity Test Controller](/.github/workflows/zxf-single-day-longevity-test-controller.yaml)
-  workflow.
-- MDLT Dry Run is triggered manually via
-  the [ZXF: [CITR] Adhoc - Single Day Longevity Test Controller](/.github/workflows/zxf-single-day-longevity-test-controller-adhoc.yaml)
-  workflow.
+Kickoff (Chewie allocates the cluster and namespace; the kickoff prints them to the job summary):
+
+- Automated: [224: [DISP] CITR MDLT Controller](/.github/workflows/224-disp-mdlt-controller.yaml) — takes a `build-tag`
+  and verifies the `sdpt-pass-XXXXX` and `sdlt-pass-XXXXX` tags exist before starting.
+- Manual: [203: [USER] CITR MDLT Ctrl Adhoc](/.github/workflows/203-user-mdlt-controller-adhoc.yaml).
+- Both call the reusable
+  [835: [CALL] CITR Exec MDLT](/.github/workflows/835-call-multi-day-longevity-test.yaml) executor.
+
+Monitoring and finalization (dispatched with the Allocation ID printed by the kickoff; each resolves the
+cluster + namespace from the Chewie allocation):
+
+- [204: [DISP] CITR MDLT Monitor](/.github/workflows/204-disp-mdlt-monitor.yaml) — reports run status
+  (running / passed / failed / cancelled) and block node liveness to the summary and Slack. It also
+  prunes each block node's live block data (`*.blk*` older than 59 minutes) unless
+  `prune-block-node-data` is unchecked — the kickoff runner exits after launching the run, so the
+  runner-side cleaner loop SDPT uses cannot cover a multi-day run.
+- [205: [DISP] CITR MDLT Publish Results](/.github/workflows/205-disp-mdlt-publish-results.yaml) — collects logs and
+  publishes them to GCS.
+- [206: [DISP] CITR MDLT Tag Result](/.github/workflows/206-disp-mdlt-tag-result.yaml) — applies the
+  `mdlt-pass-XXXXX` / `mdlt-fail-XXXXX` tag based on the reported result.
+- [225: [DISP] Release Chewie Allocation](/.github/workflows/225-disp-release-chewie-allocation.yaml) — releases the
+  Chewie allocation early using the Allocation ID printed by the kickoff, freeing the cluster + namespace before expiry.
+
+Namespace teardown: Chewie reclaims the namespace automatically when the allocation expires (~6 days), or a user can
+release it early via `225` with the Allocation ID from the kickoff summary.
 
 ### Hardware
 
-Latitude kubernetes cluster
+MDLT requests its Chewie-allocated environment from
+[mdlt-config.json](/.github/workflows/support/chewie/mdlt-config.json) via
+[861: [CALL] Get CITR Test Config](/.github/workflows/861-call-get-test-config.yaml).
 
-- 7 nodes for Consensus Nodes
-- 1 node for aux services and NLG client
+| Instance Group |            Role             | Quantity | CPU | Memory (MB) |
+|----------------|-----------------------------|----------|-----|-------------|
+| `cn-nodes`     | Consensus Nodes             | 8        | 39  | 256000      |
+| `aux-nodes`    | Aux services and NLG client | 1        | 39  | 256000      |
+
+Because MDLT holds the environment for multiple days, the allocation duration must be long enough to outlive the whole
+run. Two separate knobs control this, both on
+[203: [USER] CITR MDLT Ctrl Adhoc](/.github/workflows/203-user-mdlt-controller-adhoc.yaml):
+
+- `duration-minutes` — how long Chewie keeps the namespace (defaults to 6 days, giving a day of log-review headroom).
+- `mdlt-length` — how long the production run itself lasts (defaults to `default_mdlt_length`, 5 days).
+
+Workflow inputs are in minutes; the `.github/chewie.yaml` values they fall back to are in seconds, and the controller
+converts. Note `default_duration` in that file is sized for a single-day run, which is why the MDLT controllers pass an
+explicit `duration-minutes`. Before deploying, `835` verifies the allocated network actually has schedulable nodes and
+fails fast if it does not. See [Chewie Resource Allocation](chewie.md).
 
 ### Included Tests
 
-|     Test Name     |                                            Workflow                                            |  Required Parameters  | Run time  |                  Precursor Steps                   |
-|-------------------|------------------------------------------------------------------------------------------------|-----------------------|-----------|----------------------------------------------------|
-| LongevityLoadTest | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) | nlg-accounts,nlg-time | 7 days    | Code Compiles, Solo deployed CNs/NLG onto Latitude |
-| State Validator   | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) |                       | 1.5 hours | LongevityLoadTest                                  |
+|     Test Name     |                                         Workflow                                         |  Required Parameters  | Run time  |                  Precursor Steps                   |
+|-------------------|------------------------------------------------------------------------------------------|-----------------------|-----------|----------------------------------------------------|
+| LongevityLoadTest | [835: [CALL] CITR Exec MDLT](/.github/workflows/835-call-multi-day-longevity-test.yaml)  | nlg-accounts,nlg-time | 5 days    | Code Compiles, Solo deployed BNs/CNs/NLG onto Latitude |
+| Results & Logs    | [205: [DISP] CITR MDLT Publish Results](/.github/workflows/205-disp-mdlt-publish-results.yaml) | build-tag,allocation-id | after run | LongevityLoadTest                                  |
 
 ### LongevityLoadTest consists of the following tests, running in parallel with pre-defined throttling:
 
@@ -290,7 +354,12 @@ Latitude kubernetes cluster
 - 30 mins with arguments: nlg-time=3 (mins), nlg-accounts=100000
 - 1 hour : nlg-time=21 (mins), nlg-accounts=20000000
 - 3 hour: nlg-time=180, nlg-accounts=20000000
-- 7 days: nlg-time=10080, nlg-accounts=100000000
+- 5 days (MDLT production run): nlg-time=3, mdlt-length=7200, nlg-accounts=100000000
+
+`nlg-time` sets only the initial smoke run; `mdlt-length` (minutes) sets the production run that follows it. The
+kickoff (`835`) starts the smoke with `nlg-time=3`, then relaunches the same command with `-tt <mdlt-length>m` in the
+background for the full run and exits. Leave `mdlt-length` blank to use `default_mdlt_length` from
+[`.github/chewie.yaml`](/.github/chewie.yaml) (`432000` seconds / 5 days).
 
 ## Shortgevity
 
@@ -326,61 +395,3 @@ All tests are run in parallel with adjustable total TPS. Currently runs at PROD 
 | K/V pairs                               | 200M                                           |
 | Best effort coverage of Hedera Tx Types | < 100 TPS                                      |
 | Re-connects                             | At most 2 nodes in re-connect at the same time |
-
-## MQPT Merge Queue Performance Tests
-
-### Environment
-
-- MQPT runs inside self-hosted github runners regularly against Trunk.io Merge Queues
-- MQPT is expected to complete within 3 hours 40 mins of the test suite starting.
-- MQPT has a dry-run equivalent that can be run against any PR, tag, or branch.
-
-### Workflows
-
-- MQPT is triggered by
-  the [ZXF: [CITR] Merge Queue Performance Test Controller](/.github/workflows/zxf-merge-queue-performance-test-controller.yaml)
-  workflow.
-- MQPT AdHoc Run is triggered manually via
-  the [ZXF: [CITR] Adhoc - Merge Queue Performance Test Controller](/.github/workflows/zxf-merge-queue-performance-test-controller-adhoc.yaml)
-  workflow.
-
-### Hardware
-
-Latitude kubernetes cluster
-
-- 7 nodes for Consensus Nodes
-- 1 node for aux services and NLG client
-
-### Included Tests
-
-|        Test Name         |                                            Workflow                                            |  Required Parameters  | Run time |                  Precursor Steps                   |
-|--------------------------|------------------------------------------------------------------------------------------------|-----------------------|----------|----------------------------------------------------|
-| ScriptedLoadTest, part 1 | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) | nlg-accounts,nlg-time | 2 hours  | Code Compiles, Solo deployed CNs/NLG onto Latitude |
-| ReconnectTest            | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) | nlg-accounts,nlg-time |          | ScriptedLoadTest                                   |
-| ScriptedLoadTest, part 2 | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) | nlg-accounts,nlg-time | 1 hour   | ScriptedLoadTest                                   |
-| State Validator          | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) |                       | 30 mins  | ReconnectTest                                      |
-
-### ScriptedLoadTest, part 1 consists of the following tests, running sequentially to measure performance benchmarks:
-
-- NftTransferLoadTest
-- HCSLoadTest
-- CryptoTransferLoadTest
-- SmartContractLoadTest
-
-### ScriptedLoadTest, part 2 consists of the following tests, running in parallel with pre-defined throttling:
-
-- NftTransferLoadTest, TPS=3000
-- HCSLoadTest, TPS=2000
-- CryptoTransferLoadTest, TPS=5000
-- SmartContractLoadTest, TPS=50
-
-During this step, Reconnect test restarts Consensus Node java and verifies that Consensus Node reaches ACTIVE state.
-
-### State Validator
-
-This step verifies the correctness of Consensus node State by running Validator tool.
-
-### Runtime durations, practical settings
-
-- 30 mins with arguments: nlg-time=3 (mins), nlg-accounts=100000, -Dbenchmark.stepDuration=1m -Dbenchmark.coolDown=1m
-- 3 hours 40 mins: nlg-time=60, nlg-accounts=20000000, -Dbenchmark.stepDuration=20m -Dbenchmark.coolDown=3m

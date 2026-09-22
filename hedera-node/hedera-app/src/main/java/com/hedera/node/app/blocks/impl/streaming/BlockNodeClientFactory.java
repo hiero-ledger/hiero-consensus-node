@@ -4,8 +4,11 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeTlsConfiguration;
+import com.hedera.node.config.types.BlockStreamGrpcCompressionType;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClient;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
+import com.hedera.pbj.runtime.grpc.GrpcCompression;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -16,10 +19,9 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import org.hiero.block.api.BlockNodeServiceInterface.BlockNodeServiceClient;
-import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 
 /**
- * Factory class to create instances of {@link BlockStreamPublishServiceClient} or {@link org.hiero.block.api.BlockNodeServiceInterface.BlockNodeServiceClient} for communicating with block nodes.
+ * Factory class to create instances of {@link BlockStreamPublishBytesClient} or {@link org.hiero.block.api.BlockNodeServiceInterface.BlockNodeServiceClient} for communicating with block nodes.
  * This factory is necessary to test clients to mock the creation of the gRPC client. PBJ will create the underlying
  * connections in the constructor and there is no way to mock that.
  */
@@ -54,9 +56,13 @@ public class BlockNodeClientFactory {
         SERVICE
     }
 
+    private static final String ZSTD = "zstd";
+
     /**
-     * Create a new PBJ gRPC client using the specified configuration.
+     * Create a new PBJ gRPC client using the specified configuration. Each block node API is secured independently,
+     * so the TLS settings (and therefore the URI scheme) are selected per client type.
      *
+     * @param clientType the block node API this client will call
      * @param config the block node configuration to use
      * @param timeout the timeout to use
      * @return a new {@link PbjGrpcClient} instance
@@ -64,24 +70,32 @@ public class BlockNodeClientFactory {
     private PbjGrpcClient buildPbjClient(
             @NonNull final ClientType clientType,
             @NonNull final BlockNodeConfiguration config,
-            @NonNull final Duration timeout) {
+            @NonNull final Duration timeout,
+            @NonNull final BlockStreamGrpcCompressionType compressionType) {
         requireNonNull(config, "config is required");
         requireNonNull(timeout, "timeout is required");
         requireNonNull(clientType, "client type is required");
+        requireNonNull(compressionType, "compression type is required");
 
-        final Tls tls = Tls.builder().enabled(false).build();
-        final PbjGrpcClientConfig pbjConfig =
-                new PbjGrpcClientConfig(timeout, tls, Optional.of(""), "application/grpc");
-        final ProtocolConfig httpConfig = config.clientHttpConfig().toHttp2ClientProtocolConfig();
-        final ProtocolConfig grpcConfig = config.clientGrpcConfig().toGrpcClientProtocolConfig();
         final int port =
                 switch (clientType) {
                     case STREAMING -> config.streamingPort();
                     case SERVICE -> config.servicePort();
                 };
+        final BlockNodeTlsConfiguration tlsConfig =
+                switch (clientType) {
+                    case STREAMING -> config.streamingTls();
+                    case SERVICE -> config.serviceTls();
+                };
+
+        final Tls tls = tlsConfig.toTls();
+        final String scheme = tls.enabled() ? "https" : "http";
+        final PbjGrpcClientConfig pbjConfig = buildPbjConfig(timeout, tls, compressionType);
+        final ProtocolConfig httpConfig = config.clientHttpConfig().toHttp2ClientProtocolConfig();
+        final ProtocolConfig grpcConfig = config.clientGrpcConfig().toGrpcClientProtocolConfig();
 
         final WebClient webClient = WebClient.builder()
-                .baseUri("http://" + config.address() + ":" + port)
+                .baseUri(scheme + "://" + config.address() + ":" + port)
                 .tls(tls)
                 .addProtocolConfig(httpConfig)
                 .addProtocolConfig(grpcConfig)
@@ -92,32 +106,55 @@ public class BlockNodeClientFactory {
     }
 
     /**
-     * Create a new {@link BlockStreamPublishServiceClient} instance using the specified configuration.
+     * Build the PBJ gRPC client config.
      *
-     * @param config the block node configuration to use
-     * @param timeout the timeout to use
-     * @return a new {@link BlockStreamPublishServiceClient} instance
+     * @param timeout the timeout for the gRPC client
+     * @param tls TLS configuration for the gRPC client
+     * @param compressionType the type of compression to use for communication over the gRPC client
+     * @return the PBJ gRPC client config
      */
-    public BlockStreamPublishServiceClient createStreamingClient(
-            @NonNull final BlockNodeConfiguration config, @NonNull final Duration timeout) {
-        return createStreamingClient(config, timeout, null);
+    private PbjGrpcClientConfig buildPbjConfig(
+            final Duration timeout, final Tls tls, final BlockStreamGrpcCompressionType compressionType) {
+        if (BlockStreamGrpcCompressionType.NONE == compressionType) {
+            return new PbjGrpcClientConfig(timeout, tls, Optional.of(""), "application/grpc");
+        } else if (BlockStreamGrpcCompressionType.ZSTD == compressionType) {
+            return new PbjGrpcClientConfig(
+                    timeout, tls, Optional.of(""), "application/grpc", ZSTD, GrpcCompression.getDecompressorNames());
+        } else {
+            throw new IllegalArgumentException("Unexpected compression type: " + compressionType);
+        }
     }
 
     /**
-     * Create a new {@link BlockStreamPublishServiceClient} instance using the specified configuration and
+     * Create a new {@link BlockStreamPublishBytesClient} instance using the specified configuration.
+     *
+     * @param config the block node configuration to use
+     * @param timeout the timeout to use
+     * @return a new {@link BlockStreamPublishBytesClient} instance
+     */
+    public BlockStreamPublishBytesClient createStreamingClient(
+            @NonNull final BlockNodeConfiguration config,
+            @NonNull final Duration timeout,
+            @NonNull final BlockStreamGrpcCompressionType compressionType) {
+        return createStreamingClient(config, timeout, null, compressionType);
+    }
+
+    /**
+     * Create a new {@link BlockStreamPublishBytesClient} instance using the specified configuration and
      * connection-level correlation ID.
      *
      * @param config the block node configuration to use
      * @param timeout the timeout to use
      * @param connectionCorrelationId correlation ID to send in gRPC metadata
-     * @return a new {@link BlockStreamPublishServiceClient} instance
+     * @return a new {@link BlockStreamPublishBytesClient} instance
      */
-    public BlockStreamPublishServiceClient createStreamingClient(
+    public BlockStreamPublishBytesClient createStreamingClient(
             @NonNull final BlockNodeConfiguration config,
             @NonNull final Duration timeout,
-            final String connectionCorrelationId) {
-        final PbjGrpcClient client = buildPbjClient(ClientType.STREAMING, config, timeout);
-        return new BlockStreamPublishServiceClient(client, requestOptionsForCorrelationId(connectionCorrelationId));
+            final String connectionCorrelationId,
+            @NonNull final BlockStreamGrpcCompressionType compressionType) {
+        final PbjGrpcClient client = buildPbjClient(ClientType.STREAMING, config, timeout, compressionType);
+        return new BlockStreamPublishBytesClient(client, requestOptionsForCorrelationId(connectionCorrelationId));
     }
 
     /**
@@ -128,8 +165,10 @@ public class BlockNodeClientFactory {
      * @return a new {@link BlockNodeServiceClient} instance
      */
     public BlockNodeServiceClient createServiceClient(
-            @NonNull final BlockNodeConfiguration config, @NonNull final Duration timeout) {
-        return createServiceClient(config, timeout, null);
+            @NonNull final BlockNodeConfiguration config,
+            @NonNull final Duration timeout,
+            @NonNull final BlockStreamGrpcCompressionType compressionType) {
+        return createServiceClient(config, timeout, null, compressionType);
     }
 
     /**
@@ -144,8 +183,9 @@ public class BlockNodeClientFactory {
     public BlockNodeServiceClient createServiceClient(
             @NonNull final BlockNodeConfiguration config,
             @NonNull final Duration timeout,
-            final String connectionCorrelationId) {
-        final PbjGrpcClient client = buildPbjClient(ClientType.SERVICE, config, timeout);
+            final String connectionCorrelationId,
+            @NonNull final BlockStreamGrpcCompressionType compressionType) {
+        final PbjGrpcClient client = buildPbjClient(ClientType.SERVICE, config, timeout, compressionType);
         return new BlockNodeServiceClient(client, requestOptionsForCorrelationId(connectionCorrelationId));
     }
 

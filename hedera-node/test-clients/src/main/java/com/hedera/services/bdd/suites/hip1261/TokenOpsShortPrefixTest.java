@@ -97,9 +97,7 @@ public class TokenOpsShortPrefixTest {
     private static final String COLLECTOR = "collector";
 
     @BeforeAll
-    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "true"));
-    }
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {}
 
     @HapiTest
     @DisplayName("TokenFreeze succeeds with short (unique) prefixes")

@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle.dispatch;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
@@ -45,6 +46,13 @@ public class DispatchValidator {
     private final TransactionChecker transactionChecker;
     private final AppFeeCharging feeCharging;
 
+    /**
+     * Decides whether a NODE-category dispatch with a non-node-controlled payer must be rejected. A live consensus node
+     * enforces this; the in-process standalone transaction executor binds a no-op. Encapsulated behind a policy object
+     * so this validator does not need to know why the standalone executor is exempt, only whether to reject.
+     */
+    private final NodeControlledPayerGuard nodeControlledPayerGuard;
+
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
 
@@ -53,17 +61,22 @@ public class DispatchValidator {
      *
      * @param recordCache the record cache
      * @param transactionChecker the transaction checker
+     * @param feeCharging the fee-charging strategy
+     * @param systemEntitiesCreatedFlag the genesis system-entities-created flag (present only on a genesis boot)
+     * @param nodeControlledPayerGuard the NODE-category foreign-payer guard for this component
      */
     @Inject
     public DispatchValidator(
             @NonNull final HederaRecordCache recordCache,
             @NonNull final TransactionChecker transactionChecker,
             @NonNull final AppFeeCharging feeCharging,
-            @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
+            @Nullable final AtomicBoolean systemEntitiesCreatedFlag,
+            @NonNull final NodeControlledPayerGuard nodeControlledPayerGuard) {
         this.recordCache = requireNonNull(recordCache);
         this.transactionChecker = requireNonNull(transactionChecker);
         this.feeCharging = requireNonNull(feeCharging);
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
+        this.nodeControlledPayerGuard = requireNonNull(nodeControlledPayerGuard);
     }
 
     /**
@@ -77,6 +90,14 @@ public class DispatchValidator {
     public FeeCharging.Validation validateFeeChargingScenario(@NonNull final Dispatch dispatch) {
         if (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get()) {
             return newGenesisWaiver(dispatch.creatorInfo().accountId());
+        }
+        // A NODE-category dispatch skips payer-signature verification below, so its payer MUST be node-controlled.
+        // Any other payer means a node is charging a foreign account it never authorized; treat it as a node
+        // due-diligence failure so the creator node is charged instead of the named payer. Genesis is already waived
+        // above. The guard enforces this on a live consensus node and is a no-op in the standalone executor, which
+        // legitimately dispatches NODE transactions with a caller-chosen payer.
+        if (nodeControlledPayerGuard.rejectsForeignNodePayer(dispatch)) {
+            return newCreatorError(dispatch.creatorInfo().accountId(), INVALID_PAYER_ACCOUNT_ID);
         }
         final var creatorError = creatorErrorIfKnown(dispatch);
         if (creatorError != null) {

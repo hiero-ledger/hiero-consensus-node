@@ -4,6 +4,10 @@
       <Console name="DefaultConsoleAppender" target="SYSTEM_OUT">
           <PatternLayout pattern="%msg%n%throwable"/>
       </Console>
+      <Console name="ConsoleMarkerAppender" target="SYSTEM_OUT">
+          <MarkerFilter marker="CONSOLE" onMatch="ACCEPT" onMismatch="DENY"/>
+          <PatternLayout pattern="%msg%n"/>
+      </Console>
       <Console name="StateAnalysisConsoleAppender" target="SYSTEM_OUT">
           <PatternLayout pattern="%msg%n%throwable"/>
       </Console>
@@ -29,14 +33,18 @@
       <Logger name="com.hedera.statevalidation.validator.pipeline.ValidationPipelineExecutor" level="INFO">
           <AppenderRef ref="DefaultConsoleAppender"/>
       </Logger>
+      <Logger name="com.hedera.statevalidation.validator.EntityIdUniquenessValidator" level="INFO">
+          <AppenderRef ref="DefaultConsoleAppender"/>
+      </Logger>
       <Logger name="com.hedera.statevalidation.AnalyzeCommand" level="INFO">
           <AppenderRef ref="StateAnalysisConsoleAppender"/>
       </Logger>
       <Logger name="com.hedera.statevalidation.AnalyzeCommand" level="INFO">
           <AppenderRef ref="StateAnalysisFileAppender"/>
       </Logger>
-      <Root level="DEBUG">
+      <Root level="INFO">
           <AppenderRef ref="FileAppender"/>
+          <AppenderRef ref="ConsoleMarkerAppender"/>
       </Root>
     </Loggers>
 </Configuration>

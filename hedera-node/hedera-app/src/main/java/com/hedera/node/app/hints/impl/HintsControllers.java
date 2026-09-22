@@ -16,6 +16,7 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
+import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 import javax.inject.Inject;
@@ -172,7 +173,12 @@ public class HintsControllers {
                     publications.stream()
                             .map(p -> "(" + p.nodeId() + " -> " + p.partyId() + ")")
                             .collect(joining(", ")));
-            final var votes = hintsStore.getVotes(construction.constructionId(), weights.sourceNodeIds());
+            // Any current-roster node can have submitted a vote, even if an override assigned it no
+            // source weight. Include all such votes so a restarted controller rebuilds the same
+            // dependency graph as one that processed the transactions live.
+            final var voteNodeIds = new TreeSet<>(weights.sourceNodeIds());
+            activeRosters.currentRoster().rosterEntries().forEach(entry -> voteNodeIds.add(entry.nodeId()));
+            final var votes = hintsStore.getVotes(construction.constructionId(), voteNodeIds);
             final var selfId = selfNodeInfoSupplier.get().nodeId();
             final var blsKeyPair = keyAccessor.getOrCreateBlsPrivateKey(construction.constructionId());
             return new HintsControllerImpl(

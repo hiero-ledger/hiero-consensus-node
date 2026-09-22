@@ -2,6 +2,8 @@
 package com.hedera.services.bdd.suites.staking;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.NO_CONCURRENT_STAKE_PERIOD_BOUNDARY_CROSSINGS;
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
+import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.LONG_RUNNING;
 import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
@@ -23,6 +25,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ifNextStakePeriodStartsWithin;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.inParallel;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
@@ -42,11 +45,17 @@ import static com.hedera.services.bdd.suites.HapiSuite.STAKING_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
 import static com.hedera.services.bdd.suites.contract.records.ContractRecordsSanityCheckSuite.PAYABLE_CONTRACT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_STAKING_ID;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
+import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -66,7 +75,11 @@ import org.junit.jupiter.api.Tag;
 @Tag(SERIAL)
 @Tag(LONG_RUNNING)
 @HapiTestLifecycle
+@OrderedInIsolation
 public class StakingSuite {
+    private static final long WHALE_STAKE = ONE_HUNDRED_HBARS;
+    private static final long DIRECT_CREATE_STAKE = 25L * ONE_HBAR;
+    private static final long MAX_STAKE_REWARDED = ONE_HUNDRED_HBARS;
     private static final Duration MIN_TIME_TO_NEXT_PERIOD = Duration.ofSeconds(10);
     public static final String END_OF_STAKING_PERIOD_CALCULATIONS_MEMO = "End of staking period calculation record";
     private static final long SUITE_PER_HBAR_REWARD_RATE = 3_333_333L;
@@ -452,6 +465,114 @@ public class StakingSuite {
                         getTxnRecord(deletion)
                                 .logged()
                                 .hasPaidStakingRewards(List.of(Pair.of(bob, 100 * SUITE_PER_HBAR_REWARD_RATE))));
+    }
+
+    @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> createWithDeletedStakeeIsRejected() {
+        final var attackerPayer = "tc01DirectCreatePayer";
+        final var deleteBeneficiary = "tc01DirectCreateDeleteBeneficiary";
+        final var deletedStakee = "tc01DirectCreateDeletedStakee";
+        final var whale = "tc01DirectCreateWhale";
+        final var directCreatedStaker = "tc01DirectCreatedStaker";
+        final long NODE = 2L;
+
+        return hapiTest(
+                cryptoCreate(attackerPayer).balance(ONE_MILLION_HBARS),
+                cryptoCreate(deleteBeneficiary)
+                        .balance(0L)
+                        .receiverSigRequired(false)
+                        .payingWith(attackerPayer)
+                        .signedBy(attackerPayer),
+                cryptoCreate(whale)
+                        .stakedNodeId(NODE)
+                        .balance(WHALE_STAKE)
+                        .payingWith(attackerPayer)
+                        .signedBy(attackerPayer),
+
+                // Create and immediately delete the proxy account.
+                cryptoCreate(deletedStakee)
+                        .stakedNodeId(NODE)
+                        .balance(0L)
+                        .payingWith(attackerPayer)
+                        .signedBy(attackerPayer),
+                cryptoDelete(deletedStakee)
+                        .transfer(deleteBeneficiary)
+                        .payingWith(attackerPayer)
+                        .signedBy(attackerPayer, deletedStakee),
+
+                // CryptoCreate with a deleted stakedAccountId must be rejected.
+                cryptoCreate(directCreatedStaker)
+                        .stakedAccountId(deletedStakee)
+                        .balance(DIRECT_CREATE_STAKE)
+                        .payingWith(attackerPayer)
+                        .signedBy(attackerPayer)
+                        .hasKnownStatus(INVALID_STAKING_ID),
+
+                // The node's stakeToReward must reflect only the whale — the rejected create
+                // must not have introduced phantom stake.
+                doingContextual(spec -> assertThat(nodeInfo(spec, NODE).stakeToReward())
+                        .as("node stake must remain at the whale's 100 HBAR; no phantom stake from the rejected create")
+                        .isEqualTo(WHALE_STAKE)));
+    }
+
+    @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> nodeStakeUnchangedAfterStakeeDeleted() {
+        // Scenario: A stakes to live W (W staked to node), then W is deleted, then A's balance
+        // changes. Without the fix, each subsequent transaction touching A triggers a spurious
+        // withdrawStake on the node (because A still carries stakedAccountId=W and the handler
+        // would update W's stakedToMe, re-enter W into modified-accounts, and run withdraw-without-
+        // award), driving the node's stakeToReward below its true value.
+        final var payer = "tc02Payer";
+        final var beneficiary = "tc02Beneficiary";
+        final var whale = "tc02Whale";
+        final var stakee = "tc02Stakee"; // W — staked to node, will be deleted
+        final var staker = "tc02Staker"; // A — staked to W
+        final long NODE = 3L;
+
+        return hapiTest(
+                cryptoCreate(payer).balance(ONE_MILLION_HBARS),
+                cryptoCreate(beneficiary)
+                        .balance(0L)
+                        .receiverSigRequired(false)
+                        .payingWith(payer)
+                        .signedBy(payer),
+                cryptoCreate(whale)
+                        .stakedNodeId(NODE)
+                        .balance(WHALE_STAKE)
+                        .payingWith(payer)
+                        .signedBy(payer),
+
+                // Create W staked to node (alive), then A staked to W.
+                cryptoCreate(stakee)
+                        .stakedNodeId(NODE)
+                        .balance(0L)
+                        .payingWith(payer)
+                        .signedBy(payer),
+                cryptoCreate(staker)
+                        .stakedAccountId(stakee)
+                        .balance(DIRECT_CREATE_STAKE)
+                        .payingWith(payer)
+                        .signedBy(payer),
+
+                // Delete W — the node's stakeToReward correctly drops to WHALE_STAKE here.
+                cryptoDelete(stakee).transfer(beneficiary).payingWith(payer).signedBy(payer, stakee),
+
+                // Change A's balance while A still carries stakedAccountId=W (deleted).
+                // This is the triggering transaction for the phantom-withdraw bug.
+                cryptoTransfer(tinyBarsFromTo(payer, staker, ONE_HBAR)).payingWith(payer),
+
+                // The node's stakeToReward must remain at WHALE_STAKE: deleting the stakee and
+                // then touching the staker must not cause a spurious withdrawal from the node.
+                doingContextual(spec -> assertThat(nodeInfo(spec, NODE).stakeToReward())
+                        .as("node stake must remain at whale's stake after stakee deletion and subsequent staker tx")
+                        .isEqualTo(WHALE_STAKE)));
+    }
+
+    private static StakingNodeInfo nodeInfo(@NonNull final HapiSpec spec, long NODE) {
+        final var info = spec.embeddedStakingInfosOrThrow()
+                .get(EntityNumber.newBuilder().number(NODE).build());
+        assertThat(info).as("staking info for node %s", NODE).isNotNull();
+        return info;
     }
 
     // (FUTURE) Delete after confirming min stake will always be zero going forward

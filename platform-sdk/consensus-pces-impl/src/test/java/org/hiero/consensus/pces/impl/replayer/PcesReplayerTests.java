@@ -8,10 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.time.Duration;
@@ -20,14 +18,12 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.pces.config.PcesConfig_;
-import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.test.fixtures.Randotron;
+import org.hiero.consensus.wiring.framework.wires.output.StandardOutputWire;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,11 +36,8 @@ class PcesReplayerTests {
     private FakeTime time;
     private StandardOutputWire<PlatformEvent> eventOutputWire;
     private AtomicInteger eventOutputCount;
-    private AtomicBoolean flushIntakeCalled;
-    private Runnable flushIntake;
-    private AtomicBoolean flushTransactionHandlingCalled;
-    private Runnable flushTransactionHandling;
-    private Supplier<ReservedSignedState> latestImmutableStateSupplier;
+    private AtomicBoolean flushPrimaryPipelineCalled;
+    private Runnable flushPrimaryPipeline;
     private IOIterator<PlatformEvent> ioIterator;
 
     private final int eventCount = 100;
@@ -64,17 +57,8 @@ class PcesReplayerTests {
                 .when(eventOutputWire)
                 .forward(any());
 
-        flushIntakeCalled = new AtomicBoolean(false);
-        flushIntake = () -> flushIntakeCalled.set(true);
-
-        flushTransactionHandlingCalled = new AtomicBoolean(false);
-        flushTransactionHandling = () -> flushTransactionHandlingCalled.set(true);
-
-        final ReservedSignedState latestImmutableState = mock(ReservedSignedState.class);
-        final SignedState signedState = mock(SignedState.class);
-        when(latestImmutableState.get()).thenReturn(signedState);
-
-        latestImmutableStateSupplier = () -> latestImmutableState;
+        flushPrimaryPipelineCalled = new AtomicBoolean(false);
+        flushPrimaryPipeline = () -> flushPrimaryPipelineCalled.set(true);
 
         final List<PlatformEvent> events = new ArrayList<>();
         for (int i = 0; i < eventCount; i++) {
@@ -107,20 +91,13 @@ class PcesReplayerTests {
                 .withValue(PcesConfig_.LIMIT_REPLAY_FREQUENCY, false)
                 .getOrCreateConfig();
 
-        final PcesReplayer replayer = new PcesReplayer(
-                configuration,
-                time,
-                eventOutputWire,
-                flushIntake,
-                flushTransactionHandling,
-                latestImmutableStateSupplier,
-                () -> true);
+        final PcesReplayer replayer =
+                new PcesReplayer(configuration, time, eventOutputWire, flushPrimaryPipeline, () -> true);
 
         replayer.replayPces(ioIterator);
 
+        assertTrue(flushPrimaryPipelineCalled.get());
         assertEquals(eventCount, eventOutputCount.get());
-        assertTrue(flushIntakeCalled.get());
-        assertTrue(flushTransactionHandlingCalled.get());
     }
 
     @Test
@@ -131,14 +108,8 @@ class PcesReplayerTests {
                 .withValue(PcesConfig_.MAX_EVENT_REPLAY_FREQUENCY, 10)
                 .getOrCreateConfig();
 
-        final PcesReplayer replayer = new PcesReplayer(
-                configuration,
-                time,
-                eventOutputWire,
-                flushIntake,
-                flushTransactionHandling,
-                latestImmutableStateSupplier,
-                () -> true);
+        final PcesReplayer replayer =
+                new PcesReplayer(configuration, time, eventOutputWire, flushPrimaryPipeline, () -> true);
 
         final Thread thread = new Thread(() -> {
             replayer.replayPces(ioIterator);
@@ -159,10 +130,8 @@ class PcesReplayerTests {
         }
 
         assertEventuallyTrue(
-                () -> flushIntakeCalled.get(), Duration.ofSeconds(1), "Flush intake should have been called");
-        assertEventuallyTrue(
-                () -> flushTransactionHandlingCalled.get(),
+                () -> flushPrimaryPipelineCalled.get(),
                 Duration.ofSeconds(1),
-                "Flush transaction handling should have been called");
+                "Flush primary pipeline should have been called");
     }
 }

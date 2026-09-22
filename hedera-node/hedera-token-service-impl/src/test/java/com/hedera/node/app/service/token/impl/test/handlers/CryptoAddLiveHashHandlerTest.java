@@ -3,14 +3,10 @@ package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mock.Strictness.LENIENT;
-import static org.mockito.Mockito.mock;
 
 import com.hedera.node.app.service.token.impl.handlers.CryptoAddLiveHashHandler;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -53,12 +49,5 @@ class CryptoAddLiveHashHandlerTest {
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(NOT_SUPPORTED));
-    }
-
-    @Test
-    void calculateFeesFree() {
-        final var feeCtx = mock(FeeContext.class);
-        final var result = subject.calculateFees(feeCtx);
-        assertThat(result).isEqualTo(Fees.FREE);
     }
 }

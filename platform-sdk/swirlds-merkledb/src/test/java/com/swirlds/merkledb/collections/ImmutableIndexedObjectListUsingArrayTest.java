@@ -188,15 +188,5 @@ class ImmutableIndexedObjectListUsingArrayTest {
     }
 
     /** Testing implementation of IndexedObject */
-    static class TestIndexedObject implements IndexedObject {
-        public final int index;
-
-        public TestIndexedObject(int index) {
-            this.index = index;
-        }
-
-        public int getIndex() {
-            return index;
-        }
-    }
+    record TestIndexedObject(int getIndex) implements IndexedObject {}
 }

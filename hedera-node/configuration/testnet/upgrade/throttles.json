@@ -201,20 +201,6 @@
     {
       "burstPeriod": 0,
       "burstPeriodMs": 1000,
-      "name": "BalanceQueryLimits",
-      "throttleGroups": [
-        {
-          "opsPerSec": 0,
-          "milliOpsPerSec": 10000000,
-          "operations": [
-            "CryptoGetAccountBalance"
-          ]
-        }
-      ]
-    },
-    {
-      "burstPeriod": 0,
-      "burstPeriodMs": 1000,
       "name": "HVCryptoCreateThrottles",
       "highVolume": true,
       "throttleGroups": [

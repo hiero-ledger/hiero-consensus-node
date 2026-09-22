@@ -6,13 +6,16 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static com.hedera.node.app.history.impl.ProofVoteCategory.NOT_RECURSIVE;
+import static com.hedera.node.app.history.impl.ProofVoteCategory.VALID_RECURSIVE;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.time.Instant.EPOCH;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.isNull;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -149,7 +152,7 @@ class WrapsHistoryProverTest {
                 new WrapsMpcStateMachine());
 
         final var outcome = subject.advance(
-                EPOCH, constructionWithPhase(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, null);
+                EPOCH, constructionWithPhase(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, null, true);
 
         assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
         final var failed = (HistoryProver.Outcome.Failed) outcome;
@@ -179,11 +182,54 @@ class WrapsHistoryProverTest {
         subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore);
 
-        final var outcome = subject.advance(now, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+        final var outcome =
+                subject.advance(now, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
 
         assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
         final var failed = (HistoryProver.Outcome.Failed) outcome;
         assertTrue(failed.reason().contains("Still missing messages"));
+    }
+
+    @Test
+    void genesisMissingSelectedR2IsRecoverableOnlyAfterGracePeriod() {
+        final var lastMessageTime = EPOCH.plusSeconds(2);
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore));
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH.plusSeconds(1)),
+                writableHistoryStore));
+        final var graceEndCaptor = ArgumentCaptor.forClass(Instant.class);
+        verify(writableHistoryStore).advanceWrapsSigningPhase(eq(CONSTRUCTION_ID), eq(R2), graceEndCaptor.capture());
+        final var graceEnd = graceEndCaptor.getValue();
+        assertEquals(EPOCH.plusSeconds(1).plus(GRACE_PERIOD), graceEnd);
+        final var construction = constructionWithPhase(R2, graceEnd);
+
+        // Both R1 participants are required in R2; the other participant's R2 never arrives.
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, lastMessageTime),
+                writableHistoryStore));
+        assertSame(
+                HistoryProver.Outcome.InProgress.INSTANCE,
+                subject.advance(
+                        lastMessageTime, construction, TARGET_METADATA, targetProofKeys, tssConfig, null, true));
+        assertSame(
+                HistoryProver.Outcome.InProgress.INSTANCE,
+                subject.advance(graceEnd, construction, TARGET_METADATA, targetProofKeys, tssConfig, null, true));
+
+        final var outcome = subject.advance(
+                graceEnd.plusNanos(1), construction, TARGET_METADATA, targetProofKeys, tssConfig, null, true);
+
+        final var failure = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
+        assertEquals(
+                "Still missing messages from R1 nodes [2] after end of grace period for phase R2", failure.reason());
+        assertTrue(WrapsHistoryProver.isRecoverableFailure(failure.reason()));
+        verify(writableHistoryStore, never()).advanceWrapsSigningPhase(eq(CONSTRUCTION_ID), eq(R3), any());
+        verifyNoInteractions(submissions);
     }
 
     @Test
@@ -208,9 +254,46 @@ class WrapsHistoryProverTest {
 
         final var construction = constructionWithPhase(R1, null);
         final var outcome =
-                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        final var captor = ArgumentCaptor.forClass(Bytes.class);
+        verify(submissions).submitWrapsSigningMessage(eq(R1), captor.capture(), eq(CONSTRUCTION_ID));
+        assertEquals(MESSAGE_BYTES, captor.getValue());
+    }
+
+    @Test
+    void advanceDoesNotPublishOrPoisonFutureWhenCannotSubmit() {
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+
+        final var construction = constructionWithPhase(R1, null);
+        final var inactiveOutcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, false);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, inactiveOutcome);
+        verifyNoInteractions(historyLibrary, submissions);
+
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        given(historyLibrary.runWrapsPhaseR1(any(), any(), any())).willReturn(MESSAGE_BYTES.toByteArray());
+        given(submissions.submitWrapsSigningMessage(eq(R1), any(), eq(CONSTRUCTION_ID)))
+                .willReturn(CompletableFuture.completedFuture(null));
+
+        final var activeOutcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, activeOutcome);
         final var captor = ArgumentCaptor.forClass(Bytes.class);
         verify(submissions).submitWrapsSigningMessage(eq(R1), captor.capture(), eq(CONSTRUCTION_ID));
         assertEquals(MESSAGE_BYTES, captor.getValue());
@@ -241,7 +324,8 @@ class WrapsHistoryProverTest {
                         TARGET_METADATA,
                         targetProofKeys,
                         tssConfig,
-                        LEDGER_ID));
+                        LEDGER_ID,
+                        true));
 
         assertNull(getField("targetAddressBook"));
         assertNull(getField("wrapsMessage"));
@@ -287,7 +371,7 @@ class WrapsHistoryProverTest {
 
         final var construction = constructionWithPhase(R3, null);
         final var outcome =
-                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
         final var captor = ArgumentCaptor.forClass(Bytes.class);
@@ -326,7 +410,7 @@ class WrapsHistoryProverTest {
 
         final var construction = constructionWithPhase(R2, null);
         final var outcome =
-                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
         final var captor = ArgumentCaptor.forClass(Bytes.class);
@@ -428,7 +512,7 @@ class WrapsHistoryProverTest {
 
         final var construction = constructionWithPhase(AGGREGATE, null);
         final var outcome =
-                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
         final var captor = ArgumentCaptor.forClass(HistoryProof.class);
@@ -436,6 +520,94 @@ class WrapsHistoryProverTest {
         final var proof = captor.getValue();
         final var chainOfTrust = proof.chainOfTrustProofOrThrow();
         assertTrue(chainOfTrust.hasAggregatedNodeSignatures());
+    }
+
+    @Test
+    void aggregatePhaseSkipsVoteWhenAggregationReturnsNull() {
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any(), any()))
+                .willReturn(null);
+
+        setField("entropy", new byte[32]);
+        subject.replayWrapsSigningMessage(CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH));
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH));
+        subject.replayWrapsSigningMessage(CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, EPOCH));
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(OTHER_NODE_ID, R2_MESSAGE, R2, EPOCH));
+        subject.replayWrapsSigningMessage(CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R3_MESSAGE, R3, EPOCH));
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(OTHER_NODE_ID, R3_MESSAGE, R3, EPOCH));
+
+        final var outcome = subject.advance(
+                EPOCH,
+                constructionWithPhase(AGGREGATE, null),
+                TARGET_METADATA,
+                targetProofKeys,
+                tssConfig,
+                LEDGER_ID,
+                true);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
+    void aggregatePhaseSkipsVoteWhenAggregateSignatureIsInvalid() {
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any(), any()))
+                .willReturn(AGG_SIG.toByteArray());
+        given(historyLibrary.verifyAggregateSignature(any(), any(), any(), any(), any()))
+                .willReturn(false);
+
+        setField("entropy", new byte[32]);
+        subject.replayWrapsSigningMessage(CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH));
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH));
+        subject.replayWrapsSigningMessage(CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, EPOCH));
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(OTHER_NODE_ID, R2_MESSAGE, R2, EPOCH));
+        subject.replayWrapsSigningMessage(CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R3_MESSAGE, R3, EPOCH));
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(OTHER_NODE_ID, R3_MESSAGE, R3, EPOCH));
+
+        final var outcome = subject.advance(
+                EPOCH,
+                constructionWithPhase(AGGREGATE, null),
+                TARGET_METADATA,
+                targetProofKeys,
+                tssConfig,
+                LEDGER_ID,
+                true);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        verifyNoInteractions(submissions);
     }
 
     @Test
@@ -470,7 +642,7 @@ class WrapsHistoryProverTest {
                 new com.hedera.cryptography.wraps.Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray());
         given(historyLibrary.constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any()))
                 .willReturn(incremental);
-        given(historyLibrary.wrapsProverReady()).willReturn(true);
+        given(historyLibrary.wrapsProverReady(any())).willReturn(true);
         given(historyLibrary.verifyAggregateSignature(any(), any(), any(), any(), any()))
                 .willReturn(true);
 
@@ -498,7 +670,7 @@ class WrapsHistoryProverTest {
 
         final var construction = constructionWithPhase(AGGREGATE, null);
         final var outcome =
-                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
         final var captor = ArgumentCaptor.forClass(HistoryProof.class);
@@ -609,19 +781,17 @@ class WrapsHistoryProverTest {
     }
 
     @Test
-    void observeProofVoteDoesNothingWhenVoteDecisionFutureIsNull() {
+    void observeProofVoteDoesNotSubmitWhenVoteDecisionFutureIsNull() {
         final var vote =
                 HistoryProofVote.newBuilder().proof(HistoryProof.DEFAULT).build();
 
-        // voteDecisionFuture is null by default, so this should return early
         subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
 
-        // No exception thrown, and no interactions with submissions
         verifyNoInteractions(submissions);
     }
 
     @Test
-    void observeProofVoteDoesNothingWhenVoteDecisionFutureIsDone() {
+    void observeProofVoteDoesNotSubmitWhenVoteDecisionFutureIsDone() {
         final var completedFuture = CompletableFuture.completedFuture(null);
         setField("voteDecisionFuture", completedFuture);
 
@@ -630,7 +800,6 @@ class WrapsHistoryProverTest {
 
         subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
 
-        // No exception thrown, and no interactions with submissions
         verifyNoInteractions(submissions);
     }
 
@@ -724,6 +893,95 @@ class WrapsHistoryProverTest {
     }
 
     @Test
+    void validRecursiveVoteObservedBeforeProofIsReadyCausesImmediateCongruentVote() {
+        final var delayedExecutor = new ManualExecutor();
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                (delay, unit, executor) -> delayedExecutor,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(submissions.submitCongruentProofVote(CONSTRUCTION_ID, OTHER_NODE_ID))
+                .willReturn(CompletableFuture.completedFuture(null));
+        final var proof = recursiveProof();
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+
+        subject.observeProofVote(OTHER_NODE_ID, vote, false, VALID_RECURSIVE);
+        scheduleVote(proof);
+
+        verify(submissions).submitCongruentProofVote(CONSTRUCTION_ID, OTHER_NODE_ID);
+        assertEquals(0, delayedExecutor.pendingTasks());
+    }
+
+    @Test
+    void finalizedRecursiveProofObservedBeforeProofIsReadyPreventsLateVote() {
+        final var delayedExecutor = new ManualExecutor();
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                (delay, unit, executor) -> delayedExecutor,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        final var proof = recursiveProof();
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+
+        subject.observeProofVote(OTHER_NODE_ID, vote, true, VALID_RECURSIVE);
+        scheduleVote(proof);
+
+        verifyNoInteractions(submissions);
+        assertEquals(0, delayedExecutor.pendingTasks());
+    }
+
+    @Test
+    void aggregateVoteTimerCannotCompleteLaterRecursiveVoteDecision() {
+        final var delayedExecutor = new ManualExecutor();
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                (delay, unit, executor) -> delayedExecutor,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(tssConfig.wrapsVoteJitterPerRank()).willReturn(Duration.ofSeconds(5));
+        given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+        final var aggregateProof = HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .build();
+        final var aggregateVote =
+                HistoryProofVote.newBuilder().proof(aggregateProof).build();
+        final var recursiveProof = recursiveProof();
+
+        scheduleVote(aggregateProof);
+        subject.observeProofVote(OTHER_NODE_ID, aggregateVote, true, NOT_RECURSIVE);
+        scheduleVote(recursiveProof);
+
+        assertEquals(2, delayedExecutor.pendingTasks());
+        delayedExecutor.runNext();
+        verify(submissions, never()).submitExplicitProofVote(anyLong(), any());
+
+        delayedExecutor.runNext();
+        verify(submissions).submitExplicitProofVote(CONSTRUCTION_ID, recursiveProof);
+    }
+
+    @Test
     void canceledConstructionSkipsMessagePublicationAfterOutputResolves() {
         final var manualExecutor = new ManualExecutor();
         subject = new WrapsHistoryProver(
@@ -743,7 +1001,7 @@ class WrapsHistoryProverTest {
         given(historyLibrary.runWrapsPhaseR1(any(), any(), any())).willReturn(MESSAGE_BYTES.toByteArray());
 
         final var outcome = subject.advance(
-                EPOCH, constructionWithPhase(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                EPOCH, constructionWithPhase(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
         manualExecutor.runNext();
@@ -772,7 +1030,7 @@ class WrapsHistoryProverTest {
                 new WrapsMpcStateMachine());
         given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
-        given(historyLibrary.wrapsProverReady()).willReturn(true);
+        given(historyLibrary.wrapsProverReady(any())).willReturn(true);
         given(historyLibrary.constructGenesisWrapsProof(any(), any(), any(), any(), any()))
                 .willReturn(
                         new com.hedera.cryptography.wraps.Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));
@@ -789,7 +1047,7 @@ class WrapsHistoryProverTest {
                 .build();
 
         final var outcome =
-                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
         manualExecutor.runNext();
@@ -801,6 +1059,231 @@ class WrapsHistoryProverTest {
         assertNull(getField("historyProof"));
         assertNull(getField("voteDecisionFuture"));
         verifyNoInteractions(submissions);
+    }
+
+    @Test
+    void postAggregationRetriesPublishOnceWrapsLibraryBecomesReady() {
+        // Models the WRAPS download race: a construction has already been finalized in
+        // bootstrap form (aggregated_node_signatures chain-of-trust proof), then the
+        // POST_AGGREGATION publish attempt finds the native WRAPS library still loading.
+        // The first advance() should noop without submitting a vote, and crucially must
+        // clear voteFuture so the next consensus round re-enters publishIfNeeded. Once
+        // wrapsProverReady() flips true (the proving key archive having finished
+        // extracting), the next advance() must publish the recursive wraps_proof form
+        // so the construction can upgrade per HIP-1200.
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        // Not ready on the first advance() (download still in flight); ready on the second.
+        given(historyLibrary.wrapsProverReady(any())).willReturn(false, true);
+        given(historyLibrary.constructGenesisWrapsProof(any(), any(), any(), any(), any()))
+                .willReturn(
+                        new com.hedera.cryptography.wraps.Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));
+        given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+
+        final var aggregatedSignatureProof = HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.newBuilder()
+                        .aggregatedNodeSignatures(new AggregatedNodeSignatures(
+                                AGG_SIG, new ArrayList<>(List.of(SELF_ID, OTHER_NODE_ID)), TARGET_METADATA)))
+                .build();
+        final var construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .wrapsSigningState(
+                        WrapsSigningState.newBuilder().phase(AGGREGATE).build())
+                .targetProof(aggregatedSignatureProof)
+                .build();
+
+        // First advance: wrapsProverReady=false → noop, no vote submitted, phase flagged for retry
+        final var firstOutcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, firstOutcome);
+        verifyNoInteractions(submissions);
+        assertSame(
+                WrapsPhase.POST_AGGREGATION,
+                getField("phaseNeedingWrapsReadinessRetry"),
+                "Noop due to WRAPS-not-ready must flag the phase so the next round retries");
+
+        // Second advance: wrapsProverReady=true → real ProofPhaseOutput → explicit vote on wraps_proof
+        final var secondOutcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, secondOutcome);
+        final var captor = ArgumentCaptor.forClass(HistoryProof.class);
+        verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
+        final var proof = captor.getValue();
+        assertTrue(
+                proof.chainOfTrustProofOrThrow().hasWrapsProof(),
+                "Retry must publish a recursive wraps_proof, not another aggregated_node_signatures vote");
+    }
+
+    @Test
+    void postAggregationFlagsRetryWhenOutputFutureProducesWrapsNotReadyNoop() {
+        // Covers the race window where wrapsProverReady() flips to false between the
+        // publishIfNeeded early-exit guard (where it read true and we proceeded to
+        // build the chained future) and the outputFuture supplier (where it now reads
+        // false and yields NoopOutput(WRAPS_NOT_READY_FAILURE_PREFIX)). The chained
+        // NoopOutput case must set phaseNeedingWrapsReadinessRetry so the very next
+        // advance() re-enters publishIfNeeded and clears the stale voteFuture, rather
+        // than short-circuiting on it forever.
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        // First call (publishIfNeeded early-exit guard): true -> skips early-exit.
+        // Second call (inside outputFuture supplier): false -> NoopOutput.
+        // Third call (next-round retry early-exit guard): true -> proceeds to publish.
+        given(historyLibrary.wrapsProverReady(any())).willReturn(true, false, true);
+        given(historyLibrary.constructGenesisWrapsProof(any(), any(), any(), any(), any()))
+                .willReturn(
+                        new com.hedera.cryptography.wraps.Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray()));
+        given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+
+        final var aggregatedSignatureProof = HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.newBuilder()
+                        .aggregatedNodeSignatures(new AggregatedNodeSignatures(
+                                AGG_SIG, new ArrayList<>(List.of(SELF_ID, OTHER_NODE_ID)), TARGET_METADATA)))
+                .build();
+        final var construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .wrapsSigningState(
+                        WrapsSigningState.newBuilder().phase(AGGREGATE).build())
+                .targetProof(aggregatedSignatureProof)
+                .build();
+
+        // First advance: early-exit guard reads true, supplier reads false -> NoopOutput case fires.
+        final var firstOutcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, firstOutcome);
+        verifyNoInteractions(submissions);
+        assertSame(
+                WrapsPhase.POST_AGGREGATION,
+                getField("phaseNeedingWrapsReadinessRetry"),
+                "NoopOutput WRAPS_NOT_READY_FAILURE_PREFIX must flag the phase even when the early-exit guard let us through");
+
+        // Second advance: isWrapsReadinessRetry true -> voteFuture cleared; early-exit guard reads true -> publish.
+        final var secondOutcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, secondOutcome);
+        final var captor = ArgumentCaptor.forClass(HistoryProof.class);
+        verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
+        assertTrue(
+                captor.getValue().chainOfTrustProofOrThrow().hasWrapsProof(),
+                "Once WRAPS is ready, the retry must publish the recursive wraps_proof");
+    }
+
+    @Test
+    void postAggregationDefersWhenTheLedgerIdIsNotYetAvailable() {
+        // The library can be ready before the ledger id has been established at genesis. Proceeding then
+        // dereferenced a null ledgerId and killed the publication with an NPE; it must defer and retry.
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        // Library IS ready; only the ledger id is missing
+        given(historyLibrary.wrapsProverReady(any())).willReturn(true);
+
+        final var aggregatedSignatureProof = HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.newBuilder()
+                        .aggregatedNodeSignatures(new AggregatedNodeSignatures(
+                                AGG_SIG, new ArrayList<>(List.of(SELF_ID, OTHER_NODE_ID)), TARGET_METADATA)))
+                .build();
+        final var construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .wrapsSigningState(
+                        WrapsSigningState.newBuilder().phase(AGGREGATE).build())
+                .targetProof(aggregatedSignatureProof)
+                .build();
+
+        final var outcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, null, true);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        assertSame(
+                WrapsPhase.POST_AGGREGATION,
+                getField("phaseNeedingWrapsReadinessRetry"),
+                "phase must stay flagged so the genesis proof is retried once the ledger id exists");
+        verify(historyLibrary, never()).constructGenesisWrapsProof(any(), any(), any(), any(), any());
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
+    void postAggregationKeepsRetryFlagAcrossMultipleStillNotReadyRounds() {
+        // Covers the case where the next consensus round arrives but WRAPS is still
+        // loading: isWrapsReadinessRetry=true at the top of publishIfNeeded clears the
+        // stale voteFuture, then the early-exit guard re-fires because the library is
+        // still not ready, and the phase stays flagged for yet-another retry.
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        // Stays false across every advance() — exercises the retry loop while the library is still loading.
+        given(historyLibrary.wrapsProverReady(any())).willReturn(false);
+
+        final var aggregatedSignatureProof = HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.newBuilder()
+                        .aggregatedNodeSignatures(new AggregatedNodeSignatures(
+                                AGG_SIG, new ArrayList<>(List.of(SELF_ID, OTHER_NODE_ID)), TARGET_METADATA)))
+                .build();
+        final var construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .wrapsSigningState(
+                        WrapsSigningState.newBuilder().phase(AGGREGATE).build())
+                .targetProof(aggregatedSignatureProof)
+                .build();
+
+        for (int i = 0; i < 3; i++) {
+            final var outcome =
+                    subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
+            assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+            assertSame(
+                    WrapsPhase.POST_AGGREGATION,
+                    getField("phaseNeedingWrapsReadinessRetry"),
+                    "Iteration " + i + ": phase must remain flagged while WRAPS is still loading");
+        }
+        verifyNoInteractions(submissions);
+        verify(historyLibrary, never()).constructGenesisWrapsProof(any(), any(), any(), any(), any());
     }
 
     private void setField(String name, Object value) {
@@ -822,6 +1305,25 @@ class WrapsHistoryProverTest {
             fail(e);
             return null;
         }
+    }
+
+    private void scheduleVote(HistoryProof proof) {
+        try {
+            final var method = WrapsHistoryProver.class.getDeclaredMethod(
+                    "scheduleVoteWithJitter", long.class, TssConfig.class, HistoryProof.class);
+            method.setAccessible(true);
+            method.invoke(subject, CONSTRUCTION_ID, tssConfig, proof);
+        } catch (Exception e) {
+            fail(e);
+        }
+    }
+
+    private static HistoryProof recursiveProof() {
+        return HistoryProof.newBuilder()
+                .chainOfTrustProof(
+                        ChainOfTrustProof.newBuilder().wrapsProof(COMPRESSED).build())
+                .uncompressedWrapsProof(UNCOMPRESSED)
+                .build();
     }
 
     private static final class ManualExecutor implements Executor {

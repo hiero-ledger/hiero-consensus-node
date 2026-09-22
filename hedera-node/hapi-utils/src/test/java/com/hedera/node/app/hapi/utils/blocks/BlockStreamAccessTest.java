@@ -11,6 +11,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.zip.GZIPOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -59,5 +60,21 @@ class BlockStreamAccessTest {
         Files.write(blockFile, new byte[] {0x06});
 
         assertThrows(RuntimeException.class, () -> BlockStreamAccess.blockFrom(blockFile));
+    }
+
+    @Test
+    void readBlocksIgnoringMarkersAndReadErrors_skipsUnreadableBlocks() throws IOException {
+        final var blockBytes = Block.PROTOBUF.toBytes(SAMPLE_BLOCK).toByteArray();
+        final var readableBlockFile = tempDir.resolve("000000000000000000041.blk");
+        final var unreadableGzippedBlockFile = tempDir.resolve("000000000000000000042.blk.gz");
+        Files.write(readableBlockFile, blockBytes);
+        Files.write(unreadableGzippedBlockFile, new byte[0]);
+
+        assertThrows(
+                RuntimeException.class, () -> BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocksIgnoringMarkers(tempDir));
+
+        final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocksIgnoringMarkersAndReadErrors(tempDir);
+
+        assertEquals(List.of(SAMPLE_BLOCK), blocks);
     }
 }

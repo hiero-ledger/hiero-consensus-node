@@ -64,12 +64,14 @@ import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
+import com.hedera.node.app.workflows.handle.record.TraceDataSizeLimiter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 /**
@@ -114,8 +116,25 @@ public class PairedStreamBuilder
             @NonNull final ReversingBehavior reversingBehavior,
             @NonNull final SignedTxCustomizer customizer,
             @NonNull final HandleContext.TransactionCategory category) {
-        recordStreamBuilder = new RecordStreamBuilder(reversingBehavior, customizer, category);
-        blockStreamBuilder = new BlockStreamBuilder(reversingBehavior, customizer, category);
+        this(reversingBehavior, customizer, category, TraceDataSizeLimiter.NO_LIMIT);
+    }
+
+    public PairedStreamBuilder(
+            @NonNull final ReversingBehavior reversingBehavior,
+            @NonNull final SignedTxCustomizer customizer,
+            @NonNull final HandleContext.TransactionCategory category,
+            final int maxSerializedTraceDataBytes) {
+        final var clippingState = new TraceDataSizeLimiter.ClippingState();
+        recordStreamBuilder = new RecordStreamBuilder(
+                reversingBehavior,
+                customizer,
+                category,
+                new TraceDataSizeLimiter(maxSerializedTraceDataBytes, clippingState));
+        blockStreamBuilder = new BlockStreamBuilder(
+                reversingBehavior,
+                customizer,
+                category,
+                new TraceDataSizeLimiter(maxSerializedTraceDataBytes, clippingState));
     }
 
     @Override
@@ -497,6 +516,23 @@ public class PairedStreamBuilder
         return this;
     }
 
+    // The record stream's sidecar data is strictly larger than the equivalent block stream trace data,
+    // so capping it individually is enough for PairedStreamBuilder.
+    @Override
+    public boolean hasTraceDataSizeLimitExceeded() {
+        return recordStreamBuilder.hasTraceDataSizeLimitExceeded();
+    }
+
+    @Override
+    public long estimatedContractBytecodeSize() {
+        return recordStreamBuilder.estimatedContractBytecodeSize();
+    }
+
+    @Override
+    public boolean ensureTraceDataSizeLimitWithAdditionalBytes(final long additionalBytes) {
+        return recordStreamBuilder.ensureTraceDataSizeLimitWithAdditionalBytes(additionalBytes);
+    }
+
     @NonNull
     @Override
     public CreateFileStreamBuilder fileID(@NonNull FileID fileID) {
@@ -701,6 +737,11 @@ public class PairedStreamBuilder
     @Override
     public AccountID getDeletedAccountBeneficiaryFor(@NonNull AccountID deletedAccountID) {
         return recordStreamBuilder.getDeletedAccountBeneficiaryFor(deletedAccountID);
+    }
+
+    @Override
+    public void forEachDeletedAccountBeneficiary(@NonNull final BiConsumer<AccountID, AccountID> action) {
+        recordStreamBuilder.forEachDeletedAccountBeneficiary(action);
     }
 
     @Override

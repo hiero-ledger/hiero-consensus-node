@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.ingest;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_ADD_LIVE_HASH;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
 import static com.hedera.hapi.node.base.HederaFunctionality.UNCHECKED_SUBMIT;
@@ -46,6 +47,7 @@ import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.freeze.FreezeTransactionBody;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoAddLiveHashTransactionBody;
@@ -69,6 +71,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.state.recordcache.DeduplicationCacheImpl;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
+import com.hedera.node.app.workflows.AuthorizationChecker;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionChecker;
@@ -134,6 +137,9 @@ class IngestCheckerTest extends AppTestBase {
     private Authorizer authorizer;
 
     @Mock(strictness = LENIENT)
+    private AuthorizationChecker authorizationChecker;
+
+    @Mock(strictness = LENIENT)
     private BlockHashSigner blockHashSigner;
 
     @Mock
@@ -159,10 +165,11 @@ class IngestCheckerTest extends AppTestBase {
         final var app = appBuilder().withSelfNode(selfNodeInfo).build();
         when(currentPlatformStatus.get()).thenReturn(PlatformStatus.ACTIVE);
 
-        configuration = configWithFeatureFlags(false, false);
+        configuration = configWithFeatureFlags(false);
 
         txBody = TransactionBody.newBuilder()
-                .uncheckedSubmit(UncheckedSubmitBody.newBuilder().build())
+                .consensusCreateTopic(
+                        ConsensusCreateTopicTransactionBody.newBuilder().build())
                 .transactionID(TransactionID.newBuilder()
                         .accountID(ALICE.accountID())
                         .transactionValidStart(
@@ -175,7 +182,7 @@ class IngestCheckerTest extends AppTestBase {
         serializedTx = SignedTransaction.PROTOBUF.toBytes(signedTx);
 
         transactionInfo = new TransactionInfo(
-                signedTx, txBody, MOCK_SIGNATURE_MAP, signedTx.bodyBytes(), UNCHECKED_SUBMIT, serializedTx);
+                signedTx, txBody, MOCK_SIGNATURE_MAP, signedTx.bodyBytes(), CONSENSUS_CREATE_TOPIC, serializedTx);
         when(transactionChecker.parseAndCheck(serializedTx)).thenReturn(transactionInfo);
 
         final var configProvider = HederaTestConfigBuilder.createConfigProvider();
@@ -196,6 +203,7 @@ class IngestCheckerTest extends AppTestBase {
                 dispatcher,
                 feeManager,
                 authorizer,
+                authorizationChecker,
                 synchronizedThrottleAccumulator,
                 instantSource,
                 opWorkflowMetrics,
@@ -278,6 +286,7 @@ class IngestCheckerTest extends AppTestBase {
                 dispatcher,
                 feeManager,
                 authorizer,
+                authorizationChecker,
                 synchronizedThrottleAccumulator,
                 instantSource,
                 opWorkflowMetrics,
@@ -295,7 +304,7 @@ class IngestCheckerTest extends AppTestBase {
     void testRunAllChecksSuccessfully() throws Exception {
         // given
         final var expected = new TransactionInfo(
-                signedTx, txBody, MOCK_SIGNATURE_MAP, signedTx.bodyBytes(), UNCHECKED_SUBMIT, serializedTx);
+                signedTx, txBody, MOCK_SIGNATURE_MAP, signedTx.bodyBytes(), CONSENSUS_CREATE_TOPIC, serializedTx);
         final var verificationResultFuture = mock(SignatureVerificationFuture.class);
         final var verificationResult = mock(SignatureVerification.class);
         when(verificationResult.failed()).thenReturn(false);
@@ -388,7 +397,7 @@ class IngestCheckerTest extends AppTestBase {
                             () -> subject.runAllChecks(state, serializedTx, configuration, new IngestChecker.Result()))
                     .isInstanceOf(PreCheckException.class)
                     .hasFieldOrPropertyWithValue("responseCode", BUSY);
-            verify(opWorkflowMetrics).incrementThrottled(UNCHECKED_SUBMIT);
+            verify(opWorkflowMetrics).incrementThrottled(CONSENSUS_CREATE_TOPIC);
         }
 
         @Test
@@ -428,6 +437,41 @@ class IngestCheckerTest extends AppTestBase {
         }
 
         @Test
+        @DisplayName("Unsupported uncheckedSubmit functionality should throw NOT_SUPPORTED")
+        void uncheckedSubmitFunctionalityUnsupported() throws PreCheckException {
+            final TransactionBody uncheckedSubmitTxBody = TransactionBody.newBuilder()
+                    .uncheckedSubmit(UncheckedSubmitBody.newBuilder().build())
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(ALICE.accountID())
+                            .transactionValidStart(
+                                    Timestamp.newBuilder().seconds(Instant.now().getEpochSecond())))
+                    .nodeAccountID(nodeSelfAccountId)
+                    .build();
+            final var signedTx = SignedTransaction.newBuilder()
+                    .bodyBytes(asBytes(TransactionBody.PROTOBUF, uncheckedSubmitTxBody))
+                    .build();
+            final var uncheckedSubmitTx = Transaction.newBuilder()
+                    .signedTransactionBytes(asBytes(SignedTransaction.PROTOBUF, signedTx))
+                    .build();
+            final var serializedUncheckedSubmitTx = Transaction.PROTOBUF.toBytes(uncheckedSubmitTx);
+
+            final var uncheckedSubmitTransactionInfo = new TransactionInfo(
+                    signedTx,
+                    uncheckedSubmitTxBody,
+                    MOCK_SIGNATURE_MAP,
+                    uncheckedSubmitTx.bodyBytes(),
+                    UNCHECKED_SUBMIT,
+                    serializedUncheckedSubmitTx);
+            when(transactionChecker.parseAndCheck(serializedUncheckedSubmitTx))
+                    .thenReturn(uncheckedSubmitTransactionInfo);
+
+            assertThatThrownBy(() -> subject.runAllChecks(
+                            state, serializedUncheckedSubmitTx, configuration, new IngestChecker.Result()))
+                    .isInstanceOf(PreCheckException.class)
+                    .hasFieldOrPropertyWithValue("responseCode", NOT_SUPPORTED);
+        }
+
+        @Test
         @DisplayName("Privileged transaction functionality should throw NOT_SUPPORTED for non-privileged accounts")
         void privilegedTransactionFunctionality() throws PreCheckException {
             final TransactionBody freezeTxBody = TransactionBody.newBuilder()
@@ -457,9 +501,10 @@ class IngestCheckerTest extends AppTestBase {
         @DisplayName("High volume transaction should throw NOT_SUPPORTED when feature is disabled")
         void highVolumeTransactionRejectedWhenFeatureDisabled() throws PreCheckException {
             // Given a transaction with highVolume=true and both features disabled
-            final var disabledConfig = configWithFeatureFlags(false, false);
+            final var disabledConfig = configWithFeatureFlags(false);
             final TransactionBody highVolumeTxBody = TransactionBody.newBuilder()
-                    .uncheckedSubmit(UncheckedSubmitBody.newBuilder().build())
+                    .consensusCreateTopic(
+                            ConsensusCreateTopicTransactionBody.newBuilder().build())
                     .highVolume(true)
                     .transactionID(TransactionID.newBuilder()
                             .accountID(ALICE.accountID())
@@ -477,7 +522,7 @@ class IngestCheckerTest extends AppTestBase {
                     highVolumeTxBody,
                     MOCK_SIGNATURE_MAP,
                     signedTx.bodyBytes(),
-                    UNCHECKED_SUBMIT,
+                    CONSENSUS_CREATE_TOPIC,
                     serializedHighVolumeTx);
             when(transactionChecker.parseAndCheck(serializedHighVolumeTx)).thenReturn(highVolumeTransactionInfo);
 
@@ -493,10 +538,11 @@ class IngestCheckerTest extends AppTestBase {
         @DisplayName("High volume transaction should be allowed when feature is enabled")
         void highVolumeTransactionAllowedWhenFeatureEnabled() throws Exception {
             // Given a transaction with highVolume=true and the feature enabled
-            final var enabledConfig = configWithFeatureFlags(true, true);
+            final var enabledConfig = configWithFeatureFlags(true);
 
             final TransactionBody highVolumeTxBody = TransactionBody.newBuilder()
-                    .uncheckedSubmit(UncheckedSubmitBody.newBuilder().build())
+                    .consensusCreateTopic(
+                            ConsensusCreateTopicTransactionBody.newBuilder().build())
                     .highVolume(true)
                     .transactionID(TransactionID.newBuilder()
                             .accountID(ALICE.accountID())
@@ -514,7 +560,7 @@ class IngestCheckerTest extends AppTestBase {
                     highVolumeTxBody,
                     MOCK_SIGNATURE_MAP,
                     signedTx.bodyBytes(),
-                    UNCHECKED_SUBMIT,
+                    CONSENSUS_CREATE_TOPIC,
                     serializedHighVolumeTx);
             when(transactionChecker.parseAndCheck(serializedHighVolumeTx)).thenReturn(highVolumeTransactionInfo);
 
@@ -721,7 +767,7 @@ class IngestCheckerTest extends AppTestBase {
                     myTxBody,
                     MOCK_SIGNATURE_MAP,
                     mySignedTx.bodyBytes(),
-                    UNCHECKED_SUBMIT,
+                    CONSENSUS_CREATE_TOPIC,
                     mySerializedSignedTx);
             when(transactionChecker.parseAndCheck(serializedTx)).thenReturn(myTransactionInfo);
             when(solvencyPreCheck.getPayerAccount(any(), eq(accountID))).thenReturn(account);
@@ -777,7 +823,7 @@ class IngestCheckerTest extends AppTestBase {
                     myTxBody,
                     MOCK_SIGNATURE_MAP,
                     mySignedTx.bodyBytes(),
-                    UNCHECKED_SUBMIT,
+                    CONSENSUS_CREATE_TOPIC,
                     mySerializedSignedTx);
             when(transactionChecker.parseAndCheck(mySerializedTx)).thenReturn(myTransactionInfo);
             when(solvencyPreCheck.getPayerAccount(any(), eq(accountID))).thenReturn(account);
@@ -833,7 +879,7 @@ class IngestCheckerTest extends AppTestBase {
                     myTxBody,
                     MOCK_SIGNATURE_MAP,
                     myTx.signedTransactionBytes(),
-                    UNCHECKED_SUBMIT,
+                    CONSENSUS_CREATE_TOPIC,
                     mySerializedTx);
             when(transactionChecker.parseAndCheck(mySerializedTx)).thenReturn(myTransactionInfo);
             when(solvencyPreCheck.getPayerAccount(any(), eq(accountID))).thenReturn(account);
@@ -887,7 +933,12 @@ class IngestCheckerTest extends AppTestBase {
                     .build();
             final var mySerializedTx = Transaction.PROTOBUF.toBytes(myTx);
             final var myTransactionInfo = new TransactionInfo(
-                    mySignedTx, myTxBody, MOCK_SIGNATURE_MAP, mySignedTx.bodyBytes(), UNCHECKED_SUBMIT, mySerializedTx);
+                    mySignedTx,
+                    myTxBody,
+                    MOCK_SIGNATURE_MAP,
+                    mySignedTx.bodyBytes(),
+                    CONSENSUS_CREATE_TOPIC,
+                    mySerializedTx);
             when(transactionChecker.parseAndCheck(mySerializedTx)).thenReturn(myTransactionInfo);
             when(solvencyPreCheck.getPayerAccount(any(), eq(accountID))).thenReturn(account);
             final var verificationResultFutureAlice = mock(SignatureVerificationFuture.class);
@@ -949,12 +1000,10 @@ class IngestCheckerTest extends AppTestBase {
                 null);
     }
 
-    private VersionedConfigImpl configWithFeatureFlags(
-            final boolean simpleFeesEnabled, final boolean highVolumeThrottlesEnabled) {
+    private VersionedConfigImpl configWithFeatureFlags(final boolean highVolumeThrottlesEnabled) {
         return new VersionedConfigImpl(
                 HederaTestConfigBuilder.create()
                         .withValue("networkAdmin.highVolumeThrottlesEnabled", highVolumeThrottlesEnabled)
-                        .withValue("fees.simpleFeesEnabled", simpleFeesEnabled)
                         .getOrCreateConfig(),
                 1L);
     }

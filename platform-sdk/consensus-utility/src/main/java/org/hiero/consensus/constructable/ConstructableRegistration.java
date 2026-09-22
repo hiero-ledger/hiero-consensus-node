@@ -18,6 +18,17 @@ public final class ConstructableRegistration {
     private ConstructableRegistration() {}
 
     /**
+     * Add all classes to the constructable registry.
+     */
+    public static void setupConstructableRegistry() {
+        try {
+            registerAllConstructables();
+        } catch (final ConstructableRegistryException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
      * Registers {@link Hash}, {@link SerializablePublicKey}, {@link CesEvent}, and {@link NodeId}.
      */
     public static void registerCoreConstructables() throws ConstructableRegistryException {
@@ -26,7 +37,6 @@ public final class ConstructableRegistration {
         registry.registerConstructable(
                 new ClassConstructorPair(SerializablePublicKey.class, SerializablePublicKey::new));
         registry.registerConstructable(new ClassConstructorPair(CesEvent.class, CesEvent::new));
-        registry.registerConstructable(new ClassConstructorPair(NodeId.class, NodeId::new));
     }
 
     /**

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-import org.hiero.gradle.environment.EnvAccess
+pluginManagement { includeBuild("gradle/besu-native-patch") }
 
 plugins {
-    id("org.hiero.gradle.build") version "0.7.7"
-    id("com.hedera.pbj.pbj-compiler") version "0.15.2" apply false
+    id("org.hiero.gradle.build") version "0.7.11"
+    id("com.hedera.pbj.pbj-compiler") version "0.15.10" apply false
+    id("org.hiero.gradle.feature.besu-native-patch")
 }
 
 javaModules {
@@ -45,33 +46,44 @@ javaModules {
         module("hedera-entity-id-service-impl") { artifact = "app-service-entity-id-impl" }
     }
 
-    // Platform-base demo applications
-    directory("example-apps") { group = "com.hedera.hashgraph" }
-
     directory("hiero-observability") { group = "com.hedera.hashgraph" }
 
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }
 }
 
-// Flaky test handling
 @Suppress("UnstableApiUsage")
 gradle.lifecycle.afterProject {
+    // remove below once https://github.com/hiero-ledger/hiero-gradle-conventions/issues/536 is done
+    plugins.withId("org.hiero.gradle.base.jpms-modules") {
+        configure<org.gradlex.javamodule.moduleinfo.ExtraJavaModuleInfoPluginExtension> {
+            module("org.hyperledger.besu:besu-evm", "org.hyperledger.besu.evm") {
+                exportAllPackages()
+                requireAllDefinedDependencies()
+                requiresStatic("com.fasterxml.jackson.annotation")
+            }
+            module("org.hyperledger.besu:besu-datatypes", "org.hyperledger.besu.datatypes") {
+                exportAllPackages()
+                requireAllDefinedDependencies()
+                requiresStatic("com.fasterxml.jackson.annotation")
+            }
+            module(
+                "org.hyperledger.besu.internal:besu-crypto-algorithms",
+                "org.hyperledger.besu.internal.crypto",
+            )
+            module(
+                "org.hyperledger.besu.internal:besu-ethereum-rlp",
+                "org.hyperledger.besu.internal.rlp",
+            )
+            module("org.hyperledger.besu.internal:besu-util", "org.hyperledger.besu.internal.util")
+            module("org.hyperledger.besu:boringssl", "org.hyperledger.besu.nativelib.boringssl")
+            module("io.vertx:vertx-core", "io.vertx.core")
+            module("io.consensys.tuweni:tuweni-bytes", "tuweni.bytes")
+            module("io.consensys.tuweni:tuweni-units", "tuweni.units")
+        }
+    }
+
+    // Flaky test handling
     tasks.withType<Test>().configureEach {
-        reports.junitXml.mergeReruns = true
-
-        // CI: configure rerun to accept and track flakiness
-        develocity.testRetry {
-            maxRetries = if (EnvAccess.isCiServer(providers)) 2 else 0
-            maxFailures = 10
-            failOnPassedAfterRetry = false
-        }
-        // Write a marker when tests actually execute (not on cache restore).
-        val markerFile = layout.buildDirectory.file("test-executed/${name}.marker").get().asFile
-        doLast {
-            markerFile.parentFile.mkdirs()
-            markerFile.writeText(java.time.Instant.now().toString())
-        }
-
         // Local build: add '-PrunUntilFailure=<maxRetries>' option to check that a test is (likely)
         // not flaky
         val runUntilFailure = providers.gradleProperty("runUntilFailure").map { it.toInt() }

@@ -53,6 +53,7 @@ import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.signatures.VerificationAssistant;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
+import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext.ConsensusThrottling;
@@ -308,8 +309,9 @@ public class ChildDispatchFactory {
                 category);
         // Charge as top-level transactions if the category is BATCH_INNER.
         final var childFees = category == BATCH_INNER
-                ? dispatchHandleContext.dispatchComputeFees(txnInfo.txBody(), payerId, YES)
-                : dispatchHandleContext.dispatchComputeFees(txnInfo.txBody(), payerId);
+                ? dispatchHandleContext.dispatchComputeFees(txnInfo.txBody(), payerId, YES, null)
+                : dispatchHandleContext.dispatchComputeFees(
+                        txnInfo.txBody(), payerId, ComputeDispatchFeesAsTopLevel.NO, null);
 
         // Child transactions can inherit highVolume from a parent synthetic dispatch.
         final var isHighVolume = txnInfo.txBody().highVolume();

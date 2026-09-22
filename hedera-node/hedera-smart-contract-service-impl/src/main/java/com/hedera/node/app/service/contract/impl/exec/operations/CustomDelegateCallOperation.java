@@ -7,9 +7,9 @@ import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
-import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -57,28 +57,56 @@ public class CustomDelegateCallOperation extends DelegateCallOperation implement
     }
 
     @Override
+    public GasCalculator gasCalculator() {
+        return super.gasCalculator();
+    }
+
+    @Override
+    public long gas(@NonNull MessageFrame frame) {
+        return super.gas(frame);
+    }
+
+    @Override
+    public long inputDataOffset(@NonNull MessageFrame frame) {
+        return super.inputDataOffset(frame);
+    }
+
+    @Override
+    public long inputDataLength(@NonNull MessageFrame frame) {
+        return super.inputDataLength(frame);
+    }
+
+    @Override
+    public long outputDataOffset(@NonNull MessageFrame frame) {
+        return super.outputDataOffset(frame);
+    }
+
+    @Override
+    public long outputDataLength(@NonNull MessageFrame frame) {
+        return super.outputDataLength(frame);
+    }
+
+    @Override
+    public Wei value(@NonNull MessageFrame frame) {
+        return super.value(frame);
+    }
+
+    @Override
+    public Address address(@NonNull MessageFrame frame) {
+        return super.address(frame);
+    }
+
+    @Override
     public OperationResult executeUnchecked(@NonNull MessageFrame frame, @NonNull EVM evm) {
         return super.execute(frame, evm);
     }
 
     @Override
     public OperationResult execute(@NonNull final MessageFrame frame, @NonNull final EVM evm) {
-        // Prevent delegate calls during hook execution. The only exception is calls to system contracts.
-        if (FrameUtils.isHookExecution(frame) && !isRedirectFromNativeEntity(frame)) {
+        // Prevent delegate calls during hook execution.
+        if (FrameUtils.isHookExecution(frame)) {
             return new OperationResult(0, ExceptionalHaltReason.INVALID_OPERATION);
         }
         return BasicCustomCallOperation.super.executeChecked(frame, evm);
-    }
-
-    /**
-     * Determines if the delegate call is being redirected from a native facade.
-     *
-     * @param frame the current message frame
-     * @return true if the call is redirected from a native entity, false otherwise
-     */
-    private boolean isRedirectFromNativeEntity(@NonNull final MessageFrame frame) {
-        final var updater = (ProxyWorldUpdater) frame.getWorldUpdater();
-        final var recipient = requireNonNull(updater.getHederaAccount(frame.getRecipientAddress()));
-        return recipient.isTokenFacade() || recipient.isScheduleTxnFacade() || recipient.isRegularAccount();
     }
 }

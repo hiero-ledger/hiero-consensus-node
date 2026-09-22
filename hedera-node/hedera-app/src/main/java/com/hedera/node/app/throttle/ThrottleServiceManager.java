@@ -34,8 +34,6 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * Manages the throttling service for the node.
@@ -43,8 +41,6 @@ import org.apache.logging.log4j.Logger;
  */
 @Singleton
 public class ThrottleServiceManager {
-    private static final Logger log = LogManager.getLogger(ThrottleServiceManager.class);
-
     private final ThrottleParser throttleParser;
     private final ThrottleAccumulator ingestThrottle;
     private final ThrottleAccumulator backendThrottle;
@@ -229,8 +225,10 @@ public class ThrottleServiceManager {
         final ReadableSingletonState<ThrottleUsageSnapshots> usageSnapshotsState =
                 serviceStates.getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_ID);
         final var usageSnapshots = requireNonNull(usageSnapshotsState.get());
-        safeResetThrottles(
-                selectedThrottlesFor(backendThrottle, usageSnapshots.tpsThrottles()), usageSnapshots.tpsThrottles());
+        ThrottleAccumulator.restoreThrottleUsage(
+                ThrottleAccumulator.selectedThrottlesFor(backendThrottle, usageSnapshots.tpsThrottles()),
+                usageSnapshots.tpsThrottles(),
+                ThrottleAccumulator.SnapshotMismatchPolicy.SKIP);
         if (usageSnapshots.hasGasThrottle()) {
             backendThrottle.gasLimitThrottle().resetUsageTo(usageSnapshots.gasThrottleOrThrow());
         }
@@ -244,7 +242,8 @@ public class ThrottleServiceManager {
                 serviceStates.getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_ID);
         final var usageSnapshots = requireNonNull(usageSnapshotsState.get());
         resetUnconditionally(
-                selectedThrottlesFor(backendThrottle, usageSnapshots.tpsThrottles()), usageSnapshots.tpsThrottles());
+                ThrottleAccumulator.selectedThrottlesFor(backendThrottle, usageSnapshots.tpsThrottles()),
+                usageSnapshots.tpsThrottles());
         if (usageSnapshots.hasGasThrottle()) {
             backendThrottle.gasLimitThrottle().resetUsageTo(usageSnapshots.gasThrottleOrThrow());
         }
@@ -258,14 +257,35 @@ public class ThrottleServiceManager {
      * on the frontend.
      *
      * @param numCapacity the number of implicit creations or auto associations
+     * @param hederaFunctionality the functionality whose bucket the capacity was claimed against
+     * @param useHighVolumeBucket whether the capacity was claimed against the high-volume bucket, so it is
+     * leaked back into the same bucket it was charged to
      */
-    public void reclaimFrontendThrottleCapacity(final int numCapacity, final HederaFunctionality hederaFunctionality) {
+    public void reclaimFrontendThrottleCapacity(
+            final int numCapacity, final HederaFunctionality hederaFunctionality, final boolean useHighVolumeBucket) {
         try {
-            ingestThrottle.leakCapacityForNOfUnscaled(numCapacity, hederaFunctionality);
+            ingestThrottle.leakCapacityForNOfUnscaled(numCapacity, hederaFunctionality, useHighVolumeBucket);
         } catch (Exception ignore) {
             // Ignore if the frontend bucket has already leaked all the capacity
             // used for throttling the transaction on the frontend
         }
+    }
+
+    /**
+     * Returns whether the implicit-creation capacity for the given transaction was claimed against the
+     * high-volume frontend bucket, so the reclaim can leak it back into the same bucket it was charged to.
+     *
+     * @param body the transaction body
+     * @param function the functionality of the transaction
+     * @param implicitCreationsCount the number of implicit creations
+     * @return whether the high-volume bucket was used
+     */
+    public boolean usesHighVolumeBucketForImplicitCreations(
+            @NonNull final TransactionBody body,
+            @NonNull final HederaFunctionality function,
+            final int implicitCreationsCount) {
+        return ingestThrottle.usesHighVolumeBucketForImplicitCreations(
+                function, body.highVolume(), implicitCreationsCount);
     }
 
     // override hashCode()/equals() for array fields
@@ -288,29 +308,6 @@ public class ThrottleServiceManager {
         return list;
     }
 
-    private static void safeResetThrottles(
-            final List<DeterministicThrottle> throttles, final List<ThrottleUsageSnapshot> snapshots) {
-        // No-op if we don't have a snapshot for every throttle
-        if (throttles.size() != snapshots.size()) {
-            return;
-        }
-        final var currentSnapshots =
-                throttles.stream().map(DeterministicThrottle::usageSnapshot).toList();
-        for (int i = 0, n = throttles.size(); i < n; i++) {
-            try {
-                throttles.get(i).resetUsageTo(snapshots.get(i));
-            } catch (final Exception e) {
-                log.warn(
-                        "Saved usage snapshot @ index {} was not compatible with the corresponding"
-                                + " active throttle ({}), not performing a reset !",
-                        i,
-                        e.getMessage());
-                resetUnconditionally(throttles, currentSnapshots);
-                break;
-            }
-        }
-    }
-
     private static void resetUnconditionally(
             final List<DeterministicThrottle> throttles, final List<ThrottleUsageSnapshot> knownCompatible) {
         for (int i = 0, n = knownCompatible.size(); i < n; i++) {
@@ -331,28 +328,5 @@ public class ThrottleServiceManager {
             }
         }
         return starts;
-    }
-
-    /**
-     * Chooses the set of throttles to restore from snapshots.
-     * Legacy snapshots only contain normal TPS throttles; newer snapshots include
-     * both normal and high-volume TPS throttles.
-     */
-    private static List<DeterministicThrottle> selectedThrottlesFor(
-            @NonNull final ThrottleAccumulator throttleAccumulator,
-            @NonNull final List<ThrottleUsageSnapshot> snapshots) {
-        final var allThrottles = throttleAccumulator.allActiveThrottlesIncludingHighVolume();
-        if (allThrottles.size() == snapshots.size()) {
-            return allThrottles;
-        }
-        log.info(
-                "Snapshot size {} does not match all throttles size {}, using normal throttles",
-                snapshots.size(),
-                allThrottles.size());
-        final var normalThrottles = throttleAccumulator.allActiveThrottles();
-        if (normalThrottles.size() == snapshots.size()) {
-            return normalThrottles;
-        }
-        return allThrottles;
     }
 }

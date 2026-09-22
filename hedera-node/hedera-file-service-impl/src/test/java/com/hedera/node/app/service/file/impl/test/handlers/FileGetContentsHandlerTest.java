@@ -26,7 +26,6 @@ import com.hedera.hapi.node.file.FileGetContentsResponse.FileContents;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.node.app.hapi.utils.fee.FileFeeBuilder;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.ReadableFileStoreImpl;
 import com.hedera.node.app.service.file.impl.handlers.FileGetContentsHandler;
@@ -48,16 +47,13 @@ class FileGetContentsHandlerTest extends FileTestBase {
     private QueryContext context;
 
     @Mock
-    private FileFeeBuilder usageEstimator;
-
-    @Mock
     private V0490FileSchema genesisSchema;
 
     private FileGetContentsHandler subject;
 
     @BeforeEach
     void setUp() {
-        subject = new FileGetContentsHandler(usageEstimator, genesisSchema);
+        subject = new FileGetContentsHandler(genesisSchema);
     }
 
     @Test
@@ -121,22 +117,6 @@ class FileGetContentsHandlerTest extends FileTestBase {
 
         final var query = createGetFileContentQuery(
                 DEFAULT_CONFIG.getConfigData(FilesConfig.class).exchangeRates());
-        given(context.query()).willReturn(query);
-        when(context.createStore(ReadableFileStore.class)).thenReturn(readableStore);
-
-        final var response = subject.findResponse(context, ResponseHeader.DEFAULT);
-        assertSame(
-                contentsBytes,
-                response.fileGetContentsOrThrow().fileContentsOrThrow().contents());
-    }
-
-    @Test
-    void returnsGenesisFeeSchedulesIfMissing() {
-        given(context.configuration()).willReturn(DEFAULT_CONFIG);
-        given(genesisSchema.genesisFeeSchedules(DEFAULT_CONFIG)).willReturn(contentsBytes);
-
-        final var query = createGetFileContentQuery(
-                DEFAULT_CONFIG.getConfigData(FilesConfig.class).feeSchedules());
         given(context.query()).willReturn(query);
         when(context.createStore(ReadableFileStore.class)).thenReturn(readableStore);
 

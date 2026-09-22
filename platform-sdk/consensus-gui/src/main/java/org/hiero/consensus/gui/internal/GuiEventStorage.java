@@ -3,7 +3,6 @@ package org.hiero.consensus.gui.internal;
 
 import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
@@ -24,6 +23,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.round.EventWindowUtils;
 
 /**
@@ -48,7 +48,7 @@ public class GuiEventStorage {
      * @param configuration this node's configuration
      * @param roster the network's roster
      */
-    public GuiEventStorage(@NonNull final Configuration configuration, @NonNull final Roster roster) {
+    public GuiEventStorage(@NonNull final Configuration configuration, @NonNull final RosterWrapper roster) {
         this.configuration = Objects.requireNonNull(configuration);
         this.consensus = new ConsensusImpl(configuration, Time.getCurrent(), new NoOpConsensusMetrics(), roster, 0L);
         this.linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
@@ -87,7 +87,8 @@ public class GuiEventStorage {
      *
      * @param event the event to handle
      */
-    public synchronized void handlePreconsensusEvent(@NonNull final PlatformEvent event) {
+    @Nullable
+    public synchronized EventWindow handlePreconsensusEvent(@NonNull final PlatformEvent event) {
         maxGeneration = Math.max(maxGeneration, event.getNGen());
 
         // Detect branches before linking
@@ -97,7 +98,7 @@ public class GuiEventStorage {
         // since the gui will modify the event, we need to copy it
         final EventImpl eventImpl = linker.linkEvent(event.copyGossipedData());
         if (eventImpl == null) {
-            return;
+            return null;
         }
         eventImpl.getBaseEvent().setNGen(event.getNGen());
         eventImpl.getBaseEvent().setSequenceNumber(event.getSequenceNumber());
@@ -105,13 +106,14 @@ public class GuiEventStorage {
         final List<ConsensusRound> rounds = consensus.addEvent(eventImpl);
 
         if (rounds.isEmpty()) {
-            return;
+            return null;
         }
         lastConsensusRound = rounds.getLast();
 
         final EventWindow currentEventWindow = rounds.getLast().getEventWindow();
         branchDetector.setEventWindow(currentEventWindow);
         linker.setEventWindow(currentEventWindow);
+        return currentEventWindow;
     }
 
     /**

@@ -54,6 +54,11 @@ public class LapsingBlockHashSigner implements BlockHashSigner {
     }
 
     @Override
+    public void onBlockStarted(final long blockNumber) {
+        delegate.onBlockStarted(blockNumber);
+    }
+
+    @Override
     public Attempt sign(@NonNull final Bytes blockHash, @NonNull final Request request) {
         return ignoreRequests ? new Attempt(null, null, new CompletableFuture<>()) : delegate.sign(blockHash, request);
     }

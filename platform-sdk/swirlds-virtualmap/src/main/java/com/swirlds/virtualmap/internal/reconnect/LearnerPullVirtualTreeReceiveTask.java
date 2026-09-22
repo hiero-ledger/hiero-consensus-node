@@ -1,118 +1,70 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.reconnect;
 
-import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
-
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
-import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import com.swirlds.virtualmap.internal.Path;
-import java.time.Duration;
-import java.util.concurrent.atomic.AtomicLong;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
-import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import com.swirlds.virtualmap.sync.LearnerTreeExchanger;
+import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
+import com.swirlds.virtualmap.sync.streams.YieldStrategy;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * A task running on the learner side, which is responsible for getting responses from the teacher.
- *
- * <p>The task keeps running as long as the corresponding {@link LearnerPullVirtualTreeSendTask}
- * is alive, or some responses are expected from the teacher.
- *
- * <p>For every response from the teacher, the learner view is notified, which in turn notifies
+ * <p>
+ * This tasks terminates either on exception or when no more messages are provided by {@link AsyncInputStream}.
+ * <p>
+ * For every response from the teacher, the learner view is notified, which in turn notifies
  * the current traversal order, so it can recalculate the next virtual path to request.
  */
-public class LearnerPullVirtualTreeReceiveTask {
+public class LearnerPullVirtualTreeReceiveTask implements Runnable {
 
-    private static final Logger logger = LogManager.getLogger(LearnerPullVirtualTreeReceiveTask.class);
-
-    private static final String NAME = "reconnect-learner-receiver";
-
-    private final StandardWorkGroup workGroup;
     private final AsyncInputStream in;
-    private final LearnerPullVirtualTreeView view;
-
-    // Number of requests sent to teacher / responses expected from the teacher. Increased in
-    // sending tasks, decreased in receiving tasks
-    private final AtomicLong expectedResponses;
-
-    private final Duration allMessagesReceivedTimeout;
+    private final LearnerTreeExchanger treeExchanger;
+    private final CountDownLatch receiveTasksDone;
 
     /**
      * Create a thread for receiving responses to queries from the teacher.
      *
-     * @param workGroup
-     * 		the work group that will manage this thread
      * @param in
      * 		the input stream, this object is responsible for closing this when finished
-     * @param view
-     * 		the view to be used when touching the merkle tree
+     * @param treeExchanger
+     * 		the exchanger used to callback on tree node received
+     * @param receiveTasksDone
+     * 		latch counted down when this receiver finishes; lets the ordered leaf-apply thread know
+     * 		when no further responses will arrive
      */
     public LearnerPullVirtualTreeReceiveTask(
-            final ReconnectConfig reconnectConfig,
-            final StandardWorkGroup workGroup,
             final AsyncInputStream in,
-            final LearnerPullVirtualTreeView view,
-            final AtomicLong expectedResponses) {
-        this.workGroup = workGroup;
+            final LearnerTreeExchanger treeExchanger,
+            final CountDownLatch receiveTasksDone) {
         this.in = in;
-        this.view = view;
-        this.expectedResponses = expectedResponses;
-
-        this.allMessagesReceivedTimeout = reconnectConfig.allMessagesReceivedTimeout();
-    }
-
-    /**
-     * Start the background thread that receives responses from the teacher.
-     */
-    public void exec() {
-        workGroup.execute(NAME, this::run);
+        this.treeExchanger = treeExchanger;
+        this.receiveTasksDone = receiveTasksDone;
     }
 
     /**
      * Main loop for the receiver thread. Reads responses from the async input stream,
-     * tracks reconnect statistics, and delegates to the learner view. Terminates when the
-     * stream signals completion via {@link Path#INVALID_PATH}.
+     * tracks reconnect statistics, and delegates to the learner view.
+     * Terminates when input streams returns no more messages to process.
      */
-    private void run() {
+    @Override
+    public void run() {
         try {
             while (!Thread.currentThread().isInterrupted()) {
-                final byte[] responseBytes = in.readAnticipatedMessage();
+                final byte[] responseBytes = in.readOrWait(YieldStrategy.SLEEP);
                 if (responseBytes == null) {
-                    if (!in.isAlive()) {
-                        break;
-                    }
-                    Thread.sleep(0, 1);
-                    continue;
+                    break;
                 }
                 final PullVirtualTreeResponse response =
                         PullVirtualTreeResponse.parseFrom(BufferedData.wrap(responseBytes));
-                final long path = response.path();
-                if (path != Path.INVALID_PATH) {
-                    view.responseReceived(response);
+                if (response.path() < 0) {
+                    throw new IllegalStateException("Invalid path received from learner: " + response.path());
                 }
-                expectedResponses.decrementAndGet();
-                if (path == Path.INVALID_PATH) {
-                    logger.info(
-                            RECONNECT.getMarker(),
-                            "The last response is received, {} responses are in progress",
-                            expectedResponses.get());
-                    // There may be other messages for this view being handled by other threads
-                    final long waitStart = System.currentTimeMillis();
-                    while (expectedResponses.get() != 0) {
-                        Thread.sleep(0, 1);
-                        Thread.onSpinWait();
-                        if (System.currentTimeMillis() - waitStart > allMessagesReceivedTimeout.toMillis()) {
-                            throw new MerkleSynchronizationException(
-                                    "Timed out waiting for view all remaining view messages to be processed");
-                        }
-                    }
-                    logger.info(RECONNECT.getMarker(), "Learning is complete");
-                }
+                treeExchanger.responseReceived(response);
             }
-        } catch (final Exception ex) {
-            workGroup.handleError(ex);
+        } finally {
+            // Always signal completion, even on exception/interrupt, so the ordered leaf-apply thread
+            // cannot hang waiting for a receiver that has already died.
+            receiveTasksDone.countDown();
         }
     }
 }

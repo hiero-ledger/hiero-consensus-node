@@ -12,9 +12,10 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Objects;
 
 /**
@@ -120,7 +121,7 @@ public class VirtualLeafBytes<V> {
      *
      * <p>This method should not be called for records with invalid paths. Such leaf records
      * should never be used for any purposes than marker instances like {@link
-     * VirtualNodeCache#DELETED_LEAF_RECORD}.
+     * com.swirlds.virtualmap.internal.cache.VirtualNodeCache#DELETED_LEAF_RECORD}.
      */
     public boolean isNewOrMoved() {
         assert path >= 0 : "isNewOrMoved() must not be called for records with invalid paths";
@@ -265,18 +266,8 @@ public class VirtualLeafBytes<V> {
             ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_PATH);
             out.writeLong(path);
         }
-        final Bytes kb = keyBytes();
-        // ProtoWriterTools.writeDelimited() is not used to avoid using kb::writeTo method handle
-        ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_KEY);
-        out.writeVarInt(Math.toIntExact(kb.length()), false);
-        kb.writeTo(out);
-        final Bytes vb = valueBytes();
-        if (vb != null) {
-            // ProtoWriterTools.writeDelimited() is not used to avoid using vb::writeTo method handle
-            ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_VALUE);
-            out.writeVarInt(Math.toIntExact(vb.length()), false);
-            vb.writeTo(out);
-        }
+        writeKey(out);
+        writeValue(out);
         assert out.position() == pos + getSizeInBytes()
                 : "pos=" + pos + ", out.position()=" + out.position() + ", size=" + getSizeInBytes();
     }
@@ -293,17 +284,36 @@ public class VirtualLeafBytes<V> {
         // The 0x00 prefix byte is added to all leaf hashes in the Hiero Merkle tree,
         // so that there is a clear guaranteed domain separation of hash space between leaves and internal nodes.
         out.writeByte((byte) 0x00);
+        writeKey(out);
+        writeValue(out);
+    }
 
+    private void writeKey(final WritableSequentialData out) {
         final Bytes kb = keyBytes();
-        final Bytes vb = valueBytes();
-
+        // ProtoWriterTools.writeDelimited() is not used to avoid using kb::writeTo method handle
         ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_KEY);
         out.writeVarInt(Math.toIntExact(kb.length()), false);
         kb.writeTo(out);
+    }
+
+    private void writeValue(final WritableSequentialData out) {
+        // Use valueBytes instead of valueBytes() to avoid allocating a byte array
+        final Bytes vb = valueBytes;
         if (vb != null) {
+            // ProtoWriterTools.writeDelimited() is not used to avoid using vb::writeTo method handle
             ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_VALUE);
             out.writeVarInt(Math.toIntExact(vb.length()), false);
             vb.writeTo(out);
+        } else if (value != null) {
+            assert valueCodec != null;
+            try {
+                // ProtoWriterTools.writeDelimited() is not used to avoid using vb::writeTo method handle
+                ProtoWriterTools.writeTag(out, FIELD_LEAFRECORD_VALUE);
+                out.writeVarInt(valueCodec.measureRecord(value), false);
+                valueCodec.write(value, out);
+            } catch (final IOException z) {
+                throw new UncheckedIOException("Cannot serialize leaf value", z);
+            }
         }
     }
 

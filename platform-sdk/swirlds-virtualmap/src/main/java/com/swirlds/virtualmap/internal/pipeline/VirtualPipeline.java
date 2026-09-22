@@ -4,13 +4,13 @@ package com.swirlds.virtualmap.internal.pipeline;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.base.function.CheckedSupplier;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
+import com.swirlds.virtualmap.internal.VirtualMapStatistics;
 import com.swirlds.virtualmap.internal.VirtualRoot;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedDeque;
@@ -23,11 +23,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
+import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 
 /**
  * <p>
- * Manages the lifecycle of an object that implements {@link VirtualRoot}.
+ * Manages the lifecycle of {@link VirtualRoot} family objects created via {@link VirtualRoot#copy()}.
  * </p>
  *
  * <p>
@@ -41,7 +42,7 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
  * 	<li>all copies must be <strong>flushed</strong> or <strong>merged</strong> prior to eviction from memory</li>
  * 	<li>a copy can only be <strong>flushed</strong> or <strong>merged</strong>, not both</li>
  * 	<li>no <strong>flushes</strong> or <strong>merges</strong> are processed during copy detachment</li>
- * 	<li>pipelines can be terminated even when not all copies are destroyed or detached (e.g. during node shutdown).
+ * 	<li>pipelines can be terminated {@link #shutdown(boolean)} when all copies are destroyed or destroy of any copy throws an exception.
  * 	    A terminated pipeline is not required to <strong>flush</strong> or <strong>merge</strong>
  * 		copies before those copies are collected by the java garbage collector.</li>
  * </ul>
@@ -124,13 +125,6 @@ public class VirtualPipeline {
     private final AtomicReference<VirtualRoot> mostRecentCopy = new AtomicReference<>();
 
     /**
-     * True if the pipeline is alive and running. When set to false, any already scheduled work
-     * will still complete. A pipeline is either terminated because the last copy has been destroyed
-     * or because of an explicit call to {@link #terminate()}.
-     */
-    private volatile boolean alive;
-
-    /**
      * A single-threaded executor on which we perform all flush and merge tasks.
      */
     private final ExecutorService executorService;
@@ -156,11 +150,10 @@ public class VirtualPipeline {
         copies = new PipelineList<>();
         unhashedCopies = new ConcurrentLinkedDeque<>();
 
-        alive = true;
         executorService = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
-                .setComponent(PIPELINE_COMPONENT)
-                .setThreadName(PIPELINE_THREAD_NAME)
-                .setExceptionHandler((t, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception ", ex))
+                .setThreadNameProvider(
+                        CompositeThreadNameProvider.createNumbered(PIPELINE_COMPONENT, PIPELINE_THREAD_NAME))
+                .setExceptionHandler((_, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception ", ex))
                 .buildFactory());
 
         statistics = new VirtualMapStatistics(label);
@@ -174,18 +167,6 @@ public class VirtualPipeline {
      */
     public void registerMetrics(final Metrics metrics) {
         statistics.registerMetrics(metrics);
-    }
-
-    /**
-     * Make sure that the given copy is properly registered with this pipeline.
-     *
-     * @param copy
-     * 		the copy in question
-     */
-    private void validatePipelineRegistration(final VirtualRoot copy) {
-        if (!copy.isRegisteredToPipeline(this)) {
-            throw new IllegalStateException("copy is not registered with this pipeline");
-        }
     }
 
     /**
@@ -247,6 +228,11 @@ public class VirtualPipeline {
     public void registerCopy(final VirtualRoot copy) {
         Objects.requireNonNull(copy);
 
+        if (isShutdown()) {
+            throw new IllegalStateException(
+                    "Registering a copy while pipeline is shutdown: " + copy.getFastCopyVersion());
+        }
+
         if (copy.isImmutable()) {
             throw new IllegalStateException("Only mutable copies may be registered");
         }
@@ -267,31 +253,16 @@ public class VirtualPipeline {
     }
 
     /**
-     * Waits for any pending flushes or merges to complete, and then terminates the pipeline. No
-     * further operations will occur.
-     */
-    public synchronized void terminate() {
-        // If we've already shutdown, we can just return. This method is synchronized, and
-        // by the time we return this from this method, we will be terminated. So subsequent
-        // calls (even races) will see alive as false by that point.
-        if (!alive) {
-            return;
-        }
-
-        pausePipelineAndExecute("terminate", () -> {
-            shutdown(false);
-            return null;
-        });
-    }
-
-    /**
      * Destroy a copy of the map. The pipeline may still perform operations on the copy
      * at a later time (i.e. merge and flush), and so this method only gives the guarantee
      * that the resources held by the copy will be eventually destroyed.
      */
     public synchronized void destroyCopy(final VirtualRoot copy) {
-        if (!alive) {
-            // Copy destroyed after the pipeline was manually shut down.
+        if (isShutdown()) {
+            logger.warn(
+                    VIRTUAL_MERKLE_STATS.getMarker(),
+                    "Ignore destroy copy {} after pipeline shutdown",
+                    copy.getFastCopyVersion());
             return;
         }
 
@@ -300,11 +271,13 @@ public class VirtualPipeline {
         final int remainingCopies = undestroyedCopies.decrementAndGet();
         if (remainingCopies < 0) {
             throw new IllegalStateException("copies destroyed too many times");
-        } else if (remainingCopies == 0) {
+        }
+
+        scheduleWork();
+
+        if (remainingCopies == 0) {
             // Let pipeline shutdown gracefully, e.g. complete any flushes in progress
-            shutdownAfterFinalWork();
-        } else {
-            scheduleWork();
+            shutdown(false);
         }
     }
 
@@ -316,8 +289,6 @@ public class VirtualPipeline {
      * 		a copy of the map that needs to be hashed
      */
     public void hashCopy(final VirtualRoot copy) {
-        validatePipelineRegistration(copy);
-
         for (; ; ) {
             final VirtualRoot unhashedCopy = unhashedCopies.peekFirst();
             if (unhashedCopy == null) {
@@ -341,17 +312,51 @@ public class VirtualPipeline {
             }
         }
         if (!copy.isHashed()) {
-            throw new IllegalStateException("failed to hash copy");
+            throw new IllegalStateException("Failed to hash copy. Most likely copy is not registered to the pipeline");
         }
     }
 
-    public <T, E extends Exception> T pausePipelineAndRun(final String label, final CheckedSupplier<T, E> action)
+    /**
+     * Waits for any pending flushes or merges to complete and then pauses the pipeline while the
+     * given supplier provides a value, and then resumes pipeline operation. Fatal errors happen
+     * if the background thread is interrupted.
+     *
+     * @param label a log/error friendly label to describe the runnable
+     * @param supplier the supplier. Cannot be null.
+     * @param <V> the type of the value supplied
+     * @param <E> the type of exception that may be thrown
+     * @return the value supplied by the supplier
+     * @throws E if the supplier throws an exception
+     */
+    public <V, E extends Exception> V pausePipelineAndExecute(final String label, final CheckedSupplier<V, E> supplier)
             throws E {
-        final T ret = pausePipelineAndExecute(label, action);
-        if (alive) {
-            scheduleWork();
+        Objects.requireNonNull(supplier);
+        final CountDownLatch waitForBackgroundThreadToStart = new CountDownLatch(1);
+        final CountDownLatch waitForRunnableToFinish = new CountDownLatch(1);
+        executorService.execute(() -> {
+            waitForBackgroundThreadToStart.countDown();
+
+            try {
+                waitForRunnableToFinish.await();
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(
+                        "Fatal error: interrupted while waiting for runnable " + label + " to finish");
+            }
+        });
+
+        try {
+            waitForBackgroundThreadToStart.await();
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Fatal error: failed to start " + label);
         }
-        return ret;
+
+        try {
+            return supplier.get();
+        } finally {
+            waitForRunnableToFinish.countDown();
+        }
     }
 
     /**
@@ -481,13 +486,19 @@ public class VirtualPipeline {
                 merge(next);
                 copies.remove(next);
             }
-            statistics.setPipelineSize(copies.getSize());
-            logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Pipeline size {}", copies.getSize());
-            final long totalSize = currentTotalSize();
-            logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Total size {}", totalSize);
-            statistics.setNodeCacheSize(totalSize);
+
             next = next.getNext();
         }
+
+        final int pipelineSize = copies.getSize();
+        final long totalSize = currentTotalSize();
+        statistics.setPipelineSize(pipelineSize);
+        statistics.setNodeCacheSize(totalSize);
+        logger.debug(
+                VIRTUAL_MERKLE_STATS.getMarker(),
+                "Pipeline copies size {}, total cache size {}",
+                pipelineSize,
+                totalSize);
     }
 
     private void doWork() {
@@ -508,12 +519,11 @@ public class VirtualPipeline {
      * 		running. Useful for when there is an error, or for when the virtual map is no longer in use
      * 		(and therefore any/all pending work will never be used).
      */
-    private synchronized void shutdown(final boolean immediately) {
-        alive = false;
-        if (!executorService.isShutdown()) {
+    synchronized void shutdown(final boolean immediately) {
+        if (!isShutdown()) {
             if (immediately) {
                 executorService.shutdownNow();
-                fireOnShutdown(immediately);
+                fireOnShutdown(true);
             } else {
                 executorService.submit(() -> fireOnShutdown(false));
                 executorService.shutdown();
@@ -522,76 +532,13 @@ public class VirtualPipeline {
     }
 
     /**
-     * Run one final lifecycle pass and then gracefully shut down the pipeline.
+     * Checks whether this pipeline has been shutdown.
      *
-     * <p>This is needed when the final copy is destroyed. Destroying the final copy can make older
-     * copies eligible for flush or merge, so shutting down immediately may abandon work that has just
-     * become possible.
+     * @return {@code true} if this pipeline has been shutdown and doesn't accept more {@link VirtualRoot} copies,
+     * but still may process remaining copies. Use {@link #awaitTermination(long, TimeUnit)} to wait for all copies to be processed.
      */
-    private synchronized void shutdownAfterFinalWork() {
-        alive = false;
-        if (!executorService.isShutdown()) {
-            executorService.submit(() -> {
-                try {
-                    hashFlushMerge();
-                } catch (final Throwable e) { // NOSONAR: Must log since this is on the lifecycle thread.
-                    logger.error(EXCEPTION.getMarker(), "exception during final virtual pipeline work", e);
-                } finally {
-                    fireOnShutdown(false);
-                }
-            });
-            executorService.shutdown();
-        }
-    }
-
-    /**
-     * Waits for any pending flushes or merges to complete and then pauses the pipeline while the
-     * given supplier provides a value, and then resumes pipeline operation. Fatal errors happen
-     * if the background thread is interrupted.
-     *
-     * @param label
-     * 		A log/error friendly label to describe the runnable
-     * @param supplier
-     * 		The supplier. Cannot be null.
-     */
-    <V, E extends Exception> V pausePipelineAndExecute(final String label, final CheckedSupplier<V, E> supplier)
-            throws E {
-        Objects.requireNonNull(supplier);
-        final CountDownLatch waitForBackgroundThreadToStart = new CountDownLatch(1);
-        final CountDownLatch waitForRunnableToFinish = new CountDownLatch(1);
-        executorService.execute(() -> {
-            waitForBackgroundThreadToStart.countDown();
-
-            try {
-                waitForRunnableToFinish.await();
-            } catch (InterruptedException ie) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException(
-                        "Fatal error: interrupted while waiting for runnable " + label + " to finish");
-            }
-        });
-
-        try {
-            waitForBackgroundThreadToStart.await();
-        } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Fatal error: failed to start " + label);
-        }
-
-        try {
-            return supplier.get();
-        } finally {
-            waitForRunnableToFinish.countDown();
-        }
-    }
-
-    /**
-     * Gets whether this pipeline has been terminated.
-     *
-     * @return True if this pipeline has been terminated.
-     */
-    public boolean isTerminated() {
-        return !alive;
+    private boolean isShutdown() {
+        return executorService.isShutdown();
     }
 
     /**
@@ -631,7 +578,7 @@ public class VirtualPipeline {
 
             sb.append(index);
             sb.append(", flushed = ").append(uppercaseBoolean(copy.isFlushed()));
-            sb.append(", flushed = ").append(uppercaseBoolean(copy.isMerged()));
+            sb.append(", merged = ").append(uppercaseBoolean(copy.isMerged()));
             sb.append(", destroyed = ").append(uppercaseBoolean(copy.isDestroyed()));
             sb.append(", hashed = ").append(uppercaseBoolean(copy.isHashed()));
             sb.append("\n");

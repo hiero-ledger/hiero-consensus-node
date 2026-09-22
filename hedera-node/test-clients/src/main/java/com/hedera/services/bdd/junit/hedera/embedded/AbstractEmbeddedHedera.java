@@ -76,6 +76,8 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
             new PlatformStatusChangeNotification(ACTIVE);
     protected static final PlatformStatusChangeNotification FREEZE_COMPLETE_NOTIFICATION =
             new PlatformStatusChangeNotification(FREEZE_COMPLETE);
+    // 100 reserved system txn nanos + 3 max preceding records + 1
+    protected static final int TXN_OFFSET_NANOS = 104;
 
     protected final Map<AccountID, NodeId> nodeIds;
     protected final Map<NodeId, com.hedera.hapi.node.base.AccountID> accountIds;
@@ -86,6 +88,8 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
     protected final AtomicInteger nextNano = new AtomicInteger(0);
     protected final Metrics metrics;
     protected final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
+    // Held so stop() can unregister it; otherwise the hook pins this instance for the life of the JVM
+    private final Thread shutdownHook = new Thread(executorService::shutdownNow);
 
     /**
      * A trigger for the Hedera platform to use when initializing the state.
@@ -145,7 +149,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 metricsConfig);
         state = new FakeState();
         rebuildHedera();
-        Runtime.getRuntime().addShutdownHook(new Thread(executorService::shutdownNow));
+        Runtime.getRuntime().addShutdownHook(shutdownHook);
     }
 
     @Override
@@ -158,6 +162,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
 
     @Override
     public void start() {
+        hedera.setTxnOffsetNanos(TXN_OFFSET_NANOS);
         hedera.initializeStatesApi(state, trigger, ServicesMain.buildPlatformConfig());
         hedera.setInitialStateHash(FAKE_START_OF_STATE_HASH);
         hedera.onStateInitialized(state, fakePlatform(), trigger, version);
@@ -185,6 +190,11 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         fakePlatform().notifyListeners(FREEZE_COMPLETE_NOTIFICATION);
         hedera.newPlatformStatus(FREEZE_COMPLETE_NOTIFICATION.getNewStatus());
         executorService.shutdownNow();
+        try {
+            Runtime.getRuntime().removeShutdownHook(shutdownHook);
+        } catch (final IllegalStateException ignore) {
+            // The JVM is already shutting down
+        }
     }
 
     @Override
@@ -226,6 +236,14 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         } else {
             hedera.queryWorkflow().handleQuery(Bytes.wrap(query.toByteArray()), responseBuffer);
         }
+        return parseQueryResponse(responseBuffer);
+    }
+
+    @Override
+    public Response sendQueryRaw(@NonNull final byte[] serializedQuery) {
+        requireNonNull(serializedQuery);
+        final var responseBuffer = BufferedData.allocate(MAX_QUERY_RESPONSE_SIZE);
+        hedera.queryWorkflow().handleQuery(Bytes.wrap(serializedQuery), responseBuffer);
         return parseQueryResponse(responseBuffer);
     }
 
@@ -280,10 +298,13 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                 FakeServicesRegistry.FACTORY,
                 new FakeServiceMigrator(),
                 this::now,
+                defaultNodeId,
                 DiskStartupNetworks::new,
-                (appContext, bootstrapConfig, rsaContext, rsaSignings) ->
-                        this.hintsService = new FakeHintsService(appContext, bootstrapConfig, rsaContext, rsaSignings),
-                (appContext, bootstrapConfig) -> this.historyService = new FakeHistoryService(appContext),
+                (appContext, bootstrapConfig, rsaContext, rsaSignings, genesisNetworkSupplier) ->
+                        this.hintsService = new FakeHintsService(
+                                appContext, bootstrapConfig, rsaContext, rsaSignings, genesisNetworkSupplier),
+                (appContext, bootstrapConfig, genesisNetworkSupplier) ->
+                        this.historyService = new FakeHistoryService(appContext, genesisNetworkSupplier),
                 (rsaContext, rsaSignings, submissions, delegate) -> this.blockHashSigner = new LapsingBlockHashSigner(
                         new DualBlockHashSigner(rsaContext, rsaSignings, submissions, delegate)),
                 PLATFORM_CONFIG,

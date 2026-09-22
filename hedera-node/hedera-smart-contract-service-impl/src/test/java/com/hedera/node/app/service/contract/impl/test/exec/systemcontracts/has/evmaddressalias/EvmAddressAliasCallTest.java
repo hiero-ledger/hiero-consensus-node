@@ -41,7 +41,7 @@ class EvmAddressAliasCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(EVM_ADDRESS_ALIAS
                         .getOutputs()
@@ -49,7 +49,7 @@ class EvmAddressAliasCallTest extends CallTestBase {
                                 (long) com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID.protoOrdinal(),
                                 ZERO_ADDRESS))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -57,11 +57,13 @@ class EvmAddressAliasCallTest extends CallTestBase {
         given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
         given(attempt.enhancement()).willReturn(mockEnhancement());
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        subject = new EvmAddressAliasCall(attempt, asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS.toArray()));
+        subject = new EvmAddressAliasCall(
+                attempt,
+                asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS.getBytes().toArray()));
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(EVM_ADDRESS_ALIAS
                         .getOutputs()
@@ -69,7 +71,7 @@ class EvmAddressAliasCallTest extends CallTestBase {
                                 (long) com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID.protoOrdinal(),
                                 ZERO_ADDRESS))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -78,11 +80,13 @@ class EvmAddressAliasCallTest extends CallTestBase {
         given(attempt.enhancement()).willReturn(mockEnhancement());
         given(nativeOperations.getAccount(any(AccountID.class))).willReturn(OPERATOR);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        subject = new EvmAddressAliasCall(attempt, asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS.toArray()));
+        subject = new EvmAddressAliasCall(
+                attempt,
+                asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS.getBytes().toArray()));
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(EVM_ADDRESS_ALIAS
                         .getOutputs()
@@ -90,7 +94,7 @@ class EvmAddressAliasCallTest extends CallTestBase {
                                 (long) com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID.protoOrdinal(),
                                 ZERO_ADDRESS))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -100,11 +104,13 @@ class EvmAddressAliasCallTest extends CallTestBase {
         given(nativeOperations.getAccount(any(AccountID.class))).willReturn(account);
         given(account.alias()).willReturn(RECEIVER_ADDRESS);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        subject = new EvmAddressAliasCall(attempt, asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS.toArray()));
+        subject = new EvmAddressAliasCall(
+                attempt,
+                asHeadlongAddress(NON_SYSTEM_BUT_IS_LONG_ZERO_ADDRESS.getBytes().toArray()));
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(EVM_ADDRESS_ALIAS
                         .getOutputs()
@@ -112,6 +118,6 @@ class EvmAddressAliasCallTest extends CallTestBase {
                                 (long) ResponseCodeEnum.SUCCESS.protoOrdinal(),
                                 asHeadlongAddress(RECEIVER_ADDRESS.toByteArray())))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 }

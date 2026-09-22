@@ -64,10 +64,5 @@ public final class NoOpVirtualRoot extends AbstractVirtualRoot implements Virtua
     public void computeHash() {}
 
     @Override
-    public boolean isRegisteredToPipeline(final VirtualPipeline pipeline) {
-        return true;
-    }
-
-    @Override
     public void onShutdown(final boolean immediately) {}
 }

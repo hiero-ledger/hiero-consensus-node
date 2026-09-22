@@ -7,7 +7,6 @@ import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILE_ITEMS;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.merkledb.GarbageScanner;
 import com.swirlds.merkledb.collections.IndexedObject;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
@@ -106,15 +105,6 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
     private final AtomicBoolean fileCompleted = new AtomicBoolean(false);
 
     /**
-     * Flag indicating this file is currently assigned to a compaction task. Set to {@code true}
-     * when a CompactionTask begins execution, reset to {@code false} in the task's finally block.
-     * While set, the file is invisible to {@link GarbageScanner} — it won't appear in scan
-     * results. If compaction succeeds, the file is deleted and the reset is a no-op on a dead
-     * object. If compaction fails, the reset makes the file visible to future scans.
-     */
-    private final AtomicBoolean compactionInProgress = new AtomicBoolean(false);
-
-    /**
      * The size of this file in bytes, cached as need it often. This size is updated in {@link
      * #setFileCompleted()}, which is called for existing files right after the reader is created,
      * and for newly created files right after they are fully written and available to compact.
@@ -175,31 +165,6 @@ public final class DataFileReader implements Comparable<DataFileReader>, Indexed
         } finally {
             fileCompleted.set(true);
         }
-    }
-
-    /**
-     * Marks this file as being actively compacted.
-     * @return {@code true} if the compaction flag successfully updated from {@code false} to {@code true}
-     */
-    public boolean setCompactionInProgress() {
-        return compactionInProgress.compareAndSet(false, true);
-    }
-
-    /**
-     * Resets the compaction flag, making this file visible to future scans.
-     * Called in the compaction task's finally block.
-     */
-    public void resetCompactionInProgress() {
-        compactionInProgress.set(false);
-    }
-
-    /**
-     * Returns whether this file is currently being compacted.
-     *
-     * @return {@code true} if a compaction task is processing this file
-     */
-    public boolean isCompactionInProgress() {
-        return compactionInProgress.get();
     }
 
     /**

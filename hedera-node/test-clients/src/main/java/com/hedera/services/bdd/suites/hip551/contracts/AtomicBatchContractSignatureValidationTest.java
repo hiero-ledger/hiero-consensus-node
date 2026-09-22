@@ -27,8 +27,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doSeveralWithStartupConfigNow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfigNow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sidecarIdValidator;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PROPS;
@@ -119,7 +119,7 @@ class AtomicBatchContractSignatureValidationTest {
     @DisplayName("Validate transfer to account requiring receiver signature")
     final Stream<DynamicTest> transferToAccountWithReceiverSigRequired() {
         return hapiTest(
-                recordStreamMustIncludeNoFailuresFrom(sidecarIdValidator()),
+                streamMustIncludeNoFailuresFrom(sidecarIdValidator()),
                 getAccountInfo(RECEIVER_SIG_REQUIRED).savingSnapshot("accInfo"),
                 uploadInitCode(TRANSFERRING_CONTRACT),
                 contractCreate(TRANSFERRING_CONTRACT).balance(ONE_HUNDRED_HBARS),

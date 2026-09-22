@@ -27,15 +27,14 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ensureStakingActivated;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.matchStateChange;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateCandidateRoster;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
@@ -93,8 +92,9 @@ import org.junit.jupiter.api.*;
 /**
  * Asserts expected behavior of the network when upgrading with DAB enabled.
  * <p>
- * The test framework simulates DAB by copying the <i>config.txt</i> from the node's upgrade artifacts into their
- * working directories, instead of regenerating a <i>config.txt</i> to match its {@link HederaNode} instances. It
+ * The test framework simulates DAB by regenerating the network to match its {@link HederaNode} instances and
+ * writing an <i>override-network.json</i> into each node's working directory that the node adopts on restart; it
+ * validates the <i>candidate-roster.json</i> that the node exports during {@code PREPARE_UPGRADE}.
  * <p>
  * There are three upgrades in this test. The first leaves the address book unchanged, the second removes `node1`,
  * and the last one adds a new `node5`.
@@ -171,7 +171,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         final var newNode0CertHash = Bytes.fromHex("ab".repeat(48));
         final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                 // This test verifies staking rewards aren't paid for deleted nodes; so ensure staking is active
                 ensureStakingActivated(),
@@ -210,7 +210,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     @Order(2)
     final Stream<DynamicTest> nodeId1NotInCandidateRosterAfterRemovalAndStakerNotRewardedAfterUpgrade() {
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                 nodeDelete("1"),
                 prepareFakeUpgrade(),
@@ -235,7 +235,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     @Order(4)
     final Stream<DynamicTest> nodeId3NotInCandidateRosterAfterRemovalAndStakerNotRewardedAfterUpgrade() {
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                 nodeDelete("3"),
                 prepareFakeUpgrade(),
@@ -251,7 +251,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     @Order(5)
     final Stream<DynamicTest> newNodeId4InCandidateRosterAfterAddition() {
         return hapiTest(
-                recordStreamMustIncludePassFrom(selectedItems(
+                streamMustIncludePassFrom(selectedItems(
                         EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                 nodeCreate("node4", classicFeeCollectorIdFor(4))
                         .adminKey(DEFAULT_PAYER)
@@ -259,7 +259,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                         .withAvailableSubProcessPorts()
                         .gossipCaCertificate(VALID_CERT),
                 prepareFakeUpgrade(),
-                // node4 was not active before this the upgrade, so it could not have written a config.txt
+                // node4 was not active before this upgrade, so it could not have exported a candidate roster
                 validateCandidateRoster(exceptNodeIds(4L), addressBook -> assertThat(nodeIdsFrom(addressBook))
                         .contains(4L)),
                 upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.addNode(4L)));
@@ -307,7 +307,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     // Update a pending node
                     nodeUpdate("node5")
                             // These endpoints will be replaced by the FakeNmt process just before
-                            // restart but can still be validated in the DAB-generated config.txt
+                            // restart but can still be validated in the node-exported candidate-roster.json
                             .gossipEndpoint(
                                     List.of(asServiceEndpoint("127.0.0.1:33000"), asServiceEndpoint("127.0.0.1:33001")))
                             .accountId(String.valueOf(classicFeeCollectorIdFor(905))),
@@ -320,7 +320,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         @DisplayName("exported address book reflects only edits before prepare upgrade")
         final Stream<DynamicTest> exportedAddressBookReflectsOnlyEditsBeforePrepareUpgrade() {
             return hapiTest(
-                    recordStreamMustIncludePassFrom(selectedItems(
+                    streamMustIncludePassFrom(selectedItems(
                             EXISTENCE_ONLY_VALIDATOR, 2, sysFileUpdateTo("files.nodeDetails", "files.addressBook"))),
                     prepareFakeUpgrade(),
                     // Now make some changes that should not be incorporated in this upgrade
@@ -329,7 +329,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     validateCandidateRoster(
                             NodeSelector.allNodes(), DabEnabledUpgradeTest::validateNodeId5MultipartEdits),
                     // Validate removal of the nodes from the state after the upgrade
-                    blockStreamMustIncludePassFrom(matchStateChange(StateChange.newBuilder()
+                    streamMustIncludePassFrom(matchStateChange(StateChange.newBuilder()
                             .stateId(NODES_STATE_ID)
                             .mapDelete(MapDeleteChange.newBuilder()
                                     .key(MapChangeKey.newBuilder()
@@ -491,20 +491,29 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
 
     private static ContextualActionOp validatePathsDoesntExist(String nodeId, AtomicReference<AccountID> accountId) {
         return doingContextual((spec) -> {
-            final var recordPath = recordsPath(nodeId).resolve("record" + asAccountString(accountId.get()));
-            assertThat(recordPath.toFile().exists()).isFalse();
-
-            final var blockPath = blocksPath(nodeId).resolve("block-" + asAccountString(accountId.get()));
-            assertThat(blockPath.toFile().exists()).isFalse();
+            final var streamMode = spec.startupProperties().getStreamMode("blockStream.streamMode");
+            if (streamMode != com.hedera.node.config.types.StreamMode.BLOCKS) {
+                final var recordPath = recordsPath(nodeId).resolve("record" + asAccountString(accountId.get()));
+                assertThat(recordPath.toFile().exists()).isFalse();
+            }
+            if (streamMode != com.hedera.node.config.types.StreamMode.RECORDS) {
+                final var blockPath = blocksPath(nodeId).resolve("block-" + asAccountString(accountId.get()));
+                assertThat(blockPath.toFile().exists()).isFalse();
+            }
         });
     }
 
     private static ContextualActionOp validatePathsExist(String nodeId, AtomicReference<AccountID> accountId) {
         return doingContextual((spec) -> {
-            final var recordPath = recordsPath(nodeId).resolve("record" + asAccountString(accountId.get()));
-            assertThat(recordPath.toFile().exists()).isTrue();
-            final var blockPath = blocksPath(nodeId).resolve("block-" + asAccountString(accountId.get()));
-            assertThat(blockPath.toFile().exists()).isTrue();
+            final var streamMode = spec.startupProperties().getStreamMode("blockStream.streamMode");
+            if (streamMode != com.hedera.node.config.types.StreamMode.BLOCKS) {
+                final var recordPath = recordsPath(nodeId).resolve("record" + asAccountString(accountId.get()));
+                assertThat(recordPath.toFile().exists()).isTrue();
+            }
+            if (streamMode != com.hedera.node.config.types.StreamMode.RECORDS) {
+                final var blockPath = blocksPath(nodeId).resolve("block-" + asAccountString(accountId.get()));
+                assertThat(blockPath.toFile().exists()).isTrue();
+            }
         });
     }
 }

@@ -3,10 +3,10 @@ package com.hedera.node.app.workflows.handle.steps;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
-import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.token.impl.api.TokenServiceApiProvider.TOKEN_SERVICE_API_PROVIDER;
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -48,6 +48,8 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.DispatchProcessor;
 import com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory;
+import com.hedera.node.app.workflows.handle.record.TokenContextImpl;
+import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.hedera.node.config.ConfigProvider;
@@ -76,6 +78,9 @@ class ParentTxnTest {
     private static final Key AN_ED25519_KEY = Key.newBuilder()
             .ed25519(Bytes.fromHex("0101010101010101010101010101010101010101010101010101010101010101"))
             .build();
+    private static final Configuration BOTH_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BOTH")
+            .getOrCreateConfig();
     private static final Configuration BLOCKS_CONFIG = HederaTestConfigBuilder.create()
             .withValue("blockStream.streamMode", "BLOCKS")
             .getOrCreateConfig();
@@ -146,15 +151,24 @@ class ParentTxnTest {
     @Mock
     private PreHandleWorkflow.ShortCircuitCallback shortCircuitTxnCallback;
 
+    @Mock
+    private TokenContextImpl tokenContextImpl;
+
+    @Mock
+    private SavepointStackImpl stack;
+
+    @Mock
+    private ReadableStoreFactory readableStoreFactory;
+
     @BeforeEach
     void setUp() {
         lenient().when(txnInfo.functionality()).thenReturn(CONSENSUS_CREATE_TOPIC);
     }
 
     @Test
-    void usesPairedStreamBuilderWithDefaultConfig() {
+    void usesPairedStreamBuilder() {
         givenExistingCreator();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1));
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(BOTH_CONFIG, 1));
 
         final var factory = createUserTxnFactory();
         final var subject =
@@ -262,6 +276,131 @@ class ParentTxnTest {
                         .map(BlockItem::transactionResultOrThrow)
                         .orElseThrow();
         assertEquals(0L, result.congestionPricingMultiplier());
+    }
+
+    @SuppressWarnings("ConstantConditions")
+    @Test
+    void testConstructorWithInvalidParameters() {
+        assertThatThrownBy(() -> new ParentTxn(
+                        null,
+                        CONSENSUS_NOW,
+                        state,
+                        txnInfo,
+                        tokenContextImpl,
+                        stack,
+                        preHandleResult,
+                        readableStoreFactory,
+                        BLOCKS_CONFIG,
+                        creatorInfo))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ParentTxn(
+                        CONSENSUS_CREATE_TOPIC,
+                        null,
+                        state,
+                        txnInfo,
+                        tokenContextImpl,
+                        stack,
+                        preHandleResult,
+                        readableStoreFactory,
+                        BLOCKS_CONFIG,
+                        creatorInfo))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ParentTxn(
+                        CONSENSUS_CREATE_TOPIC,
+                        CONSENSUS_NOW,
+                        null,
+                        txnInfo,
+                        tokenContextImpl,
+                        stack,
+                        preHandleResult,
+                        readableStoreFactory,
+                        BLOCKS_CONFIG,
+                        creatorInfo))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ParentTxn(
+                        CONSENSUS_CREATE_TOPIC,
+                        CONSENSUS_NOW,
+                        state,
+                        null,
+                        tokenContextImpl,
+                        stack,
+                        preHandleResult,
+                        readableStoreFactory,
+                        BLOCKS_CONFIG,
+                        creatorInfo))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ParentTxn(
+                        CONSENSUS_CREATE_TOPIC,
+                        CONSENSUS_NOW,
+                        state,
+                        txnInfo,
+                        null,
+                        stack,
+                        preHandleResult,
+                        readableStoreFactory,
+                        BLOCKS_CONFIG,
+                        creatorInfo))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ParentTxn(
+                        CONSENSUS_CREATE_TOPIC,
+                        CONSENSUS_NOW,
+                        state,
+                        txnInfo,
+                        tokenContextImpl,
+                        null,
+                        preHandleResult,
+                        readableStoreFactory,
+                        BLOCKS_CONFIG,
+                        creatorInfo))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ParentTxn(
+                        CONSENSUS_CREATE_TOPIC,
+                        CONSENSUS_NOW,
+                        state,
+                        txnInfo,
+                        tokenContextImpl,
+                        stack,
+                        null,
+                        readableStoreFactory,
+                        BLOCKS_CONFIG,
+                        creatorInfo))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ParentTxn(
+                        CONSENSUS_CREATE_TOPIC,
+                        CONSENSUS_NOW,
+                        state,
+                        txnInfo,
+                        tokenContextImpl,
+                        stack,
+                        preHandleResult,
+                        null,
+                        BLOCKS_CONFIG,
+                        creatorInfo))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ParentTxn(
+                        CONSENSUS_CREATE_TOPIC,
+                        CONSENSUS_NOW,
+                        state,
+                        txnInfo,
+                        tokenContextImpl,
+                        stack,
+                        preHandleResult,
+                        readableStoreFactory,
+                        null,
+                        creatorInfo))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ParentTxn(
+                        CONSENSUS_CREATE_TOPIC,
+                        CONSENSUS_NOW,
+                        state,
+                        txnInfo,
+                        tokenContextImpl,
+                        stack,
+                        preHandleResult,
+                        readableStoreFactory,
+                        BLOCKS_CONFIG,
+                        null))
+                .isInstanceOf(NullPointerException.class);
     }
 
     private ParentTxnFactory createUserTxnFactory() {

@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
+import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -15,6 +17,7 @@ import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.time.Instant;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,6 +71,9 @@ class ProofControllersTest {
 
     @Mock
     private ReadableHistoryStore historyStore;
+
+    @Mock
+    private ProofController controller;
 
     private ProofControllers subject;
 
@@ -130,5 +136,44 @@ class ProofControllersTest {
                 DEFAULT_CONFIG.getConfigData(TssConfig.class));
 
         assertInstanceOf(ProofControllerImpl.class, controller);
+    }
+
+    @Test
+    void stopCancelsAndRefreshesControllerForSameConstructionId() throws Exception {
+        final var learnedConstruction = HistoryProofConstruction.newBuilder()
+                .constructionId(1L)
+                .assemblyStartTime(asTimestamp(Instant.EPOCH))
+                .build();
+        given(controller.constructionId()).willReturn(1L);
+        setController(controller);
+
+        final var staleController = subject.getOrCreateFor(
+                activeRosters,
+                learnedConstruction,
+                historyStore,
+                HintsConstruction.DEFAULT,
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class));
+        assertSame(controller, staleController);
+
+        subject.stop();
+        subject.stop();
+
+        verify(controller).cancelPendingWork();
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
+        final var refreshedController = subject.getOrCreateFor(
+                activeRosters,
+                learnedConstruction,
+                historyStore,
+                HintsConstruction.DEFAULT,
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class));
+        assertNotSame(staleController, refreshedController);
+    }
+
+    private void setController(final ProofController controller) throws Exception {
+        final var field = ProofControllers.class.getDeclaredField("controller");
+        field.setAccessible(true);
+        field.set(subject, controller);
     }
 }

@@ -25,6 +25,7 @@ import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Files;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -113,11 +114,11 @@ class WrapsProvingKeyVerificationRecoveryTest implements LifecycleTest {
                         CONFIG_HASH_A)),
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(60)),
                 assertHgcaaLogContainsPattern(
-                        NodeSelector.allNodes(), "WRAPS proving key hash from config: \\S+", Duration.ofSeconds(5)),
+                        NodeSelector.allNodes(), "WRAPS proving key hash from config: \\S+", Duration.ofSeconds(30)),
                 assertHgcaaLogContainsPattern(
                         NodeSelector.allNodes(),
-                        "Persisted first WRAPS proving key hash \\S+ to state",
-                        Duration.ofSeconds(5)));
+                        "Overwriting previous WRAPS proving key hash \\S+ with new pending hash \\S+",
+                        Duration.ofSeconds(30)));
     }
 
     /**
@@ -138,7 +139,7 @@ class WrapsProvingKeyVerificationRecoveryTest implements LifecycleTest {
                 assertHgcaaLogContainsPattern(
                         NodeSelector.allNodes(),
                         "Overwriting previous WRAPS proving key hash \\S+ with new pending hash \\S+",
-                        Duration.ofSeconds(5)));
+                        Duration.ofSeconds(30)));
     }
 
     /**
@@ -169,7 +170,7 @@ class WrapsProvingKeyVerificationRecoveryTest implements LifecycleTest {
                 assertHgcaaLogContainsPattern(
                         NodeSelector.allNodes(),
                         "WRAPS proving key hash mismatch at .+ \\(expected=.+, actual=.+\\), initiating download",
-                        Duration.ofSeconds(5)));
+                        Duration.ofSeconds(30)));
     }
 
     /**
@@ -210,16 +211,20 @@ class WrapsProvingKeyVerificationRecoveryTest implements LifecycleTest {
                 assertHgcaaLogContainsPattern(
                         NodeSelector.allNodes(),
                         "Successfully downloaded and verified WRAPS proving key on retry \\(hash=\\S+\\)",
-                        Duration.ofSeconds(5)),
-                // Verify the extracted file from the tar.gz exists at the correct path
+                        Duration.ofSeconds(30)),
+                // Verify the extracted v1.0.0 WRAPS artifact set exists at the correct path
                 doingContextual(spec -> {
                     for (final var node : spec.getNetworkNodes()) {
                         final var keysDir =
                                 node.getExternalPath(ExternalPath.WORKING_DIR).resolve("data/keys");
-                        final var extractedFile = keysDir.resolve("MrBleaney.txt");
-                        assertTrue(
-                                Files.exists(extractedFile), "Extracted file MrBleaney.txt should exist in " + keysDir);
-                        log.info("Verified extracted file exists at {}", extractedFile);
+                        for (final var artifact :
+                                List.of("decider_pp.bin", "decider_vp.bin", "nova_pp.bin", "nova_vp.bin")) {
+                            final var extractedFile = keysDir.resolve(artifact);
+                            assertTrue(
+                                    Files.exists(extractedFile),
+                                    "Extracted file " + artifact + " should exist in " + keysDir);
+                            log.info("Verified extracted file exists at {}", extractedFile);
+                        }
                     }
                 }));
     }

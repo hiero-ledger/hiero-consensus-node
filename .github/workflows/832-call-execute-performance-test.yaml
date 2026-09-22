@@ -1,0 +1,406 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "832: [CALL] CITR Exec Perf Test"
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Version of hiero-consensus-node: branch, tag, commit"
+        required: true
+        type: string
+        default: ""
+      nlg-accounts:
+        required: true
+        default: "100000"
+        description: "Number of Accounts and NFT tokens"
+        type: string
+      nlg-test:
+        required: true
+        default: ""
+        description: "Which NLG Test to Run"
+        type: string
+      nlg-time:
+        required: true
+        default: "1"
+        description: "Test execution time"
+        type: string
+      workspace:
+        required: true
+        default: ${{ github.workspace }}
+        description: "The Workspace of the Runner"
+        type: string
+      gs-root-dir:
+        required: false
+        default: ""
+        description: "Google storage root directory location"
+        type: string
+      gs-root-https:
+        required: false
+        default: ""
+        description: "Google storage HTTPS location"
+        type: string
+      k8s-namespace:
+        required: true
+        default: ""
+        description: "Kubernetes namespace to run the test in"
+        type: string
+      k8s-cluster:
+        required: true
+        default: ""
+        description: "Kubernetes cluster to run the test on"
+        type: string
+      k8s-network-id:
+        required: true
+        default: ""
+        description: "Kubernetes network ID to run the test on"
+        type: string
+      java-version:
+        required: false
+        description: "Java JDK Version"
+        type: string
+    outputs:
+      output:
+        value: ${{ jobs.performance-test.outputs.output }}
+
+env:
+  LC_ALL: C.UTF-8
+  GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
+  GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  performance-test:
+    name: ${{ inputs.custom-job-name || 'Run CITR Performance Test' }}
+    runs-on: hl-cn-sdpt-lin-lg
+
+    outputs:
+      output: ${{ steps.benchmark_value.outputs.value }}
+
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ github.ref }}"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Validate Input Parameters
+        env:
+          REF: ${{ inputs.ref }}
+          GS_ROOT_DIR_INPUT: ${{ inputs.gs-root-dir }}
+          GS_ROOT_HTTPS_INPUT: ${{ inputs.gs-root-https }}
+          K8S_NAMESPACE: ${{ inputs.k8s-namespace }}
+          K8S_CLUSTER: ${{ inputs.k8s-cluster }}
+          K8S_NETWORK_ID: ${{ inputs.k8s-network-id }}
+          NLG_ACCOUNTS: ${{ inputs.nlg-accounts }}
+          NLG_TEST: ${{ inputs.nlg-test }}
+          NLG_TIME: ${{ inputs.nlg-time }}
+        run: |
+          echo "Run HCN Version"
+          echo "${REF}"
+          echo "GS Root Dir"
+          echo "${GS_ROOT_DIR_INPUT}"
+          echo "GS Root HTTPS"
+          echo "${GS_ROOT_HTTPS_INPUT}"
+          echo "K8S Network ID"
+          echo "${K8S_NETWORK_ID}"
+          echo "Namespace"
+          echo "${K8S_NAMESPACE}"
+          echo "K8S Cluster"
+          echo "${K8S_CLUSTER}"
+          echo "NLG Accounts"
+          echo "${NLG_ACCOUNTS}"
+          echo "NLG Test"
+          echo "${NLG_TEST}"
+          echo "NLG Time"
+          echo "${NLG_TIME}"
+          echo "Workspace"
+          echo ${{ github.workspace }}
+
+      - name: Generate Google Storage URL for Publishing
+        id: gs-dir-url
+        env:
+          REF: ${{ inputs.ref }}
+          GS_ROOT_DIR_INPUT: ${{ inputs.gs-root-dir }}
+          K8S_NAMESPACE: ${{ inputs.k8s-namespace }}
+          K8S_NETWORK_ID: ${{ inputs.k8s-network-id }}
+          NLG_TEST: ${{ inputs.nlg-test }}
+        run: |
+          GS_DIR_URL="${GS_ROOT_DIR_INPUT}/${REF}_${K8S_NAMESPACE}_${K8S_NETWORK_ID}_${{ github.run_number }}/report/${NLG_TEST}"
+          echo "Calculated gs-dir-url: ${GS_DIR_URL}"
+          echo "url=${GS_DIR_URL}" >> "${GITHUB_OUTPUT}"
+
+      - name: Generate HTTPS URL for Publishing
+        id: gs-https-url
+        env:
+          REF: ${{ inputs.ref }}
+          GS_ROOT_HTTPS_INPUT: ${{ inputs.gs-root-https }}
+          K8S_NAMESPACE: ${{ inputs.k8s-namespace }}
+          K8S_NETWORK_ID: ${{ inputs.k8s-network-id }}
+          NLG_TEST: ${{ inputs.nlg-test }}
+        run: |
+          GS_HTTPS_URL="${GS_ROOT_HTTPS_INPUT}/${REF}_${K8S_NAMESPACE}_${K8S_NETWORK_ID}_${{ github.run_number }}/report/${NLG_TEST}"
+          echo "Calculated gs-https-url: ${GS_HTTPS_URL}"
+          echo "url=${GS_HTTPS_URL}" >> "${GITHUB_OUTPUT}"
+
+      - name: Validate the GCP URLs Are Set
+        run: |
+          echo "GS DIR URL"
+          echo "${{ steps.gs-dir-url.outputs.url }}"
+          echo "GS HTTPS URL"
+          echo "${{ steps.gs-https-url.outputs.url }}"
+
+      - name: HeliSwap sleep
+        if: ${{ inputs.nlg-test == 'HeliSwapLoadTest' }}
+        run: |
+          echo "Sleeping 10 mins before HeliSwap test ..."
+          sleep 600
+
+      - name: Install KubeCtl
+        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        with:
+          version: v1.35.0
+
+      - name: kubectl wrapper
+        run: |
+          kubectl=$(which kubectl)
+          sudo mv ${kubectl} ${kubectl}.orig
+          sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt ${kubectl}
+          sudo chmod a+rx ${kubectl}
+          which kubectl
+
+      - name: Install Teleport Client
+        uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
+        with:
+          version: 18.4.0
+
+      - name: Authorize Teleport SSH Access
+        uses: teleport-actions/auth@3b365df2b4f64891358392a444ff34929ba0d0b1 # v2.1.2
+        with:
+          proxy: hashgraph.teleport.sh:443
+          token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
+
+      - name: Authorize Teleport K8S Access
+        uses: teleport-actions/auth-k8s@0f46164469ae4fcd4d359d40e06bab17d4be17c9 # v2.0.6
+        with:
+          proxy: hashgraph.teleport.sh:443
+          token: gh-citr-performance-svcs-bot
+          kubernetes-cluster: ${{ inputs.k8s-cluster }}
+          certificate-ttl: 24h
+
+      - name: Authenticate to Google Cloud
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        with:
+          workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
+          service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Setup Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: "${{ inputs.java-version }}"
+
+      - name: Install Task
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611 # v2.0.0
+        with:
+          version: 3.39.2
+
+      - name: OS check procedure
+        run: |
+          set +x
+          set +e
+          export TERM=vt100
+          echo Setup procedure ...
+          cat /etc/*elease
+          sudo apt-get update
+          sudo apt-get install -y net-tools iputils-ping node-typescript
+
+      - name: Create report dir
+        run: |
+          mkdir "${{ github.workspace }}"/report
+
+      - name: Start test
+        env:
+          K8S_NAMESPACE: ${{ inputs.k8s-namespace }}
+          NLG_ACCOUNTS: ${{ inputs.nlg-accounts }}
+          NLG_TEST: ${{ inputs.nlg-test }}
+          NLG_TIME: ${{ inputs.nlg-time }}
+        run: |
+          run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
+          run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
+
+          nlgpod=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" get pods | grep nlg-network-load-generator| awk '{print $1}')
+
+          n=$(expr "${NLG_ACCOUNTS}" / 1000)
+          NLG_c=32
+
+          NLGargs="-metrics -R -c ${NLG_c} -a ${NLG_ACCOUNTS}"
+
+          case "${NLG_TEST}" in
+            NftTransferLoadTest)    NLGargs="-K ECDSA ${NLGargs} -n ${n} -T 1000 -S hot -p 50";;
+            CryptoTransferLoadTest) NLGargs="-K ECDSA ${NLGargs}";;
+            HCSLoadTest)            NLGargs="-K ECDSA ${NLGargs} -n ${n}";;
+            TokenTransferLoadTest)  NLGargs="-K ECDSA ${NLGargs} -n ${n} -T 1000";;
+          esac
+
+          run_NLG_Time=${NLG_TIME}
+          run_NLG_Time3=$(expr ${run_NLG_Time} / 3)
+
+          case "${NLG_TEST}" in
+            CryptoTransferLoadTest) run_NLG_Time=${run_NLG_Time3};;
+            HCSLoadTest)            run_NLG_Time=${run_NLG_Time3};;
+            TokenTransferLoadTest)  run_NLG_Time=${run_NLG_Time3};;
+            SmartContractLoadTest)  run_NLG_Time=${run_NLG_Time3};;
+          esac
+
+          echo \
+          kubectl -n "${K8S_NAMESPACE}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
+          ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${NLG_TEST} \
+          ${NLGargs} -tt ${run_NLG_Time}m > client.log 2>&1 &"
+
+          kubectl -n "${K8S_NAMESPACE}" exec "${nlgpod}" -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g ${run_NLGDparams} \
+          ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${NLG_TEST} \
+          ${NLGargs} -tt ${run_NLG_Time}m > client.log 2>&1 &"
+
+      - name: Start BlockNode Cleaner
+        run: |
+          set +x
+          set +e
+          nohup sh "${{ github.workspace }}"/.github/workflows/support/citr/blockNodeClean.sh "${{ inputs.k8s-namespace }}" > ${{ github.workspace }}/report/blockNodeClean.log 2>&1 &
+
+      - name: Wait for test completion
+        env:
+          K8S_NAMESPACE: ${{ inputs.k8s-namespace }}
+        run: |
+          set +x
+          set +e
+
+          check_status() {
+           logfile=$1
+           ec=2 # continue
+           grep -E 'Finished .*Test' ${logfile} >/dev/null
+           if [[ ${?} -eq 0 ]]
+           then
+              echo "Test finished, exiting..."
+              ec=0
+           fi
+
+           grep -E 'ERROR com.hedera.benchmark.*LoadTest - Setup|ERROR com.hedera.benchmark.*LoadTest - Test failed' ${logfile}
+           if [[ ${?} -eq 0 ]]
+           then
+              echo "ERROR: Wrong config/environment"
+              tail ${logfile}
+              ec=1
+           fi
+
+           return ${ec}
+          }
+
+          sleep 60
+
+          nlgpod=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" get pods | grep nlg-network-load-generator| awk '{print $1}')
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log"
+
+          counter=0
+          start_time=$(date +%s)
+
+          max_counter=340 #max_counter=330 mins of max test time + 10 min waiting time
+
+          ec=2
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+          isRunning=${?}
+
+          while [ \( ${isRunning} -eq 0 \) -a \( ${counter} -le ${max_counter} \) ]
+          do
+
+           sleep 60
+           current_time=$(date +%s)
+           counter=$(expr "${current_time}" - "${start_time}")
+           counter=$(expr "${counter}" \/ 60)
+
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "tail /app/client.log" > client.log
+           tail -n 1 client.log
+
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+           isRunning=${?}
+
+           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" exec ${nlgpod} -c nlg -- bash -c "grep -E 'ERROR com.hedera.benchmark|Finished .*Test' /app/client.log" > client_state.log
+           check_status client_state.log
+           ec=${?}
+           if [[ ${ec} -lt 2 ]] #any terminal states 0 or 1, ec=2 is to continue
+           then
+             break
+           fi
+          done
+
+          if [[ -f "${{ github.workspace }}"/report/client.log ]]
+          then
+            rm -rf "${{ github.workspace }}"/report/*
+          fi
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${K8S_NAMESPACE}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${K8S_NAMESPACE}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
+          cp -r podlog_"${K8S_NAMESPACE}" "${{ github.workspace }}"/report/
+
+          check_status "${{ github.workspace }}"/report/client.log
+          ec=${?}
+
+          if [[ ${ec} -eq 2 ]]
+          then
+            echo "Continue to wait in next Runner ..."
+            ec=0
+          fi
+
+          tail "${{ github.workspace }}"/report/client.log
+          echo "Finished, exit code=${ec}"
+          exit ${ec}
+
+      - name: Extract benchmark score
+        id: benchmark_value
+        run: |
+          grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
+          cat "${{ github.workspace }}"/report/client.log | perl -pne '~s/\b([A-Z_]+[\:]\d+)\b/\n$1\n/g' | perl "${{ github.workspace }}"/.github/workflows/support/citr/collectNLG_Errors.pl > "${{ github.workspace }}"/report/client.stats.txt
+
+      - name: Authenticate to Google Cloud
+        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+        with:
+          workload_identity_provider: "projects/716789254648/locations/global/workloadIdentityPools/perf-eng-reports-pool/providers/gh-provider"
+          service_account: "gh-perf-report-writer@perf-engineering-reports.iam.gserviceaccount.com"
+
+      - name: Setup Google Cloud SDK
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Publish logs
+        if: ${{ !cancelled() }}
+        run: |
+          cd "${{ github.workspace }}"/
+
+          gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports 2>/dev/null | grep permanent >/dev/null 2>&1
+          if [[ ${?} -ne 0 ]]
+          then
+            sleep 10
+            gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports | grep permanent >/dev/null
+          fi
+
+          echo "Size of report dir:"
+          du -sk report
+
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ steps.gs-dir-url.outputs.url }}"
+          echo Done: see results in "${{ steps.gs-https-url.outputs.url }}"
+
+          #echo "Truncating logs for next test..."
+          #sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ inputs.k8s-namespace }}"
