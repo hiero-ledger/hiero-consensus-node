@@ -123,7 +123,10 @@ jobs:
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       java-distribution: "temurin"
       solo-version: ${{ needs.extract-citr-vars.outputs.citr-solo-version }}
-      mirror-node-version: ${{ needs.extract-citr-vars.outputs.citr-mirror-node-version }}
+      # When citr values get updated change back to
+      # ${{ needs.extract-citr-vars.outputs.citr-mirror-node-version }}
+      # Needs v 163 of MN so contract/result works as expected
+      mirror-node-version: "0.163.1"
       # Deliberately not `needs.extract-citr-vars.outputs.json-rpc-relay-version` (v0.78.0): the HIP-1340 shards
       # need TX_TYPE_4_ENABLED, which first shipped in relay 0.79.0-rc1. Bumping .citr-env instead would also move
       # the XTS JSON-RPC relay regression panel (818).
