@@ -44,6 +44,7 @@ module com.hedera.node.app {
     exports com.hedera.node.app.throttle;
     exports com.hedera.node.app.tss;
     exports com.hedera.node.app.validation;
+    exports com.hedera.node.app.workflows.clpr;
     exports com.hedera.node.app.workflows.dispatcher;
     exports com.hedera.node.app.workflows.handle.cache;
     exports com.hedera.node.app.workflows.handle.dispatch;
@@ -72,6 +73,9 @@ module com.hedera.node.app {
     requires transitive com.hedera.node.app.hapi.fees;
     requires transitive com.hedera.node.app.hapi.utils;
     requires transitive com.hedera.node.app.service.addressbook.impl;
+    requires transitive com.hedera.node.app.service.addressbook;
+    requires transitive com.hedera.node.app.service.clpr.impl;
+    requires transitive com.hedera.node.app.service.clpr;
     requires transitive com.hedera.node.app.service.consensus.impl;
     requires transitive com.hedera.node.app.service.contract.impl;
     requires transitive com.hedera.node.app.service.entityid;
@@ -110,7 +114,6 @@ module com.hedera.node.app {
     requires transitive org.apache.logging.log4j;
     requires transitive org.hyperledger.besu.datatypes;
     requires transitive org.hyperledger.besu.evm;
-    requires com.hedera.node.app.service.addressbook;
     requires com.hedera.node.app.service.consensus;
     requires com.hedera.node.app.service.contract;
     requires com.hedera.node.app.service.entityid.impl;
@@ -130,12 +133,16 @@ module com.hedera.node.app {
     requires org.hiero.consensus.state;
     requires com.github.benmanes.caffeine;
     requires com.google.common;
+    requires com.google.errorprone.annotations;
     requires io.grpc.netty;
     requires io.helidon.webclient.api;
     requires io.netty.handler;
     requires io.netty.transport.classes.epoll;
     requires io.netty.transport;
     requires org.apache.commons.lang3;
+    requires org.bouncycastle.pkix;
+    requires org.bouncycastle.provider;
+    requires org.bouncycastle.tls;
     requires static transitive com.github.spotbugs.annotations;
     requires static java.compiler;
 

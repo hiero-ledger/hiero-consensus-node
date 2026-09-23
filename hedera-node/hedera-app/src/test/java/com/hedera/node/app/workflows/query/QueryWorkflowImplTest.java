@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.FILE_GET_INFO;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
@@ -806,6 +807,94 @@ class QueryWorkflowImplTest extends AppTestBase {
         assertThat(header.responseType()).isEqualTo(ANSWER_ONLY);
         assertThat(header.cost()).isZero();
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
+    }
+
+    @Test
+    void paidQueryDoesNotSubmitPaymentWhenThrottled() throws PreCheckException, ParseException {
+        // given — a paid query whose payment passes ingest, but whose query throttle then fires BUSY
+        mockQueryContext();
+        when(handler.requiresNodePayment(ANSWER_ONLY)).thenReturn(true);
+        doAnswer(invocationOnMock -> {
+                    final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
+                    result.setThrottleUsages(List.of());
+                    result.setTxnInfo(transactionInfo);
+                    return null;
+                })
+                .when(ingestChecker)
+                .runAllChecks(any(), any(), any(), any());
+        when(synchronizedThrottleAccumulator.shouldThrottle(eq(FILE_GET_INFO), any(), any(), any()))
+                .thenReturn(true);
+        final var responseBuffer = newEmptyBuffer();
+
+        // when
+        workflow.handleQuery(requestBuffer, responseBuffer);
+
+        // then — the query is refused as BUSY ...
+        final var response = parseResponse(responseBuffer);
+        final var header = response.fileGetInfoOrThrow().headerOrThrow();
+        assertThat(header.nodeTransactionPrecheckCode()).isEqualTo(BUSY);
+        verify(opWorkflowMetrics).incrementThrottled(FILE_GET_INFO);
+        // ... and the payment is NOT submitted, so the payer is not charged for the unanswered query.
+        verify(submissionManager, never()).submit(any(), any(), anyBoolean());
+    }
+
+    @Test
+    void paidQuerySubmitsPaymentWhenNotThrottled() throws PreCheckException, ParseException {
+        // given — a paid query that passes validation and the throttle check
+        mockQueryContext();
+        when(handler.requiresNodePayment(ANSWER_ONLY)).thenReturn(true);
+        when(handler.findResponse(any(), any()))
+                .thenReturn(Response.newBuilder()
+                        .fileGetInfo(FileGetInfoResponse.newBuilder()
+                                .header(ResponseHeader.newBuilder().build())
+                                .build())
+                        .build());
+        doAnswer(invocationOnMock -> {
+                    final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
+                    result.setThrottleUsages(List.of());
+                    result.setTxnInfo(transactionInfo);
+                    return null;
+                })
+                .when(ingestChecker)
+                .runAllChecks(any(), any(), any(), any());
+        final var responseBuffer = newEmptyBuffer();
+
+        // when
+        workflow.handleQuery(requestBuffer, responseBuffer);
+
+        // then — throttling did not fire and the payment was submitted (priority=false).
+        verify(opWorkflowMetrics, never()).incrementThrottled(any());
+        verify(submissionManager).submit(txBody, serializedPayment, false);
+    }
+
+    @Test
+    void paidQuerySubmitsPaymentBeforeGeneratingResponse() throws PreCheckException, ParseException {
+        // given — a paid query that passes validation and throttling, but whose response generation then fails
+        mockQueryContext();
+        when(handler.requiresNodePayment(ANSWER_ONLY)).thenReturn(true);
+        doAnswer(invocationOnMock -> {
+                    final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
+                    result.setThrottleUsages(List.of());
+                    result.setTxnInfo(transactionInfo);
+                    return null;
+                })
+                .when(ingestChecker)
+                .runAllChecks(any(), any(), any(), any());
+        when(handler.findResponse(any(), any())).thenThrow(new RuntimeException("response generation failed"));
+        final var responseBuffer = newEmptyBuffer();
+
+        // when
+        workflow.handleQuery(requestBuffer, responseBuffer);
+
+        // then — the node committed to answering once validation and the throttle passed, so the payment was
+        // already submitted; a later failure leaves the payer charged for the work the node attempted.
+        verify(submissionManager).submit(txBody, serializedPayment, false);
+
+        // An unchecked exception other than HandleException escaping response generation is surfaced as
+        // FAIL_INVALID, so the payer is charged for a node-side fault rather than a rejected request.
+        final var response = parseResponse(responseBuffer);
+        assertThat(response.fileGetInfoOrThrow().headerOrThrow().nodeTransactionPrecheckCode())
+                .isEqualTo(FAIL_INVALID);
     }
 
     @Test

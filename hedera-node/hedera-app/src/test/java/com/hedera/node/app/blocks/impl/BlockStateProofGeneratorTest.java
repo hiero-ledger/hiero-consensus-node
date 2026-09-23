@@ -163,6 +163,8 @@ class BlockStateProofGeneratorTest {
                 BlockProof.newBuilder().block(number),
                 new NoOpTestWriter(),
                 Timestamp.DEFAULT,
+                Bytes.EMPTY,
+                Bytes.EMPTY,
                 siblings);
     }
 
@@ -421,6 +423,8 @@ class BlockStateProofGeneratorTest {
                         BlockProof.newBuilder().block(pp.block()),
                         new NoOpTestWriter(),
                         pp.blockTimestamp(),
+                        Bytes.EMPTY,
+                        Bytes.EMPTY,
                         pp.siblingHashesFromPrevBlockRoot().toArray(new MerkleSiblingHash[0])))
                 .toList();
     }
