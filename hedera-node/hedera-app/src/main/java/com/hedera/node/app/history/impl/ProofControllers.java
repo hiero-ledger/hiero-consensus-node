@@ -2,6 +2,8 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
+import static com.hedera.node.app.history.HistoryService.isCompleted;
+import static com.hedera.node.app.tss.TssBlockHashSigner.usesChainOfTrustProof;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
@@ -12,6 +14,7 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -190,6 +193,133 @@ public class ProofControllers {
      */
     public static boolean isWrapsExtensible(@Nullable final HistoryProof proof) {
         return proof != null && !Bytes.EMPTY.equals(proof.uncompressedWrapsProof());
+    }
+
+    /**
+     * Returns whether the given construction grounds a chain of trust rather than extending one to a new roster;
+     * that is, whether it has the same roster as both source and target. This is the shape of the genesis
+     * construction, and of any construction later created to build a fresh genesis WRAPS proof for the roster
+     * the network already has.
+     *
+     * @param construction the construction
+     * @return whether the construction grounds a chain of trust
+     */
+    public static boolean groundsChainOfTrust(@NonNull final HistoryProofConstruction construction) {
+        requireNonNull(construction);
+        return !Bytes.EMPTY.equals(construction.sourceRosterHash())
+                && construction.sourceRosterHash().equals(construction.targetRosterHash());
+    }
+
+    /**
+     * Returns whether a fresh genesis WRAPS proof is requested for the current roster. It is requested for the
+     * first round after an upgrade when {@link TssConfig#needsFreshGenesisWrapsProof()} is set, so the request
+     * is made exactly once per upgrade and on every node. A fresh genesis proof may move the ledger id, which
+     * downstream verifiers cannot follow once block proofs carry the chain of trust; so it is never requested
+     * once the network is configured to cut over to that, nor once it has done so.
+     *
+     * @param tssConfig the TSS configuration
+     * @param blockStreamConfig the block stream configuration
+     * @param postUpgradeWorkPending whether the post-upgrade work of the current round is still pending
+     * @return whether a fresh genesis WRAPS proof is requested
+     */
+    public static boolean freshGenesisRequested(
+            @NonNull final TssConfig tssConfig,
+            @NonNull final BlockStreamConfig blockStreamConfig,
+            final boolean postUpgradeWorkPending) {
+        requireNonNull(tssConfig);
+        requireNonNull(blockStreamConfig);
+        return postUpgradeWorkPending
+                && tssConfig.wrapsEnabled()
+                && tssConfig.needsFreshGenesisWrapsProof()
+                && !blockStreamConfig.enableCutover()
+                && !usesChainOfTrustProof(tssConfig, blockStreamConfig);
+    }
+
+    /**
+     * Returns whether the given next construction is building a fresh genesis WRAPS proof for the current
+     * roster; that is, whether it grounds a chain of trust but is not yet complete.
+     *
+     * @param nextConstruction the next proof construction
+     * @param tssConfig the TSS configuration
+     * @return whether a fresh genesis proof is in progress
+     */
+    public static boolean freshGenesisInProgress(
+            @NonNull final HistoryProofConstruction nextConstruction, @NonNull final TssConfig tssConfig) {
+        requireNonNull(nextConstruction);
+        requireNonNull(tssConfig);
+        return groundsChainOfTrust(nextConstruction) && !isCompleted(nextConstruction, tssConfig);
+    }
+
+    /**
+     * Returns whether the history service still has work to do before the network can act on a candidate
+     * roster: the active construction has no proof yet, its proof is the wrong kind for the current WRAPS
+     * setting, or a fresh genesis proof has been requested or is still being built. While this holds, the
+     * network stays in the phase that grounds a chain of trust and leaves any candidate roster alone.
+     *
+     * @param activeConstruction the active proof construction
+     * @param nextConstruction the next proof construction
+     * @param tssConfig the TSS configuration
+     * @param freshGenesisRequested whether a fresh genesis proof is requested this round
+     * @return whether the active proof still needs work
+     */
+    public static boolean activeProofNeedsWork(
+            @NonNull final HistoryProofConstruction activeConstruction,
+            @NonNull final HistoryProofConstruction nextConstruction,
+            @NonNull final TssConfig tssConfig,
+            final boolean freshGenesisRequested) {
+        requireNonNull(activeConstruction);
+        requireNonNull(nextConstruction);
+        requireNonNull(tssConfig);
+        if (!activeConstruction.hasTargetProof()) {
+            return true;
+        }
+        return tssConfig.wrapsEnabled() != isWrapsExtensible(activeConstruction.targetProofOrThrow())
+                || freshGenesisRequested
+                || freshGenesisInProgress(nextConstruction, tssConfig);
+    }
+
+    /**
+     * Returns whether the history work of the current round grounds a genesis proof rather than extending the
+     * chain to a new roster. A grounding construction proves the key of the roster it is grounded in, so it
+     * takes the ACTIVE hinTS construction's key rather than the NEXT one's.
+     *
+     * @param activeConstruction the active proof construction
+     * @param nextConstruction the next proof construction
+     * @param ledgerId the ledger id in state, or null if none has been established
+     * @param tssConfig the TSS configuration
+     * @param freshGenesisRequested whether a fresh genesis proof is requested this round
+     * @return whether a genesis proof is being grounded
+     */
+    public static boolean groundsGenesisProof(
+            @NonNull final HistoryProofConstruction activeConstruction,
+            @NonNull final HistoryProofConstruction nextConstruction,
+            @Nullable final Bytes ledgerId,
+            @NonNull final TssConfig tssConfig,
+            final boolean freshGenesisRequested) {
+        requireNonNull(activeConstruction);
+        requireNonNull(nextConstruction);
+        requireNonNull(tssConfig);
+        return ledgerId == null
+                || (tssConfig.wrapsEnabled()
+                        && activeConstruction.hasTargetProof()
+                        && !isWrapsExtensible(activeConstruction.targetProofOrThrow()))
+                || freshGenesisRequested
+                || freshGenesisInProgress(nextConstruction, tssConfig);
+    }
+
+    /**
+     * Returns the ledger id a completed grounding proof establishes, or null if it is the one already in state.
+     * A proof grounded in the same address book anchors at the same hash, so there is no new id to publish.
+     *
+     * @param proof the proof that grounded the chain of trust
+     * @param currentLedgerId the ledger id in state, if any
+     * @return the new ledger id, or null if unchanged
+     */
+    @Nullable
+    public static Bytes reAnchoredLedgerId(@NonNull final HistoryProof proof, @Nullable final Bytes currentLedgerId) {
+        requireNonNull(proof);
+        final var anchor = proof.targetHistoryOrThrow().addressBookHash();
+        return anchor.equals(currentLedgerId) ? null : anchor;
     }
 
     /**
