@@ -58,7 +58,6 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
     public static final ContractID PRNG_CONTRACT_ID = ContractID.newBuilder()
             .contractNum(numberOfLongZero(Address.fromHexString(PRNG_PRECOMPILE_ADDRESS)))
             .build();
-    private long gasRequirement;
 
     @Inject
     public PrngSystemContract(@NonNull final GasCalculator gasCalculator) {
@@ -72,7 +71,7 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
         requireNonNull(frame);
 
         // compute the gas requirement
-        gasRequirement = calculateGas(frame);
+        final long gasRequirement = calculateGas(frame);
 
         try {
             validateTrue(input.size() >= 4, INVALID_TRANSACTION_BODY);
@@ -82,12 +81,12 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
             final var result = PrecompiledContract.PrecompileContractResult.success(randomNum);
 
             // create a child record
-            createSuccessfulRecord(frame, randomNum, contractID);
+            createSuccessfulRecord(frame, randomNum, contractID, gasRequirement);
 
             return new FullResult(result, gasRequirement, null);
         } catch (InvalidTransactionException e) {
             // This error is caused by the user sending in the wrong selector
-            createFailedRecord(frame, e.getResponseCode(), contractID);
+            createFailedRecord(frame, e.getResponseCode(), contractID, gasRequirement);
             return new FullResult(
                     PrecompiledContract.PrecompileContractResult.halt(Bytes.EMPTY, Optional.of(INVALID_OPERATION)),
                     gasRequirement,
@@ -95,7 +94,7 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
         } catch (Exception e) {
             // Log a warning as this error will be caused by insufficient entropy
             log.warn("Internal precompile failure", e);
-            createFailedRecord(frame, FAIL_INVALID, contractID);
+            createFailedRecord(frame, FAIL_INVALID, contractID, gasRequirement);
             return new FullResult(
                     PrecompiledContract.PrecompileContractResult.halt(Bytes.EMPTY, Optional.of(INVALID_OPERATION)),
                     gasRequirement,
@@ -104,13 +103,19 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
     }
 
     void createSuccessfulRecord(
-            @NonNull MessageFrame frame, @NonNull final Bytes randomNum, @NonNull final ContractID contractID) {
+            @NonNull MessageFrame frame,
+            @NonNull final Bytes randomNum,
+            @NonNull final ContractID contractID,
+            final long gasRequirement) {
         if (!frame.isStatic()) {
             requireNonNull(frame);
             requireNonNull(randomNum);
             requireNonNull(contractID);
-            var updater = (ProxyWorldUpdater) frame.getWorldUpdater();
-            final var senderId = ((AbstractProxyEvmAccount) updater.getAccount(frame.getSenderAddress())).hederaId();
+            if (!(frame.getWorldUpdater() instanceof ProxyWorldUpdater updater)
+                    || !(updater.getAccount(frame.getSenderAddress()) instanceof AbstractProxyEvmAccount account)) {
+                throw new InvalidTransactionException("PRNG sender account unavailable", ResponseCodeEnum.FAIL_INVALID);
+            }
+            final var senderId = account.hederaId();
 
             var data = successResultOfZeroValueTraceable(
                     gasRequirement, randomNum, frame.getRemainingGas(), frame.getInputData(), senderId);
@@ -135,13 +140,20 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
     void createFailedRecord(
             @NonNull MessageFrame frame,
             @NonNull final ResponseCodeEnum responseCode,
-            @NonNull final ContractID contractID) {
-        if (!frame.isStatic()) {
-            requireNonNull(frame);
-            requireNonNull(contractID);
-            var updater = (ProxyWorldUpdater) frame.getWorldUpdater();
-
-            final var senderId = ((AbstractProxyEvmAccount) updater.getAccount(frame.getSenderAddress())).hederaId();
+            @NonNull final ContractID contractID,
+            final long gasRequirement) {
+        if (frame.isStatic()) {
+            return;
+        }
+        requireNonNull(frame);
+        requireNonNull(contractID);
+        try {
+            if (!(frame.getWorldUpdater() instanceof ProxyWorldUpdater updater)
+                    || !(updater.getAccount(frame.getSenderAddress()) instanceof AbstractProxyEvmAccount account)) {
+                log.warn("Unable to externalize PRNG failure record: sender account unavailable");
+                return;
+            }
+            final var senderId = account.hederaId();
             final var callData = tuweniToPbjBytes(frame.getInputData());
             final var contractResult = ContractFunctionResult.newBuilder()
                     .gasUsed(gasRequirement)
@@ -171,6 +183,8 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
                 streamBuilder.contractCallResult(contractResult);
             }
             streamBuilder.evmCallTransactionResult(txResult);
+        } catch (Exception e) {
+            log.warn("Failed to externalize PRNG failure record", e);
         }
     }
 
@@ -189,8 +203,14 @@ public class PrngSystemContract extends AbstractFullContract implements HederaSy
                 "Invalid selector for PRNG precompile", ResponseCodeEnum.REVERTED_SUCCESS);
     }
 
-    Bytes random256BitGenerator(final MessageFrame frame) {
-        final var entropy = ((ProxyWorldUpdater) frame.getWorldUpdater()).entropy();
+    Bytes random256BitGenerator(@NonNull final MessageFrame frame) {
+        if (!(frame.getWorldUpdater() instanceof ProxyWorldUpdater updater)) {
+            throw new IllegalStateException("PRNG world updater is not a ProxyWorldUpdater");
+        }
+        final var entropy = updater.entropy();
+        if (entropy == null || entropy.size() < 32) {
+            throw new IllegalStateException("Insufficient entropy to generate a 256-bit pseudorandom value");
+        }
         return entropy.slice(0, 32);
     }
 

@@ -48,7 +48,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.roster.WritableRosterStore;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
@@ -116,9 +116,7 @@ public class RandomSignedStateGenerator {
     public SignedState build() {
         final Roster rosterInstance;
         if (roster == null) {
-            rosterInstance = RandomRosterBuilder.create(random)
-                    .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
-                    .build();
+            rosterInstance = RosterFactory.randomRoster(random, 4, WeightGenerators.BALANCED_1000_PER_NODE);
         } else {
             rosterInstance = roster;
         }

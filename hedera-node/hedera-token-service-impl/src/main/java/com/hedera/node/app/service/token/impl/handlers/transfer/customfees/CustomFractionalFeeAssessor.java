@@ -107,6 +107,10 @@ public class CustomFractionalFeeAssessor {
                 } catch (Exception e) {
                     throw new HandleException(CUSTOM_FEE_OUTSIDE_NUMERIC_RANGE);
                 }
+                // if no debits then nothing to do
+                if (totalDebits == 0) {
+                    continue;
+                }
                 // Assess fee relative to the proportion of total debits that this debit accounted for
                 final var nonNetAssessment = assessNonNetOfTransferForDebit(
                         -initialAdjustment, totalDebits, nonExemptCredits, fractionalFee);

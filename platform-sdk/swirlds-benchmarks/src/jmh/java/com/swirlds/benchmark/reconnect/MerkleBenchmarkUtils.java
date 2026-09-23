@@ -2,33 +2,29 @@
 package com.swirlds.benchmark.reconnect;
 
 import static com.swirlds.benchmark.Utils.printVirtualMap;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.benchmark.BenchmarkMetrics;
-import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowLearningSynchronizer;
-import com.swirlds.benchmark.reconnect.lag.BenchmarkSlowTeachingSynchronizer;
+import com.swirlds.benchmark.reconnect.network.NetworkSimulationConfig;
+import com.swirlds.benchmark.reconnect.network.PairedStreams;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.sync.LearningSynchronizer;
+import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
-import com.swirlds.virtualmap.test.fixtures.sync.PairedStreams;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import org.hiero.base.concurrent.pool.StandardWorkGroup;
 
 /**
  * A utility class to support benchmarks for reconnect.
  */
 public class MerkleBenchmarkUtils {
 
-    public static VirtualMap hashAndTestSynchronization(
+    public static ReconnectBenchmarkResult hashAndTestSynchronization(
             final VirtualMap startingTree,
             final VirtualMap desiredTree,
-            final long randomSeed,
-            final long delayStorageMicroseconds,
-            final double delayStorageFuzzRangePercent,
-            final long delayNetworkMicroseconds,
-            final double delayNetworkFuzzRangePercent,
+            final NetworkSimulationConfig networkConfig,
             final Configuration configuration)
             throws Exception {
         printVirtualMap("Starting Tree", startingTree);
@@ -42,57 +38,25 @@ public class MerkleBenchmarkUtils {
             // calculate hash
             desiredTree.getHash();
         }
-        return testSynchronization(
-                startingTree,
-                desiredTree,
-                randomSeed,
-                delayStorageMicroseconds,
-                delayStorageFuzzRangePercent,
-                delayNetworkMicroseconds,
-                delayNetworkFuzzRangePercent,
-                configuration);
+        return testSynchronization(startingTree, desiredTree, networkConfig, configuration);
     }
 
     /**
      * Synchronize two trees and verify that the end result is the expected result.
      */
-    private static VirtualMap testSynchronization(
+    private static ReconnectBenchmarkResult testSynchronization(
             final VirtualMap startingTree,
             final VirtualMap desiredTree,
-            final long randomSeed,
-            final long delayStorageMicroseconds,
-            final double delayStorageFuzzRangePercent,
-            final long delayNetworkMicroseconds,
-            final double delayNetworkFuzzRangePercent,
+            final NetworkSimulationConfig networkConfig,
             final Configuration configuration)
             throws Exception {
         final Metrics metrics = BenchmarkMetrics.getMetrics();
 
-        try (final PairedStreams streams = new PairedStreams()) {
-            final LearningSynchronizer learner;
-            final TeachingSynchronizer teacher;
-
-            if (delayStorageMicroseconds == 0 && delayNetworkMicroseconds == 0) {
-                learner = new LearningSynchronizer(getStaticThreadManager(), configuration, metrics);
-                teacher = new TeachingSynchronizer(desiredTree, getStaticThreadManager(), configuration);
-            } else {
-                learner = new BenchmarkSlowLearningSynchronizer(
-                        configuration,
-                        metrics,
-                        randomSeed,
-                        delayStorageMicroseconds,
-                        delayStorageFuzzRangePercent,
-                        delayNetworkMicroseconds,
-                        delayNetworkFuzzRangePercent);
-                teacher = new BenchmarkSlowTeachingSynchronizer(
-                        desiredTree,
-                        configuration,
-                        randomSeed,
-                        delayStorageMicroseconds,
-                        delayStorageFuzzRangePercent,
-                        delayNetworkMicroseconds,
-                        delayNetworkFuzzRangePercent);
-            }
+        try (final PairedStreams streams = new PairedStreams(networkConfig)) {
+            final LearningSynchronizer learner =
+                    new LearningSynchronizer(getStaticThreadManager(), configuration, metrics);
+            final TeachingSynchronizer teacher =
+                    new TeachingSynchronizer(desiredTree, getStaticThreadManager(), configuration);
 
             final AtomicReference<VirtualMap> syncMapContainer = new AtomicReference<>();
 
@@ -103,12 +67,16 @@ public class MerkleBenchmarkUtils {
                         "learning-synchronizer-main",
                         () -> learningSynchronizerThread(streams, startingTree, learner, syncMapContainer));
                 workGroup.join();
-            } catch (InterruptedException e) {
+            } catch (final InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new RuntimeException(e);
+                throw new MerkleSynchronizationException("Reconnect benchmark was interrupted", e);
             }
 
-            return syncMapContainer.get();
+            return new ReconnectBenchmarkResult(
+                    syncMapContainer.get(),
+                    ReconnectMapStatsSnapshot.from(metrics),
+                    streams.getTeacherToLearnerStats(),
+                    streams.getLearnerToTeacherStats());
         }
     }
 
@@ -117,6 +85,7 @@ public class MerkleBenchmarkUtils {
             teacher.synchronize(streams.getTeacherInput(), streams.getTeacherOutput(), streams::disconnect);
         } catch (final InterruptedException ex) {
             Thread.currentThread().interrupt();
+            throw new MerkleSynchronizationException("Teacher synchronization was interrupted", ex);
         }
     }
 
@@ -130,6 +99,7 @@ public class MerkleBenchmarkUtils {
                     startingTree, streams.getLearnerInput(), streams.getLearnerOutput(), streams::disconnect));
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
+            throw new MerkleSynchronizationException("Learner synchronization was interrupted", e);
         }
     }
 }

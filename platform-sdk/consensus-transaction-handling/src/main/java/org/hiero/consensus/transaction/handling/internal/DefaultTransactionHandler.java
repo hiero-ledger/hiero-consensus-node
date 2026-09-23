@@ -21,7 +21,6 @@ import static org.hiero.consensus.transaction.handling.internal.TransactionHandl
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
@@ -34,7 +33,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -54,10 +52,11 @@ import org.hiero.consensus.platformstate.PlatformStateModifier;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
-import org.hiero.consensus.status.StatusActionSubmitter;
-import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
+import org.hiero.consensus.status.monitor.actions.FreezePeriodEnteredAction;
 import org.hiero.consensus.transaction.handling.TransactionCallbacks;
 import org.hiero.consensus.transaction.handling.config.TransactionHandlingWiringConfig;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerType;
 
 /**
  * A standard implementation of {@link TransactionHandler}.
@@ -95,7 +94,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
     /**
      * Enables submitting platform status actions.
      */
-    private final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference;
+    private final StatusMonitorModule statusMonitorModule;
 
     private final SemanticVersion softwareVersion;
 
@@ -141,7 +140,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * @param configuration the configuration data
      * @param metrics the metrics system
      * @param stateLifecycleManager the swirld state manager to send events to
-     * @param statusActionSubmitterReference enables submitting of platform status actions
+     * @param statusMonitorModule enables submitting of platform status actions
      * @param softwareVersion the current version of the software
      */
     public DefaultTransactionHandler(
@@ -149,7 +148,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
-            @NonNull final AtomicReference<StatusActionSubmitter> statusActionSubmitterReference,
+            @NonNull final StatusMonitorModule statusMonitorModule,
             @NonNull final SemanticVersion softwareVersion,
             @NonNull final TransactionCallbacks transactionCallbacks,
             @NonNull final NodeId selfId,
@@ -157,7 +156,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
         this.configuration = requireNonNull(configuration);
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
-        this.statusActionSubmitterReference = requireNonNull(statusActionSubmitterReference);
+        this.statusMonitorModule = requireNonNull(statusMonitorModule);
         this.softwareVersion = requireNonNull(softwareVersion);
         this.transactionCallbacks = requireNonNull(transactionCallbacks);
         this.selfId = requireNonNull(selfId);
@@ -217,9 +216,9 @@ public class DefaultTransactionHandler implements TransactionHandler {
         }
 
         if (isInFreezePeriod(consensusRound.getConsensusTimestamp(), stateLifecycleManager.getMutableState())) {
-            statusActionSubmitterReference
-                    .get()
-                    .submitStatusAction(new FreezePeriodEnteredAction(consensusRound.getRoundNum()));
+            statusMonitorModule
+                    .platformStatusActionInputWire()
+                    .put(new FreezePeriodEnteredAction(consensusRound.getRoundNum()));
             freezeRoundReceived = true;
             logger.info(
                     STARTUP.getMarker(),

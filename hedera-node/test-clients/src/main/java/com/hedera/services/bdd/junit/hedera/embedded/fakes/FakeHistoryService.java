@@ -26,7 +26,7 @@ import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.SortedMap;
 import java.util.function.Supplier;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 
 public class FakeHistoryService implements HistoryService {
     private final HistoryService delegate;
@@ -55,8 +55,17 @@ public class FakeHistoryService implements HistoryService {
             @NonNull final Instant now,
             @NonNull final TssConfig tssConfig,
             final boolean isActive,
-            @Nullable final HintsConstruction activeConstruction) {
-        delegate.reconcile(activeRosters, currentMetadata, historyStore, now, tssConfig, isActive, activeConstruction);
+            @Nullable final HintsConstruction activeConstruction,
+            final boolean freshGenesisRequested) {
+        delegate.reconcile(
+                activeRosters,
+                currentMetadata,
+                historyStore,
+                now,
+                tssConfig,
+                isActive,
+                activeConstruction,
+                freshGenesisRequested);
     }
 
     @NonNull
@@ -89,6 +98,11 @@ public class FakeHistoryService implements HistoryService {
     @Override
     public void setLatestHistoryProof(@NonNull HistoryProof historyProof) {
         delegate.setLatestHistoryProof(historyProof);
+    }
+
+    @Override
+    public void stop() {
+        delegate.stop();
     }
 
     @Override

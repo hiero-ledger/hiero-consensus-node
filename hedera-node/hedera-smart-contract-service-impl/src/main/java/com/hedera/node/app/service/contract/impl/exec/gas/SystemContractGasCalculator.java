@@ -146,7 +146,7 @@ public class SystemContractGasCalculator {
      * Estimates the gas requirement for a view operation.
      * The minimum gas requirement is 100 gas.
      * For all view operations, the gas requirement is determined using the canonical gas value
-     * for the TOKEN_INFO dispatch type, as specified in the canonical-prices.json.
+     * for the TOKEN_INFO dispatch type, as specified in the simple fees schedule.
      * The TOKEN_INFO operation is representative of view operations.
      *
      * @return the gas requirement for a view operation

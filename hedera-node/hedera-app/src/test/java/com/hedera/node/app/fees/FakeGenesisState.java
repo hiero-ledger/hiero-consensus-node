@@ -76,7 +76,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -195,7 +195,7 @@ public class FakeGenesisState {
                                     (long) i == accountsConfig.treasury() ? ledgerConfig.totalTinyBarFloat() : 0L)
                             .build());
         }
-        for (final long num : List.of(800L, 801L)) {
+        for (final long num : List.of(800L, 801L, 803L)) {
             final var accountId = AccountID.newBuilder().accountNum(num).build();
             accounts.put(
                     accountId,
@@ -239,7 +239,6 @@ public class FakeGenesisState {
         return Map.of(
                 filesConfig.addressBook(), ignore -> genesisSchema.nodeStoreAddressBook(nodeStore),
                 filesConfig.nodeDetails(), ignore -> genesisSchema.nodeStoreNodeDetails(nodeStore),
-                filesConfig.feeSchedules(), genesisSchema::genesisFeeSchedules,
                 filesConfig.simpleFeesSchedules(), genesisSchema::genesisSimpleFeesSchedules,
                 filesConfig.exchangeRates(), genesisSchema::genesisExchangeRatesBytes,
                 filesConfig.networkProperties(), genesisSchema::genesisNetworkProperties,

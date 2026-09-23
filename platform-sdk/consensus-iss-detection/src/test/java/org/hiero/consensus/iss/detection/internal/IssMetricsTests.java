@@ -10,10 +10,10 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import java.util.Random;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,8 +25,7 @@ class IssMetricsTests {
     @DisplayName("Update Non-Existent Node")
     void updateNonExistentNode() {
         final Randotron randotron = Randotron.create();
-        final Roster roster =
-                RandomRosterBuilder.create(randotron).withSize(100).build();
+        final Roster roster = RosterFactory.randomRoster(randotron, 100);
         final IssMetrics issMetrics = new IssMetrics(new NoOpMetrics(), roster);
         final Hash hashA = randomHash();
         final Hash hashB = randomHash();
@@ -46,7 +45,7 @@ class IssMetricsTests {
         final Hash hashA = randomHash(random);
         final Hash hashB = randomHash(random);
 
-        final Roster roster = RandomRosterBuilder.create(random).withSize(100).build();
+        final Roster roster = RosterFactory.randomRoster(random, 100);
 
         final IssMetrics issMetrics = new IssMetrics(new NoOpMetrics(), roster);
 

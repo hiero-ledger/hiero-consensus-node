@@ -11,9 +11,9 @@ The API half of the event-intake module pair. For how intake works, see the
 ## Dependency Rules
 
 May depend on:
-- `consensus-model`, `consensus-metrics`, `consensus-roster`, `consensus-utility`
+- `consensus-model`, `consensus-metrics`, `consensus-utility`
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
-`swirlds-component-framework`
+`consensus-wiring-framework`
 
 Must not depend on:
 - Other functional-api modules

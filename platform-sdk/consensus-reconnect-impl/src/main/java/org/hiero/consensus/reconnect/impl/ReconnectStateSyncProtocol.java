@@ -12,7 +12,7 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.base.concurrent.manager.ThreadManager;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
 import org.hiero.consensus.model.node.NodeId;

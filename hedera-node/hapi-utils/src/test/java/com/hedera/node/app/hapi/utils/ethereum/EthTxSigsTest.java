@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.ethereum;
 
-import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.node.app.hapi.utils.ethereum.CodeDelegationTest.fillBytes;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType.LEGACY_ETHEREUM;
 import static com.hedera.node.app.hapi.utils.ethereum.TestingConstants.CHAINID_TESTNET;
@@ -27,7 +26,6 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.SplittableRandom;
 import org.hiero.base.utility.CommonUtils;
-import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -146,10 +144,11 @@ class EthTxSigsTest {
     @Test
     void extractsAddress() {
         // good recovery
-        Assertions.assertArrayEquals(TRUFFLE0_ADDRESS, recoverAddressFromPubKey(TRUFFLE0_PUBLIC_ECDSA_KEY));
+        Assertions.assertArrayEquals(
+                TRUFFLE0_ADDRESS, EthSigsUtils.recoverAddressFromPubKey(TRUFFLE0_PUBLIC_ECDSA_KEY));
 
         // failed recovery
-        assertArrayEquals(new byte[0], recoverAddressFromPubKey(TRUFFLE0_PRIVATE_ECDSA_KEY));
+        assertArrayEquals(new byte[0], EthSigsUtils.recoverAddressFromPubKey(TRUFFLE0_PRIVATE_ECDSA_KEY));
     }
 
     @Test
@@ -308,7 +307,7 @@ class EthTxSigsTest {
         Mockito.when(codeDelegation.s()).thenReturn(s);
         Mockito.when(codeDelegation.calculateSignableMessage()).thenReturn(message);
 
-        final LibSecp256k1.secp256k1_pubkey fakePubKey = Mockito.mock(LibSecp256k1.secp256k1_pubkey.class);
+        final byte[] fakePubKey = new byte[0];
 
         try (MockedStatic<EthTxSigs> sigsMock = Mockito.mockStatic(EthTxSigs.class);
                 MockedStatic<EthSigsUtils> addrMock = Mockito.mockStatic(EthSigsUtils.class)) {
@@ -321,11 +320,10 @@ class EthTxSigsTest {
                             Mockito.any(byte[].class)))
                     .thenReturn(fakePubKey);
 
-            sigsMock.when(() ->
-                            EthTxSigs.serializeIntoCompressedKeyBytes(Mockito.any(LibSecp256k1.secp256k1_pubkey.class)))
+            sigsMock.when(() -> EthTxSigs.serializeIntoCompressedKeyBytes(Mockito.any(byte[].class)))
                     .thenReturn(expectedCompressedKey);
 
-            addrMock.when(() -> EthSigsUtils.recoverAddressFromPubKey(Mockito.any(LibSecp256k1.secp256k1_pubkey.class)))
+            addrMock.when(() -> EthSigsUtils.recoverAddressFromParsedPubKey(Mockito.any(byte[].class)))
                     .thenReturn(expectedAddress);
 
             sigsMock.when(() -> EthTxSigs.extractAuthoritySignature(codeDelegation))
@@ -337,9 +335,77 @@ class EthTxSigsTest {
         }
     }
 
+    @Test
+    void rejectsHighSValueJustAboveHalfOrder() {
+        // s = (N >> 1) + 1 is malleable and must be rejected per EIP-2
+        final var r = to32Bytes(BigInteger.ONE);
+        final var s = to32Bytes(HALF_N.add(BigInteger.ONE));
+        final var tx = txWithRS(r, s);
+
+        assertThrows(IllegalArgumentException.class, () -> EthTxSigs.extractSignatures(tx));
+    }
+
+    @Test
+    void rejectsSNearCurveOrder() {
+        // s just below N is well above the half-order boundary and must be rejected
+        final var r = to32Bytes(BigInteger.ONE);
+        final var s = to32Bytes(SECP256K1_N.subtract(BigInteger.ONE));
+        final var tx = txWithRS(r, s);
+
+        assertThrows(IllegalArgumentException.class, () -> EthTxSigs.extractSignatures(tx));
+    }
+
+    @Test
+    void rejectsZeroSValue() {
+        // s below the lower bound of 1 must be rejected
+        final var r = to32Bytes(BigInteger.ONE);
+        final var s = new byte[32];
+        final var tx = txWithRS(r, s);
+
+        assertThrows(IllegalArgumentException.class, () -> EthTxSigs.extractSignatures(tx));
+    }
+
     private static final Object[] authListAsObject = new Object[] {
         new Object[] {
             fillBytes(2, 0x01), fillBytes(20, 0x22), new byte[0], new byte[0], fillBytes(32, 0x33), fillBytes(32, 0x44)
         }
     };
+
+    // secp256k1 curve order N and its lower-half boundary (N >> 1) per EIP-2.
+    private static final BigInteger SECP256K1_N =
+            new BigInteger("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141", 16);
+    private static final BigInteger HALF_N = SECP256K1_N.shiftRight(1);
+
+    private static byte[] to32Bytes(final BigInteger value) {
+        final byte[] unsigned = value.toByteArray();
+        final byte[] result = new byte[32];
+        // Drop a potential leading sign byte and right-align into a fixed 32-byte buffer.
+        final int start = Math.max(0, unsigned.length - 32);
+        final int len = unsigned.length - start;
+        System.arraycopy(unsigned, start, result, 32 - len, len);
+        return result;
+    }
+
+    private static EthTxData txWithRS(final byte[] r, final byte[] s) {
+        return new EthTxData(
+                null,
+                LEGACY_ETHEREUM,
+                CHAINID_TESTNET,
+                1,
+                TINYBARS_57_IN_WEIBARS,
+                TINYBARS_2_IN_WEIBARS,
+                TINYBARS_57_IN_WEIBARS,
+                1_000_000L,
+                TRUFFLE1_ADDRESS,
+                BigInteger.ZERO,
+                ZERO_BYTES,
+                ZERO_BYTES,
+                null,
+                null,
+                null,
+                1,
+                new byte[0],
+                r,
+                s);
+    }
 }

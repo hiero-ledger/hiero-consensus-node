@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.iss.detection.config;
 
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.config.api.ConfigurationExtension;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 
 /**
  * Registers configuration types for the ISS detection module.

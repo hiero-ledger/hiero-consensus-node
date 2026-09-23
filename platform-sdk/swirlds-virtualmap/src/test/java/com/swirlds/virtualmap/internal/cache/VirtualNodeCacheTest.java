@@ -4,7 +4,6 @@ package com.swirlds.virtualmap.internal.cache;
 import static com.swirlds.virtualmap.internal.cache.VirtualNodeCache.DELETED_LEAF_RECORD;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.*;
 import static java.util.Arrays.asList;
-import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -38,22 +37,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.exceptions.ReferenceCountException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -617,7 +610,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Lifecycle")})
     @DisplayName("A fresh cache is mutable for leaves but immutable for hashes")
     void freshCacheIsMutableForLeaves() {
-        assertFalse(cache.isImmutable(), "Cache was just instantiated");
+        assertFalse(cache.isImmutableForLeafChanges(), "Cache was just instantiated");
         assertFalse(cache.isDestroyed(), "Cache was just instantiated");
         final VirtualHashChunk virtualHashChunk = new VirtualHashChunk(0, HASH_CHUNK_HEIGHT);
         assertThrows(
@@ -638,8 +631,8 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         nextRound();
 
         final VirtualNodeCache latest = cache;
-        assertTrue(original.isImmutable(), "After a round, a copy is created");
-        assertFalse(latest.isImmutable(), "The latest cache is mutable");
+        assertTrue(original.isImmutableForLeafChanges(), "After a round, a copy is created");
+        assertFalse(latest.isImmutableForLeafChanges(), "The latest cache is mutable");
         assertThrows(
                 MutabilityException.class,
                 () -> original.putLeaf(appleLeaf(A_PATH)),
@@ -874,7 +867,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     void canReleaseOnlyCacheEvenIfNeverCopied() {
         cache.release();
         assertTrue(cache.isDestroyed(), "cache should be destroyed");
-        assertTrue(cache.isImmutable(), "cache should be immutable");
+        assertTrue(cache.isImmutableForLeafChanges(), "cache should be immutable");
     }
 
     /**
@@ -925,7 +918,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
     @DisplayName("Release cannot be called twice")
     void releaseCannotBeCalledTwice() {
         cache.release();
-        assertThrows(ReferenceCountException.class, cache::release, "second release should fail");
+        assertThrows(IllegalStateException.class, cache::release, "second release should fail");
     }
 
     /**
@@ -1353,125 +1346,6 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         });
     }
 
-    /**
-     * This test attempts to perform merges and releases in parallel. In the implementation we have
-     * to be careful of this situation (which can happen in the real world) because we do some
-     * bookkeeping of "next" and "previous" references, and both merging and releasing will play
-     * havoc on that if they are concurrent.
-     */
-    @Test
-    @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Lifecycle")})
-    @DisplayName("Concurrently merge and release different caches")
-    void concurrentReleasesAndMerges() {
-        // This pseudo-random is used to generate some percent chance of put vs. delete mutations.
-        // This isn't really necessary, just adds a little more complexity to the test.
-        final Random random = new Random(1234);
-        // Used by all three threads to know when to stop
-        final AtomicBoolean stop = new AtomicBoolean(false);
-        // Keeps track of which round we're on. I use this for generating the values for leaves, so that
-        // each round has a unique value. Might not be needed, but is helpful in debugging.
-        final AtomicInteger round = new AtomicInteger(0);
-        // Keeps track of all caches, so I know which one to release and which to merge.
-        final ConcurrentLinkedDeque<VirtualNodeCache> caches = new ConcurrentLinkedDeque<>();
-
-        // I will have one thread that produces new caches as quickly as possible.
-        // It will randomly put and delete leaves.
-        final AtomicReference<Throwable> creatorThreadException = new AtomicReference<>();
-        final Thread creatorThread = new Thread(() -> {
-            while (!stop.get()) {
-                final int r = round.getAndIncrement();
-                // Create 100 mutations
-                for (int i = 0; i < 100; i++) {
-                    final int id = random.nextInt(10000);
-                    final int chance = random.nextInt(100);
-                    // Give a 90% chance of a put
-                    if (chance <= 90) {
-                        cache.putLeaf(new VirtualLeafBytes<>(
-                                id, TestKey.longToKey(id), new TestValue(r + ":" + id), TestValueCodec.INSTANCE));
-                    } else {
-                        cache.deleteLeaf(new VirtualLeafBytes<>(id, TestKey.longToKey(id), null, null));
-                    }
-                }
-                final VirtualNodeCache done = cache;
-                nextRound();
-                done.seal();
-                caches.addLast(done);
-            }
-        });
-        creatorThread.setDaemon(true);
-        creatorThread.setUncaughtExceptionHandler((t, e) -> creatorThreadException.set(e));
-        creatorThread.start();
-
-        // I will have another thread that performs releases. Every 100us it will attempt to release a cache
-        final AtomicReference<VirtualNodeCache> toRelease = new AtomicReference<>();
-        final AtomicReference<Throwable> releaseThreadException = new AtomicReference<>();
-        final Thread releaseThread = new Thread(() -> {
-            long startNanos = System.nanoTime();
-            while (!stop.get()) {
-                final long currentNanos = System.nanoTime();
-                if (currentNanos - startNanos >= 100_000) {
-                    final VirtualNodeCache cache = toRelease.getAndSet(null);
-                    if (cache != null) {
-                        cache.release();
-                    }
-                    startNanos = currentNanos;
-                }
-            }
-        });
-        releaseThread.setDaemon(true);
-        releaseThread.setUncaughtExceptionHandler((t, e) -> releaseThreadException.set(e));
-        releaseThread.start();
-
-        // I will have a final thread that performs merges as fast as it can. This increases the likelihood
-        // of a race with the release thread.
-        final AtomicReference<Throwable> mergingThreadException = new AtomicReference<>();
-        final Thread mergingThread = new Thread(() -> {
-            while (!stop.get()) {
-                final Iterator<VirtualNodeCache> itr = caches.iterator();
-                if (itr.hasNext()) {
-                    final VirtualNodeCache toMerge = itr.next();
-                    if (itr.hasNext()) {
-                        itr.remove(); // get rid of "toMerge". It is to be merged into the next.
-                        toMerge.merge();
-                        final VirtualNodeCache merged = itr.next();
-                        if (toRelease.compareAndSet(null, merged)) {
-                            itr.remove();
-                        }
-                    }
-                }
-            }
-        });
-        mergingThread.setDaemon(true);
-        mergingThread.setUncaughtExceptionHandler((t, e) -> mergingThreadException.set(e));
-        mergingThread.start();
-
-        // We'll run the test for 1 second. That should have produced 100,000 releases. A pretty good
-        // chance of a race condition happening.
-        final long start = System.currentTimeMillis();
-        long time = start;
-        while (time < start + 1000) {
-            try {
-                MILLISECONDS.sleep(20);
-            } catch (final InterruptedException ignored) {
-            }
-            time = System.currentTimeMillis();
-        }
-
-        stop.set(true);
-
-        if (creatorThreadException.get() != null) {
-            fail("exception in creator thread", creatorThreadException.get());
-        }
-
-        if (releaseThreadException.get() != null) {
-            fail("exception in release thread", releaseThreadException.get());
-        }
-
-        if (mergingThreadException.get() != null) {
-            fail("exception in merging thread", mergingThreadException.get());
-        }
-    }
-
     // ----------------------------------------------------------------------
     // Tests for hashes
     // ----------------------------------------------------------------------
@@ -1889,126 +1763,6 @@ class VirtualNodeCacheTest extends VirtualTestBase {
                 "method shouldn't work on immutable cache");
     }
 
-    @Test
-    @Tags({@Tag("VirtualMerkle"), @Tag("VirtualNodeCache"), @Tag("Leaf")})
-    @DisplayName("deletedLeaves()")
-    void deletedLeaves() {
-        // CREATED followed by UPDATED, UPDATED+DELETED, DELETED
-        // CREATED+UPDATED followed by UPDATED, UPDATED+DELETED, DELETED
-        // UPDATED followed by UPDATED, UPDATED+DELETED, DELETED
-        // DELETED followed by CREATED, CREATED+UPDATED, CREATED+DELETED, CREATED+UPDATED+DELETED, DELETED (nop)
-
-        // Create the following chain of mutations:
-        // A: [D, v2] -> [U+D (AARDVARK), v1] -> [C (APPLE), v0]
-        // B: [D, v3] -> [C+U (BEAR, BLASTOFF), v2] -> [D, v1] -> [C (BANANA), v0]
-        // C: [C+U+D (CHEMISTRY, CHAD), v3] -> [D, v2] -> [U (COMET), v1] -> [C+U (CHERRY, CUTTLEFISH), v0]
-        // D: [C+U (DISCIPLINE, DENMARK), v2] -> [U+D (DRACO), v1] -> [C+U (DATE, DOG), v0]
-        // E: [C+U (EXOPLANET, ECOLOGY), v3] -> [D, v2] -> [C+U (EGGPLANT, EMU), v0]
-        // F: [C (FORCE), v3] -> [D, v2] -> [U (FOX), v1] -> [C (FIG), v0]
-        // G: [U (GRAVITY), v3] -> [U (GOOSE), v2] -> [C (GRAPE), v1]
-
-        final VirtualMap map0 = createMap();
-        final VirtualNodeCache cache0 = map0.getCache();
-        // A: [C (APPLE), v0]
-        // B: [C (BANANA), v0]
-        // C: [C+U (CHERRY, CUTTLEFISH), v0]
-        // D: [C+U (DATE, DOG), v0]
-        // E: [C+U (EGGPLANT, EMU), v0]
-        // F: [C (FIG), v0]
-        map0.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
-        map0.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
-        map0.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
-        map0.put(C_KEY, CUTTLEFISH, TestValueCodec.INSTANCE);
-        map0.put(D_KEY, DATE, TestValueCodec.INSTANCE);
-        map0.put(D_KEY, DOG, TestValueCodec.INSTANCE);
-        map0.put(E_KEY, EGGPLANT, TestValueCodec.INSTANCE);
-        map0.put(E_KEY, EMU, TestValueCodec.INSTANCE);
-        map0.put(F_KEY, FIG, TestValueCodec.INSTANCE);
-
-        final VirtualMap map1 = map0.copy();
-        final VirtualNodeCache cache1 = map1.getCache();
-
-        // A: [U+D (AARDVARK), v1]
-        // B: [D, v1]
-        // C: [U (COMET), v1]
-        // D: [U+D (DRACO), v1]
-        // F: [U (FOX), v1]
-        // G: [C (GRAPE), v1]
-        map1.put(A_KEY, AARDVARK, TestValueCodec.INSTANCE);
-        map1.remove(A_KEY);
-        map1.remove(B_KEY);
-        map1.put(C_KEY, COMET, TestValueCodec.INSTANCE);
-        map1.put(D_KEY, DRACO, TestValueCodec.INSTANCE);
-        map1.remove(D_KEY);
-        map1.put(F_KEY, FOX, TestValueCodec.INSTANCE);
-        map1.put(G_KEY, GRAPE, TestValueCodec.INSTANCE);
-
-        final VirtualMap map2 = map1.copy();
-        final VirtualNodeCache cache2 = map2.getCache();
-
-        // A: [D, v2]
-        // B: [C+U (BEAR, BLASTOFF), v2]
-        // C: [D, v2]
-        // D: [C+U (DISCIPLINE, DENMARK), v2]
-        // E: [D, v2]
-        // F: [D, v2]
-        // G: [U (GOOSE), v2]
-        map2.remove(A_KEY, TestValueCodec.INSTANCE);
-        map2.put(B_KEY, BEAR, TestValueCodec.INSTANCE);
-        map2.put(B_KEY, BLASTOFF, TestValueCodec.INSTANCE);
-        map2.remove(C_KEY);
-        map2.put(D_KEY, DISCIPLINE, TestValueCodec.INSTANCE);
-        map2.put(D_KEY, DENMARK, TestValueCodec.INSTANCE);
-        map2.remove(E_KEY);
-        map2.remove(F_KEY);
-        map2.put(G_KEY, GOOSE, TestValueCodec.INSTANCE);
-
-        final VirtualMap map3 = map2.copy();
-        final VirtualNodeCache cache3 = map3.getCache();
-
-        // B: [D, v3]
-        // C: [C+U+D (CHEMISTRY, CHAD), v3]
-        // E: [C+U (EXOPLANET, ECOLOGY), v3]
-        // F: [C (FORCE), v3]
-        // G: [U (GRAVITY), v3]
-        map3.remove(B_KEY);
-        map3.put(C_KEY, CHEMISTRY, TestValueCodec.INSTANCE);
-        map3.put(C_KEY, CHAD, TestValueCodec.INSTANCE);
-        map3.remove(C_KEY);
-        map3.put(E_KEY, EXOPLANET, TestValueCodec.INSTANCE);
-        map3.put(E_KEY, ECOLOGY, TestValueCodec.INSTANCE);
-        map3.put(F_KEY, FORCE, TestValueCodec.INSTANCE);
-        map3.put(G_KEY, GRAVITY, TestValueCodec.INSTANCE);
-
-        // One last copy, so we can get the dirty leaves without an exception
-        final VirtualMap map4 = map3.copy();
-
-        final List<VirtualLeafBytes> deletedLeaves0 = cache0.deletedLeaves().toList();
-        assertEquals(0, deletedLeaves0.size(), "No deleted leaves in cache0");
-
-        cache0.seal();
-        cache1.seal();
-        cache0.merge();
-        validateDeletedLeaves(
-                cache1.deletedLeaves().collect(Collectors.toList()), Set.of(A_KEY, B_KEY, D_KEY), "cache1");
-
-        cache2.seal();
-        cache1.merge();
-        validateDeletedLeaves(
-                cache2.deletedLeaves().collect(Collectors.toList()), Set.of(A_KEY, C_KEY, E_KEY, F_KEY), "cache2");
-
-        cache3.seal();
-        cache2.merge();
-        validateDeletedLeaves(
-                cache3.deletedLeaves().collect(Collectors.toList()), Set.of(A_KEY, B_KEY, C_KEY), "cache3");
-
-        map0.release();
-        map1.release();
-        map2.release();
-        map3.release();
-        map4.release();
-    }
-
     /**
      * Tests that snapshots contain all the right mutations, and none of the wrong ones.
      * This test will create a series of caches (cache0, cache1, cache2). Each cache will
@@ -2028,7 +1782,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
 
         // Release the older caches
         caches.forEach(cacheInfo -> {
-            if (cacheInfo.cache.isImmutable()) {
+            if (cacheInfo.cache.isImmutableForLeafChanges()) {
                 cacheInfo.cache.release();
             }
         });
@@ -3036,20 +2790,6 @@ class VirtualNodeCacheTest extends VirtualTestBase {
             return new Hash(md.digest(), Cryptography.DEFAULT_DIGEST_TYPE);
         } catch (final NoSuchAlgorithmException e) {
             throw new CryptographyException(e);
-        }
-    }
-
-    private void validateDeletedLeaves(
-            final List<VirtualLeafBytes> deletedLeaves, final Set<Bytes> expectedKeys, final String name) {
-
-        assertEquals(expectedKeys.size(), deletedLeaves.size(), "Not enough deleted leaves in " + name);
-
-        final Set<Bytes> keys =
-                deletedLeaves.stream().map(VirtualLeafBytes::keyBytes).collect(Collectors.toSet());
-        assertEquals(deletedLeaves.size(), keys.size(), "Two records with the same key exist in " + name);
-
-        for (final var rec : deletedLeaves) {
-            assertTrue(keys.remove(rec.keyBytes()), "A record does not have the expected key in " + name);
         }
     }
 

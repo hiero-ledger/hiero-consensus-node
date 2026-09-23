@@ -9,8 +9,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
-import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -18,7 +16,7 @@ import java.util.List;
 import java.util.Set;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
@@ -38,10 +36,7 @@ public class EarlySignaturesTest extends AbstractStateSignatureCollectorTest {
 
     private final int roundAgeToSign = 3;
 
-    private final Roster roster = RandomRosterBuilder.create(random)
-            .withSize(4)
-            .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
-            .build();
+    private final Roster roster = RosterFactory.randomRoster(random, 4, WeightGenerators.BALANCED_1000_PER_NODE);
 
     /**
      * Called on each state as it gets too old without collecting enough signatures.

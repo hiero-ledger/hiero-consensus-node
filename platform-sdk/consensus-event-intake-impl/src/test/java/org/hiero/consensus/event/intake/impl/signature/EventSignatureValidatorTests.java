@@ -2,6 +2,8 @@
 package org.hiero.consensus.event.intake.impl.signature;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.createRosterWrapper;
+import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperHistoryFactory.createRosterWrapperHistory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -9,30 +11,25 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.metrics.api.Metrics;
 import java.security.cert.CertificateEncodingException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import org.hiero.base.crypto.SignatureVerifier;
 import org.hiero.consensus.event.IntakeEventCounter;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
-import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,7 +60,7 @@ class EventSignatureValidatorTests {
     private EventSignatureValidator validatorWithTrueVerifier;
     private EventSignatureValidator validatorWithFalseVerifier;
 
-    private RosterHistory rosterHistory;
+    private RosterWrapperHistory rosterHistory;
 
     /**
      * Generate a mock RosterEntry, with enough elements mocked to support the signature validation.
@@ -78,7 +75,7 @@ class EventSignatureValidatorTests {
                     10,
                     Bytes.wrap(PreGeneratedX509Certs.getSigCert(nodeId.id()).getEncoded()),
                     List.of());
-        } catch (CertificateEncodingException e) {
+        } catch (final CertificateEncodingException e) {
             throw new RuntimeException(e);
         }
     }
@@ -109,26 +106,15 @@ class EventSignatureValidatorTests {
                 new DefaultEventSignatureValidator(metrics, time, falseVerifier, rosterHistory, intakeEventCounter);
     }
 
-    public RosterHistory buildRosterHistory(
-            final long previousRound, final long round, Function<NodeId, RosterEntry> rosterEntryGenerator) {
-        final List<RoundRosterPair> roundRosterPairList = new ArrayList<>();
-        final Map<Bytes, Roster> rosterMap = new HashMap<>();
-
+    public RosterWrapperHistory buildRosterHistory(
+            final long previousRound, final long round, final Function<NodeId, RosterEntry> rosterEntryGenerator) {
         final RosterEntry previousNodeRosterEntry = rosterEntryGenerator.apply(PREVIOUS_ROSTER_NODE_ID);
         final RosterEntry currentNodeRosterEntry = rosterEntryGenerator.apply(CURRENT_ROSTER_NODE_ID);
 
-        final Roster previousRoster = new Roster(List.of(previousNodeRosterEntry));
-        final Roster currentRoster = new Roster(List.of(currentNodeRosterEntry));
+        final RosterWrapper previousRoster = createRosterWrapper(previousNodeRosterEntry);
+        final RosterWrapper currentRoster = createRosterWrapper(currentNodeRosterEntry);
 
-        final Bytes currentHash = RosterUtils.hash(currentRoster).getBytes();
-        roundRosterPairList.add(new RoundRosterPair(round, currentHash));
-        rosterMap.put(currentHash, currentRoster);
-
-        final Bytes previousHash = RosterUtils.hash(previousRoster).getBytes();
-        roundRosterPairList.add(new RoundRosterPair(previousRound, previousHash));
-        rosterMap.put(previousHash, previousRoster);
-
-        return new RosterHistory(roundRosterPairList, rosterMap);
+        return createRosterWrapperHistory(round, currentRoster, previousRound, previousRoster);
     }
 
     @Test
@@ -165,9 +151,10 @@ class EventSignatureValidatorTests {
 
         final Function<NodeId, RosterEntry> generateMockRosterEntry =
                 id -> new RosterEntry(id.id(), 10, null, List.of());
-        RosterHistory rh = buildRosterHistory(PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND, generateMockRosterEntry);
+        final RosterWrapperHistory rh =
+                buildRosterHistory(PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND, generateMockRosterEntry);
 
-        EventSignatureValidator validator =
+        final EventSignatureValidator validator =
                 new DefaultEventSignatureValidator(metrics, time, trueVerifier, rh, intakeEventCounter);
 
         final NodeId nodeId = NodeId.of(88);

@@ -33,6 +33,7 @@ import java.security.PrivateKey;
 import java.security.Provider;
 import java.security.SecureRandom;
 import java.util.Set;
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openssl.PKCS8Generator;
 import org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter;
@@ -62,6 +63,7 @@ public final class KeyUtils {
     private static final Set<PosixFilePermission> PRIVATE_KEY_PERMISSIONS =
             PosixFilePermissions.fromString("rw-------");
     public static final String ENCRYPTED_PRIVATE_KEY = "ENCRYPTED PRIVATE KEY";
+    public static final String UNENCRYPTED_PRIVATE_KEY = "PRIVATE KEY";
 
     private KeyUtils() {
         throw new UnsupportedOperationException("Utility Class");
@@ -104,11 +106,12 @@ public final class KeyUtils {
     }
 
     /**
-     * Reads a private key from an {@link InputStream} that contains a PEM-encoded PKCS#8 encrypted private key.
+     * Reads a private key from an {@link InputStream} that contains a PEM-encoded PKCS#8 private key.
+     * Both encrypted and unencrypted keys are supported.
      * @param in the input stream containing the PEM-encoded private key
-     * @param passphrase the passphrase used to decrypt the private key
+     * @param passphrase the passphrase used to decrypt the private key. Ignored in unencrypted case.
      * @param pemKeyProvider the provider to use for PEM key conversion
-     * @return the decrypted private key
+     * @return the private key (decrypted if relevant)
      * @param <T> the type of the private key, extending {@link PrivateKey}
      */
     public static <T extends PrivateKey> T readKeyFrom(
@@ -128,13 +131,18 @@ public final class KeyUtils {
                 if (pemObject == null) {
                     throw new IllegalArgumentException("No PEM object found");
                 }
-                if (!ENCRYPTED_PRIVATE_KEY.equals(pemObject.getType())) {
-                    throw new IllegalArgumentException("Unexpected PEM type: " + pemObject.getType());
+                final String pemType = pemObject.getType();
+                if (!ENCRYPTED_PRIVATE_KEY.equals(pemType) && !UNENCRYPTED_PRIVATE_KEY.equals(pemType)) {
+                    throw new IllegalArgumentException("Unexpected PEM type: " + pemType);
                 }
                 if (pemReader.readPemObject() != null) {
                     throw new IllegalArgumentException("Multiple PEM objects not allowed");
                 }
 
+                if (UNENCRYPTED_PRIVATE_KEY.equals(pemType)) {
+                    final var info = PrivateKeyInfo.getInstance(pemObject.getContent());
+                    return (T) converter.getPrivateKey(info);
+                }
                 final var encryptedPrivateKeyInfo = new PKCS8EncryptedPrivateKeyInfo(pemObject.getContent());
                 final var info = encryptedPrivateKeyInfo.decryptPrivateKeyInfo(decryptProvider);
                 return (T) converter.getPrivateKey(info);

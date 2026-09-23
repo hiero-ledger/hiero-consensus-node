@@ -3,10 +3,10 @@ package org.hiero.consensus.transaction.handling.internal;
 
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.ToLongFunction;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 
 /**
  * Gives a value that represents each round work load

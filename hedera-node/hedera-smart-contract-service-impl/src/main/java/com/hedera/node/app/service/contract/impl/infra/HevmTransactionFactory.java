@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_FILE_EMPTY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_NEGATIVE_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_NEGATIVE_VALUE;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ERROR_DECODING_BYTESTRING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FILE_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
@@ -26,6 +27,7 @@ import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.service.contract.impl.handlers.ContractUpdateHandler.UNLIMITED_AUTOMATIC_ASSOCIATIONS;
 import static com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction.NOT_APPLICABLE;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asPriorityId;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.removeIfAnyLeading0x;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthEthTxCreation;
 import static com.hedera.node.app.service.contract.impl.utils.ValidationUtils.getMaxGasLimit;
@@ -64,6 +66,7 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
+import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
@@ -78,7 +81,6 @@ import javax.inject.Inject;
 
 @TransactionScope
 public class HevmTransactionFactory {
-
     private final NetworkInfo networkInfo;
     private final LedgerConfig ledgerConfig;
     private final HederaConfig hederaConfig;
@@ -144,10 +146,17 @@ public class HevmTransactionFactory {
      * @throws IllegalArgumentException if the {@link TransactionBody} is not a contract operation
      */
     public HederaEvmTransaction fromHapiTransaction(@NonNull final TransactionBody body, @NonNull AccountID payerId) {
+        return fromHapiTransaction(body, payerId, (ClprDispatchMetadata) null);
+    }
+
+    public HederaEvmTransaction fromHapiTransaction(
+            @NonNull final TransactionBody body,
+            @NonNull final AccountID payerId,
+            @Nullable final ClprDispatchMetadata clprDispatchMetadata) {
         final var hederaEvmTxn =
                 switch (body.data().kind()) {
                     case CONTRACT_CREATE_INSTANCE -> fromHapiCreate(payerId, body.contractCreateInstanceOrThrow());
-                    case CONTRACT_CALL -> fromHapiCall(payerId, body.contractCallOrThrow());
+                    case CONTRACT_CALL -> fromHapiCall(payerId, body.contractCallOrThrow(), clprDispatchMetadata);
                     case ETHEREUM_TRANSACTION -> fromHapiEthereum(payerId, body.ethereumTransactionOrThrow());
                     case HOOK_DISPATCH -> fromHookDispatch(payerId, body.hookDispatchOrThrow());
                     default -> throw new IllegalArgumentException("Not a contract operation");
@@ -159,13 +168,14 @@ public class HevmTransactionFactory {
     private HederaEvmTransaction fromHapiCreate(
             @NonNull final AccountID payer, @NonNull final ContractCreateTransactionBody body) {
         assertValidCreation(body);
-        final var payload = initcodeFor(body);
+        final var initcode = initcodeFor(body);
+        assertInitcodeSize(initcode);
         return new HederaEvmTransaction(
                 payer,
                 null,
                 null,
                 NOT_APPLICABLE,
-                payload,
+                initcode,
                 null,
                 body.initialBalance(),
                 body.gas(),
@@ -175,7 +185,9 @@ public class HevmTransactionFactory {
                 null,
                 null,
                 null,
-                null);
+                null,
+                null,
+                false);
     }
 
     /**
@@ -205,14 +217,21 @@ public class HevmTransactionFactory {
                 null,
                 null,
                 null,
-                body);
+                body,
+                null,
+                false);
     }
 
     private HederaEvmTransaction fromHapiCall(
-            @NonNull final AccountID payer, @NonNull final ContractCallTransactionBody body) {
+            @NonNull final AccountID payer,
+            @NonNull final ContractCallTransactionBody body,
+            @Nullable final ClprDispatchMetadata clprDispatchMetadata) {
         assertValidCall(body);
+        final var isClprDispatch = clprDispatchMetadata != null;
+        final var sender = isClprDispatch ? clprDispatchMetadata.senderId() : payer;
+        final var senderAddress = isClprDispatch ? pbjToBesuAddress(clprDispatchMetadata.senderAddress()) : null;
         return new HederaEvmTransaction(
-                payer,
+                sender,
                 null,
                 asPriorityId(body.contractIDOrThrow(), accountStore),
                 NOT_APPLICABLE,
@@ -226,7 +245,9 @@ public class HevmTransactionFactory {
                 null,
                 null,
                 null,
-                null);
+                null,
+                senderAddress,
+                isClprDispatch);
     }
 
     private HederaEvmTransaction fromHapiEthereum(
@@ -259,7 +280,9 @@ public class HevmTransactionFactory {
                 ethTxData.extractAccessList(),
                 ethTxData.extractCodeDelegations(),
                 null,
-                null);
+                null,
+                null,
+                false);
     }
 
     private @NonNull HederaEvmTransaction fromEthTxCreate(
@@ -267,12 +290,14 @@ public class HevmTransactionFactory {
             @NonNull final AccountID senderId,
             @NonNull final EthTxData ethTxData,
             final long maxGasAllowance) {
+        final var initcode = Bytes.wrap(ethTxData.callData());
+        assertInitcodeSize(initcode);
         return new HederaEvmTransaction(
                 senderId,
                 relayerId,
                 null,
                 ethTxData.nonce(),
-                Bytes.wrap(ethTxData.callData()),
+                initcode,
                 Bytes.wrap(ethTxData.chainId()),
                 ethTxData.effectiveTinybarValue(),
                 ethTxData.gasLimit(),
@@ -282,7 +307,9 @@ public class HevmTransactionFactory {
                 ethTxData.extractAccessList(),
                 ethTxData.extractCodeDelegations(),
                 null,
-                null);
+                null,
+                null,
+                false);
     }
 
     /**
@@ -294,6 +321,13 @@ public class HevmTransactionFactory {
      */
     public HederaEvmTransaction fromContractTxException(
             @NonNull final TransactionBody body, @NonNull final HandleException exception) {
+        return fromContractTxException(body, exception, (ClprDispatchMetadata) null);
+    }
+
+    public HederaEvmTransaction fromContractTxException(
+            @NonNull final TransactionBody body,
+            @NonNull final HandleException exception,
+            @Nullable final ClprDispatchMetadata clprDispatchMetadata) {
         AccountID sender = null;
         AccountID relayer = null;
         ContractID contractId = null;
@@ -321,8 +355,11 @@ public class HevmTransactionFactory {
                                 .gasLimit();
                     default -> throw new IllegalArgumentException("Not a contract operation");
                 };
+        final var isClprContractCall = body.hasContractCall() && clprDispatchMetadata != null;
+        final var syntheticSenderAddress =
+                isClprContractCall ? pbjToBesuAddress(clprDispatchMetadata.senderAddress()) : null;
         return new HederaEvmTransaction(
-                sender == null ? AccountID.DEFAULT : sender,
+                sender == null ? (isClprContractCall ? clprDispatchMetadata.senderId() : AccountID.DEFAULT) : sender,
                 relayer,
                 contractId,
                 NOT_APPLICABLE,
@@ -336,7 +373,9 @@ public class HevmTransactionFactory {
                 null,
                 null,
                 exception,
-                body.hookDispatch());
+                body.hookDispatch(),
+                syntheticSenderAddress,
+                isClprContractCall);
     }
 
     private @NonNull EthTxData assertValidEthTx(@NonNull final EthereumTransactionBody body) {
@@ -433,6 +472,10 @@ public class HevmTransactionFactory {
         validateTrue(hederaEvmTxn.gasLimit() >= minGasLimit, INSUFFICIENT_GAS);
         validateTrue(hederaEvmTxn.value() >= 0, CONTRACT_NEGATIVE_VALUE);
         validateTrue(hederaEvmTxn.gasLimit() <= getMaxGasLimit(contractsConfig), MAX_GAS_LIMIT_EXCEEDED);
+    }
+
+    private void assertInitcodeSize(@NonNull final Bytes initcode) {
+        validateTrue(initcode.length() <= contractsConfig.maxInitcodeSize(), CONTRACT_SIZE_LIMIT_EXCEEDED);
     }
 
     private Bytes initcodeFor(@NonNull final ContractCreateTransactionBody body) {

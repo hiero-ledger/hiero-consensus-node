@@ -35,7 +35,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "main"
@@ -49,11 +49,11 @@ jobs:
         run: |
           if git merge-base --is-ancestor "${COMMIT_ID}" main >/dev/null 2>&1; then
             echo "commit_on_dev=true" >> "${GITHUB_OUTPUT}"
-            echo "## Commit ${{ inputs.ref }} is present on main branch." >> "${GITHUB_STEP_SUMMARY}"
+            echo "## Commit ${COMMIT_ID} is present on main branch." >> "${GITHUB_STEP_SUMMARY}"
           else
             echo "::error title=Branch Alignment::The provided commit (${COMMIT_ID}) is not present on the main branch."
             echo "commit_on_dev=false" >> "${GITHUB_OUTPUT}"
-            echo "## Commit ${{ inputs.ref }} not on main branch." >> "${GITHUB_STEP_SUMMARY}"
+            echo "## Commit ${COMMIT_ID} not on main branch." >> "${GITHUB_STEP_SUMMARY}"
             echo "Skipping job: Tag for XTS promotion" >> "${GITHUB_STEP_SUMMARY}"
           fi
 
@@ -66,7 +66,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-fetch-depth: "0"
@@ -159,7 +159,7 @@ jobs:
           external_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
       - name: Report Failure (Slack)
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
         with:
           webhook: ${{ secrets.SLACK_CITR_FAILURES_WEBHOOK }}
           webhook-type: incoming-webhook

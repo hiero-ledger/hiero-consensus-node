@@ -10,8 +10,8 @@ import java.util.Set;
  * Sources outside the hand-written {@code platform-sdk} tree whose symbols the engine cannot
  * authoritatively resolve — PBJ/protoc-generated types, {@code .proto} definitions, and anything
  * under a {@code build/generated} directory. An unresolved citation to such a source is
- * {@code unverifiable}, not {@code absent} (invariant 4): it is routed to the quiet log, never
- * asserted. Built-in defaults can be extended from a file so the list can grow without a code change.
+ * {@code unverifiable}, not {@code absent}: it is routed to the quiet log, never asserted. Built-in
+ * defaults can be extended from a file so the list can grow without a code change.
  */
 public final class Allowlist {
 

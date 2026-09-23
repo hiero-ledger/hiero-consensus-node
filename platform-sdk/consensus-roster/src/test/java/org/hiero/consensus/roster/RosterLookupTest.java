@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.BeforeAll;
@@ -26,23 +26,11 @@ class RosterLookupTest {
     @BeforeAll
     static void setup() {
         final Randotron r = Randotron.create();
-        simpleRoster = RandomRosterBuilder.create(r)
-                .withSize(4)
-                .withRealKeysEnabled(false)
-                .withWeightGenerator(WeightGenerators.INCREMENTING)
-                .build();
+        simpleRoster = RosterFactory.randomRoster(r, 4, WeightGenerators.INCREMENTING);
         simpleLookup = new RosterLookup(simpleRoster);
-        singleNodeRoster = RandomRosterBuilder.create(r)
-                .withSize(1)
-                .withRealKeysEnabled(false)
-                .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
-                .build();
+        singleNodeRoster = RosterFactory.randomRoster(r, 1, WeightGenerators.BALANCED_1000_PER_NODE);
         singleNodeLookup = new RosterLookup(singleNodeRoster);
-        supermajorityNodeRoster = RandomRosterBuilder.create(r)
-                .withSize(3)
-                .withRealKeysEnabled(false)
-                .withWeightGenerator(WeightGenerators.SINGLE_NODE_SUPERMAJORITY)
-                .build();
+        supermajorityNodeRoster = RosterFactory.randomRoster(r, 3, WeightGenerators.SINGLE_NODE_SUPERMAJORITY);
         supermajorityNodeLookup = new RosterLookup(supermajorityNodeRoster);
     }
 

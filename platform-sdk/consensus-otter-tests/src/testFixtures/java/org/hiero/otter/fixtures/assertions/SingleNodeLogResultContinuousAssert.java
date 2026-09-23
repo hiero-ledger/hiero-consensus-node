@@ -103,8 +103,9 @@ public class SingleNodeLogResultContinuousAssert
      */
     @NonNull
     public SingleNodeLogResultContinuousAssert haveNoMessageWithLevelHigherThan(@NonNull final Level level) {
+        final int thresholdIntLevel = level.intLevel();
         return checkContinuously(logEntry -> {
-            if (logEntry.level().intLevel() < level.intLevel()) {
+            if (logEntry.level().intLevel() < thresholdIntLevel) {
                 failWithMessage(
                         "Expected no message with level higher than %s, but found %s in %n%s",
                         level, logEntry.level(), logEntry);
@@ -142,7 +143,8 @@ public class SingleNodeLogResultContinuousAssert
 
         final LogSubscriber subscriber = logEntry -> switch (state) {
             case ACTIVE -> {
-                if (logEntry.marker() == null || !suppressedLogMarkers.contains(logEntry.marker())) {
+                final Marker marker = logEntry.marker();
+                if (marker == null || !suppressedLogMarkers.contains(marker)) {
                     check.accept(logEntry);
                 }
                 yield CONTINUE;

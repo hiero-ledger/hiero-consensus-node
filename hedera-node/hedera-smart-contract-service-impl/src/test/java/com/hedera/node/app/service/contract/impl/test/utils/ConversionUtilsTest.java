@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.utils;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations.ZERO_ENTROPY;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
@@ -35,6 +37,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.nu
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjLogFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjLogsFrom;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.throwIfUnsuccessfulCall;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -52,12 +55,22 @@ import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
+import com.hedera.hapi.node.contract.ContractFunctionResult;
 import com.hedera.hapi.node.contract.ContractLoginfo;
+import com.hedera.hapi.node.contract.EvmTransactionResult;
 import com.hedera.hapi.streams.ContractStateChange;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.StorageChange;
+import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations;
+import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
+import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.records.ContractCreateStreamBuilder;
+import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
+import com.hedera.node.app.service.contract.impl.utils.EthereumTransactionRollbackHandler;
+import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import java.math.BigInteger;
@@ -85,9 +98,78 @@ class ConversionUtilsTest {
     @Mock
     private HederaNativeOperations nativeOperations;
 
+    @Mock
+    private HederaOperations hederaOperations;
+
+    @Mock
+    private ContractCallStreamBuilder contractCallStreamBuilder;
+
+    @Mock
+    private ContractCreateStreamBuilder contractCreateStreamBuilder;
+
+    @Mock
+    private HandleContext handleContext;
+
+    @Mock
+    private HandleContext.SavepointStack savepointStack;
+
+    @Mock
+    private RootProxyWorldUpdater updater;
+
     private static final com.hedera.pbj.runtime.io.buffer.Bytes FULL_32 =
             com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("00".repeat(32));
     private static final Configuration configuration = HederaTestConfigBuilder.createConfig();
+
+    @Test
+    void unsuccessfulCallThrowsInsufficientGasWhenTraceDataLimitExceeded() {
+        given(contractCallStreamBuilder.hasTraceDataSizeLimitExceeded()).willReturn(true);
+        final var outcome = successfulOutcome();
+
+        final var exception = assertThrows(
+                HandleException.class,
+                () -> throwIfUnsuccessfulCall(
+                        outcome,
+                        new EthereumTransactionRollbackHandler(outcome, hederaOperations.gasChargingEvents(), updater),
+                        contractCallStreamBuilder,
+                        handleContext));
+
+        assertEquals(INSUFFICIENT_GAS, exception.getStatus());
+    }
+
+    @Test
+    void unsuccessfulCreateThrowsInsufficientGasWhenTraceDataLimitExceeded() {
+        given(contractCreateStreamBuilder.hasTraceDataSizeLimitExceeded()).willReturn(true);
+        final var outcome = successfulOutcome();
+
+        final var exception = assertThrows(
+                HandleException.class,
+                () -> throwIfUnsuccessfulCall(
+                        outcome,
+                        new EthereumTransactionRollbackHandler(outcome, hederaOperations.gasChargingEvents(), updater),
+                        contractCreateStreamBuilder,
+                        handleContext));
+
+        assertEquals(INSUFFICIENT_GAS, exception.getStatus());
+    }
+
+    @Test
+    void unsuccessfulCreateThrowsInsufficientGasWhenEstimatedBytecodeExceedsTraceDataLimit() {
+        given(contractCreateStreamBuilder.estimatedContractBytecodeSize()).willReturn(123L);
+        given(contractCreateStreamBuilder.ensureTraceDataSizeLimitWithAdditionalBytes(123L))
+                .willReturn(false);
+        given(handleContext.savepointStack()).willReturn(savepointStack);
+        final var outcome = successfulOutcome();
+
+        final var exception = assertThrows(
+                HandleException.class,
+                () -> throwIfUnsuccessfulCall(
+                        outcome,
+                        new EthereumTransactionRollbackHandler(outcome, hederaOperations.gasChargingEvents(), updater),
+                        contractCreateStreamBuilder,
+                        handleContext));
+
+        assertEquals(INSUFFICIENT_GAS, exception.getStatus());
+    }
 
     @CsvSource({"0", "7", "23", "31", "32"})
     @ParameterizedTest
@@ -97,6 +179,22 @@ class ConversionUtilsTest {
                 : com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("00".repeat(n));
         final var padded = ByteUtils.leftPad32(start);
         assertEquals(FULL_32, padded);
+    }
+
+    private static CallOutcome successfulOutcome() {
+        return new CallOutcome(
+                ContractFunctionResult.DEFAULT,
+                SUCCESS,
+                CALLED_CONTRACT_ID,
+                null,
+                null,
+                null,
+                null,
+                EvmTransactionResult.DEFAULT,
+                null,
+                null,
+                null,
+                null);
     }
 
     @CsvSource({"00", "1107", "005423", "000031", "0000000000000000000000000000000000000000000000000000000000000000"})

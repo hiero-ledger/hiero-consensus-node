@@ -8,7 +8,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
-import org.hiero.consensus.config.EventConfig_;
+import org.hiero.consensus.event.stream.config.EventConfig_;
 import org.hiero.sloth.fixtures.NodeConfiguration;
 import org.hiero.sloth.fixtures.internal.AbstractNode.LifeCycle;
 import org.hiero.sloth.fixtures.internal.AbstractNodeConfiguration;

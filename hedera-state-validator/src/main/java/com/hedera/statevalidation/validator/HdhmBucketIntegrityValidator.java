@@ -10,10 +10,10 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.util.reflect.BucketIterator;
 import com.hedera.statevalidation.validator.util.ValidationException;
-import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.hashmap.ParsedBucket;
+import com.swirlds.merkledb.internal.MerkleDbDataSource;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -37,6 +37,7 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
     private LongList pathToDiskLocationLeafNodes;
 
     private final AtomicLong processedCount = new AtomicLong(0);
+    private final AtomicLong exceptionCount = new AtomicLong(0);
 
     private final CopyOnWriteArrayList<StalePathInfo> stalePathsInfos = new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<NullLeafInfo> nullLeafsInfo = new CopyOnWriteArrayList<>();
@@ -129,10 +130,9 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
                     collectInfo(new HashCodeMismatchInfo(hashCode, keyBytes.hashCode()), hashCodeMismatchInfos);
                 }
             }
-        } catch (Exception e) {
-            if (bucketLocation != 0) {
-                printFileDataLocationError(log, e.getMessage(), bucketLocation);
-            }
+        } catch (final Exception e) {
+            exceptionCount.incrementAndGet();
+            printFileDataLocationError(log, e.getMessage(), bucketLocation);
         } finally {
             processedCount.incrementAndGet();
         }
@@ -192,7 +192,8 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
                 && unexpectedKeyInfos.isEmpty()
                 && pathMismatchInfos.isEmpty()
                 && bucketIndexMismatchInfos.isEmpty()
-                && hashCodeMismatchInfos.isEmpty())) {
+                && hashCodeMismatchInfos.isEmpty()
+                && exceptionCount.get() == 0)) {
             throw new ValidationException(
                     getName(),
                     "One of the test condition hasn't been met. "
@@ -202,14 +203,16 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
                                             + "unexpectedKeyInfos.isEmpty() = %s, "
                                             + "pathMismatchInfos.isEmpty() = %s, "
                                             + "bucketIndexMismatchInfos.isEmpty() = %s, "
-                                            + "hashCodeMismatchInfos.isEmpty() = %s")
+                                            + "hashCodeMismatchInfos.isEmpty() = %s, "
+                                            + "exceptionCount = %d")
                                     .formatted(
                                             stalePathsInfos.isEmpty(),
                                             nullLeafsInfo.isEmpty(),
                                             unexpectedKeyInfos.isEmpty(),
                                             pathMismatchInfos.isEmpty(),
                                             bucketIndexMismatchInfos.isEmpty(),
-                                            hashCodeMismatchInfos.isEmpty()));
+                                            hashCodeMismatchInfos.isEmpty(),
+                                            exceptionCount.get()));
         }
     }
 

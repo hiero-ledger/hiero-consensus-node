@@ -5,6 +5,7 @@ import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExcep
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.getAndClearPropagatedCallFailure;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hasActionSidecarsEnabled;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.maybeNext;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.setPropagatedCallFailure;
@@ -20,6 +21,7 @@ import static org.hyperledger.besu.evm.frame.MessageFrame.State.EXCEPTIONAL_HALT
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.node.app.service.contract.impl.bonneville.BonnevilleEVM;
+import com.hedera.node.app.service.contract.impl.exec.failure.HandleExceptionHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
@@ -29,8 +31,10 @@ import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransactionResult;
 import com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.spi.workflows.HandleException;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hyperledger.besu.datatypes.Address;
@@ -91,15 +95,19 @@ public class FrameRunner {
         final var recipientMetadata = computeRecipientMetadata(frame, recipientAddress);
         tracer.traceOriginAction(frame);
 
-        if (hevm instanceof BonnevilleEVM bonneville) {
-            bonneville.setProcessors(messageCall, (CustomContractCreationProcessor) contractCreation);
-            runToCompletion(frame, tracer, messageCall, contractCreation);
-        } else {
-            // Now run the transaction implied by the frame
-            final var stack = frame.getMessageFrameStack();
-            while (!stack.isEmpty()) {
-                runToCompletion(stack.peekFirst(), tracer, messageCall, contractCreation);
+        try {
+            if (hevm instanceof BonnevilleEVM bonneville) {
+                bonneville.setProcessors(messageCall, (CustomContractCreationProcessor) contractCreation);
+                runToCompletion(frame, tracer, messageCall, contractCreation);
+            } else {
+                // Now run the transaction implied by the frame
+                final var stack = frame.getMessageFrameStack();
+                while (!stack.isEmpty()) {
+                    runToCompletion(stack.peekFirst(), tracer, messageCall, contractCreation);
+                }
             }
+        } catch (final HandleException e) {
+            haltFramesRemainingAfter(frame, e, tracer);
         }
         tracer.sanitizeTracedActions(frame);
 
@@ -138,6 +146,39 @@ public class FrameRunner {
             final var updater = proxyUpdaterFor(frame);
             return new RecipientMetadata(updater.getPendingCreation() != null, updater.getHederaContractId(address));
         }
+    }
+
+    /**
+     * Resolves a {@link HandleException} that escaped a message processor (e.g., one re-thrown by a
+     * system contract mid-execution) as an exceptional halt of the entire run. Every frame still open
+     * on the message frame stack is halted with a reason preserving the exception's status, and its
+     * pending action is finalized; so the run completes through the normal lifecycle (action
+     * sanitization, gas accounting, commit) and still externalizes a failed result with that status.
+     *
+     * @param initialFrame the initial frame of the transaction
+     * @param exception the exception that escaped the frame execution machinery
+     * @param tracer the tracer whose action stack must be kept in sync with the frame stack
+     */
+    private void haltFramesRemainingAfter(
+            @NonNull final MessageFrame initialFrame,
+            @NonNull final HandleException exception,
+            @NonNull final ActionSidecarContentTracer tracer) {
+        final var haltReason = Optional.<ExceptionalHaltReason>of(new HandleExceptionHaltReason(exception.getStatus()));
+        final var actionSidecarsEnabled = hasActionSidecarsEnabled(initialFrame);
+        final var stack = initialFrame.getMessageFrameStack();
+        while (!stack.isEmpty()) {
+            final var openFrame = stack.removeFirst();
+            openFrame.setState(EXCEPTIONAL_HALT);
+            openFrame.setExceptionalHaltReason(haltReason);
+            if (actionSidecarsEnabled) {
+                tracer.traceNotExecuting(openFrame);
+            }
+        }
+        initialFrame.setState(EXCEPTIONAL_HALT);
+        initialFrame.setExceptionalHaltReason(haltReason);
+        // As with any exceptional halt, all remaining gas is consumed and refunds are forfeited
+        initialFrame.clearGasRemaining();
+        initialFrame.clearGasRefund();
     }
 
     private void runToCompletion(

@@ -27,7 +27,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.resourceAsStrin
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.turnLoggingOff;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
-import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.Target.FEES;
 import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.Target.THROTTLES;
 import static com.hedera.services.bdd.spec.utilops.UtilStateChange.createEthereumAccountForSpec;
 import static com.hedera.services.bdd.spec.utilops.UtilStateChange.isEthereumAccountCreatedForSpec;
@@ -76,7 +75,6 @@ import com.hedera.services.bdd.junit.hedera.simulator.SimulatedBlockNodeServer;
 import com.hedera.services.bdd.junit.hedera.subprocess.PrometheusClient;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.fees.FeesAndRatesProvider;
 import com.hedera.services.bdd.spec.infrastructure.HapiSpecRegistry;
 import com.hedera.services.bdd.spec.infrastructure.SpecStateObserver;
@@ -201,12 +199,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      * on its {@link LeakyHapiTest#throttles()} attribute.
      */
     public static final ThreadLocal<String> THROTTLES_OVERRIDE = new ThreadLocal<>();
-    /**
-     * If set, a resource to load fee schedules from for this thread's next {@link HapiSpec} instance. Typically the
-     * {@link NetworkTargetingExtension} will bind this value to the thread prior to executing a test factory based
-     * on its {@link LeakyHapiTest#fees()} ()} attribute.
-     */
-    public static final ThreadLocal<String> FEES_OVERRIDE = new ThreadLocal<>();
 
     public static final ThreadLocal<TestLifecycle> TEST_LIFECYCLE = new ThreadLocal<>();
     public static final ThreadLocal<String> SPEC_NAME = new ThreadLocal<>();
@@ -262,7 +254,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     private TxnFactory txnFactory;
     private KeyFactory keyFactory;
     private KeyGenerator keyGenerator = DEFAULT_KEY_GEN;
-    private FeeCalculator feeCalculator;
     private HapiSpecRegistry hapiRegistry;
     private FeesAndRatesProvider ratesProvider;
     private ThreadPoolExecutor finalizingExecutor;
@@ -308,12 +299,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
      */
     @Nullable
     private String throttleResource;
-    /**
-     * If non-null, a resource to load override fees from for this spec, restoring the previous
-     * contents of the 0.0.111 system file after the spec completes.
-     */
-    @Nullable
-    private String feeResource;
 
     boolean quietMode;
 
@@ -722,6 +707,22 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         }
     }
 
+    /**
+     * The port on which the given block node serves its service API (server status). For real containers and the
+     * local node this is the same port as the streaming API; simulators serve the two APIs on separate ports.
+     *
+     * @param nodeId the block node id
+     * @return the service API port
+     */
+    public int getBlockNodeServicePortById(final long nodeId) {
+        final BlockNodeNetwork blockNodeNetwork = TARGET_BLOCK_NODE_NETWORK.get();
+        final BlockNodeMode mode = blockNodeNetwork.getBlockNodeModeById().get(nodeId);
+        if (mode == BlockNodeMode.SIMULATOR) {
+            return blockNodeNetwork.getSimulatedBlockNodeById().get(nodeId).getServicePort();
+        }
+        return getBlockNodePortById(nodeId);
+    }
+
     public SimulatedBlockNodeServer getSimulatedBlockNodeById(final long nodeId) {
         final BlockNodeNetwork blockNodeNetwork = TARGET_BLOCK_NODE_NETWORK.get();
         if (blockNodeNetwork != null) {
@@ -844,7 +845,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         while (secsWait >= 0) {
             try {
                 ratesProvider.init();
-                feeCalculator.init();
                 return true;
             } catch (final IOException t) {
                 secsWait--;
@@ -922,10 +922,8 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             }
             txnFactory =
                     (nextValidStart == null) ? new TxnFactory(hapiSetup) : new TxnFactory(hapiSetup, nextValidStart);
-            FeesAndRatesProvider scheduleProvider =
+            this.ratesProvider =
                     new FeesAndRatesProvider(txnFactory, keyFactory, hapiSetup, hapiRegistry, targetNetwork);
-            feeCalculator = new FeeCalculator(hapiSetup, scheduleProvider);
-            this.ratesProvider = scheduleProvider;
         } catch (Throwable t) {
             log.error("Initialization failed for spec '{}'!", name, t);
             status = ERROR;
@@ -987,10 +985,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         if (throttleResource != null) {
             ops.addFirst(new SysFileOverrideOp(
                     THROTTLES, () -> throttleResource.isBlank() ? null : resourceAsString(throttleResource)));
-        }
-        if (feeResource != null) {
-            ops.addFirst(
-                    new SysFileOverrideOp(FEES, () -> feeResource.isBlank() ? null : resourceAsString(feeResource)));
         }
         @Nullable List<AbstractEventualStreamAssertion> streamAssertions = null;
         for (var op : ops) {
@@ -1169,10 +1163,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         pendingOps.offer(finisher);
     }
 
-    public FeeCalculator fees() {
-        return feeCalculator;
-    }
-
     public TxnFactory txns() {
         return txnFactory;
     }
@@ -1327,6 +1317,52 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     }
 
     /**
+     * Creates a dynamic test targeting a specific network.
+     * Used by multi-network tests to direct operations at an explicitly named network.
+     *
+     * @param targetNetwork the network to direct all operations to
+     * @param ops the operations to run
+     * @return a {@link Stream} of {@link DynamicTest}s (single element)
+     */
+    public static Stream<DynamicTest> networkHapiTest(
+            @NonNull final HederaNetwork targetNetwork, @NonNull final SpecOperation... ops) {
+        return networkHapiTest(null, targetNetwork, ops);
+    }
+
+    /**
+     * Variant of {@link #networkHapiTest(HederaNetwork, SpecOperation...)} that appends a
+     * human-readable {@code description} to the dynamic test's display name, yielding
+     * {@code <spec>@<network> - <description>}. Multi-network factories emit many steps against
+     * the same networks, so a per-step description keeps them distinguishable in test reports and
+     * IDE runners (otherwise every step shows the same {@code spec@<network>}).
+     *
+     * @param description short, human-readable label for this step (null/blank falls back to the
+     *                    bare {@code <spec>@<network>} name)
+     * @param targetNetwork the network to direct all operations to
+     * @param ops the operations to run
+     * @return a {@link Stream} of {@link DynamicTest}s (single element)
+     */
+    public static Stream<DynamicTest> networkHapiTest(
+            @Nullable final String description,
+            @NonNull final HederaNetwork targetNetwork,
+            @NonNull final SpecOperation... ops) {
+        requireNonNull(targetNetwork);
+        final var specName = SPEC_NAME.get();
+        final var base = specName != null ? specName.substring(specName.lastIndexOf('.') + 1) : "spec";
+        final var displayName = base + "@" + targetNetwork.name()
+                + (description == null || description.isBlank() ? "" : " - " + description);
+        final var spec = new HapiSpec(
+                displayName,
+                HapiSpecSetup.setupFrom(HapiSpecSetup.getDefaultPropertySource()),
+                new SpecOperation[0],
+                new SpecOperation[0],
+                ops,
+                Collections.emptyList());
+        doTargetSpec(spec, targetNetwork);
+        return Stream.of(DynamicTest.dynamicTest(displayName, spec));
+    }
+
+    /**
      * Creates dynamic tests derived from with the given operations, ensuring the listed properties are
      * restored to their original values after running the tests.
      *
@@ -1377,7 +1413,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                 .map(List::copyOf)
                 .ifPresent(spec::setSharedStates);
         spec.throttleResource = THROTTLES_OVERRIDE.get();
-        spec.feeResource = FEES_OVERRIDE.get();
         return spec;
     }
 
@@ -1518,7 +1553,6 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     private void nullOutInfrastructure() {
         txnFactory = null;
         keyFactory = null;
-        feeCalculator = null;
         ratesProvider = null;
         hapiRegistry = null;
     }

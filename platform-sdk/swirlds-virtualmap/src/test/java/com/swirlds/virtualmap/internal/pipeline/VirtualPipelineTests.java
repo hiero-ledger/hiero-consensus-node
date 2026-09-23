@@ -5,8 +5,8 @@ import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_C
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_VIRTUAL_MAP_CONFIG;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -36,10 +36,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
@@ -73,8 +74,7 @@ class VirtualPipelineTests {
         final CountDownLatch latch = new CountDownLatch(1);
 
         final Thread thread = new ThreadConfiguration(getStaticThreadManager())
-                .setComponent("test")
-                .setThreadName("interrupt-on-timeout")
+                .setSingleThreadName(CompositeThreadNameProvider.create("test", "interrupt-on-timeout"))
                 .setRunnable(() -> {
                     try {
                         runnable.run();
@@ -328,7 +328,7 @@ class VirtualPipelineTests {
                 () -> pipeline.registerCopy(root),
                 "pipeline should reject immutable copy");
 
-        pipeline.terminate();
+        pipeline.shutdown(false);
         assertTrue(pipeline.awaitTermination(2, TimeUnit.SECONDS), "thread should stop");
     }
 
@@ -384,8 +384,8 @@ class VirtualPipelineTests {
 
     @Test
     @Tag(TestComponentTags.VMAP)
-    @DisplayName("Terminate waits for jobs to complete")
-    void terminateWaitsForJobs() {
+    @DisplayName("Shutdown and await for jobs to complete")
+    void shutdownAndAwaitForJobs() throws InterruptedException {
         final SlowVirtualRoot root = new SlowVirtualRoot("terminateWaitsForJobs", DEFAULT_VIRTUAL_MAP_CONFIG);
         final SlowVirtualRoot copy1 = root.copy();
         final SlowVirtualRoot copy2 = copy1.copy();
@@ -412,8 +412,8 @@ class VirtualPipelineTests {
         // copy1 or detached it.
         copy1.mergeFinishedLatch.countDown();
 
-        // By the time this returns, I know for certain previous tasks are done.
-        root.getPipeline().terminate();
+        root.getPipeline().shutdown(false);
+        assertTrue(root.getPipeline().awaitTermination(3, SECONDS), "Pipeline should shut down");
 
         // Root will have finished, but the others will not have done anything.
         assertTrue(root.isFlushed(), "Should have flushed before terminate finished");
@@ -531,28 +531,6 @@ class VirtualPipelineTests {
 
         final var lastCopy = copies.get(copyCount - 1);
         lastCopy.release();
-        assertTrue(lastCopy.getPipeline().awaitTermination(5, SECONDS), "Timed out");
-        assertTrue(lastCopy.isShutdownHandlerCalled(), "Callback should now be invoked");
-    }
-
-    @Test
-    @Tag(TestComponentTags.VMAP)
-    @DisplayName("Datasource is closed when pipeline is terminated")
-    void dataSourceClosedWhenPipelineTerminates() throws InterruptedException {
-        // Create 10 copies. Copy 3, 6, and 9 are flush eligible.
-        final int copyCount = 10;
-        final List<DummyVirtualRoot> copies = setupCopies(copyCount, i -> i != 0 && i % 3 == 0);
-
-        // I'll release half of them and then terminate the pipeline.
-        for (int i = 0; i < copyCount / 2; i++) {
-            final var copy = copies.get(i);
-            assertFalse(copy.isShutdownHandlerCalled(), "Should not be invoked yet");
-            copy.release();
-            assertFalse(copy.isShutdownHandlerCalled(), "Should not be invoked yet");
-        }
-
-        copies.getFirst().getPipeline().terminate();
-        final var lastCopy = copies.get(copyCount - 1);
         assertTrue(lastCopy.getPipeline().awaitTermination(5, SECONDS), "Timed out");
         assertTrue(lastCopy.isShutdownHandlerCalled(), "Callback should now be invoked");
     }

@@ -9,6 +9,7 @@ import static com.hedera.hapi.util.HapiUtils.CONTRACT_ID_COMPARATOR;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.CONTRACT_IS_TREASURY;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.CONTRACT_STILL_OWNS_NFTS;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.FAILURE_DURING_LAZY_ACCOUNT_CREATION;
+import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INSUFFICIENT_BALANCE;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INSUFFICIENT_CHILD_RECORDS;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_ALIAS_KEY;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
@@ -362,7 +363,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         if (number == MISSING_ENTITY_NUMBER) {
             return false;
         }
-        final AccountID accountID = AccountID.newBuilder().accountNum(number).build();
+        final AccountID accountID = entityIdFactory().newAccountId(number);
         final var account = nativeOperations.getAccount(accountID);
         if (account == null) {
             return false;
@@ -401,6 +402,12 @@ public class DispatchingEvmFrameState implements EvmFrameState {
             return Optional.of(INVALID_SOLIDITY_ADDRESS);
         } else if (to instanceof TokenEvmAccount || to instanceof ScheduleEvmAccount) {
             return Optional.of(ILLEGAL_STATE_CHANGE);
+        }
+        // In-EVM CALL/CREATE opcodes already guard value against the sender balance (Besu pushes 0 on a
+        // failed transfer), so this only fires for a top-level create/call whose value exceeds the sender
+        // balance; halt cleanly instead of letting transferFromTo throw (see #26402).
+        if (from.toNativeAccount().tinybarBalance() < amount) {
+            return Optional.of(INSUFFICIENT_BALANCE);
         }
         // Note we can still use top-level signatures to meet receiver signature requirements
         final var status = nativeOperations.transferWithReceiverSigCheck(
@@ -463,15 +470,14 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         }
         final var number = maybeMissingNumberOf(address, nativeOperations);
         if (number != MISSING_ENTITY_NUMBER) {
-            final AccountID accountID =
-                    AccountID.newBuilder().accountNum(number).build();
+            final AccountID accountID = entityIdFactory().newAccountId(number);
             final var account = nativeOperations.getAccount(accountID);
             if (account != null) {
                 if (account.expiredAndPendingRemoval()) {
                     return Optional.of(FAILURE_DURING_LAZY_ACCOUNT_CREATION);
                 } else {
                     throw new IllegalArgumentException(
-                            "Unexpired account 0.0." + number + " already exists at address " + address);
+                            "Unexpired account " + accountID + " already exists at address " + address);
                 }
             }
         }

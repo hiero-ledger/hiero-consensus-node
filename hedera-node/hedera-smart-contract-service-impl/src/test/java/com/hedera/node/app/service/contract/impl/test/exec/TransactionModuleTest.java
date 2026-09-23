@@ -20,6 +20,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -50,8 +51,11 @@ import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.config.api.Configuration;
 import java.time.Instant;
 import java.util.Map;
+import org.hiero.hapi.support.fees.FeeSchedule;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -145,17 +149,53 @@ class TransactionModuleTest {
         final var gasCalculator = mock(SystemContractGasCalculator.class);
         final var blocks = mock(HederaEvmBlocks.class);
         final var stack = mock(HandleContext.SavepointStack.class);
-        final var metadata = mock(HandleContext.DispatchMetadata.class);
         given(hederaOperations.gasPriceInTinybars()).willReturn(123L);
         given(context.savepointStack()).willReturn(stack);
+        given(context.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
         given(stack.getBaseBuilder(ContractOperationStreamBuilder.class)).willReturn(recordBuilder);
+        given(context.simpleFeesSchedule()).willReturn(FeeSchedule.DEFAULT);
+        Configuration DEFAULT_CONFIG = HederaTestConfigBuilder.createConfig();
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
+
         final var pendingCreationBuilder = new PendingCreationMetadataRef();
         final var result = provideHederaEvmContext(
-                context, tinybarValues, gasCalculator, hederaOperations, blocks, pendingCreationBuilder);
+                context,
+                HederaFunctionality.CONTRACT_CALL,
+                tinybarValues,
+                gasCalculator,
+                hederaOperations,
+                blocks,
+                pendingCreationBuilder);
         assertSame(blocks, result.blocks());
         assertSame(123L, result.gasPrice());
         assertSame(recordBuilder, result.streamBuilder());
         assertSame(pendingCreationBuilder, result.pendingCreationRecordBuilderReference());
+        assertThat(result.staticCall()).isFalse();
+    }
+
+    @Test
+    void providesStaticEvmContextWhenStaticCallMetadataIsTrue() {
+        final var recordBuilder = mock(ContractOperationStreamBuilder.class);
+        final var gasCalculator = mock(SystemContractGasCalculator.class);
+        final var blocks = mock(HederaEvmBlocks.class);
+        final var stack = mock(HandleContext.SavepointStack.class);
+        final var metadata =
+                new HandleContext.DispatchMetadata(HandleContext.DispatchMetadata.Type.STATIC_CALL, Boolean.TRUE);
+        given(hederaOperations.gasPriceInTinybars()).willReturn(123L);
+        given(context.savepointStack()).willReturn(stack);
+        given(context.dispatchMetadata()).willReturn(metadata);
+        given(context.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
+        given(context.simpleFeesSchedule()).willReturn(FeeSchedule.DEFAULT);
+        given(stack.getBaseBuilder(ContractOperationStreamBuilder.class)).willReturn(recordBuilder);
+        final var result = provideHederaEvmContext(
+                context,
+                HederaFunctionality.CONTRACT_CALL,
+                tinybarValues,
+                gasCalculator,
+                hederaOperations,
+                blocks,
+                new PendingCreationMetadataRef());
+        assertThat(result.staticCall()).isTrue();
     }
 
     @Test

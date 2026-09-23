@@ -42,6 +42,12 @@ public interface QueryModule {
 
     @Provides
     @QueryScope
+    static CanonicalDispatchPrices provideCanonicalDispatchPrices(@NonNull final QueryContext context) {
+        return new CanonicalDispatchPrices(context.simpleFeesSchedule());
+    }
+
+    @Provides
+    @QueryScope
     static TinybarValues provideTinybarValues(@NonNull final ExchangeRate exchangeRate) {
         return TinybarValues.forQueryWith(exchangeRate);
     }
@@ -96,6 +102,7 @@ public interface QueryModule {
         // as neither is usable by any operation permitted in a static context
         return new HederaEvmContext(
                 hederaOperations.gasPriceInTinybars(),
+                true,
                 true,
                 hederaEvmBlocks,
                 tinybarValues,

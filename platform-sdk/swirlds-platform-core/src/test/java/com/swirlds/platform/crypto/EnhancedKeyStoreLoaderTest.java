@@ -11,7 +11,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.platform.util.BootstrapUtils;
+import com.swirlds.platform.config.ConfigurationSetupUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -174,7 +174,7 @@ class EnhancedKeyStoreLoaderTest {
      */
     private Configuration configure(final Path keyDirectory) throws IOException {
         final ConfigurationBuilder builder = ConfigurationBuilder.create();
-        BootstrapUtils.setupConfigBuilder(builder, testDataDirectory.resolve("settings.txt"));
+        ConfigurationSetupUtils.setupConfigBuilder(builder, testDataDirectory.resolve("settings.txt"));
 
         builder.withValue("paths.keysDirPath", keyDirectory.toAbsolutePath().toString());
         builder.withValue(CryptoConfig_.KEYSTORE_PASSWORD, "password");

@@ -172,10 +172,10 @@ class HintsPartialSignatureHandlerTest {
     }
 
     @Test
-    void preHandleRejectsUnknownCrs() {
+    void preHandleIgnoresUnknownCrs() {
         given(hintsStore.crsIfKnown()).willReturn(null);
 
-        assertThrows(NullPointerException.class, () -> subject.preHandle(preHandleContext));
+        assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
     }
 
     @Test

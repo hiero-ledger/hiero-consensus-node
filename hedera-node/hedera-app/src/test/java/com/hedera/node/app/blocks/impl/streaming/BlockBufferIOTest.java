@@ -168,7 +168,7 @@ class BlockBufferIOTest {
     @Test
     void readWritePreservesSerializedItemBytesAndDerivesTypes() throws Exception {
         // Build a block by adding items in their serialized form (the production path), capturing the exact bytes.
-        final BlockState block = new BlockState(42L);
+        final BlockState block = new BlockState(42L, 2_000L);
         final List<BlockItem> sourceItems =
                 List.of(newBlockHeader(42L), newEventTransaction(), newStateChanges(), newBlockProof(42L));
         final List<Bytes> expectedBytes = new ArrayList<>();

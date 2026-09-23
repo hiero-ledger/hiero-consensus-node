@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.state;
 
-import com.swirlds.component.framework.component.InputWireLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
+import org.hiero.consensus.wiring.framework.component.InputWireLabel;
 
 /**
  * Controls which signed states should be written to disk based on input from other components.

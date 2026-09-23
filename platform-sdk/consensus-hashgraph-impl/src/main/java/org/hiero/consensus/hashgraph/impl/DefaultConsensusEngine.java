@@ -3,7 +3,6 @@ package org.hiero.consensus.hashgraph.impl;
 
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -29,6 +28,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.round.EventWindowUtils;
 
@@ -71,7 +71,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final NodeId selfId,
             @NonNull final FreezePeriodChecker freezeChecker,
             final long transactionOffsetNanos) {

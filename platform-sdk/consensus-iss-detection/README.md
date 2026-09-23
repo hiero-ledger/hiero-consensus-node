@@ -15,22 +15,20 @@ machinery it validates. For how detection and ISS handling work, see the
 ## Dependency Rules
 
 May depend on:
-- Supporting modules: `consensus-model`, `consensus-concurrent`, `consensus-roster`,
-`consensus-utility`
+- Supporting modules: `consensus-model`, `consensus-utility`
 - Functional-api modules: `consensus-hashgraph`, `consensus-pces`
-- Structural-transitional module: `consensus-state`
+- Structural-transitional modules: `consensus-roster`, `consensus-state`
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
-`swirlds-component-framework`
+`consensus-wiring-framework`, `swirlds-state-api`, `swirlds-state-impl`
 
 Must not depend on:
 - Any `consensus-*-impl` module — it depends on the functional APIs, not their implementations
 - `swirlds-common`, `swirlds-platform-core` — legacy, being eliminated
-- `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`, `swirlds-state-api`,
-`swirlds-virtualmap`
+- `swirlds-metrics-impl`, `swirlds-logging-log4j-appender`, `swirlds-virtualmap`
 
-Accepted exceptions:
-- `requires com.swirlds.state.impl` — `swirlds-state-impl` is otherwise permitted only in
-`consensus-platformstate`, `consensus-roster`, and `consensus-state`. It is pulled in here
-because `consensus-state`'s signed-state types (`SignedState`, `ReservedSignedState`) expose
-`swirlds-state-impl` types in their signatures. This is an accepted exception, not a violation;
-it resolves when the module moves to the execution layer.
+No known violations.
+
+`swirlds-state-impl` is pulled in because `consensus-state`'s signed-state types
+([`SignedState.java`](../consensus-state/src/main/java/org/hiero/consensus/state/signed/SignedState.java),
+[`ReservedSignedState.java`](../consensus-state/src/main/java/org/hiero/consensus/state/signed/ReservedSignedState.java))
+expose `swirlds-state-impl` types such as `VirtualMapState` in their signatures.

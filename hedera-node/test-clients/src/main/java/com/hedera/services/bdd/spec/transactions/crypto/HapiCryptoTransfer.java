@@ -19,7 +19,6 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
-import com.hedera.node.app.hapi.utils.fee.FeeObject;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.HapiBaseTransfer;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -45,7 +44,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
@@ -68,7 +66,6 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
     private Function<HapiSpec, TransferList> hbarOnlyProvider = MISSING_HBAR_ONLY_PROVIDER;
     private Optional<String> tokenWithEmptyTransferAmounts = Optional.empty();
     private Optional<Pair<String[], Long>> appendedFromTo = Optional.empty();
-    private Optional<AtomicReference<FeeObject>> feesObserver = Optional.empty();
     private Optional<BiConsumer<HapiSpec, CryptoTransferTransactionBody.Builder>> explicitDef = Optional.empty();
     private static boolean transferToKey = false;
     private final Map<String, List<HookSpec>> fungibleHooksByAccount = new java.util.HashMap<>();
@@ -87,11 +84,6 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
 
     public HapiCryptoTransfer breakingNetZeroInvariant() {
         breakNetZeroTokenChangeInvariant = true;
-        return this;
-    }
-
-    public HapiCryptoTransfer exposingFeesTo(final AtomicReference<FeeObject> obs) {
-        feesObserver = Optional.of(obs);
         return this;
     }
 

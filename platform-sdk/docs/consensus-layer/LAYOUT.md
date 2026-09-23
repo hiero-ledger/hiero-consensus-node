@@ -6,7 +6,7 @@ Canonical structure for the consensus-layer knowledge base in the repo. Tools (T
 
 ## Scope
 
-The consensus layer of the platform-sdk — the 13 topics under `architecture/topics/` and the cross-cutting catalogs that support them. Out of scope: execution-layer internals, block production, TSS, transaction-handling internals, application semantics.
+The consensus layer of the platform-sdk — the topics under `architecture/topics/` and the cross-cutting catalogs that support them. Out of scope: execution-layer internals, block production, TSS, transaction-handling internals, application semantics.
 
 ## Directory tree
 
@@ -47,7 +47,8 @@ platform-sdk/docs/consensus-layer/
 │   │   ├── iss-detection.md
 │   │   ├── restart-and-pces.md
 │   │   ├── freeze-and-upgrade.md
-│   │   └── reconnect.md
+│   │   ├── reconnect.md
+│   │   └── platform-status.md
 │   └── interfaces/
 │       └── consensus-execution-boundary.md
 │
@@ -174,7 +175,7 @@ Per-file heuristic entries of the form **observable symptom → suspected cause 
 
 ### `delta-map/`
 
-Per-topic status of "current code vs. proposed design": done / partial / not-started / divergent. One flat file per architecture topic, plus `sheriff.md` for a proposal-only module with no architecture topic yet. `FORMAT.md` defines the entry shape. Updated as work progresses.
+Per-topic status of "current code vs. proposed design": done / partial / not-started / divergent. One flat file per architecture topic, plus `sheriff.md` for a proposal-only module with no architecture topic yet.
 
 ### `tutor/`
 
@@ -205,7 +206,7 @@ and fixed per document class.
 Two header orderings apply:
 
 - **Catalog entries** (`decisions/`, `invariants/`, `rules/`, `scenarios/`, `heuristics/`):
-  `type` / `id` / `title` / … (all other existing fields unchanged)
+  `type` / `id` / `title` / … / `last_reviewed` (the trailing key)
 - **Narrative and single-file catalog files** (`concepts/`, `architecture/**`, `glossary.md`,
   `symptoms.md`, `tunables.md`): `type` / `title` / `description` (catalog files only) /
   `last_reviewed`

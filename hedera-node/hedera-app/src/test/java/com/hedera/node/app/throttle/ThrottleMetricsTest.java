@@ -313,4 +313,59 @@ class ThrottleMetricsTest {
         verify(metrics).getOrCreate(any(DoubleGauge.Config.class));
         verify(gauge).set(42.0);
     }
+
+    @Test
+    void setupWithCombinedStandardAndHighVolumeThrottlesShouldUpdateAllGauges(
+            @Mock DeterministicThrottle standardThrottle,
+            @Mock DoubleGauge standardGauge,
+            @Mock DeterministicThrottle highVolumeThrottle,
+            @Mock DoubleGauge highVolumeGauge) {
+        // given
+        when(standardThrottle.name()).thenReturn("ThroughputLimits");
+        when(standardThrottle.instantaneousPercentUsed()).thenReturn(50.0);
+        when(highVolumeThrottle.name()).thenReturn("HVCryptoCreateThrottles");
+        when(highVolumeThrottle.instantaneousPercentUsed()).thenReturn(75.0);
+        when(metrics.getOrCreate(any(DoubleGauge.Config.class))).thenReturn(standardGauge, highVolumeGauge);
+        final var configuration = HederaTestConfigBuilder.create()
+                .withValue("stats.hapiThrottlesToSample", "ThroughputLimits,HVCryptoCreateThrottles")
+                .getOrCreateConfig();
+        final var throttleMetrics = new ThrottleMetrics(metrics, ThrottleType.FRONTEND_THROTTLE);
+
+        // when - single call with both standard and high-volume throttles combined
+        throttleMetrics.setupThrottleMetrics(List.of(standardThrottle, highVolumeThrottle), configuration);
+        throttleMetrics.updateAllMetrics();
+
+        // then - both standard and high-volume gauges must be updated
+        verify(standardGauge).set(50.0);
+        verify(highVolumeGauge).set(75.0);
+    }
+
+    @Test
+    void rebuildingThrottleDefinitionsShouldNotDiscardLiveMetricMappings(
+            @Mock DeterministicThrottle standardThrottle,
+            @Mock DoubleGauge standardGauge,
+            @Mock DeterministicThrottle highVolumeThrottle,
+            @Mock DoubleGauge highVolumeGauge) {
+        // given
+        when(standardThrottle.name()).thenReturn("ThroughputLimits");
+        when(standardThrottle.instantaneousPercentUsed()).thenReturn(33.0);
+        when(highVolumeThrottle.name()).thenReturn("HVCryptoCreateThrottles");
+        when(highVolumeThrottle.instantaneousPercentUsed()).thenReturn(66.0);
+        when(metrics.getOrCreate(any(DoubleGauge.Config.class)))
+                .thenReturn(standardGauge, highVolumeGauge, standardGauge, highVolumeGauge);
+        final var configuration = HederaTestConfigBuilder.create()
+                .withValue("stats.hapiThrottlesToSample", "ThroughputLimits,HVCryptoCreateThrottles")
+                .getOrCreateConfig();
+        final var throttleMetrics = new ThrottleMetrics(metrics, ThrottleType.FRONTEND_THROTTLE);
+        final var combined = List.of(standardThrottle, highVolumeThrottle);
+
+        // when - simulate a rebuild by calling setupThrottleMetrics a second time
+        throttleMetrics.setupThrottleMetrics(combined, configuration);
+        throttleMetrics.setupThrottleMetrics(combined, configuration);
+        throttleMetrics.updateAllMetrics();
+
+        // then - standard gauge must still be updated after the rebuild
+        verify(standardGauge, times(1)).set(33.0);
+        verify(highVolumeGauge, times(1)).set(66.0);
+    }
 }

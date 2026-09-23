@@ -7,10 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
-import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
 import java.util.HashMap;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
@@ -26,7 +24,7 @@ public class RegisterStatesWithoutSignaturesTest extends AbstractStateSignatureC
     // the class file with other tests.
     // DO NOT ADD ADDITIONAL UNIT TESTS TO THIS CLASS!
 
-    private final Roster roster = RandomRosterBuilder.create(random).withSize(4).build();
+    private final Roster roster = RosterFactory.randomRoster(random, 4);
 
     /**
      * Called on each state as it gets too old without collecting enough signatures.

@@ -3,10 +3,10 @@ package org.hiero.consensus.gui;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.gui.api.TestGuiSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 /**
  * Main class for running the hashgraph GUI with generated events.

@@ -7,11 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
-import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
 import java.util.HashMap;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
@@ -30,10 +28,7 @@ public class SequentialSignaturesTest extends AbstractStateSignatureCollectorTes
 
     private final int roundAgeToSign = 3;
 
-    private final Roster roster = RandomRosterBuilder.create(random)
-            .withSize(4)
-            .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
-            .build();
+    private final Roster roster = RosterFactory.randomRoster(random, 4, WeightGenerators.BALANCED_1000_PER_NODE);
 
     /**
      * Called on each state as it gets too old without collecting enough signatures.
@@ -66,7 +61,6 @@ public class SequentialSignaturesTest extends AbstractStateSignatureCollectorTes
     @Test
     @DisplayName("Sequential Signatures Test")
     void sequentialSignaturesTest() throws InterruptedException {
-        this.roundsToKeepAfterSigning = 4;
         final StateSignatureCollectorTester manager = new StateSignatureCollectorBuilder(buildStateConfig())
                 .stateLacksSignaturesConsumer(stateLacksSignaturesConsumer())
                 .stateHasEnoughSignaturesConsumer(stateHasEnoughSignaturesConsumer())
@@ -124,7 +118,7 @@ public class SequentialSignaturesTest extends AbstractStateSignatureCollectorTes
         }
 
         // Check reservation counts.
-        validateReservationCounts(round -> round < signedStates.size() - roundsToKeepAfterSigning - 1);
+        validateReservationCounts(round -> round < signedStates.size() - roundsToKeepForSigning);
 
         // We don't expect any further callbacks. But wait a little while longer in case there is something unexpected.
         SECONDS.sleep(1);

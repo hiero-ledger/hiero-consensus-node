@@ -16,7 +16,7 @@ import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
+import com.swirlds.virtualmap.internal.VirtualMapStatistics;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.TestValueCodec;

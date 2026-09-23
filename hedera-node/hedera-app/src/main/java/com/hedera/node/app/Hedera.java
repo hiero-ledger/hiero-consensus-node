@@ -19,6 +19,7 @@ import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RECONNECT;
+import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.completedFuture;
@@ -29,9 +30,13 @@ import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_RO
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.freezeTimeOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.lastFrozenTimeOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static org.hiero.consensus.roster.RosterUtils.rosterFrom;
+import static org.hiero.consensus.system.SystemExitCode.UPGRADE_FROM_NON_FREEZE_STATE;
+import static org.hiero.consensus.system.SystemExitUtils.exitSystem;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.hapi.block.stream.output.StateChanges;
@@ -78,6 +83,7 @@ import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
+import com.hedera.node.app.service.clpr.impl.ClprServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
@@ -101,6 +107,7 @@ import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.state.BlockProvenStateAccessor;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.throttle.AppScheduleThrottleFactory;
@@ -110,6 +117,7 @@ import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.app.tss.TssHandoffCoordinator;
 import com.hedera.node.app.tss.TssSubmissions;
 import com.hedera.node.app.workflows.TransactionInfo;
+import com.hedera.node.app.workflows.clpr.ClprSyncWorkflow;
 import com.hedera.node.app.workflows.handle.HandleWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
@@ -118,6 +126,7 @@ import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.Utils;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.QuiescenceConfig;
@@ -303,6 +312,8 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
     private final TokenServiceImpl tokenServiceImpl;
 
     private final ConsensusServiceImpl consensusServiceImpl;
+
+    private final ClprServiceImpl clprServiceImpl;
 
     private final NetworkServiceImpl networkServiceImpl;
 
@@ -586,6 +597,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 .txBody());
         tokenServiceImpl = new TokenServiceImpl(appContext);
         consensusServiceImpl = new ConsensusServiceImpl();
+        clprServiceImpl = new ClprServiceImpl();
         networkServiceImpl = new NetworkServiceImpl();
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
@@ -624,7 +636,8 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                         networkServiceImpl,
                         addressBookServiceImpl,
                         rosterServiceImpl,
-                        platformStateService)
+                        platformStateService,
+                        clprServiceImpl)
                 .forEach(servicesRegistry::register);
         onSealConsensusRound = this::sealConsensusRound;
         stateLifecycleManager = new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
@@ -706,10 +719,14 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 .getConfigData(BlockStreamConfig.class)
                 .streamToBlockNodes();
         switch (platformStatus) {
-            case ACTIVE -> startGrpcServer();
+            case ACTIVE -> {
+                startGrpcServer();
+                daggerApp.clprRuntime().start();
+            }
             case FREEZE_COMPLETE -> {
                 logger.info("Platform status is now FREEZE_COMPLETE");
                 shutdownGrpcServer();
+                daggerApp.clprRuntime().stop();
                 closeRecordStreams();
                 if (streamToBlockNodes && isNotEmbedded()) {
                     logger.info("FREEZE_COMPLETE - Shutting down connections to Block Nodes");
@@ -719,6 +736,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             case CATASTROPHIC_FAILURE -> {
                 logger.error("Platform status is now CATASTROPHIC_FAILURE");
                 shutdownGrpcServer();
+                daggerApp.clprRuntime().stop();
 
                 // Stop the block stream and schedule a handler-thread flush of any open/pending blocks (we may need
                 // them for triage), then wait (bounded) for that flush to complete. This MUST run before the block
@@ -784,6 +802,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                     version);
             throw new IllegalStateException("Cannot downgrade from " + deserializedVersion + " to " + version);
         }
+        assertFreezeStateOnUpgrade(state, trigger, deserializedVersion, version);
         try {
             migrateSchemas(state, deserializedVersion, trigger, platformConfig);
             logConfiguration();
@@ -797,6 +816,49 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                     freezeTimeOf(state),
                     lastFrozenTimeOf(state));
         }
+    }
+
+    /**
+     * Fails fast if the node is attempting a software upgrade while resuming from a state that is not a freeze state.
+     * A coordinated upgrade always resumes from the freeze state written at the freeze boundary; every node migrates
+     * from that identical state, which is what keeps the post-migration root hash consistent across the network.
+     * Migrating from any other saved state produces a divergent hash, i.e. an ISS.
+     *
+     * @param state the loaded state
+     * @param trigger the startup trigger
+     * @param deserializedVersion the software version of the loaded state, or null at genesis
+     * @param currentVersion the current node software version
+     */
+    @VisibleForTesting
+    static void assertFreezeStateOnUpgrade(
+            @NonNull final State state,
+            @NonNull final InitTrigger trigger,
+            @Nullable final SemanticVersion deserializedVersion,
+            @NonNull final SemanticVersion currentVersion) {
+        final var isUpgrade = SEMANTIC_VERSION_COMPARATOR.compare(currentVersion, deserializedVersion) > 0;
+        if (isUpgrade && trigger == RESTART && !isFreezeState(state)) {
+            final var message = "Cannot upgrade from " + deserializedVersion + " to " + currentVersion
+                    + " while resuming from a non-freeze state at round " + roundOf(state)
+                    + "; an upgrade must resume from the network freeze state."
+                    + " Restore state from a healthy node before upgrading.";
+            logger.fatal(message);
+            exitSystem(UPGRADE_FROM_NON_FREEZE_STATE, message);
+            // Not reachable in production, where the JVM exits above; reachable in tests that mock the system exit
+            throw new IllegalStateException(message);
+        }
+    }
+
+    /**
+     * Returns whether the given state is a freeze state, i.e. the last state saved before a network freeze. Only a
+     * freeze state has a non-null {@code freezeTime} equal to its {@code lastFrozenTime}, since that equality is
+     * committed to disk atomically with the freeze-state save.
+     *
+     * @param state the state to check
+     * @return true if the state is a freeze state
+     */
+    private static boolean isFreezeState(@NonNull final State state) {
+        final var freezeTime = freezeTimeOf(state);
+        return freezeTime != null && freezeTime.equals(lastFrozenTimeOf(state));
     }
 
     /**
@@ -819,6 +881,12 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         this.platform = requireNonNull(platform);
         //  Reconnect states are constructed from raw VirtualMap and need schema metadata initialization.
         if (trigger == InitTrigger.RECONNECT) {
+            // The TSS services outlive the Dagger application graph rebuilt below, so their process-local
+            // controllers may still reflect the pre-reconnect state. Construction IDs alone cannot detect
+            // a learned state that has advanced the same construction; discard the cached controllers so
+            // the first post-reconnect reconciliation rebuilds them from the learned state.
+            hintsService.stop();
+            historyService.stop();
             initializeStatesApi(state, trigger, platform.getContext().getConfiguration());
         }
         // With the States API grounded in the working state, we can create the object graph from it
@@ -863,8 +931,13 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
      * verifies the on-disk file, and downloads if needed.
      */
     private void ensureWrapsProvingKey() {
-        wrapsProvingKeyVerification.ensureProvingKey(
-                configProvider.getConfiguration(), new HttpWrapsProvingKeyDownloader());
+        final var config = configProvider.getConfiguration();
+        final var tssConfig = config.getConfigData(TssConfig.class);
+        final var downloader = new HttpWrapsProvingKeyDownloader(
+                tssConfig.wrapsProvingKeyConnectTimeout(),
+                tssConfig.wrapsProvingKeyResponseHeadersTimeout(),
+                tssConfig.wrapsProvingKeyStallTimeout());
+        wrapsProvingKeyVerification.ensureProvingKey(config, downloader);
     }
 
     /**
@@ -997,6 +1070,18 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
     }
 
     /**
+     * Test-only accessor for the {@link ClprSyncWorkflow}
+     * singleton, used by embedded tests to invoke the inbound sync handler directly
+     * without going through the gRPC transport.
+     *
+     * @return the {@code ClprSyncWorkflow} from the current dagger graph, or
+     *         {@code null} if the application has not been started yet
+     */
+    public ClprSyncWorkflow clprSyncWorkflow() {
+        return daggerApp == null ? null : daggerApp.clprSyncWorkflow();
+    }
+
+    /**
      * Called to perform orderly close record streams.
      */
     private void closeRecordStreams() {
@@ -1054,6 +1139,8 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
 
         if (daggerApp != null) {
             final var app = daggerApp;
+            logger.debug("Stopping CLPR sync orchestrator");
+            app.clprRuntime().stop();
             logger.debug("Shutting down the Block Node Connection Manager");
             app.blockNodeConnectionManager().shutdown();
 
@@ -1333,6 +1420,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         if (daggerApp != null) {
             final var app = daggerApp;
             shutdownGrpcServer();
+            app.clprRuntime().stop();
             notifications.unregister(ReconnectCompleteListener.class, app.reconnectListener());
             notifications.unregister(StateWriteToDiskCompleteListener.class, app.stateWriteToDiskListener());
             notifications.unregister(AsyncFatalIssListener.class, app.fatalIssListener());
@@ -1375,6 +1463,11 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         final var succinctSignatureDelegate = new TssBlockHashSigner(hintsService, historyService, configProvider);
         final var blockHashSigner = blockHashSignerFactory.apply(
                 rsaContext, rsaSignings, hintsService.submissions(), succinctSignatureDelegate);
+        final var clprEnabled = configProvider
+                .getConfiguration()
+                .getConfigData(ClprConfig.class)
+                .enabled();
+        final var blockProvenStateAccessor = clprEnabled ? new BlockProvenStateAccessor(stateLifecycleManager) : null;
         // Fully qualified so as to not confuse javadoc
         daggerApp = DaggerHederaInjectionComponent.builder()
                 .configProviderImpl(configProvider)
@@ -1384,6 +1477,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 .utilServiceImpl(utilServiceImpl)
                 .networkServiceImpl(networkServiceImpl)
                 .tokenServiceImpl(tokenServiceImpl)
+                .clprServiceImpl(clprServiceImpl)
                 .consensusServiceImpl(consensusServiceImpl)
                 .scheduleService(scheduleServiceImpl)
                 .addressBookService(addressBookServiceImpl)
@@ -1410,6 +1504,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 .appContext(appContext)
                 .wrappedRecordBlockHashMigration(wrappedRecordBlockHashMigration)
                 .transactionOffsetNanos(txnOffsetNanos)
+                .blockProvenStateAccessor(blockProvenStateAccessor)
                 .build();
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state
         daggerApp.initializer().initialize(state, streamMode);
@@ -1417,10 +1512,15 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         notifications.register(ReconnectCompleteListener.class, daggerApp.reconnectListener());
         notifications.register(StateWriteToDiskCompleteListener.class, daggerApp.stateWriteToDiskListener());
         notifications.register(AsyncFatalIssListener.class, daggerApp.fatalIssListener());
+        if (blockProvenStateAccessor != null) {
+            notifications.register(StateHashedListener.class, blockProvenStateAccessor);
+        }
         if (blockStreamEnabled) {
             notifications.register(StateHashedListener.class, daggerApp.blockStreamManager());
             final var lastBlockHash = (trigger == GENESIS) ? HASH_OF_ZERO : null;
-            daggerApp.blockStreamManager().init(state, lastBlockHash);
+            daggerApp
+                    .blockStreamManager()
+                    .init(state, lastBlockHash, blockStreamService.consumeBsiSchemaOverwriteExecuted());
             migrationStateChanges = null;
         }
     }
@@ -1563,13 +1663,18 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 config.getConfigData(HederaConfig.class).nowFrozenWriteTimeout();
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         try {
+            // Capture the freeze block's number here, on the handle thread right after endRound() closed it;
+            // the buffer's lastProducedBlockNumber can still lag behind the freeze block at this point, so
+            // waiting on that watermark instead can resolve vacuously and lose the freeze block (never
+            // delivered to any block node) when connections shut down at FREEZE_COMPLETE.
+            final long freezeBlockNumber = daggerApp.blockStreamManager().blockNo();
             final var blockStreamFuture =
                     requireNonNull(daggerApp.blockStreamManager().pendingBlockProofsFuture());
             final var wrbWritersFuture =
                     requireNonNull(daggerApp.blockRecordManager().noOpenWrbWritersFuture());
             final var signingFuture = CompletableFuture.allOf(blockStreamFuture, wrbWritersFuture);
             final var freezeStateReadyFuture = waitsForBlockNodeAcknowledgements(blockStreamConfig)
-                    ? signingFuture.thenCompose(ignore -> blockNodeAcknowledgementsFuture(round))
+                    ? signingFuture.thenCompose(ignore -> blockNodeAcknowledgementsFuture(round, freezeBlockNumber))
                     : signingFuture;
             logger.info(
                     "Freeze round {} sealed; waiting up to {} for pending block proofs, WRB writers, "
@@ -1620,7 +1725,8 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 && daggerApp.blockNodeConnectionManager().hasActiveStreamingConnection();
     }
 
-    private @NonNull CompletableFuture<Void> blockNodeAcknowledgementsFuture(@NonNull final Round round) {
+    private @NonNull CompletableFuture<Void> blockNodeAcknowledgementsFuture(
+            @NonNull final Round round, final long freezeBlockNumber) {
         requireNonNull(round);
         if (!daggerApp.blockNodeConnectionManager().hasActiveStreamingConnection()) {
             logger.info(
@@ -1630,14 +1736,14 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             return completedFuture(null);
         }
         final var blockBufferService = daggerApp.blockBufferService();
-        final var lastProducedBlock = blockBufferService.getLastBlockNumberProduced();
         logger.info(
-                "Freeze round {} block signing completed; waiting for block node acknowledgement through block {}; "
-                        + "highestAckedBlock={}",
+                "Freeze round {} block signing completed; waiting for block node acknowledgement through "
+                        + "freeze block {}; lastProducedBlock={}, highestAckedBlock={}",
                 round.getRoundNum(),
-                lastProducedBlock,
+                freezeBlockNumber,
+                blockBufferService.getLastBlockNumberProduced(),
                 blockBufferService.getHighestAckedBlockNumber());
-        return requireNonNull(blockBufferService.acknowledgedThroughFuture(lastProducedBlock));
+        return requireNonNull(blockBufferService.acknowledgedThroughFuture(freezeBlockNumber));
     }
 
     /**

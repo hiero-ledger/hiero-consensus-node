@@ -1,28 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.state;
 
-import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
-import static com.swirlds.component.framework.wires.SolderType.OFFER;
+import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
+import static org.hiero.consensus.wiring.framework.wires.SolderType.OFFER;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.transformers.WireFilter;
-import com.swirlds.component.framework.transformers.WireTransformer;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.input.NoInput;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Queue;
 import java.util.function.UnaryOperator;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -42,6 +37,7 @@ import org.hiero.consensus.state.sentinel.DefaultSignedStateSentinel;
 import org.hiero.consensus.state.sentinel.SignedStateSentinel;
 import org.hiero.consensus.state.signed.DefaultStateGarbageCollector;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.signed.StateGarbageCollector;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
 import org.hiero.consensus.state.signing.DefaultStateSignatureCollector;
@@ -50,11 +46,21 @@ import org.hiero.consensus.state.signing.SignedStateMetrics;
 import org.hiero.consensus.state.signing.StateSignatureCollector;
 import org.hiero.consensus.state.signing.StateSigner;
 import org.hiero.consensus.state.utils.SignedStateReserver;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.component.InputWireLabel;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.transformers.WireFilter;
+import org.hiero.consensus.wiring.framework.transformers.WireTransformer;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.input.NoInput;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * Module for signed state management.
  */
 public class StateModule {
+
+    private final WireTransformer<ConsensusRound, EventWindow> eventWindowExtractor;
 
     private final WireTransformer<ReservedSignedState, ReservedSignedState> stateDispatcher;
 
@@ -98,11 +104,13 @@ public class StateModule {
             @NonNull final String mainClassName,
             @NonNull final NodeId selfId,
             @NonNull final String swirldName,
-            @NonNull final StateLifecycleManager stateLifecycleManager,
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             @NonNull final LatestCompleteStateNexus latestCompleteStateNexus,
             @NonNull final SavedStateController savedStateController) {
 
         // Set up wiring
+        this.eventWindowExtractor = new WireTransformer<>(
+                model, "State_EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow);
         this.stateDispatcher =
                 new WireTransformer<>(model, "ReservedSignedStateDispatcher", "signed state", UnaryOperator.identity());
 
@@ -127,6 +135,11 @@ public class StateModule {
                 new ComponentWiring<>(model, StateGarbageCollector.class, wiringConfig.stateGarbageCollector());
         final ComponentWiring<SignedStateSentinel, Void> signedStateSentinelWiring =
                 new ComponentWiring<>(model, SignedStateSentinel.class, wiringConfig.signedStateSentinel());
+
+        // Wire components
+        eventWindowExtractor
+                .getOutputWire()
+                .solderTo(latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::updateEventWindow));
 
         // Eventually mark unhashed state for storage and forward to StateHasher
         savedStateControllerWiring.getOutputWire().solderTo(stateHasherWiring.getInputWire(StateHasher::hashState));
@@ -232,18 +245,6 @@ public class StateModule {
     }
 
     /**
-     * Get the input wire for hashed states for further processing
-     * (used during initialization and reconnect).
-     *
-     * @return the input wire for hashed states
-     */
-    @InputWireLabel("hashed states")
-    @NonNull
-    public InputWire<ReservedSignedState> hashedStatesInputWire() {
-        return stateDispatcher.getInputWire();
-    }
-
-    /**
      * Get the input wire for registering states in the garbage collector
      *
      * @return the input wire for registering states
@@ -289,12 +290,24 @@ public class StateModule {
     }
 
     /**
-     * Get the input wire for setting the latest {@link EventWindow}.
+     * {@link InputWire} for the consensus round received from the {@code Hashgraph} component.
      *
-     * @return the input wire for the transactions
+     * @return the {@link InputWire} for the consensus round
      */
+    @InputWireLabel("consensus round")
     @NonNull
-    public InputWire<EventWindow> eventWindowInputWire() {
+    public InputWire<ConsensusRound> consensusRoundInputWire() {
+        return eventWindowExtractor.getInputWire();
+    }
+
+    /**
+     * {@link InputWire} for the initial event window.
+     *
+     * @return the {@link InputWire} for the initial event window
+     */
+    @InputWireLabel("initial event window")
+    @NonNull
+    public InputWire<EventWindow> initialEventWindowInputWire() {
         return latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::updateEventWindow);
     }
 
@@ -340,6 +353,15 @@ public class StateModule {
     }
 
     /**
+     * Get the input wire for clearing the state module.
+     *
+     * @return the input wire for clearing the state module.
+     */
+    public InputWire<NoInput> clearInputWire() {
+        return stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::clear);
+    }
+
+    /**
      * Flush the {@code StateModule}.
      */
     public void flush() {
@@ -348,11 +370,16 @@ public class StateModule {
     }
 
     /**
-     * Get the input wire for clearing the state management component.
+     * Forward a state to the hash logger.
      *
-     * @return the input wire for clearing the state management component.
+     * @param signedState the state to forward
      */
-    public InputWire<NoInput> clearInputWire() {
-        return stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::clear);
+    public void sendState(@NonNull final SignedState signedState) {
+        final ReservedSignedState stateReservedForHasher = signedState.reserve("logging state hash");
+
+        final boolean offerResult = stateDispatcher.getInputWire().offer(stateReservedForHasher);
+        if (!offerResult) {
+            stateReservedForHasher.close();
+        }
     }
 }

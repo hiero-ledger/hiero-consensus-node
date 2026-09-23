@@ -17,6 +17,7 @@ import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.utils.ConstantUtils;
+import com.hedera.node.app.service.contract.impl.utils.EthereumTransactionRollbackHandler;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -62,7 +63,12 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
         final var streamBuilder = context.savepointStack().getBaseBuilder(ContractCallStreamBuilder.class);
         outcome.addCallDetailsTo(streamBuilder, context, entityIdFactory);
 
-        throwIfUnsuccessfulCall(outcome, component.hederaOperations(), component.rootProxyWorldUpdater());
+        throwIfUnsuccessfulCall(
+                outcome,
+                new EthereumTransactionRollbackHandler(
+                        outcome, component.hederaOperations().gasChargingEvents(), component.rootProxyWorldUpdater()),
+                streamBuilder,
+                context);
     }
 
     @Override

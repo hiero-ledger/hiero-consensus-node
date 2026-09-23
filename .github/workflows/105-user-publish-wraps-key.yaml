@@ -38,7 +38,7 @@ jobs:
     steps:
       - name: Prepare Runner
         id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@c392c3e699995ab6030915302d2fc9bffb1e861f # v1.1.0
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
           checkout-ref: "${{ github.ref }}"
@@ -77,7 +77,9 @@ jobs:
               exit 1
             fi
           done
-          (cd "${STAGING_DIR}" && sha384sum decider_pp.bin decider_vp.bin nova_pp.bin nova_vp.bin | tee "${RUNNER_TEMP}/expected-artifact-hashes.txt")
+          (cd "${STAGING_DIR}" && sha384sum decider_pp.bin decider_vp.bin nova_pp.bin nova_vp.bin \
+            > "${STAGING_DIR}/wraps-artifacts.sha384")
+          cp "${STAGING_DIR}/wraps-artifacts.sha384" "${RUNNER_TEMP}/expected-artifact-hashes.txt"
 
           # Hash file consumed by the consensus node to detect the artifacts are already in place and
           # skip re-downloading the archive (see WrapsProvingKeyVerification#WRAPS_HASH_FILE_NAME).
@@ -124,6 +126,7 @@ jobs:
           docker cp "${cid}:/." "${RUNNER_TEMP}/verify/"
           docker rm "${cid}" >/dev/null
           (cd "${RUNNER_TEMP}/verify" && sha384sum -c "${RUNNER_TEMP}/expected-artifact-hashes.txt")
+          (cd "${RUNNER_TEMP}/verify" && sha384sum -c wraps-artifacts.sha384)
           got="$(tr -d '[:space:]' < "${RUNNER_TEMP}/verify/wraps.sha384")"
           if [[ "${got}" != "${TARBALL_SHA384}" ]]; then
             echo "::error::wraps.sha384 in image (${got}) does not match tarball SHA-384 (${TARBALL_SHA384})"
@@ -136,6 +139,7 @@ jobs:
           IMAGE_TAG: ${{ steps.download.outputs.tag }}
           TARBALL_SHA384: ${{ steps.download.outputs.tarball-sha384 }}
         run: |
+          manifest_sha384="$(sha384sum "${STAGING_DIR}/wraps-artifacts.sha384" | awk '{print $1}')"
           {
             echo "## WRAPS Proving Key Image Published"
             echo ""
@@ -145,6 +149,7 @@ jobs:
             echo "| Digest | \`${IMAGE_DIGEST}\` |"
             echo "| Pin for consumers | \`${IMAGE_NAME}@${IMAGE_DIGEST}\` |"
             echo "| Tarball SHA-384 | \`${TARBALL_SHA384}\` |"
+            echo "| Manifest SHA-384 (\`wraps-artifacts.sha384\`) | \`${manifest_sha384}\` |"
             echo ""
             echo "### Artifact hashes (SHA-384)"
             echo '```'

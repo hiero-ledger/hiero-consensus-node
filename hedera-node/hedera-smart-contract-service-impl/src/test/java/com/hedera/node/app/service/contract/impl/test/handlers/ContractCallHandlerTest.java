@@ -43,7 +43,7 @@ import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -146,6 +146,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         given(recordBuilder.contractCallResult(expectedResult)).willReturn(recordBuilder);
         given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
                 .willReturn(recordBuilder);
+        givenNoTraceDataSizeLimitExceeded();
 
         assertDoesNotThrow(() -> subject.handle(context));
     }
@@ -179,8 +180,14 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         given(recordBuilder.contractCallResult(expectedResult)).willReturn(recordBuilder);
         given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
                 .willReturn(recordBuilder);
+        givenNoTraceDataSizeLimitExceeded();
 
         assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(context));
+    }
+
+    private void givenNoTraceDataSizeLimitExceeded() {
+        given(recordBuilder.hasTraceDataSizeLimitExceeded()).willReturn(false);
+        given(recordBuilder.estimatedContractBytecodeSize()).willReturn(0L);
     }
 
     @Test

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.blocknode;
 
-import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE_SIM;
+import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
@@ -23,6 +23,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
@@ -34,15 +35,14 @@ import org.junit.jupiter.api.Tag;
 
 /**
  * Consensus-node to block-node communication tests that use the in-process block node
- * <b>simulator</b> (no Docker / real block node containers). These are split out from
- * {@link BlockNodeSuite} so they can run as a separate, parallel CI task on a regular runner.
+ * <b>simulator</b> (no Docker / real block node containers).
  * NOTE: com.hedera.node.app.blocks.impl.streaming MUST have DEBUG logging enabled.
  */
-@Tag(BLOCK_NODE_SIM)
+@Tag(BLOCK_NODE)
 @OrderedInIsolation
 public class BlockNodeSimSuite {
     private static final int BLOCK_PERIOD_SECONDS = 2;
-    private static final int STRESS_CYCLES = 12;
+    private static final int STRESS_CYCLES = 30;
 
     @HapiTest
     @HapiBlockNode(
@@ -60,7 +60,8 @@ public class BlockNodeSimSuite {
                         blockNodePriorities = {0, 1, 2, 3},
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockStream.buffer.ackedBlocksToRetain", "25"
                         })
             })
     @Order(1)
@@ -86,7 +87,7 @@ public class BlockNodeSimSuite {
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.get(1)))),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNode(1).shutDownImmediately(), // Pri 1
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
@@ -98,7 +99,7 @@ public class BlockNodeSimSuite {
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.get(2)))),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNode(2).shutDownImmediately(), // Pri 2
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
@@ -110,7 +111,7 @@ public class BlockNodeSimSuite {
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.get(3)))),
-                waitUntilNextBlocks(10).withBackgroundTraffic(true),
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 blockNode(1).startImmediately(),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
@@ -190,7 +191,7 @@ public class BlockNodeSimSuite {
                         Duration.ofMinutes(2),
                         Duration.ofMinutes(2),
                         // look for the saturation reaching the action stage (50%)
-                        "saturation: 50.0%",
+                        "ByBlockCount: 50.0000%",
                         // look for the log that shows the monitor detected buffer saturation
                         "Streaming connection update requested",
                         "buffer-unhealthy",
@@ -205,7 +206,7 @@ public class BlockNodeSimSuite {
                         Duration.ofMinutes(2),
                         Duration.ofMinutes(2),
                         // saturation should fall back to low levels after switching to node 1
-                        "saturation: 0.0%")));
+                        "ByBlockCount: 0.0000%")));
     }
 
     @HapiTest
@@ -268,13 +269,18 @@ public class BlockNodeSimSuite {
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 // saturation should drop as the block node acknowledges the buffered blocks
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
-                        byNodeId(0), timeRef::get, Duration.ofMinutes(3), Duration.ofMinutes(3), "saturation: 0.0%")));
+                        byNodeId(0),
+                        timeRef::get,
+                        Duration.ofMinutes(3),
+                        Duration.ofMinutes(3),
+                        "ByBlockCount: 0.0000%")));
     }
 
     /**
-     * Exercises the consensus node's handling of the non-error publisher handshake responses
-     * (ResendBlock, BehindPublisher, SkipBlock) and of EndOfStream responses that force a
-     * reconnect.
+     * Exercises the consensus node's handling of the full set of publisher handshake responses: the non-error
+     * responses (ResendBlock, BehindPublisher, SkipBlock) and every EndOfStream code that forces a reconnect
+     * (DUPLICATE_BLOCK, BAD_BLOCK_PROOF, PERSISTENCE_FAILED, TIMEOUT, INVALID_REQUEST, ERROR, SUCCESS). After the
+     * full walk it asserts the block node received a gap-free (contiguous) run of blocks.
      */
     @HapiTest
     @HapiBlockNode(
@@ -290,6 +296,7 @@ public class BlockNodeSimSuite {
                             "blockStream.writerMode", "FILE_AND_GRPC",
                             "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
                             "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockNode.maxEndOfStreamsAllowed", "50",
                             "blockNode.globalCoolDownSeconds", "0",
                             "blockNode.basicNodeCoolDownSeconds", "1",
                             "blockNode.extendedNodeCoolDownSeconds", "1"
@@ -298,6 +305,7 @@ public class BlockNodeSimSuite {
     @Order(4)
     final Stream<DynamicTest> publisherHandshakeResponses() {
         final AtomicLong lastVerified = new AtomicLong();
+        final AtomicReference<Set<Long>> received = new AtomicReference<>();
         return hapiTest(
                 // Reach steady-state streaming to the block node.
                 waitUntilNextBlocks(5).withBackgroundTraffic(true),
@@ -350,8 +358,44 @@ public class BlockNodeSimSuite {
                         blockNode(0).sendEndOfStreamWithBlock(EndOfStream.Code.PERSISTENCE_FAILED, lastVerified.get())),
                 awaitBlockNodeCommsLogContainsText(
                         byNodeId(0), "responseCode: PERSISTENCE_FAILED", Duration.ofSeconds(30)),
+                waitUntilNextBlocks(2).withBackgroundTraffic(true),
+
+                // EndOfStream(TIMEOUT) -> transient close + immediate restart at the next block.
+                blockNode(0).getLastVerifiedBlockExposing(lastVerified),
+                sourcingContextual(
+                        spec -> blockNode(0).sendEndOfStreamWithBlock(EndOfStream.Code.TIMEOUT, lastVerified.get())),
+                awaitBlockNodeCommsLogContainsText(byNodeId(0), "responseCode: TIMEOUT", Duration.ofSeconds(30)),
+                waitUntilNextBlocks(2).withBackgroundTraffic(true),
+
+                // EndOfStream(INVALID_REQUEST) -> transient close + immediate restart.
+                blockNode(0).getLastVerifiedBlockExposing(lastVerified),
+                sourcingContextual(spec ->
+                        blockNode(0).sendEndOfStreamWithBlock(EndOfStream.Code.INVALID_REQUEST, lastVerified.get())),
+                awaitBlockNodeCommsLogContainsText(
+                        byNodeId(0), "responseCode: INVALID_REQUEST", Duration.ofSeconds(30)),
+                waitUntilNextBlocks(2).withBackgroundTraffic(true),
+
+                // EndOfStream(ERROR) -> close + reconnect later.
+                blockNode(0).getLastVerifiedBlockExposing(lastVerified),
+                sourcingContextual(
+                        spec -> blockNode(0).sendEndOfStreamWithBlock(EndOfStream.Code.ERROR, lastVerified.get())),
+                awaitBlockNodeCommsLogContainsText(byNodeId(0), "responseCode: ERROR", Duration.ofSeconds(30)),
+                waitUntilNextBlocks(2).withBackgroundTraffic(true),
+
+                // EndOfStream(SUCCESS) -> orderly end + reconnect.
+                blockNode(0).getLastVerifiedBlockExposing(lastVerified),
+                sourcingContextual(
+                        spec -> blockNode(0).sendEndOfStreamWithBlock(EndOfStream.Code.SUCCESS, lastVerified.get())),
+                awaitBlockNodeCommsLogContainsText(byNodeId(0), "responseCode: SUCCESS", Duration.ofSeconds(30)),
+
                 // Final continuity check: block production resumes after the last reconnect.
-                waitUntilNextBlocks(3).withBackgroundTraffic(true));
+                waitUntilNextBlocks(3).withBackgroundTraffic(true),
+
+                // Contiguity / no-data-loss: despite the reconnects triggered above, the block node received a
+                // gap-free run of blocks. The single simulator is never restarted here, so its received-block set
+                // is cumulative across every reconnect.
+                blockNode(0).getReceivedBlockNumbersExposing(received::set),
+                doingContextual(spec -> assertReceivedBlocksContiguous(received.get())));
     }
 
     /**
@@ -469,6 +513,82 @@ public class BlockNodeSimSuite {
         ops.add(doingContextual(_ -> assertThat(blocksAfterChurn.get())
                 .as("block production should advance across the reconnect churn")
                 .isGreaterThan(blocksBeforeChurn.get())));
+        // Contiguity: node 0 is recreated on each restart (its received-block set is wiped), so after the final
+        // restart and settle window it holds the run of blocks streamed to it since coming back up. That run must
+        // be gap-free, proving the consensus node resumed a contiguous stream after all the churn.
+        final AtomicReference<Set<Long>> receivedAfterChurn = new AtomicReference<>();
+        ops.add(blockNode(0).getReceivedBlockNumbersExposing(receivedAfterChurn::set));
+        ops.add(doingContextual(_ -> assertReceivedBlocksContiguous(receivedAfterChurn.get())));
         return hapiTest(ops.toArray(new SpecOperation[0]));
+    }
+
+    /**
+     * Exercises the high-latency QoS path: a slow (high-latency) block node whose acknowledgements lag beyond the
+     * configured threshold is abandoned after enough consecutive high-latency events, and the consensus node fails
+     * over to a healthy node. The high-latency threshold is lowered below the simulator's fixed 1500ms ack delay
+     * so the switch fires deterministically.
+     */
+    @HapiTest
+    @HapiBlockNode(
+            networkSize = 1,
+            blockNodeConfigs = {
+                @BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.SIMULATOR, highLatency = true),
+                @BlockNodeConfig(nodeId = 1, mode = BlockNodeMode.SIMULATOR)
+            },
+            subProcessNodeConfigs = {
+                @SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0, 1},
+                        blockNodePriorities = {0, 1},
+                        applicationPropertiesOverrides = {
+                            "blockStream.streamMode", "BLOCKS",
+                            "blockStream.writerMode", "FILE_AND_GRPC",
+                            "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
+                            "blockStream.streamWrappedRecordBlocks", "false",
+                            "blockNode.highLatencyThreshold", "1s",
+                            "blockNode.highLatencyEventsBeforeSwitching", "3",
+                            "blockNode.globalCoolDownSeconds", "0",
+                            "blockNode.basicNodeCoolDownSeconds", "1",
+                            "blockNode.extendedNodeCoolDownSeconds", "1"
+                        })
+            })
+    @Order(7)
+    final Stream<DynamicTest> publisherHandshakeHighLatencySwitch() {
+        final List<Integer> portNumbers = new ArrayList<>();
+        return hapiTest(
+                doingContextual(spec -> {
+                    portNumbers.add(spec.getBlockNodePortById(0));
+                    portNumbers.add(spec.getBlockNodePortById(1));
+                }),
+                // Node 0 (high latency) delays acknowledgements past the lowered threshold; after enough
+                // consecutive high-latency events the consensus node closes the connection and fails over to node 1.
+                waitUntilNextBlocks(5).withBackgroundTraffic(true),
+                awaitBlockNodeCommsLogContainsText(
+                        byNodeId(0), "Block node has exceeded high latency threshold", Duration.ofSeconds(90)),
+                sourcingContextual(spec -> awaitBlockNodeCommsLogContainsText(
+                        byNodeId(0),
+                        String.format("Selected new block node for streaming: localhost:%s", portNumbers.get(1)),
+                        Duration.ofSeconds(90))),
+                waitUntilNextBlocks(3).withBackgroundTraffic(true));
+    }
+
+    /**
+     * Asserts that the given set of received block numbers is non-empty and gap-free (contiguous) from its minimum
+     * to its maximum, i.e. no block in the streamed range was lost.
+     */
+    private static void assertReceivedBlocksContiguous(final Set<Long> received) {
+        assertThat(received)
+                .as("block node should have received at least one block")
+                .isNotEmpty();
+        final long min = received.stream().mapToLong(Long::longValue).min().orElseThrow();
+        final long max = received.stream().mapToLong(Long::longValue).max().orElseThrow();
+        for (long b = min; b <= max; b++) {
+            final long block = b;
+            assertThat(received)
+                    .as(
+                            "Block sequence is not contiguous: block %d missing from received range [%d, %d]",
+                            block, min, max)
+                    .contains(block);
+        }
     }
 }

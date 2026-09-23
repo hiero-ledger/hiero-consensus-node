@@ -14,6 +14,7 @@ source: The hashgraph consensus algorithm (protocol definition).
 verification: consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java — election pipeline (`voteInAllElections`, `firstVote`, `coinVote`) and ancient eviction
 provenance: 2026-06-08 extraction run
 curated_by: Michael Heinrichs (@netopyr)
+last_reviewed: TBD
 ---
 
 # INV-005 — Every honest event eventually reaches a final fate

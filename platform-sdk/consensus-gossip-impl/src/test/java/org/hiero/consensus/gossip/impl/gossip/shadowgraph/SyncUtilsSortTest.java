@@ -63,24 +63,17 @@ class SyncUtilsSortTest {
         // Build a small DAG parent-first. TestingEventBuilder assigns an ever-increasing sequence number at build
         // time, mirroring the orphan buffer assigning it at release time, so a parent always has a lower sequence
         // number than its children.
-        final PlatformEvent a = new TestingEventBuilder(random)
-                .setEnableSequenceNumberAssignment(true)
-                .build();
-        final PlatformEvent b = new TestingEventBuilder(random)
-                .setEnableSequenceNumberAssignment(true)
-                .build();
+        final PlatformEvent a = new TestingEventBuilder(random).build();
+        final PlatformEvent b = new TestingEventBuilder(random).build();
         final PlatformEvent c = new TestingEventBuilder(random)
-                .setEnableSequenceNumberAssignment(true)
                 .setSelfParent(a)
                 .setOtherParent(b)
                 .build();
         final PlatformEvent d = new TestingEventBuilder(random)
-                .setEnableSequenceNumberAssignment(true)
                 .setSelfParent(b)
                 .setOtherParent(c)
                 .build();
         final PlatformEvent e = new TestingEventBuilder(random)
-                .setEnableSequenceNumberAssignment(true)
                 .setSelfParent(c)
                 .setOtherParent(d)
                 .build();

@@ -3,21 +3,30 @@ package com.hedera.node.app.hapi.utils.keys;
 
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.relocatedIfNotPresentInWorkingDir;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.relocatedIfNotPresentWithCurrentPathPrefix;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.interfaces.ECPrivateKey;
+import java.security.spec.ECGenParameterSpec;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import net.i2p.crypto.eddsa.spec.EdDSANamedCurveTable;
 import net.i2p.crypto.eddsa.spec.EdDSAPrivateKeySpec;
+import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
+import org.bouncycastle.openssl.jcajce.JcaPKCS8Generator;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -151,13 +160,49 @@ class KeyUtilsTest {
     }
 
     @Test
+    void readKeyFromAcceptsUnencryptedPkcs8Pem() throws Exception {
+        final KeyPairGenerator kpg = KeyPairGenerator.getInstance("EC", KeyUtils.BC_PROVIDER);
+        kpg.initialize(new ECGenParameterSpec("secp256k1"));
+        final KeyPair kp = kpg.generateKeyPair();
+        final ECPrivateKey originalKey = (ECPrivateKey) kp.getPrivate();
+
+        final StringWriter sw = new StringWriter();
+        try (JcaPEMWriter writer = new JcaPEMWriter(sw)) {
+            writer.writeObject(new JcaPKCS8Generator(originalKey, null).generate());
+        }
+
+        final var in = new ByteArrayInputStream(sw.toString().getBytes(StandardCharsets.UTF_8));
+        final ECPrivateKey recoveredKey = KeyUtils.readKeyFrom(in, "", KeyUtils.BC_PROVIDER);
+
+        assertInstanceOf(ECPrivateKey.class, recoveredKey);
+        assertEquals(originalKey.getS(), recoveredKey.getS());
+    }
+
+    @Test
+    void readKeyFromAcceptsUnencryptedEd25519Pem() throws Exception {
+        final var curve = EdDSANamedCurveTable.getByName(EdDSANamedCurveTable.ED_25519);
+        final EdDSAPrivateKey originalKey = new EdDSAPrivateKey(new EdDSAPrivateKeySpec(new byte[32], curve));
+
+        final StringWriter sw = new StringWriter();
+        try (JcaPEMWriter writer = new JcaPEMWriter(sw)) {
+            writer.writeObject(new JcaPKCS8Generator(originalKey, null).generate());
+        }
+
+        final var in = new ByteArrayInputStream(sw.toString().getBytes(StandardCharsets.UTF_8));
+        final EdDSAPrivateKey recoveredKey = Ed25519Utils.readKeyFrom(in, "");
+
+        assertInstanceOf(EdDSAPrivateKey.class, recoveredKey);
+        assertArrayEquals(originalKey.getSeed(), recoveredKey.getSeed());
+    }
+
+    @Test
     void readKeyFromRejectsUnexpectedPemType() {
-        final var pem = pem("PRIVATE KEY", "AA==");
+        final var pem = pem("CERTIFICATE", "AA==");
         final var in = new ByteArrayInputStream(pem.getBytes(StandardCharsets.UTF_8));
 
         final var ex = assertThrows(
                 IllegalArgumentException.class, () -> KeyUtils.readKeyFrom(in, "pass", KeyUtils.BC_PROVIDER));
-        assertEquals("Unexpected PEM type: PRIVATE KEY", ex.getMessage());
+        assertEquals("Unexpected PEM type: CERTIFICATE", ex.getMessage());
     }
 
     @Test

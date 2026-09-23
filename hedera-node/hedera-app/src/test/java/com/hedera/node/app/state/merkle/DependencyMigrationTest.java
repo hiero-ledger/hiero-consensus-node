@@ -41,7 +41,7 @@ import java.util.List;
 import java.util.Set;
 import org.assertj.core.api.Assertions;
 import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

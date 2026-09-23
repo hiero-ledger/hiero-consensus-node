@@ -13,12 +13,12 @@ import java.util.Map;
  * A Roster History object that encapsulates information about the current active roster
  * and the previous active roster, and their corresponding starting round numbers.
  */
-public class RosterHistory {
-    private final List<RoundRosterPair> history;
-    private final Map<Bytes, Roster> rosters;
+public record RosterHistory(
+        @NonNull List<RoundRosterPair> history, @NonNull Map<Bytes, Roster> rosters) {
 
     /**
      * Construct a RosterHistory for a genesis roster.
+     *
      * @param roster the genesis roster
      * @return a RosterHistory for the genesis roster
      */
@@ -33,10 +33,7 @@ public class RosterHistory {
      * @param history a non-empty list of round number/roster hash pairs
      * @param rosters a map from roster hash to roster objects which must contain all the roster hashes found in the history.
      */
-    public RosterHistory(@NonNull final List<RoundRosterPair> history, @NonNull final Map<Bytes, Roster> rosters) {
-        this.history = history;
-        this.rosters = rosters;
-
+    public RosterHistory {
         if (history.isEmpty()) {
             throw new IllegalArgumentException("Roster history is empty");
         }

@@ -12,7 +12,7 @@ import static org.mockito.Mockito.mock;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapStatistics;
+import com.swirlds.virtualmap.internal.VirtualMapStatistics;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryDataSource;
 import java.nio.ByteBuffer;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.tipset;
 
-import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.assignSeqNumAndDistributeEvent;
+import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.assignNGenAndDistributeEvent;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.buildEventCreator;
 import static org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreatorTestUtils.buildSimulatedNodes;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,7 +24,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,8 +43,7 @@ public class EventCreationTimeTests {
         // Common test set up. We initialize a network to make it easier to create events.
         final int networkSize = 1;
         final Random random = Randotron.create();
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(networkSize).build();
+        final Roster roster = RosterFactory.randomRoster(random, networkSize);
         transactionPool = new ArrayList<>();
         eventCreator = buildEventCreator(
                 random,
@@ -158,7 +157,7 @@ public class EventCreationTimeTests {
     @Test
     void otherParentTimeReceivedDrivesChildCreationTime() {
         final Random random = Randotron.create();
-        final Roster roster = RandomRosterBuilder.create(random).withSize(2).build();
+        final Roster roster = RosterFactory.randomRoster(random, 2);
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, List::of);
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
@@ -168,13 +167,13 @@ public class EventCreationTimeTests {
         // Both nodes create their genesis events
         final PlatformEvent genesis0 = nodes.get(nodeA).eventCreator().maybeCreateEvent();
         assertNotNull(genesis0);
-        assignSeqNumAndDistributeEvent(nodes, events, genesis0);
+        assignNGenAndDistributeEvent(nodes, events, genesis0);
 
         time.tick(Duration.ofSeconds(1));
 
         final PlatformEvent genesis1 = nodes.get(nodeB).eventCreator().maybeCreateEvent();
         assertNotNull(genesis1);
-        assignSeqNumAndDistributeEvent(nodes, events, genesis1);
+        assignNGenAndDistributeEvent(nodes, events, genesis1);
 
         // Override the other parent's timeReceived to be far in the future,
         // while its timeCreated remains in the past.

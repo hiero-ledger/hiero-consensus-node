@@ -27,6 +27,7 @@ import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.new
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerDuplicateError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newPayerError;
 import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.newSuccess;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
@@ -83,8 +84,12 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 @ExtendWith(MockitoExtension.class)
 class DispatchProcessorTest {
@@ -432,11 +437,69 @@ class DispatchProcessorTest {
         final var inOrder = inOrder(feeAccumulator, stack);
         inOrder.verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
         inOrder.verify(stack).rollbackFullStack();
+        inOrder.verify(feeAccumulator).reverseAccumulatedNodeFees();
         inOrder.verify(feeAccumulator).resetRefundableFees();
         inOrder.verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
+        // The rollback must precede the commit, so the failed handler's mutations are discarded before the
+        // stack is published. What remains committed is what legitimately accompanies a failed transaction:
+        // the fees re-charged after the rollback, the record, and usage tracking.
+        inOrder.verify(stack).commitFullStack();
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
 
         assertFinished();
+    }
+
+    /**
+     * A throw from any recovery or pre-commit step must escape processDispatch so the trailing
+     * commitFullStack() is never reached: no state is ever committed alongside the failing receipt.
+     * The steps covered run from the start of stack rollback through the last statement before the
+     * commit.
+     */
+    @ParameterizedTest(name = "{0} throwing commits no state")
+    @EnumSource(RecoveryStep.class)
+    @MockitoSettings(strictness = Strictness.LENIENT)
+    void noStateIsCommittedWhenAnyRecoveryStepThrows(final RecoveryStep step) {
+        // One unchecked type is enough: the recovery path declares no checked exceptions (Mockito refuses
+        // to stub one that a method does not declare), and it does not branch on exception subtype -- every
+        // type takes the same path out of processDispatch.
+        final var thrown = new IllegalStateException("injected");
+        given(dispatch.fees()).willReturn(FEES);
+        given(dispatch.feeAccumulator()).willReturn(feeAccumulator);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newSuccess(CREATOR_ACCOUNT_ID, PAYER));
+        given(dispatch.payerId()).willReturn(PAYER_ACCOUNT_ID);
+        given(dispatch.txnInfo()).willReturn(CRYPTO_TRANSFER_TXN_INFO);
+        given(dispatch.handleContext()).willReturn(context);
+        givenAuthorization();
+        doThrow(new HandleException(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT))
+                .when(dispatcher)
+                .dispatchHandle(context);
+        given(dispatch.txnCategory()).willReturn(USER);
+        doCallRealMethod().when(dispatch).charge(any(), any(), any(), any());
+        doCallRealMethod().when(dispatch).category();
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+        given(dispatch.nodeAccountId()).willReturn(CREATOR_ACCOUNT_ID);
+        switch (step) {
+            case ROLLBACK_FULL_STACK -> doThrow(thrown).when(stack).rollbackFullStack();
+            case REVERSE_ACCUMULATED_NODE_FEES ->
+                doThrow(thrown).when(feeAccumulator).reverseAccumulatedNodeFees();
+            case RESET_REFUNDABLE_FEES -> doThrow(thrown).when(feeAccumulator).resetRefundableFees();
+            case FINALIZE_AND_SAVE_USAGE ->
+                doThrow(thrown).when(dispatchUsageManager).finalizeAndSaveUsage(dispatch);
+            case FINALIZE_RECORD -> doThrow(thrown).when(recordFinalizer).finalizeRecord(dispatch);
+        }
+
+        assertThatThrownBy(() -> subject.processDispatch(dispatch)).isSameAs(thrown);
+
+        verify(stack, never()).commitFullStack();
+    }
+
+    private enum RecoveryStep {
+        ROLLBACK_FULL_STACK,
+        REVERSE_ACCUMULATED_NODE_FEES,
+        RESET_REFUNDABLE_FEES,
+        FINALIZE_AND_SAVE_USAGE,
+        FINALIZE_RECORD
     }
 
     @Test
@@ -498,6 +561,7 @@ class DispatchProcessorTest {
         verify(recordBuilder).status(CONSENSUS_GAS_EXHAUSTED);
         verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
         verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES.withoutServiceComponent(), null);
+        verify(feeAccumulator).reverseAccumulatedNodeFees();
         verify(opWorkflowMetrics).incrementThrottled(CONTRACT_CALL);
         assertFinished();
     }
@@ -554,6 +618,7 @@ class DispatchProcessorTest {
         verify(recordBuilder).status(CONSENSUS_GAS_EXHAUSTED);
         verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
         verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES.withoutServiceComponent(), null);
+        verify(feeAccumulator).reverseAccumulatedNodeFees();
         verify(ethereumTransactionHandler).handleThrottled(context);
         verify(opWorkflowMetrics).incrementThrottled(ETHEREUM_TRANSACTION);
         assertFinished();
@@ -582,6 +647,7 @@ class DispatchProcessorTest {
         verify(recordBuilder).status(FAIL_INVALID);
         verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES, null);
         verify(feeAccumulator).chargeFees(PAYER_ACCOUNT_ID, CREATOR_ACCOUNT_ID, FEES.withoutServiceComponent(), null);
+        verify(feeAccumulator).reverseAccumulatedNodeFees();
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
         assertFinished();
     }

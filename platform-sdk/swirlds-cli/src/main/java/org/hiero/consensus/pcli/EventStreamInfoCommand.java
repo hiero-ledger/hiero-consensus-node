@@ -2,7 +2,7 @@
 package org.hiero.consensus.pcli;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
+import static org.hiero.consensus.constructable.ConstructableRegistration.setupConstructableRegistry;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;

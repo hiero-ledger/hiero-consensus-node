@@ -20,6 +20,7 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.TestIntake;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.pces.impl.test.fixtures.PcesFileIteratorFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,7 +31,7 @@ import org.junit.jupiter.api.io.TempDir;
  */
 public class MaxRoundCreatedTest {
 
-    private static final String RESOURCE_DIR = "com/swirlds/platform/consensus/maxRoundCreatedTest/";
+    private static final String RESOURCE_DIR = "org/hiero/consensus/hashgraph/maxRoundCreatedTest/";
     private static final String PCES_DIR = "preconsensusEvents";
     private static final String ROSTER_FILE = "roster.json";
 
@@ -65,7 +66,8 @@ public class MaxRoundCreatedTest {
     void testMaxRoundCreated() throws IOException, ParseException {
         final Path pcesDir = testDataDirectory.resolve(PCES_DIR);
         final Path rosterPath = testDataDirectory.resolve(ROSTER_FILE);
-        final Roster roster = Roster.JSON.parse(new ReadableStreamingData(new FileInputStream(rosterPath.toFile())));
+        final RosterWrapper roster = RosterWrapper.of(
+                Roster.JSON.parse(new ReadableStreamingData(new FileInputStream(rosterPath.toFile()))));
 
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 

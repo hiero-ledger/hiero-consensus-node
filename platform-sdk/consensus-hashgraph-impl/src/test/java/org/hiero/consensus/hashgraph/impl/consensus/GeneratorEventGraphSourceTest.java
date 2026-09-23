@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -17,10 +16,11 @@ import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSourceBuilder;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -102,7 +102,7 @@ class GeneratorEventGraphSourceTest {
         final GeneratorEventGraphSource generator =
                 GeneratorEventGraphSourceBuilder.builder().numNodes(numNodes).build();
 
-        assertEquals(numNodes, generator.getRoster().rosterEntries().size());
+        assertEquals(numNodes, generator.getRoster().size());
     }
 
     @Test
@@ -123,9 +123,9 @@ class GeneratorEventGraphSourceTest {
             creators.add(event.getCreatorId());
         }
 
-        final Roster roster = generator.getRoster();
+        final RosterWrapper roster = generator.getRoster();
         for (int i = 0; i < numNodes; i++) {
-            final NodeId nodeId = RosterUtils.getNodeId(roster, i);
+            final NodeId nodeId = roster.rosterEntry(i).nodeId();
             assertTrue(creators.contains(nodeId), "node " + nodeId + " should have created at least one event");
         }
     }
@@ -138,7 +138,7 @@ class GeneratorEventGraphSourceTest {
             final GeneratorEventGraphSource generator =
                     GeneratorEventGraphSourceBuilder.builder().numNodes(size).build();
 
-            assertEquals(size, generator.getRoster().rosterEntries().size());
+            assertEquals(size, generator.getRoster().size());
         }
     }
 
@@ -146,16 +146,13 @@ class GeneratorEventGraphSourceTest {
     @Tag(TestComponentTags.PLATFORM)
     @DisplayName("Custom roster is used")
     void customRosterIsUsed() {
-        final Roster roster = RandomRosterBuilder.create(Randotron.create(0L))
-                .withSize(3)
-                .withRealKeysEnabled(false)
-                .build();
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(Randotron.create(0L), 3);
 
         final GeneratorEventGraphSource generator =
                 GeneratorEventGraphSourceBuilder.builder().roster(roster).build();
 
         assertEquals(roster, generator.getRoster());
-        assertEquals(3, generator.getRoster().rosterEntries().size());
+        assertEquals(3, generator.getRoster().size());
 
         final List<PlatformEvent> events = generator.nextEvents(50);
         assertEquals(50, events.size());
@@ -279,10 +276,7 @@ class GeneratorEventGraphSourceTest {
     @Tag(TestComponentTags.PLATFORM)
     @DisplayName("Cannot set roster when numNodes is already set")
     void cannotSetRosterWhenNumNodesSet() {
-        final Roster roster = RandomRosterBuilder.create(Randotron.create(0L))
-                .withSize(3)
-                .withRealKeysEnabled(false)
-                .build();
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(Randotron.create(0L), 3);
 
         final GeneratorEventGraphSourceBuilder builder =
                 GeneratorEventGraphSourceBuilder.builder().numNodes(4);
@@ -294,10 +288,7 @@ class GeneratorEventGraphSourceTest {
     @Tag(TestComponentTags.PLATFORM)
     @DisplayName("Cannot set numNodes when roster is already set")
     void cannotSetNumNodesWhenRosterSet() {
-        final Roster roster = RandomRosterBuilder.create(Randotron.create(0L))
-                .withSize(3)
-                .withRealKeysEnabled(false)
-                .build();
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(Randotron.create(0L), 3);
 
         final GeneratorEventGraphSourceBuilder builder =
                 GeneratorEventGraphSourceBuilder.builder().roster(roster);
@@ -309,10 +300,7 @@ class GeneratorEventGraphSourceTest {
     @Tag(TestComponentTags.PLATFORM)
     @DisplayName("Cannot use realSignatures with a supplied roster")
     void cannotUseRealSignaturesWithSuppliedRoster() {
-        final Roster roster = RandomRosterBuilder.create(Randotron.create(0L))
-                .withSize(3)
-                .withRealKeysEnabled(false)
-                .build();
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(Randotron.create(0L), 3);
 
         final GeneratorEventGraphSourceBuilder builder =
                 GeneratorEventGraphSourceBuilder.builder().roster(roster);
@@ -330,7 +318,7 @@ class GeneratorEventGraphSourceTest {
         final List<PlatformEvent> events = generator.nextEvents(50);
 
         assertEquals(50, events.size());
-        final NodeId expectedCreator = RosterUtils.getNodeId(generator.getRoster(), 0);
+        final NodeId expectedCreator = generator.getRoster().rosterEntry(0).nodeId();
 
         for (final PlatformEvent event : events) {
             assertEquals(expectedCreator, event.getCreatorId(), "all events should be from the single node");
@@ -340,46 +328,57 @@ class GeneratorEventGraphSourceTest {
 
     @Test
     @Tag(TestComponentTags.PLATFORM)
-    @DisplayName("populateSequenceNumber sets sequence number on generated events")
-    void populateSequenceNumberEnabled() {
+    @DisplayName("populateNgen sets ngen on generated events")
+    void populateNgenEnabled() {
         final GeneratorEventGraphSource generator = GeneratorEventGraphSourceBuilder.builder()
                 .numNodes(4)
                 .seed(0L)
-                .populateSequenceNumber(true)
+                .populateNgen(true)
                 .build();
 
         final List<PlatformEvent> events = generator.nextEvents(200);
 
         for (final PlatformEvent event : events) {
+            assertTrue(event.hasNGen(), "every event should have ngen set when populateNgen is enabled");
+            assertTrue(event.hasSequenceNumber(), "every event should have sequence number assigned");
             assertTrue(
-                    event.hasSequenceNumber(),
-                    "every event should have sequence number set when populateSequence number is enabled");
-            assertTrue(event.getSequenceNumber() >= 1, "sequence number should be at least 1");
+                    event.getNGen() >= NonDeterministicGeneration.FIRST_GENERATION,
+                    "ngen should be at least FIRST_GENERATION");
+            assertTrue(
+                    event.getSequenceNumber() >= SEQUENCE_NUMBER_UNDEFINED,
+                    "sequence number should be at least UNASSIGNED_SEQUENCE_NUMBER");
         }
 
-        // Verify that sequence number actually advances beyond SEQUENCE_NUMBER_UNDEFINED
+        // Verify that ngen actually advances beyond FIRST_GENERATION
+        final long maxNGen =
+                events.stream().mapToLong(PlatformEvent::getNGen).max().orElse(0);
+        assertTrue(
+                maxNGen > NonDeterministicGeneration.FIRST_GENERATION, "ngen should advance beyond FIRST_GENERATION");
+
+        // Verify that sequence number actually advances beyond UNASSIGNED_SEQUENCE_NUMBER
         final long maxSeqNum = events.stream()
                 .mapToLong(PlatformEvent::getSequenceNumber)
                 .max()
                 .orElse(0);
         assertTrue(
                 maxSeqNum > SEQUENCE_NUMBER_UNDEFINED,
-                "sequence number should advance beyond SEQUENCE_NUMBER_UNDEFINED");
+                "sequence number should advance beyond UNASSIGNED_SEQUENCE_NUMBER");
     }
 
     @Test
     @Tag(TestComponentTags.PLATFORM)
-    @DisplayName("Events do not have sequence number set when populateSequenceNumber is disabled")
-    void populateSequenceNumberDisabled() {
+    @DisplayName("Events do not have ngen or sequence number set when populateNgen is disabled")
+    void populateNgenDisabled() {
         final GeneratorEventGraphSource generator =
                 GeneratorEventGraphSourceBuilder.builder().numNodes(4).seed(0L).build();
 
         final List<PlatformEvent> events = generator.nextEvents(100);
 
         for (final PlatformEvent event : events) {
+            assertFalse(event.hasNGen(), "events should not have ngen set when populateNgen is disabled");
             assertFalse(
                     event.hasSequenceNumber(),
-                    "events should not have sequence number set when populateSequenceNumber is disabled");
+                    "events should not have sequence number assigned even if populateNgen is disabled");
         }
     }
 

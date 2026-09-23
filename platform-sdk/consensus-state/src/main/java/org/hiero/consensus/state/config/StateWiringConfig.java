@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.state.config;
 
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 import java.time.Duration;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 
 /**
  * Contains configuration values for the state management wiring.

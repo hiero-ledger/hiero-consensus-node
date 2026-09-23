@@ -9,16 +9,16 @@ plugins {
 description = "Default Consensus Hashgraph Implementation"
 
 testModuleInfo {
-    requires("org.hiero.consensus.gui")
     requires("com.swirlds.base.test.fixtures")
+    requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
-    requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.fakes")
+    requires("org.hiero.consensus.gui")
     requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
     requires("org.hiero.consensus.model.test.fixtures")
     requires("org.hiero.consensus.pces.impl.test.fixtures")
-    requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.hiero.consensus.utility.test.fixtures")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
@@ -27,8 +27,10 @@ testModuleInfo {
 }
 
 jmhModuleInfo {
-    requires("jmh.core")
-    requires("org.hiero.base.concurrent")
-    requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
+    requires("org.hiero.base.concurrent")
+    requires("org.hiero.consensus.fakes")
+    requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
+    requires("org.hiero.consensus.metrics")
+    requires("jmh.core")
 }

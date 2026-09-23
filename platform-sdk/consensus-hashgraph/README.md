@@ -12,7 +12,7 @@ The API half of the hashgraph module pair. For the algorithm, see the
 
 May depend on:
 - `consensus-model`, `consensus-metrics`
-- `swirlds-base`, `swirlds-config-api`, `swirlds-metrics-api`, `swirlds-component-framework`
+- `swirlds-base`, `swirlds-config-api`, `swirlds-metrics-api`, `consensus-wiring-framework`
 
 Must not depend on:
 - Other functional-api modules

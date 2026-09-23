@@ -59,7 +59,7 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty
         int maxWrapsRetries,
 
-        @ConfigProperty(defaultValue = "5s") Duration wrapsVoteJitterPerRank,
+        @ConfigProperty(defaultValue = "2m") Duration wrapsVoteJitterPerRank,
 
         // Whether to double-check aggregate hinTS signature during block signing
         @ConfigProperty(defaultValue = "false") @NetworkProperty
@@ -86,5 +86,22 @@ public record TssConfig(
         @NetworkProperty
         String wrapsProvingKeyDownloadUrl,
 
+        // Whether to build a fresh genesis WRAPS proof for the current roster in the first round after an
+        // upgrade, replacing the active proof; e.g., after a TSS library or proving key change. Applies to
+        // every upgrade while set, and has no effect once block proofs carry the chain of trust
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean needsFreshGenesisWrapsProof,
+
         @ConfigProperty(defaultValue = "300s") @NetworkProperty
-        Duration wrapsProvingKeyRetryInterval) {}
+        Duration wrapsProvingKeyRetryInterval,
+
+        // Timeout for establishing the connection to the proving key download server
+        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration wrapsProvingKeyConnectTimeout,
+
+        // Timeout for receiving the response headers once connected; bounds a server that accepts the
+        // connection and then never replies
+        @ConfigProperty(defaultValue = "60s") @NodeProperty Duration wrapsProvingKeyResponseHeadersTimeout,
+
+        // How long the download may go without receiving any bytes before it is treated as stalled; bounds a
+        // server that sends headers and then stops mid-body
+        @ConfigProperty(defaultValue = "120s") @NodeProperty Duration wrapsProvingKeyStallTimeout) {}

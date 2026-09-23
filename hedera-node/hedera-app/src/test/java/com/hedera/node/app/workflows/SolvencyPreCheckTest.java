@@ -2,6 +2,8 @@
 package com.hedera.node.app.workflows;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
@@ -12,6 +14,7 @@ import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.Wo
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
@@ -23,6 +26,8 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.contract.ContractCallTransactionBody;
+import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
@@ -389,13 +394,51 @@ class SolvencyPreCheckTest extends AppTestBase {
     @Nested
     @DisplayName("Tests related to checkSolvency()")
     final class CheckSolvencyTestsWithContractCreate {
-        // TODO: Add tests for ContractCreate once the requirements are clear
+
+        @Test
+        void testContractCreateUsesSimpleFeesGasPrice() {
+            when(feeManager.getGasPriceInTinyCents(any())).thenReturn(1_000_000L);
+            when(exchangeRateManager.getTinybarsFromTinycents(eq(1_000_000L), any()))
+                    .thenReturn(2L);
+
+            // gas=10, initialBalance=5 → additionalCosts = 5 + 10 * 2 = 25
+            final var builder = TransactionBody.newBuilder()
+                    .contractCreateInstance(
+                            ContractCreateTransactionBody.newBuilder().gas(10L).initialBalance(5L));
+            final var txInfo = createTransactionInfo(FEE.totalFee(), START, CONTRACT_CREATE, builder);
+            final var payer = ALICE.account()
+                    .copyBuilder()
+                    .tinybarBalance(FEE.totalFee() + 25L)
+                    .build();
+
+            assertThatCode(() -> subject.checkSolvency(txInfo, payer, FEE, INGEST))
+                    .doesNotThrowAnyException();
+        }
     }
 
     @Nested
     @DisplayName("Tests related to checkSolvency()")
     final class CheckSolvencyTestsWithContractCall {
-        // TODO: Add tests for ContractCall once the requirements are clear
+
+        @Test
+        void testContractCallUsesSimpleFeesGasPrice() {
+            when(feeManager.getGasPriceInTinyCents(any())).thenReturn(1_000_000L);
+            when(exchangeRateManager.getTinybarsFromTinycents(eq(1_000_000L), any()))
+                    .thenReturn(2L);
+
+            // gas=10, amount=5 → additionalCosts = 5 + 10 * 2 = 25
+            final var builder = TransactionBody.newBuilder()
+                    .contractCall(
+                            ContractCallTransactionBody.newBuilder().gas(10L).amount(5L));
+            final var txInfo = createTransactionInfo(FEE.totalFee(), START, CONTRACT_CALL, builder);
+            final var payer = ALICE.account()
+                    .copyBuilder()
+                    .tinybarBalance(FEE.totalFee() + 25L)
+                    .build();
+
+            assertThatCode(() -> subject.checkSolvency(txInfo, payer, FEE, INGEST))
+                    .doesNotThrowAnyException();
+        }
     }
 
     @Nested

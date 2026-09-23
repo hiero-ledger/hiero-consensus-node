@@ -7,6 +7,7 @@ import com.hedera.services.bdd.junit.hedera.simulator.BlockNodeController;
 import com.hedera.services.bdd.spec.HapiSpec;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
@@ -33,6 +34,7 @@ public class BlockNodeOp extends UtilOp {
     private final long rangeStart;
     private final long rangeEnd;
     private final Consumer<Map<Long, RecordFileItem>> recordFileItemsConsumer;
+    private final Consumer<Set<Long>> receivedBlockNumbersConsumer;
 
     private BlockNodeOp(
             final long nodeIndex,
@@ -57,6 +59,25 @@ public class BlockNodeOp extends UtilOp {
         this.rangeStart = rangeStart;
         this.rangeEnd = rangeEnd;
         this.recordFileItemsConsumer = recordFileItemsConsumer;
+        this.receivedBlockNumbersConsumer = null;
+    }
+
+    private BlockNodeOp(
+            final long nodeIndex,
+            final BlockNodeAction action,
+            final Consumer<Set<Long>> receivedBlockNumbersConsumer) {
+        this.nodeIndex = nodeIndex;
+        this.action = action;
+        this.responseCode = null;
+        this.blockNumber = 0L;
+        this.lastVerifiedBlockNumber = null;
+        this.lastVerifiedBlockConsumer = null;
+        this.sendBlockAcknowledgementsEnabled = true;
+        this.persistState = true;
+        this.rangeStart = 0L;
+        this.rangeEnd = 0L;
+        this.recordFileItemsConsumer = null;
+        this.receivedBlockNumbersConsumer = receivedBlockNumbersConsumer;
     }
 
     private BlockNodeOp(
@@ -237,6 +258,11 @@ public class BlockNodeOp extends UtilOp {
                     recordFileItemsConsumer.accept(controller.getAllRecordFileItems(nodeIndex));
                 }
                 break;
+            case GET_RECEIVED_BLOCK_NUMBERS:
+                if (receivedBlockNumbersConsumer != null) {
+                    receivedBlockNumbersConsumer.accept(controller.getReceivedBlockNumbers(nodeIndex));
+                }
+                break;
             default:
                 throw new IllegalStateException("Action: " + action + " is not supported for block node simulators");
         }
@@ -318,7 +344,9 @@ public class BlockNodeOp extends UtilOp {
         /** Assert that no {@link RecordFileItem}s have been received for any block in an inclusive range */
         ASSERT_NO_RECORD_FILES_IN_RANGE,
         /** Expose the map of received {@link RecordFileItem}s keyed by block number */
-        EXPOSE_RECORD_FILE_ITEMS
+        EXPOSE_RECORD_FILE_ITEMS,
+        /** Expose the set of block numbers fully received (header + EndOfBlock) by the simulator */
+        GET_RECEIVED_BLOCK_NUMBERS
     }
 
     /**
@@ -955,6 +983,41 @@ public class BlockNodeOp extends UtilOp {
                     0L,
                     0L,
                     consumer);
+        }
+
+        @Override
+        protected boolean submitOp(final HapiSpec spec) throws Throwable {
+            return build().submitOp(spec);
+        }
+    }
+
+    /**
+     * Creates a builder for exposing the set of block numbers fully received by a block node simulator.
+     *
+     * @param nodeIndex the index of the block node simulator (0-based)
+     * @param consumer the consumer to receive the set of received block numbers
+     * @return a builder for the operation
+     */
+    public static GetReceivedBlockNumbersBuilder getReceivedBlockNumbers(
+            final long nodeIndex, final Consumer<Set<Long>> consumer) {
+        return new GetReceivedBlockNumbersBuilder(nodeIndex, consumer);
+    }
+
+    /**
+     * Builder for exposing the set of block numbers fully received by a block node simulator.
+     * This builder also implements UtilOp so it can be used directly in HapiSpec without calling build().
+     */
+    public static class GetReceivedBlockNumbersBuilder extends UtilOp {
+        private final long nodeIndex;
+        private final Consumer<Set<Long>> consumer;
+
+        GetReceivedBlockNumbersBuilder(final long nodeIndex, final Consumer<Set<Long>> consumer) {
+            this.nodeIndex = nodeIndex;
+            this.consumer = consumer;
+        }
+
+        public BlockNodeOp build() {
+            return new BlockNodeOp(nodeIndex, BlockNodeAction.GET_RECEIVED_BLOCK_NUMBERS, consumer);
         }
 
         @Override

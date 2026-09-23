@@ -41,6 +41,11 @@ public interface HashgraphPictureOptions {
     boolean writeConsensusTimeStamp();
 
     /**
+     * @return should the non-deterministic generation be written for every event
+     */
+    boolean writeNGen();
+
+    /**
      * @return should the sequence number be written for every event
      */
     boolean writeSeqNum();
@@ -66,17 +71,17 @@ public interface HashgraphPictureOptions {
     boolean simpleColors();
 
     /**
-     * @return the number of events to display
+     * @return the number of generations to display
      */
-    int getNumEventsDisplay();
+    int getNumGenerationsDisplay();
 
     /**
-     * @return the first sequence number that should be displayed
+     * @return the first generation that should be displayed
      */
-    long getStartSequenceNumber();
+    long getStartGeneration();
 
     /**
-     * @return should the latest events be displayed, ignores {@link #getStartSequenceNumber()}
+     * @return should the latest events be displayed, ignores {@link #getStartGeneration()}
      */
     boolean displayLatestEvents();
 
@@ -84,8 +89,8 @@ public interface HashgraphPictureOptions {
      * When {@link #displayLatestEvents()} is true, this method will be called to notify which is the current starting
      * generation
      *
-     * @param startSequenceNumber
-     * 		the first sequence number being displayed
+     * @param startGeneration
+     * 		the first generation being displayed
      */
-    void setStartSequenceNumber(final long startSequenceNumber);
+    void setStartGeneration(final long startGeneration);
 }

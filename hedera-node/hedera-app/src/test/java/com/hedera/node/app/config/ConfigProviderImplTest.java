@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.hedera.hapi.node.base.ServicesConfigurationList;
 import com.hedera.hapi.node.base.Setting;
 import com.hedera.node.config.VersionedConfiguration;
+import com.hedera.node.config.data.FilesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -129,6 +130,30 @@ class ConfigProviderImplTest {
 
         // then
         assertThat(bar).isEqualTo("456");
+    }
+
+    /**
+     * A network whose properties file {@code 0.0.121} still carries the retired {@code files.feeSchedules}
+     * override must keep starting: the property no longer maps to any {@code @ConfigData} record, and
+     * unmapped entries in {@code 0.0.121} are ignored rather than rejected.
+     */
+    @Test
+    void updateToleratesRetiredFilesFeeSchedulesOverride() {
+        // given
+        final var configProvider = new ConfigProviderImpl(false);
+        final var overrides = ServicesConfigurationList.newBuilder()
+                .nameValue(Setting.newBuilder()
+                        .name("files.feeSchedules")
+                        .value("111")
+                        .build())
+                .build();
+        final Bytes bytes = ServicesConfigurationList.PROTOBUF.toBytes(overrides);
+
+        // then
+        assertThatCode(() -> configProvider.update(bytes, Bytes.EMPTY)).doesNotThrowAnyException();
+        final var configuration = configProvider.getConfiguration();
+        assertThat(configuration.getConfigData(FilesConfig.class).simpleFeesSchedules())
+                .isEqualTo(113L);
     }
 
     @Test

@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.standalone.impl;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.node.app.service.clpr.impl.ClprServiceApiProvider.CLPR_SERVICE_API_PROVIDER;
 import static com.hedera.node.app.service.token.impl.api.TokenServiceApiProvider.TOKEN_SERVICE_API_PROVIDER;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.initializeBuilderInfo;
@@ -22,6 +23,7 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fees.ResourcePriceCalculatorImpl;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.records.impl.BlockRecordInfoImpl;
+import com.hedera.node.app.service.clpr.ClprServiceApi;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.EntityNumGeneratorImpl;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
@@ -59,6 +61,7 @@ import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -128,7 +131,9 @@ public class StandaloneDispatchFactory {
                 TokenServiceApi.class,
                 TOKEN_SERVICE_API_PROVIDER,
                 ScheduleServiceApi.class,
-                scheduleService.apiProvider());
+                scheduleService.apiProvider(),
+                ClprServiceApi.class,
+                CLPR_SERVICE_API_PROVIDER);
     }
 
     /**
@@ -148,13 +153,15 @@ public class StandaloneDispatchFactory {
         final var config = configProvider.getConfiguration();
         final var consensusConfig = config.getConfigData(ConsensusConfig.class);
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+        final var contractsConfig = config.getConfigData(ContractsConfig.class);
         final var stack = SavepointStackImpl.newRootStack(
                 state,
                 consensusConfig.handleMaxPrecedingRecords(),
                 consensusConfig.handleMaxFollowingRecords(),
                 new BoundaryStateChangeListener(storeMetricsService, () -> config),
                 new ImmediateStateChangeListener(),
-                blockStreamConfig.streamMode());
+                blockStreamConfig.streamMode(),
+                contractsConfig.maxSerializedTraceDataBytes());
         final var readableStoreFactory = new ReadableStoreFactoryImpl(stack);
         final var entityIdStore = new WritableEntityIdStoreImpl(stack.getWritableStates(EntityIdService.NAME));
         final var consensusTransaction = consensusTransactionFor(transactionBody);

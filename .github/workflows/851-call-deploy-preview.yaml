@@ -48,13 +48,16 @@ jobs:
   Deploy-Preview:
     name: ${{ inputs.custom-job-label || 'Deploy Preview' }}
     runs-on: hl-cn-default-lin-md
-    if: ${{ !github.event.workflow_call.repository.fork }}
+    # Repository-pinning holds regardless of the caller's trigger (pull_request,
+    # pull_request_target, workflow_run, push) and of a fork being renamed — unlike
+    # github.event.repository.fork, which is `false` when a fork PR targets upstream.
+    if: ${{ github.repository == 'hiero-ledger/hiero-consensus-node' }}
     outputs:
       version: ${{ steps.effective-version.outputs.number }}
 
     steps:
       - name: Prepare Runner
-        uses: pandaswhocode/initialize-github-job@05fe2fa999e509c966283d5c5cf60df69f2049e9 # v1.2.1
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           setup-semver: "true"
 

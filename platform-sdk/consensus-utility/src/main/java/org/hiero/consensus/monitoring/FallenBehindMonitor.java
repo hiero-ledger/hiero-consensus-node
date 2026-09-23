@@ -5,7 +5,6 @@ import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashSet;
@@ -14,7 +13,6 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import javax.annotation.concurrent.GuardedBy;
-import org.hiero.consensus.config.FallenBehindConfig;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -65,10 +63,10 @@ public class FallenBehindMonitor {
 
     public FallenBehindMonitor(
             @NonNull final Roster roster,
-            @NonNull final Configuration config,
             @NonNull final Metrics metrics,
-            final NodeId selfId) {
-        this(roster, requireNonNull(config), selfId);
+            @NonNull final NodeId selfId,
+            final double fallenBehindThreshold) {
+        this(roster, selfId, fallenBehindThreshold);
         requireNonNull(metrics)
                 .getOrCreate(new FunctionGauge.Config<>(
                                 INTERNAL_CATEGORY, "hasFallenBehind", Object.class, this::hasFallenBehind)
@@ -84,9 +82,7 @@ public class FallenBehindMonitor {
     }
 
     public FallenBehindMonitor(
-            @NonNull final Roster roster, @NonNull final Configuration configuration, @NonNull final NodeId selfId) {
-        final double fallenBehindThreshold =
-                configuration.getConfigData(FallenBehindConfig.class).fallenBehindThreshold();
+            @NonNull final Roster roster, @NonNull final NodeId selfId, final double fallenBehindThreshold) {
         this.rosterLookup = new RosterLookup(requireNonNull(roster));
         this.totalWeightExceptSelf = rosterLookup.rosterTotalWeight() - rosterLookup.getWeight(selfId);
         this.fallenBehindWeightThreshold = Math.round(totalWeightExceptSelf * fallenBehindThreshold);

@@ -9,7 +9,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
@@ -33,7 +32,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Signer;
 import org.hiero.base.file.FileUtils;
-import org.hiero.consensus.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -47,14 +46,14 @@ import picocli.CommandLine;
  *
  * <h2>Purpose</h2>
  * <p>When debugging or testing consensus behavior, it's often useful to take a specific section of
- * an existing event graph (e.g., events from a certain birth round or sequence number onwards) and replay it in isolation.
+ * an existing event graph (e.g., events from a certain birth round or ngen onwards) and replay it in isolation.
  * However, events in the middle of a graph have birth rounds and parent references that assume
  * the existence of earlier events. This tool extracts a slice of the graph and transforms it to
  * be self-contained and replayable from genesis.
  *
  * <h2>Transformations Applied</h2>
  * <ul>
- *   <li><b>Filtering:</b> Events are filtered by birth round or sequence number (with the ability to determine individual values per creator) to extract only the portion of the
+ *   <li><b>Filtering:</b> Events are filtered by birth round or ngen (with the ability to determine individual values per creator) to extract only the portion of the
  *       graph that is of interest.</li>
  *   <li><b>Birth round adjustment:</b> Birth rounds are modified (offset to start from 1) so the
  *       sliced graph appears to start from genesis.</li>
@@ -79,7 +78,7 @@ import picocli.CommandLine;
         name = "slice",
         mixinStandardHelpOptions = true,
         description = "Extract a section of an event graph from PCES files and transform it to be "
-                + "replayable from genesis. Events are filtered by birth round or sequence number for each creator, birth rounds are "
+                + "replayable from genesis. Events are filtered by birth round or ngen for each creator, birth rounds are "
                 + "adjusted, and all events are re-hashed and re-signed with newly generated keys.")
 @SubcommandOf(PcesCommand.class)
 public class PcesSliceCommand extends AbstractCommand {
@@ -96,7 +95,7 @@ public class PcesSliceCommand extends AbstractCommand {
 
     // Per-node filter values (populated in call() from the raw lists)
     private final Map<Long, Long> nodeMinBirthRound = new HashMap<>();
-    private final Map<Long, Long> nodeMinSeqNum = new HashMap<>();
+    private final Map<Long, Long> nodeMinNgen = new HashMap<>();
 
     // Raw per-node filter strings from CLI
     @CommandLine.Option(
@@ -107,12 +106,11 @@ public class PcesSliceCommand extends AbstractCommand {
     private List<String> nodeMinBirthRoundRaw = new ArrayList<>();
 
     @CommandLine.Option(
-            names = {"--node-min-seq-num"},
+            names = {"--node-min-ngen"},
             split = ",",
-            description =
-                    "Per-node minimum sequence number filter. Format: nodeId:value,nodeId:value (e.g., 0:150,1:200). "
-                            + "Events from the specified node with lower sequence number are excluded.")
-    private List<String> nodeMinSeqNumRaw = new ArrayList<>();
+            description = "Per-node minimum ngen filter. Format: nodeId:value,nodeId:value (e.g., 0:150,1:200). "
+                    + "Events from the specified node with lower ngen are excluded.")
+    private List<String> nodeMinNgenRaw = new ArrayList<>();
 
     @CommandLine.Parameters(index = "0", description = "The input directory containing PCES files to slice.")
     private void setInputDirectory(final Path inputDirectory) {
@@ -197,9 +195,9 @@ public class PcesSliceCommand extends AbstractCommand {
             final var parsed = parseNodeFilter(filter, "--node-min-birth-round");
             nodeMinBirthRound.put(parsed.nodeId, parsed.value);
         }
-        for (final String filter : nodeMinSeqNumRaw) {
-            final var parsed = parseNodeFilter(filter, "--node-min-seq-num");
-            nodeMinSeqNum.put(parsed.nodeId, parsed.value);
+        for (final String filter : nodeMinNgenRaw) {
+            final var parsed = parseNodeFilter(filter, "--node-min-ngen");
+            nodeMinNgen.put(parsed.nodeId, parsed.value);
         }
 
         // Handle output directory: warn and prompt if it exists and is not empty
@@ -219,9 +217,9 @@ public class PcesSliceCommand extends AbstractCommand {
             System.out.println("Per-node min birth round filters:");
             nodeMinBirthRound.forEach((nodeId, value) -> System.out.println("  Node " + nodeId + ": " + value));
         }
-        if (!nodeMinSeqNum.isEmpty()) {
-            System.out.println("Per-node min sequence number filters:");
-            nodeMinSeqNum.forEach((nodeId, value) -> System.out.println("  Node " + nodeId + ": " + value));
+        if (!nodeMinNgen.isEmpty()) {
+            System.out.println("Per-node min ngen filters:");
+            nodeMinNgen.forEach((nodeId, value) -> System.out.println("  Node " + nodeId + ": " + value));
         }
 
         // Parse consensus snapshot if provided
@@ -251,9 +249,11 @@ public class PcesSliceCommand extends AbstractCommand {
         writeKeysPem(keysAndCertsMap, keysDirectory);
         System.out.println("Wrote keys to: " + keysDirectory);
 
+        final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
+
         // Build the slicer
         final PcesGraphSlicer slicer = PcesGraphSlicer.builder()
-                .context(createDefaultPlatformContext())
+                .configuration(configuration)
                 .keysAndCertsMap(keysAndCertsMap)
                 .existingPcesFilesLocation(inputDirectory)
                 .exportPcesFileLocation(outputDirectory)
@@ -272,7 +272,7 @@ public class PcesSliceCommand extends AbstractCommand {
     }
 
     /**
-     * Filters events based on the configured per-node birth round and sequence number criteria.
+     * Filters events based on the configured per-node birth round and ngen criteria.
      * An event must pass both filters (if configured) to be included.
      *
      * @param event the event to filter
@@ -280,7 +280,7 @@ public class PcesSliceCommand extends AbstractCommand {
      */
     private boolean filterEvent(final @NonNull PlatformEvent event) {
         final long birthRound = event.getBirthRound();
-        final long sequenceNumber = event.getSequenceNumber();
+        final long ngen = event.getNGen();
         final long creatorNodeId = event.getCreatorId().id();
 
         // Check per-node birth round filter
@@ -289,9 +289,9 @@ public class PcesSliceCommand extends AbstractCommand {
             return false;
         }
 
-        // Check per-node sequence number filter
-        final Long nodeMinSeqNum = this.nodeMinSeqNum.get(creatorNodeId);
-        return nodeMinSeqNum == null || sequenceNumber >= nodeMinSeqNum;
+        // Check per-node ngen filter
+        final Long nodeMinNG = nodeMinNgen.get(creatorNodeId);
+        return nodeMinNG == null || ngen >= nodeMinNG;
     }
 
     /**
@@ -420,22 +420,6 @@ public class PcesSliceCommand extends AbstractCommand {
             final Path publicCertPath = keysDirectory.resolve(String.format("s-public-%s.pem", nodeName));
             EnhancedKeyStoreLoader.writePemFile(
                     false, publicCertPath, keysAndCerts.sigCert().getEncoded());
-        }
-    }
-
-    /**
-     * Creates a default platform context for CLI operations.
-     *
-     * @return a new platform context
-     */
-    @NonNull
-    public static PlatformContext createDefaultPlatformContext() {
-        try {
-            final Configuration configuration =
-                    DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
-            return PlatformContext.create(configuration);
-        } catch (final IOException e) {
-            throw new java.io.UncheckedIOException("Failed to create platform context", e);
         }
     }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli.graph;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedList;
 import java.util.List;
@@ -19,7 +19,7 @@ import org.hiero.consensus.orphan.DefaultOrphanBuffer;
  * <p>This source processes events lazily through:
  * <ol>
  *   <li>Event hasher - computes the hash for each event</li>
- *   <li>Orphan buffer - links parents, assigns the sequence number, filters orphans</li>
+ *   <li>Orphan buffer - links parents, computes ngen, filters orphans</li>
  * </ol>
  *
  * <p>Events that are released from the orphan buffer (i.e., have their parents linked) are returned.
@@ -39,18 +39,18 @@ public class OrphanBufferEventGraphSource implements EventGraphSource {
      * Creates a source that wraps an underlying source and processes events through hasher and orphan buffer.
      *
      * @param underlyingSource the underlying source providing raw events
-     * @param context          platform context for configuration and metrics
+     * @param metrics          metrics instance
      */
     public OrphanBufferEventGraphSource(
-            @NonNull final EventGraphSource underlyingSource, @NonNull final PlatformContext context) {
+            @NonNull final EventGraphSource underlyingSource, @NonNull final Metrics metrics) {
         this.underlyingSource = underlyingSource;
         this.eventHasher = new PbjStreamHasher();
-        this.orphanBuffer = new DefaultOrphanBuffer(context.getMetrics(), new NoOpIntakeEventCounter());
+        this.orphanBuffer = new DefaultOrphanBuffer(metrics, new NoOpIntakeEventCounter());
         this.releasedEventsBuffer = new LinkedList<>();
     }
 
     /**
-     * @return non-ancient, non-orphaned events in topological order, hashed, with the sequence number assigned and parents linked.
+     * @return non-ancient, non-orphaned events in topological order, hashed, with ngen computed and parents linked.
      */
     @Override
     @NonNull

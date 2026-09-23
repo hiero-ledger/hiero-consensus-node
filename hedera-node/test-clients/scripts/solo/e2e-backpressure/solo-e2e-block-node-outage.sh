@@ -9,7 +9,7 @@ export SOLO_CLUSTER_NAME="solo"
 export SOLO_NAMESPACE="solo"
 export SOLO_CLUSTER_SETUP_NAMESPACE="solo-cluster"
 export SOLO_DEPLOYMENT="solo-deployment"
-# keep in lockstep with the Solo version's mirror chart default (solo 0.79.0 -> 0.156.0);
+# keep in lockstep with the Solo version's mirror chart default (solo 0.79.1 -> 0.156.0);
 # on 0.157+ Solo's HIERO_MIRROR_IMPORTER_BLOCK_NODES_* env wiring no longer binds and the
 # importer crash-loops at startup
 export MIRROR_NODE_VERSION="v0.156.0"

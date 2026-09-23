@@ -23,6 +23,7 @@ public class HintsLibraryImpl implements HintsLibrary {
     private static final int MIN_AGGREGATION_KEY_LENGTH = 49;
 
     public static final int VK_LENGTH = 1096;
+    public static final int SIGNATURE_LENGTH = 1632;
 
     @Override
     public Bytes newCrs(final short n) {

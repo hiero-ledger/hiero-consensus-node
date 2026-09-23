@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.test.exec;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.*;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITHOUT_TO_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ETH_DATA_WITH_TO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.GAS_LIMIT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HALT_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_CREATION;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.HEVM_Exception;
@@ -13,10 +14,12 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT_WITH_SIGNER_NONCE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
@@ -44,6 +47,7 @@ import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.throttle.ThrottleAdviser;
+import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ContractsConfig;
@@ -51,6 +55,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -97,6 +102,11 @@ class ContextTransactionProcessorTest {
 
     @Mock
     private TransactionBody transactionBody;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(context.dispatchMetadata()).thenReturn(EMPTY_METADATA);
+    }
 
     @Mock
     private AbstractMutableEvmAccount senderAccount;
@@ -243,6 +253,43 @@ class ContextTransactionProcessorTest {
     }
 
     @Test
+    void gasUsedIsNonZeroInRecordStreamEvenWhenGasFeesAreNotCharged() {
+        final var contractsConfig = CONFIGURATION.getConfigData(ContractsConfig.class);
+        final var hydratedEthTxData = HydratedEthTxData.successFrom(ETH_DATA_WITH_TO_ADDRESS, false);
+        final var subject = new ContextTransactionProcessor(
+                hydratedEthTxData,
+                context,
+                contractsConfig,
+                CONFIGURATION,
+                hederaEvmContext,
+                null,
+                tracer,
+                rootProxyWorldUpdater,
+                hevmTransactionFactory,
+                processor,
+                customGasCharging,
+                contractMetrics);
+
+        given(enhancement.operations()).willReturn(hederaOperations);
+        given(rootProxyWorldUpdater.enhancement()).willReturn(enhancement);
+        givenSenderAccount();
+        givenBodyWithTxnIdWillReturnHEVM();
+        given(processor.processTransaction(
+                        HEVM_CREATION,
+                        rootProxyWorldUpdater,
+                        hederaEvmContext,
+                        tracer,
+                        CONFIGURATION,
+                        OpsDurationCounter.disabled()))
+                .willReturn(SUCCESS_RESULT_WITH_SIGNER_NONCE);
+
+        final var outcome = subject.call();
+
+        verify(rootProxyWorldUpdater, never()).collectGasFee(any(), anyLong(), anyBoolean());
+        assertEquals(GAS_LIMIT / 2, outcome.txResult().gasUsed());
+    }
+
+    @Test
     void callsComponentInfraAsExpectedForNonEthTx() {
         final var contractsConfig = CONFIGURATION.getConfigData(ContractsConfig.class);
         final var subject = new ContextTransactionProcessor(
@@ -345,7 +392,7 @@ class ContextTransactionProcessorTest {
         given(context.body()).willReturn(transactionBody);
         final var payer = AccountID.DEFAULT;
         given(context.payer()).willReturn(payer);
-        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer))
+        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer, (ClprDispatchMetadata) null))
                 .willReturn(HEVM_Exception);
         given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
         given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(SENDER_ID);
@@ -376,7 +423,7 @@ class ContextTransactionProcessorTest {
 
         given(context.body()).willReturn(transactionBody);
         given(context.payer()).willReturn(RELAYER_ID);
-        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, RELAYER_ID))
+        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, RELAYER_ID, (ClprDispatchMetadata) null))
                 .willReturn(HEVM_OversizeException);
         given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
         given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(RELAYER_ID);
@@ -408,7 +455,7 @@ class ContextTransactionProcessorTest {
         given(context.body()).willReturn(transactionBody);
         final var payer = AccountID.DEFAULT;
         given(context.payer()).willReturn(payer);
-        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer))
+        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer, (ClprDispatchMetadata) null))
                 .willReturn(HEVM_Exception);
         given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
         given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(SENDER_ID);
@@ -440,9 +487,10 @@ class ContextTransactionProcessorTest {
         given(context.body()).willReturn(transactionBody);
         final var payer = AccountID.DEFAULT;
         given(context.payer()).willReturn(payer);
-        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer))
+        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer, (ClprDispatchMetadata) null))
                 .willThrow(new HandleException(INVALID_CONTRACT_ID));
-        given(hevmTransactionFactory.fromContractTxException(any(), any())).willReturn(HEVM_Exception);
+        given(hevmTransactionFactory.fromContractTxException(any(), any(), isNull()))
+                .willReturn(HEVM_Exception);
         given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
         given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(SENDER_ID);
 
@@ -475,9 +523,10 @@ class ContextTransactionProcessorTest {
         given(context.body()).willReturn(transactionBody);
         final var payer = AccountID.DEFAULT;
         given(context.payer()).willReturn(payer);
-        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer))
+        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer, (ClprDispatchMetadata) null))
                 .willThrow(new HandleException(INVALID_CONTRACT_ID));
-        given(hevmTransactionFactory.fromContractTxException(any(), any())).willReturn(HEVM_Exception);
+        given(hevmTransactionFactory.fromContractTxException(any(), any(), isNull()))
+                .willReturn(HEVM_Exception);
         given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
         given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(SENDER_ID);
 
@@ -511,9 +560,10 @@ class ContextTransactionProcessorTest {
         given(context.payer()).willReturn(SENDER_ID);
         given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
         given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(SENDER_ID);
-        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, SENDER_ID))
+        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, SENDER_ID, (ClprDispatchMetadata) null))
                 .willThrow(new HandleException(INVALID_CONTRACT_ID));
-        given(hevmTransactionFactory.fromContractTxException(any(), any())).willReturn(HEVM_Exception);
+        given(hevmTransactionFactory.fromContractTxException(any(), any(), isNull()))
+                .willReturn(HEVM_Exception);
 
         final var outcome = subject.call();
         verify(rootProxyWorldUpdater).commit();
@@ -563,7 +613,7 @@ class ContextTransactionProcessorTest {
         final var payer = AccountID.DEFAULT;
         given(context.body()).willReturn(transactionBody);
         given(context.payer()).willReturn(payer);
-        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer))
+        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, payer, (ClprDispatchMetadata) null))
                 .willReturn(HEVM_CREATION);
         given(transactionBody.transactionIDOrThrow()).willReturn(transactionID);
         given(transactionBody.transactionIDOrElse(any())).willReturn(transactionID);
@@ -592,9 +642,10 @@ class ContextTransactionProcessorTest {
 
         given(context.body()).willReturn(transactionBody);
         given(context.payer()).willReturn(SENDER_ID);
-        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, SENDER_ID))
+        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, SENDER_ID, (ClprDispatchMetadata) null))
                 .willThrow(new IllegalArgumentException("test"));
-        given(hevmTransactionFactory.fromContractTxException(any(), any())).willReturn(HEVM_Exception);
+        given(hevmTransactionFactory.fromContractTxException(any(), any(), isNull()))
+                .willReturn(HEVM_Exception);
         given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
         given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(SENDER_ID);
 
@@ -604,24 +655,28 @@ class ContextTransactionProcessorTest {
         verify(hevmTransactionFactory)
                 .fromContractTxException(
                         eq(transactionBody),
-                        argThat(e -> e instanceof HandleException && e.getStatus() == INVALID_TRANSACTION));
+                        argThat(e -> e instanceof HandleException && e.getStatus() == INVALID_TRANSACTION),
+                        isNull());
         assertEquals(INVALID_CONTRACT_ID, outcome.status());
         verify(rootProxyWorldUpdater).commit();
 
         // Test HandleException path
         reset(hevmTransactionFactory, rootProxyWorldUpdater, context);
+        given(context.dispatchMetadata()).willReturn(EMPTY_METADATA);
         given(context.body()).willReturn(transactionBody);
         given(context.payer()).willReturn(SENDER_ID);
-        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, SENDER_ID))
+        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, SENDER_ID, (ClprDispatchMetadata) null))
                 .willThrow(new HandleException(INVALID_SIGNATURE));
-        given(hevmTransactionFactory.fromContractTxException(any(), any())).willReturn(HEVM_Exception);
+        given(hevmTransactionFactory.fromContractTxException(any(), any(), isNull()))
+                .willReturn(HEVM_Exception);
         given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
 
         outcome = subject.call();
 
         // Verify HandleException is passed through
         verify(hevmTransactionFactory)
-                .fromContractTxException(eq(transactionBody), argThat(e -> e.getStatus() == INVALID_SIGNATURE));
+                .fromContractTxException(
+                        eq(transactionBody), argThat(e -> e.getStatus() == INVALID_SIGNATURE), isNull());
         verify(rootProxyWorldUpdater).commit();
     }
 
@@ -632,10 +687,11 @@ class ContextTransactionProcessorTest {
 
         given(context.body()).willReturn(transactionBody);
         given(context.payer()).willReturn(SENDER_ID);
-        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, SENDER_ID))
+        given(hevmTransactionFactory.fromHapiTransaction(transactionBody, SENDER_ID, (ClprDispatchMetadata) null))
                 .willReturn(hevmTransaction);
         given(hevmTransaction.payload()).willReturn(Bytes.wrap(new byte[100])); // Exceeds max of 10
-        given(hevmTransactionFactory.fromContractTxException(any(), any())).willReturn(HEVM_OversizeException);
+        given(hevmTransactionFactory.fromContractTxException(any(), any(), isNull()))
+                .willReturn(HEVM_OversizeException);
         given(transactionBody.transactionIDOrElse(TransactionID.DEFAULT)).willReturn(transactionID);
         given(transactionID.accountIDOrElse(AccountID.DEFAULT)).willReturn(SENDER_ID);
 
@@ -643,7 +699,8 @@ class ContextTransactionProcessorTest {
 
         // Verify payload validation triggers TRANSACTION_OVERSIZE
         verify(hevmTransactionFactory)
-                .fromContractTxException(eq(transactionBody), argThat(e -> e.getStatus() == TRANSACTION_OVERSIZE));
+                .fromContractTxException(
+                        eq(transactionBody), argThat(e -> e.getStatus() == TRANSACTION_OVERSIZE), isNull());
         assertEquals(TRANSACTION_OVERSIZE, outcome.status());
     }
 
@@ -751,6 +808,7 @@ class ContextTransactionProcessorTest {
         final var payer = AccountID.DEFAULT;
         given(context.body()).willReturn(body);
         given(context.payer()).willReturn(payer);
-        given(hevmTransactionFactory.fromHapiTransaction(body, payer)).willReturn(HEVM_CREATION);
+        given(hevmTransactionFactory.fromHapiTransaction(body, payer, (ClprDispatchMetadata) null))
+                .willReturn(HEVM_CREATION);
     }
 }

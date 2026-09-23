@@ -104,18 +104,23 @@ public class HgcaaLogValidator {
                 List.of("Block node", "reported it is behind. Will start streaming block"),
                 List.of("BlockNodeConnectionManager", "Block stream worker interrupted"),
                 List.of("BlockNodeConnectionManager", "No active connections available for streaming"),
+                List.of("TraceDataSizeLimiter", "Clearing contract trace data"),
                 List.of("No block nodes available to connect to"),
                 // Not present on OS X
                 List.of("Native library besu blake2bf is not present"),
                 List.of("Restarted WRAPS signing"),
                 // Expected as part of WRAPS proving key verification tests
                 List.of("WRAPS proving key hash mismatch at"),
-                List.of("Failed to extract WRAPS proving key archive"),
+                List.of("Failed to install WRAPS proving key archive"),
                 List.of("Failed to download WRAPS proving key"),
                 List.of("WRAPS proving key download failed"),
                 List.of("Downloaded WRAPS proving key hash mismatch"),
                 List.of("WRAPS proving key download did not complete"),
-                List.of("Failed to initiate async download of WRAPS proving key (from URL "));
+                List.of("Failed to initiate async download of WRAPS proving key (from URL "),
+                List.of("WRAPS enabled but this node cannot build recursive proofs", "data/keys"),
+                // A WRAPS-extensible history proof is a single ~63MB savepoint batch, which trips
+                // the streamMode=BOTH block size circuit breaker (blockStream.maxBlockSizeBytes)
+                List.of("BlockStreamManagerImpl", "suppressing savepoint output for the rest of the block"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;

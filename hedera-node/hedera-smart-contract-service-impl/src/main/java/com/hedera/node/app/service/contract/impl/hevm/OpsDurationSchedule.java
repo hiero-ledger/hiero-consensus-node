@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.hevm;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
+
 import com.hedera.node.config.data.OpsDurationConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collections;
@@ -47,6 +49,27 @@ public record OpsDurationSchedule(
 
     public long opCodeCost(int opCode) {
         return opsDurationByOpCode.get(opCode);
+    }
+
+    /**
+     * Computes the gas-based ops-duration units for a call, in an overflow-safe and non-negative way.
+     *
+     * <p>The raw formula is {@code gasCost * multiplier / multipliersDenominator}. Because some callers
+     * can report a very large {@code gasCost} (up to {@link Long#MAX_VALUE}), the naive multiplication
+     * would overflow a signed 64-bit long and could even wrap negative. We therefore saturate the product
+     * at {@link Long#MAX_VALUE} and treat any non-positive input as contributing zero duration.
+     *
+     * @param gasCost the gas cost of the call
+     * @param multiplier the gas-based duration multiplier to apply
+     * @return the ops-duration units, always in {@code [0, Long.MAX_VALUE]}
+     */
+    public long gasBasedOpsDuration(final long gasCost, final long multiplier) {
+        if (gasCost <= 0L || multiplier <= 0L) {
+            return 0L;
+        }
+        final long product = productWouldOverflow(gasCost, multiplier) ? Long.MAX_VALUE : gasCost * multiplier;
+        // multipliersDenominator is always >= 1 (see fromConfig / EMPTY)
+        return product / multipliersDenominator;
     }
 
     @Override

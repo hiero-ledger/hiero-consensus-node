@@ -5,6 +5,9 @@ workloads. They cover crypto-transfer-like operations over virtual maps, virtual
 map read and edit cycles, and reconnect synchronization between learner and
 teacher map states.
 
+If you need to explore metrics during test run, use `hiero-observability/local-stack`
+to scrape the Prometheus endpoint during test run and explore metrics/logs in local Grafana.
+
 ## Available Benchmarks
 
 ### CryptoBench
@@ -50,6 +53,9 @@ Benchmarks:
 
 - `ReconnectBench.reconnect`: runs reconnect synchronization from the learner
   state to the teacher state.
+
+See [ReconnectBench](docs/ReconnectBench.md) for simulated-network semantics, run parameters, and local-to-cluster
+calibration results.
 
 ## Run with Gradle
 
@@ -150,7 +156,7 @@ The benchmark-specific settings are:
 |              Setting               |                                                                                                                    Description                                                                                                                     |
 |------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `benchmark.benchmarkData`          | Base directory for benchmark state. If this setting is empty or omitted, each run uses a temporary directory. If set, the benchmark uses `<value>/<BenchmarkName>`.                                                                                |
-| `benchmark.saveDataDirectory`      | Keeps benchmark state after the run. If `false`, the benchmark data directory is deleted during teardown.                                                                                                                                          |
+| `benchmark.saveDataDirectory`      | Keeps benchmark state after the run. If `false`, the benchmark data directory is deleted during teardown. `ReconnectBench` overrides this setting to `true` and always preserves its generated state.                                              |
 | `benchmark.verifyResult`           | Enables benchmark result verification where supported.                                                                                                                                                                                             |
 | `benchmark.enableSnapshots`        | Enables periodic virtual map snapshots for benchmarks that support snapshots.                                                                                                                                                                      |
 | `benchmark.printHistogram`         | Prints a class histogram during invocation teardown.                                                                                                                                                                                               |
@@ -160,6 +166,9 @@ The benchmark-specific settings are:
 | `benchmark.csvWriteFrequency`      | Metric write frequency in milliseconds. `0` disables periodic metric writes.                                                                                                                                                                       |
 | `benchmark.csvAppend`              | Appends to an existing metrics CSV instead of replacing it.                                                                                                                                                                                        |
 | `benchmark.deviceName`             | Linux block device name used for disk metrics. Set it to the device that hosts the benchmark data, for example `sda` for `/sys/block/sda`.                                                                                                         |
+
+`benchmark.benchmarkData` still selects the ReconnectBench base directory. Only its preservation policy is enforced by
+the benchmark class.
 
 JMH `@Param` values such as `numFiles`, `numRecords`, `maxKey`, `numThreads`,
 and the reconnect delay probabilities are JMH parameters, not `settings.txt`
@@ -183,3 +192,6 @@ absolute path is configured:
 
 If `settingsUsed.txt`, `data`, or `output` appear elsewhere, the benchmark was
 started with a different working directory.
+
+If `prometheus.endpointEnabled` is `true` (the default is `true`), the benchmark exposes a Prometheus endpoint on `prometheus.endpointPortNumber` (default `9999`).
+Change `prometheus.endpointEnabled` to `false` in `settings.txt` to disable the Prometheus endpoint and metrics updates.

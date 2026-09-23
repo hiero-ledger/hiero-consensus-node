@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.intake.impl.signature;
 
-import com.swirlds.component.framework.component.InputWireLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
-import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
+import org.hiero.consensus.wiring.framework.component.InputWireLabel;
 
 /**
  * Verifies event signatures
@@ -37,5 +37,5 @@ public interface EventSignatureValidator {
      * @param rosterHistory the roster history read from state
      */
     @InputWireLabel("roster history")
-    void updateRosterHistory(@NonNull final RosterHistory rosterHistory);
+    void updateRosterHistory(@NonNull final RosterWrapperHistory rosterHistory);
 }

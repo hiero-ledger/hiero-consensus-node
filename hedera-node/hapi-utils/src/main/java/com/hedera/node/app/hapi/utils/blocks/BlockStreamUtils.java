@@ -13,12 +13,25 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.node.state.primitives.ProtoString;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Locale;
 
 public final class BlockStreamUtils {
 
     private static final String UPGRADE_DATA_FILE_NUM_FORMAT = "FileService.UPGRADE_DATA_%d";
 
     private BlockStreamUtils() {}
+
+    /**
+     * Returns the state name of the upgrade data queue for the given upgrade file number
+     *
+     * @param fileNum the upgrade file number
+     * @return the state name naming that file's upgrade data queue
+     */
+    private static String upgradeDataStateName(final int fileNum) {
+        // Locale.ROOT is required: under the default locale the digits render in a locale-specific
+        // script (e.g. Persian), which matches no state name.
+        return String.format(Locale.ROOT, UPGRADE_DATA_FILE_NUM_FORMAT, fileNum);
+    }
 
     public static String stateNameOf(final int stateId) {
         return switch (StateIdentifier.fromProtobufOrdinal(stateId)) {
@@ -40,16 +53,16 @@ public final class BlockStreamUtils {
             case STATE_ID_ENTITY_ID -> "EntityIdService.ENTITY_ID";
             case STATE_ID_MIDNIGHT_RATES -> "FeeService.MIDNIGHT_RATES";
             case STATE_ID_FILES -> "FileService.FILES";
-            case STATE_ID_UPGRADE_DATA_150 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(150);
-            case STATE_ID_UPGRADE_DATA_151 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(151);
-            case STATE_ID_UPGRADE_DATA_152 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(152);
-            case STATE_ID_UPGRADE_DATA_153 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(153);
-            case STATE_ID_UPGRADE_DATA_154 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(154);
-            case STATE_ID_UPGRADE_DATA_155 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(155);
-            case STATE_ID_UPGRADE_DATA_156 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(156);
-            case STATE_ID_UPGRADE_DATA_157 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(157);
-            case STATE_ID_UPGRADE_DATA_158 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(158);
-            case STATE_ID_UPGRADE_DATA_159 -> UPGRADE_DATA_FILE_NUM_FORMAT.formatted(159);
+            case STATE_ID_UPGRADE_DATA_150 -> upgradeDataStateName(150);
+            case STATE_ID_UPGRADE_DATA_151 -> upgradeDataStateName(151);
+            case STATE_ID_UPGRADE_DATA_152 -> upgradeDataStateName(152);
+            case STATE_ID_UPGRADE_DATA_153 -> upgradeDataStateName(153);
+            case STATE_ID_UPGRADE_DATA_154 -> upgradeDataStateName(154);
+            case STATE_ID_UPGRADE_DATA_155 -> upgradeDataStateName(155);
+            case STATE_ID_UPGRADE_DATA_156 -> upgradeDataStateName(156);
+            case STATE_ID_UPGRADE_DATA_157 -> upgradeDataStateName(157);
+            case STATE_ID_UPGRADE_DATA_158 -> upgradeDataStateName(158);
+            case STATE_ID_UPGRADE_DATA_159 -> upgradeDataStateName(159);
             case STATE_ID_FREEZE_TIME -> "FreezeService.FREEZE_TIME";
             case STATE_ID_UPGRADE_FILE_HASH -> "FreezeService.UPGRADE_FILE_HASH";
             case STATE_ID_PLATFORM_STATE -> "PlatformStateService.PLATFORM_STATE";
@@ -94,6 +107,15 @@ public final class BlockStreamUtils {
             case STATE_ID_CRS_PUBLICATIONS -> "HintsService.CRS_PUBLICATIONS";
             case STATE_ID_NODE_REWARDS -> "TokenService.NODE_REWARDS";
             case STATE_ID_NODE_PAYMENTS -> "TokenService.NODE_PAYMENTS";
+            case STATE_ID_CLPR_LEDGER_CONFIGURATION -> "ClprService.LEDGER_CONFIGURATION";
+            case STATE_ID_CLPR_CHANNELS -> "ClprService.CHANNELS";
+            case STATE_ID_CLPR_PENDING_COMMITMENTS -> "ClprService.PENDING_COMMITMENTS";
+            case STATE_ID_CLPR_MESSAGE_QUEUE -> "ClprService.MESSAGE_QUEUE";
+            case STATE_ID_CLPR_CONNECTORS -> "ClprService.CONNECTORS";
+            case STATE_ID_CLPR_PENDING_CONNECTOR_COMMITMENTS -> "ClprService.PENDING_CONNECTOR_COMMITMENTS";
+            case STATE_ID_CLPR_SUBMISSION_THROTTLES -> "ClprService.SUBMISSION_THROTTLES";
+            case STATE_ID_CLPR_ENDPOINT_MANIFEST -> "ClprService.ENDPOINT_MANIFEST";
+            case STATE_ID_CLPR_ENDPOINT_MANIFEST_CONSTRUCTION -> "ClprService.ENDPOINT_MANIFEST_CONSTRUCTION";
         };
     }
 
@@ -120,6 +142,10 @@ public final class BlockStreamUtils {
             case CRS_STATE_VALUE -> singletonUpdateChange.crsStateValueOrThrow();
             case NODE_PAYMENTS_VALUE -> singletonUpdateChange.nodePaymentsValueOrThrow();
             case NODE_ID_VALUE -> singletonUpdateChange.nodeIdValueOrThrow();
+            case CLPR_LEDGER_CONFIGURATION_VALUE -> singletonUpdateChange.clprLedgerConfigurationValueOrThrow();
+            case CLPR_ENDPOINT_MANIFEST_VALUE -> singletonUpdateChange.clprEndpointManifestValueOrThrow();
+            case CLPR_ENDPOINT_MANIFEST_CONSTRUCTION_VALUE ->
+                singletonUpdateChange.clprEndpointManifestConstructionValueOrThrow();
         };
     }
 
@@ -158,6 +184,8 @@ public final class BlockStreamUtils {
             case CONSTRUCTION_NODE_ID_KEY -> mapChangeKey.constructionNodeIdKeyOrThrow();
             case HOOK_ID_KEY -> mapChangeKey.hookIdKeyOrThrow();
             case EVM_HOOK_SLOT_KEY -> mapChangeKey.evmHookSlotKeyOrThrow();
+            case CLPR_MESSAGE_KEY -> mapChangeKey.clprMessageKeyOrThrow();
+            case CLPR_CONNECTOR_KEY -> mapChangeKey.clprConnectorKeyOrThrow();
         };
     }
 
@@ -196,6 +224,10 @@ public final class BlockStreamUtils {
             case NODE_ID_VALUE -> mapChangeValue.nodeIdValueOrThrow();
             case REGISTERED_NODE_VALUE -> mapChangeValue.registeredNodeValueOrThrow();
             case WRAPS_MESSAGE_HISTORY_VALUE -> mapChangeValue.wrapsMessageHistoryValueOrThrow();
+            case CLPR_CHANNEL_VALUE -> mapChangeValue.clprChannelValueOrThrow();
+            case PROTO_BYTES_VALUE -> new ProtoBytes(mapChangeValue.protoBytesValueOrThrow());
+            case CLPR_MESSAGE_VALUE -> mapChangeValue.clprMessageValueOrThrow();
+            case CLPR_CONNECTOR_VALUE -> mapChangeValue.clprConnectorValueOrThrow();
         };
     }
 

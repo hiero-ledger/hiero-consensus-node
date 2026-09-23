@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gui.internal.hashgraph;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.gui.internal.GuiEventStorage;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**
  * Provides the {@code HashgraphGui} information it needs to render an image of the hashgraph
@@ -13,22 +13,22 @@ import org.hiero.consensus.hashgraph.impl.EventImpl;
 public interface HashgraphGuiSource {
 
     /**
-     * @return the maximum sequence number of all events this source has
+     * @return the maximum generation of all events this source has
      */
-    long getMaxSequenceNumber();
+    long getMaxGeneration();
 
     /**
      * Get events to be displayed by the GUI
      *
-     * @param startSequenceNum the start sequence number of events returned
-     * @param numEvents  the number of events to be returned
-     * @return a list of requested events
+     * @param startGeneration the start generation of events returned
+     * @param numGenerations  the number of generations to be returned
+     * @return an list of requested events
      */
     @NonNull
-    List<EventImpl> getEvents(final long startSequenceNum, final int numEvents);
+    List<EventImpl> getEvents(final long startGeneration, final int numGenerations);
 
     @NonNull
-    Roster getRoster();
+    RosterWrapper getRoster();
 
     /**
      * @return true if the source is ready to return data

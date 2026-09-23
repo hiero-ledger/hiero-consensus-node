@@ -8,12 +8,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.model.WiringModelBuilder;
-import com.swirlds.component.framework.schedulers.TaskScheduler;
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
-import com.swirlds.component.framework.wires.input.BindableInputWire;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -23,9 +17,15 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.ValueReference;
 import org.hiero.base.crypto.SignatureVerifier;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
+import org.hiero.consensus.wiring.framework.schedulers.TaskScheduler;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerType;
+import org.hiero.consensus.wiring.framework.wires.input.BindableInputWire;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 import org.junit.jupiter.api.Test;
 
 class SignedStateReserverTest {

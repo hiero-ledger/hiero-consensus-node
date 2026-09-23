@@ -35,6 +35,7 @@ deciders:                              # people responsible for the decision
   - Full Name (@github-handle)
 curated_by: Full Name (@github-handle) # who maintains this entry
 provenance: design-session-2026-05-xx  # optional; source discussion if recorded
+last_reviewed: TBD
 ---
 ```
 
@@ -64,6 +65,10 @@ Field discipline:
   fixed vocabulary; the `topics:` axis gives the useful slice.
 - **no `confidence` field** — once accepted, the team has committed. Strength
   of belief is not the right axis for a decision.
+- **`last_reviewed`** — the trailing key. `TBD` until the entry's
+  code-anchored claims have been reviewed against current code, then the date
+  of that review. Written only by the KB freshness checker's
+  `--mark-reviewed` — never by hand.
 
 ## Body
 
@@ -169,6 +174,7 @@ date: YYYY-MM-DD
 deciders:
   - Full Name (@handle)
 curated_by: Full Name (@handle)
+last_reviewed: TBD
 ---
 
 # ADR-NNN — Title

@@ -3,7 +3,7 @@ package com.hedera.node.app.services;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static com.hedera.node.app.hapi.fees.pricing.FeeSchedules.USD_TO_TINYCENTS;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.USD_TO_TINYCENTS;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
 import static com.hedera.node.app.workflows.handle.steps.StakePeriodChanges.isNextStakingPeriod;
 import static java.util.Objects.requireNonNull;

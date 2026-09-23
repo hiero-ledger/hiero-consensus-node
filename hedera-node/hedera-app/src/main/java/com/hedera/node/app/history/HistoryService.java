@@ -94,6 +94,7 @@ public interface HistoryService extends Service, OnProofFinished {
      * @param tssConfig the TSS configuration
      * @param isActive if the platform is active
      * @param activeConstruction the active hinTS construction, if any
+     * @param freshGenesisRequested whether a fresh genesis proof is requested for the current roster
      */
     void reconcile(
             @NonNull ActiveRosters activeRosters,
@@ -102,7 +103,13 @@ public interface HistoryService extends Service, OnProofFinished {
             @NonNull Instant now,
             @NonNull TssConfig tssConfig,
             boolean isActive,
-            @Nullable HintsConstruction activeConstruction);
+            @Nullable HintsConstruction activeConstruction,
+            boolean freshGenesisRequested);
+
+    /**
+     * Stops the history service, causing it to abandon any in-progress work.
+     */
+    void stop();
 
     /**
      * Returns a proof of inclusion of the given metadata for the current roster.

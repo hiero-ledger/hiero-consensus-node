@@ -15,6 +15,7 @@ deciders:
   - Kelly Greco (@poulok)
   - Lazar Petrovic (@lpetrovic05)
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # ADR-005 — Embed a future-event buffer inside each consuming component instead of one standalone buffering component
@@ -106,8 +107,9 @@ with no special fixed-point iteration.
 
 ### Positive
 
-- **Keeps the flush simple and correct.** `PlatformCoordinator
-  .flushPrimaryPipeline()` stays a fixed, linear sequence of `flush()` calls.
+- **Keeps the flush simple and correct.**
+  [`PipelineFlusher#flushPrimaryPipeline`](../../../swirlds-platform-core/src/main/java/org/hiero/consensus/PipelineFlusher.java#flushPrimaryPipeline)
+  stays a fixed, linear sequence of `flush()` calls.
   No fixed-point iteration over a buffer/hashgraph loop is needed to guarantee
   every event has advanced as far as it can.
 - **Adds no feedback edge from the future-event buffer.** Embedding keeps the
@@ -189,7 +191,7 @@ See **Decision** above.
 - `consensus-event-creator-impl/.../DefaultEventCreationManager.java` — owns
   the `FutureEventBuffer`; releases events to the creator on
   `setEventWindow(...)`.
-- `swirlds-platform-core/.../PlatformCoordinator.java` —
+- `swirlds-platform-core/.../PipelineFlusher.java` —
   `flushPrimaryPipeline()`, the ordered flush this decision keeps simple.
 - RUL-002 — the flush-ordering
   rule whose single-pass guarantee depends on this decision.

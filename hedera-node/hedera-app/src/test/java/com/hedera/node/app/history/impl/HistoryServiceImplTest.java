@@ -44,7 +44,7 @@ import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import java.time.Instant;
 import java.util.concurrent.ForkJoinPool;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -147,10 +147,20 @@ class HistoryServiceImplTest {
     }
 
     @Test
+    void stopsControllersWorkWhenAsked() {
+        withMockSubject();
+        given(component.controllers()).willReturn(controllers);
+
+        subject.stop();
+
+        verify(controllers).stop();
+    }
+
+    @Test
     void handoffIsNoop() {
         withMockSubject();
         given(activeRosters.phase()).willReturn(HANDOFF);
-        subject.reconcile(activeRosters, Bytes.EMPTY, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, null);
+        subject.reconcile(activeRosters, Bytes.EMPTY, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, null, false);
     }
 
     @Test
@@ -164,12 +174,12 @@ class HistoryServiceImplTest {
                 .uncompressedWrapsProof(Bytes.wrap("uncompressed"))
                 .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
                 .build();
-        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG))
+        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, false))
                 .willReturn(HistoryProofConstruction.newBuilder()
                         .targetProof(wrapsExtensibleProof)
                         .build());
 
-        subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, null);
+        subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, null, false);
 
         verifyNoMoreInteractions(component);
     }
@@ -178,7 +188,7 @@ class HistoryServiceImplTest {
     void activeReconciliationIfTransitionHasNoProofYet() {
         withMockSubject();
         given(activeRosters.phase()).willReturn(TRANSITION);
-        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG))
+        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, false))
                 .willReturn(HistoryProofConstruction.DEFAULT);
         given(store.getActiveConstruction()).willReturn(HistoryProofConstruction.DEFAULT);
         given(component.controllers()).willReturn(controllers);
@@ -192,7 +202,14 @@ class HistoryServiceImplTest {
                 .willReturn(controller);
 
         subject.reconcile(
-                activeRosters, CURRENT_VK, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, HintsConstruction.DEFAULT);
+                activeRosters,
+                CURRENT_VK,
+                store,
+                CONSENSUS_NOW,
+                DEFAULT_TSS_CONFIG,
+                true,
+                HintsConstruction.DEFAULT,
+                false);
 
         verify(controller).advanceConstruction(CONSENSUS_NOW, CURRENT_VK, store, true, DEFAULT_TSS_CONFIG);
     }
@@ -203,7 +220,7 @@ class HistoryServiceImplTest {
         given(activeRosters.phase()).willReturn(HANDOFF);
 
         subject.reconcile(
-                activeRosters, null, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, HintsConstruction.DEFAULT);
+                activeRosters, null, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, HintsConstruction.DEFAULT, false);
 
         verify(store, never()).getConstructionFor(activeRosters);
     }

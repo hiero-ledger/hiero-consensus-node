@@ -29,6 +29,7 @@ public enum CustomExceptionalHaltReason implements ExceptionalHaltReason {
     NOT_SUPPORTED("Not supported."),
     CONTRACT_ENTITY_LIMIT_REACHED("Contract entity limit reached."),
     INVALID_FEE_SUBMITTED("Invalid fee submitted for an EVM call."),
+    INSUFFICIENT_BALANCE("Insufficient balance for value transfer"),
     INSUFFICIENT_CHILD_RECORDS("Result cannot be externalized due to insufficient child records");
 
     private final String description;
@@ -55,6 +56,7 @@ public enum CustomExceptionalHaltReason implements ExceptionalHaltReason {
         map.put(INVALID_CONTRACT_ID, ResponseCodeEnum.INVALID_CONTRACT_ID);
         map.put(INVALID_FEE_SUBMITTED, ResponseCodeEnum.INVALID_FEE_SUBMITTED);
         map.put(INSUFFICIENT_GAS, ResponseCodeEnum.INSUFFICIENT_GAS);
+        map.put(INSUFFICIENT_BALANCE, ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE);
         map.put(ILLEGAL_STATE_CHANGE, ResponseCodeEnum.LOCAL_CALL_MODIFICATION_EXCEPTION);
         HALT_REASON_TO_STATUS = Collections.unmodifiableMap(map);
     }
@@ -67,6 +69,9 @@ public enum CustomExceptionalHaltReason implements ExceptionalHaltReason {
      */
     public static ResponseCodeEnum statusFor(@NonNull final ExceptionalHaltReason reason) {
         requireNonNull(reason);
+        if (reason instanceof HandleExceptionHaltReason handleExceptionHaltReason) {
+            return handleExceptionHaltReason.status();
+        }
         return HALT_REASON_TO_STATUS.getOrDefault(reason, ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION);
     }
 
@@ -75,6 +80,12 @@ public enum CustomExceptionalHaltReason implements ExceptionalHaltReason {
         // #10568 - We add this check to match mono behavior
         if (reason == CustomExceptionalHaltReason.INSUFFICIENT_CHILD_RECORDS) {
             return Bytes.of(ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED.name().getBytes())
+                    .toHexString();
+        }
+        // A HandleException resolved as a halt externalizes its status exactly as the
+        // legacy abort path did, as the hex-encoded status name
+        if (reason instanceof HandleExceptionHaltReason handleExceptionHaltReason) {
+            return Bytes.of(handleExceptionHaltReason.status().name().getBytes())
                     .toHexString();
         }
         return reason.toString();

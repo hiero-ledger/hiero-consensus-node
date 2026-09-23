@@ -7,6 +7,7 @@ import com.hederahashgraph.api.proto.java.ContractFunctionResult;
 import com.hederahashgraph.api.proto.java.ExchangeRate;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Transaction;
+import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
 
@@ -17,6 +18,8 @@ import java.util.List;
  */
 public final class FeeConstants {
     public static final long MAX_ENTITY_LIFETIME = 100L * 365L * 24L * 60L * 60L;
+
+    public static final BigDecimal USD_TO_TINYCENTS = BigDecimal.valueOf(100 * 100_000_000L);
 
     public static final int LONG_SIZE = 8;
     public static final int FEE_MATRICES_CONST = 1;
@@ -122,13 +125,41 @@ public final class FeeConstants {
         return getAFromB(tinyCentsFee, exchangeRate.getHbarEquiv(), exchangeRate.getCentEquiv());
     }
 
+    /**
+     * Convert tinycents to tinybars, falling back to BigInteger math when the product would overflow.
+     *
+     * @param amount the amount in tinycents
+     * @param rate   the exchange rate
+     * @return the amount in tinybars
+     */
+    public static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
+        final var hbarEquiv = rate.getHbarEquiv();
+        final var centEquiv = rate.getCentEquiv();
+        // A non-positive centEquiv would divide by zero, and a non-positive hbarEquiv would make the fee
+        // free or negative; saturate to Long.MAX_VALUE instead of throwing, so a degenerate rate yields an
+        // unpayable fee rather than halting fee conversion identically on every node.
+        if (centEquiv <= 0 || hbarEquiv <= 0) {
+            return Long.MAX_VALUE;
+        }
+        if (CommonUtils.productWouldOverflow(amount, hbarEquiv)) {
+            return getTinybarsFromTinyCents(rate, amount);
+        }
+        return amount * hbarEquiv / centEquiv;
+    }
+
+    private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
+
     private static long getAFromB(final long bAmount, final int aEquiv, final int bEquiv) {
-        final var aMultiplier = BigInteger.valueOf(aEquiv);
-        final var bDivisor = BigInteger.valueOf(bEquiv);
-        return BigInteger.valueOf(bAmount)
-                .multiply(aMultiplier)
-                .divide(bDivisor)
-                .longValueExact();
+        // A degenerate exchange rate would either divide by zero (non-positive divisor) or make the result
+        // free/negative (non-positive multiplier); saturate to Long.MAX_VALUE instead so a malformed rate
+        // yields an unpayable fee and cannot halt fee conversion network-wide.
+        if (aEquiv <= 0 || bEquiv <= 0) {
+            return Long.MAX_VALUE;
+        }
+        final var result =
+                BigInteger.valueOf(bAmount).multiply(BigInteger.valueOf(aEquiv)).divide(BigInteger.valueOf(bEquiv));
+        // longValueExact() throws when the result exceeds the long range; saturate to the maximum instead.
+        return result.compareTo(LONG_MAX) >= 0 ? Long.MAX_VALUE : result.longValue();
     }
 
     /**

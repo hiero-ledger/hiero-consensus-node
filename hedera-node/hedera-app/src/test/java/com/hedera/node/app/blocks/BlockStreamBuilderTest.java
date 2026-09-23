@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.UTIL_PRNG;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.blocks.BlockItemsTranslator.BLOCK_ITEMS_TRANSLATOR;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -15,6 +16,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
+import com.hedera.hapi.block.stream.trace.EvmTraceData;
+import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
+import com.hedera.hapi.block.stream.trace.ExecutedInitcode;
 import com.hedera.hapi.block.stream.trace.SlotRead;
 import com.hedera.hapi.block.stream.trace.WrittenSlotKeys;
 import com.hedera.hapi.node.base.AccountAmount;
@@ -34,10 +38,14 @@ import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionRecord;
+import com.hedera.hapi.streams.ContractAction;
+import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -147,6 +155,39 @@ public class BlockStreamBuilderTest {
     }
 
     @Test
+    void exceededContractTraceDataLimitClearsAllEvmTraceData() {
+        final var actions = List.of(
+                ContractAction.newBuilder().callType(ContractActionType.CALL).build());
+        final var usages = List.of(new ContractSlotUsage(
+                ContractID.DEFAULT, new WrittenSlotKeys(List.of(Bytes.EMPTY)), List.of(SlotRead.DEFAULT)));
+        final var maxTraceDataBytes = EvmTraceData.PROTOBUF.measureRecord(
+                        EvmTraceData.newBuilder().contractSlotUsages(usages).build())
+                + EvmTraceData.PROTOBUF.measureRecord(
+                        EvmTraceData.newBuilder().contractActions(actions).build())
+                - 1;
+        final var logs =
+                List.of(new EvmTransactionLog(ContractID.DEFAULT, Bytes.wrap("log"), List.of(Bytes.wrap("topic"))));
+        final var initcode = ExecutedInitcode.newBuilder()
+                .contractId(ContractID.DEFAULT)
+                .explicitInitcode(Bytes.wrap("too-large"))
+                .build();
+        final var itemsBuilder = createBaseBuilder(maxTraceDataBytes)
+                .functionality(CONTRACT_CALL)
+                .evmCallTransactionResult(EvmTransactionResult.DEFAULT);
+        itemsBuilder.addContractSlotUsages(usages);
+        itemsBuilder.addLogs(logs);
+        itemsBuilder.addActions(actions);
+        itemsBuilder.addInitcode(initcode);
+        itemsBuilder.addActions(actions);
+
+        final var traceItems = itemsBuilder.build(false, null).blockItems().stream()
+                .filter(BlockItem::hasTraceData)
+                .toList();
+        assertTrue(itemsBuilder.hasTraceDataSizeLimitExceeded());
+        assertTrue(traceItems.isEmpty());
+    }
+
+    @Test
     void testBlockItemsWithAdditionalSubmitMsgTraceData() {
         final var itemsBuilder = createEmptyBuilder().functionality(CONSENSUS_SUBMIT_MESSAGE);
         // set additional trace data
@@ -213,10 +254,36 @@ public class BlockStreamBuilderTest {
         assertEquals(SignedTransaction.PROTOBUF.toBytes(signedTx), txnBlockItem.signedTransactionOrThrow());
     }
 
+    @Test
+    void nullOutSideEffectFieldsClearsEvmLogsAndCreatedContractIds() {
+        final var contractId = ContractID.newBuilder().contractNum(1L).build();
+        final var log = EvmTransactionLog.DEFAULT;
+        final BlockStreamBuilder builder = createEmptyBuilder()
+                .functionality(CONTRACT_CALL)
+                .evmCallTransactionResult(EvmTransactionResult.DEFAULT)
+                .status(ResponseCodeEnum.SUCCESS)
+                .consensusTimestamp(CONSENSUS_TIME)
+                .transactionID(TransactionID.DEFAULT);
+        builder.addLogs(List.of(log));
+        builder.createdContractIds(List.of(contractId));
+
+        builder.nullOutSideEffectFields();
+
+        final var record = builder.build(false, null).toRecord(BLOCK_ITEMS_TRANSLATOR);
+
+        assertThat(record.contractCallResult().logInfo()).isEmpty();
+        assertThat(record.contractCallResult().bloom()).isEqualTo(Bytes.EMPTY);
+        assertThat(record.contractCallResult().createdContractIDs()).isEmpty();
+    }
+
     private BlockStreamBuilder createBaseBuilder() {
+        return createBaseBuilder(Integer.MAX_VALUE);
+    }
+
+    private BlockStreamBuilder createBaseBuilder(final int maxSerializedTraceDataBytes) {
         final List<TokenTransferList> tokenTransferLists = List.of(tokenTransfer);
         final List<AccountAmount> paidStakingRewards = List.of(accountAmount);
-        return new BlockStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
+        return new BlockStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER, maxSerializedTraceDataBytes)
                 .status(status)
                 .consensusTimestamp(CONSENSUS_TIME)
                 .parentConsensus(PARENT_CONSENSUS_TIME)
@@ -239,5 +306,24 @@ public class BlockStreamBuilderTest {
         return new BlockStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER)
                 .signedTx(signedTx)
                 .serializedSignedTx(signedTxBytes);
+    }
+
+    @Test
+    void tracksAndEnumeratesDeletedAccountBeneficiaries() {
+        final var deletedA = AccountID.newBuilder().accountNum(1001).build();
+        final var beneficiaryA = AccountID.newBuilder().accountNum(1002).build();
+        final var deletedB = AccountID.newBuilder().accountNum(1003).build();
+        final var beneficiaryB = AccountID.newBuilder().accountNum(1004).build();
+
+        final var builder = new BlockStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
+        builder.addBeneficiaryForDeletedAccount(deletedA, beneficiaryA);
+        builder.addBeneficiaryForDeletedAccount(deletedB, beneficiaryB);
+
+        assertThat(builder.getNumberOfDeletedAccounts()).isEqualTo(2);
+        assertThat(builder.getDeletedAccountBeneficiaryFor(deletedB)).isEqualTo(beneficiaryB);
+
+        final Map<AccountID, AccountID> visited = new HashMap<>();
+        builder.forEachDeletedAccountBeneficiary(visited::put);
+        assertThat(visited).hasSize(2).containsEntry(deletedA, beneficiaryA).containsEntry(deletedB, beneficiaryB);
     }
 }

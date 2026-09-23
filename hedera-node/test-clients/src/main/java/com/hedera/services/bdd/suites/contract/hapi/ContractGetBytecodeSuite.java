@@ -4,8 +4,10 @@ package com.hedera.services.bdd.suites.contract.hapi;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.approxChangeFromSnapshot;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractBytecode;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -16,7 +18,6 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModified;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedQueryIds;
@@ -26,8 +27,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
 import static com.hedera.services.bdd.suites.contract.Utils.getResourcePath;
 import static com.hedera.services.bdd.suites.contract.precompile.CreatePrecompileSuite.MEMO;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
-import com.google.common.io.Files;
 import com.hedera.node.app.service.contract.impl.state.ScheduleEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.TokenEvmAccount;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -37,13 +38,14 @@ import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.io.File;
+import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
-import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -77,6 +79,7 @@ public class ContractGetBytecodeSuite {
                 withOpContext((spec, opLog) -> {
                     final var getBytecode = getContractBytecode(contract)
                             .payingWith(CIVILIAN_PAYER)
+                            .via("bytecodeQueryPayment")
                             .saveResultTo("contractByteCode")
                             .exposingBytecodeTo(bytes -> {
                                 canonicalQueryFeeAtActiveRate.set(spec.ratesProvider()
@@ -87,15 +90,18 @@ public class ContractGetBytecodeSuite {
                             });
                     allRunFor(spec, getBytecode);
 
-                    final var originalBytecode =
-                            Hex.decode(Files.toByteArray(new File(getResourcePath(contract, ".bin"))));
+                    final var originalBytecode = HexFormat.of()
+                            .parseHex(Files.readString(new File(getResourcePath(contract, ".bin")).toPath()));
                     final var actualBytecode = spec.registry().getBytes("contractByteCode");
                     // The original bytecode is modified on deployment
                     final var expectedBytecode = Arrays.copyOfRange(originalBytecode, 29, originalBytecode.length);
                     Assertions.assertArrayEquals(expectedBytecode, actualBytecode);
                 }),
-                // Wait for the query payment transaction to be handled
-                sleepFor(5_000),
+                // The query response can precede consensus for its payment. Wait for the payment's
+                // record before checking the payer's balance, including under concurrent CI load.
+                getTxnRecord("bytecodeQueryPayment")
+                        .setRetryLimit(6_000) // Allow 60 seconds of retry backoff while waiting for consensus
+                        .hasPriority(recordWith().status(SUCCESS)),
                 sourcing(() -> getAccountBalance(CIVILIAN_PAYER)
                         .hasTinyBars(
                                 // Just sanity-check a fee within 50% of the canonical fee to be safe

@@ -75,6 +75,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.ObjLongConsumer;
+import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
  * The {@link HandleContext} implementation.
@@ -298,6 +299,12 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         return feeManager.getGasPriceInTinyCents(consensusNow);
     }
 
+    @NonNull
+    @Override
+    public FeeSchedule simpleFeesSchedule() {
+        return feeManager.getSimpleFeesSchedule();
+    }
+
     @Override
     public HederaFunctionality functionality() {
         return topLevelFunction;
@@ -427,6 +434,10 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         final var signatureMapSize = (overrideSignatureMap != null || chargeForSigVerification)
                 ? SignatureMap.PROTOBUF.measureRecord(effectiveSignatureMap)
                 : 0;
+        // An override signature map (e.g. from a system-contract call) has no verifier of its own, so its
+        // signature count must be charged for explicitly here instead of via numSignaturesVerified().
+        final var signatureCount =
+                overrideSignatureMap != null ? overrideSignatureMap.sigPair().size() : 0;
         return dispatcher.dispatchComputeFees(new ChildFeeContext(
                 feeManager,
                 this,
@@ -438,6 +449,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
                 consensusNow,
                 chargeForSigVerification ? verifier : null,
                 signatureMapSize,
+                signatureCount,
                 function));
     }
 

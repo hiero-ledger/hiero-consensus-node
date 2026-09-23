@@ -9,15 +9,13 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.platform.components.state.output.StateHasEnoughSignaturesConsumer;
-import com.swirlds.platform.components.state.output.StateLacksSignaturesConsumer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Queue;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.roster.test.fixtures.RandomRosterBuilder;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.test.fixtures.RandomSignedStateGenerator;
@@ -31,10 +29,7 @@ import org.junit.jupiter.api.Test;
  */
 class PostconsensusSignaturesTest extends AbstractStateSignatureCollectorTest {
 
-    private final Roster roster = RandomRosterBuilder.create(random)
-            .withSize(4)
-            .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
-            .build();
+    private final Roster roster = RosterFactory.randomRoster(random, 4, WeightGenerators.BALANCED_1000_PER_NODE);
 
     /**
      * Called on each state as it gets too old without collecting enough signatures.

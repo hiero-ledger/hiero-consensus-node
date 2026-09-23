@@ -16,6 +16,7 @@ import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
+import com.hedera.node.app.service.clpr.impl.ClprServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
@@ -50,11 +51,17 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hyperledger.besu.evm.operation.Operation;
 
 /**
  * A factory for creating {@link TransactionExecutor} instances.
+ *
+ * <p>Executors created by this factory skip all signature and key verification: the standalone
+ * dispatch uses a no-op key verifier, and the contract service is wired with
+ * {@code NOOP_VERIFICATION_STRATEGIES}, which treats every key as valid. They are intended for
+ * standalone replay and simulation (e.g. Mirror Node gas estimation and {@code eth_call}), not
+ * for authoritative transaction execution.
  */
 public enum TransactionExecutors {
     TRANSACTION_EXECUTORS;
@@ -233,6 +240,9 @@ public enum TransactionExecutors {
         };
     }
 
+    /**
+     * Builds the {@link ExecutorComponent} backing a standalone executor.
+     */
     public ExecutorComponent newExecutorComponent(
             @NonNull final State state,
             @NonNull Map<String, String> properties,
@@ -307,6 +317,7 @@ public enum TransactionExecutors {
                 .bootstrapConfigProviderImpl(bootstrapConfigProvider)
                 .fileServiceImpl(fileService)
                 .tokenServiceImpl(new TokenServiceImpl(appContext))
+                .clprServiceImpl(new ClprServiceImpl())
                 .consensusServiceImpl(new ConsensusServiceImpl())
                 .networkServiceImpl(new NetworkServiceImpl())
                 .contractServiceImpl(contractService)

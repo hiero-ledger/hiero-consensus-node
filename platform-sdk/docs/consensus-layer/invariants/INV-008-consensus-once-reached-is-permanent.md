@@ -14,6 +14,7 @@ source: The hashgraph consensus algorithm (protocol definition).
 verification: consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/EventImpl.java — `setConsensus(true)` is one-way; finalized `ConsensusRound` is immutable
 provenance: 2026-06-08 extraction run
 curated_by: Michael Heinrichs (@netopyr)
+last_reviewed: TBD
 ---
 
 # INV-008 — Consensus, once reached, is permanent

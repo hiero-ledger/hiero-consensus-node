@@ -3,8 +3,6 @@ package org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator;
 
 import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.RandomEventUtils.DEFAULT_FIRST_EVENT_TIME_CREATED;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -23,7 +21,7 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
-import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.test.fixtures.Randotron;
 
 /**
@@ -35,9 +33,9 @@ public class GeneratorEventGraphSource implements EventGraphSource {
     private final Time time;
     private final long seed;
     private final int maxOtherParents;
-    private final Roster roster;
+    private final RosterWrapper roster;
     private final GeneratorEventSigner eventSigner;
-    private final boolean populateSequenceNumber;
+    private final boolean populateNgen;
 
     /** The source of all randomness for this class. */
     private Randotron random;
@@ -49,7 +47,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
     private final PbjStreamHasher hasher;
 
     /** Tracks the latest known event by each creator */
-    private EventDescriptor[] latestEventPerNode;
+    private EventDescriptorWrapper[] latestEventPerNode;
 
     /** The timestamp of the previously emitted event. */
     private Instant latestEventTime;
@@ -63,16 +61,16 @@ public class GeneratorEventGraphSource implements EventGraphSource {
      * @param maxOtherParents the maximum number of other-parents an event can have
      * @param roster          the roster of network nodes
      * @param eventSigner     the signer used to produce event signatures
-     * @param populateSequenceNumber    whether to populate sequence number on generated events
+     * @param populateNgen    whether to populate ngen values on generated events
      */
     GeneratorEventGraphSource(
             @NonNull final Configuration configuration,
             @NonNull final Time time,
             final long seed,
             final int maxOtherParents,
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final GeneratorEventSigner eventSigner,
-            final boolean populateSequenceNumber) {
+            final boolean populateNgen) {
         this.configuration = configuration;
         this.time = time;
         this.seed = seed;
@@ -80,10 +78,10 @@ public class GeneratorEventGraphSource implements EventGraphSource {
         this.roster = roster;
         this.hasher = new PbjStreamHasher();
         this.eventSigner = eventSigner;
-        this.populateSequenceNumber = populateSequenceNumber;
+        this.populateNgen = populateNgen;
 
         // These fields get reset in reset()
-        this.latestEventPerNode = new EventDescriptor[roster.rosterEntries().size()];
+        this.latestEventPerNode = new EventDescriptorWrapper[roster.size()];
         this.consensus = new GeneratorConsensus(configuration, time, roster);
         this.random = Randotron.create(seed);
     }
@@ -93,7 +91,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
      *
      * @return the roster
      */
-    public @NonNull Roster getRoster() {
+    public @NonNull RosterWrapper getRoster() {
         return roster;
     }
 
@@ -118,14 +116,12 @@ public class GeneratorEventGraphSource implements EventGraphSource {
     @NonNull
     @Override
     public PlatformEvent next() {
-        final List<Integer> nodeIndices = IntStream.range(
-                        0, roster.rosterEntries().size())
-                .boxed()
-                .collect(ArrayList::new, List::add, List::addAll);
+        final List<Integer> nodeIndices =
+                IntStream.range(0, roster.size()).boxed().collect(ArrayList::new, List::add, List::addAll);
         Collections.shuffle(nodeIndices, random);
 
         final Integer eventCreator = nodeIndices.removeLast();
-        final List<EventDescriptor> parents = new ArrayList<>();
+        final List<EventDescriptorWrapper> parents = new ArrayList<>();
         if (latestEventPerNode[eventCreator] != null) {
             parents.add(latestEventPerNode[eventCreator]);
         }
@@ -138,14 +134,9 @@ public class GeneratorEventGraphSource implements EventGraphSource {
         final List<Bytes> transactions = Stream.generate(() -> random.randomBytes(1, 100))
                 .limit(random.nextInt(0, 5))
                 .toList();
-        final int coin = random.nextInt(0, roster.rosterEntries().size() + 1);
+        final int coin = random.nextInt(0, roster.size() + 1);
         final UnsignedEvent unsignedEvent = new UnsignedEvent(
-                NodeId.of(roster.rosterEntries().get(eventCreator).nodeId()),
-                parents.stream().map(EventDescriptorWrapper::new).toList(),
-                birthRound,
-                getNextTimestamp(),
-                transactions,
-                coin);
+                roster.rosterEntry(eventCreator).nodeId(), parents, birthRound, getNextTimestamp(), transactions, coin);
         hasher.hashUnsignedEvent(unsignedEvent);
 
         final PlatformEvent platformEvent =
@@ -157,11 +148,11 @@ public class GeneratorEventGraphSource implements EventGraphSource {
         final PlatformEvent copy = platformEvent.copyGossipedData();
         copy.signalPrehandleCompletion();
 
-        latestEventPerNode[eventCreator] = copy.getDescriptor().eventDescriptor();
-        if (populateSequenceNumber) {
-            // the event sent to consensus will have its sequence number populated, we should copy this value if the
-            // caller
-            // wants sequence numbers to be populated on the returned events
+        latestEventPerNode[eventCreator] = copy.getDescriptor();
+        if (populateNgen) {
+            // the event sent to consensus will have its nGen value populated, we should copy this value if the caller
+            // wants ngen values to be populated on the returned events
+            copy.setNGen(platformEvent.getNGen());
             copy.setSequenceNumber(platformEvent.getSequenceNumber());
         }
         return copy;
@@ -174,7 +165,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
 
     @Override
     public void reset() {
-        this.latestEventPerNode = new EventDescriptor[roster.rosterEntries().size()];
+        this.latestEventPerNode = new EventDescriptorWrapper[roster.size()];
         this.consensus = new GeneratorConsensus(configuration, time, roster);
         this.random = Randotron.create(seed);
         this.latestEventTime = null;

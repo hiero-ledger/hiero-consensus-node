@@ -43,22 +43,6 @@ public record Frontmatter(Map<String, Object> values, Map<String, Integer> keyLi
     }
 
     /**
-     * Returns the {@code child} list under the nested map at {@code parent}, or an empty list if
-     * either is absent or of the wrong shape.
-     *
-     * @param parent the top-level frontmatter key holding a nested map.
-     * @param child  the key within that nested map.
-     * @return the string list at {@code parent.child}, or an empty list.
-     */
-    @SuppressWarnings("unchecked")
-    public List<String> nested(final String parent, final String child) {
-        if (values.get(parent) instanceof Map<?, ?> m && m.get(child) instanceof List<?> l) {
-            return (List<String>) l;
-        }
-        return List.of();
-    }
-
-    /**
      * Returns the nested map at {@code parent}, or an empty map if it is absent or not a map.
      *
      * @param parent the top-level frontmatter key holding a nested map.

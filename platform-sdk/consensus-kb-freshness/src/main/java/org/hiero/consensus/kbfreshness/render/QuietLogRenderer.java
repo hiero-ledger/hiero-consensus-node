@@ -4,6 +4,7 @@ package org.hiero.consensus.kbfreshness.render;
 import org.hiero.consensus.kbfreshness.engine.RunResult;
 import org.hiero.consensus.kbfreshness.model.Finding;
 import org.hiero.consensus.kbfreshness.model.Lane;
+import org.hiero.consensus.kbfreshness.util.Markdown;
 
 /**
  * Renders the quiet log: unverifiable results (generated/external symbols, ambiguous or unresolvable
@@ -34,7 +35,7 @@ public final class QuietLogRenderer {
             sb.append("- `")
                     .append(f.entryKey())
                     .append("` — ")
-                    .append(f.kind().name().toLowerCase().replace('_', ' '))
+                    .append(Markdown.humanize(f.kind()))
                     .append(" `")
                     .append(f.target())
                     .append("`: ")

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.state.hashing;
 
-import com.swirlds.component.framework.component.InputWireLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.wiring.framework.component.InputWireLabel;
 
 /**
  * This component is responsible for logging the hash of the state each round (for debugging).

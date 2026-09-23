@@ -7,14 +7,30 @@ import java.util.List;
  * One topic's semantic-review status. The semantic (Tier-3) pass processes only entries whose status
  * is {@link Status#REVIEW} or {@link Status#UNKNOWN}.
  *
- * @param entryKey     the topic entry key.
- * @param entryPath    the topic's repo-relative path.
- * @param lastReviewed the topic's {@code last_reviewed} value (may be null or non-date).
- * @param status       whether anchored source changed since the review.
- * @param changedPaths anchored source paths whose last commit post-dates {@code lastReviewed}, sorted.
+ * @param entryKey            the topic entry key.
+ * @param entryPath           the topic's repo-relative path.
+ * @param lastReviewed        the topic's {@code last_reviewed} value (may be null or non-date).
+ * @param status              whether anchored source changed since the review.
+ * @param note                for {@link Status#UNKNOWN}, why freshness could not be determined (e.g.
+ *                            {@code no anchored sources}, {@code git unavailable}); otherwise {@code null}.
+ * @param changedPaths        anchored source paths whose last commit post-dates {@code lastReviewed}, sorted.
+ * @param anchoredSourceCount how many distinct source files the topic anchors (full or abbreviated,
+ *                            resolved to concrete files). Zero means the doc carries no
+ *                            mechanically-checkable code anchor — surfaced in the coverage lane.
+ * @param newestAnchoredCommit the newest last-commit date ({@code yyyy-MM-dd}) among the topic's anchored
+ *                            sources in the scanned checkout, or {@code null} when the topic anchors no
+ *                            dated source or git is unavailable. This is the date to record with
+ *                            {@code --mark-reviewed} — the state this run reviewed, never wall-clock.
  */
 public record WorklistEntry(
-        String entryKey, String entryPath, String lastReviewed, Status status, List<String> changedPaths) {
+        String entryKey,
+        String entryPath,
+        String lastReviewed,
+        Status status,
+        String note,
+        List<String> changedPaths,
+        int anchoredSourceCount,
+        String newestAnchoredCommit) {
 
     /** Freshness of a topic relative to the code it anchors. */
     public enum Status {
@@ -22,7 +38,7 @@ public record WorklistEntry(
         REVIEW,
         /** No anchored source changed since {@code last_reviewed}. */
         FRESH,
-        /** Freshness could not be determined (git unavailable, no resolvable anchors). */
+        /** Freshness could not be determined; the {@code note} names the reason. */
         UNKNOWN
     }
 }
