@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/state/clpr/clpr_ledger_configuration.proto";
+
+/**
+ * Node-local record of the outbound sync orchestrator's per-channel peer endpoints.
+ *
+ * <p>This is <b>not</b> consensus state — it is persisted to a node-local file (serialized as
+ * JSON via this message's generated PBJ JSON codec, mirroring the {@code network.json} export)
+ * and is therefore deliberately absent from {@code virtual_map_state} / {@code state_changes}.
+ * {@code ClprChannelManager}'s channel registry, per-channel sync timers, and in-memory
+ * peer endpoint cache are runtime-only and empty after a node restart; the {@code CHANNELS}
+ * key/value state cannot be iterated to rebuild them, and the local ledger configuration only
+ * yields this node's own endpoints. This file is the authoritative node-local source of peer
+ * endpoints: the manager rewrites it on every channel lifecycle change (activated / closed /
+ * endpoints updated) and reads it on start-up to re-register channels and re-seed their peer
+ * endpoints so it can initiate syncs again.
+ */
+message ClprPeerEndpoints {
+    /**
+     * One entry per live (non-PENDING, non-CLOSED) channel the node was tracking when this
+     * record was last written.
+     */
+    repeated ClprPeerEndpointsEntry entries = 1;
+}
+
+/**
+ * A single channel's peer endpoints.
+ */
+message ClprPeerEndpointsEntry {
+    /**
+     * 32-byte channel ID. Also serves as the orchestrator's registry of which channels to
+     * re-register on startup, independent of whether any peer endpoints are known yet.
+     */
+    bytes channel_id = 1;
+
+    /**
+     * Peer endpoints (service endpoint + keys) last seeded for this channel. Re-seeded into
+     * the runtime peer endpoint cache on startup so a restarted node can initiate syncs to the
+     * peer without waiting for discovery.
+     */
+    repeated ClprEndpoint endpoints = 2;
+}

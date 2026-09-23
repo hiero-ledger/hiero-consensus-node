@@ -4,6 +4,7 @@
  */
 module com.hedera.node.app.service.contract.impl {
     exports com.hedera.node.app.service.contract.impl.annotations;
+    exports com.hedera.node.app.service.contract.impl.api;
     exports com.hedera.node.app.service.contract.impl.exec.delegation;
     exports com.hedera.node.app.service.contract.impl.exec.metrics;
     exports com.hedera.node.app.service.contract.impl.exec.scope;
@@ -64,6 +65,8 @@ module com.hedera.node.app.service.contract.impl {
 
     requires transitive com.hedera.node.app.hapi.fees;
     requires transitive com.hedera.node.app.hapi.utils;
+    requires transitive com.hedera.node.app.service.clpr.impl;
+    requires transitive com.hedera.node.app.service.clpr;
     requires transitive com.hedera.node.app.service.contract;
     requires transitive com.hedera.node.app.service.entityid;
     requires transitive com.hedera.node.app.service.file;

@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/state/clpr/clpr_ledger_configuration.proto";
+
+/**
+ * The authoritative, on-ledger endpoint set for this CLPR Service.
+ * Maintained as distinct CLPR Service state, separate from ClprLedgerConfiguration.
+ * Service-scoped: all admitted endpoints serve all Channels on this CLPR Service.
+ */
+message ClprEndpointManifest {
+    /**
+     * Monotonically increasing counter. MUST be strictly positive (>= 1).
+     * Starts at 1. Incremented by 1 on each change to the endpoint set.
+     * Has no correlation to any other version numbers in the system.
+     */
+    uint64 version = 1;
+
+    /**
+     * On-ledger address of the CLPR Service this manifest belongs to.
+     * Binds the manifest to a specific CLPR Service instance.
+     * A verifier MUST reject a manifest proof whose service_address does not
+     * match ctx.service_address (the peer's service address in the Channel's
+     * channel_context).
+     */
+    bytes service_address = 2;
+
+    /**
+     * Current endpoint set. May be empty: version >= 1 with no endpoints is valid.
+     * Entries are sorted by endpoint identity (the IP address if present, else the
+     * tls_certificate) for ledger-neutral determinism — no field in this list is
+     * Hiero-specific.
+     */
+    repeated ClprEndpoint endpoints = 3;
+}

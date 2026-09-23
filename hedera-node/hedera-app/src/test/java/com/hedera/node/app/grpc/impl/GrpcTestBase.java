@@ -8,8 +8,13 @@ import com.hedera.hapi.node.transaction.TransactionResponse;
 import com.hedera.node.app.grpc.impl.netty.NettyGrpcServerManager;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.spi.RpcService;
+import com.hedera.node.app.workflows.clpr.ClprCaCertManager;
+import com.hedera.node.app.workflows.clpr.ClprLeafCertManager;
+import com.hedera.node.app.workflows.clpr.ClprStreamingSyncSession;
+import com.hedera.node.app.workflows.clpr.ClprSyncWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
+import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.data.GrpcUsageTrackerConfig;
@@ -18,6 +23,8 @@ import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.NettyConfig;
 import com.hedera.pbj.runtime.RpcMethodDefinition;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.api.source.ConfigSource;
@@ -194,12 +201,27 @@ public abstract class GrpcTestBase extends TestBase {
         final var servicesRegistry = new ServicesRegistryImpl(ConstructableRegistry.getInstance(), configuration);
         servicesRegistry.register(testService);
         final var config = createConfig(new TestSource().withNodeOperatorPortEnabled(withNodeOperatorPort));
+        final ConfigProvider configProvider = () -> new VersionedConfigImpl(config, 1);
         this.grpcServer = new NettyGrpcServerManager(
-                () -> new VersionedConfigImpl(config, 1),
+                configProvider,
                 servicesRegistry,
                 ingestWorkflow,
                 userQueryWorkflow,
                 operatorQueryWorkflow,
+                new ClprSyncWorkflow() {
+                    @Override
+                    public void handleSync(Bytes req, BufferedData res) {}
+
+                    @Override
+                    public void handleDiscovery(Bytes req, BufferedData res) {}
+
+                    @Override
+                    public ClprStreamingSyncSession openStreamingSync() {
+                        throw new UnsupportedOperationException();
+                    }
+                },
+                () -> new ClprLeafCertManager(new ClprCaCertManager(configProvider)),
+                () -> null,
                 metrics);
 
         grpcServer.start();
@@ -287,6 +309,7 @@ public abstract class GrpcTestBase extends TestBase {
                 .withConfigDataType(HederaConfig.class)
                 .withConfigDataType(JumboTransactionsConfig.class)
                 .withConfigDataType(GrpcUsageTrackerConfig.class)
+                .withConfigDataType(com.hedera.node.config.data.ClprConfig.class)
                 .withSource(testConfig)
                 .build();
     }

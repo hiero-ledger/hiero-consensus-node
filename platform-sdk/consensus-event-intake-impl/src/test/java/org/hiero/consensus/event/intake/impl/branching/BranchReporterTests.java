@@ -3,15 +3,15 @@ package org.hiero.consensus.event.intake.impl.branching;
 
 import static org.hiero.consensus.event.intake.impl.branching.BranchDetectorTests.generateSimpleSequenceOfEvents;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import java.util.ArrayList;
 import java.util.List;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.Test;
 
@@ -26,7 +26,7 @@ class BranchReporterTests {
 
         final Randotron randotron = Randotron.create();
 
-        final Roster roster = RosterFactory.randomRoster(randotron, 8);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(randotron, 8);
 
         final DefaultBranchReporter reporter = new DefaultBranchReporter(new NoOpMetrics(), Time.getCurrent(), roster);
 
@@ -36,9 +36,7 @@ class BranchReporterTests {
                 .build());
 
         final List<PlatformEvent> events = new ArrayList<>();
-        for (final NodeId nodeId : roster.rosterEntries().stream()
-                .map(re -> NodeId.of(re.nodeId()))
-                .toList()) {
+        for (final NodeId nodeId : roster.nodeIds()) {
             events.addAll(generateSimpleSequenceOfEvents(randotron, nodeId, ancientThreshold, 512));
         }
 
@@ -70,7 +68,7 @@ class BranchReporterTests {
     void doesNotThrowLargeAncientWindow() {
         final Randotron randotron = Randotron.create();
 
-        final Roster roster = RosterFactory.randomRoster(randotron, 8);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(randotron, 8);
 
         final DefaultBranchReporter reporter = new DefaultBranchReporter(new NoOpMetrics(), Time.getCurrent(), roster);
 
@@ -80,9 +78,7 @@ class BranchReporterTests {
                 .build());
 
         final List<PlatformEvent> events = new ArrayList<>();
-        for (final NodeId nodeId : roster.rosterEntries().stream()
-                .map(re -> NodeId.of(re.nodeId()))
-                .toList()) {
+        for (final NodeId nodeId : roster.nodeIds()) {
             events.addAll(generateSimpleSequenceOfEvents(randotron, nodeId, ancientThreshold, 512));
         }
 
