@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * Submit a bundle of cross-ledger messages received during a sync.
+ *
+ * The bundle_payload is opaque to the protocol and passed to the Channel's
+ * verifier contract, which returns verified queue metadata and message payloads.
+ * The submitting endpoint is identified by its node ID in the address book;
+ * the transaction must be signed with that node's admin key.
+ *
+ * Authority: any endpoint node registered in the address book.
+ */
+message ClprSubmitBundleTransactionBody {
+    /**
+     * 32-byte Channel ID identifying which Channel to process against.
+     */
+    bytes channel_id = 1;
+
+    /**
+     * Opaque payload from the peer's sync. Contains the state proof, the
+     * message data it attests to, and any Merkle paths or signatures
+     * required by the verifier. The verifier contract interprets this
+     * blob and returns the verified queue metadata and ordered message
+     * payloads on success.
+     */
+    bytes bundle_payload = 2;
+
+    /**
+     * Node ID of the endpoint that received and is submitting this bundle.
+     * Must correspond to a node in the address book. The transaction must
+     * be signed with this node's admin key.
+     */
+    uint64 endpoint_node_id = 3;
+
+    /**
+     * Deprecated. Accepted for wire compatibility but ignored by the handler.
+     *
+     * Previously: ECDSA secp256k1 recoverable signature over
+     * keccak256(channel_id || bundle_payload), produced by the peer endpoint
+     * that constructed this bundle. Endpoint-signature verification has been
+     * removed from the protocol; the field is retained so that older clients
+     * that set it do not trigger an unknown-field parse error.
+     */
+    bytes endpoint_signature = 4 [deprecated = true];
+}

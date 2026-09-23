@@ -149,9 +149,9 @@ class TransactionModuleTest {
         final var gasCalculator = mock(SystemContractGasCalculator.class);
         final var blocks = mock(HederaEvmBlocks.class);
         final var stack = mock(HandleContext.SavepointStack.class);
-        final var metadata = mock(HandleContext.DispatchMetadata.class);
         given(hederaOperations.gasPriceInTinybars()).willReturn(123L);
         given(context.savepointStack()).willReturn(stack);
+        given(context.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
         given(stack.getBaseBuilder(ContractOperationStreamBuilder.class)).willReturn(recordBuilder);
         given(context.simpleFeesSchedule()).willReturn(FeeSchedule.DEFAULT);
         Configuration DEFAULT_CONFIG = HederaTestConfigBuilder.createConfig();
@@ -170,6 +170,32 @@ class TransactionModuleTest {
         assertSame(123L, result.gasPrice());
         assertSame(recordBuilder, result.streamBuilder());
         assertSame(pendingCreationBuilder, result.pendingCreationRecordBuilderReference());
+        assertThat(result.staticCall()).isFalse();
+    }
+
+    @Test
+    void providesStaticEvmContextWhenStaticCallMetadataIsTrue() {
+        final var recordBuilder = mock(ContractOperationStreamBuilder.class);
+        final var gasCalculator = mock(SystemContractGasCalculator.class);
+        final var blocks = mock(HederaEvmBlocks.class);
+        final var stack = mock(HandleContext.SavepointStack.class);
+        final var metadata =
+                new HandleContext.DispatchMetadata(HandleContext.DispatchMetadata.Type.STATIC_CALL, Boolean.TRUE);
+        given(hederaOperations.gasPriceInTinybars()).willReturn(123L);
+        given(context.savepointStack()).willReturn(stack);
+        given(context.dispatchMetadata()).willReturn(metadata);
+        given(context.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
+        given(context.simpleFeesSchedule()).willReturn(FeeSchedule.DEFAULT);
+        given(stack.getBaseBuilder(ContractOperationStreamBuilder.class)).willReturn(recordBuilder);
+        final var result = provideHederaEvmContext(
+                context,
+                HederaFunctionality.CONTRACT_CALL,
+                tinybarValues,
+                gasCalculator,
+                hederaOperations,
+                blocks,
+                new PendingCreationMetadataRef());
+        assertThat(result.staticCall()).isTrue();
     }
 
     @Test
