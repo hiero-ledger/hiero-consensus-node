@@ -12,6 +12,7 @@ import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.props.NodeConnectInfo;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.service.proto.java.AddressBookServiceGrpc.AddressBookServiceBlockingStub;
+import com.hederahashgraph.service.proto.java.ClprServiceGrpc;
 import com.hederahashgraph.service.proto.java.ConsensusServiceGrpc.ConsensusServiceBlockingStub;
 import com.hederahashgraph.service.proto.java.CryptoServiceGrpc.CryptoServiceBlockingStub;
 import com.hederahashgraph.service.proto.java.FileServiceGrpc.FileServiceBlockingStub;
@@ -376,6 +377,25 @@ public class HapiClients {
                 .withDeadlineAfter(DEADLINE_SECS, TimeUnit.SECONDS);
     }
 
+    /**
+     * Retrieves a blocking stub for the ClprService based on the provided parameters.
+     *
+     * This method returns a stub for making synchronous ClprService RPC calls,
+     * identified by the given AccountID, with options for using TLS and acting as a node operator.
+     * It sets a deadline for the stub's operations to ensure they complete within a specified time frame.
+     *
+     * @param nodeId the node for which the stub is requested
+     * @param useTls whether to use TLS for secure communication
+     * @param asNodeOperator whether to obtain the stub as a node operator
+     * @return a blocking stub for the ClprService with a specified deadline
+     */
+    public ClprServiceGrpc.ClprServiceBlockingStub getClprSvcStub(
+            AccountID nodeId, boolean useTls, boolean asNodeOperator) {
+        return nextStubsFromPool(stubId(nodeId, useTls, asNodeOperator))
+                .clprSvcStubs()
+                .withDeadlineAfter(DEADLINE_SECS, TimeUnit.SECONDS);
+    }
+
     private String stubId(AccountID nodeId, boolean useTls, boolean asNodeOperator) {
         if (useTls) {
             return tlsStubIds.get(nodeId);
@@ -459,5 +479,23 @@ public class HapiClients {
      */
     public static void tearDown() {
         closeChannels();
+    }
+
+    /**
+     * Shuts down and removes channel pool entries for the given URIs.
+     * Used by {@link com.hedera.services.bdd.junit.extensions.MultiNetworkExtension} to clean up
+     * channels for isolated networks after they are terminated, preventing stale dead channels
+     * from accumulating across test runs.
+     *
+     * @param uris the host:port URIs to remove (e.g. "127.0.0.1:35400")
+     */
+    public static synchronized void removeChannelsFor(@NonNull final List<String> uris) {
+        for (final var uri : uris) {
+            final var pool = channelPools.remove(uri);
+            if (pool != null) {
+                pool.forEach(ChannelStubs::shutdown);
+            }
+            stubSequences.remove(uri);
+        }
     }
 }

@@ -96,7 +96,7 @@ tasks.register<JavaExec>("runTestClient") {
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|GENESIS_SUBPROCESS|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD|WRAPS|CUTOVER|NODE_STAKING)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|GENESIS_SUBPROCESS|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD|CLPR|MULTINETWORK|WRAPS|CUTOVER|NODE_STAKING)"
 val miscTagsSerial = "$miscTags&SERIAL"
 
 val prCheckTags =
@@ -127,6 +127,8 @@ val prCheckTags =
         "hapiTestAtomicBatch" to "ATOMIC_BATCH",
         "hapiTestAtomicBatchSerial" to "(ATOMIC_BATCH&SERIAL)",
         "hapiTestStateThrottling" to "(STATE_THROTTLING&SERIAL)",
+        "hapiTestClpr" to "CLPR",
+        "hapiTestClprMultinetwork" to "MULTINETWORK",
         "hapiTestNodeStaking" to "(NODE_STAKING)&!(SERIAL)",
         "hapiTestNodeStakingSerial" to "(NODE_STAKING&SERIAL)",
     )
@@ -172,9 +174,10 @@ val prCheckStartPorts =
         "hapiTestSimpleFeesSerial" to "29000",
         "hapiTestAtomicBatchSerial" to "29200",
         "hapiTestSmartContractSerial" to "29400",
-        "hapiTestGenesisSubProcess" to "29600",
-        "hapiTestNodeStaking" to "29800",
-        "hapiTestTimeConsumingSerial" to "30000",
+        "hapiTestClpr" to "29600",
+        "hapiTestGenesisSubProcess" to "29800",
+        "hapiTestNodeStaking" to "30000",
+        "hapiTestTimeConsumingSerial" to "30200",
     )
 val prCheckWrapsEnabledFromGenesis = setOf("hapiTestWraps", "hapiTestWrapsDownload")
 val prCheckPropOverrides =
@@ -221,6 +224,7 @@ val prCheckPropOverrides =
             "hapiTestAtomicBatch" to
                 "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
             "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+            "hapiTestClpr" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
             "hapiTestNodeStaking" to
                 "blockStream.writerMode=FILE,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
             "hapiTestNodeStakingSerial" to
@@ -279,6 +283,7 @@ val embeddedBaseTags =
         "hapiTestSimpleFeesEmbedded" to "EMBEDDED&SIMPLE_FEES",
         "hapiTestCryptoEmbedded" to "EMBEDDED&CRYPTO",
         "hapiTestAtomicBatchEmbedded" to "EMBEDDED&ATOMIC_BATCH",
+        "hapiTestClprEmbedded" to "EMBEDDED&CLPR",
     )
 val prEmbeddedCheckTags = embeddedBaseTags.mapValues { (_, tags) -> "($tags)" }
 
@@ -422,8 +427,8 @@ tasks.registerHapiTest(
 tasks.registerHapiTest(
     "testEmbedded",
     prEmbeddedCheckTags,
-    "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS)",
-    ciDefaultTags = "|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS",
+    "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS|CLPR)",
+    ciDefaultTags = "|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|CLPR",
     // Tell our launcher to target a concurrent embedded network
     embeddedMode = "concurrent",
     junitParallelMode = "same_thread",
@@ -498,7 +503,7 @@ fun TaskContainer.registerHapiTest(
                 "com.hedera.cryptography.libsodium"
         )
         // Isolate each subtask's working directory so logs are not overwritten
-        if (subtaskName.isNotBlank()) {
+        if (subtaskName.isNotBlank() && ciTags[subtaskName] != "MULTINETWORK") {
             systemProperty("hapi.spec.subtask.name", subtaskName)
         }
         if (testOverrides.isNotBlank()) {
@@ -553,12 +558,16 @@ fun TaskContainer.registerHapiTest(
             } else {
                 includeTags(
                     if (ciTagExpression.isBlank()) defaultTags
-                    // We don't want to run stream or log validation for ISS, BLOCK_NODE or
-                    // GENESIS_SUBPROCESS cases
+                    else if (name == "testEmbedded" && ciTagExpression.contains("CLPR"))
+                        "(${ciTagExpression})"
+                    // We don't want to run stream or log validation for ISS, BLOCK_NODE,
+                    // CLPR, MULTINETWORK or GENESIS_SUBPROCESS cases
                     else if (
                         ciDefaultTagsWithoutStreamAndLogValidation != null &&
                             (ciTagExpression.contains("ISS") ||
                                 ciTagExpression.contains("BLOCK_NODE") ||
+                                ciTagExpression.contains("CLPR") ||
+                                ciTagExpression.contains("MULTINETWORK") ||
                                 ciTagExpression.contains("GENESIS_SUBPROCESS"))
                     )
                         "(${ciTagExpression}${ciDefaultTagsWithoutStreamAndLogValidation})"
@@ -580,6 +589,10 @@ fun TaskContainer.registerHapiTest(
                 "junit.jupiter.testclass.order.default",
                 "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
             )
+        }
+        if (ciTagExpression.contains("CLPR") || ciTagExpression.contains("MULTINETWORK")) {
+            // Preserve the failed subprocess network's logs for CLPR diagnostics.
+            failFast = true
         }
         if (junitFixedParallelism != null) {
             systemProperty("junit.jupiter.execution.parallel.config.strategy", "fixed")
