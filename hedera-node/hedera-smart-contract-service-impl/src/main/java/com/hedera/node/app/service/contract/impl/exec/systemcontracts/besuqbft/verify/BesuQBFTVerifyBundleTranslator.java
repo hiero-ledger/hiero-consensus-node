@@ -57,8 +57,8 @@ public class BesuQBFTVerifyBundleTranslator extends AbstractCallTranslator<BesuQ
                     attempt.enhancement(),
                     attempt.systemContractGasCalculator(),
                     bundlePayload,
-                    trustAnchor,
-                    channelContext);
+                    trustAnchor
+            );
         } catch (final RuntimeException e) {
             log.warn(
                     "BesuQBFTVerifyBundleTranslator failed to decode verifyBundle calldata: input={} bytes ({})",
