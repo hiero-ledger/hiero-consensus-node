@@ -215,6 +215,11 @@ public class CloseFlushTest extends AbstractFileManagerAwareTest {
                 }
 
                 @Override
+                public int getLoadedHashLength() {
+                    return delegate.getLoadedHashLength();
+                }
+
+                @Override
                 public void enableBackgroundCompaction() {
                     delegate.enableBackgroundCompaction();
                 }

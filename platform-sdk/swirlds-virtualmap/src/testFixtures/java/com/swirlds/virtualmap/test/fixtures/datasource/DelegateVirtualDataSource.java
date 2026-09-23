@@ -113,4 +113,9 @@ public class DelegateVirtualDataSource implements VirtualDataSource {
     public int getHashChunkHeight() {
         return delegate.getHashChunkHeight();
     }
+
+    @Override
+    public int getLoadedHashLength() {
+        return delegate.getLoadedHashLength();
+    }
 }

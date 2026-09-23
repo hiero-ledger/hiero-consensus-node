@@ -438,21 +438,25 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             return;
         }
         try {
-            final Hash loadedHash = records.findHash(firstLeafPath);
-            final VirtualLeafBytes<?> virtualLeafBytes = dataSource.loadLeafRecord(firstLeafPath);
-            if (virtualLeafBytes == null || loadedHash == null) {
-                logger.error(
-                        STARTUP.getMarker(),
-                        "Loaded leaf bytes or hash for the first leaf path {} is null, skipping full rehash",
-                        firstLeafPath);
-                return;
-            }
-            final Hash recaclulatedHash = new MerkleHasher().leafNodeHash(virtualLeafBytes);
-            if (loadedHash.equals(recaclulatedHash)) {
-                logger.info(
-                        STARTUP.getMarker(),
-                        "Recalculated hash for the first leaf path is equal to loaded hash, skipping full rehash");
-                return;
+            final boolean digestTypeChanged =
+                    Cryptography.DEFAULT_DIGEST_TYPE.digestLength() == dataSource.getLoadedHashLength();
+            if (!digestTypeChanged) {
+                final Hash loadedHash = records.findHash(firstLeafPath);
+                final VirtualLeafBytes<?> virtualLeafBytes = dataSource.loadLeafRecord(firstLeafPath);
+                if (virtualLeafBytes == null || loadedHash == null) {
+                    logger.error(
+                            STARTUP.getMarker(),
+                            "Loaded leaf bytes or hash for the first leaf path {} is null, skipping full rehash",
+                            firstLeafPath);
+                    return;
+                }
+                final Hash recaclulatedHash = new MerkleHasher().leafNodeHash(virtualLeafBytes);
+                if (loadedHash.equals(recaclulatedHash)) {
+                    logger.info(
+                            STARTUP.getMarker(),
+                            "Recalculated hash for the first leaf path is equal to loaded hash, skipping full rehash");
+                    return;
+                }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

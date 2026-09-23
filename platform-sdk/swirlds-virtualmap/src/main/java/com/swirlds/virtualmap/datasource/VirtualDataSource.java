@@ -180,4 +180,14 @@ public interface VirtualDataSource {
      * Returns the height of hash chunks stored in this data source.
      */
     int getHashChunkHeight();
+
+    ///
+    /// If this data source is loaded from a snapshot, returns the length, in bytes, of
+    /// all hashes stored in the data source.
+    ///
+    /// If this data source is created from scratch, this method always returns the length
+    /// that corresponds to the default digest type. See [Cryptography#DEFAULT_DIGEST_TYPE]
+    /// for details.
+    ///
+    int getLoadedHashLength();
 }

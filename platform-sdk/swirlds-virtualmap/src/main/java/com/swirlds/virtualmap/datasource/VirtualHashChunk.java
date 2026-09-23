@@ -436,6 +436,7 @@ public class VirtualHashChunk {
 
     // index must be 0 <= index < chunkSize
     private void setHashImpl(final int index, final Hash hash) {
+        assert hash.getDigestType() == Cryptography.DEFAULT_DIGEST_TYPE;
         final int pos = index * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
         assert pos < hashData.length;
         final int len = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
@@ -446,6 +447,7 @@ public class VirtualHashChunk {
 
     // index must be 0 <= index < chunkSize
     private void setHashBytesImpl(final int index, final byte[] hash) {
+        assert hash.length == Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
         final int pos = index * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
         assert pos < hashData.length;
         final int len = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
