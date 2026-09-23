@@ -520,6 +520,7 @@ Module: `consensus-gossip`. Source: [SyncConfig.java](../../consensus-gossip/src
 | TUN-189 | `sync.fairMinimalRoundRobinSize`          | double   | `0.3`   | Minimum past-syncs-against-different-peers before re-syncing the same peer (`(0,1]` fraction of network; `>1` absolute count).                   |       | —         |
 | TUN-190 | `sync.keepSendingEventsWhenUnhealthy`     | boolean  | `true`  | When unhealthy, stop receiving remote events but keep sending our own (instead of fully throttling syncs).                                       |       | —         |
 | TUN-191 | `sync.pingPeriod`                         | Duration | `1s`    | Period at which ping messages are sent to peers during syncs.                                                                                    |       | —         |
+| TUN-223 | `sync.rpcInputQueueCapacity`              | int      | `10000` | maximum number of parsed messages which can be waiting for the rpc dispatch thread before TPC brackpressure is applied                           |       | —         |
 
 **Unread.** Nothing reads `sync.syncKeepalivePeriod` (TUN-178). The only keepalive is the negotiator's, sent by [InitialState.transition](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/communication/states/InitialState.java#transition) whenever no protocol wants to initiate — on each negotiation round, not on a timer.
 

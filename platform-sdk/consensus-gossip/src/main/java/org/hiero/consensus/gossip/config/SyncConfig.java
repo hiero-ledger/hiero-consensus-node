@@ -103,5 +103,5 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "-1") double fairMaxConcurrentSyncs,
         @ConfigProperty(defaultValue = "0.3") double fairMinimalRoundRobinSize,
         @ConfigProperty(defaultValue = "true") boolean keepSendingEventsWhenUnhealthy,
-        @ConfigProperty(defaultValue = "1000") int rpcInputQueueCapacity,
+        @ConfigProperty(defaultValue = "10000") int rpcInputQueueCapacity,
         @ConfigProperty(defaultValue = "1s") Duration pingPeriod) {}
