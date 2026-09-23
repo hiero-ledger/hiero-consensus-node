@@ -522,3 +522,21 @@ Module: `consensus-gossip`. Source: [SyncConfig.java](../../consensus-gossip/src
 | TUN-191 | `sync.pingPeriod`                         | Duration | `1s`    | Period at which ping messages are sent to peers during syncs.                                                                                    |       | —         |
 
 **Unread.** Nothing reads `sync.syncKeepalivePeriod` (TUN-178). The only keepalive is the negotiator's, sent by [InitialState.transition](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/communication/states/InitialState.java#transition) whenever no protocol wants to initiate — on each negotiation round, not on a timer.
+
+## `trafficShaping.*` — TrafficShapingConfig
+
+Module: `consensus-gossip`. Source: [TrafficShapingConfig.java](../../consensus-gossip/src/main/java/org/hiero/consensus/gossip/config/TrafficShapingConfig.java).
+
+Per-peer inbound traffic shaping for the rpc gossip protocol.
+
+|   ID    |                 Key                 |   Type   |   Default   |                                                                                          Effect                                                                                           | Range | Fragility |
+|---------|-------------------------------------|----------|-------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------|-----------|
+| TUN-214 | `trafficShaping.enabled`            | boolean  | `true`      | Compute and report the per-peer byte budget; when false the shaper is entirely inert.                                                                                                     |       | —         |
+| TUN-215 | `trafficShaping.enforce`            | boolean  | `false`     | Additionally pause reading from a peer that is over budget; when false the shaper runs in shadow mode (everything measured and reported, nothing slowed down).                            |       | —         |
+| TUN-216 | `trafficShaping.peerBytesPerSecond` | long     | `20000000`  | Sustained inbound rate permitted per peer, in bytes per second; uniform across all peers, not weighted by stake or role.                                                                  |       | —         |
+| TUN-217 | `trafficShaping.peerBurstBytes`     | long     | `200000000` | Inbound bytes a peer may consume instantaneously before the sustained rate applies; also the connection grace period, since a fresh shaper starts with the full burst available.          |       | —         |
+| TUN-218 | `trafficShaping.maxReadDelay`       | Duration | `200ms`     | Maximum time reading from a peer may be paused in one step; a liveness bound that must stay well below `broadcast.disablePingThreshold` (TUN-153) or the peer will treat us as unhealthy. |       | —         |
+| TUN-219 | `trafficShaping.maxMessageBytes`    | int      | `45000000`  | Maximum permitted encoded size of a single gossip message, in bytes.                                                                                                                      |       | —         |
+| TUN-220 | `trafficShaping.lowWatermark`       | double   | `0.6`       | Fraction of the burst budget above which a rate-limited warning is logged.                                                                                                                |       | —         |
+| TUN-221 | `trafficShaping.highWatermark`      | double   | `0.9`       | Fraction of the burst budget above which a serious error is reported (and in future, peer disconnected).                                                                                  |       | —         |
+| TUN-222 | `trafficShaping.reportInterval`     | Duration | `1m`        | Minimum interval between repeated warnings for the same peer.                                                                                                                             |       | —         |

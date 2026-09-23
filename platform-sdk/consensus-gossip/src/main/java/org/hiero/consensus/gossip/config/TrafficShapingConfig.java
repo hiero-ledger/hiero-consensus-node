@@ -23,7 +23,7 @@ import java.time.Duration;
  * @param maxMessageBytes    maximum permitted encoded size of a single gossip message, in bytes
  * @param lowWatermark       fraction of the burst budget above which a rate limited warning is logged
  * @param highWatermark      fraction of the burst budget above which an serious error is reported (and in future, peer disconnected)
- * @param reportInterval     minimum interval between repeated warnings or evidence records for the same peer
+ * @param reportInterval     minimum interval between repeated warnings for the same peer
  */
 @ConfigData("trafficShaping")
 public record TrafficShapingConfig(
