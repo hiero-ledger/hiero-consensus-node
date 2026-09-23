@@ -163,7 +163,6 @@
 		{
 		  "opsPerSec": 1000000,
 		  "operations": [
-			"CryptoGetAccountBalance",
 			"TransactionGetReceipt"
 		  ]
 		}
