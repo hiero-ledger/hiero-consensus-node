@@ -61,12 +61,15 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
      */
     public static final int FUNCTION_SELECTOR_LENGTH = 4;
 
-    private static final long CLPR_VERIFIER_SYSTEM_CONTRACT_NUM = 0x16eL;
+    private static final long CLPR_ROUTER_SYSTEM_CONTRACT_NUM = 0x16eL;
     private static final long BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_NUM = 0x16fL;
     private static final long SEI_VERIFIER_SYSTEM_CONTRACT_NUM = 0x170L;
-    private static final byte[] CLPR_VERIFIER_EVM_ADDRESS = systemContractAddress(0x6e);
+    private static final long ETHEREUM_VERIFIER_SYSTEM_CONTRACT_NUM = 0x171L;
+    private static final byte[] CLPR_ROUTER_EVM_ADDRESS = systemContractAddress(0x6e);
     private static final byte[] BESU_QBFT_VERIFIER_EVM_ADDRESS = systemContractAddress(0x6f);
     private static final byte[] SEI_VERIFIER_EVM_ADDRESS = systemContractAddress(0x70);
+
+    private static final byte[] ETHEREUM_VERIFIER_EVM_ADDRESS = systemContractAddress(0x71);
 
     private final CallFactory callFactory;
     private final ContractMetrics contractMetrics;
@@ -115,7 +118,7 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
             // Input boundary size validation.
             // With "input <= transactionMaxBytes()" we ensure nobody can send a huge input for parsing or execution,
             // because parsing or execution can happen before any rejection, e.g. by gas or function param length.
-            final var maxInputBytes = isClprDispatch(frame)
+            final var maxInputBytes = this instanceof AbstractClprSystemContract && isClprDispatch(frame)
                     ? configOf(frame)
                             .getConfigData(JumboTransactionsConfig.class)
                             .maxTxnSize()
@@ -320,7 +323,7 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
             }
         } catch (final HandleException handleException) {
             if (handleException.getStatus().equals(INVALID_TRANSACTION_BODY)) {
-                log.warn(
+                log.debug(
                         "{} INVALID_TRANSACTION_BODY: reason=EXECUTE_HANDLE_EXCEPTION contractID={} selector={} "
                                 + "method={} inputBytes={} callType={} frameStatic={} remainingGas={} status={}",
                         getName(),
@@ -396,15 +399,17 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
     private static boolean isClprVerifierDebugTarget(@NonNull final ContractID contractID, @NonNull final Bytes input) {
         if (contractID.hasContractNum()) {
             final var num = contractID.contractNumOrThrow();
-            return num == CLPR_VERIFIER_SYSTEM_CONTRACT_NUM
+            return num == CLPR_ROUTER_SYSTEM_CONTRACT_NUM
                     || num == BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_NUM
-                    || num == SEI_VERIFIER_SYSTEM_CONTRACT_NUM;
+                    || num == SEI_VERIFIER_SYSTEM_CONTRACT_NUM
+                    || num == ETHEREUM_VERIFIER_SYSTEM_CONTRACT_NUM;
         }
         if (contractID.hasEvmAddress()) {
             final var evmAddress = contractID.evmAddressOrThrow().toByteArray();
-            return Arrays.equals(evmAddress, CLPR_VERIFIER_EVM_ADDRESS)
+            return Arrays.equals(evmAddress, CLPR_ROUTER_EVM_ADDRESS)
                     || Arrays.equals(evmAddress, BESU_QBFT_VERIFIER_EVM_ADDRESS)
-                    || Arrays.equals(evmAddress, SEI_VERIFIER_EVM_ADDRESS);
+                    || Arrays.equals(evmAddress, SEI_VERIFIER_EVM_ADDRESS)
+                    || Arrays.equals(evmAddress, ETHEREUM_VERIFIER_EVM_ADDRESS);
         }
         return false;
     }
