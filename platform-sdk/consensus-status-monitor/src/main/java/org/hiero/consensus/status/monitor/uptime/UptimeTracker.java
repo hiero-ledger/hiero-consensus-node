@@ -101,7 +101,7 @@ public class UptimeTracker {
      * the roster in the previous round, or at genesis.
      *
      * @param uptimeData the uptime data
-     * @param roster     the current roster
+     * @param roster     the active roster
      */
     private void addAndRemoveNodes(@NonNull final UptimeData uptimeData, @NonNull final Roster roster) {
         final Set<NodeId> rosterNodes = roster.rosterEntries().stream()
@@ -173,7 +173,7 @@ public class UptimeTracker {
     /**
      * Update the uptime data based on the events in this round.
      *
-     * @param roster                     the current roster
+     * @param roster                     the active roster
      * @param uptimeData                 the uptime data to be updated
      * @param lastEventsInRoundByCreator the last event in the round by creator
      * @param roundNum                   the round number

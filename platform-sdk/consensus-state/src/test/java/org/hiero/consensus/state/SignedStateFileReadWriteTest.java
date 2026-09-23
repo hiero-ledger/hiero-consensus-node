@@ -5,8 +5,8 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.randomUtf8Byt
 import static com.swirlds.state.test.fixtures.merkle.TestStateUtils.destroyStateLifecycleManager;
 import static java.nio.file.Files.exists;
 import static org.hiero.base.file.FileUtils.throwIfFileExists;
+import static org.hiero.consensus.state.SignedStateFileConstants.ACTIVE_ROSTER_FILE_NAME;
 import static org.hiero.consensus.state.SignedStateFileConstants.CONSENSUS_SNAPSHOT_FILE_NAME;
-import static org.hiero.consensus.state.SignedStateFileConstants.CURRENT_ROSTER_FILE_NAME;
 import static org.hiero.consensus.state.SignedStateFileConstants.HASH_INFO_FILE_NAME;
 import static org.hiero.consensus.state.SignedStateFileConstants.SIGNATURE_SET_FILE_NAME;
 import static org.hiero.consensus.state.SignedStateFileReader.readState;
@@ -177,7 +177,7 @@ class SignedStateFileReadWriteTest {
 
         final Path hashInfoFile = directory.resolve(HASH_INFO_FILE_NAME);
         final Path settingsUsedFile = directory.resolve("settingsUsed.txt");
-        final Path addressBookFile = directory.resolve(CURRENT_ROSTER_FILE_NAME);
+        final Path addressBookFile = directory.resolve(ACTIVE_ROSTER_FILE_NAME);
         final Path consensusSnapshotFile = directory.resolve(CONSENSUS_SNAPSHOT_FILE_NAME);
 
         throwIfFileExists(hashInfoFile, settingsUsedFile, directory);
