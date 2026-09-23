@@ -51,6 +51,12 @@ class FeeManagerTest {
     @Mock
     private ServiceFeeCalculator hookDispatchCalculator;
 
+    @Mock
+    private ServiceFeeCalculator unsetTypeCalculator;
+
+    @Mock
+    private QueryFeeCalculator unsetQueryCalculator;
+
     private FeeManager subject;
 
     @BeforeEach
@@ -163,6 +169,24 @@ class FeeManagerTest {
 
         assertEquals(SUCCESS, subject.updateSimpleFees(toBytes(incomplete), false));
         assertEquals(incomplete, subject.getSimpleFeesSchedule());
+    }
+
+    @Test
+    void updateSimpleFeesFailsForCalculatorWithUnsetTransactionType() {
+        given(unsetTypeCalculator.getTransactionType()).willReturn(TransactionBody.DataOneOfType.UNSET);
+        subject = new FeeManager(exchangeRateManager, congestionMultipliers, Set.of(unsetTypeCalculator), Set.of());
+        final var bytes = toBytes(scheduleWith(makeServiceFee(CRYPTO_CREATE, 100)));
+
+        assertThrows(IllegalStateException.class, () -> subject.updateSimpleFees(bytes));
+    }
+
+    @Test
+    void updateSimpleFeesFailsForCalculatorWithUnsetQueryType() {
+        given(unsetQueryCalculator.getQueryType()).willReturn(Query.QueryOneOfType.UNSET);
+        subject = new FeeManager(exchangeRateManager, congestionMultipliers, Set.of(), Set.of(unsetQueryCalculator));
+        final var bytes = toBytes(scheduleWith(makeServiceFee(CRYPTO_CREATE, 100)));
+
+        assertThrows(IllegalStateException.class, () -> subject.updateSimpleFees(bytes));
     }
 
     private static FeeSchedule scheduleWith(final ServiceFeeDefinition... fees) {
