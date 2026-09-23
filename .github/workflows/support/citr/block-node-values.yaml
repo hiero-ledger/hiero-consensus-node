@@ -69,6 +69,12 @@ blockNode:
     SERVER_MAX_MESSAGE_SIZE_BYTES: "300000000"
     BACKFILL_BLOCK_NODE_SOURCES_PATH: "/opt/hiero/block-node/backfill/block-node-sources.json"
     BACKFILL_FETCH_BATCH_SIZE: "10"
+    # Size and retention per https://github.com/hiero-ledger/hiero-block-node/blob/main/docs/block-node/configuration.md
+    FILES_RECENT_BLOCK_RETENTION_THRESHOLD: "75000"    # ~750 GB @ 10 MB/block
+    FILES_HISTORIC_POWERS_OF_TEN_PER_ZIP_FILE_CONTENTS: "3"
+    FILES_HISTORIC_COMPRESSION: "ZSTD"
+    FILES_RECENT_COMPRESSION: "ZSTD"
+    FILES_HISTORIC_BLOCK_RETENTION_THRESHOLD: "2"
   backfill:
     ## The path to the block-node-sources.json file must match the path property in
     ## blockNode.config.BACKFILL_BLOCK_NODE_SOURCES_PATH
