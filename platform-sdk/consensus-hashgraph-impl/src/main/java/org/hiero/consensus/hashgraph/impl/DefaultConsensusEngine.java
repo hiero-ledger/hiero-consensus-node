@@ -42,9 +42,6 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      */
     private final ConsensusLinker linker;
 
-    /** Buffers events until needed by the consensus algorithm based on their birth round */
-    private final FutureEventBuffer futureEventBuffer;
-
     /**
      * Executes the hashgraph consensus algorithm.
      */
@@ -79,8 +76,6 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         consensus = new ConsensusImpl(configuration, time, consensusMetrics, roster, transactionOffsetNanos);
 
         linker = new ConsensusLinker(new DefaultLinkerLogsAndMetrics(metrics, time));
-        futureEventBuffer =
-                new FutureEventBuffer(metrics, FutureEventBufferingOption.PENDING_CONSENSUS_ROUND, "consensus");
         roundsNonAncient = configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
 
         consensusEngineMetrics = new ConsensusEngineMetrics(selfId, metrics, time);
@@ -107,25 +102,14 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             // Once the freeze round has been reached, no further rounds should reach consensus. But the platform may
             // still need post-freeze events to be pre-handled, for example to collect freeze-state signatures or other
             // application-controlled freeze-completion work.
-            final PlatformEvent nonFutureEvent = futureEventBuffer.addEvent(event);
-            return nonFutureEvent == null
-                    ? ConsensusEngineOutput.emptyInstance()
-                    : new ConsensusEngineOutput(List.of(), List.of(nonFutureEvent), List.of());
-        }
-
-        final PlatformEvent consensusRelevantEvent = futureEventBuffer.addEvent(event);
-        if (consensusRelevantEvent == null) {
-            // The event is either a future event or an ancient event.
-            // If it is a future event, it will be added later when the event window is updated.
-            return ConsensusEngineOutput.emptyInstance();
+            return new ConsensusEngineOutput(List.of(event), List.of());
         }
 
         final Queue<PlatformEvent> eventsToAdd = new LinkedList<>();
         final List<PlatformEvent> preConsensusEvents = new ArrayList<>();
-        eventsToAdd.add(consensusRelevantEvent);
+        eventsToAdd.add(event);
 
-        final List<ConsensusRound> allConsensusRounds = new ArrayList<>();
-        final List<PlatformEvent> staleEvents = new ArrayList<>();
+        final List<ConsensusResult> allConsensusResults = new ArrayList<>();
 
         while (!eventsToAdd.isEmpty()) {
             final PlatformEvent eventToAdd = eventsToAdd.poll();
@@ -139,7 +123,6 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             final boolean waitingForJudgesBeforeAdd = consensus.waitingForInitJudges();
             // add the event to the consensus algorithm
             final List<ConsensusRound> consensusRounds = consensus.addEvent(linkedEvent);
-            allConsensusRounds.addAll(consensusRounds);
 
             for (final ConsensusRound consensusRound : consensusRounds) {
                 consensusEngineMetrics.recordEventsPerRound(consensusRound.getNumEvents());
@@ -166,7 +149,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
                 // a major change in the roster.
                 // If this happens, we need to add all events that just reached consensus to the list of pre-consensus
                 // events. This is to ensure that all consensus events are returned as pre-consensus events.
-                allConsensusRounds.stream()
+                consensusRounds.stream()
                         .map(ConsensusRound::getPlatformEvents)
                         .flatMap(List::stream)
                         .forEach(preConsensusEvents::add);
@@ -181,29 +164,31 @@ public class DefaultConsensusEngine implements ConsensusEngine {
                 preConsensusEvents.add(linkedEvent.getBaseEvent());
             }
 
-            if (allConsensusRounds.isEmpty()) {
+            if (consensusRounds.isEmpty()) {
                 continue;
             }
 
-            // If consensus is reached, we need to process the last event window and add any events released
-            // from the future event buffer to the consensus algorithm.
-            final EventWindow eventWindow = allConsensusRounds.getLast().getEventWindow();
-            // We update the linker with the latest event window.
-            // This will also return any ancient events that were previously linked.
-            // Some of these ancient events may be stale, so we will add them to the stale events list.
-            final List<EventImpl> ancientEvents = linker.setEventWindow(eventWindow);
-            ancientEvents.stream()
-                    .filter(e -> !e.isConsensus())
-                    .map(EventImpl::getBaseEvent)
-                    .forEach(staleEvents::add);
-            eventsToAdd.addAll(futureEventBuffer.updateEventWindow(eventWindow));
+            for (final ConsensusRound consensusRound : consensusRounds) {
+                // If consensus is reached, we need to process each event window and add any events released
+                // from the future event buffer to the consensus algorithm.
+                final EventWindow eventWindow = consensusRound.getEventWindow();
+                // We update the linker with the next event window.
+                // This will also return any ancient events that were previously linked.
+                // Some of these ancient events may be stale, so we will add them to the stale events list.
+                final List<EventImpl> ancientEvents = linker.setEventWindow(eventWindow);
+                final List<PlatformEvent> staleEvents = ancientEvents.stream()
+                        .filter(e -> !e.isConsensus())
+                        .map(EventImpl::getBaseEvent)
+                        .toList();
+                staleEvents.forEach(consensusEngineMetrics::reportStaleEvent);
+                allConsensusResults.add(new ConsensusResult(consensusRound, staleEvents));
+            }
         }
 
         // If multiple rounds reach consensus and multiple rounds are in the freeze period,
         // we need to freeze on the first one. this means discarding the rest of the rounds.
-        final List<ConsensusRound> modifiedRounds = freezeRoundController.filterAndModify(allConsensusRounds);
-        staleEvents.forEach(consensusEngineMetrics::reportStaleEvent);
-        return new ConsensusEngineOutput(modifiedRounds, preConsensusEvents, staleEvents);
+        final List<ConsensusResult> modifiedResults = freezeRoundController.filterAndModify(allConsensusResults);
+        return new ConsensusEngineOutput(preConsensusEvents, modifiedResults);
     }
 
     /**
@@ -214,8 +199,6 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         final EventWindow eventWindow = EventWindowUtils.createEventWindow(snapshot, roundsNonAncient);
         linker.clear();
         linker.setEventWindow(eventWindow);
-        futureEventBuffer.clear();
-        futureEventBuffer.updateEventWindow(eventWindow);
         consensus.loadSnapshot(snapshot);
     }
 }

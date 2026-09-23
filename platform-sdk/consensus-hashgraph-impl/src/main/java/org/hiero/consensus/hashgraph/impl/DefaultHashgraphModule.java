@@ -9,6 +9,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
+import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -17,6 +18,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.freeze.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.hashgraph.config.HashgraphWiringConfig;
+import org.hiero.consensus.hashgraph.impl.DefaultConsensusEngineBuffer.ConsensusEngineBufferOutput;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -29,7 +31,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
 public class DefaultHashgraphModule implements HashgraphModule {
 
     @Nullable
-    private ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring;
+    private ComponentWiring<ConsensusEngineBuffer, ConsensusEngineBufferOutput> consensusEngineBufferWiring;
 
     @Nullable
     private OutputWire<ConsensusRound> consensusRoundOutputWire;
@@ -39,11 +41,6 @@ public class DefaultHashgraphModule implements HashgraphModule {
 
     @Nullable
     private OutputWire<PlatformEvent> staleEventOutputWire;
-
-    private ConsensusEngineOutputBuffer roundBuffer;
-
-    // TODO buffer any rounds that reach consensus past a single round, and return them first
-    // when the next round is requested. Only resume gossip when there are no buffered rounds to return.
 
     /**
      * {@inheritDoc}
@@ -61,38 +58,42 @@ public class DefaultHashgraphModule implements HashgraphModule {
             final long transactionOffsetNanos) {
 
         //noinspection VariableNotUsedInsideIf
-        if (consensusEngineWiring != null) {
+        if (consensusEngineBufferWiring != null) {
             throw new IllegalStateException("Already initialized");
         }
 
-        this.roundBuffer = new ConsensusEngineOutputBuffer();
-
         final HashgraphWiringConfig wiringConfig = configuration.getConfigData(HashgraphWiringConfig.class);
 
-        this.consensusEngineWiring =
-                new ComponentWiring<>(model, ConsensusEngine.class, wiringConfig.consensusEngine());
+        this.consensusEngineBufferWiring =
+                new ComponentWiring<>(model, ConsensusEngineBuffer.class, wiringConfig.consensusEngineBuffer());
 
-        this.consensusRoundOutputWire = consensusEngineWiring
+        this.consensusRoundOutputWire = consensusEngineBufferWiring
                 .getOutputWire()
-                .buildTransformer("consensusRounds", "consensusEngineOutput", ConsensusEngineOutput::consensusRounds)
-                .buildSplitter("ConsensusRoundsSplitter", "consensus rounds");
-        this.preconsensusEventOutputWire = consensusEngineWiring
+                .buildTransformer("consensusResults", "consensusEngineBufferOutput",
+                        (output) -> output.consensusResults().stream().map(ConsensusResult::consensusRound).toList())
+                .buildSplitter("ConsensusResultsSplitter", "consensus results");
+        this.preconsensusEventOutputWire = consensusEngineBufferWiring
                 .getOutputWire()
                 .buildTransformer(
-                        "PreConsensusEvents", "consensusEngineOutput", ConsensusEngineOutput::preConsensusEvents)
+                        "PreConsensusEvents", "consensusEngineBufferOutput",
+                        ConsensusEngineBufferOutput::preConsensusEvents)
                 .buildSplitter("PreConsensusEventsSplitter", "preconsensus events");
-        this.staleEventOutputWire = consensusEngineWiring
+        this.staleEventOutputWire = consensusEngineBufferWiring
                 .getOutputWire()
-                .buildTransformer("staleEvents", "consensusEngineOutput", ConsensusEngineOutput::staleEvents)
+                .buildTransformer("staleEvents", "consensusEngineOutput",
+                        (output) -> output.consensusResults().stream().flatMap(result -> result.staleEvents().stream())
+                                .toList())
                 .buildSplitter("staleEventsSplitter", "stale events");
 
         // Force not soldered wires to be built
-        consensusEngineWiring.getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
+        consensusEngineBufferWiring.getInputWire(ConsensusEngineBuffer::outOfBandSnapshotUpdate);
 
         // Create and bind components
         final ConsensusEngine consensusEngine = new DefaultConsensusEngine(
                 configuration, metrics, time, roster, selfId, freezeChecker, transactionOffsetNanos);
-        consensusEngineWiring.bind(consensusEngine);
+        final ConsensusEngineBuffer consensusEngineBuffer = new DefaultConsensusEngineBuffer(configuration, metrics,
+                consensusEngine);
+        consensusEngineBufferWiring.bind(consensusEngineBuffer);
 
         if (pipelineTracker != null) {
             pipelineTracker.registerMetric("consensus");
@@ -101,13 +102,19 @@ public class DefaultHashgraphModule implements HashgraphModule {
         }
     }
 
+    @NonNull
+    @Override
+    public InputWire<NoInput> requestRoundInputWire() {
+        return requireNonNull(consensusEngineBufferWiring, "Not initialized").getInputWire(ConsensusEngineBuffer::requestRound);
+    }
+
     /**
      * {@inheritDoc}
      */
     @NonNull
     @Override
     public InputWire<PlatformEvent> eventInputWire() {
-        return requireNonNull(consensusEngineWiring, "Not initialized").getInputWire(ConsensusEngine::addEvent);
+        return requireNonNull(consensusEngineBufferWiring, "Not initialized").getInputWire(ConsensusEngineBuffer::addEvent);
     }
 
     /**
@@ -143,8 +150,8 @@ public class DefaultHashgraphModule implements HashgraphModule {
     @NonNull
     @Override
     public InputWire<PlatformStatus> platformStatusInputWire() {
-        return requireNonNull(consensusEngineWiring, "Not initialized")
-                .getInputWire(ConsensusEngine::updatePlatformStatus);
+        return requireNonNull(consensusEngineBufferWiring, "Not initialized")
+                .getInputWire(ConsensusEngineBuffer::updatePlatformStatus);
     }
 
     /**
@@ -153,8 +160,8 @@ public class DefaultHashgraphModule implements HashgraphModule {
     @NonNull
     @Override
     public InputWire<ConsensusSnapshot> consensusSnapshotOverrideInputWire() {
-        return requireNonNull(consensusEngineWiring, "Not initialized")
-                .getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
+        return requireNonNull(consensusEngineBufferWiring, "Not initialized")
+                .getInputWire(ConsensusEngineBuffer::outOfBandSnapshotUpdate);
     }
 
     /**
@@ -162,7 +169,7 @@ public class DefaultHashgraphModule implements HashgraphModule {
      */
     @Override
     public void startSquelching() {
-        requireNonNull(consensusEngineWiring, "Not initialized").startSquelching();
+        requireNonNull(consensusEngineBufferWiring, "Not initialized").startSquelching();
     }
 
     /**
@@ -170,7 +177,7 @@ public class DefaultHashgraphModule implements HashgraphModule {
      */
     @Override
     public void stopSquelching() {
-        requireNonNull(consensusEngineWiring, "Not initialized").stopSquelching();
+        requireNonNull(consensusEngineBufferWiring, "Not initialized").stopSquelching();
     }
 
     /**
@@ -178,6 +185,6 @@ public class DefaultHashgraphModule implements HashgraphModule {
      */
     @Override
     public void flush() {
-        requireNonNull(consensusEngineWiring, "Not initialized").flush();
+        requireNonNull(consensusEngineBufferWiring, "Not initialized").flush();
     }
 }

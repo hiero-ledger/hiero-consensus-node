@@ -30,44 +30,46 @@ public class FreezeRoundController {
      * the first one will be kept and the rest will be removed from the list. It will also modify the EventWindow of the
      * freeze round to change the event birth round.
      *
-     * @param consensusRounds the list of consensus rounds to check
+     * @param consensusResults the list of consensus rounds to check
      */
-    public List<ConsensusRound> filterAndModify(@NonNull final List<ConsensusRound> consensusRounds) {
+    public List<ConsensusResult> filterAndModify(@NonNull final List<ConsensusResult> consensusResults) {
         // we first check if there is any freeze round. usually there isn't, so we don't start any modifications until
         // we found a freeze round.
-        if (consensusRounds.stream()
+        if (consensusResults.stream()
+                .map(ConsensusResult::consensusRound)
                 .map(ConsensusRound::getConsensusTimestamp)
                 .noneMatch(freezeChecker::isInFreezePeriod)) {
             // no freeze round found, so we can return the list as is
-            return consensusRounds;
+            return consensusResults;
         }
 
         // from now on, we are frozen
         isFrozen = true;
 
         // if there is a freeze round, we need to modify the list
-        final List<ConsensusRound> modifiedRounds = new ArrayList<>();
-        for (final ConsensusRound round : consensusRounds) {
-            if (freezeChecker.isInFreezePeriod(round.getConsensusTimestamp())) {
+        final List<ConsensusResult> modifiedResults = new ArrayList<>();
+        for (final ConsensusResult result : consensusResults) {
+            if (freezeChecker.isInFreezePeriod(result.consensusRound().getConsensusTimestamp())) {
                 // if it's the freeze round, we need to modify it and add it to the list
-                modifiedRounds.add(modifyFreezeRound(round));
+                modifiedResults.add(modifyFreezeRound(result));
                 // we can stop here, since we only want the first freeze round
-                return modifiedRounds;
+                return modifiedResults;
             } else {
                 // if it's a round before the freeze round, we can add it to the list as is
-                modifiedRounds.add(round);
+                modifiedResults.add(result);
             }
         }
-        return modifiedRounds;
+        return modifiedResults;
     }
 
     /**
      * Modifies the freeze round to change the event birth round to the latest consensus round. This is to ensure that
      * events created pre-upgrade and post-upgrade can be distinguished in case some migration logic is needed.
-     * @param round the round to modify
+     * @param result the result to modify
      * @return the modified round
      */
-    private static ConsensusRound modifyFreezeRound(@NonNull final ConsensusRound round) {
+    private static ConsensusResult modifyFreezeRound(@NonNull final ConsensusResult result) {
+        final ConsensusRound round = result.consensusRound();
         final EventWindow modifiedWindow = new EventWindow(
                 round.getEventWindow().latestConsensusRound(),
                 // the event window is modified so that the event birth round is the same as the latest consensus round.
@@ -76,13 +78,13 @@ public class FreezeRoundController {
                 round.getEventWindow().latestConsensusRound(),
                 round.getEventWindow().ancientThreshold(),
                 round.getEventWindow().expiredThreshold());
-        return new ConsensusRound(
+        return new ConsensusResult(new ConsensusRound(
                 round.getConsensusRoster(),
                 round.getPlatformEvents(),
                 modifiedWindow,
                 round.getSnapshot(),
                 round.isPcesRound(),
-                round.getReachedConsTimestamp());
+                round.getReachedConsTimestamp()), result.staleEvents());
     }
 
     /**

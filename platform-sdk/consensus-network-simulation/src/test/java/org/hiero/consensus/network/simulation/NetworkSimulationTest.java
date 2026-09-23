@@ -355,11 +355,12 @@ public class NetworkSimulationTest {
             stats.records(events);
             final List<ConsensusEngineOutput> engineOutputs =
                     events.stream().map(consensusEngine::addEvent).toList();
-            engineOutputs.stream()
-                    .map(ConsensusEngineOutput::consensusRounds)
-                    .flatMap(List::stream)
-                    .map(ConsensusRound::getEventWindow)
-                    .forEach(creatorNetwork::setEventWindow);
+            // TODO
+//            engineOutputs.stream()
+//                    .map(ConsensusEngineOutput::consensusRounds)
+//                    .flatMap(List::stream)
+//                    .map(ConsensusRound::getEventWindow)
+//                    .forEach(creatorNetwork::setEventWindow);
             stats.record(engineOutputs);
         }
         final Duration timePassed = Duration.between(

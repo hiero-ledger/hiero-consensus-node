@@ -123,7 +123,7 @@ public class TestIntake {
         final ConsensusEngine consensusEngine =
                 new DefaultConsensusEngine(configuration, metrics, time, roster, selfId, localFreezeCheck, 0L);
 
-        consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, scheduler("consensusEngine"));
+        consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, scheduler("consensusEngineBuffer"));
         consensusEngineWiring.bind(consensusEngine);
 
         hasherWiring.getOutputWire().solderTo(postHashCollectorWiring.getInputWire());
