@@ -96,7 +96,7 @@ public class ClprMessagesSuite {
 
     /**
      * CLPR system contract (precompile) ID. Used as NET_A's verifier so the channel exercises
-     * the precompile's native {@code verifyConfig(bytes)} method, which runs real TSS + Merkle
+     * the precompile's native {@code verifyConfig(bytes,bytes32)} method, which runs real TSS + Merkle
      * verification (see {@code VerifyConfigCall}).
      */
     private static final long CLPR_SYSTEM_CONTRACT_NUM = 0x16eL;
