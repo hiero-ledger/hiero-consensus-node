@@ -15,6 +15,8 @@ import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.TRANSI
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -162,7 +164,7 @@ class WritableHistoryStoreImplTest {
         assertNull(subject.getConstructionFor(activeRosters));
         assertThrows(
                 IllegalArgumentException.class,
-                () -> subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG));
+                () -> subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG, false));
     }
 
     @Test
@@ -177,7 +179,7 @@ class WritableHistoryStoreImplTest {
         setConstructions(active, HistoryProofConstruction.DEFAULT);
 
         assertSame(active, subject.getConstructionFor(activeRosters));
-        assertSame(active, subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG));
+        assertSame(active, subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG, false));
     }
 
     @Test
@@ -207,7 +209,7 @@ class WritableHistoryStoreImplTest {
         given(activeRosters.sourceRosterHash()).willReturn(A_ROSTER_HASH);
         given(activeRosters.targetRosterHash()).willReturn(A_ROSTER_HASH);
 
-        final var construction = subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG);
+        final var construction = subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG, false);
 
         assertEquals(1L, construction.constructionId());
         final var expectedGracePeriodEndTime =
@@ -241,7 +243,7 @@ class WritableHistoryStoreImplTest {
         final var newKey = Bytes.wrap("THREE");
         assertTrue(subject.setProofKey(newKeyNodeId, newKey, CONSENSUS_NOW.minusSeconds(1L)));
 
-        final var construction = subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG);
+        final var construction = subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG, false);
 
         assertEquals(3L, construction.constructionId());
         final var expectedGracePeriodEndTime =
@@ -503,5 +505,37 @@ class WritableHistoryStoreImplTest {
         historyService.doGenesisSetup(writableStates, DEFAULT_CONFIG);
         ((CommittableWritableStates) writableStates).commit();
         return state;
+    }
+
+    @Test
+    void replacesACompletedConstructionOnlyWhenAFreshGenesisIsRequested() {
+        // The completed construction grounding the chain of trust has the same roster as source and target,
+        // so it is matched again by the phase entered to build a fresh genesis proof; it holds the very proof
+        // to be replaced, so it must give way to a new construction
+        given(activeRosters.phase()).willReturn(BOOTSTRAP);
+        given(activeRosters.sourceRosterHash()).willReturn(A_ROSTER_HASH);
+        given(activeRosters.targetRosterHash()).willReturn(A_ROSTER_HASH);
+        given(activeRosters.findRelatedRoster(A_ROSTER_HASH)).willReturn(Roster.DEFAULT);
+        final var completed = HistoryProofConstruction.newBuilder()
+                .constructionId(1L)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(A_ROSTER_HASH)
+                .targetProof(HistoryProof.newBuilder()
+                        .chainOfTrustProof(ChainOfTrustProof.newBuilder().wrapsProof(Bytes.wrap("COMPRESSED")))
+                        .uncompressedWrapsProof(Bytes.wrap("UNCOMPRESSED"))
+                        .build())
+                .build();
+        setConstructions(completed, HistoryProofConstruction.DEFAULT);
+
+        assertSame(completed, subject.getConstructionFor(activeRosters));
+        assertSame(completed, subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG, false));
+
+        final var created = subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG, true);
+
+        assertNotSame(completed, created);
+        assertNotEquals(completed.constructionId(), created.constructionId());
+        assertFalse(created.hasTargetProof());
+        // The fresh construction is placed alongside the active one, whose proof it will replace
+        assertSame(created, getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID));
     }
 }

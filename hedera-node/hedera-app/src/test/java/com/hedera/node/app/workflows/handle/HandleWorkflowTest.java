@@ -3,7 +3,9 @@ package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
@@ -103,6 +105,7 @@ import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
+import com.hedera.node.app.workflows.clpr.ClprEndpointManifestReconciler;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
 import com.hedera.node.app.workflows.handle.record.MigrationRootHashSubmissions;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
@@ -131,6 +134,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.hiero.base.crypto.Hash;
@@ -238,6 +242,11 @@ class HandleWorkflowTest {
     private StakeInfoHelper stakeInfoHelper;
 
     @Mock
+    private ClprEndpointManifestReconciler clprEndpointManifestReconciler;
+
+    private final AtomicInteger clprEndpointManifestReconcilerProviderCalls = new AtomicInteger();
+
+    @Mock
     private ParentTxnFactory parentTxnFactory;
 
     @Mock
@@ -289,6 +298,7 @@ class HandleWorkflowTest {
 
     @BeforeEach
     void setUp() {
+        clprEndpointManifestReconcilerProviderCalls.set(0);
         final ReadableStates readableStates = mock(ReadableStates.class);
         final ReadableSingletonState singletonState = mock(ReadableSingletonState.class);
         lenient()
@@ -388,6 +398,24 @@ class HandleWorkflowTest {
         assertEquals(123L, method.invoke(subject));
         verify(blockStreamManager).blockNo();
         verify(blockRecordManager, never()).blockNo();
+    }
+
+    @Test
+    void disabledClprDoesNotInstantiateEndpointManifestReconciler() throws Exception {
+        givenSubjectWith(
+                RECORDS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("clpr.enabled", "false", "clpr.endpointManifestEnabled", "true"));
+
+        for (final var methodName : List.of("reconcileClprEndpointManifest", "pruneClprEndpointManifestOnUpgrade")) {
+            final var method =
+                    HandleWorkflow.class.getDeclaredMethod(methodName, com.swirlds.state.State.class, Instant.class);
+            method.setAccessible(true);
+            method.invoke(subject, state, NOW);
+        }
+
+        assertEquals(0, clprEndpointManifestReconcilerProviderCalls.get());
     }
 
     @Test
@@ -732,6 +760,10 @@ class HandleWorkflowTest {
                 hollowAccountCompletions,
                 systemTransactions,
                 stakeInfoHelper,
+                () -> {
+                    clprEndpointManifestReconcilerProviderCalls.incrementAndGet();
+                    return clprEndpointManifestReconciler;
+                },
                 recordCache,
                 exchangeRateManager,
                 stakePeriodManager,
@@ -823,7 +855,7 @@ class HandleWorkflowTest {
 
         final var reconciliationTimes = ArgumentCaptor.forClass(Instant.class);
         verify(historyService, times(4))
-                .reconcile(any(), any(), any(), reconciliationTimes.capture(), any(), eq(true), any());
+                .reconcile(any(), any(), any(), reconciliationTimes.capture(), any(), eq(true), any(), eq(false));
         assertEquals(
                 List.of(firstRoundTime, afterGracePeriod, readyBlockTime, readyBlockTime),
                 reconciliationTimes.getAllValues());
@@ -854,6 +886,14 @@ class HandleWorkflowTest {
         lenient()
                 .when(historyStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID))
                 .thenReturn(mock(WritableSingletonState.class));
+        final WritableSingletonState<HistoryProofConstruction> proofConstruction = mock(WritableSingletonState.class);
+        lenient()
+                .when(historyStates.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID))
+                .thenReturn(proofConstruction);
+        lenient()
+                .when(historyStates.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID))
+                .thenReturn(proofConstruction);
+        lenient().when(proofConstruction.get()).thenReturn(HistoryProofConstruction.DEFAULT);
 
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
         given(event.getCreatorId()).willReturn(NodeId.of(0));

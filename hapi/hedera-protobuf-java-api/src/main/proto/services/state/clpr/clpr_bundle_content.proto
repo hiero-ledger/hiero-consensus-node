@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/state/clpr/clpr_endpoint_manifest.proto";
+import "services/state/clpr/clpr_message.proto";
+
+/**
+ * Container for the verified content of a bundle, as returned by a verifier
+ * contract's verifyBundle() call.
+ *
+ * <p>For the stub verifier (pre-CLPR-5.1), the submitBundle handler parses
+ * bundle_payload directly as this message type. When a real verifier is
+ * deployed, the verifier contract will parse the proof bytes internally
+ * and return the same logical structure via ABI encoding.
+ */
+message ClprBundleContent {
+    /**
+     * The peer's queue metadata at the time the bundle was constructed.
+     */
+    ClprQueueMetadata metadata = 1;
+
+    /**
+     * Ordered message payloads included in the bundle.
+     * Each payload is a Data, Response, Control message
+     * or Redacted message.
+     */
+    repeated ClprMessagePayload messages = 2;
+
+    /**
+     * Successor signing authority if the bundle contains state-proven rotation
+     * evidence; empty bytes otherwise. When non-empty, the CLPR Service
+     * atomically replaces Channel.trust_anchor with this value before
+     * processing any message in the bundle. MUST be state-proven against the
+     * current trust_anchor passed to verifyBundle or the verifier MUST revert.
+     */
+    bytes new_trust_anchor = 3;
+
+    /**
+     * Opaque identifier for new_trust_anchor. MUST be non-empty iff
+     * new_trust_anchor is non-empty. Stored as Channel.trust_anchor_id in
+     * the same atomic update.
+     */
+    bytes new_trust_anchor_id = 4;
+
+    /**
+     * Optional updated peer endpoint manifest, present if the bundle carries a
+     * state-proven manifest advancement (spec §4.2 Step 1b). Absent (empty
+     * message) when the bundle does not include a manifest proof. When present
+     * and new_endpoint_manifest.version is strictly greater than
+     * Channel.endpoint_manifest_version, the CLPR Service atomically
+     * replaces Channel.endpoint_manifest before processing any message in
+     * the bundle. Applied before the trust anchor update (§4.2 Step 1c).
+     */
+    ClprEndpointManifest new_endpoint_manifest = 5;
+}
