@@ -40,6 +40,7 @@ public class FrameUtils {
     public static final String OPS_DURATION_COUNTER = "opsDurationCounter";
     public static final String INVALID_ADDRESS_CONTEXT_VARIABLE = "invalidAddressContext";
     public static final String HOOK_OWNER_ADDRESS = "hookOwnerAddress";
+    public static final String CLPR_DISPATCH_CONTEXT_VARIABLE = "clprDispatch";
 
     public enum EntityType {
         TOKEN,
@@ -71,6 +72,13 @@ public class FrameUtils {
      */
     public static @NonNull HederaConfig hederaConfigOf(@NonNull final MessageFrame frame) {
         return configOf(frame).getConfigData(HederaConfig.class);
+    }
+
+    /**
+     * Returns whether this EVM execution was initiated by an internal CLPR dispatch.
+     */
+    public static boolean isClprDispatch(@NonNull final MessageFrame frame) {
+        return Boolean.TRUE.equals(initialFrameOf(frame).getContextVariable(CLPR_DISPATCH_CONTEXT_VARIABLE));
     }
 
     public static boolean hasBytecodeSidecarsEnabled(@NonNull final MessageFrame frame) {

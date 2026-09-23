@@ -10,6 +10,7 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.records.handlers.MigrationRootHashVoteHandler;
 import com.hedera.node.app.service.addressbook.impl.handlers.AddressBookHandlers;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprHandlers;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusHandlers;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
@@ -136,7 +137,8 @@ public interface HandleWorkflowModule {
             @NonNull final AddressBookHandlers addressBookHandlers,
             @NonNull final HintsHandlers hintsHandlers,
             @NonNull final HistoryHandlers historyHandlers,
-            @NonNull final MigrationRootHashVoteHandler migrationRootHashVoteHandler) {
+            @NonNull final MigrationRootHashVoteHandler migrationRootHashVoteHandler,
+            @NonNull final ClprHandlers clprHandlers) {
         return new TransactionHandlers(
                 consensusHandlers.consensusCreateTopicHandler(),
                 consensusHandlers.consensusUpdateTopicHandler(),
@@ -204,6 +206,16 @@ public interface HandleWorkflowModule {
                 historyHandlers.historyProofSignatureHandler(),
                 historyHandlers.historyProofVoteHandler(),
                 hintsHandlers.crsPublicationHandler(),
-                migrationRootHashVoteHandler);
+                migrationRootHashVoteHandler,
+                clprHandlers.clprUpdateLedgerConfigurationHandler(),
+                clprHandlers.clprRegisterChannelHandler(),
+                clprHandlers.clprCompleteChannelHandler(),
+                clprHandlers.clprCloseChannelHandler(),
+                clprHandlers.clprSubmitBundleHandler(),
+                clprHandlers.clprRedactMessageHandler(),
+                clprHandlers.clprRegisterConnectorHandler(),
+                clprHandlers.clprCompleteConnectorHandler(),
+                clprHandlers.clprDeregisterConnectorHandler(),
+                clprHandlers.clprEndpointPublicationHandler());
     }
 }

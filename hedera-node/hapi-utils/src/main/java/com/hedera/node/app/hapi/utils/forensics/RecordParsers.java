@@ -59,15 +59,18 @@ public class RecordParsers {
         final var recordFiles = RecordStreamingUtils.orderedRecordFilesFrom(streamDir, inclusionTest);
         final List<RecordStreamEntry> entries = new ArrayList<>();
         for (final var recordFile : recordFiles) {
-            readMaybeCompressedRecordStreamFile(authorizedDir, recordFile)
-                    .getValue()
-                    .ifPresent(records -> records.getRecordStreamItemsList().forEach(item -> {
-                        final var itemRecord = item.getRecord();
-                        entries.add(new RecordStreamEntry(
-                                TransactionParts.from(item.getTransaction()),
-                                itemRecord,
-                                timestampToInstant(itemRecord.getConsensusTimestamp())));
-                    }));
+            try {
+                readMaybeCompressedRecordStreamFile(authorizedDir, recordFile)
+                        .getValue()
+                        .ifPresent(records -> records.getRecordStreamItemsList().forEach(item -> {
+                            final var itemRecord = item.getRecord();
+                            entries.add(new RecordStreamEntry(
+                                    TransactionParts.from(item.getTransaction()),
+                                    itemRecord,
+                                    timestampToInstant(itemRecord.getConsensusTimestamp())));
+                        }));
+            } catch (IOException ignore) {
+            }
         }
         return entries;
     }
