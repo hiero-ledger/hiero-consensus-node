@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows.handle.steps;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
 import static com.hedera.node.app.service.token.impl.api.TokenServiceApiProvider.TOKEN_SERVICE_API_PROVIDER;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INTERNAL_SYSTEM_TRANSACTION;
 import static java.util.Collections.emptyMap;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -235,6 +236,9 @@ class ParentTxnTest {
         final var dispatch = factory.createDispatch(subject, ExchangeRateSet.DEFAULT);
 
         assertSame(PAYER_ID, dispatch.payerId());
+        assertNull(dispatch.handleContext()
+                .dispatchMetadata()
+                .getMetadataIfPresent(INTERNAL_SYSTEM_TRANSACTION, Boolean.class));
         final var result = ((BlockStreamBuilder) subject.baseBuilder())
                 .build(false, null).blockItems().stream()
                         .filter(BlockItem::hasTransactionResult)

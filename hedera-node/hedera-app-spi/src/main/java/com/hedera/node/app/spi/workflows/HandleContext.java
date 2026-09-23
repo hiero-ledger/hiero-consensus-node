@@ -204,6 +204,11 @@ public interface HandleContext {
              */
             CLPR_DISPATCH,
             /**
+             * Boolean marker set by the app when dispatching a trusted internal system transaction.
+             * Never populate this from a submitted transaction or propagate it to child dispatches.
+             */
+            INTERNAL_SYSTEM_TRANSACTION,
+            /**
              * An entity num to be created by transplant system transactions.
              */
             SYSTEM_TXN_CREATION_ENTITY_NUM
