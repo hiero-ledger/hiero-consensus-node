@@ -554,7 +554,7 @@ public class AtomicBatchContractCallChildRecordIdentityTest {
                 .hasCostAnswerPrecheck(INVALID_ACCOUNT_ID);
     }
 
-    /** Asserts the single creation exposed under {@code owner} carries {@code owner}'s identity, not {@code other}'s. */
+    /** Asserts the single creation exposed under {@code owner} carries its identity, not {@code other}'s. */
     private static SpecOperation assertOwnership(
             final AtomicReference<List<TransactionRecord>> ownerRecords,
             final AtomicReference<AccountID> createdId,

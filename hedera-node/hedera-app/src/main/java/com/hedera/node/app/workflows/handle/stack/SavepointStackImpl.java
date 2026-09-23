@@ -89,11 +89,9 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
      * some builder is dispatched within a batch inner transaction, and always null for a child stack, which records
      * its builders' owners in the root stack.
      * <p>
-     * These owners have to be recorded when the dispatch happens, because they cannot be recovered from the position
-     * of a builder in the root sink. A {@link TransactionCategory#PRECEDING} builder is flushed <i>before</i> its
-     * inner transaction in some cases (for example, an account auto-created to receive value in a
-     * {@code CryptoTransfer}); but <i>after</i> it in others (for example, an account lazy-created by the EVM, whose
-     * dispatch escapes the enclosing savepoint only when the EVM transaction commits).
+     * These owners have to be recorded when the dispatch happens: a {@link TransactionCategory#PRECEDING} builder
+     * reaches the root sink either before or after its own inner transaction, depending on whether its dispatch
+     * escapes an enclosing savepoint, so position does not identify it.
      */
     @Nullable
     private Map<StreamBuilder, TransactionID> batchInnerIdsByBuilder;
