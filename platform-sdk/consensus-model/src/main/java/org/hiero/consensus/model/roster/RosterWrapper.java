@@ -23,6 +23,9 @@ public class RosterWrapper {
     @NonNull
     private final List<RosterEntryWrapper> rosterEntries;
 
+    /** The list of {@link NodeId} instances for all entries in this roster. */
+    private final List<NodeId> nodeIds;
+
     /**
      * This array is used to find the index of an entry based on its NodeId (stored as a long).
      * We use a lookup table, because searching in a small array of primitives
@@ -54,6 +57,7 @@ public class RosterWrapper {
         this.roster = roster;
         rosterEntries =
                 roster.rosterEntries().stream().map(RosterEntryWrapper::new).toList();
+        nodeIds = rosterEntries.stream().map(RosterEntryWrapper::nodeId).toList();
         idLookupTable =
                 roster.rosterEntries().stream().mapToLong(RosterEntry::nodeId).toArray();
         weightLookupTable =
@@ -103,6 +107,15 @@ public class RosterWrapper {
      */
     public int size() {
         return rosterEntries().size();
+    }
+
+    /**
+     * Returns a list of {@link NodeId} instances for all entries in this roster.
+     *
+     * @return a list of {@link NodeId} instances
+     */
+    public List<NodeId> nodeIds() {
+        return nodeIds;
     }
 
     /**
