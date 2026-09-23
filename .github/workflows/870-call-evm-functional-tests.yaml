@@ -39,10 +39,10 @@ on:
         type: string
         default: "0.79.0-rc1"
       evm-testing-ref:
-        description: "The hashgraph/hedera-evm-testing commit SHA to test with (that repository has no tags):"
+        description: "The hashgraph/hedera-evm-testing branch or commit SHA to test with (pass a SHA to pin a known-good revision):"
         required: false
         type: string
-        default: "57a98d0c0b9bc96f9ed0d65656d7dc81314a7cf1"
+        default: "main"
     secrets:
       access-token:
         description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."

@@ -94,24 +94,30 @@ one hardhat test file.
 - **Advisory.** The result is reported in the PR check summary and as per-shard check runs
   (`EVM Functional Tests / Standard (<shard>)`), but `CI Complete` does not depend on it.
 - Runs only when a non-documentation file under `hedera-node/hedera-smart-contract-service/` or
-  `hedera-node/hedera-smart-contract-service-impl/` changed, or when the PR carries the `Run EVM Tests` or
-  `Run Full CI` label (see [classify-changed-files.js](/.github/workflows/support/scripts/classify-changed-files.js)).
+  `hedera-node/hedera-smart-contract-service-impl/` changed, when the PR carries the `Run EVM Tests` or `Run Full CI`
+  label, or when the PR has 0 or 100+ changed files, which the classifier treats as full CI (see
+  [classify-changed-files.js](/.github/workflows/support/scripts/classify-changed-files.js)).
   Changes elsewhere that affect EVM behaviour, for example `ContractsConfig` in `hedera-node/hedera-config`, the HTS
   system-contract handlers in `hedera-node/hedera-token-service-impl`, `hedera-node/configuration/` or `hapi/`, rely
   on the label. The `Run EVM Tests` label must exist in the repository settings; 600 already re-runs on `labeled`
   events.
-- Versions: solo and the mirror node come from [.citr-env](/.github/workflows/support/citr/.citr-env)
-  (`citr-solo-version`, `citr-mirror-node-version`) through
-  [855: [CALL] Extract CITR Vars](/.github/workflows/855-call-extract-citr-vars.yaml). The JSON-RPC relay version is
-  passed as a literal `0.79.0-rc1` rather than `json-rpc-relay-version` (v0.78.0) because the HIP-1340 shards need
-  `TX_TYPE_4_ENABLED`, which first shipped in relay 0.79.0-rc1. `hedera-evm-testing` is pinned by commit SHA
-  (`evm-testing-ref`) because that repository has no tags.
+- Versions: solo comes from [.citr-env](/.github/workflows/support/citr/.citr-env) (`citr-solo-version`) through
+  [855: [CALL] Extract CITR Vars](/.github/workflows/855-call-extract-citr-vars.yaml). The mirror node is passed as a
+  literal `0.163.1` rather than `citr-mirror-node-version` (0.162.0-rc1) because the tests need mirror node 0.163 for
+  contract results to work as expected; switch back to `citr-mirror-node-version` once `.citr-env` reaches 0.163.
+  The web3 image does not follow `mirror-node-version` as long as `hedera-evm-testing` pins it in
+  [mn-values.yaml](https://github.com/hashgraph/hedera-evm-testing/blob/main/evm-functional-testing/local/mn-values.yaml).
+  The JSON-RPC relay version is passed as a literal `0.79.0-rc1` rather than `json-rpc-relay-version` (v0.78.0)
+  because the HIP-1340 shards need `TX_TYPE_4_ENABLED`, which first shipped in relay 0.79.0-rc1.
+- `hedera-evm-testing` is checked out from `main` (the `evm-testing-ref` default), so upstream test changes take effect
+  on the next run without a change in this repository, and a new failure can come from upstream rather than the PR.
+  Set `evm-testing-ref` to a commit SHA in 600 to pin a known-good revision.
 
 #### Included Tests
 
 |            Test Name             |                                             Workflow                                             |                                                             Required Parameters                                                              |                     Required Workflow Secrets                          | Precursor Steps |
 |----------------------------------|--------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|-----------------|
-| EVM Functional Tests (18 shards) | [870: [CALL] EVM Functional Tests](/.github/workflows/870-call-evm-functional-tests.yaml)        | `ref: <commit-sha>`<br/>`solo-version: <citr-solo-version>`<br/>`mirror-node-version: <citr-mirror-node-version>`<br/>`json-rpc-relay-version: 0.79.0-rc1` | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password` | MATS            |
+| EVM Functional Tests (18 shards) | [870: [CALL] EVM Functional Tests](/.github/workflows/870-call-evm-functional-tests.yaml)        | `ref: <commit-sha>`<br/>`solo-version: <citr-solo-version>`<br/>`mirror-node-version: 0.163.1`<br/>`json-rpc-relay-version: 0.79.0-rc1`      | `access-token`<br/>`gradle-cache-username`<br/>`gradle-cache-password` | MATS            |
 
 ## XTS
 
