@@ -21,6 +21,17 @@ import java.lang.annotation.Target;
  * In this example the {@code port} and {@code server} values can easily be accessed by calling the record instance (see
  * {@link Configuration#getConfigData(Class)} for more infos).  The property name of the {@code port} property will be
  * {@code "network.port"} and the property name of the {@code server} property will be {@code "network.server"}
+ * <p>
+ * A record component can be a record itself. Annotate that record with {@link NestedConfig} to turn it into a group of
+ * properties rather than a single value, so that related properties can be grouped and a group can be reused. See
+ * {@link NestedConfig} for the details.
+ * <p>
+ * This annotation and {@link NestedConfig} are mutually exclusive: a config data object is registered and provides the
+ * prefix of its properties, while a nested config data object is only ever used as a component and takes its prefix
+ * from the component that holds it.
+ *
+ * @see NestedConfig
+ * @see ConfigProperty
  */
 @Retention(RUNTIME)
 @Target(TYPE)

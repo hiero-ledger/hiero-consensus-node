@@ -12,7 +12,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -42,6 +41,8 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.transaction.TestingTransactions;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
@@ -60,7 +61,7 @@ public class TipsetEventCreatorTestUtils {
     public static EventCreator buildEventCreator(
             @NonNull final Random random,
             @NonNull final Time time,
-            @NonNull final Roster roster,
+            @NonNull final Roster pbjRoster,
             @NonNull final NodeId nodeId,
             @NonNull final EventTransactionSupplier transactionSupplier,
             final int maxParents) {
@@ -87,7 +88,14 @@ public class TipsetEventCreatorTestUtils {
         secureRandom.setSeed(random.nextLong());
 
         return new TipsetEventCreator(
-                configuration, metrics, time, secureRandom, signer, roster, nodeId, transactionSupplier);
+                configuration,
+                metrics,
+                time,
+                secureRandom,
+                signer,
+                RosterWrapper.of(pbjRoster),
+                nodeId,
+                transactionSupplier);
     }
 
     /**
@@ -97,17 +105,19 @@ public class TipsetEventCreatorTestUtils {
     public static Map<NodeId, SimulatedNode> buildSimulatedNodes(
             @NonNull final Random random,
             @NonNull final Time time,
-            @NonNull final Roster roster,
+            @NonNull final Roster pbjRoster,
             @NonNull final EventTransactionSupplier transactionSupplier) {
 
+        final RosterWrapper roster = RosterWrapper.of(pbjRoster);
         final Map<NodeId, SimulatedNode> eventCreators = new HashMap<>();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final Metrics metrics = new NoOpMetrics();
 
-        for (final RosterEntry address : roster.rosterEntries()) {
+        for (final RosterEntryWrapper address : roster.rosterEntries()) {
 
-            final NodeId selfId = NodeId.of(address.nodeId());
-            final EventCreator eventCreator = buildEventCreator(random, time, roster, selfId, transactionSupplier, 1);
+            final NodeId selfId = address.nodeId();
+            final EventCreator eventCreator =
+                    buildEventCreator(random, time, pbjRoster, selfId, transactionSupplier, 1);
 
             // Set a wide event window so that no events get stuck in the Future Event Buffer
             eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
@@ -116,17 +126,12 @@ public class TipsetEventCreatorTestUtils {
 
             final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
             final TipsetWeightCalculator tipsetWeightCalculator = new TipsetWeightCalculator(
-                    configuration, time, roster, NodeId.of(address.nodeId()), tipsetTracker, childlessEventTracker);
+                    configuration, time, roster, selfId, tipsetTracker, childlessEventTracker);
             final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, mock(IntakeEventCounter.class));
 
             eventCreators.put(
                     selfId,
-                    new SimulatedNode(
-                            NodeId.of(address.nodeId()),
-                            orphanBuffer,
-                            tipsetTracker,
-                            eventCreator,
-                            tipsetWeightCalculator));
+                    new SimulatedNode(selfId, orphanBuffer, tipsetTracker, eventCreator, tipsetWeightCalculator));
         }
 
         return eventCreators;

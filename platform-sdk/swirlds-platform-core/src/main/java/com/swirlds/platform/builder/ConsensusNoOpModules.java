@@ -8,7 +8,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -42,9 +41,10 @@ import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
-import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.SavedStateController;
 import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.state.nexus.DefaultLatestCompleteStateNexus;
@@ -82,7 +82,7 @@ public class ConsensusNoOpModules {
             throw new RuntimeException("Exception thrown while creating dummy KeysAndCerts", e);
         }
         final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
-        final Roster roster = new Roster(List.of(rosterEntry));
+        final RosterWrapper roster = RosterWrapper.of(new Roster(List.of(rosterEntry)));
 
         final EventCreatorModule eventCreatorModule = createModule(EventCreatorModule.class, configuration);
         eventCreatorModule.initialize(
@@ -103,9 +103,9 @@ public class ConsensusNoOpModules {
         final Time time = Time.getCurrent();
         final NodeId selfId = NodeId.FIRST_NODE_ID;
         final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
-        final Roster roster = new Roster(List.of(rosterEntry));
-        final RosterHistory rosterHistory =
-                new RosterHistory(List.of(new RoundRosterPair(0L, Bytes.EMPTY)), Map.of(Bytes.EMPTY, roster));
+        final RosterWrapper roster = RosterWrapper.of(new Roster(List.of(rosterEntry)));
+        final RosterWrapperHistory rosterHistory =
+                new RosterWrapperHistory(List.of(new RosterWrapperHistory.Entry(0L, roster)));
         final IntakeEventCounter intakeEventCounter = new NoOpIntakeEventCounter();
         final TransactionLimits transactionLimits = new TransactionLimits(0, 0);
         final EventPipelineTracker eventPipelineTracker = null;
@@ -177,7 +177,7 @@ public class ConsensusNoOpModules {
         final Time time = Time.getCurrent();
         final NodeId selfId = NodeId.FIRST_NODE_ID;
         final RosterEntry rosterEntry = new RosterEntry(selfId.id(), 0L, Bytes.EMPTY, List.of());
-        final Roster roster = new Roster(List.of(rosterEntry));
+        final RosterWrapper roster = RosterWrapper.of(new Roster(List.of(rosterEntry)));
         final HashgraphModule hashgraphModule = createModule(HashgraphModule.class, configuration);
         final EventPipelineTracker eventPipelineTracker = null;
         hashgraphModule.initialize(

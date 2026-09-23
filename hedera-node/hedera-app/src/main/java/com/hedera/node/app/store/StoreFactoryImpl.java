@@ -40,8 +40,12 @@ public class StoreFactoryImpl implements StoreFactory {
             @NonNull final WritableEntityIdStore writableEntityIdStoreImpl,
             @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders,
             @NonNull final NodeFeeAccumulator nodeFeeAccumulator) {
-        requireNonNull(state);
-        requireNonNull(serviceName);
+        requireNonNull(state, "state must not be null");
+        requireNonNull(serviceName, "serviceName must not be null");
+        requireNonNull(configuration, "configuration must not be null");
+        requireNonNull(writableEntityIdStoreImpl, "writableEntityIdStoreImpl must not be null");
+        requireNonNull(apiProviders, "apiProviders must not be null");
+        requireNonNull(nodeFeeAccumulator, "nodeFeeAccumulator must not be null");
         return new StoreFactoryImpl(
                 new ReadableStoreFactoryImpl(state),
                 new WritableStoreFactory(state, serviceName, writableEntityIdStoreImpl),

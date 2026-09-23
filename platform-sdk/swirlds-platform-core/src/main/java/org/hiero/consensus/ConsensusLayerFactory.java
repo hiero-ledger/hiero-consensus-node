@@ -63,9 +63,9 @@ import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.pces.PcesModule;
-import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.SavedStateController;
 import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.state.nexus.DefaultLatestCompleteStateNexus;
@@ -107,7 +107,7 @@ public class ConsensusLayerFactory {
     private final Time time;
 
     @NonNull
-    private final RosterHistory rosterHistory;
+    private final RosterWrapperHistory rosterHistory;
 
     @NonNull
     private final KeysAndCerts keysAndCerts;
@@ -169,7 +169,8 @@ public class ConsensusLayerFactory {
         modulesConfig = configuration.getConfigData(ModulesConfig.class);
         metrics = inputs.metrics();
         time = inputs.time();
-        rosterHistory = inputs.rosterHistory();
+        rosterHistory = RosterWrapperHistory.of(
+                inputs.rosterHistory().history(), inputs.rosterHistory().rosters());
         keysAndCerts = inputs.keysAndCerts();
         selfId = inputs.selfId();
         recycleBin = inputs.recycleBin();
@@ -274,7 +275,7 @@ public class ConsensusLayerFactory {
     private FallenBehindMonitor createFallenBehindMonitor() {
         final double fallenBehindThreshold =
                 configuration.getConfigData(FallenBehindConfig.class).fallenBehindThreshold();
-        return new FallenBehindMonitor(rosterHistory.getCurrentRoster(), selfId, fallenBehindThreshold);
+        return new FallenBehindMonitor(rosterHistory.activeRoster().toPbj(), selfId, fallenBehindThreshold);
     }
 
     @NonNull
@@ -342,7 +343,7 @@ public class ConsensusLayerFactory {
         reconnectModule.initialize(
                 configuration,
                 time,
-                rosterHistory.getCurrentRoster(),
+                rosterHistory.activeRoster().toPbj(),
                 buildingBlocks,
                 platform,
                 stateLifecycleManager,
@@ -402,7 +403,7 @@ public class ConsensusLayerFactory {
                 metrics,
                 time,
                 keysAndCerts,
-                rosterHistory.getCurrentRoster(),
+                rosterHistory.activeRoster().toPbj(),
                 selfId,
                 version,
                 intakeEventCounter,
@@ -422,7 +423,7 @@ public class ConsensusLayerFactory {
                 configuration,
                 metrics,
                 time,
-                rosterHistory.getCurrentRoster(),
+                rosterHistory.activeRoster(),
                 selfId,
                 instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
                 eventPipelineTracker,
@@ -474,7 +475,7 @@ public class ConsensusLayerFactory {
     @NonNull
     private IntakeEventCounter createIntakeEventCounter() {
         if (configuration.getConfigData(SyncConfig.class).waitForEventsInIntake()) {
-            return new DefaultIntakeEventCounter(rosterHistory.getCurrentRoster());
+            return new DefaultIntakeEventCounter(rosterHistory.activeRoster().toPbj());
         } else {
             return new NoOpIntakeEventCounter();
         }
@@ -507,7 +508,7 @@ public class ConsensusLayerFactory {
                 time,
                 secureRandom,
                 keysAndCerts,
-                rosterHistory.getCurrentRoster(),
+                rosterHistory.activeRoster(),
                 selfId,
                 executionLayer,
                 executionLayer);
@@ -554,7 +555,7 @@ public class ConsensusLayerFactory {
                 configuration,
                 metrics,
                 time,
-                rosterHistory.getCurrentRoster(),
+                rosterHistory.activeRoster().toPbj(),
                 selfId,
                 fileSystemManager,
                 initialState.get().getRound(),

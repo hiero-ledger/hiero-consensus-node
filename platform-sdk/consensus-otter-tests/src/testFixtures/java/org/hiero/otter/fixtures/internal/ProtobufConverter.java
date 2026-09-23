@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.MarkerManager;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.model.event.EventOrigin;
+import org.hiero.consensus.model.roster.RosterWrapper;
 
 public class ProtobufConverter {
     private ProtobufConverter() {}
@@ -484,7 +485,7 @@ public class ProtobufConverter {
         final Instant reachedConsTimestamp = Instant.ofEpochSecond(sourceRound.getReachedConsTimestamp());
 
         return new org.hiero.consensus.model.hashgraph.ConsensusRound(
-                consensusRoster,
+                RosterWrapper.of(consensusRoster),
                 consensusEvents,
                 eventWindow,
                 snapshot,
