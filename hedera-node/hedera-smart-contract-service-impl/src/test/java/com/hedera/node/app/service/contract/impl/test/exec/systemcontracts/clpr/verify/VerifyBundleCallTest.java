@@ -228,13 +228,7 @@ class VerifyBundleCallTest {
         // ---- helpers ----
 
         private VerifyBundleCall subject(@NonNull final byte[] bundlePayload) {
-            return new VerifyBundleCall(
-                    mockEnhancement(),
-                    gasCalculator,
-                    bundlePayload,
-                    TRUST_ANCHOR,
-                    new byte[] {7, 8, 9},
-                    acceptingTss());
+            return new VerifyBundleCall(mockEnhancement(), gasCalculator, bundlePayload, TRUST_ANCHOR, acceptingTss());
         }
 
         /** Stubs {@code configOf(frame)} to a config with the given endpoint-manifest flag value. */

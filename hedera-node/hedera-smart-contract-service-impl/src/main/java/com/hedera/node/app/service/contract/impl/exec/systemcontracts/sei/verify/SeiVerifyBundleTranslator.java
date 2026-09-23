@@ -54,11 +54,7 @@ public class SeiVerifyBundleTranslator extends AbstractCallTranslator<SeiVerifie
             final var trustAnchor = (byte[]) call.get(TRUST_ANCHOR_INDEX);
             final var channelContext = (byte[]) call.get(2);
             return new SeiVerifyBundleCall(
-                    attempt.enhancement(),
-                    attempt.systemContractGasCalculator(),
-                    bundlePayload,
-                    trustAnchor,
-                    channelContext);
+                    attempt.enhancement(), attempt.systemContractGasCalculator(), bundlePayload, trustAnchor);
         } catch (final RuntimeException e) {
             log.warn(
                     "SeiVerifyBundleTranslator failed to decode verifyBundle calldata: input={} bytes ({})",

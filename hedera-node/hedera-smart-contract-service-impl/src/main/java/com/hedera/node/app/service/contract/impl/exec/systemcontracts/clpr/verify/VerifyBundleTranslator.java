@@ -58,13 +58,7 @@ public class VerifyBundleTranslator extends AbstractCallTranslator<ClprCallAttem
         final var call = VERIFY_BUNDLE.decodeCall(attempt.inputBytes());
         final var bundlePayload = (byte[]) call.get(BUNDLE_PAYLOAD_INDEX);
         final var trustAnchor = (byte[]) call.get(TRUST_ANCHOR_INDEX);
-        final var channelContext = (byte[]) call.get(2);
         return new VerifyBundleCall(
-                attempt.enhancement(),
-                attempt.systemContractGasCalculator(),
-                bundlePayload,
-                trustAnchor,
-                channelContext,
-                tssVerifier);
+                attempt.enhancement(), attempt.systemContractGasCalculator(), bundlePayload, trustAnchor, tssVerifier);
     }
 }

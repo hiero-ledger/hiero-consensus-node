@@ -29,6 +29,12 @@ import javax.inject.Singleton;
 @Singleton
 public class VerifyConfigTranslator extends AbstractCallTranslator<ClprCallAttempt> {
 
+    /** ABI indexes for the decoded call arguments. */
+    static final int STATE_PROOF_INDEX = 0;
+
+    static final int CHANNEL_ID_INDEX = 1;
+    static final int MANIFEST_PROOF_INDEX = 2;
+
     // Seed endpoints with channel context: verifyConfig(bytes,bytes32) → config fields + Endpoint[] seedEndpoints.
     public static final SystemContractMethod VERIFY_CONFIG_WITH_SEED_ENDPOINTS = SystemContractMethod.declare(
                     "verifyConfig(bytes,bytes32)",
@@ -66,13 +72,17 @@ public class VerifyConfigTranslator extends AbstractCallTranslator<ClprCallAttem
             return new VerifyConfigCall(
                     attempt.enhancement(),
                     attempt.systemContractGasCalculator(),
-                    call.get(0),
-                    call.get(1),
-                    call.get(2),
+                    call.get(STATE_PROOF_INDEX),
+                    call.get(CHANNEL_ID_INDEX),
+                    call.get(MANIFEST_PROOF_INDEX),
                     tssVerifier);
         }
         final var call = VERIFY_CONFIG_WITH_SEED_ENDPOINTS.decodeCall(attempt.inputBytes());
         return new VerifyConfigCall(
-                attempt.enhancement(), attempt.systemContractGasCalculator(), call.get(0), call.get(1), tssVerifier);
+                attempt.enhancement(),
+                attempt.systemContractGasCalculator(),
+                call.get(STATE_PROOF_INDEX),
+                call.get(CHANNEL_ID_INDEX),
+                tssVerifier);
     }
 }

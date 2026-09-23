@@ -58,12 +58,10 @@ public class SeiVerifyBundleCall extends AbstractCall {
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
             @NonNull final SystemContractGasCalculator gasCalculator,
             @NonNull final byte[] bundlePayload,
-            @NonNull final byte[] trustAnchor,
-            @NonNull final byte[] channelContext) {
+            @NonNull final byte[] trustAnchor) {
         super(gasCalculator, enhancement, true);
         this.bundlePayload = requireNonNull(bundlePayload);
         this.trustAnchor = requireNonNull(trustAnchor);
-        requireNonNull(channelContext);
     }
 
     @Override

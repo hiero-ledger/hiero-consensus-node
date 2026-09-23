@@ -238,8 +238,7 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
     }
 
     private EthereumVerifyBundleCall subject() {
-        return new EthereumVerifyBundleCall(
-                mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR, CHANNEL_CONTEXT);
+        return new EthereumVerifyBundleCall(mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR);
     }
 
     private void stubManifestFlag(final boolean enabled) {

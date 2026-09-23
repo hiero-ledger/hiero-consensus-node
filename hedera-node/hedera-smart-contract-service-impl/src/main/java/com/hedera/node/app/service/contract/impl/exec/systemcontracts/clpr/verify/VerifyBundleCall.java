@@ -62,12 +62,10 @@ public class VerifyBundleCall extends AbstractCall {
             @NonNull final SystemContractGasCalculator gasCalculator,
             @NonNull final byte[] bundlePayload,
             @NonNull final byte[] trustAnchor,
-            @NonNull final byte[] channelContext,
             @NonNull final TssVerifier tssVerifier) {
         super(gasCalculator, enhancement, true);
         this.bundlePayload = requireNonNull(bundlePayload);
         this.trustAnchor = requireNonNull(trustAnchor);
-        requireNonNull(channelContext);
         this.tssVerifier = requireNonNull(tssVerifier);
     }
 

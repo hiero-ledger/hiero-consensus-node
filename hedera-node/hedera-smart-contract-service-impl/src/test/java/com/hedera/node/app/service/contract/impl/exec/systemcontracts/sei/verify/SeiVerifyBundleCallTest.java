@@ -314,8 +314,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
             verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
                     .thenReturn(verified);
 
-            final var result = new SeiVerifyBundleCall(
-                            mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR, channelContext)
+            final var result = new SeiVerifyBundleCall(mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR)
                     .execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
@@ -350,8 +349,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
             verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
                     .thenReturn(verified);
 
-            final var result = new SeiVerifyBundleCall(
-                            mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR, channelContext)
+            final var result = new SeiVerifyBundleCall(mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR)
                     .execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
@@ -390,8 +388,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
             verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
                     .thenReturn(verified);
 
-            final var result = new SeiVerifyBundleCall(
-                            mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR, channelContext)
+            final var result = new SeiVerifyBundleCall(mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR)
                     .execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
@@ -477,7 +474,7 @@ class SeiVerifyBundleCallTest extends CallTestBase {
 
     private SeiVerifyBundleCall subject() {
         final byte[] channelContext = {7, 8, 9};
-        return new SeiVerifyBundleCall(mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR, channelContext);
+        return new SeiVerifyBundleCall(mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR);
     }
 
     private static SeiCometBftProofVerifier.VerifiedBundle verified(
