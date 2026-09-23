@@ -86,6 +86,26 @@ class TssStartupNetworksTest {
         assertThat(metadata).isEmpty();
     }
 
+    @Test
+    void writesStartupNetworkPrivateKeysUnderNonProdProfile() {
+        final var config = config("DEV");
+
+        TssStartupNetworks.writePrivateKeys(networkWithSelfPrivateKeys(), config, SELF_NODE_ID);
+
+        assertThat(TssKeyFiles.readBlsPrivateKey(config, CONSTRUCTION_ID)).contains(BLS_PRIVATE_KEY);
+        assertThat(TssKeyFiles.readSchnorrKeyPair(config, CONSTRUCTION_ID)).contains(SCHNORR_KEY_PAIR);
+    }
+
+    @Test
+    void doesNotWriteStartupNetworkPrivateKeysUnderProdProfile() {
+        final var config = config("PROD");
+
+        TssStartupNetworks.writePrivateKeys(networkWithSelfPrivateKeys(), config, SELF_NODE_ID);
+
+        assertThat(TssKeyFiles.readBlsPrivateKey(config, CONSTRUCTION_ID)).isEmpty();
+        assertThat(TssKeyFiles.readSchnorrKeyPair(config, CONSTRUCTION_ID)).isEmpty();
+    }
+
     private Network networkWithSelfPrivateKeys() {
         return Network.newBuilder()
                 .nodeTssMetadata(NodeTssMetadata.newBuilder()

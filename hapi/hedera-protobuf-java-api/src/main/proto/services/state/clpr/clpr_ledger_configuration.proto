@@ -1,0 +1,151 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/timestamp.proto";
+
+/**
+ * The static configuration for a ledger participating in CLPR.
+ */
+message ClprLedgerConfiguration {
+    /**
+     * Protocol version. Implementations MUST reject configurations with
+     * an unrecognized protocol_version.
+     */
+    uint32 protocol_version = 1;
+
+    /**
+     * CAIP-2 chain identifier (e.g., "hedera:mainnet", "eip155:1").
+     * Immutable; set at genesis from configuration properties.
+     */
+    string chain_id = 2;
+
+    /**
+     * On-ledger address of this ledger's CLPR Service.
+     */
+    bytes service_address = 3;
+
+    /**
+     * Consensus timestamp of the transaction that last modified this
+     * configuration. Monotonically increasing.
+     */
+    proto.Timestamp timestamp = 4;
+
+    /**
+     * Capacity limits advertised by this ledger.
+     */
+    ClprThrottles throttles = 5;
+
+    /**
+     * DEPRECATED. The endpoint list has been moved to a separate
+     * ClprEndpointManifest in CLPR Service state (see §2.4.2, §6.5). This
+     * field is retained wire-compatibly until the ConfigUpdate-based endpoint
+     * propagation is removed (see issue: remove ConfigUpdate endpoint
+     * propagation + PeerEndpointRosterEntry). New code MUST NOT read or write
+     * this field.
+     */
+    repeated ClprEndpoint endpoints = 6 [deprecated = true];
+
+    /**
+     * Opaque starting trust anchor for the Channel. For Hiero TSS this is the
+     * ledger_id of the ledger that produced this configuration (its own ledger_id
+     * when this is the local-ledger config singleton, the peer's ledger_id when
+     * received via state proof at completeChannel). Stored as
+     * Channel.trust_anchor at completeChannel.
+     *
+     * Populated by the source ledger as part of ClprUpdateLedgerConfiguration once
+     * its genesis-rooted ledger_id is available.
+     */
+    bytes initial_trust_anchor = 7;
+
+    /**
+     * Opaque identifier for initial_trust_anchor, stored as Channel.trust_anchor_id.
+     * Non-empty iff initial_trust_anchor is non-empty.
+     */
+    bytes initial_trust_anchor_id = 8;
+}
+
+/**
+ * Capacity limits published in the ledger's configuration.
+ */
+message ClprThrottles {
+    /**
+     * Hard cap: maximum messages in a single bundle.
+     */
+    uint32 max_messages_per_bundle = 1;
+
+    /**
+     * Maximum payload size in bytes for a single message.
+     */
+    uint32 max_message_payload_bytes = 2;
+
+    /**
+     * Maximum gas allocated to processing a single message.
+     */
+    uint64 max_gas_per_message = 3;
+
+    /**
+     * Maximum unacknowledged messages in the outbound queue per Channel.
+     */
+    uint32 max_queue_depth = 4;
+
+    /**
+     * Maximum total size of a serialized ClprSyncPayload.
+     */
+    uint64 max_sync_bytes = 5;
+
+    /**
+     * Maximum number of endpoints that may appear in the live ClprEndpointManifest
+     * for this CLPR Service. Excess registrations are rejected.
+     */
+    uint32 max_local_endpoints = 6;
+
+    /**
+     * Maximum number of peer endpoints this ledger will cache per Channel
+     * from the remote ClprEndpointManifest. Zero means no limit.
+     */
+    uint32 max_peer_endpoints = 7;
+}
+
+/**
+ * An endpoint participating in CLPR syncs for this CLPR Service.
+ * Used in ClprEndpointManifest.endpoints - the service-level on-ledger endpoint
+ * manifest (see §2.4.2, §6.5).
+ */
+message ClprEndpoint {
+    /**
+     * Network address and port.
+     */
+    ClprServiceEndpoint service_endpoint = 1;
+
+    /**
+     * DER-encoded RSA public certificate for mTLS transport.
+     * Minimum RSA key size: 2048 bits.
+     */
+    bytes tls_certificate = 2;
+
+    /**
+     * On-ledger account associated with this endpoint node.
+     */
+    bytes account_id = 3;
+}
+
+/**
+ * Network address for a CLPR endpoint.
+ */
+message ClprServiceEndpoint {
+    /**
+     * IPv4 or IPv6 numeric address (no DNS hostnames).
+     */
+    string ip_address = 1;
+
+    /**
+     * Port number.
+     */
+    uint32 port = 2;
+}

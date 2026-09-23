@@ -107,6 +107,15 @@ public final class BlockStreamUtils {
             case STATE_ID_CRS_PUBLICATIONS -> "HintsService.CRS_PUBLICATIONS";
             case STATE_ID_NODE_REWARDS -> "TokenService.NODE_REWARDS";
             case STATE_ID_NODE_PAYMENTS -> "TokenService.NODE_PAYMENTS";
+            case STATE_ID_CLPR_LEDGER_CONFIGURATION -> "ClprService.LEDGER_CONFIGURATION";
+            case STATE_ID_CLPR_CHANNELS -> "ClprService.CHANNELS";
+            case STATE_ID_CLPR_PENDING_COMMITMENTS -> "ClprService.PENDING_COMMITMENTS";
+            case STATE_ID_CLPR_MESSAGE_QUEUE -> "ClprService.MESSAGE_QUEUE";
+            case STATE_ID_CLPR_CONNECTORS -> "ClprService.CONNECTORS";
+            case STATE_ID_CLPR_PENDING_CONNECTOR_COMMITMENTS -> "ClprService.PENDING_CONNECTOR_COMMITMENTS";
+            case STATE_ID_CLPR_SUBMISSION_THROTTLES -> "ClprService.SUBMISSION_THROTTLES";
+            case STATE_ID_CLPR_ENDPOINT_MANIFEST -> "ClprService.ENDPOINT_MANIFEST";
+            case STATE_ID_CLPR_ENDPOINT_MANIFEST_CONSTRUCTION -> "ClprService.ENDPOINT_MANIFEST_CONSTRUCTION";
         };
     }
 
@@ -133,6 +142,10 @@ public final class BlockStreamUtils {
             case CRS_STATE_VALUE -> singletonUpdateChange.crsStateValueOrThrow();
             case NODE_PAYMENTS_VALUE -> singletonUpdateChange.nodePaymentsValueOrThrow();
             case NODE_ID_VALUE -> singletonUpdateChange.nodeIdValueOrThrow();
+            case CLPR_LEDGER_CONFIGURATION_VALUE -> singletonUpdateChange.clprLedgerConfigurationValueOrThrow();
+            case CLPR_ENDPOINT_MANIFEST_VALUE -> singletonUpdateChange.clprEndpointManifestValueOrThrow();
+            case CLPR_ENDPOINT_MANIFEST_CONSTRUCTION_VALUE ->
+                singletonUpdateChange.clprEndpointManifestConstructionValueOrThrow();
         };
     }
 
@@ -171,6 +184,8 @@ public final class BlockStreamUtils {
             case CONSTRUCTION_NODE_ID_KEY -> mapChangeKey.constructionNodeIdKeyOrThrow();
             case HOOK_ID_KEY -> mapChangeKey.hookIdKeyOrThrow();
             case EVM_HOOK_SLOT_KEY -> mapChangeKey.evmHookSlotKeyOrThrow();
+            case CLPR_MESSAGE_KEY -> mapChangeKey.clprMessageKeyOrThrow();
+            case CLPR_CONNECTOR_KEY -> mapChangeKey.clprConnectorKeyOrThrow();
         };
     }
 
@@ -209,6 +224,10 @@ public final class BlockStreamUtils {
             case NODE_ID_VALUE -> mapChangeValue.nodeIdValueOrThrow();
             case REGISTERED_NODE_VALUE -> mapChangeValue.registeredNodeValueOrThrow();
             case WRAPS_MESSAGE_HISTORY_VALUE -> mapChangeValue.wrapsMessageHistoryValueOrThrow();
+            case CLPR_CHANNEL_VALUE -> mapChangeValue.clprChannelValueOrThrow();
+            case PROTO_BYTES_VALUE -> new ProtoBytes(mapChangeValue.protoBytesValueOrThrow());
+            case CLPR_MESSAGE_VALUE -> mapChangeValue.clprMessageValueOrThrow();
+            case CLPR_CONNECTOR_VALUE -> mapChangeValue.clprConnectorValueOrThrow();
         };
     }
 
