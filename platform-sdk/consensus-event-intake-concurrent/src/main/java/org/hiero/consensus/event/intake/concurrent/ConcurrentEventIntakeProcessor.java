@@ -326,7 +326,7 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
         final RosterEntryWrapper rosterEntry;
         try {
             final RosterWrapper roster = rosterHistory.rosterForRound(key.birthRound());
-            rosterEntry = roster.getRosterEntry(key.nodeId());
+            rosterEntry = roster.rosterEntry(key.nodeId());
         } catch (final IllegalArgumentException e) {
             rateLimitedLogger.error(
                     EXCEPTION.getMarker(), "Cannot find roster entry for event with verifier key {}", key);

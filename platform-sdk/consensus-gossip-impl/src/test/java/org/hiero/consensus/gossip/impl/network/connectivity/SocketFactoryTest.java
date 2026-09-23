@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -31,6 +30,7 @@ import org.hiero.consensus.gossip.impl.test.fixtures.network.FreePortExtension;
 import org.hiero.consensus.gossip.impl.test.fixtures.network.FreePortExtension.FreePort;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -106,7 +106,7 @@ class SocketFactoryTest extends ConnectivityTestBase {
     @ParameterizedTest
     @MethodSource({"org.hiero.consensus.gossip.impl.network.connectivity.CryptoArgsProvider#basicTestArgs"})
     void tlsFactoryTest(
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final Map<NodeId, KeysAndCerts> keysAndCerts,
             @FreePort final int port)
             throws Throwable {
@@ -118,10 +118,8 @@ class SocketFactoryTest extends ConnectivityTestBase {
                 .limit(2)
                 .boxed()
                 .toList();
-        final NodeId node1 =
-                NodeId.of(roster.rosterEntries().get(nodeIndexes.get(0)).nodeId());
-        final NodeId node2 =
-                NodeId.of(roster.rosterEntries().get(nodeIndexes.get(1)).nodeId());
+        final NodeId node1 = roster.nodeId(nodeIndexes.get(0));
+        final NodeId node2 = roster.nodeId(nodeIndexes.get(1));
         final KeysAndCerts keysAndCerts1 = keysAndCerts.get(node1);
         final KeysAndCerts keysAndCerts2 = keysAndCerts.get(node2);
         final List<PeerInfo> node1Peers = Utilities.createPeerInfoList(roster, node1);
@@ -148,12 +146,12 @@ class SocketFactoryTest extends ConnectivityTestBase {
     @ParameterizedTest
     @MethodSource({"org.hiero.consensus.gossip.impl.network.connectivity.CryptoArgsProvider#basicTestArgs"})
     void bindInterfaceTest(
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final Map<NodeId, KeysAndCerts> keysAndCerts,
             @FreePort final int port)
             throws IOException {
         assertTrue(roster.rosterEntries().size() > 1, "Address book must contain at least 2 nodes");
-        final NodeId node0 = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final NodeId node0 = roster.nodeId(0);
 
         final Configuration config = new TestConfigBuilder()
                 .withValues(
@@ -174,12 +172,12 @@ class SocketFactoryTest extends ConnectivityTestBase {
     @ParameterizedTest
     @MethodSource({"org.hiero.consensus.gossip.impl.network.connectivity.CryptoArgsProvider#basicTestArgs"})
     void bindInterfaceTestWithDefaultConfig(
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final Map<NodeId, KeysAndCerts> keysAndCerts,
             @FreePort final int port)
             throws IOException {
         assertTrue(roster.rosterEntries().size() > 1, "Address book must contain at least 2 nodes");
-        final NodeId node0 = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final NodeId node0 = roster.nodeId(0);
 
         final Configuration config = new TestConfigBuilder().getOrCreateConfig();
         testInterfaceBinding(node0, roster, keysAndCerts, config, port);
@@ -197,11 +195,11 @@ class SocketFactoryTest extends ConnectivityTestBase {
     @ParameterizedTest
     @MethodSource({"org.hiero.consensus.gossip.impl.network.connectivity.CryptoArgsProvider#basicTestArgs"})
     void bindInterfaceTestWithFailingClaimingIp(
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final Map<NodeId, KeysAndCerts> keysAndCerts,
             @FreePort final int port) {
         assertTrue(roster.rosterEntries().size() > 1, "Address book must contain at least 2 nodes");
-        final NodeId node0 = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final NodeId node0 = roster.nodeId(0);
 
         final Configuration config = new TestConfigBuilder()
                 .withValues(
@@ -223,7 +221,7 @@ class SocketFactoryTest extends ConnectivityTestBase {
      */
     private void testInterfaceBinding(
             @NonNull final NodeId selfId,
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final Map<NodeId, KeysAndCerts> keysAndCerts,
             @NonNull final Configuration configuration,
             final int port)

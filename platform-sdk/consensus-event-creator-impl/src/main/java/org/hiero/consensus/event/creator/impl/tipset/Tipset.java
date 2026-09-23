@@ -85,7 +85,7 @@ public class Tipset {
      * @return the tip generation for the node
      */
     public long getTipSequenceNumberForNode(@NonNull final NodeId nodeId) {
-        final int index = roster.getIndex(nodeId);
+        final int index = roster.index(nodeId);
         if (index == -1) {
             return EventConstants.SEQUENCE_NUMBER_UNDEFINED;
         }
@@ -109,7 +109,7 @@ public class Tipset {
      * @return this object
      */
     public @NonNull Tipset advance(@NonNull final NodeId creator, final long generation) {
-        final int index = roster.getIndex(creator);
+        final int index = roster.index(creator);
         tips[index] = Math.max(tips[index], generation);
         return this;
     }
@@ -139,7 +139,7 @@ public class Tipset {
         long nonZeroWeight = 0;
         long zeroWeightCount = 0;
 
-        final int selfIndex = roster.getIndex(selfId);
+        final int selfIndex = roster.index(selfId);
         for (int index = 0; index < tips.length; index++) {
             if (index == selfIndex) {
                 // We don't consider self advancement here, since self advancement does nothing to help consensus.
@@ -167,7 +167,7 @@ public class Tipset {
     public String toString() {
         final StringBuilder sb = new StringBuilder("(");
         for (int index = 0; index < tips.length; index++) {
-            sb.append(roster.rosterEntry(index).nodeId()).append(":").append(tips[index]);
+            sb.append(roster.nodeId(index)).append(":").append(tips[index]);
             if (index < tips.length - 1) {
                 sb.append(", ");
             }

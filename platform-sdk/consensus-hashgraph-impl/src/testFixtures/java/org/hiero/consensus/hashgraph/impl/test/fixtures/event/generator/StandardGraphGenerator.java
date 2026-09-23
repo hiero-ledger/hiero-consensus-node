@@ -386,7 +386,7 @@ public class StandardGraphGenerator implements GraphGenerator {
      */
     @Override
     public EventSource getSource(@NonNull final NodeId nodeID) {
-        final int nodeIndex = roster.getIndex(nodeID);
+        final int nodeIndex = roster.index(nodeID);
         return sources.get(nodeIndex);
     }
 
@@ -447,8 +447,7 @@ public class StandardGraphGenerator implements GraphGenerator {
         if (roster.size() == 1) {
             return null;
         }
-        final List<Double> affinityVector =
-                getOtherParentAffinityVector(eventIndex, roster.getIndex(source.getNodeId()));
+        final List<Double> affinityVector = getOtherParentAffinityVector(eventIndex, roster.index(source.getNodeId()));
         final int nodeIndex = weightedChoice(getRandom(), affinityVector);
         return sources.get(nodeIndex);
     }
@@ -547,7 +546,7 @@ public class StandardGraphGenerator implements GraphGenerator {
         // currently, we only support removing a node at restart, so this process mimics what happens at restart
 
         // remove the node from the address book and the sources
-        final int nodeIndex = roster.getIndex(nodeId);
+        final int nodeIndex = roster.index(nodeId);
         sources.remove(nodeIndex);
 
         final List<RosterEntry> newRosterEntries = roster.rosterEntries().stream()

@@ -7,7 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -22,7 +21,8 @@ import org.hiero.consensus.gossip.impl.test.fixtures.network.TestConnectionManag
 import org.hiero.consensus.gossip.impl.test.fixtures.sync.FakeConnection;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -40,9 +40,8 @@ class DynamicConnectionManagersTest {
     @MethodSource("topologicalVariations")
     void testShouldConnectToMe(final int numNodes) throws Exception {
         final Random r = RandomUtils.getRandomPrintSeed();
-        final Roster roster = RosterFactory.randomRoster(r, numNodes);
-        final NodeId selfId =
-                NodeId.of(roster.rosterEntries().get(r.nextInt(numNodes)).nodeId());
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(r, numNodes);
+        final NodeId selfId = roster.nodeId(r.nextInt(numNodes));
 
         final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
         final NetworkTopology topology = new StaticTopology(peers, selfId);
@@ -88,9 +87,8 @@ class DynamicConnectionManagersTest {
     @MethodSource("topologicalVariations")
     void testShouldConnectTo(final int numNodes) throws Exception {
         final Random r = RandomUtils.getRandomPrintSeed();
-        final Roster roster = RosterFactory.randomRoster(r, numNodes);
-        final NodeId selfId =
-                NodeId.of(roster.rosterEntries().get(r.nextInt(numNodes)).nodeId());
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(r, numNodes);
+        final NodeId selfId = roster.nodeId(r.nextInt(numNodes));
         final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
         final NetworkTopology topology = new StaticTopology(peers, selfId);
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();

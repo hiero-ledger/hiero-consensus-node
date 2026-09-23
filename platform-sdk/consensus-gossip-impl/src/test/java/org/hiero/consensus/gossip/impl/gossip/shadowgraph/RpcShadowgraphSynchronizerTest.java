@@ -30,8 +30,9 @@ import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -71,8 +72,8 @@ class RpcPeerHandlerTest {
         // The value used in this test does not matter. The fallen behind manager is only used to determine if
         // SELF or OTHER is behind based on exchanged event windows.
         final double fallenBehindThreshold = 1.0;
-        this.fallenBehindManager = new FallenBehindMonitor(
-                RosterFactory.randomRoster(new Random(), NUM_NODES), new NoOpMetrics(), selfId, fallenBehindThreshold);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(new Random(), NUM_NODES);
+        this.fallenBehindManager = new FallenBehindMonitor(roster, new NoOpMetrics(), selfId, fallenBehindThreshold);
         this.eventHandler = mock(Consumer.class);
         this.gossipSender = mock(GossipRpcSender.class);
         this.syncProgressReporter = mock(Consumer.class);

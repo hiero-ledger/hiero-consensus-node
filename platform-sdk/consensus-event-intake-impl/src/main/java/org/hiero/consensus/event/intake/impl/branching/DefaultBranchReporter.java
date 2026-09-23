@@ -114,7 +114,7 @@ public class DefaultBranchReporter implements BranchReporter {
         if (previousBranchingEvent == null) {
             // This node is now branching but wasn't previously.
             branchingCount++;
-            branchingWeight += roster.getRosterEntry(creator).weight();
+            branchingWeight += roster.weight(creator);
         }
 
         branchingMetrics.reportBranchingEvent();
@@ -161,7 +161,7 @@ public class DefaultBranchReporter implements BranchReporter {
                 // Branching event is ancient, forget it.
                 mostRecentBranchingEvents.put(nodeId, null);
                 branchingCount--;
-                branchingWeight -= roster.getRosterEntry(nodeId).weight();
+                branchingWeight -= roster.weight(nodeId);
             }
         }
         branchingMetrics.reportBranchingNodeCount(branchingCount);

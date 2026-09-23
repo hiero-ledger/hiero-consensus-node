@@ -3,7 +3,6 @@ package org.hiero.consensus.gossip.impl.network.connectivity;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -18,6 +17,7 @@ import org.hiero.consensus.gossip.impl.network.NetworkUtils;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -33,7 +33,8 @@ class InboundConnectionHandlerTest extends ConnectivityTestBase {
      */
     @ParameterizedTest
     @MethodSource({"org.hiero.consensus.gossip.impl.network.connectivity.CryptoArgsProvider#basicTestArgs"})
-    void handleInboundOnePeerTest(final Roster roster, final Map<NodeId, KeysAndCerts> keysAndCerts) throws Throwable {
+    void handleInboundOnePeerTest(final RosterWrapper roster, final Map<NodeId, KeysAndCerts> keysAndCerts)
+            throws Throwable {
         assertTrue(roster.rosterEntries().size() > 1, "Address book must contain at least 2 nodes");
         // choose 2 random nodes to test
         final Random random = new Random();
@@ -42,10 +43,8 @@ class InboundConnectionHandlerTest extends ConnectivityTestBase {
                 .limit(2)
                 .boxed()
                 .toList();
-        final NodeId node1 =
-                NodeId.of(roster.rosterEntries().get(nodeIndexes.get(0)).nodeId());
-        final NodeId node2 =
-                NodeId.of(roster.rosterEntries().get(nodeIndexes.get(1)).nodeId());
+        final NodeId node1 = roster.nodeId(nodeIndexes.get(0));
+        final NodeId node2 = roster.nodeId(nodeIndexes.get(1));
         final KeysAndCerts thisKeysAndCerts = keysAndCerts.get(node1);
         final KeysAndCerts OtherKeysAndCerts = keysAndCerts.get(node2);
         final List<PeerInfo> node1Peers = Utilities.createPeerInfoList(roster, node1);
@@ -81,7 +80,8 @@ class InboundConnectionHandlerTest extends ConnectivityTestBase {
      */
     @ParameterizedTest
     @MethodSource({"org.hiero.consensus.gossip.impl.network.connectivity.CryptoArgsProvider#basicTestArgs"})
-    void handleInboundNoPeerTest(final Roster roster, final Map<NodeId, KeysAndCerts> keysAndCerts) throws Throwable {
+    void handleInboundNoPeerTest(final RosterWrapper roster, final Map<NodeId, KeysAndCerts> keysAndCerts)
+            throws Throwable {
         assertTrue(roster.rosterEntries().size() > 1, "Address book must contain at least 2 nodes");
         final Random random = new Random();
         final List<Integer> nodeIndexes = random.ints(0, roster.rosterEntries().size())
@@ -89,10 +89,8 @@ class InboundConnectionHandlerTest extends ConnectivityTestBase {
                 .limit(2)
                 .boxed()
                 .toList();
-        final NodeId node1 =
-                NodeId.of(roster.rosterEntries().get(nodeIndexes.get(0)).nodeId());
-        final NodeId node2 =
-                NodeId.of(roster.rosterEntries().get(nodeIndexes.get(1)).nodeId());
+        final NodeId node1 = roster.nodeId(nodeIndexes.get(0));
+        final NodeId node2 = roster.nodeId(nodeIndexes.get(1));
         final KeysAndCerts keysAndCerts1 = keysAndCerts.get(node1);
         final KeysAndCerts keysAndCerts2 = keysAndCerts.get(node2);
 
