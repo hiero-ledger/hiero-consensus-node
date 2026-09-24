@@ -136,6 +136,13 @@ public interface HandleContext {
             metadata.put(type, value);
         }
 
+        /** Returns a copy with the given entry, leaving this metadata unchanged. */
+        public <T> DispatchMetadata withMetadata(@NonNull final Type type, @NonNull final T value) {
+            final var copy = new HashMap<>(metadata);
+            copy.put(requireNonNull(type), requireNonNull(value));
+            return new DispatchMetadata(copy);
+        }
+
         /**
          * Retrieves the metadata value associated with the given key.
          *

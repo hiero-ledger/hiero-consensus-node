@@ -29,6 +29,7 @@ import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractClprSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.hevm.OpsDurationSchedule;
@@ -197,6 +198,58 @@ class CustomMessageCallProcessorTest {
         verify(frame).setOutputData(NOOP_OUTPUT_DATA);
         verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
         verify(frame).setExceptionalHaltReason(Optional.empty());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0x16e", "0x16f", "0x170", "0x171"})
+    void disabledClprUsesOriginalSystemAccountSemantics(final String hexAddress) {
+        final var address = Address.fromHexString(hexAddress);
+        final var clprContract = mock(AbstractClprSystemContract.class);
+        subject = new CustomMessageCallProcessor(
+                evm, featureFlags, registry, addressChecks, Map.of(address, clprContract), contractMetrics);
+        givenCallWithCode(address);
+        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
+        given(addressChecks.isSystemAccount(address)).willReturn(true);
+        given(frame.getValue()).willReturn(Wei.ZERO);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
+
+        subject.start(frame, operationTracer);
+
+        verifyNoInteractions(clprContract);
+        verify(frame).clearGasRemaining();
+        verify(frame).setOutputData(Bytes.EMPTY);
+        verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
+        verify(operationTracer).tracePrecompileResult(frame, PRECOMPILE);
+    }
+
+    @Test
+    void enabledClprExecutesRegisteredSystemContract() {
+        final var address = Address.fromHexString("0x16e");
+        final var clprContract = mock(AbstractClprSystemContract.class);
+        subject = new CustomMessageCallProcessor(
+                evm, featureFlags, registry, addressChecks, Map.of(address, clprContract), contractMetrics);
+        givenCallWithCode(address);
+        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE))
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("clpr.enabled", true)
+                        .getOrCreateConfig());
+        given(frame.getValue()).willReturn(Wei.ZERO);
+        given(frame.getInputData()).willReturn(INPUT_DATA);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.getLast()).willReturn(frame);
+        given(frame.getContextVariable(OPS_DURATION_COUNTER))
+                .willReturn(OpsDurationCounter.withSchedule(OPS_DURATION_TEST_SCHEDULE));
+        given(contractMetrics.opsDurationMetrics()).willReturn(mock(OpsDurationMetrics.class));
+        given(clprContract.computeFully(any(), eq(INPUT_DATA), eq(frame)))
+                .willReturn(FullResult.successResult(OUTPUT_DATA, 0));
+
+        subject.start(frame, operationTracer);
+
+        verify(clprContract).computeFully(any(), eq(INPUT_DATA), eq(frame));
+        verify(frame).setOutputData(OUTPUT_DATA);
+        verify(frame, never()).clearGasRemaining();
+        verify(operationTracer).tracePrecompileResult(frame, SYSTEM);
     }
 
     @Test

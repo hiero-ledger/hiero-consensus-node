@@ -1586,7 +1586,8 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         .setTlsCertificate(ByteString.copyFrom(tlsCertificate))
                         .build())
                 .setThrottles(ClprThrottles.newBuilder()
-                        .setMaxMessagesPerBundle(maxMessagesPerBundle)
+                        // Keep the advertised batch within the default 15M aggregate gas budget.
+                        .setMaxMessagesPerBundle(Math.min(maxMessagesPerBundle, 15))
                         .setMaxMessagePayloadBytes(65536)
                         .setMaxGasPerMessage(1_000_000L)
                         .setMaxQueueDepth(maxQueueDepth)

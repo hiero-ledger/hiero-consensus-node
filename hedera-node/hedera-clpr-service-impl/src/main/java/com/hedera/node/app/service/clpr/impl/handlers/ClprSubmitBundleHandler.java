@@ -8,12 +8,15 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_RUNNING_HASH_MISMATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -56,8 +59,10 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ClprConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -120,17 +125,24 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         final var nodeStore = context.createStore(ReadableNodeStore.class);
         final var node = nodeStore.get(op.endpointNodeId());
         validateTruePreCheck(node != null && !node.deleted(), INVALID_NODE_ID);
-        // TODO(CLPR-4): Re-enable admin-key signature requirement once
-        // ClprBundleSubmitter signs internally-submitted transactions.
-        // Until then, requiring the key here makes the inbound bundle pipeline
-        // self-deadlock (sync workflow submits with empty sigmap → preHandle rejects).
-        // context.requireKeyOrThrow(node.adminKey(), INVALID_NODE_ID);
+        if (context.creatorInfo() != null
+                && context.creatorInfo().nodeId() == op.endpointNodeId()
+                && context.payer().equals(node.accountId())) {
+            // Pre-handle does not expose the transaction category. Expand an optional admin
+            // signature here; handle requires it for USER transactions, while authenticated
+            // NODE transactions may rely on the creator's event signature.
+            if (node.adminKey() != null) {
+                context.optionalKey(node.adminKey());
+            }
+        } else {
+            context.requireKeyOrThrow(node.adminKey(), INVALID_NODE_ID);
+        }
     }
 
     @Override
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
         final var op = context.body().clprSubmitBundleOrThrow();
-        log.info(
+        log.debug(
                 "[ClprSubmitBundle] doHandle ENTER conn={} bundleBytes={} endpointNode={} creatorNode={} payer={}",
                 op.channelId(),
                 op.bundlePayload().length(),
@@ -145,11 +157,25 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         final var penaltyAmount = clprConfig.endpointMisbehaviorPenaltyTinybars();
         final var storeFactory = context.storeFactory();
 
-        // Resolve the endpoint node's account for penalty charging. The node is guaranteed
-        // to exist and not be deleted — preHandle already verified that.
+        // Authenticate the endpoint before any verifier call, state mutation, or penalty.
+        // Re-read its state because it may have changed since pre-handle.
         final var nodeStore = storeFactory.readableStore(ReadableNodeStore.class);
         final var endpointNode = nodeStore.get(op.endpointNodeId());
+        validateTrue(endpointNode != null && !endpointNode.deleted(), INVALID_NODE_ID);
         final var endpointAccountId = endpointNode.accountIdOrThrow();
+        if (context.savepointStack().getBaseBuilder(StreamBuilder.class).category() == NODE) {
+            validateTrue(
+                    context.creatorInfo().nodeId() == op.endpointNodeId()
+                            && context.payer().equals(endpointAccountId),
+                    INVALID_NODE_ID);
+        } else {
+            validateTrue(
+                    endpointNode.adminKey() != null
+                            && context.keyVerifier()
+                                    .verificationFor(endpointNode.adminKey())
+                                    .passed(),
+                    INVALID_SIGNATURE);
+        }
         final var connectorStore = storeFactory.writableStore(WritableConnectorStore.class);
         final var channelStore = storeFactory.writableStore(WritableChannelStore.class);
         final var messageQueueStore = storeFactory.writableStore(WritableMessageQueueStore.class);
@@ -159,7 +185,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // to handle and respond to transactions to help the remote peer also achieve a CLOSED state.
         var channel = requireNonClosedChannel(channelStore, op.channelId());
         final var channelId = channel.channelId();
-        log.info(
+        log.debug(
                 "[ClprSubmitBundle] loaded channel conn={} status={} nextMsgId={} ackedMsgId={} receivedMsgId={} "
                         + "sentRH={} receivedRH={} verifier={}",
                 channelId,
@@ -175,7 +201,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         final var configStore = storeFactory.readableStore(ReadableLedgerConfigurationStore.class);
         final var ledgerConfig = configStore.getConfiguration();
         final var throttles = ledgerConfig.throttlesOrThrow();
-        log.info(
+        log.debug(
                 "[ClprSubmitBundle] ledger config conn={} maxSyncBytes={} maxMessagesPerBundle={} "
                         + "maxPayloadBytes={} appDispatchGas={} messageExecutionCost={} endpointMarginPercent={}",
                 channelId,
@@ -215,7 +241,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // check below can compare the verifier-returned id against
         // the pre-bundle Channel.trust_anchor_id (spec §2.1.2).
         final var priorTrustAnchorId = channel.trustAnchorId();
-        log.info(
+        log.debug(
                 "[ClprSubmitBundle] post-verifier: messages={} newTrustAnchorLen={} newTrustAnchorIdLen={}"
                         + " metadata.nextMsgId={} metadata.recvMsgId={} metadata.status={}"
                         + " conn.recvMsgId={} conn.ackedMsgId={} conn.nextMsgId={} conn.sentRH(prefix)={}"
@@ -265,7 +291,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         if (shouldUpdateManifest || shouldUpdateTrustAnchor) {
             var updatedBuilder = channel.copyBuilder();
             if (shouldUpdateManifest) {
-                log.info(
+                log.debug(
                         "[ClprSubmitBundle] applying new endpoint manifest conn={} version={}->{} entries={} endpoints={}",
                         channelId,
                         channel.endpointManifestVersion(),
@@ -294,7 +320,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         .endpointManifestVersion(storedManifest.version());
             }
             if (shouldUpdateTrustAnchor) {
-                log.info(
+                log.debug(
                         "[ClprSubmitBundle] installing successor trust anchor conn={} trustAnchorLen={} trustAnchorId={}",
                         channelId,
                         newTrustAnchor.length(),
@@ -316,7 +342,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     CLPR_BUNDLE_VERIFICATION_FAILED,
                     endpointAccountId,
                     penaltyAmount);
-            log.info(
+            log.debug(
                     "[ClprSubmitBundle] state-update-only bundle accepted conn={} trustAnchorLen={} manifestUpdated={}",
                     channelId,
                     newTrustAnchor.length(),
@@ -362,6 +388,14 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 throttles.maxMessagesPerBundle());
 
         // --- Step 4b: Per-message payload size check (spec §3.5.4) ---
+        // Bound worst-case message execution before processing any messages. Division
+        // avoids overflow for malicious or stale ledger-configuration limits.
+        final var maxBundleGas =
+                configuration.getConfigData(ContractsConfig.class).maxGasPerTransaction();
+        validateTrue(
+                throttles.maxGasPerMessage() > 0 && messages.size() <= maxBundleGas / throttles.maxGasPerMessage(),
+                MAX_GAS_LIMIT_EXCEEDED);
+
         final long maxPayloadBytes = throttles.maxMessagePayloadBytes();
         if (maxPayloadBytes > 0) {
             for (final var payload : messages) {
@@ -402,7 +436,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // Trim the replayed prefix; downstream steps process only the new tail.
         final var newMessages = skipCount > 0 ? messages.subList(skipCount, messages.size()) : messages;
         final var expectedFirstId = channel.receivedMessageId() + 1;
-        log.info(
+        log.debug(
                 "[ClprSubmitBundle] step5 check: peerAckedMsgId={} skipCount={} messages.size={} "
                         + "newMessages.size={} expectedFirstId={} metadata.nextMsgId={} newKinds={}",
                 peerAckedMessageId,
@@ -424,7 +458,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // runningHashAfterProcessing at our.receivedMessageId equals our anchor by construction,
         // so resuming from there yields metadata.sentRunningHash for the bundle's last slot.
         var computedHash = channel.receivedRunningHash();
-        log.info(
+        log.debug(
                 "[ClprSubmitBundle] step6 running-hash start conn={} baseReceivedMsgId={} baseHash={} "
                         + "expectedPeerSentHash={} newMessages={}",
                 channelId,
@@ -444,7 +478,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         for (final var payload : newMessages) {
             if (payload.hasRedactedMessage()) {
                 final var messageHash = payload.redactedMessageOrThrow().messageHash();
-                log.info(
+                log.debug(
                         "[ClprSubmitBundle] step6 redacted slot conn={} messageHash={} beforeHash={}",
                         channelId,
                         shortHex(messageHash),
@@ -455,18 +489,18 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         endpointAccountId,
                         penaltyAmount);
                 computedHash = ClprHashUtils.computeRunningHashFromPayloadHash(computedHash, messageHash);
-                log.info(
+                log.debug(
                         "[ClprSubmitBundle] step6 redacted slot folded conn={} afterHash={}",
                         channelId,
                         shortHex(computedHash));
             } else {
-                log.info(
+                log.debug(
                         "[ClprSubmitBundle] step6 folding payload conn={} kind={} beforeHash={}",
                         channelId,
                         payloadKind(payload),
                         shortHex(computedHash));
                 computedHash = ClprHashUtils.computeRunningHash(computedHash, payload);
-                log.info(
+                log.debug(
                         "[ClprSubmitBundle] step6 folded payload conn={} kind={} afterHash={}",
                         channelId,
                         payloadKind(payload),
@@ -478,7 +512,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 CLPR_RUNNING_HASH_MISMATCH,
                 endpointAccountId,
                 penaltyAmount);
-        log.info(
+        log.debug(
                 "[ClprSubmitBundle] step6 running-hash PASS conn={} computedHash={}",
                 channelId,
                 shortHex(computedHash));
@@ -486,7 +520,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // --- Step 7: Verify acknowledgement metadata correctness ---
         final var newAckedMessageId = metadata.receivedMessageId(); // Remote has now seen up to message 110
         final var oldAckedMessageId = channel.ackedMessageId(); // Previously they have acked up to 105
-        log.info(
+        log.debug(
                 "[ClprSubmitBundle] step7 check: newAckedMsgId={} oldAckedMsgId={} conn.nextMsgId={}",
                 newAckedMessageId,
                 oldAckedMessageId,
@@ -517,7 +551,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // while the feature is off.
         if (clprConfig.endpointManifestEnabled()) {
             final long peerEndpointManifestVersion = metadata.endpointManifestVersion();
-            log.info(
+            log.debug(
                     "[ClprSubmitBundle] peer-reported cache of our manifest version: conn={} peerVersion={}",
                     channelId,
                     peerEndpointManifestVersion);
@@ -532,7 +566,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // bundle (we already advanced ackedMessageId off any replies it contained, and consuming
         // them again here would mismatch against outbound messages that were already deleted).
         int responseIndex = 0;
-        log.info(
+        log.debug(
                 "[ClprSubmitBundle] step8 response pre-scan conn={} oldAckedMsgId={} newAckedMsgId={} "
                         + "newMessages={}",
                 channelId,
@@ -603,7 +637,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     targetMsg == null && replyTargetId > oldAckedMessageId && replyTargetId <= newAckedMessageId;
             if (cleanedByThisBundle
                     || (targetPayload != null && (targetPayload.hasControl() || targetPayload.hasMessageReply()))) {
-                log.info(
+                log.debug(
                         "[ClprSubmitBundle] step8 reply targets one-way or already-cleaned slot conn={} "
                                 + "replyTargetId={} targetKind={}; skipping",
                         channelId,
@@ -629,7 +663,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // --- Step 9: If PAUSED, transition back to ACTIVE ---
         // Ordering valid (and responses present if was PAUSED) — ensure ACTIVE
         if (currentStatus == ClprChannelStatus.PAUSED) {
-            log.info("[ClprSubmitBundle] step9 resuming paused channel conn={}", channelId);
+            log.debug("[ClprSubmitBundle] step9 resuming paused channel conn={}", channelId);
             currentStatus = ClprChannelStatus.ACTIVE;
         }
 
@@ -652,7 +686,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         var lastConfigTimestamp = channel.lastConfigTimestamp();
         final var outbound = new OutboundQueue(messageQueueStore, channelStore, channelId);
         if (isTimestampBefore(lastConfigTimestamp, configTimestamp)) {
-            log.info(
+            log.debug(
                     "[ClprSubmitBundle] enqueueing config update conn={} lastConfigTimestamp={} newConfigTimestamp={}",
                     channelId,
                     lastConfigTimestamp,
@@ -674,7 +708,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         || peerStatus == ClprChannelStatus.DRAINED
                         || peerStatus == ClprChannelStatus.CLOSED)
                 && (currentStatus == ClprChannelStatus.ACTIVE || currentStatus == ClprChannelStatus.PAUSED)) {
-            log.info(
+            log.debug(
                     "[ClprSubmitBundle] peer requested close/drain conn={} peerStatus={} localStatus={} -> CLOSING",
                     channelId,
                     peerStatus,
@@ -691,7 +725,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         for (int i = 0; i < newMessages.size(); i++) {
             final var payload = newMessages.get(i);
             receivedMessageId = expectedFirstId + i;
-            log.info(
+            log.debug(
                     "[ClprSubmitBundle] step10 slot ENTER conn={} newIndex={} receivedMsgId={} kind={} summary={}",
                     channelId,
                     i,
@@ -710,7 +744,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     final var control = payload.controlOrThrow();
                     if (control.hasConfigUpdate()) {
                         final var peerConfig = control.configUpdateOrThrow().configuration();
-                        log.info(
+                        log.debug(
                                 "[ClprSubmitBundle] step10 CONTROL configUpdate conn={} receivedMsgId={} "
                                         + "peerTimestamp={} endpoints={}",
                                 channelId,
@@ -747,7 +781,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     // We must be ACTIVE, CLOSING, or DRAINED (CLOSED channels are rejected at the top of the
                     // handler, and PAUSED channels quit before reaching per-message dispatch)
                     final var dataMsg = payload.messageOrThrow();
-                    log.info(
+                    log.debug(
                             "[ClprSubmitBundle] step10 DATA conn={} receivedMsgId={} connectorId={} "
                                     + "targetApplication={} sender={} messageDataLen={} messageData={}",
                             channelId,
@@ -786,7 +820,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         final var tokenServiceApi = storeFactory.serviceApi(TokenServiceApi.class);
                         final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
                         final var connectorAccount = accountStore.getContractById(connector.connectorContractOrThrow());
-                        log.info(
+                        log.debug(
                                 "[ClprSubmitBundle] step10 DATA connector found conn={} receivedMsgId={} "
                                         + "connectorContract={} inFlight={} accountPresent={} balance={} "
                                         + "worstCaseCharge={}",
@@ -819,7 +853,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     tokenServiceApi);
                             outbound.enqueueReply(
                                     receivedMessageId, ClprMessageReplyStatus.CONNECTOR_UNDERFUNDED, Bytes.EMPTY);
-                            log.info(
+                            log.debug(
                                     "[ClprSubmitBundle] step10 DATA connector underfunded handling complete conn={} "
                                             + "receivedMsgId={} penalty={}",
                                     channelId,
@@ -830,7 +864,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
                         // CEI: debit the connector BEFORE dispatching so that a reentering call
                         // cannot observe unspent balance and dispatch again before the charge lands.
-                        log.info(
+                        log.debug(
                                 "[ClprSubmitBundle] step10 DATA debiting connector conn={} receivedMsgId={} "
                                         + "from={} toPayer={} amount={}",
                                 channelId,
@@ -840,7 +874,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                 worstCaseCharge);
                         tokenServiceApi.transferFromTo(
                                 connectorAccount.accountIdOrThrow(), context.payer(), worstCaseCharge);
-                        log.info(
+                        log.debug(
                                 "[ClprSubmitBundle] step10 DATA connector debit complete conn={} receivedMsgId={}",
                                 channelId,
                                 receivedMessageId);
@@ -862,7 +896,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                         .functionParameters(Bytes.wrap(callData))
                                         .build())
                                 .build();
-                        log.info(
+                        log.debug(
                                 "[ClprSubmitBundle] step10 DATA dispatch prepared conn={} receivedMsgId={} "
                                         + "target={} gas={} callDataLen={} selector={} callData={}",
                                 channelId,
@@ -876,7 +910,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         ClprMessageReplyStatus replyStatus;
                         Bytes responseData = Bytes.EMPTY;
                         try {
-                            log.info(
+                            log.debug(
                                     "[ClprSubmitBundle] step10 DATA dispatch ENTER conn={} receivedMsgId={} "
                                             + "target={} payer={}",
                                     channelId,
@@ -889,7 +923,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     HookDispatchStreamBuilder.class,
                                     NOOP_SIGNED_TX_CUSTOMIZER,
                                     CLPR_DISPATCH_METADATA));
-                            log.info(
+                            log.debug(
                                     "[ClprSubmitBundle] step10 DATA dispatch RETURNED conn={} receivedMsgId={} "
                                             + "target={} status={}",
                                     channelId,
@@ -917,7 +951,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                             } else {
                                 replyStatus = ClprMessageReplyStatus.APPLICATION_ERROR;
                             }
-                            log.info(
+                            log.debug(
                                     "[ClprSubmitBundle] step10 DATA dispatch status mapped conn={} receivedMsgId={} "
                                             + "resultStatus={} replyStatus={} rawEvmResultLen={} rawEvmResult={}",
                                     channelId,
@@ -937,7 +971,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     final var decoded =
                                             TupleType.parse("(bytes)").decode(rawEvmResult.toByteArray());
                                     responseData = Bytes.wrap((byte[]) decoded.get(0));
-                                    log.info(
+                                    log.debug(
                                             "[ClprSubmitBundle] step10 DATA ABI unwrap OK conn={} receivedMsgId={} "
                                                     + "responseDataLen={} responseData={}",
                                             channelId,
@@ -975,7 +1009,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         // store on each enqueue, so any precompile-side bumps from the
                         // dispatched onClprMessage (e.g. PingPong's bounce) are picked up
                         // automatically and our reply lands on the next free slot.
-                        log.info(
+                        log.debug(
                                 "[ClprSubmitBundle] step10 DATA enqueueing reply conn={} receivedMsgId={} "
                                         + "replyStatus={} responseDataLen={} responseData={}",
                                 channelId,
@@ -984,7 +1018,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                 responseData.length(),
                                 shortHex(responseData));
                         outbound.enqueueReply(receivedMessageId, replyStatus, responseData);
-                        log.info(
+                        log.debug(
                                 "[ClprSubmitBundle] step10 DATA reply enqueued conn={} receivedMsgId={} "
                                         + "nextOutboundMsgId={} outboundRH={}",
                                 channelId,
@@ -997,7 +1031,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     // if PAUSED. In any other state, we should handle these replies.
                     final var reply = payload.messageReplyOrThrow();
                     final var replyTargetId = reply.messageId();
-                    log.info(
+                    log.debug(
                             "[ClprSubmitBundle] step10 MESSAGE_REPLY conn={} receivedMsgId={} replyTargetId={} "
                                     + "status={} replyDataLen={} replyData={}",
                             channelId,
@@ -1009,7 +1043,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
                     final var originalMsg = messageQueueStore.getMessage(channelId, replyTargetId);
                     messageQueueStore.remove(channelId, replyTargetId);
-                    log.info(
+                    log.debug(
                             "[ClprSubmitBundle] step10 MESSAGE_REPLY original lookup conn={} replyTargetId={} "
                                     + "originalPresent={}",
                             channelId,
@@ -1062,7 +1096,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                         .functionParameters(Bytes.wrap(callData))
                                         .build())
                                 .build();
-                        log.info(
+                        log.debug(
                                 "[ClprSubmitBundle] dispatching onClprResponse to sender={} replyTargetId={} "
                                         + "status={} replyDataLen={} callDataLen={} gas={} callData={}",
                                 senderAddress,
@@ -1079,7 +1113,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     HookDispatchStreamBuilder.class,
                                     NOOP_SIGNED_TX_CUSTOMIZER,
                                     CLPR_DISPATCH_METADATA));
-                            log.info(
+                            log.debug(
                                     "[ClprSubmitBundle] onClprResponse dispatch SUCCESS to sender={} replyTargetId={}",
                                     senderAddress,
                                     replyTargetId);
@@ -1096,7 +1130,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         // so any precompile-side bumps from the dispatched onClprResponse
                         // (e.g. PingPong's bounce) are observed automatically on the next enqueue.
                     } else {
-                        log.info(
+                        log.debug(
                                 "[ClprSubmitBundle] skipping onClprResponse dispatch — originating msg has no sender "
                                         + "(replyTargetId={} status={})",
                                 replyTargetId,
@@ -1122,7 +1156,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                     .copyBuilder()
                                     .inFlightMessageCount(current - 1)
                                     .build());
-                            log.info(
+                            log.debug(
                                     "[ClprSubmitBundle] step10 MESSAGE_REPLY decremented source connector in-flight "
                                             + "conn={} connectorId={} {}->{}",
                                     channelId,
@@ -1164,7 +1198,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     // Redacted slot — all oneof fields unset. The verifier attested to this slot existing,
                     // so we must acknowledge it. Enqueue a REDACTED reply so the remote peer knows we saw
                     // the slot but cannot act on it (the contents were intentionally withheld).
-                    log.info(
+                    log.debug(
                             "[ClprSubmitBundle] step10 REDACTED conn={} receivedMsgId={} -> REDACTED reply",
                             channelId,
                             receivedMessageId);
@@ -1264,7 +1298,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // Used for the DRAINED → CLOSED transition, which requires the full queue to be empty.
         final var outboundDrained = outbound.nextMessageId() == 0 || newAckedMessageId >= outbound.nextMessageId() - 1;
 
-        log.info(
+        log.debug(
                 "[ClprSubmitBundle] step11 drain check conn={} currentStatus={} peerStatus={} "
                         + "outboundNextMsgId={} newAckedMsgId={} dataMessagesDrained={} outboundDrained={}",
                 channelId,
@@ -1305,7 +1339,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 .receivedRunningHash(computedHash)
                 .lastConfigTimestamp(lastConfigTimestamp);
         final var updatedChannel = updatedBuilder.build();
-        log.info(
+        log.debug(
                 "[ClprSubmitBundle] final channel update conn={} status={} ackedMsgId={} receivedMsgId={} "
                         + "nextMsgId={} receivedRH={} sentRH={} lastConfigTimestamp={} peerConfigTimestamp={} ",
                 channelId,
@@ -1326,7 +1360,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // any committed-CLOSED channel on its next pass, so the worst case
         // is one extra state lookup per tick until that pass runs.
         if (currentStatus == ClprChannelStatus.CLOSED) {
-            log.info("[ClprSubmitBundle] notifying lifecycle channel closed conn={}", channelId);
+            log.debug("[ClprSubmitBundle] notifying lifecycle channel closed conn={}", channelId);
             channelLifecycle.onChannelClosed(channelId);
         }
     }
@@ -1667,7 +1701,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     .nextMessageId(assignedId + 1)
                     .sentRunningHash(newHash)
                     .build());
-            log.info(
+            log.debug(
                     "[ClprSubmitBundle] outbound enqueue conn={} assignedMsgId={} kind={} prevHash={} newHash={} "
                             + "nextMsgId={}",
                     channelId,
@@ -1681,7 +1715,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         /** Builds and enqueues a reply for the given inbound message. */
         void enqueueReply(
                 final long inboundMessageId, @NonNull final ClprMessageReplyStatus status, @NonNull final Bytes data) {
-            log.info(
+            log.debug(
                     "[ClprSubmitBundle] outbound enqueueReply conn={} inboundMsgId={} status={} dataLen={} data={}",
                     channelId,
                     inboundMessageId,

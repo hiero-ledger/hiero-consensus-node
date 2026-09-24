@@ -12,6 +12,7 @@ import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.pars
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater.END_OF_PERIOD_MEMO;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.fromStakingInfo;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.lastInstantOfPreviousPeriodFor;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.dispatchSynthNodeRewards;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
@@ -44,6 +45,7 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
@@ -350,16 +352,11 @@ public class SystemTransactions {
                                 .build())
                         .build(),
                 accountsConfig.feeCollectionAccount());
-        // Create CLPR staking account
-        final var clprConfig = config.getConfigData(ClprConfig.class);
-        systemContext.dispatchCreation(
-                b -> b.memo("CLPR staking account creation record")
-                        .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder()
-                                .key(IMMUTABILITY_SENTINEL_KEY)
-                                .autoRenewPeriod(systemAutoRenewPeriod)
-                                .build())
-                        .build(),
-                clprConfig.stakingAccount());
+        // Only create the CLPR staking account if CLPR is enabled; otherwise the
+        // first round after it is enabled creates it (see maybeCreateClprStakingAccount())
+        if (config.getConfigData(ClprConfig.class).enabled()) {
+            dispatchClprStakingAccountCreation(systemContext, systemAutoRenewPeriod, config);
+        }
         // Create the miscellaneous accounts
         final var hederaConfig = config.getConfigData(HederaConfig.class);
         for (long i : LongStream.range(FIRST_MISC_ACCOUNT_NUM, hederaConfig.firstUserEntity())
@@ -648,6 +645,54 @@ public class SystemTransactions {
                 now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
 
         dispatchSynthNodeRewards(systemContext, rewardAmounts);
+    }
+
+    /**
+     * Creates the CLPR staking account if CLPR is enabled and the account does not exist yet.
+     *
+     * <p>Genesis only creates this account when CLPR is already enabled, and networks that predate CLPR
+     * never run genesis setup. Since {@code clpr.enabled} can change with any network properties update,
+     * this is checked every round so the account exists before any CLPR handler transfers stake into it.
+     *
+     * @param state the current state
+     * @param now the consensus time to use for the creation
+     * @return whether the creation was dispatched
+     */
+    public boolean maybeCreateClprStakingAccount(@NonNull final State state, @NonNull final Instant now) {
+        requireNonNull(state);
+        requireNonNull(now);
+        final var config = configProvider.getConfiguration();
+        final var clprConfig = config.getConfigData(ClprConfig.class);
+        if (!clprConfig.enabled()) {
+            return false;
+        }
+        final var stakingAccountId = idFactory.newAccountId(clprConfig.stakingAccount());
+        final var accounts = state.getReadableStates(TokenService.NAME).<AccountID, Account>get(ACCOUNTS_STATE_ID);
+        if (accounts.get(stakingAccountId) != null) {
+            return false;
+        }
+        log.info("Creating CLPR staking account {} since CLPR is enabled", stakingAccountId);
+        final var systemContext = newSystemContext(
+                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
+        dispatchClprStakingAccountCreation(
+                systemContext,
+                new Duration(config.getConfigData(LedgerConfig.class).autoRenewPeriodMaxDuration()),
+                config);
+        return true;
+    }
+
+    private static void dispatchClprStakingAccountCreation(
+            @NonNull final SystemContext systemContext,
+            @NonNull final Duration autoRenewPeriod,
+            @NonNull final Configuration config) {
+        systemContext.dispatchCreation(
+                b -> b.memo("CLPR staking account creation record")
+                        .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder()
+                                .key(IMMUTABILITY_SENTINEL_KEY)
+                                .autoRenewPeriod(autoRenewPeriod)
+                                .build())
+                        .build(),
+                config.getConfigData(ClprConfig.class).stakingAccount());
     }
 
     public boolean dispatchTransplantUpdates(final State state, final Instant now, final long currentRoundNum) {

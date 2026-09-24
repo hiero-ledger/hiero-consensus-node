@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -12,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -27,6 +31,8 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -41,6 +47,7 @@ import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.app.service.token.NodeRewardActivity;
 import com.hedera.node.app.service.token.NodeRewardAmounts;
 import com.hedera.node.app.service.token.NodeRewardGroups;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -65,10 +72,12 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -79,6 +88,9 @@ class SystemTransactionsTest {
             AccountID.newBuilder().accountNum(3L).build();
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().accountNum(800L).build();
+    private static final long CLPR_STAKING_ACCOUNT_NUM = 803L;
+    private static final AccountID CLPR_STAKING_ACCOUNT_ID =
+            AccountID.newBuilder().accountNum(CLPR_STAKING_ACCOUNT_NUM).build();
 
     @Mock(strictness = Mock.Strictness.LENIENT)
     private InitTrigger initTrigger;
@@ -332,6 +344,65 @@ class SystemTransactionsTest {
         spySubject.dispatchNodeRewards(state, NOW, rewardAmounts);
 
         verify(mockSystemContext).dispatchAdmin(any());
+    }
+
+    @Test
+    void clprStakingAccountIsNotCreatedWhileClprIsDisabled() {
+        assertFalse(subject.maybeCreateClprStakingAccount(state, NOW));
+
+        verifyNoInteractions(state);
+    }
+
+    @Test
+    void clprStakingAccountIsNotRecreatedWhenPresent() {
+        givenClprEnabled();
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+        final var spySubject = spy(subject);
+
+        assertFalse(spySubject.maybeCreateClprStakingAccount(state, NOW));
+
+        verify(spySubject, never()).newSystemContext(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void clprStakingAccountIsCreatedAtTheGivenTimeWhenClprIsEnabledAndAccountIsMissing() {
+        givenClprEnabled();
+        givenAccountsState();
+        final var systemContext = mock(SystemContext.class);
+        final var spySubject = spy(subject);
+        doReturn(systemContext).when(spySubject).newSystemContext(any(), any(), any(), any(), any());
+
+        assertTrue(spySubject.maybeCreateClprStakingAccount(state, NOW));
+
+        verify(spySubject)
+                .newSystemContext(
+                        eq(NOW),
+                        eq(state),
+                        any(),
+                        eq(SystemTransactions.UseReservedConsensusTimes.NO),
+                        eq(SystemTransactions.TriggerStakePeriodSideEffects.YES));
+        final var body = capturedClprStakingAccountCreation(systemContext);
+        assertEquals("CLPR staking account creation record", body.memo());
+        assertEquals(
+                IMMUTABILITY_SENTINEL_KEY, body.cryptoCreateAccountOrThrow().key());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void genesisSetupSkipsClprStakingAccountWhileClprIsDisabled() {
+        final var systemContext = doGenesisSetupWithClprEnabled(false);
+
+        verify(systemContext, never()).dispatchCreation(any(Consumer.class), eq(CLPR_STAKING_ACCOUNT_NUM));
+    }
+
+    @Test
+    void genesisSetupCreatesClprStakingAccountWhenClprIsEnabled() {
+        final var systemContext = doGenesisSetupWithClprEnabled(true);
+
+        final var body = capturedClprStakingAccountCreation(systemContext);
+        assertEquals("CLPR staking account creation record", body.memo());
+        assertEquals(
+                IMMUTABILITY_SENTINEL_KEY, body.cryptoCreateAccountOrThrow().key());
     }
 
     @Test
@@ -664,5 +735,49 @@ class SystemTransactionsTest {
         assertEquals(123L, method.invoke(subject));
         verify(blockStreamManager).blockNo();
         verify(blockRecordManager, never()).blockNo();
+    }
+
+    private void givenClprEnabled() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("clpr.enabled", true)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        given(entityIdFactory.newAccountId(CLPR_STAKING_ACCOUNT_NUM)).willReturn(CLPR_STAKING_ACCOUNT_ID);
+    }
+
+    @SuppressWarnings("unchecked")
+    private ReadableKVState<AccountID, Account> givenAccountsState() {
+        final var readableStates = mock(ReadableStates.class);
+        final ReadableKVState<AccountID, Account> accounts = mock(ReadableKVState.class);
+        given(state.getReadableStates(TokenService.NAME)).willReturn(readableStates);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(accounts);
+        return accounts;
+    }
+
+    private SystemContext doGenesisSetupWithClprEnabled(final boolean clprEnabled) {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("clpr.enabled", clprEnabled)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        given(startupNetworks.genesisNetworkOrThrow(any())).willThrow(new IllegalStateException("No genesis network"));
+        given(state.getReadableStates(any())).willReturn(mock(ReadableStates.class));
+        final var systemContext = mock(SystemContext.class);
+        final var spySubject = spy(subject);
+        doReturn(systemContext).when(spySubject).newSystemContext(any(), any(), any(), any(), any());
+
+        spySubject.doGenesisSetup(NOW, state, stateChangeStreaming);
+
+        return systemContext;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static TransactionBody capturedClprStakingAccountCreation(@NonNull final SystemContext systemContext) {
+        final ArgumentCaptor<Consumer<TransactionBody.Builder>> spec = ArgumentCaptor.forClass(Consumer.class);
+        verify(systemContext).dispatchCreation(spec.capture(), eq(CLPR_STAKING_ACCOUNT_NUM));
+        final var builder = TransactionBody.newBuilder();
+        spec.getValue().accept(builder);
+        return builder.build();
     }
 }

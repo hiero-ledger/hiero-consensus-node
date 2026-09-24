@@ -12,18 +12,18 @@ others are node-local.
 
 ### Top-level
 
-|        Key        |     Default      | Network? |                                                  Purpose                                                  |
-|-------------------|------------------|----------|-----------------------------------------------------------------------------------------------------------|
-| `enabled`         | `true`           | yes      | Master flag. When `false`, CLPR APIs are inert and CLPR-related precompiles halt with `CLPR_NOT_ENABLED`. |
-| `chainId`         | `hiero:localnet` | yes      | CAIP-2 chain ID seeded into `LEDGER_CONFIGURATION` at genesis.                                            |
-| `protocolVersion` | `1`              | yes      | CLPR protocol version seeded into `LEDGER_CONFIGURATION`.                                                 |
+|        Key        |     Default      | Network? |                                                 Purpose                                                  |
+|-------------------|------------------|----------|----------------------------------------------------------------------------------------------------------|
+| `enabled`         | `false`          | yes      | Master flag. When `false`, CLPR APIs are inert and CLPR system contracts behave as nonexistent accounts. |
+| `chainId`         | `hiero:localnet` | yes      | CAIP-2 chain ID seeded into `LEDGER_CONFIGURATION` at genesis.                                           |
+| `protocolVersion` | `1`              | yes      | CLPR protocol version seeded into `LEDGER_CONFIGURATION`.                                                |
 
 ### Stake / slashing economics (consumed by `ClprSlashingUtils`)
 
 |            Key            |            Default            | Network? |                                  Purpose                                   |
 |---------------------------|-------------------------------|----------|----------------------------------------------------------------------------|
 | `minLockedStake`          | `100 000 000` tinybars        | yes      | Required stake for `completeConnector`; transferred to `stakingAccount`.   |
-| `stakingAccount`          | `0.0.803` (account num `803`) | yes      | Custodian for locked connector stake.                                      |
+| `stakingAccount`          | `0.0.803` (account num `803`) | yes      | Custodian for locked connector stake; created once CLPR is enabled.        |
 | `slashBasePenalty`        | `10 000 000` tinybars         | yes      | Base slash on first offence.                                               |
 | `slashMultiplier`         | `2`                           | yes      | Geometric escalation factor per repeat offence.                            |
 | `slashBanThreshold`       | `5`                           | yes      | Cumulative offences after which a connector is banned.                     |
@@ -70,6 +70,18 @@ others are node-local.
 > `clpr.enabled` defaults to `false`, so a fresh node keeps CLPR dormant. Set
 > `clpr.enabled=true` explicitly to activate it after the `LEDGER_CONFIGURATION`
 > singleton exists.
+
+Bundle submissions use the dedicated `ClprBundles` throttle bucket: one bundle per
+second with a one-second burst window. Node payers are not exempt from this limit.
+The aggregate worst-case message gas in one bundle must fit
+`contracts.maxGasPerTransaction` (15M by default); verifier execution has its own
+`clpr.verifierGasLimit` budget. Genesis therefore advertises one message per bundle
+at 15M gas per message. Larger batches require a correspondingly lower
+`maxGasPerMessage`. Configuration updates that exceed the aggregate budget are
+rejected, and bundle handling independently checks the actual message count before
+executing any callbacks. Existing CLPR configurations are preserved during migration;
+operators must lower their advertised message count or per-message gas before
+sending batches that exceed the new budget.
 
 ## Throttles inside `ClprLedgerConfiguration`
 

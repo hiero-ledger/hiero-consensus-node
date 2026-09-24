@@ -9,11 +9,16 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_RUNNING_HASH_MISMATCH;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.CONNECTORS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.MESSAGE_QUEUE_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.*;
@@ -29,6 +34,7 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
@@ -74,12 +80,16 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.key.KeyVerifier;
+import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.WritableStates;
@@ -184,6 +194,24 @@ class ClprSubmitBundleHandlerTest {
     private static final AccountID ENDPOINT_ACCOUNT =
             AccountID.newBuilder().accountNum(ENDPOINT_NODE_ID).build();
 
+    private static final Key ENDPOINT_ADMIN_KEY =
+            Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build();
+
+    @Mock
+    private PreHandleContext preHandleContext;
+
+    @Mock
+    private HandleContext.SavepointStack savepointStack;
+
+    @Mock
+    private StreamBuilder streamBuilder;
+
+    @Mock
+    private KeyVerifier keyVerifier;
+
+    @Mock
+    private SignatureVerification adminVerification;
+
     private ClprSubmitBundleHandler subject;
     private WritableChannelStore channelStore;
     private WritableConnectorStore connectorStore;
@@ -246,6 +274,96 @@ class ClprSubmitBundleHandlerTest {
         given(pureChecksContext.body())
                 .willReturn(submitBundleTxn(CHANNEL_ID, Bytes.wrap(new byte[1]), ENDPOINT_NODE_ID));
         subject.pureChecks(pureChecksContext);
+    }
+
+    @Test
+    void preHandleRequiresAdminSignatureForUserSubmission() throws PreCheckException {
+        given(preHandleContext.body()).willReturn(validSingleDataBundle());
+        given(preHandleContext.createStore(ReadableNodeStore.class)).willReturn(nodeStore);
+        given(nodeStore.get(ENDPOINT_NODE_ID))
+                .willReturn(Node.newBuilder()
+                        .nodeId(ENDPOINT_NODE_ID)
+                        .accountId(ENDPOINT_ACCOUNT)
+                        .adminKey(ENDPOINT_ADMIN_KEY)
+                        .build());
+
+        subject.preHandle(preHandleContext);
+
+        verify(preHandleContext).requireKeyOrThrow(ENDPOINT_ADMIN_KEY, INVALID_NODE_ID);
+    }
+
+    @Test
+    void preHandleExpandsOptionalAdminSignatureForSelfSubmission() throws PreCheckException {
+        given(preHandleContext.body()).willReturn(validSingleDataBundle());
+        given(preHandleContext.createStore(ReadableNodeStore.class)).willReturn(nodeStore);
+        given(preHandleContext.creatorInfo()).willReturn(creatorInfo);
+        given(creatorInfo.nodeId()).willReturn(ENDPOINT_NODE_ID);
+        given(preHandleContext.payer()).willReturn(ENDPOINT_ACCOUNT);
+        given(nodeStore.get(ENDPOINT_NODE_ID))
+                .willReturn(Node.newBuilder()
+                        .nodeId(ENDPOINT_NODE_ID)
+                        .accountId(ENDPOINT_ACCOUNT)
+                        .adminKey(ENDPOINT_ADMIN_KEY)
+                        .build());
+
+        subject.preHandle(preHandleContext);
+
+        verify(preHandleContext).optionalKey(ENDPOINT_ADMIN_KEY);
+        verify(preHandleContext, never()).requireKeyOrThrow(any(Key.class), any());
+    }
+
+    @Test
+    void rejectsUnsignedUserSubmissionEvenWhenEndpointMatchesCreatorAndPayer() {
+        setupHandleContext(validSingleDataBundle(), true);
+        given(handleContext.payer()).willReturn(ENDPOINT_ACCOUNT);
+        given(adminVerification.passed()).willReturn(false);
+
+        assertThatThrownBy(() -> subject.handle(handleContext)).has(responseCode(INVALID_SIGNATURE));
+        verify(verifierFactory, never()).getVerifier(any());
+    }
+
+    @Test
+    void rejectsNodeSubmissionNamingAnotherEndpoint() {
+        setupHandleContext(validSingleDataBundle(), true);
+        given(streamBuilder.category()).willReturn(NODE);
+        given(creatorInfo.nodeId()).willReturn(ENDPOINT_NODE_ID + 1);
+
+        assertThatThrownBy(() -> subject.handle(handleContext)).has(responseCode(INVALID_NODE_ID));
+        verify(verifierFactory, never()).getVerifier(any());
+    }
+
+    @Test
+    void rejectsNodeSubmissionWithForeignPayer() {
+        setupHandleContext(validSingleDataBundle(), true);
+        given(streamBuilder.category()).willReturn(NODE);
+
+        assertThatThrownBy(() -> subject.handle(handleContext)).has(responseCode(INVALID_NODE_ID));
+        verify(verifierFactory, never()).getVerifier(any());
+    }
+
+    @Test
+    void authenticatedNodeSubmissionDoesNotNeedAdminSignature() {
+        setupHandleContext(validSingleDataBundle(), true);
+        given(streamBuilder.category()).willReturn(NODE);
+        given(handleContext.payer()).willReturn(ENDPOINT_ACCOUNT);
+        // Passing authorization reaches channel lookup; no channel was installed.
+        assertThatThrownBy(() -> subject.handle(handleContext)).has(responseCode(CLPR_CHANNEL_NOT_FOUND));
+        verify(keyVerifier, never()).verificationFor(any(Key.class));
+    }
+
+    @Test
+    void rejectsBundleExceedingAggregateGasBudgetBeforeDispatchingMessages() {
+        final var txn = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload(), dataPayload()));
+        setupHandleContext(txn, true);
+        putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
+        given(handleContext.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("clpr.enabled", true)
+                        .withValue("contracts.maxGasPerTransaction", 15_000_000L)
+                        .getOrCreateConfig());
+
+        assertThatThrownBy(() -> subject.handle(handleContext)).has(responseCode(MAX_GAS_LIMIT_EXCEEDED));
+        verify(handleContext, never()).dispatch(any());
     }
 
     // ========== handle tests ==========
@@ -3077,6 +3195,7 @@ class ClprSubmitBundleHandlerTest {
     private void setupHandleContext(@NonNull final TransactionBody txn, final boolean enabled) {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", enabled)
+                .withValue("contracts.maxGasPerTransaction", 1_500_000_000L)
                 .withValue("clpr.slashBasePenalty", "10000000")
                 .withValue("clpr.slashMultiplier", "2")
                 .withValue("clpr.slashBanThreshold", "5")
@@ -3087,12 +3206,15 @@ class ClprSubmitBundleHandlerTest {
                 .getOrCreateConfig();
         lenient().when(handleContext.body()).thenReturn(txn);
         lenient().when(handleContext.payer()).thenReturn(PAYER_ID);
+        lenient().when(handleContext.savepointStack()).thenReturn(savepointStack);
+        lenient().when(savepointStack.getBaseBuilder(StreamBuilder.class)).thenReturn(streamBuilder);
+        lenient().when(streamBuilder.category()).thenReturn(USER);
+        lenient().when(handleContext.keyVerifier()).thenReturn(keyVerifier);
+        lenient().when(keyVerifier.verificationFor(ENDPOINT_ADMIN_KEY)).thenReturn(adminVerification);
+        lenient().when(adminVerification.passed()).thenReturn(true);
         lenient().when(handleContext.configuration()).thenReturn(config);
         lenient().when(handleContext.storeFactory()).thenReturn(storeFactory);
         lenient().when(handleContext.creatorInfo()).thenReturn(creatorInfo);
-        // Default to self-submitted (creatorNodeId == endpointNodeId): the handler skips
-        // endpoint-signature verification for self-submitted bundles. Tests that need to
-        // exercise the peer-submitted signature path override this after setupHandleContext.
         lenient().when(creatorInfo.nodeId()).thenReturn(ENDPOINT_NODE_ID);
         lenient().when(storeFactory.writableStore(WritableChannelStore.class)).thenReturn(channelStore);
         lenient()
@@ -3109,6 +3231,7 @@ class ClprSubmitBundleHandlerTest {
         final var endpointNodeObj = Node.newBuilder()
                 .nodeId(ENDPOINT_NODE_ID)
                 .accountId(ENDPOINT_ACCOUNT)
+                .adminKey(ENDPOINT_ADMIN_KEY)
                 .build();
         lenient().when(storeFactory.readableStore(ReadableNodeStore.class)).thenReturn(nodeStore);
         lenient().when(nodeStore.get(ENDPOINT_NODE_ID)).thenReturn(endpointNodeObj);

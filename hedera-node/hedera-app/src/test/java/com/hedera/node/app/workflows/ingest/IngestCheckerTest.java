@@ -446,7 +446,7 @@ class IngestCheckerTest extends AppTestBase {
                 mode = EnumSource.Mode.MATCH_ALL,
                 names = {"CLPR_.*", "^(?!CLPR_GET_).*$"})
         @DisplayName("Every disabled CLPR transaction, including internal endpoint publication, is rejected at ingest")
-        void disabledClprTransactionLogsErrorAndIsRejected(final HederaFunctionality function)
+        void disabledClprTransactionIsRejectedWithoutErrorLogging(final HederaFunctionality function)
                 throws PreCheckException {
             final var clprTransactionInfo = new TransactionInfo(
                     signedTx, txBody, MOCK_SIGNATURE_MAP, signedTx.bodyBytes(), function, serializedTx);
@@ -463,9 +463,7 @@ class IngestCheckerTest extends AppTestBase {
                                 state, serializedTx, disabledClprConfig, new IngestChecker.Result()))
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(CLPR_NOT_ENABLED));
-                assertThat(logCaptor.errorLogs())
-                        .anyMatch(message -> message.contains("Cannot submit CLPR transaction " + function)
-                                && message.contains("clpr.enabled is false"));
+                assertThat(logCaptor.errorLogs()).isEmpty();
             } finally {
                 logCaptor.stopCapture();
             }
