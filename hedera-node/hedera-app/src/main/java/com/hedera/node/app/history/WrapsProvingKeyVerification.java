@@ -348,7 +348,13 @@ public class WrapsProvingKeyVerification {
                                         "Downloaded WRAPS proving key hash mismatch: expected={}, actual={}",
                                         expectedHash,
                                         downloadedHash);
-                                scheduleRetry(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval, useSha256);
+                                scheduleRetry(
+                                        provingKeyPath,
+                                        expectedHash,
+                                        downloadUrl,
+                                        downloader,
+                                        retryInterval,
+                                        useSha256);
                                 return;
                             }
                             final var outcome = tryExtractTarGz(provingKeyPath, expectedHash.toHex());
@@ -357,14 +363,21 @@ public class WrapsProvingKeyVerification {
                                         "Successfully downloaded and verified WRAPS proving key (hash={})",
                                         expectedHash);
                             } else if (outcome == InstallOutcome.RETRYABLE) {
-                                scheduleRetry(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval, useSha256);
+                                scheduleRetry(
+                                        provingKeyPath,
+                                        expectedHash,
+                                        downloadUrl,
+                                        downloader,
+                                        retryInterval,
+                                        useSha256);
                             }
                         } catch (final Throwable t) {
                             log.error(
                                     "Failed to initiate async download of WRAPS proving key (from URL {}):",
                                     downloadUrl,
                                     t);
-                            scheduleRetry(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval, useSha256);
+                            scheduleRetry(
+                                    provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval, useSha256);
                         } finally {
                             downloadInFlight.set(false);
                         }

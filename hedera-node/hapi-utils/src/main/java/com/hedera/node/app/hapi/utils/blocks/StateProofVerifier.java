@@ -65,7 +65,8 @@ public final class StateProofVerifier {
      * @throws IllegalStateException if the paths are structurally invalid
      */
     @NonNull
-    public static byte[] computeBlockRootHash(@NonNull final StateProof stateProof, @NonNull final MessageDigest digest) {
+    public static byte[] computeBlockRootHash(
+            @NonNull final StateProof stateProof, @NonNull final MessageDigest digest) {
         requireNonNull(stateProof, "stateProof must not be null");
         requireNonNull(digest, "digest must not be null");
         final var rootHash = computeRootHash(stateProof.paths(), digest);

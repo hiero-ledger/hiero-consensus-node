@@ -161,10 +161,8 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
         }
 
         try {
-            final var useSha256 = handleContext
-                    .configuration()
-                    .getConfigData(TssConfig.class)
-                    .useSha256();
+            final var useSha256 =
+                    handleContext.configuration().getConfigData(TssConfig.class).useSha256();
             final var updatedTopic =
                     updateRunningHashAndSequenceNumber(txn, topic, handleContext.consensusNow(), useSha256);
 

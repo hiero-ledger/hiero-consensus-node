@@ -153,8 +153,7 @@ public final class RcdFileBlockHashReplay {
                     DEFAULT_MAX_SIDECAR_SIZE_BYTES);
 
             // Compute per-block hashes (SHA-384 default, matching this file's own hashInternalNode() calls below)
-            final var entry =
-                    WrappedRecordFileBlockHashesCalculator.compute(input, CommonUtils::sha384DigestOrThrow);
+            final var entry = WrappedRecordFileBlockHashesCalculator.compute(input, CommonUtils::sha384DigestOrThrow);
             entriesByBlock.put(blockNumber, entry);
 
             // Compute block root hash via Merkle tree (independent of production code)

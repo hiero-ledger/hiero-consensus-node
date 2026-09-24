@@ -58,8 +58,8 @@ public final class WrappedRecordFileBlockHashesCalculator {
 
         final var firstItem = in.recordStreamItems().getFirst();
         final var firstConsensusTimestamp = requireNonNull(firstItem.record()).consensusTimestampOrThrow();
-        final Bytes consensusTimestampHash = BlockImplUtils.hashLeaf(
-                digestFactory.get(), Timestamp.PROTOBUF.toBytes(firstConsensusTimestamp));
+        final Bytes consensusTimestampHash =
+                BlockImplUtils.hashLeaf(digestFactory.get(), Timestamp.PROTOBUF.toBytes(firstConsensusTimestamp));
 
         final var sidecarBundles =
                 WrappedRecordSidecarUtils.buildSidecarBundles(in.sidecarRecords(), in.maxSidecarSizeInBytes());
@@ -84,7 +84,8 @@ public final class WrappedRecordFileBlockHashesCalculator {
                 .hapiProtoVersion(in.hapiProtoVersion())
                 .number(in.blockNumber())
                 .blockTimestamp(firstConsensusTimestamp)
-                .hashAlgorithm(digest.getDigestLength() == 32 ? BlockHashAlgorithm.SHA2_256 : BlockHashAlgorithm.SHA2_384);
+                .hashAlgorithm(
+                        digest.getDigestLength() == 32 ? BlockHashAlgorithm.SHA2_256 : BlockHashAlgorithm.SHA2_384);
 
         final var headerItem = BlockItem.newBuilder().blockHeader(header).build();
         final var recordFileBlockItem =

@@ -219,10 +219,10 @@ class MigrationRootHashVoteHandlerTest {
                 RosterEntry.newBuilder().nodeId(NODE_ID).weight(20L).build(),
                 RosterEntry.newBuilder().nodeId(1L).weight(10L).build()));
 
-                lenient().when(context.configuration()).thenReturn(configuration);
+        lenient().when(context.configuration()).thenReturn(configuration);
         lenient().when(configuration.getConfigData(TssConfig.class)).thenReturn(tssConfig);
         lenient().when(tssConfig.useSha256()).thenReturn(true);
-given(context.storeFactory()).willReturn(storeFactory);
+        given(context.storeFactory()).willReturn(storeFactory);
         given(context.body()).willReturn(body);
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(nodeInfo.nodeId()).willReturn(NODE_ID);
@@ -426,10 +426,10 @@ given(context.storeFactory()).willReturn(storeFactory);
                 RosterEntry.newBuilder().nodeId(1L).weight(1L).build(),
                 RosterEntry.newBuilder().nodeId(2L).weight(1L).build()));
 
-                lenient().when(context.configuration()).thenReturn(configuration);
+        lenient().when(context.configuration()).thenReturn(configuration);
         lenient().when(configuration.getConfigData(TssConfig.class)).thenReturn(tssConfig);
         lenient().when(tssConfig.useSha256()).thenReturn(true);
-given(context.storeFactory()).willReturn(storeFactory);
+        given(context.storeFactory()).willReturn(storeFactory);
         given(context.body()).willReturn(body);
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(nodeInfo.nodeId()).willReturn(NODE_ID);
@@ -600,10 +600,10 @@ given(context.storeFactory()).willReturn(storeFactory);
         final var activeRoster = new Roster(
                 List.of(RosterEntry.newBuilder().nodeId(NODE_ID).weight(1L).build()));
 
-                lenient().when(context.configuration()).thenReturn(configuration);
+        lenient().when(context.configuration()).thenReturn(configuration);
         lenient().when(configuration.getConfigData(TssConfig.class)).thenReturn(tssConfig);
         lenient().when(tssConfig.useSha256()).thenReturn(true);
-given(context.storeFactory()).willReturn(storeFactory);
+        given(context.storeFactory()).willReturn(storeFactory);
         given(context.body()).willReturn(body);
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(nodeInfo.nodeId()).willReturn(NODE_ID);
