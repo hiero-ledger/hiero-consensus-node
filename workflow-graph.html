@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Hiero Consensus Node — GitHub Workflow Dependencies</title>
+<script src="https://unpkg.com/vis-network@9.1.9/dist/vis-network.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #ffffff; color: #24292f; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  h1 { padding: 12px 20px; font-size: 15px; font-weight: 600; background: #f6f8fa; border-bottom: 1px solid #d1d9e0; flex-shrink: 0; }
+  #legend { display: flex; gap: 20px; padding: 8px 20px; background: #f6f8fa; border-bottom: 1px solid #d1d9e0; flex-wrap: wrap; flex-shrink: 0; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #24292f; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  #controls { padding: 8px 20px; background: #f6f8fa; border-bottom: 1px solid #d1d9e0; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; flex-shrink: 0; }
+  #controls label { font-size: 12px; color: #57606a; }
+  #controls select, #controls input { background: #ffffff; border: 1px solid #d1d9e0; color: #24292f; padding: 4px 8px; border-radius: 6px; font-size: 12px; }
+  #wrapper { display: flex; flex: 1; min-height: 0; }
+  #network { flex: 1; min-width: 0; background: #ffffff; position: relative; }
+  #zoom-controls {
+    position: absolute; bottom: 16px; right: 16px; z-index: 10;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  #zoom-controls button {
+    width: 32px; height: 32px; background: #ffffff; border: 1px solid #d1d9e0;
+    border-radius: 6px; font-size: 18px; line-height: 1; cursor: pointer;
+    color: #24292f; box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    display: flex; align-items: center; justify-content: center;
+  }
+  #zoom-controls button:hover { background: #f6f8fa; border-color: #0969da; color: #0969da; }
+  #tooltip { position: fixed; background: #ffffff; border: 1px solid #d1d9e0; border-radius: 8px; padding: 10px 14px; font-size: 12px; pointer-events: none; display: none; max-width: 280px; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  #tooltip .tt-name { font-weight: 600; color: #0969da; margin-bottom: 4px; }
+  #tooltip .tt-trigger { color: #57606a; }
+
+  /* ── Sidebar ── */
+  #sidebar {
+    width: 320px; flex-shrink: 0;
+    background: #ffffff; border-left: 1px solid #d1d9e0;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  #sb-empty-state {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 32px 24px; text-align: center; color: #57606a;
+    gap: 8px;
+  }
+  #sb-empty-state .es-icon { font-size: 28px; opacity: 0.4; }
+  #sb-empty-state .es-hint { font-size: 13px; line-height: 1.5; }
+  #sb-empty-state .es-stats { font-size: 11px; color: #8c959f; margin-top: 8px; }
+  #sb-header {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 12px 14px; border-bottom: 1px solid #d1d9e0;
+    background: #f6f8fa; flex-shrink: 0;
+  }
+  #sb-title { font-size: 13px; font-weight: 600; color: #24292f; flex: 1; line-height: 1.4; }
+  #sb-badge {
+    font-size: 10px; font-weight: 600; padding: 2px 7px;
+    border-radius: 20px; white-space: nowrap; flex-shrink: 0; margin-top: 2px;
+  }
+  #sb-back {
+    background: none; border: none; cursor: pointer; color: #57606a;
+    font-size: 15px; line-height: 1; padding: 0 4px 0 0; flex-shrink: 0;
+    display: none;
+  }
+  #sb-back:hover { color: #24292f; }
+  #sb-close {
+    background: none; border: none; cursor: pointer; color: #57606a;
+    font-size: 18px; line-height: 1; padding: 0 0 0 4px; flex-shrink: 0;
+  }
+  #sb-close:hover { color: #24292f; }
+  #sb-gh-link {
+    font-size: 11px; color: #0969da; text-decoration: none;
+    white-space: nowrap; flex-shrink: 0; margin-left: auto; padding: 0 4px;
+  }
+  #sb-gh-link:hover { text-decoration: underline; }
+  #sb-body { flex: 1; overflow-y: auto; padding: 0; }
+  .sb-section { padding: 10px 14px; border-bottom: 1px solid #eaecef; }
+  .sb-section-title {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.06em; color: #57606a; margin-bottom: 6px;
+  }
+  .sb-file {
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 11px; color: #0969da; background: #f6f8fa;
+    padding: 4px 8px; border-radius: 4px; border: 1px solid #d1d9e0;
+    display: inline-block; word-break: break-all;
+  }
+  .sb-trigger-tag {
+    display: inline-block; font-size: 11px; padding: 2px 8px;
+    border-radius: 20px; background: #ddf4ff; color: #0550ae;
+    border: 1px solid #b6e3ff; margin: 2px 3px 2px 0;
+  }
+  .sb-trigger-detail { font-size: 11px; color: #57606a; margin-top: 4px; word-break: break-word; }
+  .sb-concurrency { font-family: monospace; font-size: 11px; color: #24292f; word-break: break-all; }
+  .sb-cancel-badge {
+    display: inline-block; font-size: 10px; padding: 1px 6px;
+    border-radius: 20px; margin-left: 6px;
+    background: #fff8c5; color: #7d4e00; border: 1px solid #e3b341;
+  }
+  .sb-dep-list { list-style: none; }
+  .sb-dep-list li { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+  .sb-dep-link {
+    font-size: 11px; color: #0969da; cursor: pointer; text-decoration: none;
+    flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sb-dep-link:hover { text-decoration: underline; }
+  .sb-dep-badge {
+    font-size: 10px; padding: 1px 6px; border-radius: 20px;
+    flex-shrink: 0; border: 1px solid;
+  }
+  .sb-job-row { border-bottom: 1px solid #f0f2f4; padding: 4px 0; }
+  .sb-job-row:last-child { border-bottom: none; }
+  .sb-job-summary { display: flex; align-items: center; gap: 5px; }
+  .sb-job-toggle {
+    background: none; border: none; cursor: pointer; font-size: 9px;
+    color: #57606a; padding: 0; width: 12px; flex-shrink: 0; line-height: 1;
+  }
+  .sb-job-toggle:hover { color: #0969da; }
+  .sb-job-name { font-size: 11px; color: #24292f; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sb-job-runner {
+    font-family: monospace; font-size: 10px; color: #57606a;
+    background: #f6f8fa; padding: 1px 5px; border-radius: 4px;
+    border: 1px solid #d1d9e0; flex-shrink: 0; max-width: 100px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .sb-job-runner.reusable { background: #fff8c5; color: #7d4e00; border-color: #e3b341; }
+  .sb-job-gh {
+    font-size: 10px; color: #0969da; text-decoration: none;
+    flex-shrink: 0; white-space: nowrap;
+  }
+  .sb-job-gh:hover { text-decoration: underline; }
+  .sb-job-detail { padding: 4px 0 2px 17px; }
+  .sb-job-needs { font-size: 11px; color: #57606a; margin-bottom: 3px; }
+  .sb-job-needs strong { color: #24292f; font-weight: 600; }
+  .sb-job-uses { font-size: 11px; color: #57606a; margin-bottom: 3px; }
+  .sb-steps-header { font-size: 11px; color: #57606a; margin-bottom: 2px; }
+  .sb-steps-list { list-style: disc; margin: 2px 0 0 14px; padding: 0; }
+  .sb-steps-list li { font-size: 11px; color: #24292f; margin: 1px 0; }
+  .sb-input-row { display: grid; grid-template-columns: 1fr auto auto; gap: 4px; align-items: baseline; margin: 3px 0; }
+  .sb-input-name { font-family: monospace; font-size: 11px; color: #24292f; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sb-input-type { font-size: 10px; color: #57606a; text-align: right; }
+  .sb-input-default { font-family: monospace; font-size: 10px; color: #57606a; text-align: right; }
+  .sb-req-badge { font-size: 9px; padding: 1px 4px; border-radius: 10px; background: #ffebe9; color: #82071e; border: 1px solid #ffa198; margin-left: 3px; }
+  .sb-empty { font-size: 11px; color: #8c959f; font-style: italic; }
+  .sb-count { font-size: 11px; color: #57606a; font-weight: normal; margin-left: 4px; }
+</style>
+</head>
+<body>
+<h1>Hiero Consensus Node — GitHub Workflow Dependencies</h1>
+<div id="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#2da44e"></div> Push / PR Trigger</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#0969da"></div> Manual / Scheduled Dispatch</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#bf8700"></div> Reusable (workflow_call)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#6639ba"></div> Leaf (no outgoing calls)</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#cf222e"></div> Release Pipeline</div>
+</div>
+<div id="controls">
+  <label>Filter: <input id="filter" type="text" placeholder="search workflow name…" style="width:220px"></label>
+  <label>Highlight group:
+    <select id="groupFilter">
+      <option value="all">All</option>
+      <option value="mats">MATS Tests</option>
+      <option value="xts">XTS Tests</option>
+      <option value="release">Release</option>
+      <option value="perf">Performance</option>
+    </select>
+  </label>
+  <button id="btn-reset" style="margin-left:auto;background:#ffffff;border:1px solid #d1d9e0;color:#24292f;padding:4px 12px;border-radius:6px;font-size:12px;cursor:pointer;">Reset view</button>
+  <label style="font-size:11px;color:#57606a">Scroll to zoom · Drag to pan · Click node for details</label>
+</div>
+<div id="wrapper">
+  <div id="network"></div>
+  <div id="sidebar">
+    <div id="sb-empty-state">
+      <div class="es-icon">⬡</div>
+      <div class="es-hint">Click any node to see workflow details here.</div>
+      <div class="es-stats" id="es-stats"></div>
+    </div>
+    <div id="sb-header" style="display:none">
+      <button id="sb-back" title="Back">←</button>
+      <div id="sb-title"></div>
+      <span id="sb-badge"></span>
+      <a id="sb-gh-link" href="#" target="_blank" rel="noopener" title="View workflow file on GitHub">↗ GitHub</a>
+      <button id="sb-close" title="Close">×</button>
+    </div>
+    <div id="sb-body" style="display:none">
+      <div class="sb-section" id="sb-file-section">
+        <div class="sb-section-title">File</div>
+        <span class="sb-file" id="sb-file"></span>
+      </div>
+      <div class="sb-section" id="sb-trigger-section">
+        <div class="sb-section-title">Trigger</div>
+        <div id="sb-triggers"></div>
+        <div class="sb-trigger-detail" id="sb-trigger-detail"></div>
+      </div>
+      <div class="sb-section" id="sb-concurrency-section">
+        <div class="sb-section-title">Concurrency</div>
+        <div class="sb-concurrency" id="sb-concurrency"></div>
+      </div>
+      <div class="sb-section" id="sb-calls-section">
+        <div class="sb-section-title">Calls <span class="sb-count" id="sb-calls-count"></span></div>
+        <ul class="sb-dep-list" id="sb-calls-list"></ul>
+      </div>
+      <div class="sb-section" id="sb-calledby-section">
+        <div class="sb-section-title">Called by <span class="sb-count" id="sb-calledby-count"></span></div>
+        <ul class="sb-dep-list" id="sb-calledby-list"></ul>
+      </div>
+      <div class="sb-section" id="sb-jobs-section">
+        <div class="sb-section-title">Jobs <span class="sb-count" id="sb-jobs-count"></span></div>
+        <div id="sb-jobs-list"></div>
+      </div>
+      <div class="sb-section" id="sb-inputs-section">
+        <div class="sb-section-title">Inputs <span class="sb-count" id="sb-inputs-count"></span></div>
+        <div id="sb-inputs-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="tooltip">
+  <div class="tt-name" id="tt-name"></div>
+  <div class="tt-trigger" id="tt-trigger"></div>
+</div>
+
+<script>
+let workflowMeta, workflows, edges, groupColors, groupLabels;
+
+function initGraph() {
+const nodes = new vis.DataSet(workflows.map(w => {
+  const c = groupColors[w.group];
+  return {
+    id: w.id, label: w.label,
+    trigger: w.trigger, group: w.group,
+    color: { background: c.bg, border: c.border, highlight: { background: c.bg, border: "#24292f" } },
+    font: { color: c.font, size: 10, face: "monospace" },
+    shape: "box",
+    margin: { top: 5, bottom: 5, left: 8, right: 8 },
+    widthConstraint: { maximum: 180 },
+    borderWidth: 1.5,
+  };
+}));
+
+const visEdges = new vis.DataSet(edges.map((e, i) => ({
+  id: i, from: e.from, to: e.to,
+  arrows: { to: { enabled: true, scaleFactor: 0.6 } },
+  color: { color: "#9aa5b4", highlight: "#0969da", opacity: 0.9 },
+  width: 1,
+  smooth: { type: "cubicBezier", forceDirection: "horizontal", roundness: 0.4 },
+})));
+
+const container = document.getElementById("network");
+const data = { nodes, edges: visEdges };
+const options = {
+  layout: {
+    hierarchical: {
+      enabled: true, direction: "LR", sortMethod: "directed",
+      levelSeparation: 220, nodeSpacing: 60, treeSpacing: 80,
+      blockShifting: true, edgeMinimization: true, parentCentralization: true,
+    }
+  },
+  physics: { enabled: false },
+  interaction: {
+    hover: true, tooltipDelay: 150,
+    navigationButtons: true, keyboard: true,
+    zoomView: false,
+  },
+  nodes: { borderWidthSelected: 2.5 },
+};
+
+const network = new vis.Network(container, data, options);
+
+// Add zoom controls after vis.js init (vis.js clears container innerHTML on init)
+const zoomEl = document.createElement('div');
+zoomEl.id = 'zoom-controls';
+zoomEl.innerHTML = '<button id="btn-zoom-in" title="Zoom in">+</button><button id="btn-zoom-out" title="Zoom out">−</button>';
+container.appendChild(zoomEl);
+
+// Two-finger scroll → pan; pinch (ctrlKey) → zoom
+container.addEventListener('wheel', function(e) {
+  e.preventDefault();
+  if (e.ctrlKey) {
+    const newScale = Math.min(3, Math.max(0.1, network.getScale() * (1 - e.deltaY * 0.005)));
+    network.moveTo({ scale: newScale, animation: false });
+  } else {
+    const scale = network.getScale();
+    const vp = network.getViewPosition();
+    network.moveTo({
+      position: { x: vp.x - e.deltaX / scale, y: vp.y - e.deltaY / scale },
+      animation: false,
+    });
+  }
+}, { passive: false });
+
+// ── Sidebar state ──
+let _navHistory = [];
+let _currentNode = null;
+
+function openSidebar(nodeId, skipHistory = false) {
+  // History tracking
+  if (!skipHistory && _currentNode !== null && _currentNode !== nodeId) {
+    _navHistory.push(_currentNode);
+  }
+  _currentNode = nodeId;
+  const backBtn = document.getElementById('sb-back');
+  backBtn.style.display = _navHistory.length > 0 ? 'inline' : 'none';
+
+  // Show header + body, hide empty state
+  document.getElementById('sb-empty-state').style.display = 'none';
+  document.getElementById('sb-header').style.display = '';
+  document.getElementById('sb-body').style.display = '';
+
+  const node = nodes.get(nodeId);
+  const meta = workflowMeta[nodeId] || {};
+  const c = groupColors[node.group];
+
+  document.getElementById('sb-title').textContent = meta.name || nodeId;
+  const badge = document.getElementById('sb-badge');
+  badge.textContent = groupLabels[node.group] || node.group;
+  badge.style.cssText = `background:${c.bg};color:${c.font};border:1px solid ${c.border}`;
+
+  const ghLink = document.getElementById('sb-gh-link');
+  ghLink.href = `https://github.com/hiero-ledger/hiero-consensus-node/blob/main/.github/workflows/${nodeId}.yaml`;
+
+  document.getElementById('sb-file').textContent = nodeId + '.yaml';
+
+  // Triggers
+  const triggers = meta.triggers || [node.trigger];
+  document.getElementById('sb-triggers').innerHTML = triggers.map(t =>
+    `<span class="sb-trigger-tag">${t}</span>`).join('');
+  const detail = meta.triggerDetail || '';
+  const detailEl = document.getElementById('sb-trigger-detail');
+  detailEl.textContent = detail;
+  detailEl.style.display = detail ? '' : 'none';
+
+  // Concurrency
+  const concSection = document.getElementById('sb-concurrency-section');
+  if (meta.concurrency) {
+    document.getElementById('sb-concurrency').innerHTML =
+      escHtml(meta.concurrency) +
+      (meta.cancelInProgress ? '<span class="sb-cancel-badge">cancel-in-progress</span>' : '');
+    concSection.style.display = '';
+  } else {
+    concSection.style.display = 'none';
+  }
+
+  // Calls (outgoing)
+  const outgoing = edges.filter(e => e.from === nodeId);
+  const callsList = document.getElementById('sb-calls-list');
+  document.getElementById('sb-calls-count').textContent = `(${outgoing.length})`;
+  if (outgoing.length) {
+    callsList.innerHTML = outgoing.map(e => {
+      const target = nodes.get(e.to);
+      const tc = groupColors[target ? target.group : 'leaf'];
+      const label = (workflowMeta[e.to] || {}).name || e.to;
+      return `<li>
+        <span class="sb-dep-link" data-node="${escAttr(e.to)}">${escHtml(label)}</span>
+        <span class="sb-dep-badge" style="background:${tc.bg};color:${tc.font};border-color:${tc.border}">${escHtml(groupLabels[target ? target.group : 'leaf'] || '')}</span>
+      </li>`;
+    }).join('');
+    document.getElementById('sb-calls-section').style.display = '';
+  } else {
+    callsList.innerHTML = '<li class="sb-empty">none</li>';
+    document.getElementById('sb-calls-section').style.display = '';
+  }
+
+  // Called by (incoming)
+  const incoming = edges.filter(e => e.to === nodeId);
+  const calledByList = document.getElementById('sb-calledby-list');
+  document.getElementById('sb-calledby-count').textContent = `(${incoming.length})`;
+  if (incoming.length) {
+    calledByList.innerHTML = incoming.map(e => {
+      const src = nodes.get(e.from);
+      const sc = groupColors[src ? src.group : 'manual'];
+      const label = (workflowMeta[e.from] || {}).name || e.from;
+      return `<li>
+        <span class="sb-dep-link" data-node="${escAttr(e.from)}">${escHtml(label)}</span>
+        <span class="sb-dep-badge" style="background:${sc.bg};color:${sc.font};border-color:${sc.border}">${escHtml(groupLabels[src ? src.group : 'manual'] || '')}</span>
+      </li>`;
+    }).join('');
+    document.getElementById('sb-calledby-section').style.display = '';
+  } else {
+    calledByList.innerHTML = '<li class="sb-empty">none</li>';
+    document.getElementById('sb-calledby-section').style.display = '';
+  }
+
+  // Jobs
+  const jobs = meta.jobs || [];
+  document.getElementById('sb-jobs-count').textContent = `(${jobs.length})`;
+  const ghBase = `https://github.com/hiero-ledger/hiero-consensus-node/blob/main/.github/workflows/${nodeId}.yaml`;
+  document.getElementById('sb-jobs-list').innerHTML = jobs.map(j => {
+    const isReusable = j.runner === 'reusable';
+    const runnerLabel = isReusable ? 'reusable' : escHtml(j.runner);
+    const ghJobHref = j.line ? `${ghBase}#L${j.line}` : ghBase;
+    const needsHtml = (j.needs && j.needs.length)
+      ? `<div class="sb-job-needs"><strong>needs:</strong> ${escHtml(j.needs.join(', '))}</div>` : '';
+    const usesTarget = j.usesWorkflow && workflowMeta[j.usesWorkflow];
+    const usesHtml = usesTarget
+      ? `<div class="sb-job-uses">calls: <span class="sb-dep-link" data-node="${escAttr(j.usesWorkflow)}">${escHtml(usesTarget.name || j.usesWorkflow)}</span></div>` : '';
+    const stepsHtml = (j.steps && j.steps.length)
+      ? `<div class="sb-steps-header">Steps (${j.steps.length}):</div>
+         <ul class="sb-steps-list">${j.steps.map(s => `<li>${escHtml(s)}</li>`).join('')}</ul>` : '';
+    const hasDetail = needsHtml || usesHtml || stepsHtml;
+    return `<div class="sb-job-row">
+      <div class="sb-job-summary">
+        <button class="sb-job-toggle" aria-expanded="false">${hasDetail ? '▶' : ' '}</button>
+        <span class="sb-job-name" title="${escAttr(j.id)}">${escHtml(j.name)}</span>
+        <span class="sb-job-runner${isReusable ? ' reusable' : ''}" title="${escAttr(j.runner)}">${runnerLabel}</span>
+        <a class="sb-job-gh" href="${escAttr(ghJobHref)}" target="_blank" rel="noopener" title="View in GitHub">↗${j.line ? ' L' + j.line : ''}</a>
+      </div>
+      ${hasDetail ? `<div class="sb-job-detail" hidden>${needsHtml}${usesHtml}${stepsHtml}</div>` : ''}
+    </div>`;
+  }).join('') || '<div class="sb-empty">no jobs found</div>';
+
+  // Inputs
+  const inputsSection = document.getElementById('sb-inputs-section');
+  const inputs = meta.inputs || [];
+  if (inputs.length) {
+    document.getElementById('sb-inputs-count').textContent = `(${inputs.length})`;
+    document.getElementById('sb-inputs-list').innerHTML = inputs.map(inp => {
+      const req = inp.required ? '<span class="sb-req-badge">req</span>' : '';
+      const def = inp.default != null ? `"${escHtml(String(inp.default))}"` : '—';
+      return `<div class="sb-input-row">
+        <span class="sb-input-name">${escHtml(inp.name)}${req}</span>
+        <span class="sb-input-type">${escHtml(inp.type)}</span>
+        <span class="sb-input-default">${def}</span>
+      </div>`;
+    }).join('');
+    inputsSection.style.display = '';
+  } else {
+    inputsSection.style.display = 'none';
+  }
+
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sb-body').scrollTop = 0;
+}
+
+function closeSidebar() {
+  _navHistory = [];
+  _currentNode = null;
+  document.getElementById('sb-empty-state').style.display = '';
+  document.getElementById('sb-header').style.display = 'none';
+  document.getElementById('sb-body').style.display = 'none';
+}
+
+function closeSidebarAndDeselect() {
+  closeSidebar();
+  network.unselectAll();
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) { return String(s).replace(/"/g,'&quot;'); }
+
+// Back button
+document.getElementById('sb-back').addEventListener('click', () => {
+  if (!_navHistory.length) return;
+  const prevId = _navHistory.pop();
+  network.selectNodes([prevId]);
+  network.focus(prevId, { scale: network.getScale(), animation: { duration: 300, easingFunction: 'easeInOutQuad' } });
+  openSidebar(prevId, true); // skipHistory=true so we don't re-push
+});
+
+// Zoom buttons
+const ZOOM_FACTOR = 1.35;
+document.getElementById('btn-zoom-in').addEventListener('click', () => {
+  network.moveTo({ scale: Math.min(3, network.getScale() * ZOOM_FACTOR), animation: { duration: 200, easingFunction: 'easeInOutQuad' } });
+});
+document.getElementById('btn-zoom-out').addEventListener('click', () => {
+  network.moveTo({ scale: Math.max(0.1, network.getScale() / ZOOM_FACTOR), animation: { duration: 200, easingFunction: 'easeInOutQuad' } });
+});
+
+// Reset view button
+document.getElementById('btn-reset').addEventListener('click', () => {
+  const filterEl = document.getElementById('filter');
+  filterEl.value = '';
+  filterEl.dispatchEvent(new Event('input'));
+  const groupEl = document.getElementById('groupFilter');
+  groupEl.value = 'all';
+  groupEl.dispatchEvent(new Event('change'));
+  network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+});
+
+// Fit graph and populate empty-state stats on first render
+network.once('afterDrawing', () => {
+  network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+  document.getElementById('es-stats').textContent =
+    `${workflows.length} workflows · ${edges.length} edges`;
+});
+
+// Navigate to node when clicking dep links in sidebar
+document.getElementById('sb-body').addEventListener('click', function(e) {
+  // Job expand/collapse toggle
+  const toggle = e.target.closest('.sb-job-toggle');
+  if (toggle) {
+    const detail = toggle.closest('.sb-job-row').querySelector('.sb-job-detail');
+    if (detail) {
+      const expanded = toggle.getAttribute('aria-expanded') === 'true';
+      toggle.setAttribute('aria-expanded', String(!expanded));
+      toggle.textContent = expanded ? '▶' : '▼';
+      detail.hidden = expanded;
+    }
+    return;
+  }
+  // Dep link navigation
+  const link = e.target.closest('.sb-dep-link');
+  if (!link) return;
+  const targetId = link.dataset.node;
+  if (!targetId) return;
+  network.selectNodes([targetId]);
+  network.focus(targetId, { scale: network.getScale(), animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+  openSidebar(targetId);
+});
+
+// Highlight target node in graph on dep-link hover
+let _hoverHighlightId = null;
+let _hoverOrig = null;
+function _restoreHoverHighlight() {
+  if (_hoverHighlightId && _hoverOrig) {
+    nodes.update({ id: _hoverHighlightId, color: _hoverOrig.color, borderWidth: _hoverOrig.borderWidth, shadow: _hoverOrig.shadow });
+    _hoverHighlightId = null;
+    _hoverOrig = null;
+  }
+}
+document.getElementById('sb-body').addEventListener('mouseover', function(e) {
+  const link = e.target.closest('.sb-dep-link');
+  if (!link) return;
+  const targetId = link.dataset.node;
+  if (!targetId || targetId === _hoverHighlightId) return;
+  _restoreHoverHighlight();
+  const node = nodes.get(targetId);
+  if (!node) return;
+  _hoverHighlightId = targetId;
+  _hoverOrig = { color: node.color, borderWidth: node.borderWidth, shadow: node.shadow };
+  nodes.update({ id: targetId, color: { background: '#ff9f1c', border: '#c1440e', highlight: { background: '#ff9f1c', border: '#c1440e' } }, borderWidth: 3.5, shadow: { enabled: true, color: 'rgba(200,60,0,0.55)', size: 14, x: 0, y: 0 } });
+});
+document.getElementById('sb-body').addEventListener('mouseout', function(e) {
+  const link = e.target.closest('.sb-dep-link');
+  if (!link) return;
+  _restoreHoverHighlight();
+});
+
+document.getElementById('sb-close').addEventListener('click', closeSidebarAndDeselect);
+
+// Debounce deselect so switching nodes (deselect → select in same click)
+// doesn't flash-close the sidebar before the new selectNode fires.
+let _closeTimer = null;
+network.on('selectNode', params => {
+  clearTimeout(_closeTimer);
+  if (params.nodes.length) openSidebar(params.nodes[0]);
+});
+network.on('deselectNode', () => {
+  _closeTimer = setTimeout(() => closeSidebar(), 80);
+});
+
+// Tooltip (hover)
+const tooltip = document.getElementById("tooltip");
+network.on("hoverNode", function(params) {
+  const node = nodes.get(params.node);
+  document.getElementById("tt-name").textContent = params.node;
+  document.getElementById("tt-trigger").textContent = "Trigger: " + node.trigger;
+  tooltip.style.display = "block";
+});
+network.on("blurNode", () => { tooltip.style.display = "none"; });
+
+// Track mouse position with a native listener — vis.js mouseMove only fires over nodes
+container.addEventListener("mousemove", e => {
+  tooltip.style.left = (e.clientX + 16) + "px";
+  tooltip.style.top  = (e.clientY + 16) + "px";
+});
+
+// Filter
+document.getElementById("filter").addEventListener("input", function() {
+  const q = this.value.toLowerCase();
+  nodes.forEach(n => {
+    const visible = !q || n.id.toLowerCase().includes(q) || n.label.toLowerCase().includes(q);
+    nodes.update({ id: n.id, hidden: !visible });
+  });
+});
+
+// Group filter
+document.getElementById("groupFilter").addEventListener("change", function() {
+  const groups = {
+    all: null,
+    mats: ["zxc-mats-tests","zxc-compile-and-spotless-check","zxc-dependency-module-check","zxc-execute-unit-tests","zxc-execute-integration-tests","zxc-execute-hapi-tests","zxc-execute-otter-tests","zxc-snyk-scan","zxc-verify-gradle-build-determinism","zxc-verify-docker-build-determinism","node-flow-pull-request-checks","node-flow-build-application","flow-dry-run-mats-suite","210-flow-merge-queue-controller"],
+    xts: ["zxc-xts-tests","zxc-compile-and-spotless-check","zxc-execute-timing-sensitive-tests","zxc-execute-hammer-tests","zxc-execute-hapi-tests","zxc-execute-otter-tests","zxc-block-node-regression","zxc-jrs-regression","zxc-json-rpc-relay-regression","zxc-mirror-node-regression","zxc-tck-regression","flow-dry-run-extended-test-suite","zxcron-extended-test-suite","210-flow-merge-queue-controller"],
+    release: ["node-flow-deploy-release-artifact","node-flow-deploy-adhoc-artifact","flow-trigger-release","flow-generate-release-notes","node-zxc-build-release-artifact","zxc-create-github-release","zxc-publish-production-image"],
+    perf: ["zxf-single-day-performance-test-controller","zxf-single-day-performance-test-controller-adhoc","zxc-single-day-performance-test","zxc-execute-performance-test","zxf-single-day-longevity-test-controller","zxf-single-day-longevity-test-controller-adhoc","zxc-single-day-longevity-test","zxf-merge-queue-performance-test-controller","zxf-merge-queue-performance-test-controller-adhoc","zxc-merge-queue-performance-test","801-read-chewie-response","210-flow-merge-queue-controller"],
+  };
+  const selected = groups[this.value];
+  nodes.forEach(n => {
+    nodes.update({ id: n.id, hidden: selected ? !selected.includes(n.id) : false });
+  });
+});
+}
+
+document.getElementById('network').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#57606a;font-size:13px;">Loading workflow data…</div>';
+
+fetch('/api/workflows')
+  .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+  .then(d => {
+    workflowMeta = d.workflowMeta;
+    workflows = d.workflows;
+    edges = d.edges;
+    groupColors = d.groupColors;
+    groupLabels = d.groupLabels;
+    initGraph();
+  })
+  .catch(err => {
+    document.getElementById('network').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#cf222e;font-size:13px;">Error loading data: ' + err.message + '</div>';
+  });
+</script>
+</body>
+</html>
