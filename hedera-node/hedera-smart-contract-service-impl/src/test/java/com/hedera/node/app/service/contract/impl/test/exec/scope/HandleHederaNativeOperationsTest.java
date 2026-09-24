@@ -29,7 +29,6 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tu
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationWithKeyAndCodeDelegation;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthHollowAccountCreation;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
-import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.STATIC_CALL;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -421,11 +420,7 @@ class HandleHederaNativeOperationsTest {
         assertSame(evmResult, result);
         verify(context).dispatch(assertArg((DispatchOptions<HookDispatchStreamBuilder> options) -> {
             assertEquals(payerId, options.payerId());
-            assertEquals(
-                    dispatchMetadata.getMetadata(CLPR_DISPATCH, ClprDispatchMetadata.class),
-                    options.dispatchMetadata().getMetadata(CLPR_DISPATCH, ClprDispatchMetadata.class));
-            assertEquals(Boolean.TRUE, options.dispatchMetadata().getMetadataIfPresent(STATIC_CALL, Boolean.class));
-            assertNull(dispatchMetadata.getMetadataIfPresent(STATIC_CALL, Boolean.class));
+            assertEquals(dispatchMetadata, options.dispatchMetadata());
             assertEquals(NOOP_SIGNED_TX_CUSTOMIZER, options.signedTxCustomizer());
             assertEquals(
                     ContractCallTransactionBody.newBuilder()
@@ -434,21 +429,6 @@ class HandleHederaNativeOperationsTest {
                             .functionParameters(Bytes.wrap(callData))
                             .build(),
                     options.body().contractCallOrThrow());
-        }));
-    }
-
-    @Test
-    void readonlyCallWithoutMetadataIsStatic() {
-        given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
-        given(context.dispatch(any())).willReturn(hookDispatchStreamBuilder);
-        given(hookDispatchStreamBuilder.status()).willReturn(SUCCESS);
-        given(hookDispatchStreamBuilder.getEvmCallResult()).willReturn(Bytes.wrap(new byte[] {1}));
-
-        subject.dispatchReadonlyContractCall(
-                ContractID.newBuilder().contractNum(9999).build(), new byte[] {1}, 100L);
-
-        verify(context).dispatch(assertArg((DispatchOptions<HookDispatchStreamBuilder> options) -> {
-            assertEquals(Boolean.TRUE, options.dispatchMetadata().getMetadataIfPresent(STATIC_CALL, Boolean.class));
         }));
     }
 
