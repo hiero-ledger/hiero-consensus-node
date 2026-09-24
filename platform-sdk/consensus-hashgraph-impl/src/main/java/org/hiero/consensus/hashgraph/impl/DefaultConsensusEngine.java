@@ -62,7 +62,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      * @param configuration          the configuration
      * @param metrics                the metrics registry
      * @param time                   the time source
-     * @param roster                 the current roster
+     * @param roster                 the active roster
      * @param selfId                 the ID of the node
      * @param freezeChecker          checks if the consensus time has reached the freeze period
      * @param transactionOffsetNanos nanoseconds to add to the first transaction's timestamp in an event
