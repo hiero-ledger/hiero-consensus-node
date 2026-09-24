@@ -59,46 +59,51 @@ public class ClprHieroToHieroRedactionSuite extends HieroToHieroBase {
         // networkHapiTest block gets a fresh spec/registry, so cross-block contract references
         // must be plumbed manually.
         final ContractID[] sourceAppIdOnA = new ContractID[1];
-        return Stream.concat(
-                setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
-                Stream.of(
-                        networkHapiTest(
-                                        ledgerA,
-                                        cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
-                                        uploadInitCode(SOURCE_APP),
-                                        withOpContext((spec, opLog) -> {
-                                            allRunFor(
-                                                    spec,
-                                                    contractCreate(
-                                                            SOURCE_APP,
-                                                            crypto.channelId,
-                                                            crypto.connectorId,
-                                                            new byte[20]));
-                                            sourceAppIdOnA[0] = spec.registry().getContractId(SOURCE_APP);
-                                        }),
-                                        // SourceApplication stamps itself as the sender when calling the CLPR
-                                        // precompile, so the source-side onClprResponse dispatch can find it
-                                        // even when the outbound slot is redacted (see ClprRedactedMessage.sender).
-                                        contractCall(SOURCE_APP, "sendMessages", BigInteger.ONE)
-                                                .gas(GAS)
-                                                .payingWith("callerA"),
-                                        // payingWith(GENESIS) satisfies the
-                                        // PrivilegesVerifier#checkClprAdmin gate (treasury / system-admin only).
-                                        clprRedactMessage()
-                                                .channelId(crypto.channelId)
-                                                .messageId(1L)
-                                                .payingWith(GENESIS)
-                                                .hasKnownStatus(SUCCESS))
-                                .findFirst()
-                                .orElseThrow(),
-                        awaitReceivedMessage(ledgerB, crypto.channelId, 1),
-                        awaitAckedMessage(ledgerA, crypto.channelId, 1),
-                        // Post-fix, the REDACTED reply that arrives back on A dispatches
-                        // onClprResponse to the preserved sender in ClprRedactedMessage — proven
-                        // by SourceApplication.responseCount ticking up. Pre-fix (before the
-                        // sender was preserved) the dispatch was skipped and responseCount
-                        // stayed at 0.
-                        assertRedactedCallbacksDelivered(ledgerA, sourceAppIdOnA, 1)));
+        return multiNetworkHapiTest(
+                "outboundRedactionBeforeAck",
+                Stream.concat(
+                        setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
+                        Stream.of(
+                                networkHapiTest(
+                                                ledgerA,
+                                                cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
+                                                uploadInitCode(SOURCE_APP),
+                                                withOpContext((spec, opLog) -> {
+                                                    allRunFor(
+                                                            spec,
+                                                            contractCreate(
+                                                                    SOURCE_APP,
+                                                                    crypto.channelId,
+                                                                    crypto.connectorId,
+                                                                    new byte[20]));
+                                                    sourceAppIdOnA[0] =
+                                                            spec.registry().getContractId(SOURCE_APP);
+                                                }),
+                                                // SourceApplication stamps itself as the sender when calling the CLPR
+                                                // precompile, so the source-side onClprResponse dispatch can find it
+                                                // even when the outbound slot is redacted (see
+                                                // ClprRedactedMessage.sender).
+                                                contractCall(SOURCE_APP, "sendMessages", BigInteger.ONE)
+                                                        .gas(GAS)
+                                                        .payingWith("callerA"),
+                                                // payingWith(GENESIS) satisfies the
+                                                // PrivilegesVerifier#checkClprAdmin gate (treasury / system-admin
+                                                // only).
+                                                clprRedactMessage()
+                                                        .channelId(crypto.channelId)
+                                                        .messageId(1L)
+                                                        .payingWith(GENESIS)
+                                                        .hasKnownStatus(SUCCESS))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                awaitReceivedMessage(ledgerB, crypto.channelId, 1),
+                                awaitAckedMessage(ledgerA, crypto.channelId, 1),
+                                // Post-fix, the REDACTED reply that arrives back on A dispatches
+                                // onClprResponse to the preserved sender in ClprRedactedMessage — proven
+                                // by SourceApplication.responseCount ticking up. Pre-fix (before the
+                                // sender was preserved) the dispatch was skipped and responseCount
+                                // stayed at 0.
+                                assertRedactedCallbacksDelivered(ledgerA, sourceAppIdOnA, 1))));
     }
 
     /**
@@ -115,41 +120,44 @@ public class ClprHieroToHieroRedactionSuite extends HieroToHieroBase {
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
 
         final ContractID[] sourceAppIdOnA = new ContractID[1];
-        return Stream.concat(
-                setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
-                Stream.of(
-                        networkHapiTest(
-                                        ledgerA,
-                                        cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
-                                        uploadInitCode(SOURCE_APP),
-                                        withOpContext((spec, opLog) -> {
-                                            allRunFor(
-                                                    spec,
-                                                    contractCreate(
-                                                            SOURCE_APP,
-                                                            crypto.channelId,
-                                                            crypto.connectorId,
-                                                            new byte[20]));
-                                            sourceAppIdOnA[0] = spec.registry().getContractId(SOURCE_APP);
-                                        }),
-                                        // sendMessages(N) enqueues N slots in one consensus txn —
-                                        // the redact lands before the first sync tick can ship the bundle.
-                                        contractCall(SOURCE_APP, "sendMessages", BigInteger.valueOf(3))
-                                                .gas(GAS)
-                                                .payingWith("callerA"),
-                                        clprRedactMessage()
-                                                .channelId(crypto.channelId)
-                                                .messageId(2L)
-                                                .payingWith(GENESIS)
-                                                .hasKnownStatus(SUCCESS))
-                                .findFirst()
-                                .orElseThrow(),
-                        awaitReceivedMessage(ledgerB, crypto.channelId, 3),
-                        awaitAckedMessage(ledgerA, crypto.channelId, 3),
-                        // All 3 slots — including the redacted middle one — must round-trip a
-                        // callback into SourceApplication. Pre-fix the redacted slot's callback
-                        // was skipped, so responseCount stalled at 2. Post-fix it's 3.
-                        assertRedactedCallbacksDelivered(ledgerA, sourceAppIdOnA, 3)));
+        return multiNetworkHapiTest(
+                "multiMessageBundleWithRedactedMiddleSlot",
+                Stream.concat(
+                        setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
+                        Stream.of(
+                                networkHapiTest(
+                                                ledgerA,
+                                                cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
+                                                uploadInitCode(SOURCE_APP),
+                                                withOpContext((spec, opLog) -> {
+                                                    allRunFor(
+                                                            spec,
+                                                            contractCreate(
+                                                                    SOURCE_APP,
+                                                                    crypto.channelId,
+                                                                    crypto.connectorId,
+                                                                    new byte[20]));
+                                                    sourceAppIdOnA[0] =
+                                                            spec.registry().getContractId(SOURCE_APP);
+                                                }),
+                                                // sendMessages(N) enqueues N slots in one consensus txn —
+                                                // the redact lands before the first sync tick can ship the bundle.
+                                                contractCall(SOURCE_APP, "sendMessages", BigInteger.valueOf(3))
+                                                        .gas(GAS)
+                                                        .payingWith("callerA"),
+                                                clprRedactMessage()
+                                                        .channelId(crypto.channelId)
+                                                        .messageId(2L)
+                                                        .payingWith(GENESIS)
+                                                        .hasKnownStatus(SUCCESS))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                awaitReceivedMessage(ledgerB, crypto.channelId, 3),
+                                awaitAckedMessage(ledgerA, crypto.channelId, 3),
+                                // All 3 slots — including the redacted middle one — must round-trip a
+                                // callback into SourceApplication. Pre-fix the redacted slot's callback
+                                // was skipped, so responseCount stalled at 2. Post-fix it's 3.
+                                assertRedactedCallbacksDelivered(ledgerA, sourceAppIdOnA, 3))));
     }
 
     /**

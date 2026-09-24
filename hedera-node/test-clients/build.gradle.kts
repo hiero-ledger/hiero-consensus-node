@@ -235,11 +235,22 @@ val prCheckIsSimpleFeesEmbedded =
 // Path to the extracted WRAPS proving-key artifacts (decider_pp.bin, decider_vp.bin,
 // nova_pp.bin, nova_vp.bin); blank disables WRAPS proof assertions in the ceremony tests
 val tssLibWrapsArtifactsPath = System.getenv("TSS_LIB_WRAPS_ARTIFACTS_PATH") ?: ""
+// The CLPR multi-network suites (@Tag(MULTINETWORK)) cold-bootstrap WRAPS, so they read the
+// canonical
+// dev-local artifacts dir (version-agnostic name; ClprWrapsProvingKeyInstaller.ensureProvisioned
+// fills it from
+// the
+// sibling wraps*.tar.gz). Mapped for both hapiTestClprMultinetwork (the CI selector) and a bare
+// testSubprocess (how a single generator/suite run is launched from the IDE). Plain tag selectors
+// like hapiTestCrypto stay out of the map, so they never get the env var.
+val canonicalWrapsArtifactsPath =
+    layout.projectDirectory.dir("tss-startup-assets/wraps").asFile.absolutePath
 val prCheckTssLibWrapsArtifactsPaths =
     mapOf(
         "hapiTestWraps" to tssLibWrapsArtifactsPath,
         "hapiTestCutover" to tssLibWrapsArtifactsPath,
         "hapiTestWrapsDownload" to "data/keys",
+        "hapiTestClprMultinetwork" to canonicalWrapsArtifactsPath,
     )
 // Use to override the default network size for a specific test task
 val prCheckNetSizeOverrides =
@@ -512,14 +523,30 @@ fun TaskContainer.registerHapiTest(
                 .systemProperty("hapi.spec.quiet.mode")
                 .getOrElse(if (ciTagExpression.isNotBlank()) "true" else "false"),
         )
-        gradle.startParameter.taskNames
-            .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
-            ?.let {
+        // WRAPS artifacts path for the forked test JVM, forwarded only to the WRAPS-needing tasks
+        // (via prCheckTssLibWrapsArtifactsPaths), not every task:
+        //   1. an explicit -Dhapi.spec.tssLibWrapsArtifactsPath=<dir> on the Gradle command line
+        //      (or systemProp.… in ~/.gradle/gradle.properties) wins;
+        //   2. else the invoked task's mapped value — hapiTestWraps/Cutover (the TSS_LIB env dir),
+        //      hapiTestWrapsDownload ("data/keys"), or hapiTestClprMultinetwork / a bare
+        //      testSubprocess (the canonical tss-startup-assets/wraps dir).
+        val explicitWrapsPath =
+            System.getProperty("hapi.spec.tssLibWrapsArtifactsPath")?.takeIf { it.isNotBlank() }
+        // Match on the simple task name so a fully-qualified invocation (e.g. the IDE's
+        // ":test-clients:testSubprocess") resolves the same as the bare "testSubprocess".
+        val prCheckWrapsTask =
+            gradle.startParameter.taskNames
+                .map { it.substringAfterLast(':') }
+                .firstOrNull(prCheckTssLibWrapsArtifactsPaths::containsKey)
+        when {
+            explicitWrapsPath != null ->
+                systemProperty("hapi.spec.tssLibWrapsArtifactsPath", explicitWrapsPath)
+            prCheckWrapsTask != null ->
                 systemProperty(
                     "hapi.spec.tssLibWrapsArtifactsPath",
-                    prCheckTssLibWrapsArtifactsPaths.getValue(it),
+                    prCheckTssLibWrapsArtifactsPaths.getValue(prCheckWrapsTask),
                 )
-            }
+        }
         // Pass a system property "KEY=VALUE" to the test JVM via "-PsysProp.KEY=VALUE"
         providers.gradlePropertiesPrefixedBy("sysProp.").get().forEach { (k, v) ->
             systemProperty(k.removePrefix("sysProp."), v)
@@ -562,16 +589,28 @@ fun TaskContainer.registerHapiTest(
                 "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
             )
         }
-        if (ciTagExpression.contains("CLPR") || ciTagExpression.contains("MULTINETWORK")) {
-            // Preserve the failed subprocess network's logs for CLPR diagnostics.
-            failFast = true
-        }
         if (junitFixedParallelism != null) {
             systemProperty("junit.jupiter.execution.parallel.config.strategy", "fixed")
             systemProperty(
                 "junit.jupiter.execution.parallel.config.fixed.parallelism",
                 "$junitFixedParallelism",
             )
+        }
+        // MULTINETWORK groups run in parallel with both CLASSES and METHODS concurrent. Per-network
+        // serialization is JUnit's job via ClprNetworkLocksProvider (a @ResourceLock provider on
+        // @MultiNetworkHapiTest): same-network readers overlap, a @Leaky writer runs alone, and
+        // disjoint
+        // groups run in parallel. Native provider-driven locks are safe under concurrent methods (a
+        // @TestFactory can be work-stolen onto a lock-holding worker, which JUnit's own lock
+        // handling
+        // accounts for), so we no longer force same_thread. Applies only when MULTINETWORK is
+        // selected.
+        if (ciTagExpression.contains("MULTINETWORK")) {
+            systemProperty("junit.jupiter.execution.parallel.enabled", true)
+            systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
+            systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "concurrent")
+            systemProperty("junit.jupiter.execution.parallel.config.strategy", "fixed")
+            systemProperty("junit.jupiter.execution.parallel.config.fixed.parallelism", "6")
         }
         if (embeddedMode != null) {
             systemProperty("hapi.spec.embedded.mode", embeddedMode)

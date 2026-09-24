@@ -22,6 +22,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.POST_SYNC_POINT_SETTLE;
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.awaitWrapsExtensible;
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.awaitWrapsSyncPoint;
+import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.multiNetworkHapiTest;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
@@ -43,6 +44,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest.Network;
+import com.hedera.services.bdd.junit.MultiNetworkLeakyHapiTest;
 import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
@@ -89,6 +91,7 @@ import org.junit.jupiter.api.Tag;
  * its peer endpoint cache from the local ledger configuration and initiates syncs every ~1s.
  */
 @Tag(TestTags.MULTINETWORK)
+@MultiNetworkLeakyHapiTest
 public class ClprMessagesSuite {
 
     private static final String NET_A_CHAIN_ID = "hiero:msgs-a";
@@ -359,7 +362,8 @@ public class ClprMessagesSuite {
                     .findFirst()
                     .orElseThrow();
         }
-        return Stream.concat(Stream.of(netBSetup, netASetup), Stream.of(invocationTests));
+        return multiNetworkHapiTest(
+                "multiMessageRoundTrip", Stream.concat(Stream.of(netBSetup, netASetup), Stream.of(invocationTests)));
     }
 
     /**
