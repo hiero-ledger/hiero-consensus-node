@@ -133,8 +133,8 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
                 Bytes.wrap(runningHashes.nMinus2RunningHash().toByteArray()), lastFourHashes, 4, runningHashSize);
         lastFourHashes = appendHash(
                 Bytes.wrap(runningHashes.nMinus1RunningHash().toByteArray()), lastFourHashes, 4, runningHashSize);
-        lastFourHashes = appendHash(
-                Bytes.wrap(runningHashes.runningHash().toByteArray()), lastFourHashes, 4, runningHashSize);
+        lastFourHashes =
+                appendHash(Bytes.wrap(runningHashes.runningHash().toByteArray()), lastFourHashes, 4, runningHashSize);
         // 2.3. Wrapped prev record block root hashes
         final List<Bytes> wrappedPrevRecordBlockRootHashes = blockInfo.wrappedIntermediatePreviousBlockRootHashes();
 

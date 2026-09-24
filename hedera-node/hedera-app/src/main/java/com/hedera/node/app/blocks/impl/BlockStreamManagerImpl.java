@@ -1436,7 +1436,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
                             // Also update running hashes; this chain remains chained SHA-384 independent of
                             // the block-root Merkle tree's (SHA-256) BlockImplUtils.hashLeaf(byte[]) default
-                            final var hashedLeaf = BlockImplUtils.hashLeaf(CommonUtils.sha384DigestOrThrow(), serialized);
+                            final var hashedLeaf =
+                                    BlockImplUtils.hashLeaf(CommonUtils.sha384DigestOrThrow(), serialized);
                             runningHashManager.nextResultHash(ByteBuffer.wrap(hashedLeaf));
                         }
                         case TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(serialized);
@@ -1528,7 +1529,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             nMinus3Hash = n < 4 ? null : hashes.toByteArray(0, RUNNING_HASH_SIZE);
             nMinus2Hash = n < 3 ? null : hashes.toByteArray((n - 3) * RUNNING_HASH_SIZE, RUNNING_HASH_SIZE);
             nMinus1Hash = n < 2 ? null : hashes.toByteArray((n - 2) * RUNNING_HASH_SIZE, RUNNING_HASH_SIZE);
-            hash = n < 1 ? new byte[RUNNING_HASH_SIZE] : hashes.toByteArray((n - 1) * RUNNING_HASH_SIZE, RUNNING_HASH_SIZE);
+            hash = n < 1
+                    ? new byte[RUNNING_HASH_SIZE]
+                    : hashes.toByteArray((n - 1) * RUNNING_HASH_SIZE, RUNNING_HASH_SIZE);
         }
 
         /**

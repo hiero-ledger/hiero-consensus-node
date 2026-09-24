@@ -124,8 +124,7 @@ class BlockImplUtilsTest {
 
     @Test
     void hashInternalNodeAppendsInternalNodePrefix() {
-        final Bytes expected =
-                Bytes.fromHex("784e119f0efa9ff049e2da4370e15e2a24f2658c542322fa3805a9976b5ecbae");
+        final Bytes expected = Bytes.fromHex("784e119f0efa9ff049e2da4370e15e2a24f2658c542322fa3805a9976b5ecbae");
 
         final MessageDigest digest = sha256DigestOrThrow();
         final Bytes data1 = Bytes.fromBase64("z0BYGz7pzcJU2tAAD6jliPT9RKkH/tRTrGl0FfG7WgF8brmYMvQHoIUD4Fp148MC");

@@ -131,8 +131,7 @@ class BlockStreamManagerImplTest {
     private static final long N_BLOCK_NO = 666L;
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L);
     private static final Timestamp CONSENSUS_THEN = new Timestamp(890, 0);
-    private static final Hash FAKE_START_OF_BLOCK_STATE_HASH =
-            new Hash(HASH_OF_ZERO.toByteArray(), DigestType.SHA_256);
+    private static final Hash FAKE_START_OF_BLOCK_STATE_HASH = new Hash(HASH_OF_ZERO.toByteArray(), DigestType.SHA_256);
     private static final Bytes FAKE_RESTART_BLOCK_HASH = Bytes.fromHex("abcd".repeat(16));
     // Effective last block hash computed by the restart path from blockStreamInfoWith(Bytes.EMPTY, patch(0))
     private static final Bytes FAKE_PATCH_RESTART_HASH =
@@ -681,17 +680,14 @@ class BlockStreamManagerImplTest {
                 FAKE_SIGNED_TRANSACTION_HASHED,
                 HASH_OF_ZERO,
                 2,
-                List.of(
-                        Bytes.fromHex(
-                                "5c1ff1a0c756bd8ad47b9b21fbc93797450095e70cfca993dec4bd10ce565f3b")),
+                List.of(Bytes.fromHex("5c1ff1a0c756bd8ad47b9b21fbc93797450095e70cfca993dec4bd10ce565f3b")),
                 FAKE_TRANSACTION_RESULT.transactionResultOrThrow().consensusTimestampOrThrow(),
                 true,
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
                 CONSENSUS_THEN,
                 HASH_OF_ZERO,
-                Bytes.fromHex(
-                        "b93f09815dc374a1f1bd39791ec787b2f92764aac7e4ff53dd58fe7c8d0bd4b1"),
+                Bytes.fromHex("b93f09815dc374a1f1bd39791ec787b2f92764aac7e4ff53dd58fe7c8d0bd4b1"),
                 HASH_OF_ZERO,
                 List.of(FAKE_PATCH_RESTART_HASH),
                 1);
@@ -1123,17 +1119,14 @@ class BlockStreamManagerImplTest {
                 FAKE_SIGNED_TRANSACTION_HASHED,
                 HASH_OF_ZERO,
                 2,
-                List.of(
-                        Bytes.fromHex(
-                                "5c1ff1a0c756bd8ad47b9b21fbc93797450095e70cfca993dec4bd10ce565f3b")),
+                List.of(Bytes.fromHex("5c1ff1a0c756bd8ad47b9b21fbc93797450095e70cfca993dec4bd10ce565f3b")),
                 FAKE_TRANSACTION_RESULT.transactionResultOrThrow().consensusTimestampOrThrow(),
                 false,
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
                 CONSENSUS_THEN,
                 HASH_OF_ZERO,
-                Bytes.fromHex(
-                        "ad38d14e92c171148add66e861aa13fa73540e56be94c4287e3889113cb4b49b"),
+                Bytes.fromHex("ad38d14e92c171148add66e861aa13fa73540e56be94c4287e3889113cb4b49b"),
                 HASH_OF_ZERO,
                 List.of(FAKE_NON_EMPTY_RESULTS_RESTART_HASH),
                 1);

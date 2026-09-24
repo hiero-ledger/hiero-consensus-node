@@ -202,7 +202,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                                                             .seconds()
                                                     - 2,
                                             0))
-                                    .blockHashes(STARTING_RUNNING_HASH_OBJ.hash().slice(0, HASH_SIZE))
+                                    .blockHashes(
+                                            STARTING_RUNNING_HASH_OBJ.hash().slice(0, HASH_SIZE))
                                     .consTimeOfLastHandledTxn(CONSENSUS_TIME)
                                     .migrationRecordsStreamed(true)
                                     .firstConsTimeOfCurrentBlock(FIRST_CONS_TIME_OF_LAST_BLOCK)
@@ -616,7 +617,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                             BlockInfo.newBuilder()
                                     .lastBlockNumber(-1)
                                     .firstConsTimeOfLastBlock(EPOCH)
-                                    .blockHashes(STARTING_RUNNING_HASH_OBJ.hash().slice(0, HASH_SIZE))
+                                    .blockHashes(
+                                            STARTING_RUNNING_HASH_OBJ.hash().slice(0, HASH_SIZE))
                                     .migrationRecordsStreamed(false)
                                     .firstConsTimeOfCurrentBlock(EPOCH)
                                     .lastUsedConsTime(EPOCH)
@@ -789,7 +791,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                             BlockInfo.newBuilder()
                                     .lastBlockNumber(-1)
                                     .firstConsTimeOfLastBlock(EPOCH)
-                                    .blockHashes(STARTING_RUNNING_HASH_OBJ.hash().slice(0, HASH_SIZE))
+                                    .blockHashes(
+                                            STARTING_RUNNING_HASH_OBJ.hash().slice(0, HASH_SIZE))
                                     .migrationRecordsStreamed(false)
                                     .firstConsTimeOfCurrentBlock(EPOCH)
                                     .lastUsedConsTime(EPOCH)
@@ -871,7 +874,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                             BlockInfo.newBuilder()
                                     .lastBlockNumber(-1)
                                     .firstConsTimeOfLastBlock(EPOCH)
-                                    .blockHashes(STARTING_RUNNING_HASH_OBJ.hash().slice(0, HASH_SIZE))
+                                    .blockHashes(
+                                            STARTING_RUNNING_HASH_OBJ.hash().slice(0, HASH_SIZE))
                                     .migrationRecordsStreamed(false)
                                     .firstConsTimeOfCurrentBlock(EPOCH)
                                     .lastUsedConsTime(EPOCH)
