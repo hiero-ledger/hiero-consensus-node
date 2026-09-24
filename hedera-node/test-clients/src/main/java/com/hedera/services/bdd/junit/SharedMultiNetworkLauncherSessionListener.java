@@ -2,13 +2,9 @@
 package com.hedera.services.bdd.junit;
 
 import com.hedera.services.bdd.junit.extensions.MultiNetworkExtension;
-import com.hedera.services.bdd.junit.hedera.ExternalPath;
-import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
+import com.hedera.services.bdd.junit.extensions.MultiNetworkGroupBudget;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.lang.reflect.Method;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -19,7 +15,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.core.config.Configurator;
+import org.junit.jupiter.api.Disabled;
 import org.junit.platform.commons.support.AnnotationSupport;
 import org.junit.platform.engine.support.descriptor.ClassSource;
 import org.junit.platform.engine.support.descriptor.MethodSource;
@@ -30,29 +26,16 @@ import org.junit.platform.launcher.TestPlan;
 
 /**
  * JUnit Platform launcher-session listener that runs once per test plan, before any tests execute.
- * Scans the plan for {@link MultiNetworkHapiTest} annotations on both classes and methods, starts
- * one {@link SubProcessNetwork} per distinct network name (e.g. {@code ledgerA}, {@code ledgerB})
- * via {@link MultiNetworkExtension#startNetworks}, and stashes each in
- * {@link MultiNetworkExtension#SHARED_NETWORKS} so every annotated test reuses the same subprocess
- * network by default. Terminates all networks after the plan finishes.
+ * Scans the plan for {@link MultiNetworkHapiTest} annotations on both classes and methods and, for each
+ * distinct network name (e.g. {@code ledgerA}, {@code ledgerB}), reserves its port window and records the
+ * canonical {@code @Network} config in {@link MultiNetworkExtension#DECLARED_CONFIGS}. It does NOT boot
+ * nodes here: each shared network is started lazily on first demand by
+ * {@link MultiNetworkExtension#getOrStartShared} and kept warm in
+ * {@link MultiNetworkExtension#SHARED_NETWORKS} for reuse. Terminates all started networks after the plan
+ * finishes.
  */
 public class SharedMultiNetworkLauncherSessionListener implements LauncherSessionListener {
     private static final Logger log = LogManager.getLogger(SharedMultiNetworkLauncherSessionListener.class);
-
-    /**
-     * System property keys consumed by {@code log4j2-test-client.xml}'s {@code RollingFile} appender.
-     * Mirrors the constants in {@code SharedNetworkLauncherSessionListener}; duplicated locally to
-     * keep this listener self-contained.
-     */
-    private static final String TEST_CLIENT_LOG_FILE = "hapi.test.clients.log.file";
-
-    private static final String TEST_CLIENT_LOG_FILE_PATTERN = "hapi.test.clients.log.filePattern";
-
-    /**
-     * Sibling directory (of the per-network {@code <scope>-test/} dirs) where the multi-network
-     * test-client driver log lives.
-     */
-    private static final String MULTINETWORK_LOG_DIR = "multinetwork-test-clients";
 
     /**
      * A list of {@code @MultiNetworkHapiTest} annotation declarations, grouped by network name.
@@ -126,14 +109,16 @@ public class SharedMultiNetworkLauncherSessionListener implements LauncherSessio
                             .thenComparing(MultiNetworkExtension::resolveName))
                     .toArray(MultiNetworkHapiTest.Network[]::new);
 
-            final SubProcessNetwork[] networks = MultiNetworkExtension.startNetworks(configs);
-            if (networks.length > 0) {
-                reconfigureSharedSubProcessLogging(networks[0]);
+            // Lazy start: do NOT boot nodes here. Reserve each declared network's port window
+            // up front (explicit-port networks first, per the sort above) so networks that start lazily
+            // and out of order can't collide, and record the canonical @Network config per name. Each
+            // network boots on first demand in MultiNetworkExtension.getOrStartShared and stays warm for
+            // reuse; the shared driver log is reconfigured on the first one to boot.
+            MultiNetworkExtension.reservePorts(configs);
+            for (final var cfg : configs) {
+                MultiNetworkExtension.DECLARED_CONFIGS.put(MultiNetworkExtension.resolveName(cfg), cfg);
             }
-            log.info("Starting shared multi-networks: {}", byName.keySet());
-            for (int i = 0; i < configs.length; i++) {
-                MultiNetworkExtension.SHARED_NETWORKS.put(MultiNetworkExtension.resolveName(configs[i]), networks[i]);
-            }
+            log.info("Declared shared multi-networks (lazy start): {}", byName.keySet());
         }
 
         /** One occurrence of a {@code @MultiNetworkHapiTest.Network} annotation on a test method. */
@@ -147,11 +132,23 @@ public class SharedMultiNetworkLauncherSessionListener implements LauncherSessio
                 return;
             }
             AnnotationSupport.findAnnotation(method, MultiNetworkHapiTest.class).ifPresent(ann -> {
+                // Skip @Disabled tests: they never execute, so their networks must not be reserved or
+                // counted. Counting a test that never runs would leave its network group's pending count above
+                // zero forever, leaking the network group's budget slot; excluding them also means a fully
+                // @Disabled suite is never admitted and its networks never boot.
+                if (method.isAnnotationPresent(Disabled.class)
+                        || method.getDeclaringClass().isAnnotationPresent(Disabled.class)) {
+                    return;
+                }
                 for (final var n : ann.value()) {
                     declarationsByName
                             .computeIfAbsent(MultiNetworkExtension.resolveName(n), k -> new ArrayList<>())
                             .add(new NetworkDeclaration(n, methodKey));
                 }
+                // One beforeEach/afterEach fires per factory method, so count one pending test for the
+                // network group this method occupies (its @Network name-set). The budget frees the network group's slot
+                // when this count reaches zero.
+                MultiNetworkGroupBudget.registerPendingTest(ann.value());
             });
         }
 
@@ -190,41 +187,13 @@ public class SharedMultiNetworkLauncherSessionListener implements LauncherSessio
             return declarations.get(0).network();
         }
 
-        private static void reconfigureSharedSubProcessLogging(@NonNull final SubProcessNetwork network) {
-            // Route the test-client driver log to a sibling of each network's working dir
-            // (e.g. `build/multinetwork-test-clients/`), not inside any one network's node0 output.
-            // The first node's working dir is `build/<scope>-test/node0`; two parents up is the
-            // gradle build root. Subtask-name nesting is disabled for MULTINETWORK in
-            // build.gradle.kts so the depth is fixed.
-            final var workingDir = network.nodes()
-                    .getFirst()
-                    .getExternalPath(ExternalPath.WORKING_DIR)
-                    .toAbsolutePath()
-                    .normalize();
-            final Path outputDir;
-            try {
-                outputDir = workingDir.getParent().getParent().resolve(MULTINETWORK_LOG_DIR);
-                Files.createDirectories(outputDir);
-            } catch (final RuntimeException | IOException e) {
-                log.warn("Could not resolve multi-network test-client log dir from '{}'", workingDir, e);
-                return;
-            }
-            System.setProperty(
-                    TEST_CLIENT_LOG_FILE, outputDir.resolve("test-clients.log").toString());
-            System.setProperty(
-                    TEST_CLIENT_LOG_FILE_PATTERN,
-                    outputDir.resolve("test-clients-%d{yyyy-MM-dd}-%i.log").toString());
-            // Reconfigure in place using log4j2-test-client.xml with multi-network output paths.
-            Configurator.reconfigure();
-            log.info("Configured shared multi-network test-client logging under {}", outputDir);
-        }
-
         @Override
         public void testPlanExecutionFinished(@NonNull final TestPlan testPlan) {
             for (final var n : MultiNetworkExtension.SHARED_NETWORKS.values()) {
                 MultiNetworkExtension.safeTerminate(n);
             }
             MultiNetworkExtension.SHARED_NETWORKS.clear();
+            MultiNetworkExtension.DECLARED_CONFIGS.clear();
         }
 
         private static Class<?> tryLoad(@NonNull final String className) {

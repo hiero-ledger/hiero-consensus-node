@@ -19,6 +19,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest.Network;
+import com.hedera.services.bdd.junit.MultiNetworkLeakyHapiTest;
+import com.hedera.services.bdd.junit.hedera.subprocess.MultiNetworkLifecycleTest;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
@@ -27,9 +29,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.*;
 
 /**
  * Multi-network restart regression for the outbound-sync orchestrator.
@@ -70,6 +70,7 @@ import org.junit.jupiter.api.Tag;
  * than tripping the CircuitBreaker's default 120-second cooldown.
  */
 @Tag(MULTINETWORK)
+@MultiNetworkLeakyHapiTest
 public class ClprHieroToHieroRestartSuite extends HieroToHieroBase implements LifecycleTest {
 
     private static final Duration FREEZE_WAIT_TIMEOUT = Duration.ofMinutes(2);
@@ -77,42 +78,49 @@ public class ClprHieroToHieroRestartSuite extends HieroToHieroBase implements Li
     private static final Duration RESTART_TIMEOUT = Duration.ofMinutes(5);
 
     @MultiNetworkHapiTest({
-        @Network(name = "ledgerA", setupOverrides = @ConfigOverride(key = "clpr.retryMaxAttempts", value = "100")),
-        @Network("ledgerB")
+        @Network(
+                name = "ledgerA_restart",
+                setupOverrides = @ConfigOverride(key = "clpr.retryMaxAttempts", value = "100")),
+        @Network("ledgerB_restart")
     })
     @DisplayName("Graceful restart of B mid-bundle → B resumes and delivers all 3 messages")
     Stream<DynamicTest> restartBMidBundleGraceful(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
         final var crypto = new ClprCrypto();
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
-        return Stream.concat(
-                setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
-                Stream.of(
-                        sendNMessages(ledgerA, crypto, "callerA", "before-restart", 3),
-                        // Prove the bundle stream is in flight before we restart B.
-                        awaitReceivedMessage(ledgerB, crypto.channelId, 1),
-                        // Freeze + shutdown + restart must all live in ONE networkHapiTest block:
-                        // after FREEZE_COMPLETE B's gRPC server is gone, so a fresh spec against
-                        // ledgerB would fail to bootstrap.
-                        networkHapiTest(
-                                        "Freeze, shut down, and restart B",
-                                        ledgerB,
-                                        runBackgroundTrafficUntilFreezeComplete(),
-                                        freezeOnly().startingIn(2).seconds(),
-                                        waitForFrozenNetwork(FREEZE_WAIT_TIMEOUT),
-                                        FakeNmt.shutdownWithin(allNodes(), SHUTDOWN_TIMEOUT),
-                                        sourcing(() -> FakeNmt.restartWithConfigVersion(
-                                                allNodes(), CURRENT_CONFIG_VERSION.incrementAndGet())),
-                                        waitForActive(allNodes(), RESTART_TIMEOUT),
-                                        blockingOrder(doAdhoc(() -> ledgerB.awaitLedgerId(RESTART_TIMEOUT))))
-                                .findFirst()
-                                .orElseThrow(),
-                        awaitReceivedMessage(ledgerB, crypto.channelId, 3)));
+        return multiNetworkHapiTest(
+                "restartBMidBundleGraceful",
+                Stream.concat(
+                        setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
+                        Stream.of(
+                                sendNMessages(ledgerA, crypto, "callerA", "before-restart", 3),
+                                // Prove the bundle stream is in flight before we restart B.
+                                awaitReceivedMessage(ledgerB, crypto.channelId, 1),
+                                // Freeze + shutdown + restart must all live in ONE networkHapiTest block:
+                                // after FREEZE_COMPLETE B's gRPC server is gone, so a fresh spec against
+                                // ledgerB would fail to bootstrap.
+                                networkHapiTest(
+                                                "Freeze, shut down, and restart B",
+                                                ledgerB,
+                                                runBackgroundTrafficUntilFreezeComplete(),
+                                                freezeOnly().startingIn(2).seconds(),
+                                                waitForFrozenNetwork(FREEZE_WAIT_TIMEOUT),
+                                                FakeNmt.shutdownWithin(allNodes(), SHUTDOWN_TIMEOUT),
+                                                sourcing(() -> FakeNmt.restartWithConfigVersion(
+                                                        allNodes(),
+                                                        MultiNetworkLifecycleTest.nextConfigVersionOf(ledgerB.name()))),
+                                                waitForActive(allNodes(), RESTART_TIMEOUT),
+                                                blockingOrder(doAdhoc(() -> ledgerB.awaitLedgerId(RESTART_TIMEOUT))))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                awaitReceivedMessage(ledgerB, crypto.channelId, 3))));
     }
 
     @MultiNetworkHapiTest({
-        @Network(name = "ledgerA", setupOverrides = @ConfigOverride(key = "clpr.retryMaxAttempts", value = "100")),
-        @Network("ledgerB")
+        @Network(
+                name = "ledgerA_restart",
+                setupOverrides = @ConfigOverride(key = "clpr.retryMaxAttempts", value = "100")),
+        @Network("ledgerB_restart")
     })
     @DisplayName("Restart of B, then A sends first: bidirectional messaging resumes")
     Stream<DynamicTest> channelSurvivesFreezeUpgradeRestartOfBASendsFirst(
@@ -121,43 +129,47 @@ public class ClprHieroToHieroRestartSuite extends HieroToHieroBase implements Li
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
 
-        return Stream.concat(
-                setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
-                Stream.of(
-                        // Counter model — every inbound DATA message makes the receiver enqueue an
-                        // auto-Reply on its OWN outbound queue (ClprSubmitBundleHandler#enqueueReply),
-                        // sharing the same next_message_id counter as explicit sends. So each side's
-                        // outbound id stream interleaves its DATA with its replies to the peer, and a
-                        // full round-trip advances both per-direction high-water marks
-                        // (receivedMessageId / ackedMessageId) by 2. The minCounts below are tight: each
-                        // is reached only when the message under test arrives/acks — not by the prior
-                        // round-trip's reply (which a lower value would already satisfy, proving nothing).
+        return multiNetworkHapiTest(
+                "channelSurvivesFreezeUpgradeRestartOfBASendsFirst",
+                Stream.concat(
+                        setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
+                        Stream.of(
+                                // Counter model — every inbound DATA message makes the receiver enqueue an
+                                // auto-Reply on its OWN outbound queue (ClprSubmitBundleHandler#enqueueReply),
+                                // sharing the same next_message_id counter as explicit sends. So each side's
+                                // outbound id stream interleaves its DATA with its replies to the peer, and a
+                                // full round-trip advances both per-direction high-water marks
+                                // (receivedMessageId / ackedMessageId) by 2. The minCounts below are tight: each
+                                // is reached only when the message under test arrives/acks — not by the prior
+                                // round-trip's reply (which a lower value would already satisfy, proving nothing).
 
-                        // ── Pre-restart: prove the channel is healthy in both directions ──
-                        sendNMessages(ledgerA, crypto, "callerApre", "a-pre", 1),
-                        awaitReceivedMessage(ledgerB, crypto.channelId, 1), // a-pre A#1
-                        awaitAckedMessage(ledgerA, crypto.channelId, 1), // B acks A#1
-                        sendNMessages(ledgerB, crypto, "callerBpre", "b-pre", 1),
-                        awaitReceivedMessage(ledgerA, crypto.channelId, 2), // b-pre B#2 (B#1 was reply→a-pre)
-                        awaitAckedMessage(ledgerB, crypto.channelId, 2), // A acks up to B#2
+                                // ── Pre-restart: prove the channel is healthy in both directions ──
+                                sendNMessages(ledgerA, crypto, "callerApre", "a-pre", 1),
+                                awaitReceivedMessage(ledgerB, crypto.channelId, 1), // a-pre A#1
+                                awaitAckedMessage(ledgerA, crypto.channelId, 1), // B acks A#1
+                                sendNMessages(ledgerB, crypto, "callerBpre", "b-pre", 1),
+                                awaitReceivedMessage(ledgerA, crypto.channelId, 2), // b-pre B#2 (B#1 was reply→a-pre)
+                                awaitAckedMessage(ledgerB, crypto.channelId, 2), // A acks up to B#2
 
-                        // ── Restart B via freeze + software upgrade, keeping its gRPC port ──
-                        freezeUpgradeRestartSamePort(ledgerB),
+                                // ── Restart B via freeze + software upgrade, keeping its gRPC port ──
+                                freezeUpgradeRestartSamePort(ledgerB),
 
-                        // ── Post-restart A→B first: a-post=A#3 — A (never restarted) sends first,
-                        //    giving B time to finish binding before anything is submitted to it. ──
-                        sendNMessages(ledgerA, crypto, "callerApost", "a-post", 1),
-                        awaitReceivedMessage(ledgerB, crypto.channelId, 3),
-                        awaitAckedMessage(ledgerA, crypto.channelId, 3),
-                        // ── Post-restart B→A second: b-post=B#4. ──
-                        sendNMessages(ledgerB, crypto, "callerBpost", "b-post", 1),
-                        awaitReceivedMessage(ledgerA, crypto.channelId, 4),
-                        awaitAckedMessage(ledgerB, crypto.channelId, 4)));
+                                // ── Post-restart A→B first: a-post=A#3 — A (never restarted) sends first,
+                                //    giving B time to finish binding before anything is submitted to it. ──
+                                sendNMessages(ledgerA, crypto, "callerApost", "a-post", 1),
+                                awaitReceivedMessage(ledgerB, crypto.channelId, 3),
+                                awaitAckedMessage(ledgerA, crypto.channelId, 3),
+                                // ── Post-restart B→A second: b-post=B#4. ──
+                                sendNMessages(ledgerB, crypto, "callerBpost", "b-post", 1),
+                                awaitReceivedMessage(ledgerA, crypto.channelId, 4),
+                                awaitAckedMessage(ledgerB, crypto.channelId, 4))));
     }
 
     @MultiNetworkHapiTest({
-        @Network(name = "ledgerA", setupOverrides = @ConfigOverride(key = "clpr.retryMaxAttempts", value = "100")),
-        @Network("ledgerB")
+        @Network(
+                name = "ledgerA_restart",
+                setupOverrides = @ConfigOverride(key = "clpr.retryMaxAttempts", value = "100")),
+        @Network("ledgerB_restart")
     })
     @DisplayName("Restart of B, then B sends first: bidirectional messaging resumes")
     Stream<DynamicTest> channelSurvivesFreezeUpgradeRestartOfBBSendsFirst(
@@ -166,38 +178,40 @@ public class ClprHieroToHieroRestartSuite extends HieroToHieroBase implements Li
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
 
-        return Stream.concat(
-                setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
-                Stream.of(
-                        // Counter model — every inbound DATA message makes the receiver enqueue an
-                        // auto-Reply on its OWN outbound queue (ClprSubmitBundleHandler#enqueueReply),
-                        // sharing the same next_message_id counter as explicit sends. So each side's
-                        // outbound id stream interleaves its DATA with its replies to the peer, and a
-                        // full round-trip advances both per-direction high-water marks
-                        // (receivedMessageId / ackedMessageId) by 2. The minCounts below are tight: each
-                        // is reached only when the message under test arrives/acks — not by the prior
-                        // round-trip's reply (which a lower value would already satisfy, proving nothing).
+        return multiNetworkHapiTest(
+                "channelSurvivesFreezeUpgradeRestartOfBBSendsFirst",
+                Stream.concat(
+                        setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
+                        Stream.of(
+                                // Counter model — every inbound DATA message makes the receiver enqueue an
+                                // auto-Reply on its OWN outbound queue (ClprSubmitBundleHandler#enqueueReply),
+                                // sharing the same next_message_id counter as explicit sends. So each side's
+                                // outbound id stream interleaves its DATA with its replies to the peer, and a
+                                // full round-trip advances both per-direction high-water marks
+                                // (receivedMessageId / ackedMessageId) by 2. The minCounts below are tight: each
+                                // is reached only when the message under test arrives/acks — not by the prior
+                                // round-trip's reply (which a lower value would already satisfy, proving nothing).
 
-                        // ── Pre-restart: prove the channel is healthy in both directions ──
-                        sendNMessages(ledgerA, crypto, "callerApre", "a-pre", 1),
-                        awaitReceivedMessage(ledgerB, crypto.channelId, 1), // a-pre A#1
-                        awaitAckedMessage(ledgerA, crypto.channelId, 1), // B acks A#1
-                        sendNMessages(ledgerB, crypto, "callerBpre", "b-pre", 1),
-                        awaitReceivedMessage(ledgerA, crypto.channelId, 2), // b-pre B#2 (B#1 was reply→a-pre)
-                        awaitAckedMessage(ledgerB, crypto.channelId, 2), // A acks up to B#2
+                                // ── Pre-restart: prove the channel is healthy in both directions ──
+                                sendNMessages(ledgerA, crypto, "callerApre", "a-pre", 1),
+                                awaitReceivedMessage(ledgerB, crypto.channelId, 1), // a-pre A#1
+                                awaitAckedMessage(ledgerA, crypto.channelId, 1), // B acks A#1
+                                sendNMessages(ledgerB, crypto, "callerBpre", "b-pre", 1),
+                                awaitReceivedMessage(ledgerA, crypto.channelId, 2), // b-pre B#2 (B#1 was reply→a-pre)
+                                awaitAckedMessage(ledgerB, crypto.channelId, 2), // A acks up to B#2
 
-                        // ── Restart B via freeze + software upgrade, keeping its gRPC port ──
-                        freezeUpgradeRestartSamePort(ledgerB),
+                                // ── Restart B via freeze + software upgrade, keeping its gRPC port ──
+                                freezeUpgradeRestartSamePort(ledgerB),
 
-                        // ── Post-restart B→A first: b-post=B#3 — B (just restarted) sends first. This
-                        //    submits to B right after its restart, which can race B's gRPC rebind. ──
-                        sendNMessages(ledgerB, crypto, "callerBpost", "b-post", 1),
-                        awaitReceivedMessage(ledgerA, crypto.channelId, 3),
-                        awaitAckedMessage(ledgerB, crypto.channelId, 3),
-                        // ── Post-restart A→B second: a-post=A#4. ──
-                        sendNMessages(ledgerA, crypto, "callerApost", "a-post", 1),
-                        awaitReceivedMessage(ledgerB, crypto.channelId, 4),
-                        awaitAckedMessage(ledgerA, crypto.channelId, 4)));
+                                // ── Post-restart B→A first: b-post=B#3 — B (just restarted) sends first. This
+                                //    submits to B right after its restart, which can race B's gRPC rebind. ──
+                                sendNMessages(ledgerB, crypto, "callerBpost", "b-post", 1),
+                                awaitReceivedMessage(ledgerA, crypto.channelId, 3),
+                                awaitAckedMessage(ledgerB, crypto.channelId, 3),
+                                // ── Post-restart A→B second: a-post=A#4. ──
+                                sendNMessages(ledgerA, crypto, "callerApost", "a-post", 1),
+                                awaitReceivedMessage(ledgerB, crypto.channelId, 4),
+                                awaitAckedMessage(ledgerA, crypto.channelId, 4))));
     }
 
     /**

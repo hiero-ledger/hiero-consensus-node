@@ -25,6 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest.Network;
+import com.hedera.services.bdd.junit.MultiNetworkLeakyHapiTest;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
@@ -67,28 +68,30 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
 
-        return Stream.concat(
-                setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
-                Stream.of(
-                        networkHapiTest(
-                                        "Send 'hello-one-way' from A",
-                                        ledgerA,
-                                        cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
-                                        uploadInitCode(CLPR_CONTRACT),
-                                        contractCreate(CLPR_CONTRACT),
-                                        contractCall(
-                                                        CLPR_CONTRACT,
-                                                        SEND_MESSAGE,
-                                                        crypto.channelId,
-                                                        crypto.connectorId,
-                                                        new byte[20],
-                                                        "hello-one-way".getBytes(StandardCharsets.UTF_8))
-                                                .gas(GAS)
-                                                .payingWith("callerA"))
-                                .findFirst()
-                                .orElseThrow(),
-                        awaitReceivedMessage(ledgerB, crypto.channelId, 1),
-                        awaitAckedMessage(ledgerA, crypto.channelId, 1)));
+        return multiNetworkHapiTest(
+                "oneWayDelivery",
+                Stream.concat(
+                        setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
+                        Stream.of(
+                                networkHapiTest(
+                                                "Send 'hello-one-way' from A",
+                                                ledgerA,
+                                                cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
+                                                uploadInitCode(CLPR_CONTRACT),
+                                                contractCreate(CLPR_CONTRACT),
+                                                contractCall(
+                                                                CLPR_CONTRACT,
+                                                                SEND_MESSAGE,
+                                                                crypto.channelId,
+                                                                crypto.connectorId,
+                                                                new byte[20],
+                                                                "hello-one-way".getBytes(StandardCharsets.UTF_8))
+                                                        .gas(GAS)
+                                                        .payingWith("callerA"))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                awaitReceivedMessage(ledgerB, crypto.channelId, 1),
+                                awaitAckedMessage(ledgerA, crypto.channelId, 1))));
     }
 
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
@@ -111,73 +114,78 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
         // must be plumbed manually.
         final ContractID[] sourceAppIdOnA = new ContractID[1];
 
-        return Stream.concat(
-                setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
-                Stream.of(
-                        // Deploy EchoApplication on B and capture its 20-byte EVM address.
-                        networkHapiTest(
-                                        "Deploy EchoApplication on B",
-                                        ledgerB,
-                                        uploadInitCode(ECHO_APP),
-                                        contractCreate(ECHO_APP),
-                                        withOpContext((spec, ignoredLog) -> echoAddrOnB[0] = asSolidityAddress(
-                                                spec.registry().getContractId(ECHO_APP))))
-                                .findFirst()
-                                .orElseThrow(),
-                        // Deploy SourceApplication on A wired to (channelId, connectorId, echoAddrOnB),
-                        // capture its ContractID for the post-ack query, then drive one round-trip via
-                        // sendMessages(1).
-                        networkHapiTest(
-                                        "Deploy SourceApplication on A + send 1 message",
-                                        ledgerA,
-                                        cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
-                                        uploadInitCode(SOURCE_APP),
-                                        withOpContext((spec, ignoredLog) -> {
-                                            allRunFor(
-                                                    spec,
-                                                    contractCreate(
-                                                            SOURCE_APP,
-                                                            crypto.channelId,
-                                                            crypto.connectorId,
-                                                            echoAddrOnB[0]));
-                                            sourceAppIdOnA[0] = spec.registry().getContractId(SOURCE_APP);
-                                        }),
-                                        // SourceApplication.sendMessages(uint256) — note the plural.
-                                        contractCall(SOURCE_APP, "sendMessages", BigInteger.ONE)
-                                                .gas(GAS)
-                                                .payingWith("callerA"))
-                                .findFirst()
-                                .orElseThrow(),
-                        awaitReceivedMessage(ledgerB, crypto.channelId, 1),
-                        awaitAckedMessage(ledgerA, crypto.channelId, 1),
-                        // Ack alone doesn't prove the callback fired — the handler records ackedMessageId
-                        // BEFORE dispatching onClprResponse, and the dispatch is wrapped in a swallowed
-                        // try/catch. The assertion below reads state that ONLY SourceApplication.onClprResponse
-                        // mutates, so it is sensitive to the response selector being correct.
-                        networkHapiTest(
-                                        "Assert onClprResponse callback delivered on A",
-                                        ledgerA,
-                                        withOpContext((spec, ignoredLog) -> {
-                                            // Re-register SourceApplication's ContractID (captured during deploy
-                                            // above) into this spec's fresh registry so the local query can find it.
-                                            spec.registry().saveContractId(SOURCE_APP, sourceAppIdOnA[0]);
-                                            final var abi = getABIFor(FUNCTION, "getResponse", SOURCE_APP);
-                                            allRunFor(
-                                                    spec,
-                                                    QueryVerbs.contractCallLocalWithFunctionAbi(
-                                                                    SOURCE_APP, abi, BigInteger.ONE)
-                                                            .exposingTypedResultsTo(
-                                                                    results -> {
-                                                                        final var actual = (byte[]) results[0];
-                                                                        assertArrayEquals(
-                                                                                expectedResponse,
-                                                                                actual,
-                                                                                "SourceApplication.responses[1] not populated — onClprResponse callback was never delivered. "
-                                                                                        + "Check ON_CLPR_RESPONSE_SELECTOR in ClprSubmitBundleHandler.");
-                                                                    }));
-                                        }))
-                                .findFirst()
-                                .orElseThrow()));
+        return multiNetworkHapiTest(
+                "fullRoundTrip",
+                Stream.concat(
+                        setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
+                        Stream.of(
+                                // Deploy EchoApplication on B and capture its 20-byte EVM address.
+                                networkHapiTest(
+                                                "Deploy EchoApplication on B",
+                                                ledgerB,
+                                                uploadInitCode(ECHO_APP),
+                                                contractCreate(ECHO_APP),
+                                                withOpContext((spec, ignoredLog) -> echoAddrOnB[0] = asSolidityAddress(
+                                                        spec.registry().getContractId(ECHO_APP))))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                // Deploy SourceApplication on A wired to (channelId, connectorId, echoAddrOnB),
+                                // capture its ContractID for the post-ack query, then drive one round-trip via
+                                // sendMessages(1).
+                                networkHapiTest(
+                                                "Deploy SourceApplication on A + send 1 message",
+                                                ledgerA,
+                                                cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
+                                                uploadInitCode(SOURCE_APP),
+                                                withOpContext((spec, ignoredLog) -> {
+                                                    allRunFor(
+                                                            spec,
+                                                            contractCreate(
+                                                                    SOURCE_APP,
+                                                                    crypto.channelId,
+                                                                    crypto.connectorId,
+                                                                    echoAddrOnB[0]));
+                                                    sourceAppIdOnA[0] =
+                                                            spec.registry().getContractId(SOURCE_APP);
+                                                }),
+                                                // SourceApplication.sendMessages(uint256) — note the plural.
+                                                contractCall(SOURCE_APP, "sendMessages", BigInteger.ONE)
+                                                        .gas(GAS)
+                                                        .payingWith("callerA"))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                awaitReceivedMessage(ledgerB, crypto.channelId, 1),
+                                awaitAckedMessage(ledgerA, crypto.channelId, 1),
+                                // Ack alone doesn't prove the callback fired — the handler records ackedMessageId
+                                // BEFORE dispatching onClprResponse, and the dispatch is wrapped in a swallowed
+                                // try/catch. The assertion below reads state that ONLY SourceApplication.onClprResponse
+                                // mutates, so it is sensitive to the response selector being correct.
+                                networkHapiTest(
+                                                "Assert onClprResponse callback delivered on A",
+                                                ledgerA,
+                                                withOpContext((spec, ignoredLog) -> {
+                                                    // Re-register SourceApplication's ContractID (captured during
+                                                    // deploy
+                                                    // above) into this spec's fresh registry so the local query can
+                                                    // find it.
+                                                    spec.registry().saveContractId(SOURCE_APP, sourceAppIdOnA[0]);
+                                                    final var abi = getABIFor(FUNCTION, "getResponse", SOURCE_APP);
+                                                    allRunFor(
+                                                            spec,
+                                                            QueryVerbs.contractCallLocalWithFunctionAbi(
+                                                                            SOURCE_APP, abi, BigInteger.ONE)
+                                                                    .exposingTypedResultsTo(
+                                                                            results -> {
+                                                                                final var actual = (byte[]) results[0];
+                                                                                assertArrayEquals(
+                                                                                        expectedResponse,
+                                                                                        actual,
+                                                                                        "SourceApplication.responses[1] not populated — onClprResponse callback was never delivered. "
+                                                                                                + "Check ON_CLPR_RESPONSE_SELECTOR in ClprSubmitBundleHandler.");
+                                                                            }));
+                                                }))
+                                        .findFirst()
+                                        .orElseThrow())));
     }
 
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
@@ -204,17 +212,19 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                     .payingWith("callerA"));
         }
 
-        return Stream.concat(
-                setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
-                Stream.of(
-                        networkHapiTest(
-                                        "Send " + messageCount + " sequential messages from A",
-                                        ledgerA,
-                                        sendOps.toArray(new SpecOperation[0]))
-                                .findFirst()
-                                .orElseThrow(),
-                        awaitReceivedMessage(ledgerB, crypto.channelId, messageCount),
-                        awaitAckedMessage(ledgerA, crypto.channelId, messageCount)));
+        return multiNetworkHapiTest(
+                "multipleSequentialMessages",
+                Stream.concat(
+                        setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
+                        Stream.of(
+                                networkHapiTest(
+                                                "Send " + messageCount + " sequential messages from A",
+                                                ledgerA,
+                                                sendOps.toArray(new SpecOperation[0]))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                awaitReceivedMessage(ledgerB, crypto.channelId, messageCount),
+                                awaitAckedMessage(ledgerA, crypto.channelId, messageCount))));
     }
 
     @Disabled(CLOSE_CHANNEL_DISABLED_REASON)
@@ -228,29 +238,33 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
 
-        return Stream.concat(
-                setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
-                Stream.of(networkHapiTest(
-                                "Reject send after admin close on A",
-                                ledgerA,
-                                cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
-                                uploadInitCode(CLPR_CONTRACT),
-                                contractCreate(CLPR_CONTRACT),
-                                // Admin closes the channel on A.
-                                clprCloseChannel().channelId(crypto.channelId).payingWith(GENESIS),
-                                // Subsequent send must revert — channel is no longer ACTIVE.
-                                contractCall(
-                                                CLPR_CONTRACT,
-                                                SEND_MESSAGE,
-                                                crypto.channelId,
-                                                crypto.connectorId,
-                                                new byte[20],
-                                                "post-close".getBytes(StandardCharsets.UTF_8))
-                                        .gas(GAS)
-                                        .payingWith("callerA")
-                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
-                        .findFirst()
-                        .orElseThrow()));
+        return multiNetworkHapiTest(
+                "sendRejectedAfterClose",
+                Stream.concat(
+                        setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
+                        Stream.of(networkHapiTest(
+                                        "Reject send after admin close on A",
+                                        ledgerA,
+                                        cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
+                                        uploadInitCode(CLPR_CONTRACT),
+                                        contractCreate(CLPR_CONTRACT),
+                                        // Admin closes the channel on A.
+                                        clprCloseChannel()
+                                                .channelId(crypto.channelId)
+                                                .payingWith(GENESIS),
+                                        // Subsequent send must revert — channel is no longer ACTIVE.
+                                        contractCall(
+                                                        CLPR_CONTRACT,
+                                                        SEND_MESSAGE,
+                                                        crypto.channelId,
+                                                        crypto.connectorId,
+                                                        new byte[20],
+                                                        "post-close".getBytes(StandardCharsets.UTF_8))
+                                                .gas(GAS)
+                                                .payingWith("callerA")
+                                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED))
+                                .findFirst()
+                                .orElseThrow())));
     }
 
     @Disabled(CLOSE_CHANNEL_DISABLED_REASON)
@@ -262,44 +276,46 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
 
-        return Stream.concat(
-                setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
-                Stream.of(
-                        // 1. Round-trip one message to prove the channel is healthy ACTIVE.
-                        networkHapiTest(
-                                        "Round-trip 1 message (prove channel ACTIVE)",
-                                        ledgerA,
-                                        cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
-                                        uploadInitCode(CLPR_CONTRACT),
-                                        contractCreate(CLPR_CONTRACT),
-                                        contractCall(
-                                                        CLPR_CONTRACT,
-                                                        SEND_MESSAGE,
-                                                        crypto.channelId,
-                                                        crypto.connectorId,
-                                                        new byte[20],
-                                                        "hello-close".getBytes(StandardCharsets.UTF_8))
-                                                .gas(GAS)
-                                                .payingWith("callerA"))
-                                .findFirst()
-                                .orElseThrow(),
-                        awaitReceivedMessage(ledgerB, crypto.channelId, 1),
-                        awaitAckedMessage(ledgerA, crypto.channelId, 1),
-                        // 2. Admin closes the channel on ledger A.
-                        networkHapiTest(
-                                        "Admin closes channel on A",
-                                        ledgerA,
-                                        clprCloseChannel()
-                                                .channelId(crypto.channelId)
-                                                .payingWith(GENESIS)
-                                                .hasKnownStatus(SUCCESS))
-                                .findFirst()
-                                .orElseThrow(),
-                        // 3. A's status moves out of ACTIVE on commit — sendMessage rejects on probe.
-                        awaitChannelNonActive(ledgerA, crypto),
-                        // 4. Drain handshake propagates to B (B mirrors to CLOSING via spec §4.2 step 5a)
-                        //    — sendMessage on B also rejects.
-                        awaitChannelNonActive(ledgerB, crypto)));
+        return multiNetworkHapiTest(
+                "closeChannelDrainHandshakeFromActive",
+                Stream.concat(
+                        setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
+                        Stream.of(
+                                // 1. Round-trip one message to prove the channel is healthy ACTIVE.
+                                networkHapiTest(
+                                                "Round-trip 1 message (prove channel ACTIVE)",
+                                                ledgerA,
+                                                cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
+                                                uploadInitCode(CLPR_CONTRACT),
+                                                contractCreate(CLPR_CONTRACT),
+                                                contractCall(
+                                                                CLPR_CONTRACT,
+                                                                SEND_MESSAGE,
+                                                                crypto.channelId,
+                                                                crypto.connectorId,
+                                                                new byte[20],
+                                                                "hello-close".getBytes(StandardCharsets.UTF_8))
+                                                        .gas(GAS)
+                                                        .payingWith("callerA"))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                awaitReceivedMessage(ledgerB, crypto.channelId, 1),
+                                awaitAckedMessage(ledgerA, crypto.channelId, 1),
+                                // 2. Admin closes the channel on ledger A.
+                                networkHapiTest(
+                                                "Admin closes channel on A",
+                                                ledgerA,
+                                                clprCloseChannel()
+                                                        .channelId(crypto.channelId)
+                                                        .payingWith(GENESIS)
+                                                        .hasKnownStatus(SUCCESS))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                // 3. A's status moves out of ACTIVE on commit — sendMessage rejects on probe.
+                                awaitChannelNonActive(ledgerA, crypto),
+                                // 4. Drain handshake propagates to B (B mirrors to CLOSING via spec §4.2 step 5a)
+                                //    — sendMessage on B also rejects.
+                                awaitChannelNonActive(ledgerB, crypto))));
     }
 
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
@@ -356,28 +372,30 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                     .payingWith("callerB"));
         }
 
-        return Stream.concat(
-                setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
-                Stream.of(
-                        // Enqueue N messages on A. Their first sync tick will batch them all into one
-                        // bundle and ship to B.
-                        networkHapiTest(ledgerA, sendOpsA.toArray(new SpecOperation[0]))
-                                .findFirst()
-                                .orElseThrow(),
-                        // While A's bundles are flying, enqueue N messages on B. Now BOTH sides are
-                        // simultaneously syncing outbound queues whose leading messages will become
-                        // replays on the next tick — this is exactly the deadlock trigger.
-                        networkHapiTest(ledgerB, sendOpsB.toArray(new SpecOperation[0]))
-                                .findFirst()
-                                .orElseThrow(),
-                        // Both sides must receive all N messages from the peer …
-                        awaitReceivedMessage(ledgerA, crypto.channelId, messagesPerSide),
-                        awaitReceivedMessage(ledgerB, crypto.channelId, messagesPerSide),
-                        // … AND both sides must observe acks for all N of their own outbound messages.
-                        // This is the load-bearing assertion: with the pre-fix strict Step 5 check,
-                        // ackedMessageId never advances past 1 on either side and these awaits time out.
-                        awaitAckedMessage(ledgerA, crypto.channelId, messagesPerSide),
-                        awaitAckedMessage(ledgerB, crypto.channelId, messagesPerSide)));
+        return multiNetworkHapiTest(
+                "bidirectionalConcurrentTraffic",
+                Stream.concat(
+                        setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
+                        Stream.of(
+                                // Enqueue N messages on A. Their first sync tick will batch them all into one
+                                // bundle and ship to B.
+                                networkHapiTest(ledgerA, sendOpsA.toArray(new SpecOperation[0]))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                // While A's bundles are flying, enqueue N messages on B. Now BOTH sides are
+                                // simultaneously syncing outbound queues whose leading messages will become
+                                // replays on the next tick — this is exactly the deadlock trigger.
+                                networkHapiTest(ledgerB, sendOpsB.toArray(new SpecOperation[0]))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                // Both sides must receive all N messages from the peer …
+                                awaitReceivedMessage(ledgerA, crypto.channelId, messagesPerSide),
+                                awaitReceivedMessage(ledgerB, crypto.channelId, messagesPerSide),
+                                // … AND both sides must observe acks for all N of their own outbound messages.
+                                // This is the load-bearing assertion: with the pre-fix strict Step 5 check,
+                                // ackedMessageId never advances past 1 on either side and these awaits time out.
+                                awaitAckedMessage(ledgerA, crypto.channelId, messagesPerSide),
+                                awaitAckedMessage(ledgerB, crypto.channelId, messagesPerSide))));
     }
 
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
@@ -415,18 +433,20 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                     .payingWith("callerA"));
         }
 
-        return Stream.concat(
-                setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
-                Stream.of(
-                        networkHapiTest(ledgerA, sendOps.toArray(new SpecOperation[0]))
-                                .findFirst()
-                                .orElseThrow(),
-                        // B must receive all N messages …
-                        awaitReceivedMessage(ledgerB, crypto.channelId, messageCount),
-                        // … and A must observe acks for all N. Pre-fix, only the last reply survived
-                        // in B's outbound queue, so A's ackedMessageId would only advance by 1 and
-                        // this assertion would time out.
-                        awaitAckedMessage(ledgerA, crypto.channelId, messageCount)));
+        return multiNetworkHapiTest(
+                "multiMessageBundleRoundTrip",
+                Stream.concat(
+                        setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
+                        Stream.of(
+                                networkHapiTest(ledgerA, sendOps.toArray(new SpecOperation[0]))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                // B must receive all N messages …
+                                awaitReceivedMessage(ledgerB, crypto.channelId, messageCount),
+                                // … and A must observe acks for all N. Pre-fix, only the last reply survived
+                                // in B's outbound queue, so A's ackedMessageId would only advance by 1 and
+                                // this assertion would time out.
+                                awaitAckedMessage(ledgerA, crypto.channelId, messageCount))));
     }
 
     @Disabled(CLOSE_CHANNEL_DISABLED_REASON)
@@ -446,45 +466,48 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
         final int portA = ledgerA.nodes().getFirst().getGrpcPort();
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
 
-        return Stream.concat(
-                setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
-                Stream.of(
-                        // 1. Round-trip a message so the channel is healthy ACTIVE on both sides.
-                        networkHapiTest(
-                                        ledgerA,
-                                        cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
-                                        uploadInitCode(CLPR_CONTRACT),
-                                        contractCreate(CLPR_CONTRACT),
-                                        contractCall(
-                                                        CLPR_CONTRACT,
-                                                        SEND_MESSAGE,
-                                                        crypto.channelId,
-                                                        crypto.connectorId,
-                                                        new byte[20],
-                                                        "pre-close".getBytes(StandardCharsets.UTF_8))
-                                                .gas(GAS)
-                                                .payingWith("callerA"))
-                                .findFirst()
-                                .orElseThrow(),
-                        awaitReceivedMessage(ledgerB, crypto.channelId, 1),
-                        awaitAckedMessage(ledgerA, crypto.channelId, 1),
-                        // 2. Close the channel on A — A enters CLOSING and will drain.
-                        networkHapiTest(
-                                        ledgerA,
-                                        clprCloseChannel()
-                                                .channelId(crypto.channelId)
-                                                .payingWith(GENESIS)
-                                                .hasKnownStatus(SUCCESS))
-                                .findFirst()
-                                .orElseThrow(),
-                        // 3. The drain handshake propagates and both channels terminate. With
-                        //    the pre-fix bug, CLOSING-state config-update enqueues could keep the
-                        //    outbound queues non-empty across drain — both await checks below would
-                        //    fail to converge on a non-ACTIVE state.
-                        awaitChannelNonActive(ledgerA, crypto),
-                        awaitChannelNonActive(ledgerB, crypto)));
+        return multiNetworkHapiTest(
+                "bundleRoundTripDuringCloseHandshake",
+                Stream.concat(
+                        setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
+                        Stream.of(
+                                // 1. Round-trip a message so the channel is healthy ACTIVE on both sides.
+                                networkHapiTest(
+                                                ledgerA,
+                                                cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
+                                                uploadInitCode(CLPR_CONTRACT),
+                                                contractCreate(CLPR_CONTRACT),
+                                                contractCall(
+                                                                CLPR_CONTRACT,
+                                                                SEND_MESSAGE,
+                                                                crypto.channelId,
+                                                                crypto.connectorId,
+                                                                new byte[20],
+                                                                "pre-close".getBytes(StandardCharsets.UTF_8))
+                                                        .gas(GAS)
+                                                        .payingWith("callerA"))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                awaitReceivedMessage(ledgerB, crypto.channelId, 1),
+                                awaitAckedMessage(ledgerA, crypto.channelId, 1),
+                                // 2. Close the channel on A — A enters CLOSING and will drain.
+                                networkHapiTest(
+                                                ledgerA,
+                                                clprCloseChannel()
+                                                        .channelId(crypto.channelId)
+                                                        .payingWith(GENESIS)
+                                                        .hasKnownStatus(SUCCESS))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                // 3. The drain handshake propagates and both channels terminate. With
+                                //    the pre-fix bug, CLOSING-state config-update enqueues could keep the
+                                //    outbound queues non-empty across drain — both await checks below would
+                                //    fail to converge on a non-ACTIVE state.
+                                awaitChannelNonActive(ledgerA, crypto),
+                                awaitChannelNonActive(ledgerB, crypto))));
     }
 
+    @MultiNetworkLeakyHapiTest
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
     @DisplayName("Bundle at exactly maxMessagesPerBundle: 9 messages across multiple capped bundles all delivered")
     Stream<DynamicTest> bundleAtMaxMessagesPerBundle(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
@@ -501,25 +524,33 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
         final int capPerBundle = 4;
         final int totalMessages = 9;
 
-        return Stream.concat(
-                setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto, capPerBundle, DEFAULT_MAX_QUEUE_DEPTH),
-                Stream.of(
-                        networkHapiTest(
-                                        "Send " + totalMessages + " messages atomically",
-                                        ledgerA,
-                                        cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
-                                        uploadInitCode(SOURCE_APP),
-                                        contractCreate(SOURCE_APP, crypto.channelId, crypto.connectorId, new byte[20]),
-                                        contractCall(SOURCE_APP, "sendMessages", BigInteger.valueOf(totalMessages))
-                                                .gas(GAS)
-                                                .payingWith("callerA"))
-                                .findFirst()
-                                .orElseThrow(),
-                        // All 9 must arrive across multiple capped bundles.
-                        awaitReceivedMessage(ledgerB, crypto.channelId, totalMessages),
-                        awaitAckedMessage(ledgerA, crypto.channelId, totalMessages)));
+        return multiNetworkHapiTest(
+                "bundleAtMaxMessagesPerBundle",
+                Stream.concat(
+                        setupBothNetworks(
+                                ledgerA, ledgerB, portA, portB, crypto, capPerBundle, DEFAULT_MAX_QUEUE_DEPTH),
+                        Stream.of(
+                                networkHapiTest(
+                                                "Send " + totalMessages + " messages atomically",
+                                                ledgerA,
+                                                cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
+                                                uploadInitCode(SOURCE_APP),
+                                                contractCreate(
+                                                        SOURCE_APP, crypto.channelId, crypto.connectorId, new byte[20]),
+                                                contractCall(
+                                                                SOURCE_APP,
+                                                                "sendMessages",
+                                                                BigInteger.valueOf(totalMessages))
+                                                        .gas(GAS)
+                                                        .payingWith("callerA"))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                // All 9 must arrive across multiple capped bundles.
+                                awaitReceivedMessage(ledgerB, crypto.channelId, totalMessages),
+                                awaitAckedMessage(ledgerA, crypto.channelId, totalMessages))));
     }
 
+    @MultiNetworkLeakyHapiTest
     @MultiNetworkHapiTest({
         @Network(
                 name = "ledgerA",
@@ -545,28 +576,40 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
         final int tightQueueDepth = 4;
         final int messageCount = 3;
 
-        return Stream.concat(
-                setupBothNetworks(
-                        ledgerA, ledgerB, portA, portB, crypto, DEFAULT_MAX_MESSAGES_PER_BUNDLE, tightQueueDepth),
-                Stream.of(
-                        networkHapiTest(
-                                        "Send " + messageCount + " messages atomically (tightQueueDepth="
-                                                + tightQueueDepth + ")",
-                                        ledgerA,
-                                        cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
-                                        uploadInitCode(SOURCE_APP),
-                                        contractCreate(SOURCE_APP, crypto.channelId, crypto.connectorId, new byte[20]),
-                                        contractCall(SOURCE_APP, "sendMessages", BigInteger.valueOf(messageCount))
-                                                .gas(GAS)
-                                                .payingWith("callerA"))
-                                .findFirst()
-                                .orElseThrow(),
-                        awaitReceivedMessage(ledgerB, crypto.channelId, messageCount),
-                        // No assertChannelStaysActive here: the probe sends a probe message
-                        // itself, and with tightQueueDepth the probe would compete with replies
-                        // in the queue. The successful awaitAckedMessage already proves the
-                        // channel isn't stuck — replies landed all the way back to A.
-                        awaitAckedMessage(ledgerA, crypto.channelId, messageCount)));
+        return multiNetworkHapiTest(
+                "roundTripUnderTightMaxQueueDepth",
+                Stream.concat(
+                        setupBothNetworks(
+                                ledgerA,
+                                ledgerB,
+                                portA,
+                                portB,
+                                crypto,
+                                DEFAULT_MAX_MESSAGES_PER_BUNDLE,
+                                tightQueueDepth),
+                        Stream.of(
+                                networkHapiTest(
+                                                "Send " + messageCount + " messages atomically (tightQueueDepth="
+                                                        + tightQueueDepth + ")",
+                                                ledgerA,
+                                                cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
+                                                uploadInitCode(SOURCE_APP),
+                                                contractCreate(
+                                                        SOURCE_APP, crypto.channelId, crypto.connectorId, new byte[20]),
+                                                contractCall(
+                                                                SOURCE_APP,
+                                                                "sendMessages",
+                                                                BigInteger.valueOf(messageCount))
+                                                        .gas(GAS)
+                                                        .payingWith("callerA"))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                awaitReceivedMessage(ledgerB, crypto.channelId, messageCount),
+                                // No assertChannelStaysActive here: the probe sends a probe message
+                                // itself, and with tightQueueDepth the probe would compete with replies
+                                // in the queue. The successful awaitAckedMessage already proves the
+                                // channel isn't stuck — replies landed all the way back to A.
+                                awaitAckedMessage(ledgerA, crypto.channelId, messageCount))));
     }
 
     @Disabled(CLOSE_CHANNEL_DISABLED_REASON)
@@ -589,33 +632,40 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
         final int portB = ledgerB.nodes().getFirst().getGrpcPort();
         final int messageCount = 5;
 
-        return Stream.concat(
-                setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
-                Stream.of(
-                        // Enqueue 5 atomically + close — racing first tick.
-                        networkHapiTest(
-                                        "Send " + messageCount + " + close on A",
-                                        ledgerA,
-                                        cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
-                                        uploadInitCode(SOURCE_APP),
-                                        contractCreate(SOURCE_APP, crypto.channelId, crypto.connectorId, new byte[20]),
-                                        contractCall(SOURCE_APP, "sendMessages", BigInteger.valueOf(messageCount))
-                                                .gas(GAS)
-                                                .payingWith("callerA"),
-                                        clprCloseChannel()
-                                                .channelId(crypto.channelId)
-                                                .payingWith(GENESIS)
-                                                .hasKnownStatus(SUCCESS))
-                                .findFirst()
-                                .orElseThrow(),
-                        // Whichever close timing wins, B observes 5 inbound slots (either as
-                        // normal-handled or CHANNEL_CLOSED-replied).
-                        awaitReceivedMessage(ledgerB, crypto.channelId, messageCount),
-                        // Drain handshake completes on both sides.
-                        awaitChannelNonActive(ledgerA, crypto),
-                        awaitChannelNonActive(ledgerB, crypto)));
+        return multiNetworkHapiTest(
+                "closeWhileMultiMessageBundleInFlight",
+                Stream.concat(
+                        setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto),
+                        Stream.of(
+                                // Enqueue 5 atomically + close — racing first tick.
+                                networkHapiTest(
+                                                "Send " + messageCount + " + close on A",
+                                                ledgerA,
+                                                cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
+                                                uploadInitCode(SOURCE_APP),
+                                                contractCreate(
+                                                        SOURCE_APP, crypto.channelId, crypto.connectorId, new byte[20]),
+                                                contractCall(
+                                                                SOURCE_APP,
+                                                                "sendMessages",
+                                                                BigInteger.valueOf(messageCount))
+                                                        .gas(GAS)
+                                                        .payingWith("callerA"),
+                                                clprCloseChannel()
+                                                        .channelId(crypto.channelId)
+                                                        .payingWith(GENESIS)
+                                                        .hasKnownStatus(SUCCESS))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                // Whichever close timing wins, B observes 5 inbound slots (either as
+                                // normal-handled or CHANNEL_CLOSED-replied).
+                                awaitReceivedMessage(ledgerB, crypto.channelId, messageCount),
+                                // Drain handshake completes on both sides.
+                                awaitChannelNonActive(ledgerA, crypto),
+                                awaitChannelNonActive(ledgerB, crypto))));
     }
 
+    @MultiNetworkLeakyHapiTest
     @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
     @DisplayName("Config update mid-stream: bump maxMessagesPerBundle; bundles after the update ship larger")
     Stream<DynamicTest> configUpdateMidStreamBumpsBundleCap(
@@ -642,96 +692,100 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
         // can re-resolve it without redeploying — same cross-block plumbing as fullRoundTrip.
         final ContractID[] sourceAppIdOnA = new ContractID[1];
 
-        return Stream.concat(
-                setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto, initialCap, DEFAULT_MAX_QUEUE_DEPTH),
-                Stream.of(
-                        // Burst 1: 6 messages while cap is 2 → fragmented into 3 bundles.
-                        networkHapiTest(
-                                        "Burst 1: send " + burstSize + " messages while cap=" + initialCap,
-                                        ledgerA,
-                                        cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
-                                        uploadInitCode(SOURCE_APP),
-                                        withOpContext((spec, ignoredLog) -> {
-                                            allRunFor(
-                                                    spec,
-                                                    contractCreate(
-                                                            SOURCE_APP,
-                                                            crypto.channelId,
-                                                            crypto.connectorId,
-                                                            new byte[20]));
-                                            sourceAppIdOnA[0] = spec.registry().getContractId(SOURCE_APP);
-                                        }),
-                                        contractCall(SOURCE_APP, "sendMessages", BigInteger.valueOf(burstSize))
-                                                .gas(GAS)
-                                                .payingWith("callerA"))
-                                .findFirst()
-                                .orElseThrow(),
-                        awaitReceivedMessage(ledgerB, crypto.channelId, burstSize),
-                        awaitAckedMessage(ledgerA, crypto.channelId, burstSize),
-                        // Mid-stream config bump: bumps A's maxMessagesPerBundle from 2 to 6. The
-                        // next outbound bundle from A includes a ClprConfigUpdate control slot
-                        // ahead of the data slots from burst 2.
-                        networkHapiTest(
-                                        "Bump A's maxMessagesPerBundle to " + bumpedCap,
-                                        ledgerA,
-                                        clprUpdateLedgerConfiguration()
-                                                .configuration(buildLedgerConfig(
-                                                        "hiero:298", portA, bumpedCap, DEFAULT_MAX_QUEUE_DEPTH))
-                                                .payingWith(GENESIS)
-                                                .hasKnownStatus(SUCCESS))
-                                .findFirst()
-                                .orElseThrow(),
-                        // Burst 2: 6 more messages, now A can ship them all in ONE bundle (cap=6).
-                        // The ConfigUpdate control slot rides at the head of the same bundle.
-                        // Re-uses the SourceApplication deployed in burst 1 (carries sentCount) —
-                        // re-register its ContractID into this spec's fresh registry.
-                        networkHapiTest(
-                                        "Burst 2: send " + burstSize + " more messages after cap=" + bumpedCap,
-                                        ledgerA,
-                                        cryptoCreate("callerA2").balance(ONE_HUNDRED_HBARS),
-                                        withOpContext((spec, ignoredLog) -> {
-                                            spec.registry().saveContractId(SOURCE_APP, sourceAppIdOnA[0]);
-                                            allRunFor(
-                                                    spec,
-                                                    contractCall(
+        return multiNetworkHapiTest(
+                "configUpdateMidStreamBumpsBundleCap",
+                Stream.concat(
+                        setupBothNetworks(ledgerA, ledgerB, portA, portB, crypto, initialCap, DEFAULT_MAX_QUEUE_DEPTH),
+                        Stream.of(
+                                // Burst 1: 6 messages while cap is 2 → fragmented into 3 bundles.
+                                networkHapiTest(
+                                                "Burst 1: send " + burstSize + " messages while cap=" + initialCap,
+                                                ledgerA,
+                                                cryptoCreate("callerA").balance(ONE_HUNDRED_HBARS),
+                                                uploadInitCode(SOURCE_APP),
+                                                withOpContext((spec, ignoredLog) -> {
+                                                    allRunFor(
+                                                            spec,
+                                                            contractCreate(
                                                                     SOURCE_APP,
-                                                                    "sendMessages",
-                                                                    BigInteger.valueOf(burstSize))
-                                                            .gas(GAS)
-                                                            .payingWith("callerA2"));
-                                        }))
-                                .findFirst()
-                                .orElseThrow(),
-                        // The ConfigUpdate control slot (enqueued lazily after the bump) consumes one
-                        // message_id between bursts, so total receivedMessageId reaches at least
-                        // burstSize*2; awaitReceivedMessage is a lower-bound await, so this remains
-                        // robust whether or not a ConfigUpdate slot was emitted.
-                        awaitReceivedMessage(ledgerB, crypto.channelId, burstSize * 2),
-                        awaitAckedMessage(ledgerA, crypto.channelId, burstSize * 2),
-                        // Proves the cap bump actually propagated to the peer: B logs this line
-                        // when it processes the inbound ClprConfigUpdate control slot in step 10.
-                        // Without the propagation, B would still apply A's old peerThrottles to
-                        // future bundles and the test would lose its main signal.
-                        networkHapiTest(
-                                        "Assert B observed the ConfigUpdate control slot",
-                                        ledgerB,
-                                        withOpContext((spec, opLog) -> awaitLogLine(
+                                                                    crypto.channelId,
+                                                                    crypto.connectorId,
+                                                                    new byte[20]));
+                                                    sourceAppIdOnA[0] =
+                                                            spec.registry().getContractId(SOURCE_APP);
+                                                }),
+                                                contractCall(SOURCE_APP, "sendMessages", BigInteger.valueOf(burstSize))
+                                                        .gas(GAS)
+                                                        .payingWith("callerA"))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                awaitReceivedMessage(ledgerB, crypto.channelId, burstSize),
+                                awaitAckedMessage(ledgerA, crypto.channelId, burstSize),
+                                // Mid-stream config bump: bumps A's maxMessagesPerBundle from 2 to 6. The
+                                // next outbound bundle from A includes a ClprConfigUpdate control slot
+                                // ahead of the data slots from burst 2.
+                                networkHapiTest(
+                                                "Bump A's maxMessagesPerBundle to " + bumpedCap,
+                                                ledgerA,
+                                                clprUpdateLedgerConfiguration()
+                                                        .configuration(buildLedgerConfig(
+                                                                "hiero:298", portA, bumpedCap, DEFAULT_MAX_QUEUE_DEPTH))
+                                                        .payingWith(GENESIS)
+                                                        .hasKnownStatus(SUCCESS))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                // Burst 2: 6 more messages, now A can ship them all in ONE bundle (cap=6).
+                                // The ConfigUpdate control slot rides at the head of the same bundle.
+                                // Re-uses the SourceApplication deployed in burst 1 (carries sentCount) —
+                                // re-register its ContractID into this spec's fresh registry.
+                                networkHapiTest(
+                                                "Burst 2: send " + burstSize + " more messages after cap=" + bumpedCap,
+                                                ledgerA,
+                                                cryptoCreate("callerA2").balance(ONE_HUNDRED_HBARS),
+                                                withOpContext((spec, ignoredLog) -> {
+                                                    spec.registry().saveContractId(SOURCE_APP, sourceAppIdOnA[0]);
+                                                    allRunFor(
+                                                            spec,
+                                                            contractCall(
+                                                                            SOURCE_APP,
+                                                                            "sendMessages",
+                                                                            BigInteger.valueOf(burstSize))
+                                                                    .gas(GAS)
+                                                                    .payingWith("callerA2"));
+                                                }))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                // The ConfigUpdate control slot (enqueued lazily after the bump) consumes one
+                                // message_id between bursts, so total receivedMessageId reaches at least
+                                // burstSize*2; awaitReceivedMessage is a lower-bound await, so this remains
+                                // robust whether or not a ConfigUpdate slot was emitted.
+                                awaitReceivedMessage(ledgerB, crypto.channelId, burstSize * 2),
+                                awaitAckedMessage(ledgerA, crypto.channelId, burstSize * 2),
+                                // Proves the cap bump actually propagated to the peer: B logs this line
+                                // when it processes the inbound ClprConfigUpdate control slot in step 10.
+                                // Without the propagation, B would still apply A's old peerThrottles to
+                                // future bundles and the test would lose its main signal.
+                                networkHapiTest(
+                                                "Assert B observed the ConfigUpdate control slot",
                                                 ledgerB,
-                                                Pattern.compile(
-                                                        "\\[ClprSubmitBundle\\] step10 CONTROL configUpdate conn="
-                                                                + HexFormat.of().formatHex(crypto.channelId)),
-                                                Duration.ofSeconds(30))))
-                                .findFirst()
-                                .orElseThrow(),
-                        // Running hash matched all the way through — channel still ACTIVE.
-                        assertChannelStaysActive(ledgerA, crypto, Duration.ofSeconds(10)),
-                        // Drain A's ack queue through both bursts before B's probe starts.
-                        // When B sends its first probe DATA, A enqueues a reply and includes
-                        // it in its next bundle starting at ackedMsgId+1. If A's ack queue
-                        // hasn't advanced far enough, the cap-bounded bundle window may not
-                        // yet reach the reply slot, causing step-8 to PAUSE B's channel
-                        // and the next probe sendMessage to revert with CONTRACT_REVERT_EXECUTED.
-                        awaitAckedMessage(ledgerA, crypto.channelId, burstSize * 2 + 1),
-                        assertChannelStaysActive(ledgerB, crypto, Duration.ofSeconds(10))));
+                                                withOpContext((spec, opLog) -> awaitLogLine(
+                                                        ledgerB,
+                                                        Pattern.compile(
+                                                                "\\[ClprSubmitBundle\\] step10 CONTROL configUpdate conn="
+                                                                        + HexFormat.of()
+                                                                                .formatHex(crypto.channelId)),
+                                                        Duration.ofSeconds(30))))
+                                        .findFirst()
+                                        .orElseThrow(),
+                                // Running hash matched all the way through — channel still ACTIVE.
+                                assertChannelStaysActive(ledgerA, crypto, Duration.ofSeconds(10)),
+                                // Drain A's ack queue through both bursts before B's probe starts.
+                                // When B sends its first probe DATA, A enqueues a reply and includes
+                                // it in its next bundle starting at ackedMsgId+1. If A's ack queue
+                                // hasn't advanced far enough, the cap-bounded bundle window may not
+                                // yet reach the reply slot, causing step-8 to PAUSE B's channel
+                                // and the next probe sendMessage to revert with CONTRACT_REVERT_EXECUTED.
+                                awaitAckedMessage(ledgerA, crypto.channelId, burstSize * 2 + 1),
+                                assertChannelStaysActive(ledgerB, crypto, Duration.ofSeconds(10)))));
     }
 }

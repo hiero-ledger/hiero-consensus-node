@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit;
 
+import com.hedera.services.bdd.junit.extensions.ClprNetworkLocksProvider;
 import com.hedera.services.bdd.junit.extensions.MultiNetworkExtension;
 import com.hedera.services.bdd.junit.extensions.SpecNamingExtension;
 import java.lang.annotation.ElementType;
@@ -17,14 +18,21 @@ import org.junit.jupiter.api.parallel.ResourceLock;
  *
  * <p>This annotation replaces {@link HapiTest} for multi-network scenarios; do not combine them.
  * Networks are started before and terminated after each test method.
- * READ_WRITE ensures multi-network tests run sequentially — they start real subprocess networks
- * that bind ports and use global static state in SubProcessNetwork.
+ *
+ * <p><b>Concurrency.</b> These tests share real subprocess networks (by name, across the JVM), so two
+ * tests that touch the same network must be coordinated. Serialization is done by JUnit via
+ * {@link ClprNetworkLocksProvider} (the {@code @ResourceLock} provider below), which derives one lock per
+ * network from this test's {@link Network} set: {@code READ} by default (readers on a network run
+ * concurrently) or {@code READ_WRITE} when the test is {@link MultiNetworkLeakyHapiTest} (it mutates shared state, so it runs
+ * alone). Tests on disjoint networks (e.g. general vs. mtls vs. manifest) run in parallel. A new suite is
+ * scheduled correctly just by declaring its {@link Network}s; mark it {@link MultiNetworkLeakyHapiTest} if it changes ledger
+ * throttles/config, overrides a network property, or restarts a network.
  */
 @Target({ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
 @TestFactory
 @ExtendWith({MultiNetworkExtension.class, SpecNamingExtension.class})
-@ResourceLock(value = "NETWORK")
+@ResourceLock(providers = ClprNetworkLocksProvider.class)
 public @interface MultiNetworkHapiTest {
     Network[] value() default {
         @Network(name = "PRIMARY"), @Network(name = "PEER"),

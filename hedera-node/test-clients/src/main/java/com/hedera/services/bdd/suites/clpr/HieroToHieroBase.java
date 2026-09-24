@@ -23,11 +23,12 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runBackgroundTrafficUntilFreezeComplete;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForFrozenNetwork;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp.FAKE_UPGRADE_ZIP_LOC;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -44,6 +45,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.extensions.MultiNetworkExtension;
+import com.hedera.services.bdd.junit.hedera.HederaNode;
+import com.hedera.services.bdd.junit.hedera.subprocess.MultiNetworkLifecycleTest;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
@@ -63,15 +66,18 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.math.BigInteger;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -159,6 +165,11 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     static final Duration WRAPS_SYNC_POINT_TIMEOUT = Duration.ofMinutes(3);
     /** Small settle after the sync-point so a few WRAPS-carrying blocks accumulate before capture. */
     public static final Duration POST_SYNC_POINT_SETTLE = Duration.ofSeconds(5);
+
+    /** Poll interval for {@link #awaitPortsFree}. */
+    private static final Duration PORT_FREE_POLL = Duration.ofSeconds(5);
+    /** Cap for {@link #awaitPortsFree} before giving up (a killed node should release ports in seconds). */
+    private static final Duration PORT_FREE_TIMEOUT = Duration.ofSeconds(180);
 
     // ── Shared setup helper ───────────────────────────────────────────────────
 
@@ -452,7 +463,8 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * Polls {@code clprGetEndpointManifest} until {@code predicate} holds or
      * {@link #MANIFEST_APPEAR_TIMEOUT} elapses (then fails). Returns the satisfying manifest.
      */
-    static ClprEndpointManifest pollManifest(final HapiSpec spec, final Predicate<ClprEndpointManifest> predicate)
+    static ClprEndpointManifest pollManifest(
+            final HapiSpec spec, final java.util.function.Predicate<ClprEndpointManifest> predicate)
             throws InterruptedException {
         final var deadline = Instant.now().plus(MANIFEST_APPEAR_TIMEOUT);
         final AtomicReference<ClprEndpointManifest> last = new AtomicReference<>();
@@ -500,7 +512,8 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                         .withUpdateFile(DEFAULT_UPGRADE_FILE_ID)
                                         .havingHash(upgradeFileHashAt(FAKE_UPGRADE_ZIP_LOC))),
                                 confirmFreezeAndShutdown(),
-                                FakeNmt.restartWithConfigVersion(allNodes(), CURRENT_CONFIG_VERSION.incrementAndGet()),
+                                FakeNmt.restartWithConfigVersion(
+                                        allNodes(), MultiNetworkLifecycleTest.nextConfigVersionOf(network.name())),
                                 waitForActive(allNodes(), RESTART_TO_ACTIVE_TIMEOUT),
                                 blockingOrder(doAdhoc(() -> {
                                     awaitWrapsExtensible(network);
@@ -547,8 +560,11 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                 FakeNmt.shutdownWithin(byNodeId(nodeId), SHUTDOWN_TIMEOUT),
                                 // Rewrite its per-node mtlsPort while it is stopped.
                                 doAdhoc(() -> setNodeMtlsPort(network, nodeId, newMtlsPort)),
-                                // Let the killed node's gossip port fully unbind before it rebinds on restart.
-                                sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
+                                // Wait until this node's reused ports (gossip/gRPC/prometheus) are actually
+                                // releasable before it rebinds on restart, instead of a blind fixed sleep.
+                                awaitPortsFree(network.nodes().stream()
+                                        .filter(n -> n.getNodeId() == nodeId)
+                                        .toList()),
                                 // Restart just this node (ReassignPorts.NO, cfgVer 0) — it reconnects via gossip.
                                 FakeNmt.restartNode(byNodeId(nodeId)),
                                 waitForActive(byNodeId(nodeId), RESTART_TO_ACTIVE_TIMEOUT)))
@@ -572,13 +588,21 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         "Rotate ALL " + network.name() + " node mTLS ports simultaneously (base " + basePort + ")",
                         network,
                         blockingOrder(
+                                // Freeze first so every node writes a signed state at a clean round boundary and
+                                // flushes its preconsensus event stream. Without this, killing all nodes mid-stream
+                                // leaves unsettled PCES events that replay non-deterministically on restart and can
+                                // trip an ISS (self hash != consensus hash) → CATASTROPHIC_FAILURE. Mirrors the
+                                // freeze-before-restart the restart suite uses.
+                                runBackgroundTrafficUntilFreezeComplete(),
+                                freezeOnly().startingIn(2).seconds(),
+                                waitForFrozenNetwork(FREEZE_TIMEOUT),
                                 // Kill every node at once — the whole endpoint set turns over simultaneously.
                                 FakeNmt.shutdownWithin(allNodes(), SHUTDOWN_TIMEOUT),
                                 // Rewrite each stopped node's mtlsPort (basePort offset by node id).
                                 doAdhoc(() -> network.nodes()
                                         .forEach(n -> setNodeMtlsPort(
                                                 network, n.getNodeId(), basePort + (int) n.getNodeId()))),
-                                sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
+                                awaitPortsFree(network.nodes()),
                                 // Restart all nodes together (single restart), then await consensus + WRAPS.
                                 FakeNmt.restartNode(allNodes()),
                                 waitForActive(allNodes(), RESTART_TO_ACTIVE_TIMEOUT),
@@ -589,6 +613,59 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                 })))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    /**
+     * Returns an operation that blocks until every TCP port the given nodes rebind on a
+     * {@code ReassignPorts.NO} restart (gRPC, node-operator gRPC, internal/external gossip, prometheus) is
+     * actually releasable, so the restarted process can bind without a {@link java.net.BindException}.
+     *
+     * <p>Replaces a blind fixed unbinding sleep: it probes each port by attempting a throwaway bind and
+     * returns as soon as all are free (typically seconds, since a killed process releases its listening
+     * sockets almost immediately), or throws after {@link #PORT_FREE_TIMEOUT} if a port is still held.
+     */
+    static SpecOperation awaitPortsFree(final List<HederaNode> nodes) {
+        return doAdhoc(() -> {
+            final var ports = nodes.stream()
+                    .flatMap(n -> Stream.of(
+                            n.metadata().grpcPort(),
+                            n.metadata().grpcNodeOperatorPort(),
+                            n.metadata().internalGossipPort(),
+                            n.metadata().externalGossipPort(),
+                            n.metadata().prometheusPort()))
+                    .distinct()
+                    .toList();
+            final var deadline = Instant.now().plus(PORT_FREE_TIMEOUT);
+            for (final int port : ports) {
+                while (!isPortFree(port)) {
+                    if (Instant.now().isAfter(deadline)) {
+                        throw new IllegalStateException("Port " + port + " still bound after " + PORT_FREE_TIMEOUT
+                                + "; the killed node did not release it");
+                    }
+                    try {
+                        Thread.sleep(PORT_FREE_POLL.toMillis());
+                    } catch (final InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException("Interrupted while waiting for port " + port + " to free", e);
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Returns true if {@code port} is bindable on loopback right now. Uses {@code SO_REUSEADDR=false} so it
+     * detects the same conflicts the node's own (non-reusing) bind would hit — it never reports a
+     * still-held port as free.
+     */
+    private static boolean isPortFree(final int port) {
+        try (var socket = new ServerSocket()) {
+            socket.setReuseAddress(false);
+            socket.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), port));
+            return true;
+        } catch (final IOException e) {
+            return false;
+        }
     }
 
     /**
@@ -809,8 +886,8 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     }
 
     /**
-     * As {@link #setupBothNetworks(SubProcessNetwork, SubProcessNetwork, int, int, ClprCrypto, int, int)}
-     * but additionally (a) captures each ledger's manifest {@code StateProof} via the
+     * As {@link #setupBothNetworks(SubProcessNetwork, SubProcessNetwork, int, int, ClprCrypto,
+     * int, int)} but additionally captures each ledger's manifest {@code StateProof} via the
      * {@code clprGetEndpointManifest} HAPI query and threads it into the peer's
      * {@code ClprCompleteChannel} as {@code endpoint_manifest_proof_bytes} (required under
      * {@code clpr.endpointManifestEnabled=true}, whose manifest-aware verifier ABI rejects an empty manifest proof),
@@ -819,9 +896,65 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * {@code clpr.mtlsPort}. The channel therefore completes over, and syncs across, the dedicated
      * mutual-TLS listener.
      *
-     * <p>Callers must guarantee the reconciler has finalized a manifest on both networks before this
-     * runs (e.g. by preceding it with a manifest-await step); the capture inside this method is a single
-     * query, not a poll.
+     * <p>Callers must guarantee the reconciler has finalized a manifest on both networks
+     * before this runs (e.g. by preceding it with a manifest-await step); the capture inside
+     * this method is a single query, not a poll.
+     */
+    static Stream<DynamicTest> setupBothNetworksWithManifestProof(
+            final SubProcessNetwork ledgerA,
+            final SubProcessNetwork ledgerB,
+            final int portA,
+            final int portB,
+            final ClprCrypto crypto) {
+        final AtomicReference<ByteString> proofA = new AtomicReference<>();
+        final AtomicReference<ByteString> proofB = new AtomicReference<>();
+        final AtomicReference<ByteString> manifestProofA = new AtomicReference<>();
+        final AtomicReference<ByteString> manifestProofB = new AtomicReference<>();
+        final var bothProofsReady = new CountDownLatch(2);
+        final var chainA = chainSetupAndConnect(
+                ledgerA,
+                ledgerB,
+                "hiero:298",
+                portA,
+                proofA,
+                proofB,
+                manifestProofA,
+                manifestProofB,
+                crypto,
+                DEFAULT_MAX_MESSAGES_PER_BUNDLE,
+                DEFAULT_MAX_QUEUE_DEPTH,
+                DUMMY_TLS_CERT, // plaintext manifest-proof path — placeholder cert (buildLedgerConfig NPEs on null)
+                bothProofsReady);
+        final var chainB = chainSetupAndConnect(
+                ledgerB,
+                ledgerA,
+                "hiero:299",
+                portB,
+                proofB,
+                proofA,
+                manifestProofB,
+                manifestProofA,
+                crypto,
+                DEFAULT_MAX_MESSAGES_PER_BUNDLE,
+                DEFAULT_MAX_QUEUE_DEPTH,
+                DUMMY_TLS_CERT,
+                bothProofsReady);
+        return Stream.of(networkHapiTest(
+                        "Install + capture (config + manifest) + verify + deploy on both ledgers (parallel)",
+                        ledgerA,
+                        new ParallelSpecOps(chainA, chainB).failOnErrors())
+                .findFirst()
+                .orElseThrow());
+    }
+
+    /**
+     * As {@link #setupBothNetworksWithManifestProof(SubProcessNetwork, SubProcessNetwork, int, int,
+     * ClprCrypto)} but additionally advertises each network's real ECDSA CLPR CA cert
+     * ({@code caDerA}/{@code caDerB}) as the endpoint {@code tls_certificate}, and expects
+     * {@code portA}/{@code portB} to be each network's {@code clpr.mtlsPort}. This is the combined
+     * <b>mTLS + manifest-proof</b> path: the channel completes over — and syncs across — the
+     * dedicated mutual-TLS listener, while the manifest state proof is still threaded into the peer's
+     * {@code ClprCompleteChannel} (required under {@code clpr.endpointManifestEnabled=true}).
      */
     static Stream<DynamicTest> setupBothNetworksWithManifestProof(
             final SubProcessNetwork ledgerA,
@@ -870,6 +1003,43 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         new ParallelSpecOps(chainA, chainB).failOnErrors())
                 .findFirst()
                 .orElseThrow());
+    }
+
+    /**
+     * One ledger's full setup chain: install its own LedgerConfiguration, capture the resulting
+     * StateProof into {@code selfProof}, have the peer verify it, then deploy the local verifier
+     * contract and open the channel using the peer's proof.
+     *
+     * <p>Steps within this chain are strictly sequential — each depends on the prior's on-chain
+     * effect or captured bytes. Two such chains run in parallel via {@link ParallelSpecOps}. The
+     * {@code bothProofsReady} latch synchronizes the two chains at the deploy step: both must
+     * finish capturing before either can call {@link #deployAndConnect} with the peer's proof.
+     */
+    private static SpecOperation chainSetupAndConnect(
+            final SubProcessNetwork self,
+            final SubProcessNetwork peer,
+            final String selfChainId,
+            final int selfPort,
+            final AtomicReference<ByteString> selfProof,
+            final AtomicReference<ByteString> peerProof,
+            final ClprCrypto crypto,
+            final int maxMessagesPerBundle,
+            final int maxQueueDepth,
+            final CountDownLatch bothProofsReady) {
+        return chainSetupAndConnect(
+                self,
+                peer,
+                selfChainId,
+                selfPort,
+                selfProof,
+                peerProof,
+                null,
+                null,
+                crypto,
+                maxMessagesPerBundle,
+                maxQueueDepth,
+                DUMMY_TLS_CERT, // plaintext plain path — placeholder cert (buildLedgerConfig NPEs on null)
+                bothProofsReady);
     }
 
     /**
@@ -1054,7 +1224,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      */
     static DynamicTest captureManifestProof(final SubProcessNetwork network, final AtomicReference<ByteString> sink) {
         return networkHapiTest("Capture endpoint-manifest StateProof", network, withOpContext((spec, ignored) -> {
-                    final var deadline = Instant.now().plus(MANIFEST_APPEAR_TIMEOUT);
+                    final var deadline = Instant.now().plus(Duration.ofMinutes(2));
                     final long[] observedVersion = {0L};
                     final int[] observedEndpoints = {0};
                     while (Instant.now().isBefore(deadline)) {
@@ -1071,7 +1241,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                         final var captured = sink.get();
                         if (captured != null
                                 && !captured.isEmpty()
-                                && observedVersion[0] >= FINALIZED_MANIFEST_MIN_VERSION
+                                && observedVersion[0] >= 2L
                                 && observedEndpoints[0] >= 1) {
                             return;
                         }
@@ -1330,6 +1500,24 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                 .orElseThrow();
     }
     // ── Polling helpers ───────────────────────────────────────────────────────
+
+    /**
+     * Collapses a multi-network test's ordered steps into a <b>single</b> {@link DynamicTest} that runs
+     * them sequentially in one executable. Each {@code @MultiNetworkHapiTest} method wraps its returned
+     * stream in this so that, under {@code parallel.mode.default=concurrent}, the factory's steps do NOT
+     * get parallelized (which would run e.g. an await before its send); instead the whole test is one
+     * node, and only <em>different</em> test methods run concurrently (serialized per network by
+     * {@code ClprNetworkLocksProvider}). The trade-off is coarser reporting: one reported test per method
+     * rather than one per step (a failing step still surfaces via its spec name in the exception).
+     */
+    public static Stream<DynamicTest> multiNetworkHapiTest(final String name, final Stream<DynamicTest> steps) {
+        final var ordered = steps.toList();
+        return Stream.of(DynamicTest.dynamicTest(name, () -> {
+            for (final var step : ordered) {
+                step.getExecutable().execute();
+            }
+        }));
+    }
 
     static DynamicTest awaitReceivedMessage(
             final SubProcessNetwork network, final byte[] channelId, final long minCount) {
