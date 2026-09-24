@@ -11,7 +11,7 @@ import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
-import com.hedera.node.config.data.TssConfig;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -69,8 +69,10 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
     }
 
     private MessageDigest digestOrThrow() {
-        return CommonUtils.digestOrThrow(
-                configProvider.getConfiguration().getConfigData(TssConfig.class).useSha256());
+        return CommonUtils.digestOrThrow(configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .useSha256());
     }
 
     /**

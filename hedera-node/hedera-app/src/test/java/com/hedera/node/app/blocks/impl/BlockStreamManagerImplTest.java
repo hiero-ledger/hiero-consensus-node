@@ -2417,7 +2417,7 @@ class BlockStreamManagerImplTest {
                 .withValue("blockStream.streamMode", streamMode.name())
                 .withValue("blockStream.maxBlockSizeBytes", maxBlockSizeBytes)
                 .withValue("clpr.enabled", clprEnabled)
-                .withValue("tss.useSha256", useSha256)
+                .withValue("blockStream.useSha256", useSha256)
                 .getOrCreateConfig();
         return new VersionedConfigImpl(config, version);
     }

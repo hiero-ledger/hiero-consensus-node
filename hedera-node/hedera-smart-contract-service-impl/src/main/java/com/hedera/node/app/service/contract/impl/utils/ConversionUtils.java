@@ -316,7 +316,7 @@ public class ConversionUtils {
     /**
      * Wraps the first 32 bytes of the given block-root {@link org.hiero.base.crypto.Hash hash} in a Besu
      * {@link Hash}. The block-root hash may be 32 bytes (SHA-256) or 48 bytes (SHA-384) depending on
-     * {@code TssConfig.useSha256}; the EVM word size is fixed at 32 bytes regardless, so the leading 32 bytes
+     * {@code BlockStreamConfig.useSha256}; the EVM word size is fixed at 32 bytes regardless, so the leading 32 bytes
      * are used either way.
      *
      * @param blockRootHash the block-root hash

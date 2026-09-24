@@ -18,7 +18,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.config.data.TssConfig;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -147,7 +147,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
         }
 
         final var useSha256 =
-                context.configuration().getConfigData(TssConfig.class).useSha256();
+                context.configuration().getConfigData(BlockStreamConfig.class).useSha256();
 
         // Defense-in-depth: never feed a structurally inconsistent winning vote into the streaming hasher,
         // which would otherwise fold past the available pending state and crash the handle thread.
@@ -206,7 +206,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
 
     /**
      * Returns whether a vote body is internally consistent for a context-free check (e.g. {@code pureChecks},
-     * which has no {@code Configuration} and so cannot know the current {@code TssConfig.useSha256} setting):
+     * which has no {@code Configuration} and so cannot know the current {@code BlockStreamConfig.useSha256} setting):
      * both the previous root hash and every intermediate-state hash must be a plausible block-root hash
      * length (32 bytes for SHA-256 or 48 bytes for SHA-384), the leaf count must be a sane non-negative
      * value, and the number of intermediate hashes must equal the number of set bits in the leaf count (the
@@ -220,7 +220,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
     }
 
     /**
-     * Returns whether a vote body is internally consistent given the current {@code TssConfig.useSha256}
+     * Returns whether a vote body is internally consistent given the current {@code BlockStreamConfig.useSha256}
      * setting, per {@link #isStructurallyValid(MigrationRootHashVoteTransactionBody)} but requiring exactly
      * the currently-active digest's length rather than any plausible one.
      *

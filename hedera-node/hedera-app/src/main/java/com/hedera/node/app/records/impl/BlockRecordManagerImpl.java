@@ -49,7 +49,6 @@ import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.StakingConfig;
-import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.PendingProof;
@@ -620,8 +619,10 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     }
 
     private MessageDigest digestOrThrow() {
-        return CommonUtils.digestOrThrow(
-                configProvider.getConfiguration().getConfigData(TssConfig.class).useSha256());
+        return CommonUtils.digestOrThrow(configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .useSha256());
     }
 
     /**

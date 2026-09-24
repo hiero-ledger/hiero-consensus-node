@@ -32,7 +32,7 @@ import org.hiero.consensus.model.hashgraph.Round;
  * Merkle trees will be in the order they are written.
  */
 public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener {
-    // SHA-384-default: the block-root Merkle tree's hash algorithm is chosen per-call by TssConfig.useSha256
+    // SHA-384-default: the block-root Merkle tree's hash algorithm is chosen per-call by BlockStreamConfig.useSha256
     // (see BlockStreamManagerImpl.digestOrThrow()); this constant is only the fallback for callers with no
     // access to that config (e.g. Hedera.java's genesis sentinel, which is only ever compared for equality).
     byte[] HASH_OF_ZERO_BYTES = noThrowSha384HashOf(new byte[] {0x0});

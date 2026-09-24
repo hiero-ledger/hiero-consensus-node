@@ -4,6 +4,7 @@ package com.hedera.node.app.history;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.hapi.utils.CommonUtils;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -189,7 +190,12 @@ public class WrapsProvingKeyVerification {
         final var downloadUrl = tssConfig.wrapsProvingKeyDownloadUrl();
         final var retryInterval = tssConfig.wrapsProvingKeyRetryInterval();
         verifyFileAndDownloadIfNeeded(
-                provingKeyPath, bootstrapHash, downloadUrl, downloader, retryInterval, tssConfig.useSha256());
+                provingKeyPath,
+                bootstrapHash,
+                downloadUrl,
+                downloader,
+                retryInterval,
+                config.getConfigData(BlockStreamConfig.class).useSha256());
     }
 
     /**
@@ -737,14 +743,14 @@ public class WrapsProvingKeyVerification {
     /**
      * Hashes the given file with SHA-384. Used only for the {@code wraps-artifacts.sha384} manifest, whose
      * format is fixed by the published proving-key image build pipeline (an external system this flag does
-     * not control), so it does not vary with {@code TssConfig.useSha256}.
+     * not control), so it does not vary with {@code BlockStreamConfig.useSha256}.
      */
     private static Bytes hashFile(@NonNull final Path path) {
         return hashFile(path, false);
     }
 
     /**
-     * Hashes the given file with the algorithm selected by {@code useSha256}, matching whichever algorithm
+     * Hashes the given file with the algorithm selected by {@code BlockStreamConfig.useSha256}, matching whichever algorithm
      * {@code tss.wrapsProvingKeyHash} is currently configured for.
      *
      * <p>Note: {@link #artifactsAlreadyPresent}/{@link #installationDefect} take a different, independent

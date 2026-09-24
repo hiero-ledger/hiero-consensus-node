@@ -53,6 +53,7 @@ public class ProofControllerImpl implements ProofController {
     private static final Logger log = LogManager.getLogger(ProofControllerImpl.class);
 
     private final long selfId;
+    private final boolean useSha256;
 
     private final Executor executor;
     private final SchnorrKeyPair schnorrKeyPair;
@@ -158,9 +159,11 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final HistoryProver.Factory proverFactory,
             @Nullable final HistoryProof sourceProof,
             @NonNull final HistoryProofMetrics historyProofMetrics,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final TssConfig tssConfig,
+            final boolean useSha256) {
         requireNonNull(machine);
         requireNonNull(tssConfig);
+        this.useSha256 = useSha256;
         this.selfId = selfId;
         this.executor = requireNonNull(executor);
         this.submissions = requireNonNull(submissions);
@@ -418,7 +421,7 @@ public class ProofControllerImpl implements ProofController {
             return false;
         }
         if (vote.hasProof()) {
-            votes.put(nodeId, new ExplicitProofVote(vote, tssConfig.useSha256()));
+            votes.put(nodeId, new ExplicitProofVote(vote, useSha256));
         } else if (vote.hasCongruentNodeId()) {
             final var congruentVote = votes.get(vote.congruentNodeIdOrThrow());
             if (congruentVote != null) {
@@ -454,7 +457,7 @@ public class ProofControllerImpl implements ProofController {
         final Deque<Long> resolvedVoters = new ArrayDeque<>();
         persistedVotes.forEach((nodeId, vote) -> {
             if (vote.hasProof()) {
-                votes.put(nodeId, new ExplicitProofVote(vote, tssConfig.useSha256()));
+                votes.put(nodeId, new ExplicitProofVote(vote, useSha256));
                 resolvedVoters.add(nodeId);
             } else if (vote.hasCongruentNodeId()) {
                 congruentVotersByReferent

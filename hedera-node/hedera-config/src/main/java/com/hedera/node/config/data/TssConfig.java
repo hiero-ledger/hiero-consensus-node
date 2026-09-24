@@ -77,8 +77,8 @@ public record TssConfig(
         String wrapsProvingKeyPath,
 
         // Must be a hash of the archive at wrapsProvingKeyDownloadUrl computed with whichever algorithm
-        // useSha256 currently selects (SHA-384 by default, 48-byte hex; SHA-256 when useSha256=true,
-        // 32-byte hex) - this is not derived automatically, so update it if useSha256 changes.
+        // BlockStreamConfig.useSha256 currently selects (SHA-384 by default, 48-byte hex; SHA-256 when
+        // useSha256=true, 32-byte hex) - this is not derived automatically, so update it if useSha256 changes.
         @ConfigProperty(
                 defaultValue =
                         "620cbcf69098d31a0893081cb76113ee0f72091b3417e601178cdc376c81e5c2407c1827d123df44bccb78ad4bb11fb3")
@@ -101,8 +101,4 @@ public record TssConfig(
 
         // How long the download may go without receiving any bytes before it is treated as stalled; bounds a
         // server that sends headers and then stops mid-body
-        @ConfigProperty(defaultValue = "120s") @NodeProperty Duration wrapsProvingKeyStallTimeout,
-
-        // Whether to use SHA-256 instead of SHA-384 for block stream-related hashing
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
-        boolean useSha256) {}
+        @ConfigProperty(defaultValue = "120s") @NodeProperty Duration wrapsProvingKeyStallTimeout) {}

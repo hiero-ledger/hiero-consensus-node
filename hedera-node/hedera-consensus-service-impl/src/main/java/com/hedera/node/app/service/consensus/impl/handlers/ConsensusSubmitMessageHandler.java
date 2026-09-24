@@ -52,8 +52,8 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
-import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -161,8 +161,10 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
         }
 
         try {
-            final var useSha256 =
-                    handleContext.configuration().getConfigData(TssConfig.class).useSha256();
+            final var useSha256 = handleContext
+                    .configuration()
+                    .getConfigData(BlockStreamConfig.class)
+                    .useSha256();
             final var updatedTopic =
                     updateRunningHashAndSequenceNumber(txn, topic, handleContext.consensusNow(), useSha256);
 
@@ -255,7 +257,7 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
      * @param topic the topic to which the message is being submitted
      * @param consensusNow the consensus time of the active transaction
      * @param useSha256 whether to hash with SHA-256 instead of the SHA-384 default (see
-     *                  {@code TssConfig.useSha256})
+     *                  {@code BlockStreamConfig.useSha256})
      * @return the updated topic
      * @throws IOException if there is an error while updating the running hash
      */

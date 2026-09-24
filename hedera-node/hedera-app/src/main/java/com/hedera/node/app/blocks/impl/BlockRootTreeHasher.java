@@ -46,7 +46,7 @@ public interface BlockRootTreeHasher {
 
     /**
      * The hash of an empty branch under the SHA-384 default, {@code sha384(0x00)}. Callers whose hash
-     * algorithm is chosen by {@code TssConfig.useSha256} must use {@link #emptySubtreeFor(MessageDigest)}
+     * algorithm is chosen by {@code BlockStreamConfig.useSha256} must use {@link #emptySubtreeFor(MessageDigest)}
      * with the same digest instead, since this constant does not vary with that flag.
      */
     Bytes EMPTY_SUBTREE = HASH_OF_ZERO;

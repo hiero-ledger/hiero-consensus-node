@@ -112,7 +112,7 @@ public final class CommonUtils {
 
     /**
      * Returns a {@link MessageDigest} for SHA-256 if {@code useSha256} is true, or SHA-384 otherwise. Centralizes
-     * the choice driven by {@code TssConfig.useSha256} so callers don't each re-derive the same ternary.
+     * the choice driven by {@code BlockStreamConfig.useSha256} so callers don't each re-derive the same ternary.
      * @param useSha256 whether to use SHA-256 instead of the SHA-384 default
      * @return the selected {@link MessageDigest}
      */

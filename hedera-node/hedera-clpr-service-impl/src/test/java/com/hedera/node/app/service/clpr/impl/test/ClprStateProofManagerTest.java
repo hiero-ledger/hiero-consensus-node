@@ -97,7 +97,7 @@ class ClprStateProofManagerTest {
     }
 
     @Test
-    @DisplayName("tss.useSha256=true -> proof still built correctly, hashing with SHA-256 end-to-end")
+    @DisplayName("blockStream.useSha256=true -> proof still built correctly, hashing with SHA-256 end-to-end")
     void sha256ConfiguredBuildsValidProof() throws Exception {
         subject = new ClprStateProofManager(snapshotProvider, tssVerifier, configProviderWithUseSha256(true));
         final var manifest = ClprEndpointManifest.newBuilder().version(5L).build();
@@ -115,7 +115,7 @@ class ClprStateProofManagerTest {
 
     private static ConfigProvider configProviderWithUseSha256(final boolean useSha256) {
         final var config = HederaTestConfigBuilder.create()
-                .withValue("tss.useSha256", useSha256)
+                .withValue("blockStream.useSha256", useSha256)
                 .getOrCreateConfig();
         final var versioned = new VersionedConfigImpl(config, 0);
         return () -> versioned;

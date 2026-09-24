@@ -261,7 +261,7 @@ class ConversionUtilsTest {
 
     @Test
     void truncatesFortyEightByteBlockRootHashToLeadingThirtyTwoBytes() {
-        // A 48-byte (SHA-384) block-root hash, as produced when TssConfig.useSha256=false (the default)
+        // A 48-byte (SHA-384) block-root hash, as produced when BlockStreamConfig.useSha256=false (the default)
         final var fortyEightByteBlockRootHash =
                 com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("11".repeat(32) + "22".repeat(16));
         final var expected = Hash.wrap(Bytes32.wrap(

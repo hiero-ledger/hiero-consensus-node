@@ -1812,8 +1812,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private MessageDigest digestOrThrow() {
-        return CommonUtils.digestOrThrow(
-                configProvider.getConfiguration().getConfigData(TssConfig.class).useSha256());
+        return CommonUtils.digestOrThrow(configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .useSha256());
     }
 
     /**

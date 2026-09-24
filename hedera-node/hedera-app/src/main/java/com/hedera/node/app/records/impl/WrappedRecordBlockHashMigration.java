@@ -77,7 +77,7 @@ public class WrappedRecordBlockHashMigration {
      * @param migrationAlreadyApplied should be true if migration voting has already completed.
      *                                Prevents re-execution on restart
      * @param useSha256 whether the wrapped-record-block-root tree uses SHA-256 instead of the SHA-384 default
-     *                  (see {@code TssConfig.useSha256})
+     *                  (see {@code BlockStreamConfig.useSha256})
      */
     public void execute(
             @NonNull final StreamMode streamMode,

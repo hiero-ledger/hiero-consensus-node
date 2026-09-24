@@ -24,8 +24,8 @@ import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ClprConfig;
-import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.BinaryState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -92,13 +92,15 @@ public class ClprStateProofManager {
 
     /**
      * Returns a fresh {@link MessageDigest} matching the block-root Merkle tree's current hashing algorithm
-     * ({@code TssConfig.useSha256}), so CLPR state-proof construction/verification always hashes with the
+     * ({@code BlockStreamConfig.useSha256}), so CLPR state-proof construction/verification always hashes with the
      * same algorithm as the live tree being proved. Mirrors
      * {@code BlockStreamManagerImpl.digestOrThrow()}.
      */
     private MessageDigest digestOrThrow() {
-        return CommonUtils.digestOrThrow(
-                configProvider.getConfiguration().getConfigData(TssConfig.class).useSha256());
+        return CommonUtils.digestOrThrow(configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .useSha256());
     }
 
     /**
