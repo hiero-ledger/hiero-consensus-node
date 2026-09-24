@@ -14,7 +14,6 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSch
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_ID;
-import static com.hedera.node.app.workflows.handle.record.SystemTransactions.MAX_NANOS_PER_SYSTEM_DISPATCH;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
@@ -1243,28 +1242,5 @@ class HandleWorkflowTest {
         final InOrder inOrder = Mockito.inOrder(stakePeriodManager, nodeFeeManager);
         inOrder.verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW));
         inOrder.verify(nodeFeeManager).distributeFees(any(), any(), any());
-    }
-
-    @Test
-    void clprStakingAccountCreationTakesTheSlotAfterNodeRewards() {
-        final var creatorId = NodeId.of(0);
-        given(event.getCreatorId()).willReturn(creatorId);
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
-        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
-        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
-        given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
-
-        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
-
-        subject.handleRound(state, round, txns -> {});
-
-        // With the block hash signer not ready, the round's consensus time (NOW) is the last used time
-        final InOrder inOrder = Mockito.inOrder(nodeFeeManager, nodeRewardManager, systemTransactions);
-        inOrder.verify(nodeFeeManager).distributeFees(any(), eq(NOW.plusNanos(MAX_NANOS_PER_SYSTEM_DISPATCH)), any());
-        inOrder.verify(nodeRewardManager)
-                .maybeRewardActiveNodes(any(), eq(NOW.plusNanos(2L * MAX_NANOS_PER_SYSTEM_DISPATCH)), any());
-        inOrder.verify(systemTransactions)
-                .maybeCreateClprStakingAccount(any(), eq(NOW.plusNanos(3L * MAX_NANOS_PER_SYSTEM_DISPATCH)));
     }
 }

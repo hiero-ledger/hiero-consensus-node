@@ -423,12 +423,6 @@ public class HandleWorkflow {
             logger.error("{} Failed to reward active nodes", ALERT_MESSAGE, e);
         }
         try {
-            transactionsDispatched |= systemTransactions.maybeCreateClprStakingAccount(
-                    state, lastUsedConsTime.plusNanos(3L * MAX_NANOS_PER_SYSTEM_DISPATCH));
-        } catch (Exception e) {
-            logger.error("{} Failed to create CLPR staking account", ALERT_MESSAGE, e);
-        }
-        try {
             final int receiptEntriesBatchSize = configProvider
                     .getConfiguration()
                     .getConfigData(BlockStreamConfig.class)

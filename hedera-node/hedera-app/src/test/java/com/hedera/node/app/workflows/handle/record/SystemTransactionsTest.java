@@ -7,7 +7,6 @@ import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILE
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -347,40 +346,21 @@ class SystemTransactionsTest {
     }
 
     @Test
-    void clprStakingAccountIsNotCreatedWhileClprIsDisabled() {
-        assertFalse(subject.maybeCreateClprStakingAccount(state, NOW));
+    void genesisSetupCreatesClprStakingAccountWhileClprIsDisabled() {
+        final var systemContext = doGenesisSetup();
 
-        verifyNoInteractions(state);
+        final var body = capturedClprStakingAccountCreation(systemContext);
+        assertEquals("CLPR staking account creation record", body.memo());
+        assertEquals(
+                IMMUTABILITY_SENTINEL_KEY, body.cryptoCreateAccountOrThrow().key());
     }
 
     @Test
-    void clprStakingAccountIsNotRecreatedWhenPresent() {
-        givenClprEnabled();
-        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
-        final var spySubject = spy(subject);
-
-        assertFalse(spySubject.maybeCreateClprStakingAccount(state, NOW));
-
-        verify(spySubject, never()).newSystemContext(any(), any(), any(), any(), any());
-    }
-
-    @Test
-    void clprStakingAccountIsCreatedAtTheGivenTimeWhenClprIsEnabledAndAccountIsMissing() {
-        givenClprEnabled();
+    void postUpgradeCreatesMissingClprStakingAccountWhileClprIsDisabled() {
         givenAccountsState();
-        final var systemContext = mock(SystemContext.class);
-        final var spySubject = spy(subject);
-        doReturn(systemContext).when(spySubject).newSystemContext(any(), any(), any(), any(), any());
 
-        assertTrue(spySubject.maybeCreateClprStakingAccount(state, NOW));
+        final var systemContext = doPostUpgradeSetupWithMockContext();
 
-        verify(spySubject)
-                .newSystemContext(
-                        eq(NOW),
-                        eq(state),
-                        any(),
-                        eq(SystemTransactions.UseReservedConsensusTimes.NO),
-                        eq(SystemTransactions.TriggerStakePeriodSideEffects.YES));
         final var body = capturedClprStakingAccountCreation(systemContext);
         assertEquals("CLPR staking account creation record", body.memo());
         assertEquals(
@@ -389,20 +369,12 @@ class SystemTransactionsTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void genesisSetupSkipsClprStakingAccountWhileClprIsDisabled() {
-        final var systemContext = doGenesisSetupWithClprEnabled(false);
+    void postUpgradeDoesNotRecreateExistingClprStakingAccount() {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+
+        final var systemContext = doPostUpgradeSetupWithMockContext();
 
         verify(systemContext, never()).dispatchCreation(any(Consumer.class), eq(CLPR_STAKING_ACCOUNT_NUM));
-    }
-
-    @Test
-    void genesisSetupCreatesClprStakingAccountWhenClprIsEnabled() {
-        final var systemContext = doGenesisSetupWithClprEnabled(true);
-
-        final var body = capturedClprStakingAccountCreation(systemContext);
-        assertEquals("CLPR staking account creation record", body.memo());
-        assertEquals(
-                IMMUTABILITY_SENTINEL_KEY, body.cryptoCreateAccountOrThrow().key());
     }
 
     @Test
@@ -541,6 +513,7 @@ class SystemTransactionsTest {
         // Mock fileService.fileSchema() to return a mock schema
         final var fileSchema = mock(V0490FileSchema.class);
         given(fileService.fileSchema()).willReturn(fileSchema);
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
 
         // Recreate subject with updated config
         subject = new SystemTransactions(
@@ -595,6 +568,7 @@ class SystemTransactionsTest {
         given(state.getReadableStates(FileService.NAME)).willReturn(readableStates);
         given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
         given(filesState.get(any())).willReturn(File.DEFAULT);
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
         // Recreate subject with updated config
         subject = new SystemTransactions(
                 initTrigger,
@@ -737,17 +711,9 @@ class SystemTransactionsTest {
         verify(blockRecordManager, never()).blockNo();
     }
 
-    private void givenClprEnabled() {
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("blockStream.streamMode", "BLOCKS")
-                .withValue("clpr.enabled", true)
-                .getOrCreateConfig();
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        given(entityIdFactory.newAccountId(CLPR_STAKING_ACCOUNT_NUM)).willReturn(CLPR_STAKING_ACCOUNT_ID);
-    }
-
     @SuppressWarnings("unchecked")
     private ReadableKVState<AccountID, Account> givenAccountsState() {
+        given(entityIdFactory.newAccountId(CLPR_STAKING_ACCOUNT_NUM)).willReturn(CLPR_STAKING_ACCOUNT_ID);
         final var readableStates = mock(ReadableStates.class);
         final ReadableKVState<AccountID, Account> accounts = mock(ReadableKVState.class);
         given(state.getReadableStates(TokenService.NAME)).willReturn(readableStates);
@@ -755,10 +721,34 @@ class SystemTransactionsTest {
         return accounts;
     }
 
-    private SystemContext doGenesisSetupWithClprEnabled(final boolean clprEnabled) {
+    @SuppressWarnings("unchecked")
+    private SystemContext doPostUpgradeSetupWithMockContext() {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
-                .withValue("clpr.enabled", clprEnabled)
+                .withValue("nodes.enableDAB", "false")
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        final var selfNodeInfo = mock(NodeInfo.class);
+        given(selfNodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
+        given(networkInfo.selfNodeInfo()).willReturn(selfNodeInfo);
+        // The simple fees file already exists, so the CLPR staking account is the only possible creation
+        final ReadableStates fileStates = mock(ReadableStates.class);
+        final ReadableKVState<FileID, File> filesState = mock(ReadableKVState.class);
+        given(state.getReadableStates(FileService.NAME)).willReturn(fileStates);
+        given(fileStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
+        given(filesState.get(any())).willReturn(File.DEFAULT);
+        final var systemContext = mock(SystemContext.class);
+        final var spySubject = spy(subject);
+        doReturn(systemContext).when(spySubject).newSystemContext(any(), any(), any(), any(), any());
+
+        spySubject.doPostUpgradeSetup(NOW, state);
+
+        return systemContext;
+    }
+
+    private SystemContext doGenesisSetup() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         given(startupNetworks.genesisNetworkOrThrow(any())).willThrow(new IllegalStateException("No genesis network"));
