@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
@@ -18,6 +19,7 @@ import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.hapi.utils.blocks.NativeTssVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verify.VerifyConfigCall;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verify.VerifyConfigTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -66,13 +68,14 @@ class VerifyConfigCallTest extends CallTestBase {
             @NonNull final Path stateProofFile, @NonNull final TssVerifier tssVerifier, final boolean manifestAware)
             throws IOException {
         final var stateProofBytes = Files.readAllBytes(stateProofFile);
-        // manifestAware routes between the V1 legacy return (config bytes only) and the V3
-        // context+manifest tuple return. The V3 path uses a 32-byte channelId and an empty
+        // manifestAware routes between the config tuple with seed endpoints and the endpoint manifest tuple. The
+        // manifest-aware path uses a 32-byte
+        // channelId and an empty
         // manifest proof (these tests fail at config parsing before the manifest is reached).
         final var subject = manifestAware
                 ? new VerifyConfigCall(
                         mockEnhancement(), gasCalculator, stateProofBytes, new byte[32], new byte[0], tssVerifier)
-                : new VerifyConfigCall(mockEnhancement(), gasCalculator, stateProofBytes, tssVerifier);
+                : new VerifyConfigCall(mockEnhancement(), gasCalculator, stateProofBytes, new byte[32], tssVerifier);
         return subject.execute(frame);
     }
 
@@ -117,9 +120,9 @@ class VerifyConfigCallTest extends CallTestBase {
     }
 
     @Test
-    @DisplayName("reverts through the V1 legacy code path when manifestAware=false")
-    void revertsOnMalformedProofV1(@TempDir final Path tempDir) throws IOException {
-        final var proofFile = tempDir.resolve("malformed-v1.proof");
+    @DisplayName("reverts through the seed-endpoint code path when manifestAware=false")
+    void revertsOnMalformedConfigProof(@TempDir final Path tempDir) throws IOException {
+        final var proofFile = tempDir.resolve("malformed-config.proof");
         Files.write(proofFile, new byte[] {(byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff});
 
         final var result = invokeVerifyConfig(proofFile, new NativeTssVerifier(), /*manifestAware*/ false);
@@ -129,7 +132,7 @@ class VerifyConfigCallTest extends CallTestBase {
         assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
     }
 
-    // ---- V2 manifest-proof path (verifyManifest, spec §4.8) ----
+    // ---- endpoint manifest-proof path (verifyManifest, spec §4.8) ----
     // These drive the full config + manifest verification with a stubbed TssVerifier (returns true),
     // so a synthetic single-leaf StateProof — nextPathIndex=-1 so computeRootHash accepts it — reaches
     // verifyManifest without a real TSS-signed fixture.
@@ -138,66 +141,86 @@ class VerifyConfigCallTest extends CallTestBase {
     private static final Bytes TRUST_ANCHOR = Bytes.wrap(new byte[] {1, 2, 3, 4});
 
     @Test
-    @DisplayName("V2: a valid config proof + valid manifest proof verifies and returns SUCCESS")
+    void returnsConfigTupleWithSeedEndpoints() {
+        final var result = new VerifyConfigCall(
+                        mockEnhancement(), gasCalculator, configProofBytes(testConfig()), new byte[32], acceptingTss())
+                .execute(frame);
+
+        assertThat(result.responseCode()).isEqualTo(SUCCESS);
+        final Tuple decoded = VerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS
+                .getOutputs()
+                .decode(result.fullResult().output().toArray());
+        assertThat(decoded.size()).isEqualTo(8);
+        assertThat((String) decoded.get(1)).isEqualTo("295");
+        assertThat((byte[]) decoded.get(5)).isEqualTo(TRUST_ANCHOR.toByteArray());
+        assertThat((Tuple[]) decoded.get(7)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("manifest-aware: a valid config proof + valid manifest proof verifies and returns SUCCESS")
     void verifyManifestHappyPath() {
         final var manifest = ClprEndpointManifest.newBuilder()
                 .version(2L)
                 .serviceAddress(SERVICE_ADDR)
                 .build();
 
-        final var result = invokeV2(configProofBytes(testConfig()), manifestProofBytes(manifest), acceptingTss());
+        final var result =
+                invokeWithManifest(configProofBytes(testConfig()), manifestProofBytes(manifest), acceptingTss());
 
         assertThat(result.responseCode()).isEqualTo(SUCCESS);
         assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.COMPLETED_SUCCESS);
     }
 
     @Test
-    @DisplayName("V2: manifest.version == 0 violates §4.8 → CLPR_VERIFIER_CONFIG_FAILED")
+    @DisplayName("manifest-aware: manifest.version == 0 violates §4.8 → CLPR_VERIFIER_CONFIG_FAILED")
     void rejectsManifestVersionZero() {
         final var manifest = ClprEndpointManifest.newBuilder()
                 .version(0L)
                 .serviceAddress(SERVICE_ADDR)
                 .build();
 
-        final var result = invokeV2(configProofBytes(testConfig()), manifestProofBytes(manifest), acceptingTss());
+        final var result =
+                invokeWithManifest(configProofBytes(testConfig()), manifestProofBytes(manifest), acceptingTss());
 
         assertThat(result.responseCode()).isEqualTo(CLPR_VERIFIER_CONFIG_FAILED);
         assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
     }
 
     @Test
-    @DisplayName("V2: manifest.service_address != config.service_address violates §4.8 → failed")
+    @DisplayName("manifest-aware: manifest.service_address != config.service_address violates §4.8 → failed")
     void rejectsManifestServiceAddressMismatch() {
         final var manifest = ClprEndpointManifest.newBuilder()
                 .version(2L)
                 .serviceAddress(Bytes.wrap(new byte[] {7, 7}))
                 .build();
 
-        final var result = invokeV2(configProofBytes(testConfig()), manifestProofBytes(manifest), acceptingTss());
-
-        assertThat(result.responseCode()).isEqualTo(CLPR_VERIFIER_CONFIG_FAILED);
-    }
-
-    @Test
-    @DisplayName("V2: malformed manifest proof bytes → CLPR_VERIFIER_CONFIG_FAILED")
-    void rejectsMalformedManifestProof() {
         final var result =
-                invokeV2(configProofBytes(testConfig()), new byte[] {(byte) 0xff, (byte) 0xff}, acceptingTss());
+                invokeWithManifest(configProofBytes(testConfig()), manifestProofBytes(manifest), acceptingTss());
 
         assertThat(result.responseCode()).isEqualTo(CLPR_VERIFIER_CONFIG_FAILED);
     }
 
     @Test
-    @DisplayName("V3: empty manifest proof is rejected (a non-empty proof is required) → CLPR_VERIFIER_CONFIG_FAILED")
+    @DisplayName("manifest-aware: malformed manifest proof bytes → CLPR_VERIFIER_CONFIG_FAILED")
+    void rejectsMalformedManifestProof() {
+        final var result = invokeWithManifest(
+                configProofBytes(testConfig()), new byte[] {(byte) 0xff, (byte) 0xff}, acceptingTss());
+
+        assertThat(result.responseCode()).isEqualTo(CLPR_VERIFIER_CONFIG_FAILED);
+    }
+
+    @Test
+    @DisplayName(
+            "manifest-aware: empty manifest proof is rejected (a non-empty proof is required) → CLPR_VERIFIER_CONFIG_FAILED")
     void emptyManifestProofRejected() {
-        final var result = invokeV2(configProofBytes(testConfig()), new byte[0], acceptingTss());
+        final var result = invokeWithManifest(configProofBytes(testConfig()), new byte[0], acceptingTss());
 
         assertThat(result.responseCode()).isEqualTo(CLPR_VERIFIER_CONFIG_FAILED);
         assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
     }
 
     @NonNull
-    private Call.PricedResult invokeV2(
+    private Call.PricedResult invokeWithManifest(
             @NonNull final byte[] configProof, @NonNull final byte[] manifestProof, @NonNull final TssVerifier tss) {
         final var subject =
                 new VerifyConfigCall(mockEnhancement(), gasCalculator, configProof, new byte[32], manifestProof, tss);

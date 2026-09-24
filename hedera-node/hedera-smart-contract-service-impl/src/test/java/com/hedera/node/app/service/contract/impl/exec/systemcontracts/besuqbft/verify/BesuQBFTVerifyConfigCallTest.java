@@ -66,7 +66,7 @@ class BesuQBFTVerifyConfigCallTest extends CallTestBase {
     }
 
     @Test
-    void v2EncodingReturns8TupleWithAllConfigFields() throws Exception {
+    void seedEndpointsEncodingReturns8TupleWithAllConfigFields() throws Exception {
         final byte[] channelId32 = new byte[32];
         channelId32[0] = (byte) 0xAB;
         final ClprThrottles throttles = ClprThrottles.newBuilder()
@@ -91,7 +91,7 @@ class BesuQBFTVerifyConfigCallTest extends CallTestBase {
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
             assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.COMPLETED_SUCCESS);
 
-            final var decoded = BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG_V2
+            final var decoded = BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS
                     .getOutputs()
                     .decode(result.fullResult().output().toArray());
             // field 0: channelContext = channelId32 ++ serviceAddress
@@ -109,7 +109,7 @@ class BesuQBFTVerifyConfigCallTest extends CallTestBase {
     }
 
     private BesuQBFTVerifyConfigCall subject() {
-        return new BesuQBFTVerifyConfigCall(mockEnhancement(), gasCalculator, STATE_PROOF);
+        return new BesuQBFTVerifyConfigCall(mockEnhancement(), gasCalculator, STATE_PROOF, new byte[32]);
     }
 
     private static ClprLedgerConfiguration minimalConfig() {

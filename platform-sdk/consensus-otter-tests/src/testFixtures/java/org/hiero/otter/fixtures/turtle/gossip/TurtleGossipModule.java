@@ -58,7 +58,7 @@ public class TurtleGossipModule implements GossipModule {
             @NonNull final Metrics metrics,
             @NonNull final Time time,
             @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final Roster currentRoster,
+            @NonNull final Roster activeRoster,
             @NonNull final NodeId selfId,
             @NonNull final SemanticVersion appVersion,
             @NonNull final IntakeEventCounter intakeEventCounter,
