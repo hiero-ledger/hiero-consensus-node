@@ -128,9 +128,9 @@ jobs:
       # Needs v 163 of MN so contract/result works as expected
       mirror-node-version: "0.163.1"
       # Deliberately not `needs.extract-citr-vars.outputs.json-rpc-relay-version` (v0.78.0): the HIP-1340 shards
-      # need TX_TYPE_4_ENABLED, which first shipped in relay 0.79.0-rc1. Bumping .citr-env instead would also move
+      # need TX_TYPE_4_ENABLED, which first shipped in relay 0.79.0-rc4. Bumping .citr-env instead would also move
       # the XTS JSON-RPC relay regression panel (818).
-      json-rpc-relay-version: "0.79.0-rc1"
+      json-rpc-relay-version: "0.79.0-rc4"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
