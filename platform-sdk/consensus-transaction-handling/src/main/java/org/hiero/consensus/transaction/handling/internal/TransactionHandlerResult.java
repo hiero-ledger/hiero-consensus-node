@@ -6,6 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Queue;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
 
 /**
@@ -20,8 +21,11 @@ import org.hiero.consensus.state.signed.StateWithHashComplexity;
  *
  * @param stateWithHashComplexity a wrapper objects with a signed state and an estimate of its hash complexity, or null
  *                                if no signed state was created for this round
+ * @param stateForPrehandle       the latest immutable state to use for prehandle, or null if no signed state was
+ *                                created for this round
  * @param systemTransactions      any system transactions that reached consensus in the round
  */
 public record TransactionHandlerResult(
         @Nullable StateWithHashComplexity stateWithHashComplexity,
+        @Nullable ReservedSignedState stateForPrehandle,
         @NonNull Queue<ScopedSystemTransaction<StateSignatureTransaction>> systemTransactions) {}

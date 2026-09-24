@@ -49,6 +49,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
+import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
@@ -106,6 +107,11 @@ public class DefaultTransactionHandler implements TransactionHandler {
     private final Configuration configuration;
 
     /**
+     * If true, save eligible state snapshots asynchronously.
+     */
+    private final boolean saveStateAsync;
+
+    /**
      * If true then write the legacy running event hash each round.
      */
     private final boolean writeLegacyRunningEventHash;
@@ -155,6 +161,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
             final long transactionOffsetNanos) {
 
         this.configuration = requireNonNull(configuration);
+        this.saveStateAsync = configuration.getConfigData(StateConfig.class).saveStateAsync();
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
         this.statusMonitorModule = requireNonNull(statusMonitorModule);
         this.softwareVersion = requireNonNull(softwareVersion);
@@ -389,19 +396,43 @@ public class DefaultTransactionHandler implements TransactionHandler {
                     consensusRound.isPcesRound());
 
             reservedSignedState = signedState.reserve("transaction handler output");
+            final ReservedSignedState stateForPrehandle;
+            if (freezeRoundReceived && saveStateAsync) {
+                /*
+                 * The real freeze state cannot be flushed for its async snapshot until that state is destroyed. Move
+                 * the lifecycle manager and prehandle to an identical fast copy so that neither one keeps the real
+                 * freeze state alive.
+                 */
+                stateLifecycleManager.copyMutableState();
+                final VirtualMapState freezeStateCopy = stateLifecycleManager.getLatestImmutableState();
+                final SignedState prehandleState = new SignedState(
+                        configuration,
+                        CryptoUtils::verifySignature,
+                        freezeStateCopy,
+                        "TransactionHandler.createSignedState() freeze state copy for prehandle",
+                        false,
+                        false,
+                        consensusRound.isPcesRound());
+                stateForPrehandle = prehandleState.reserve("transaction handler prehandle output");
+                transactionCallbacks.onFreezeStateCopied(freezeStateCopy);
+            } else {
+                stateForPrehandle = signedState.reserve("transaction handler prehandle output");
+            }
 
             // Estimate the amount of work it will be to calculate the hash of this state. The primary modifier
             // of the state is transactions, so that's our best bet.
             final long hashComplexity = Math.max(accumulatedHashComplexity, 1);
             final TransactionHandlerResult result = new TransactionHandlerResult(
-                    new StateWithHashComplexity(reservedSignedState, hashComplexity), systemTransactions);
+                    new StateWithHashComplexity(reservedSignedState, hashComplexity),
+                    stateForPrehandle,
+                    systemTransactions);
             accumulatedHashComplexity = 0;
 
             return result;
         } else {
             // Only include non-system transactions, because system transactions do not modify the state
             accumulatedHashComplexity += consensusRound.getNumAppTransactions() - systemTransactions.size();
-            return new TransactionHandlerResult(null, systemTransactions);
+            return new TransactionHandlerResult(null, null, systemTransactions);
         }
     }
 }

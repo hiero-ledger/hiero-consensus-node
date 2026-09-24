@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.services;
 
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChanges;
@@ -73,6 +74,7 @@ public class OrderedServiceMigrator implements ServiceMigrator {
         requireNonNull(configProvider);
         requireNonNull(trigger);
 
+        final long migrationsStart = System.currentTimeMillis();
         final Map<String, Object> sharedValues = new HashMap<>();
         final var migrationStateChanges = new MigrationStateChanges(state, appConfig, storeMetricsService);
         servicesRegistry.registrations().forEach(registration -> {
@@ -93,6 +95,11 @@ public class OrderedServiceMigrator implements ServiceMigrator {
                     startupNetworks,
                     trigger);
         });
+        logger.info(
+                STARTUP.getMarker(),
+                "++++++++ All service schema migrations for trigger {} are applied, took {} ms",
+                trigger,
+                System.currentTimeMillis() - migrationsStart);
         return migrationStateChanges.getStateChanges();
     }
 }

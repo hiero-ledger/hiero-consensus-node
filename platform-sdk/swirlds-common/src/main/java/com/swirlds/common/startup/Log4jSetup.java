@@ -72,7 +72,7 @@ public final class Log4jSetup {
                                 .setSingleThreadName(CompositeThreadNameProvider.create("browser", "shutdown-hook"))
                                 .setRunnable(() -> {
                                     logger.info(STARTUP.getMarker(), "JVM is shutting down.");
-                                    LogManager.shutdown();
+//                                    LogManager.shutdown();
                                 })
                                 .build());
             }

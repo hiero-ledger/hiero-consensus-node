@@ -4,6 +4,7 @@ package org.hiero.consensus.gossip.impl.network;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.NETWORK;
 import static com.swirlds.logging.legacy.LogMarker.SOCKET_EXCEPTIONS;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.TCP_CONNECT_EXCEPTIONS;
 
 import com.swirlds.base.time.Time;
@@ -90,9 +91,12 @@ public class OutboundConnectionManager implements ConnectionManager {
     @Override
     public Connection waitForConnection() {
         try (final LockedResource<Connection> resource = lock.lock()) {
+            final long totalStartTime = System.nanoTime();
             while (!resource.getResource().connected()) {
                 resource.getResource().disconnect();
+                final long startTime = System.nanoTime();
                 final Connection connection = createConnection();
+
                 resource.setResource(connection);
                 if (!connection.connected() && this.socketConfig.waitBetweenConnectionRetries() > 0) {
                     try {
@@ -100,6 +104,13 @@ public class OutboundConnectionManager implements ConnectionManager {
                     } catch (InterruptedException e) {
                         return NotConnectedConnection.getSingleton();
                     }
+                } else {
+                    logger.info(
+                            STARTUP.getMarker(),
+                            "Created connection against {} took {}ms after trying for {}ms",
+                            otherPeer.nodeId(),
+                            (System.nanoTime() - startTime) / 1_000_000,
+                            (System.nanoTime() - totalStartTime) / 1_000_000);
                 }
             }
             currentConn = resource.getResource();

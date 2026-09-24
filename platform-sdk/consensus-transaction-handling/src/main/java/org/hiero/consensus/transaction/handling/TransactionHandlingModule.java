@@ -26,6 +26,7 @@ import org.hiero.consensus.status.monitor.StatusMonitorModule;
 import org.hiero.consensus.transaction.handling.config.TransactionHandlingWiringConfig;
 import org.hiero.consensus.transaction.handling.internal.DefaultTransactionHandler;
 import org.hiero.consensus.transaction.handling.internal.DefaultTransactionPrehandler;
+import org.hiero.consensus.transaction.handling.internal.StateForPrehandleReserver;
 import org.hiero.consensus.transaction.handling.internal.StateWithHashComplexityReserver;
 import org.hiero.consensus.transaction.handling.internal.StateWithHashComplexityToStateReserver;
 import org.hiero.consensus.transaction.handling.internal.TransactionHandler;
@@ -91,7 +92,17 @@ public class TransactionHandlingModule {
         this.latestImmutableStateNexusWiring =
                 new ComponentWiring<>(model, SignedStateNexus.class, DIRECT_THREADSAFE_CONFIGURATION);
 
-        // The TransactionHandler output is split into two types: system transactions, and state with complexity.
+        // Install the prehandle state before any downstream queue can delay releasing the previous immutable state.
+        handlerWiring
+                .getOutputWire()
+                .buildFilter(
+                        "notNullStateForPrehandleFilter",
+                        "transaction handler result",
+                        thr -> thr.stateForPrehandle() != null)
+                .buildAdvancedTransformer(new StateForPrehandleReserver("postHandler_stateForPrehandleReserver"))
+                .solderTo(latestImmutableStateInputWire());
+
+        // The TransactionHandler output is also split into system transactions and state with complexity.
         this.handleSignaturesOutputWire = handlerWiring
                 .getOutputWire()
                 .buildTransformer(
@@ -108,7 +119,6 @@ public class TransactionHandlingModule {
                         new StateWithHashComplexityReserver("postHandler_stateWithHashComplexityReserver"));
         this.stateOutputWire = stateWithHashComplexityOutputWire.buildAdvancedTransformer(
                 new StateWithHashComplexityToStateReserver("postHandler_stateWithHashComplexityToStateReserver"));
-        this.stateOutputWire.solderTo(latestImmutableStateInputWire());
 
         // Create and bind components
         latestImmutableStateNexusWiring.bind(latestImmutableStateNexus);

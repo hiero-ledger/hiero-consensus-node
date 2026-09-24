@@ -221,7 +221,9 @@ the most recent state matching a different criterion:
   [`LockFreeStateNexus`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/nexus/LockFreeStateNexus.java))
   holds the latest immutable state produced by the transaction handler.
   Execution reads from it to prehandle incoming transactions against an
-  up-to-date state without blocking the handle thread.
+  up-to-date state without blocking the handle thread. For an asynchronous
+  freeze snapshot, it holds a logically identical immutable copy while the
+  real freeze state proceeds through hash, save, and garbage collection.
 - **`LatestCompleteStateNexus`**
   ([interface](../../../../consensus-state/src/main/java/org/hiero/consensus/state/nexus/LatestCompleteStateNexus.java),
   implemented by
@@ -233,7 +235,10 @@ the most recent state matching a different criterion:
   `latestConsensusRound - stateConfig.roundsToKeepForSigning + 1` — i.e.
   when this node has not reached signing quorum on a newer state within
   the window — and `updatePlatformStatus` drops it when status becomes
-  `FREEZING`. A stale or pre-freeze state is never offered to a learner.
+  `FREEZING`. When asynchronous snapshots are enabled, the freeze state is
+  observed before snapshot dispatch; this clears and latches the holder so
+  neither the freeze state nor a late state can block its destruction.
+  A stale or pre-freeze state is never offered to a learner.
 
 Both follow the Holder pattern from [Reservation in the wiring
 graph](#reservation-in-the-wiring-graph): each setter releases the
@@ -268,7 +273,7 @@ RUL-001 is straightforward to follow for code that holds a
 the component framework it also crosses scheduler queues, and every
 fan-out from one wire to multiple listeners must mint one reservation
 per listener so that the fastest consumer cannot release the last
-reservation while a slower consumer is still waiting in queue. Three
+reservation while a slower consumer is still waiting in queue. Four
 `AdvancedTransformation` implementations (in `consensus-state` and
 `consensus-transaction-handling`) enforce this:
 
@@ -279,14 +284,16 @@ reservation while a slower consumer is still waiting in queue. Three
   `TransactionHandler` and `SavedStateController`).
 - [`StateWithHashComplexityToStateReserver`](../../../../consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/internal/StateWithHashComplexityToStateReserver.java)
   — unwraps a `StateWithHashComplexity` to a `ReservedSignedState`
-  while fanning out (feeds `SignedStateNexus` and
-  `StateGarbageCollector`).
+  while fanning out to `StateGarbageCollector`.
+- [`StateForPrehandleReserver`](../../../../consensus-transaction-handling/src/main/java/org/hiero/consensus/transaction/handling/internal/StateForPrehandleReserver.java)
+  — extracts and reserves the state intended for the latest-immutable
+  prehandle nexus.
 
-All three share the same contract:
+All four share the same contract:
 
-- `transform()` runs once per downstream listener and returns a
-  freshly reserved `ReservedSignedState` whose `reason` is the
-  reserver's `name`.
+- `transform()` runs once per downstream listener and returns an
+  output that owns a freshly reserved `SignedState` reference whose
+  `reason` is the reserver's `name`.
 - `inputCleanup()` runs once after every listener has received its
   copy and releases the upstream reservation.
 - `outputCleanup()` releases a per-listener reservation if the

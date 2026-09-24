@@ -20,6 +20,6 @@ import java.time.Duration;
  */
 @ConfigData("platformStatus")
 public record PlatformStatusConfig(
-        @ConfigProperty(defaultValue = "10s") Duration observingStatusDelay,
+        @ConfigProperty(defaultValue = "1s") Duration observingStatusDelay,
         @ConfigProperty(defaultValue = "10s") Duration activeStatusDelay,
         @ConfigProperty(defaultValue = "100ms") Duration statusStateMachineHeartbeatPeriod) {}

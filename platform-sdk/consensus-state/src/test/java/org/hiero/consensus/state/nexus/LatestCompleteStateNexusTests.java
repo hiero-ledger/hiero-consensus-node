@@ -49,6 +49,53 @@ public class LatestCompleteStateNexusTests {
     }
 
     /**
+     * Verifies that an async freeze state is never retained, releases the previous state, and prevents a later state
+     * from being retained.
+     */
+    @Test
+    void asyncFreezeStateIsTerminalTest() {
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final LatestCompleteStateNexus nexus = new DefaultLatestCompleteStateNexus(configuration, new NoOpMetrics());
+        final SignedState previousState =
+                new RandomSignedStateGenerator().setRound(455).build();
+        final SignedState freezeState = new RandomSignedStateGenerator()
+                .setRound(456)
+                .setFreezeState(true)
+                .build();
+        final SignedState lateState =
+                new RandomSignedStateGenerator().setRound(457).build();
+
+        try (final ReservedSignedState previousTestReservation = previousState.reserve("test");
+                final ReservedSignedState freezeTestReservation = freezeState.reserve("test");
+                final ReservedSignedState lateTestReservation = lateState.reserve("test")) {
+            final ReservedSignedState previousNexusReservation = previousState.reserve("previous nexus state");
+            nexus.setState(previousNexusReservation);
+
+            final ReservedSignedState freezeObserverReservation = freezeState.reserve("freeze observer state");
+            nexus.observeStateForAsyncFreeze(freezeObserverReservation);
+
+            assertTrue(previousNexusReservation.isClosed(), "The previous nexus state should be released");
+            assertTrue(freezeObserverReservation.isClosed(), "The observer reservation should be released");
+
+            final ReservedSignedState freezeNexusReservation = freezeState.reserve("complete freeze nexus state");
+            nexus.setStateIfNewer(freezeNexusReservation);
+
+            assertTrue(freezeNexusReservation.isClosed(), "The freeze state should not be retained");
+            assertEquals(1, previousState.getReservationCount(), "Only the previous test reservation should remain");
+            assertEquals(1, freezeState.getReservationCount(), "Only the freeze test reservation should remain");
+
+            final ReservedSignedState lateNexusReservation = lateState.reserve("late nexus state");
+            nexus.setStateIfNewer(lateNexusReservation);
+
+            assertTrue(lateNexusReservation.isClosed(), "A state arriving after the freeze state should be released");
+            assertEquals(1, lateState.getReservationCount(), "Only the late test reservation should remain");
+            try (final ReservedSignedState nexusState = nexus.getState("check for null")) {
+                assertNull(nexusState, "Nexus should remain empty after the freeze state");
+            }
+        }
+    }
+
+    /**
      *
      * Verifies that updating the platform status to anything other than {@code FREEZING} does not release a reservation
      * on the state
