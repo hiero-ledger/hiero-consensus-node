@@ -15,9 +15,8 @@ import picocli.CommandLine.ParentCommand;
 /**
  * Submits a {@code ClprSubmitBundle} HAPI transaction carrying a verifier-checked
  * payload of cross-ledger messages for a given channel. The payload can be supplied as
- * a hex string ({@code --bundle-payload-hex}) or as raw bytes loaded from a file
- * ({@code --bundle-payload-file}); an optional {@code --endpoint-node-id} tags the
- * submitting endpoint for relay accounting.
+ * a hex string ({@code --bundle-payload}) or as raw bytes loaded from a file
+ * ({@code --bundle-payload-file}). The transaction payer is used for relay accounting.
  *
  * <p>This is the operator-facing manual counterpart to the in-process bundle submission
  * done automatically by {@code ClprChannelManager.performSync}.
@@ -50,13 +49,6 @@ public class SubmitBundleCommand implements Callable<Integer> {
             description = "Path to a binary file with the bundle payload bytes")
     String bundlePayloadFile;
 
-    @Option(
-            names = {"--endpoint-node-id"},
-            paramLabel = "<node>",
-            defaultValue = "0",
-            description = "Endpoint node id that produced the bundle")
-    long endpointNodeId;
-
     @Override
     public Integer call() throws Exception {
         final var config = configFrom(clprCommand.getYahcli());
@@ -78,8 +70,7 @@ public class SubmitBundleCommand implements Callable<Integer> {
 
         final var op = clprSubmitBundle()
                 .channelId(ClprArgs.requiredBytes("channel-id", channelIdHex))
-                .bundlePayload(payload)
-                .endpointNodeId(endpointNodeId);
+                .bundlePayload(payload);
 
         final var delegate = new ClprTxnSuite(config, "ClprSubmitBundle", op);
         delegate.runSuiteSync();

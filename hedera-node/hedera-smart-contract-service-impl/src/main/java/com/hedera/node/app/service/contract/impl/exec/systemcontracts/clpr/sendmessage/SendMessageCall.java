@@ -4,12 +4,12 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.send
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_AUTHORIZATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
-import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.ordinalRevertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
-import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
-import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.STATIC_CALL;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuAddress;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -21,20 +21,18 @@ import com.hedera.node.app.service.clpr.ReadableConnectorStore;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
-import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
-import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.datatypes.Wei;
+import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -49,11 +47,7 @@ public class SendMessageCall extends AbstractCall {
     private static final Logger logger = LogManager.getLogger(SendMessageCall.class);
     private static final long GAS_REQUIREMENT = 100_000L;
     private static final long AUTHORIZE_OUTBOUND_MESSAGE_GAS_LIMIT = 50_000L;
-    private static final DispatchMetadata CLPR_DISPATCH_METADATA = new DispatchMetadata(Map.of(
-            CLPR_DISPATCH,
-            new ClprDispatchMetadata(CLPR_SERVICE_ACCOUNT_ID, CLPR_EVM_ADDRESS_BYTES),
-            STATIC_CALL,
-            Boolean.TRUE));
+    private static final int MAX_STACK_DEPTH = 1024;
 
     static final byte[] AUTHORIZE_OUTBOUND_MESSAGE_SELECTOR;
 
@@ -70,6 +64,7 @@ public class SendMessageCall extends AbstractCall {
     private final byte[] connectorId;
     private final byte[] targetApplication;
     private final byte[] messageData;
+    private boolean authorized;
 
     public SendMessageCall(
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
@@ -95,74 +90,68 @@ public class SendMessageCall extends AbstractCall {
     }
 
     @Override
-    public @NonNull PricedResult execute(@NonNull final MessageFrame frame) {
-        logger.info(
-                "[CLPR-DEBUG] SendMessageCall.execute: senderId={} senderAddress={} channelId={} connectorId={} targetApplication={} messageData.len={}",
-                senderId,
-                senderAddress,
-                Bytes.wrap(channelId),
-                Bytes.wrap(connectorId),
-                Bytes.wrap(targetApplication),
-                messageData.length);
-        final var nativeOps = nativeOperations();
-        final var storeFactory = nativeOps.storeFactory();
-
-        // Step 1: Look up the Connector to obtain its authorization contract address.
-        final var connectorStore = storeFactory.readableStore(ReadableConnectorStore.class);
+    public boolean scheduleChildFrame(@NonNull final MessageFrame frame, @NonNull final Runnable continuation) {
+        requireNonNull(continuation);
+        final var connectorStore = nativeOperations().storeFactory().readableStore(ReadableConnectorStore.class);
         final var connectorKey = new ClprConnectorKey(Bytes.wrap(channelId), Bytes.wrap(connectorId));
         final var connector = connectorStore.getConnector(connectorKey);
-        if (connector == null || !connector.hasConnectorContract()) {
-            logger.warn(
-                    "[CLPR-DEBUG] SendMessageCall: connector lookup FAILED. connector={} hasContract={}",
-                    connector,
-                    connector != null && connector.hasConnectorContract());
-            return gasOnly(
-                    ordinalRevertResult(CLPR_AUTHORIZATION_FAILED, GAS_REQUIREMENT), CLPR_AUTHORIZATION_FAILED, false);
+        if (connector == null || !connector.hasConnectorContract() || frame.getDepth() >= MAX_STACK_DEPTH) {
+            return false;
         }
-        logger.info(
-                "[CLPR-DEBUG] SendMessageCall: connector found. authContract={} lockedStake={} slashCount={} inFlight={}",
-                connector.connectorContract(),
-                connector.lockedStake(),
-                connector.slashCount(),
-                connector.inFlightMessageCount());
-
-        // Step 2: Per-message authorization — static sub-call to IClprConnector.authorizeOutboundMessage.
-        // A revert or false return blocks the send.
+        // Reserve the system contract charge and forward at most the authorization limit, subject to EIP-150.
+        final var availableGas = frame.getRemainingGas() - GAS_REQUIREMENT;
+        if (availableGas <= 0) {
+            return false;
+        }
+        final var childGas = Math.min(AUTHORIZE_OUTBOUND_MESSAGE_GAS_LIMIT, availableGas - availableGas / 64);
+        final var contract = proxyUpdaterFor(frame).getHederaAccount(connector.connectorContractOrThrow());
+        if (contract == null) {
+            return false;
+        }
         final var callData = encodeAuthorizeOutboundMessage(
                 channelId, targetApplication, senderAddress.getBytes().toArray(), messageData);
-        logger.info(
-                "[CLPR-DEBUG] SendMessageCall: dispatching authorizeOutboundMessage static call to {} with gas={} callData.len={}",
-                connector.connectorContractOrThrow(),
-                AUTHORIZE_OUTBOUND_MESSAGE_GAS_LIMIT,
-                callData.length);
-        final var systemAdminAccountId = nativeOps
-                .entityIdFactory()
-                .newAccountId(nativeOps
-                        .configuration()
-                        .getConfigData(AccountsConfig.class)
-                        .systemAdmin());
-        final var authResult = nativeOps.dispatchReadonlyContractCall(
-                systemAdminAccountId,
-                connector.connectorContractOrThrow(),
-                callData,
-                AUTHORIZE_OUTBOUND_MESSAGE_GAS_LIMIT,
-                CLPR_DISPATCH_METADATA);
-        logger.info(
-                "[CLPR-DEBUG] SendMessageCall: authorizeOutboundMessage result: authResult={} (null={}, len={}) decoded={}",
-                authResult,
-                authResult == null,
-                authResult == null ? -1 : authResult.length(),
-                authResult != null && decodeBoolResult(authResult));
-        if (authResult == null || !decodeBoolResult(authResult)) {
-            logger.warn("[CLPR-DEBUG] SendMessageCall: AUTHORIZATION_FAILED - returning revert");
+        frame.decrementRemainingGas(childGas);
+        // As with CREATE, build() pushes a child using the parent's world updater and message-frame stack.
+        MessageFrame.builder()
+                .parentMessageFrame(frame)
+                .type(MessageFrame.Type.MESSAGE_CALL)
+                .initialGas(childGas)
+                .address(contract.getAddress())
+                .contract(contract.getAddress())
+                .inputData(org.apache.tuweni.bytes.Bytes.wrap(callData))
+                .sender(pbjToBesuAddress(CLPR_EVM_ADDRESS_BYTES))
+                .value(Wei.ZERO)
+                .apparentValue(Wei.ZERO)
+                .code(new Code(contract.getCode()))
+                .isStatic(true)
+                .completer(child -> completeAuthorization(frame, child, continuation))
+                .build();
+        frame.setState(MessageFrame.State.CODE_SUSPENDED);
+        return true;
+    }
+
+    private void completeAuthorization(
+            @NonNull final MessageFrame frame,
+            @NonNull final MessageFrame child,
+            @NonNull final Runnable continuation) {
+        frame.incrementRemainingGas(child.getRemainingGas());
+        authorized = child.getState() == MessageFrame.State.COMPLETED_SUCCESS
+                && decodeBoolResult(tuweniToPbjBytes(child.getOutputData()));
+        frame.setState(MessageFrame.State.CODE_EXECUTING);
+        continuation.run();
+    }
+
+    @Override
+    public @NonNull PricedResult execute(@NonNull final MessageFrame frame) {
+        if (!authorized) {
             return gasOnly(
                     ordinalRevertResult(CLPR_AUTHORIZATION_FAILED, GAS_REQUIREMENT), CLPR_AUTHORIZATION_FAILED, false);
         }
-
-        // Step 3: Enqueue the message via the CLPR service API.
+        final var storeFactory = nativeOperations().storeFactory();
+        // The child has completed and committed/reverted its updater before this continuation runs.
         final var clprApi = storeFactory.serviceApi(ClprServiceApi.class);
         try {
-            logger.info("[CLPR-DEBUG] SendMessageCall: invoking ClprServiceApi.sendMessage");
+            logger.info("[CLPR-DEBUG] SendMessageCall: invoking ClprServiceApi.sendMessage for senderId={}", senderId);
             final var assignedMessageId = clprApi.sendMessage(
                     Bytes.wrap(channelId),
                     Bytes.wrap(connectorId),

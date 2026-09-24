@@ -98,13 +98,11 @@ public class FrameRunner {
         try {
             if (hevm instanceof BonnevilleEVM bonneville) {
                 bonneville.setProcessors(messageCall, (CustomContractCreationProcessor) contractCreation);
-                runToCompletion(frame, tracer, messageCall, contractCreation);
-            } else {
-                // Now run the transaction implied by the frame
-                final var stack = frame.getMessageFrameStack();
-                while (!stack.isEmpty()) {
-                    runToCompletion(stack.peekFirst(), tracer, messageCall, contractCreation);
-                }
+            }
+            // System contracts can suspend even when Bonneville executes ordinary nested calls inline.
+            final var stack = frame.getMessageFrameStack();
+            while (!stack.isEmpty()) {
+                runToCompletion(stack.peekFirst(), tracer, messageCall, contractCreation);
             }
         } catch (final HandleException e) {
             haltFramesRemainingAfter(frame, e, tracer);

@@ -12,6 +12,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.config.data.ClprConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.function.Consumer;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -33,13 +34,17 @@ public abstract class AbstractClprSystemContract extends AbstractNativeSystemCon
     }
 
     @Override
-    public FullResult computeFully(
-            @NonNull final ContractID contractID, @NonNull final Bytes input, @NonNull final MessageFrame frame) {
+    public void computeFully(
+            @NonNull final ContractID contractID,
+            @NonNull final Bytes input,
+            @NonNull final MessageFrame frame,
+            @NonNull final Consumer<FullResult> completion) {
         requireNonNull(input);
         requireNonNull(frame);
         if (!FrameUtils.configOf(frame).getConfigData(ClprConfig.class).enabled()) {
-            return haltResult(new HandleExceptionHaltReason(CLPR_NOT_ENABLED), frame.getRemainingGas());
+            completion.accept(haltResult(new HandleExceptionHaltReason(CLPR_NOT_ENABLED), frame.getRemainingGas()));
+            return;
         }
-        return super.computeFully(contractID, input, frame);
+        super.computeFully(contractID, input, frame, completion);
     }
 }

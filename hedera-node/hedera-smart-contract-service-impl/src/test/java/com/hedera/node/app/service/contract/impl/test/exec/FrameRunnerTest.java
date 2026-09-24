@@ -34,11 +34,13 @@ import static org.mockito.Mockito.doAnswer;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.node.app.service.contract.impl.bonneville.BonnevilleEVM;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
 import com.hedera.node.app.service.contract.impl.exec.failure.HandleExceptionHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.gas.GasCharges;
 import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
+import com.hedera.node.app.service.contract.impl.exec.processors.CustomContractCreationProcessor;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.PropagatedCallFailureRef;
@@ -59,10 +61,11 @@ import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -88,7 +91,7 @@ class FrameRunnerTest {
     private CustomMessageCallProcessor messageCallProcessor;
 
     @Mock
-    private ContractCreationProcessor contractCreationProcessor;
+    private CustomContractCreationProcessor contractCreationProcessor;
 
     @Mock
     private HederaGasCalculatorImpl gasCalculator;
@@ -148,8 +151,9 @@ class FrameRunnerTest {
         assertSuccessExpectationsWith(CALLED_CONTRACT_ID, CALLED_CONTRACT_EVM_ADDRESS, result);
     }
 
-    @Test
-    void happyPathWorksWithLongZeroReceiver() {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void happyPathWorksWithLongZeroReceiver(final boolean useBonneville) {
         final var inOrder = Mockito.inOrder(frame, childFrame, tracer, messageCallProcessor, contractCreationProcessor);
 
         givenBaseSuccessWith(NON_SYSTEM_LONG_ZERO_ADDRESS);
@@ -167,7 +171,7 @@ class FrameRunnerTest {
                 messageCallProcessor,
                 contractCreationProcessor,
                 CHARGING_RESULT,
-                null);
+                useBonneville ? Mockito.mock(BonnevilleEVM.class) : null);
 
         inOrder.verify(tracer).traceOriginAction(frame);
         assertEquals(EXPECTED_GAS_USED_NO_REFUNDS, result.gasUsed());

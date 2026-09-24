@@ -40,7 +40,10 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -84,6 +87,18 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
     @Override
     public FullResult computeFully(
             @NonNull final ContractID contractID, @NonNull final Bytes input, @NonNull final MessageFrame frame) {
+        final var result = new AtomicReference<FullResult>();
+        computeFully(contractID, input, frame, result::set);
+        return requireNonNull(result.get(), "Child-frame calls require a completion callback");
+    }
+
+    @Override
+    public void computeFully(
+            @NonNull final ContractID contractID,
+            @NonNull final Bytes input,
+            @NonNull final MessageFrame frame,
+            @NonNull final Consumer<FullResult> completion) {
+        requireNonNull(completion);
         requireNonNull(input);
         requireNonNull(frame);
         final var callType = callTypeOf(frame);
@@ -107,7 +122,8 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
                         getName(),
                         contractID);
             }
-            return haltResult(PRECOMPILE_ERROR, frame.getRemainingGas());
+            completion.accept(haltResult(PRECOMPILE_ERROR, frame.getRemainingGas()));
+            return;
         }
         final Call call;
         AbstractCallAttempt<?> attempt = null;
@@ -127,7 +143,8 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
             // check if the calldata size of the call to
             call = attempt.asExecutableCall();
             if (call == null) {
-                return successResult(Bytes.EMPTY, 0);
+                completion.accept(successResult(Bytes.EMPTY, 0));
+                return;
             }
             if (logClprVerifier) {
                 log.debug(
@@ -153,7 +170,8 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
                             selectorOf(input),
                             call.getSystemContractMethod());
                 }
-                return haltResult(contractsConfigOf(frame).precompileHtsDefaultGasCost());
+                completion.accept(haltResult(contractsConfigOf(frame).precompileHtsDefaultGasCost()));
+                return;
             }
         } catch (final HandleException exception) {
             if (logClprVerifier) {
@@ -165,7 +183,8 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
                         exception.getStatus());
             }
             if (exception.getStatus().equals(INVALID_TRANSACTION_BODY)) {
-                return haltResult(INVALID_OPERATION, frame.getRemainingGas());
+                completion.accept(haltResult(INVALID_OPERATION, frame.getRemainingGas()));
+                return;
             } else {
                 final var enhancement = proxyUpdaterFor(frame).enhancement();
                 externalizeFailure(
@@ -176,23 +195,29 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
                         exception.getStatus(),
                         enhancement,
                         contractID);
-                return revertResult(exception.getStatus(), frame.getRemainingGas());
+                completion.accept(revertResult(exception.getStatus(), frame.getRemainingGas()));
+                return;
             }
         } catch (final Exception ignore) {
             // Input that cannot be translated to an executable call, for any
             // reason, halts the frame and consumes all remaining gas
-            return haltResult(INVALID_OPERATION, frame.getRemainingGas());
+            completion.accept(haltResult(INVALID_OPERATION, frame.getRemainingGas()));
+            return;
         }
-        return resultOfExecuting(attempt, call, input, frame, contractID);
+        final var result = resultOfExecuting(attempt, call, input, frame, contractID, completion);
+        if (result != null) {
+            completion.accept(result);
+        }
     }
 
     @SuppressWarnings({"java:S2637", "java:S2259"}) // this function is going to be refactored soon.
-    private FullResult resultOfExecuting(
+    private @Nullable FullResult resultOfExecuting(
             @NonNull final AbstractCallAttempt<?> attempt,
             @NonNull final Call call,
             @NonNull final Bytes input,
             @NonNull final MessageFrame frame,
-            @NonNull final ContractID contractID) {
+            @NonNull final ContractID contractID,
+            @Nullable final Consumer<FullResult> completion) {
         final Call.PricedResult pricedResult;
         final var logClprVerifier = isClprVerifierDebugTarget(contractID, input);
         try {
@@ -206,6 +231,13 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
                         call.getSystemContractMethod(),
                         attempt.senderId(),
                         frame.getRemainingGas());
+            }
+            if (completion != null
+                    && call.scheduleChildFrame(
+                            frame,
+                            () -> completion.accept(requireNonNull(
+                                    resultOfExecuting(attempt, call, input, frame, contractID, null))))) {
+                return null;
             }
             pricedResult = call.execute(frame);
             final var gasRequirement = pricedResult.fullResult().gasRequirement();

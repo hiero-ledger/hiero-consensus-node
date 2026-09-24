@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.processors;
 
+import static com.hedera.hapi.streams.CallOperationType.OP_STATICCALL;
 import static com.hedera.hapi.streams.ContractActionType.PRECOMPILE;
 import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.*;
@@ -20,6 +21,7 @@ import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
@@ -263,12 +265,25 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
             @NonNull final CustomMessageCallContext context, @NonNull final HederaSystemContract systemContract) {
         final var frame = context.frame;
         final var systemContractAddress = context.executableCodeAddress;
-        final var fullResult = systemContract.computeFully(
+        systemContract.computeFully(
                 ContractID.newBuilder()
                         .contractNum(numberOfLongZero(systemContractAddress))
                         .build(),
                 frame.getInputData(),
-                frame);
+                frame,
+                result -> completeSystemContract(context, systemContract, result));
+        if (frame.getState() == MessageFrame.State.CODE_SUSPENDED && hasActionSidecarsEnabled(frame)) {
+            ((ActionSidecarContentTracer) context.tracer)
+                    .traceSuspended(frame, frame.getMessageFrameStack().peekFirst(), OP_STATICCALL);
+        }
+    }
+
+    private void completeSystemContract(
+            @NonNull final CustomMessageCallContext context,
+            @NonNull final HederaSystemContract systemContract,
+            @NonNull final FullResult fullResult) {
+        final var frame = context.frame;
+        final var systemContractAddress = context.executableCodeAddress;
         final var gasRequirement = fullResult.gasRequirement();
         final PrecompileContractResult result;
 

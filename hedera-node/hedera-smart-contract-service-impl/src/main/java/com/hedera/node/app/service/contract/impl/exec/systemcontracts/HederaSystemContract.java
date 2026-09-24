@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts;
 
 import com.hedera.hapi.node.base.ContractID;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.function.Consumer;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract;
@@ -29,5 +30,16 @@ public interface HederaSystemContract extends PrecompiledContract {
     default FullResult computeFully(
             @NonNull ContractID contractID, @NonNull Bytes input, @NonNull MessageFrame messageFrame) {
         return new FullResult(computePrecompile(input, messageFrame), gasRequirement(input), null);
+    }
+    /**
+     * Computes a result, possibly suspending the frame until a child message finishes.
+     * The completion receives the final result exactly once.
+     */
+    default void computeFully(
+            @NonNull ContractID contractID,
+            @NonNull Bytes input,
+            @NonNull MessageFrame messageFrame,
+            @NonNull Consumer<FullResult> completion) {
+        completion.accept(computeFully(contractID, input, messageFrame));
     }
 }

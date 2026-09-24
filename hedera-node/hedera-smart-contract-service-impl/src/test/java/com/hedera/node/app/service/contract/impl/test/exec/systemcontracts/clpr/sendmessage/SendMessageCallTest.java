@@ -5,19 +5,16 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_AUTHORIZATION_FAIL
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_CHANNEL_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
-import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_ACCOUNTS_CONFIG;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
-import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
-import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.STATIC_CALL;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.AdditionalMatchers.aryEq;
-import static org.mockito.ArgumentMatchers.assertArg;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.esaulpaugh.headlong.abi.Function;
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -27,17 +24,50 @@ import com.hedera.hapi.node.state.clpr.ClprConnector;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
 import com.hedera.node.app.service.clpr.ClprServiceApi;
 import com.hedera.node.app.service.clpr.ReadableConnectorStore;
+import com.hedera.node.app.service.contract.impl.bonneville.BonnevilleEVM;
+import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
+import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
+import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
+import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
+import com.hedera.node.app.service.contract.impl.exec.processors.CustomContractCreationProcessor;
+import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.sendmessage.SendMessageCall;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
+import com.hedera.node.app.service.contract.impl.hevm.HEVM;
+import com.hedera.node.app.service.contract.impl.hevm.HederaEVM;
+import com.hedera.node.app.service.contract.impl.hevm.HederaOperationsRegistry;
+import com.hedera.node.app.service.contract.impl.hevm.OpsDurationSchedule;
+import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.spi.store.StoreFactory;
-import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.math.BigInteger;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.datatypes.Wei;
+import org.hyperledger.besu.evm.Code;
+import org.hyperledger.besu.evm.EvmSpecVersion;
+import org.hyperledger.besu.evm.frame.BlockValues;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.hyperledger.besu.evm.gascalculator.PragueGasCalculator;
+import org.hyperledger.besu.evm.internal.EvmConfiguration;
+import org.hyperledger.besu.evm.operation.OperationRegistry;
+import org.hyperledger.besu.evm.precompile.PrecompileContractRegistry;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -95,24 +125,67 @@ class SendMessageCallTest extends CallTestBase {
         given(connectorStore.getConnector(key)).willReturn(connector);
     }
 
-    private void givenAuthorizationResult(final Bytes result) {
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-        given(nativeOperations.configuration()).willReturn(DEFAULT_CONFIG);
-        final var callData = SendMessageCall.encodeAuthorizeOutboundMessage(
-                CHANNEL_ID, TARGET_APP, SENDER_ADDRESS.getBytes().toArray(), MESSAGE_DATA);
-        given(nativeOperations.dispatchReadonlyContractCall(
-                        eq(entityIdFactory.newAccountId(DEFAULT_ACCOUNTS_CONFIG.systemAdmin())),
-                        eq(CONNECTOR_CONTRACT_ID),
-                        aryEq(callData),
-                        eq(50_000L),
-                        assertArg(dispatchMetadata -> {
-                            assertThat(dispatchMetadata.getMetadata(CLPR_DISPATCH, ClprDispatchMetadata.class))
-                                    .hasValue(
-                                            new ClprDispatchMetadata(CLPR_SERVICE_ACCOUNT_ID, CLPR_EVM_ADDRESS_BYTES));
-                            assertThat(dispatchMetadata.getMetadata(STATIC_CALL, Boolean.class))
-                                    .hasValue(Boolean.TRUE);
-                        })))
-                .willReturn(result);
+    @Mock
+    private ProxyWorldUpdater updater;
+
+    @Mock
+    private ProxyWorldUpdater childUpdater;
+
+    @Mock
+    private AbstractMutableEvmAccount contract;
+
+    private void givenParentFrame(final long gas) {
+        givenParentFrame(gas, Address.fromHexString("0x16e"), Code.EMPTY_CODE);
+    }
+
+    private void givenParentFrame(final long gas, final Address address, final Code code) {
+        frame = MessageFrame.builder()
+                .type(MessageFrame.Type.MESSAGE_CALL)
+                .worldUpdater(updater)
+                .initialGas(gas)
+                .address(address)
+                .contract(address)
+                .originator(SENDER_ADDRESS)
+                .sender(SENDER_ADDRESS)
+                .gasPrice(Wei.ONE)
+                .inputData(org.apache.tuweni.bytes.Bytes.EMPTY)
+                .value(Wei.ZERO)
+                .apparentValue(Wei.ZERO)
+                .code(code)
+                .blockValues(mock(BlockValues.class))
+                .blockHashLookup((_, _) -> null)
+                .miningBeneficiary(Address.ZERO)
+                .contextVariables(Map.of(
+                        FrameUtils.CONFIG_CONTEXT_VARIABLE,
+                        TestHelpers.DEFAULT_CONFIG,
+                        FrameUtils.OPS_DURATION_COUNTER,
+                        OpsDurationCounter.withSchedule(
+                                OpsDurationSchedule.fromConfig(TestHelpers.DEFAULT_OPS_DURATION_CONFIG))))
+                .completer(_ -> {})
+                .build();
+    }
+
+    private void givenAuthorizationContract() {
+        given(updater.getHederaAccount(CONNECTOR_CONTRACT_ID)).willReturn(contract);
+        given(contract.getAddress()).willReturn(Address.fromHexString("0xabcdef"));
+        given(contract.getCode()).willReturn(org.apache.tuweni.bytes.Bytes.fromHexString("0x6000"));
+        given(updater.updater()).willReturn(childUpdater);
+    }
+
+    private PricedResult executeAfterAuthorization(final Bytes output, final MessageFrame.State state) {
+        givenParentFrame(200_000L);
+        givenAuthorizationContract();
+        final var subject = createSubject();
+        final var result = new AtomicReference<PricedResult>();
+        assertThat(subject.scheduleChildFrame(frame, () -> result.set(subject.execute(frame))))
+                .isTrue();
+        assertThat(result.get()).isNull();
+        verifyNoInteractions(clprApi);
+        final var child = frame.getMessageFrameStack().removeFirst();
+        child.setOutputData(org.apache.tuweni.bytes.Bytes.wrap(output.toByteArray()));
+        child.setState(state);
+        child.notifyCompletion();
+        return result.get();
     }
 
     @Test
@@ -120,7 +193,6 @@ class SendMessageCallTest extends CallTestBase {
             "should return success with message ID when authorizeOutboundMessage returns true and sendMessage succeeds")
     void successReturnsMessageId() {
         givenConnectorLookup(connectorWithContract());
-        givenAuthorizationResult(BOOL_TRUE_RESULT);
         given(storeFactory.serviceApi(ClprServiceApi.class)).willReturn(clprApi);
         given(clprApi.sendMessage(
                         Bytes.wrap(CHANNEL_ID),
@@ -130,8 +202,9 @@ class SendMessageCallTest extends CallTestBase {
                         Bytes.wrap(MESSAGE_DATA)))
                 .willReturn(42L);
 
-        final var result = createSubject().execute(frame);
+        final var result = executeAfterAuthorization(BOOL_TRUE_RESULT, MessageFrame.State.COMPLETED_SUCCESS);
 
+        assertThat(result.fullResult().output().toUnsignedBigInteger()).isEqualTo(java.math.BigInteger.valueOf(42L));
         assertThat(result.responseCode()).isEqualTo(SUCCESS);
         assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.COMPLETED_SUCCESS);
     }
@@ -140,9 +213,8 @@ class SendMessageCallTest extends CallTestBase {
     @DisplayName("should revert with CLPR_AUTHORIZATION_FAILED when authorizeOutboundMessage returns false")
     void revertWhenAuthorizeFalse() {
         givenConnectorLookup(connectorWithContract());
-        givenAuthorizationResult(BOOL_FALSE_RESULT);
 
-        final var result = createSubject().execute(frame);
+        final var result = executeAfterAuthorization(BOOL_FALSE_RESULT, MessageFrame.State.COMPLETED_SUCCESS);
 
         assertThat(result.responseCode()).isEqualTo(CLPR_AUTHORIZATION_FAILED);
         assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
@@ -150,12 +222,12 @@ class SendMessageCallTest extends CallTestBase {
     }
 
     @Test
-    @DisplayName("should revert with CLPR_AUTHORIZATION_FAILED when authorizeOutboundMessage reverts (null result)")
+    @DisplayName(
+            "should revert with CLPR_AUTHORIZATION_FAILED when authorizeOutboundMessage reverts, even with true output")
     void revertWhenAuthorizeReverts() {
         givenConnectorLookup(connectorWithContract());
-        givenAuthorizationResult(null);
 
-        final var result = createSubject().execute(frame);
+        final var result = executeAfterAuthorization(BOOL_TRUE_RESULT, MessageFrame.State.COMPLETED_FAILED);
 
         assertThat(result.responseCode()).isEqualTo(CLPR_AUTHORIZATION_FAILED);
         assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
@@ -167,7 +239,9 @@ class SendMessageCallTest extends CallTestBase {
     void revertWhenConnectorNotFound() {
         givenConnectorLookup(null);
 
-        final var result = createSubject().execute(frame);
+        final var subject = createSubject();
+        assertThat(subject.scheduleChildFrame(frame, () -> {})).isFalse();
+        final var result = subject.execute(frame);
 
         assertThat(result.responseCode()).isEqualTo(CLPR_AUTHORIZATION_FAILED);
         assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
@@ -177,7 +251,6 @@ class SendMessageCallTest extends CallTestBase {
     @DisplayName("should revert with error code when sendMessage throws HandleException")
     void revertOnHandleException() {
         givenConnectorLookup(connectorWithContract());
-        givenAuthorizationResult(BOOL_TRUE_RESULT);
         given(storeFactory.serviceApi(ClprServiceApi.class)).willReturn(clprApi);
         given(clprApi.sendMessage(
                         Bytes.wrap(CHANNEL_ID),
@@ -187,10 +260,228 @@ class SendMessageCallTest extends CallTestBase {
                         Bytes.wrap(MESSAGE_DATA)))
                 .willThrow(new HandleException(CLPR_CHANNEL_NOT_FOUND));
 
-        final var result = createSubject().execute(frame);
+        final var result = executeAfterAuthorization(BOOL_TRUE_RESULT, MessageFrame.State.COMPLETED_SUCCESS);
 
         assertThat(result.responseCode()).isEqualTo(CLPR_CHANNEL_NOT_FOUND);
         assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
+    }
+
+    @Test
+    void suspendsOnSameStackAndReturnsUnusedGasBeforeContinuing() {
+        givenConnectorLookup(connectorWithContract());
+        givenParentFrame(200_000L);
+        givenAuthorizationContract();
+        final var continuation = mock(Runnable.class);
+        final var subject = createSubject();
+
+        assertThat(subject.scheduleChildFrame(frame, continuation)).isTrue();
+
+        final var child = frame.getMessageFrameStack().getFirst();
+        assertThat(frame.getState()).isEqualTo(MessageFrame.State.CODE_SUSPENDED);
+        assertThat(frame.getMessageFrameStack()).containsExactly(child, frame);
+        assertThat(child.getMessageFrameStack()).isSameAs(frame.getMessageFrameStack());
+        assertThat(child.getWorldUpdater()).isSameAs(childUpdater);
+        assertThat(child.isStatic()).isTrue();
+        assertThat(child.getSenderAddress().getBytes().toArray()).isEqualTo(CLPR_EVM_ADDRESS_BYTES.toByteArray());
+        assertThat(child.getOriginatorAddress()).isEqualTo(SENDER_ADDRESS);
+        assertThat(child.getRecipientAddress()).isEqualTo(contract.getAddress());
+        assertThat(child.getContractAddress()).isEqualTo(contract.getAddress());
+        assertThat(child.getValue()).isEqualTo(Wei.ZERO);
+        assertThat(child.getCode().getBytes()).isEqualTo(contract.getCode());
+        assertThat(child.getInputData().toArray())
+                .isEqualTo(SendMessageCall.encodeAuthorizeOutboundMessage(
+                        CHANNEL_ID, TARGET_APP, SENDER_ADDRESS.getBytes().toArray(), MESSAGE_DATA));
+        assertThat(child.getRemainingGas()).isEqualTo(50_000L);
+        assertThat(frame.getRemainingGas()).isEqualTo(150_000L);
+        verifyNoInteractions(continuation, clprApi);
+        verify(nativeOperations, never()).dispatchReadonlyContractCall(any(), any(), any(), anyLong(), any());
+
+        frame.getMessageFrameStack().removeFirst();
+        child.decrementRemainingGas(12_345L);
+        child.setState(MessageFrame.State.COMPLETED_FAILED);
+        child.notifyCompletion();
+
+        assertThat(frame.getState()).isEqualTo(MessageFrame.State.CODE_EXECUTING);
+        assertThat(frame.getRemainingGas()).isEqualTo(187_655L);
+        verify(continuation).run();
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "false, 600160005260206000f3, true",
+        "true, 600160005260206000f3, true",
+        "false, 600060005260206000f3, false",
+        "true, 600060005260206000f3, false",
+        "false, 600160005260206000fd, false",
+        "true, 600160005260206000fd, false",
+        "false, 6001600055600160005260206000f3, false",
+        "true, 6001600055600160005260206000f3, false"
+    })
+    void processesAuthorizationBytecodeBeforeEnqueuing(
+            final boolean useBonneville, final String bytecode, final boolean succeeds) {
+        givenConnectorLookup(connectorWithContract());
+        givenParentFrame(200_000L);
+        givenAuthorizationContract();
+        given(contract.getCode()).willReturn(org.apache.tuweni.bytes.Bytes.fromHexString(bytecode));
+        if (succeeds) {
+            given(storeFactory.serviceApi(ClprServiceApi.class)).willReturn(clprApi);
+        }
+        final var evmGasCalculator = new PragueGasCalculator();
+        final var registry = new OperationRegistry();
+        HederaOperationsRegistry.forVersion(EvmSpecVersion.PRAGUE)
+                .register(registry, evmGasCalculator, BigInteger.ZERO, EvmConfiguration.DEFAULT);
+        final var flags = mock(FeatureFlags.class);
+        final var addressChecks = mock(AddressChecks.class);
+        final HEVM evm = useBonneville
+                ? new BonnevilleEVM(
+                        registry,
+                        evmGasCalculator,
+                        EvmConfiguration.DEFAULT,
+                        EvmSpecVersion.PRAGUE,
+                        flags,
+                        addressChecks)
+                : new HederaEVM(registry, evmGasCalculator, EvmConfiguration.DEFAULT, EvmSpecVersion.PRAGUE);
+        final var processor = new CustomMessageCallProcessor(
+                evm, flags, new PrecompileContractRegistry(), addressChecks, Map.of(), mock(ContractMetrics.class));
+        final var subject = createSubject();
+        final var result = new AtomicReference<PricedResult>();
+        assertThat(subject.scheduleChildFrame(frame, () -> result.set(subject.execute(frame))))
+                .isTrue();
+        assertThat(result.get()).isNull();
+        verifyNoInteractions(clprApi);
+        final var child = frame.getMessageFrameStack().getFirst();
+
+        processor.process(child, mock(ActionSidecarContentTracer.class));
+
+        assertThat(frame.getMessageFrameStack()).containsExactly(frame);
+        assertThat(result.get().responseCode()).isEqualTo(succeeds ? SUCCESS : CLPR_AUTHORIZATION_FAILED);
+        if (succeeds) {
+            final var order = inOrder(childUpdater, clprApi);
+            order.verify(childUpdater).commit();
+            order.verify(clprApi).sendMessage(any(), any(), any(), any(), any());
+        } else {
+            verifyNoInteractions(clprApi);
+        }
+    }
+
+    @Test
+    void bonnevilleResumesNestedSendMessageAfterAuthorization() {
+        givenConnectorLookup(connectorWithContract());
+        // CALL CLPR with a 200,000 gas stipend, then return the system contract's 32-byte message id.
+        final var callerCode = new Code(
+                org.apache.tuweni.bytes.Bytes.fromHexString("6020600060006000600061016e62030d40f15060206000f3"));
+        givenParentFrame(400_000L, SENDER_ADDRESS, callerCode);
+        final var systemUpdater = mock(ProxyWorldUpdater.class);
+        final var caller = mock(AbstractMutableEvmAccount.class);
+        given(updater.get(SENDER_ADDRESS)).willReturn(caller);
+        given(caller.getAddress()).willReturn(SENDER_ADDRESS);
+        given(caller.getCode()).willReturn(callerCode.getBytes());
+        given(caller.getBalance()).willReturn(Wei.ZERO);
+        given(updater.updater()).willReturn(systemUpdater);
+        given(systemUpdater.getHederaAccount(CONNECTOR_CONTRACT_ID)).willReturn(contract);
+        given(systemUpdater.updater()).willReturn(childUpdater);
+        given(contract.getAddress()).willReturn(Address.fromHexString("0xabcdef"));
+        given(contract.getCode()).willReturn(org.apache.tuweni.bytes.Bytes.fromHexString("600160005260206000f3"));
+        given(storeFactory.serviceApi(ClprServiceApi.class)).willReturn(clprApi);
+        given(clprApi.sendMessage(any(), any(), any(), any(), any())).willReturn(42L);
+        final var evmGasCalculator = new PragueGasCalculator();
+        final var registry = new OperationRegistry();
+        HederaOperationsRegistry.forVersion(EvmSpecVersion.PRAGUE)
+                .register(registry, evmGasCalculator, BigInteger.ZERO, EvmConfiguration.DEFAULT);
+        final var flags = mock(FeatureFlags.class);
+        final var addressChecks = mock(AddressChecks.class);
+        final var evm = new BonnevilleEVM(
+                registry, evmGasCalculator, EvmConfiguration.DEFAULT, EvmSpecVersion.PRAGUE, flags, addressChecks);
+        final var systemContract = mock(HederaSystemContract.class);
+        final var subject = createSubject();
+        doAnswer(invocation -> {
+                    final MessageFrame systemFrame = invocation.getArgument(2);
+                    final Consumer<FullResult> completion = invocation.getArgument(3);
+                    assertThat(subject.scheduleChildFrame(
+                                    systemFrame,
+                                    () -> completion.accept(
+                                            subject.execute(systemFrame).fullResult())))
+                            .isTrue();
+                    verifyNoInteractions(clprApi);
+                    return null;
+                })
+                .when(systemContract)
+                .computeFully(any(), any(), any(), any());
+        final var metrics = mock(ContractMetrics.class);
+        given(metrics.opsDurationMetrics()).willReturn(mock(OpsDurationMetrics.class));
+        final var processor = new CustomMessageCallProcessor(
+                evm,
+                flags,
+                new PrecompileContractRegistry(),
+                addressChecks,
+                Map.of(Address.fromHexString("0x16e"), systemContract),
+                metrics);
+        evm.setProcessors(processor, mock(CustomContractCreationProcessor.class));
+
+        processor.process(frame, mock(ActionSidecarContentTracer.class));
+
+        assertThat(frame.getState()).isEqualTo(MessageFrame.State.COMPLETED_SUCCESS);
+        assertThat(frame.getOutputData().toUnsignedBigInteger()).isEqualTo(BigInteger.valueOf(42L));
+        assertThat(frame.getMessageFrameStack()).isEmpty();
+        final var order = inOrder(childUpdater, clprApi, systemUpdater, updater);
+        order.verify(childUpdater).commit();
+        order.verify(clprApi).sendMessage(any(), any(), any(), any(), any());
+        order.verify(systemUpdater).commit();
+        order.verify(updater).commit();
+    }
+
+    @Test
+    void capsChildGasAndReservesSystemContractCharge() {
+        givenConnectorLookup(connectorWithContract());
+        givenParentFrame(110_000L);
+        givenAuthorizationContract();
+
+        assertThat(createSubject().scheduleChildFrame(frame, () -> {})).isTrue();
+
+        assertThat(frame.getMessageFrameStack().getFirst().getRemainingGas()).isEqualTo(9_844L);
+        assertThat(frame.getRemainingGas()).isEqualTo(100_156L);
+    }
+
+    @Test
+    void doesNotSpawnWhenGasCannotCoverSystemContractCharge() {
+        givenConnectorLookup(connectorWithContract());
+        givenParentFrame(99_999L);
+        final var subject = createSubject();
+
+        assertThat(subject.scheduleChildFrame(frame, () -> {})).isFalse();
+        assertThat(frame.getMessageFrameStack()).containsExactly(frame);
+        verifyNoInteractions(updater, clprApi);
+    }
+
+    @Test
+    void doesNotSpawnAtDepthLimit() {
+        givenConnectorLookup(connectorWithContract());
+        given(frame.getDepth()).willReturn(1024);
+
+        assertThat(createSubject().scheduleChildFrame(frame, () -> {})).isFalse();
+        verifyNoInteractions(updater, clprApi);
+    }
+
+    @Test
+    void rejectsMissingAuthorizationContract() {
+        givenConnectorLookup(connectorWithContract());
+        givenParentFrame(200_000L);
+        final var subject = createSubject();
+
+        assertThat(subject.scheduleChildFrame(frame, () -> {})).isFalse();
+        assertThat(subject.execute(frame).responseCode()).isEqualTo(CLPR_AUTHORIZATION_FAILED);
+        assertThat(frame.getMessageFrameStack()).containsExactly(frame);
+        verifyNoInteractions(clprApi);
+    }
+
+    @Test
+    void rejectsShortAuthorizationOutput() {
+        givenConnectorLookup(connectorWithContract());
+
+        final var result = executeAfterAuthorization(Bytes.wrap(new byte[4]), MessageFrame.State.COMPLETED_SUCCESS);
+
+        assertThat(result.responseCode()).isEqualTo(CLPR_AUTHORIZATION_FAILED);
+        verifyNoInteractions(clprApi);
     }
 
     @Test

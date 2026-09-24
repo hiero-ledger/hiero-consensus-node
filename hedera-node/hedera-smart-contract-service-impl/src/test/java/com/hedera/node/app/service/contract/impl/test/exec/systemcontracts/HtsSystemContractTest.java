@@ -37,6 +37,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.SystemContractOperations;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
@@ -49,10 +50,10 @@ import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import java.nio.ByteBuffer;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -106,12 +107,6 @@ class HtsSystemContractTest {
     private HederaConfig hederaConfig;
 
     @Mock
-    private JumboTransactionsConfig jumboTransactionsConfig;
-
-    @Mock
-    private Configuration configuration;
-
-    @Mock
     private ContractMetrics contractMetrics;
 
     @Mock
@@ -150,21 +145,52 @@ class HtsSystemContractTest {
     }
 
     @Test
-    void acceptsJumboSystemContractInputForClprDispatch() {
+    void defersExecutionAndMetricsUntilChildCompletion() {
         givenValidCallAttempt();
         frameUtils
                 .when(() -> callTypeOf(frame, EntityType.TOKEN))
                 .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
         frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
-        frameUtils.when(() -> isClprDispatch(frame)).thenReturn(true);
-        frameUtils.when(() -> configOf(frame)).thenReturn(configuration);
-        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
-        given(jumboTransactionsConfig.maxTxnSize()).willReturn(validInput.size());
-        final var pricedResult = gasOnly(successResult(ByteBuffer.allocate(1), 123L), SUCCESS, true);
-        given(call.execute(frame)).willReturn(pricedResult);
-        given(attempt.senderId()).willReturn(SENDER_ID);
+        frameUtils.when(() -> hederaConfigOf(frame)).thenReturn(hederaConfig);
+        when(hederaConfig.transactionMaxBytes()).thenReturn(TRANSACTION_MAX_BYTES);
+        final var continuation = new AtomicReference<Runnable>();
+        given(call.scheduleChildFrame(Mockito.eq(frame), any())).willAnswer(invocation -> {
+            continuation.set(invocation.getArgument(1));
+            return true;
+        });
+        final var result = new AtomicReference<FullResult>();
 
-        assertSame(pricedResult.fullResult(), subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame));
+        subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame, result::set);
+
+        org.junit.jupiter.api.Assertions.assertNull(result.get());
+        verify(call, never()).execute(frame);
+        Mockito.verifyNoInteractions(contractMetrics);
+
+        final var pricedResult = gasOnly(successResult(Bytes.EMPTY, 123L), SUCCESS, false);
+        given(call.execute(frame)).willReturn(pricedResult);
+        continuation.get().run();
+
+        assertSame(pricedResult.fullResult(), result.get());
+        verify(call).execute(frame);
+        verify(call).scheduleChildFrame(Mockito.eq(frame), any());
+        verify(contractMetrics).incrementSystemMethodCall(null, MessageFrame.State.COMPLETED_SUCCESS);
+    }
+
+    @Test
+    void clprDispatchDoesNotExpandHtsInputLimit() {
+        frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
+        frameUtils
+                .when(() -> callTypeOf(frame, EntityType.TOKEN))
+                .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
+        frameUtils.when(() -> isClprDispatch(frame)).thenReturn(true);
+        frameUtils.when(() -> hederaConfigOf(frame)).thenReturn(hederaConfig);
+        given(hederaConfig.transactionMaxBytes()).willReturn(validInput.size() - 1);
+
+        final var actual = subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame);
+
+        assertSamePrecompileResult(
+                haltResult(ExceptionalHaltReason.INVALID_OPERATION, frame.getRemainingGas()), actual);
+        org.mockito.Mockito.verifyNoInteractions(attemptFactory);
     }
 
     @Test

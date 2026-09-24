@@ -56,9 +56,11 @@ public class TopXTN {
         _tracer = tracer;
 
         // Pull out some common flags
-        _config     = frame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE);
-        _hookOwner  = frame.getContextVariable(FrameUtils.HOOK_OWNER_ADDRESS);
-        _hasSideCar = frame.hasContextVariable(FrameUtils.ACTION_SIDECARS_VARIABLE);
+        // A suspended system contract may enter Bonneville through a child message frame.
+        MessageFrame initialFrame = frame.getMessageFrameStack().getLast();
+        _config     = initialFrame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE);
+        _hookOwner  = initialFrame.getContextVariable(FrameUtils.HOOK_OWNER_ADDRESS);
+        _hasSideCar = initialFrame.hasContextVariable(FrameUtils.ACTION_SIDECARS_VARIABLE);
 
         // Custom sidecar for state changes
         _hasStateSideCar = _config != null && _bonneville._flags.isSidecarEnabled(frame, SidecarType.CONTRACT_STATE_CHANGE);
