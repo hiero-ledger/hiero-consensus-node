@@ -218,11 +218,10 @@ Module: `consensus-reconnect`. Source: [ReconnectConfig.java](../../consensus-re
 | TUN-067 | `reconnect.active`                                 | boolean  | `true`  | If true, a node that falls behind attempts to reconnect; if false, it dies.                                            |       | —         |
 | TUN-068 | `reconnect.reconnectWindowSeconds`                 | int      | `-1`    | Window of time after startup during which reconnect is allowed; `-1` means always (still respects `reconnect.active`). |       | —         |
 | TUN-069 | `reconnect.socketTimeout`                          | Duration | `60s`   | Socket timeout for input streams used during reconnect.                                                                |       | —         |
-| TUN-072 | `reconnect.maxAckDelay`                            | Duration | `10ms`  | Maximum time to wait for an ACK message before sending a potentially redundant node.                                   |       | —         |
 | TUN-073 | `reconnect.maximumReconnectFailuresBeforeShutdown` | int      | `10`    | Maximum number of failed reconnects in a row before shutdown.                                                          |       | —         |
 | TUN-074 | `reconnect.minimumTimeBetweenReconnects`           | Duration | `10m`   | Minimum time that must pass before a node is willing to help another node reconnect again.                             |       | —         |
 
-**Unread.** No production code reads `reconnect.maxAckDelay` (TUN-072); the only reference is the record's own declaration. Reconnect stream flushing is governed by `reconnect.teacher.asyncOutputStreamFlush` and `reconnect.learner.asyncOutputStreamFlush`, declared in `swirlds-virtualmap` and read by [TeachingSynchronizer.java](../../swirlds-virtualmap/src/main/java/com/swirlds/virtualmap/sync/TeachingSynchronizer.java) and [LearningSynchronizer.java](../../swirlds-virtualmap/src/main/java/com/swirlds/virtualmap/sync/LearningSynchronizer.java) — outside this catalog's consensus-layer scope, so they carry no TUN ID.
+**Retired.** `reconnect.maxAckDelay` (TUN-072) was removed from the record as unread — no production code read it, and the only reference was the record's own declaration. No successor key. Reconnect stream flushing is governed by `reconnect.teacher.asyncOutputStreamFlush` and `reconnect.learner.asyncOutputStreamFlush`, declared in `swirlds-virtualmap` and read by [TeachingSynchronizer.java](../../swirlds-virtualmap/src/main/java/com/swirlds/virtualmap/sync/TeachingSynchronizer.java) and [LearningSynchronizer.java](../../swirlds-virtualmap/src/main/java/com/swirlds/virtualmap/sync/LearningSynchronizer.java) — outside this catalog's consensus-layer scope, so they carry no TUN ID. ID retired, not reused.
 
 ## `state.*` — StateConfig
 
@@ -245,7 +244,6 @@ The keys below come from `StateConfig` (SignedStateManager / SignedStateFileMana
 | TUN-089 | `state.debugHashDepth`                | int      | `5`     | When logging hash debug info, do not display nodes deeper than this in the merkle tree.                                                       |       | —         |
 | TUN-090 | `state.maxAgeOfFutureStateSignatures` | int      | `1000`  | Maximum number of rounds in the future for which a node will accept a state signature.                                                        |       | —         |
 | TUN-091 | `state.roundsToKeepForSigning`        | int      | `26`    | Maximum number of rounds a state is kept in memory while waiting to gather signatures.                                                        |       | —         |
-| TUN-092 | `state.roundsToKeepAfterSigning`      | int      | `0`     | Number of rounds to keep states after signing and after a newer state has become fully signed; `0` GCs immediately.                           |       | —         |
 | TUN-093 | `state.suspiciousSignedStateAgeGap`   | Duration | `5m`    | Age gap between newest and oldest signed state considered suspicious (triggers debug logging of potential state leak).                        |       | —         |
 | TUN-094 | `state.signedStateAgeNotifyRateLimit` | Duration | `10m`   | Minimum period between notifications of suspiciously old signed states.                                                                       |       | —         |
 | TUN-095 | `state.stateHistoryEnabled`           | boolean  | `false` | Keep a history of operations that modify signed-state reference counts (debug).                                                               |       | —         |
@@ -254,7 +252,7 @@ The keys below come from `StateConfig` (SignedStateManager / SignedStateFileMana
 | TUN-098 | `state.validateInitialState`          | boolean  | `true`  | If false, skip ISS validation on the state loaded from disk at startup (test-only).                                                           |       | —         |
 | TUN-099 | `state.periodicSnapshotsEnabled`      | boolean  | `true`  | Create periodic snapshots of the signed state.                                                                                                |       | —         |
 
-**Unread.** `state.roundsToKeepAfterSigning` (TUN-092) is read only by tests — `SequentialSignaturesTest` and `AbstractStateSignatureCollectorTest`, via the generated `StateConfig_.ROUNDS_TO_KEEP_AFTER_SIGNING` — and the record's own javadoc records that as FUTURE WORK. How long a signed state is kept in memory is governed by `state.roundsToKeepForSigning` (TUN-091); how many are kept on disk by `state.signedStateDisk` (TUN-083).
+**Retired.** `state.roundsToKeepAfterSigning` (TUN-092) was removed from the record as unread — no production code read it, and its only references were test-side. No successor key. How long a signed state is kept in memory is governed by `state.roundsToKeepForSigning` (TUN-091); how many are kept on disk by `state.signedStateDisk` (TUN-083). ID retired, not reused.
 
 ## `state.wiring.*` — StateWiringConfig
 
@@ -465,12 +463,11 @@ Module: `consensus-gossip`. Source: [BroadcastConfig.java](../../consensus-gossi
 
 Module: `consensus-gossip`. Source: [ProtocolConfig.java](../../consensus-gossip/src/main/java/org/hiero/consensus/gossip/config/ProtocolConfig.java).
 
-|   ID    |                  Key                   |  Type   | Default |                                            Effect                                             | Range | Fragility |
-|---------|----------------------------------------|---------|---------|-----------------------------------------------------------------------------------------------|-------|-----------|
-| TUN-157 | `protocol.tolerateMismatchedVersion`   | boolean | `false` | If true, tolerate peers with a different software version; if false, sever those connections. |       | —         |
-| TUN-158 | `protocol.tolerateMismatchedEpochHash` | boolean | `false` | If true, tolerate peers with a different epoch hash; if false, sever those connections.       |       | —         |
+|   ID    |                 Key                  |  Type   | Default |                                            Effect                                             | Range | Fragility |
+|---------|--------------------------------------|---------|---------|-----------------------------------------------------------------------------------------------|-------|-----------|
+| TUN-157 | `protocol.tolerateMismatchedVersion` | boolean | `false` | If true, tolerate peers with a different software version; if false, sever those connections. |       | —         |
 
-**Unread.** Nothing reads `protocol.tolerateMismatchedEpochHash` (TUN-158), and no epoch-hash handshake exists anywhere in `platform-sdk`. The only handshake gossip installs is the version check — [VersionCompareHandshake](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/communication/handshake/VersionCompareHandshake.java), constructed in [SyncGossipModular](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/SyncGossipModular.java) from `protocol.tolerateMismatchedVersion` (TUN-157).
+**Retired.** `protocol.tolerateMismatchedEpochHash` (TUN-158) was removed from the record as unread — nothing read it, and no epoch-hash handshake exists anywhere in `platform-sdk`. No successor key. The only handshake gossip installs is the version check — [VersionCompareHandshake](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/communication/handshake/VersionCompareHandshake.java), constructed in [SyncGossipModular](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/SyncGossipModular.java) from `protocol.tolerateMismatchedVersion` (TUN-157). ID retired, not reused.
 
 ## `socket.*` — SocketConfig
 
@@ -483,13 +480,12 @@ Module: `consensus-gossip`. Source: [SocketConfig.java](../../consensus-gossip/s
 | TUN-161 | `socket.timeoutSyncClientSocket`      | int     | `5000`  | Timeout (ms) when waiting for data on the sync client socket.                                            |         | —         |
 | TUN-162 | `socket.timeoutSyncClientConnect`     | int     | `5000`  | Timeout (ms) when establishing a sync client connection.                                                 |         | —         |
 | TUN-163 | `socket.timeoutServerAcceptConnect`   | int     | `5000`  | Timeout (ms) when the server is waiting for another member to create a connection.                       |         | —         |
-| TUN-164 | `socket.useLoopbackIp`                | boolean | `false` | Set to true when using the internet simulator.                                                           |         | —         |
 | TUN-165 | `socket.tcpNoDelay`                   | boolean | `true`  | If true, Nagle's algorithm is disabled (helps latency, costs bandwidth).                                 |         | —         |
 | TUN-166 | `socket.gzipCompression`              | boolean | `false` | Whether to gzip-compress network traffic.                                                                |         | —         |
 | TUN-167 | `socket.waitBetweenConnectionRetries` | int     | `10`    | Milliseconds to wait before retrying a broken connection; `≤0` means no sleep.                           |         | —         |
 | TUN-168 | `socket.maxSocketAcceptThreads`       | int     | `30`    | Max threads spawned to handle incoming SSL socket accepts (capped to limit DoS-style thread exhaustion). |         | —         |
 
-**Unread.** Nothing reads `socket.useLoopbackIp` (TUN-164). Whether an address belongs to the local machine is decided from the address itself by [Network.isOwn](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/Network.java#isOwn).
+**Retired.** `socket.useLoopbackIp` (TUN-164) was removed from the record as unread — nothing read it, so settings files that still set the key have no effect. No successor key. Whether an address belongs to the local machine is decided from the address itself by [Network.isOwn](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/Network.java#isOwn). ID retired, not reused.
 
 ## `sync.*` — SyncConfig
 
@@ -506,7 +502,6 @@ Module: `consensus-gossip`. Source: [SyncConfig.java](../../consensus-gossip/src
 | TUN-175 | `sync.nonAncestorFilterThreshold`         | Duration | `3s`    | Minimum age before a non-self, non-ancestor event is eligible to be sent (ignored when `filterLikelyDuplicates=false`).                          |       | —         |
 | TUN-176 | `sync.ancestorFilterThreshold`            | Duration | `250ms` | Minimum age before a non-self ancestor event is eligible to be sent (ignored unless `filterLikelyDuplicates` and broadcast are enabled).         |       | —         |
 | TUN-177 | `sync.selfFilterThreshold`                | Duration | `1s`    | Minimum age before a self event is eligible to be sent (ignored unless `filterLikelyDuplicates` and broadcast are enabled).                      |       | —         |
-| TUN-178 | `sync.syncKeepalivePeriod`                | Duration | `500ms` | Send a keepalive every this many ms when reading events during a sync.                                                                           |       | —         |
 | TUN-179 | `sync.maxSyncTime`                        | Duration | `1m`    | Maximum time spent syncing with a peer; longer syncs are aborted.                                                                                |       | —         |
 | TUN-180 | `sync.maxSyncEventCount`                  | int      | `5000`  | Maximum events sent in a sync; `0` means no limit.                                                                                               |       | —         |
 | TUN-181 | `sync.unhealthyGracePeriod`               | Duration | `1s`    | How long the system can be unhealthy before sync permits start being revoked.                                                                    |       | —         |
@@ -522,7 +517,7 @@ Module: `consensus-gossip`. Source: [SyncConfig.java](../../consensus-gossip/src
 | TUN-191 | `sync.pingPeriod`                         | Duration | `1s`    | Period at which ping messages are sent to peers during syncs.                                                                                    |       | —         |
 | TUN-223 | `sync.rpcInputQueueCapacity`              | int      | `10000` | maximum number of parsed messages which can be waiting for the rpc dispatch thread before TPC brackpressure is applied                           |       | —         |
 
-**Unread.** Nothing reads `sync.syncKeepalivePeriod` (TUN-178). The only keepalive is the negotiator's, sent by [InitialState.transition](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/communication/states/InitialState.java#transition) whenever no protocol wants to initiate — on each negotiation round, not on a timer.
+**Retired.** `sync.syncKeepalivePeriod` (TUN-178) was removed from the record as unread — nothing read it. No successor key. The only keepalive is the negotiator's, sent by [InitialState.transition](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/communication/states/InitialState.java#transition) whenever no protocol wants to initiate — on each negotiation round, not on a timer. ID retired, not reused.
 
 ## `trafficShaping.*` — TrafficShapingConfig
 

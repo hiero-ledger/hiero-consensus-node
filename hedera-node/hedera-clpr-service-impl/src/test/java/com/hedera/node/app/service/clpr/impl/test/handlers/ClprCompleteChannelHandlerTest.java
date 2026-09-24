@@ -64,11 +64,17 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
 import net.i2p.crypto.eddsa.EdDSAEngine;
 import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -434,6 +440,89 @@ class ClprCompleteChannelHandlerTest {
         // persisted, since the runtime orchestrator never reads it in this mode.
         assertThat(stored.hasEndpointManifest()).isFalse();
         then(channelLifecycle).should().onChannelActivated(CHANNEL_ID);
+    }
+
+    @ParameterizedTest
+    @MethodSource("builtInVerifiers")
+    void storesFixedFingerprintForBuiltInVerifier(final ContractID verifierId, final Bytes expectedFingerprint) {
+        commitmentStore.put(ECDSA_COMMITMENT);
+        final var op = validEcdsaTxn()
+                .clprCompleteChannelOrThrow()
+                .copyBuilder()
+                .verifierContract(verifierId)
+                .build();
+        setupHandleContext(txnWith(op));
+
+        subject.handle(handleContext);
+
+        final var stored = channelStore.getChannel(CHANNEL_ID);
+        assertThat(stored.verifierContract()).isEqualTo(verifierId);
+        assertThat(stored.verifierFingerprint()).isEqualTo(expectedFingerprint);
+        then(accountStore).shouldHaveNoInteractions();
+        then(smartContractServiceApi).shouldHaveNoInteractions();
+    }
+
+    private static Stream<Arguments> builtInVerifiers() {
+        // Pin the public identities so changing a permanent label cannot silently change persisted hashes.
+        return Map.of(
+                        0x16eL, "9a0239cbc7be7e16347b8bfe6ab37f7a55d4eb688a0c8b6b141cc5035acac51e",
+                        0x16fL, "9bb5a67f672529e6928db26e11d0a93f56f2f3581fda619f737e3e1615c3e909",
+                        0x170L, "ee0783a29d06bd654e54a8fd53a8553af7a43b0e601b1a0a1b59034b10e2ff45",
+                        0x171L, "962abc985d9e3cd97cc8598b2399f85e948187d8e56cbb988b4dad04e60c398c")
+                .entrySet()
+                .stream()
+                .flatMap(entry -> Stream.of(
+                        Arguments.of(verifierContractId(entry.getKey(), false), Bytes.fromHex(entry.getValue())),
+                        Arguments.of(verifierContractId(entry.getKey(), true), Bytes.fromHex(entry.getValue()))));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void storesDeployedBytecodeHashForCustomVerifier(final boolean useEvmAddress) {
+        commitmentStore.put(ECDSA_COMMITMENT);
+        final var verifierId = verifierContractId(5001L, useEvmAddress);
+        final var op = validEcdsaTxn()
+                .clprCompleteChannelOrThrow()
+                .copyBuilder()
+                .verifierContract(verifierId)
+                .build();
+        setupHandleContext(txnWith(op));
+        given(accountStore.getContractById(verifierId))
+                .willReturn(Account.newBuilder().smartContract(true).build());
+        given(smartContractServiceApi.getContractBytecode(verifierId)).willReturn(Bytes.fromHex("60006000f3"));
+
+        subject.handle(handleContext);
+
+        assertThat(channelStore.getChannel(CHANNEL_ID).verifierFingerprint())
+                .isEqualTo(Bytes.fromHex("d003426e799329b8dca093f3bbab55a5e4e9f3c40160fc942068eef712ae88ad"));
+    }
+
+    @ParameterizedTest
+    @MethodSource("missingBytecode")
+    void retainsZeroFingerprintForCustomVerifierWithoutBytecode(final Bytes bytecode) {
+        commitmentStore.put(ECDSA_COMMITMENT);
+        setupHandleContext(validEcdsaTxn());
+        setupVerifierAccount(true);
+        given(smartContractServiceApi.getContractBytecode(VERIFIER_CONTRACT_ID)).willReturn(bytecode);
+
+        subject.handle(handleContext);
+
+        assertThat(channelStore.getChannel(CHANNEL_ID).verifierFingerprint()).isEqualTo(Bytes.wrap(new byte[32]));
+    }
+
+    private static Stream<Bytes> missingBytecode() {
+        return Stream.of(null, Bytes.EMPTY);
+    }
+
+    private static ContractID verifierContractId(final long number, final boolean useEvmAddress) {
+        return useEvmAddress
+                ? ContractID.newBuilder()
+                        .evmAddress(Bytes.wrap(ByteBuffer.allocate(20)
+                                .position(12)
+                                .putLong(number)
+                                .array()))
+                        .build()
+                : ContractID.newBuilder().contractNum(number).build();
     }
 
     @Test
