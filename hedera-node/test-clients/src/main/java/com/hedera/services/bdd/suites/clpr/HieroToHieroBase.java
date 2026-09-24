@@ -32,6 +32,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp.FAKE_UPGRADE_ZIP_LOC;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.VERIFY_CONFIG_WITH_SEED_ENDPOINTS;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.DEFAULT_UPGRADE_FILE_ID;
@@ -40,7 +41,7 @@ import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.con
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.esaulpaugh.headlong.abi.Function;
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.extensions.MultiNetworkExtension;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
@@ -104,7 +105,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
 
     // Registry name under which the CLPR system contract precompile (0x16e) is pre-registered
     // and used as the verifier contract — the Java-side dispatch already targets the precompile's
-    // own verifyConfig(bytes) / verifyBundle(bytes,bytes) registered methods, so a Solidity proxy
+    // own verifyConfig(bytes,bytes32) / verifyBundle(bytes,bytes,bytes) registered methods, so a Solidity proxy
     // is unnecessary.
     static final String VERIFIER = "ClprSystemVerifier";
     static final long CLPR_SYSTEM_CONTRACT_NUM = 0x16eL;
@@ -812,7 +813,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * but additionally (a) captures each ledger's manifest {@code StateProof} via the
      * {@code clprGetEndpointManifest} HAPI query and threads it into the peer's
      * {@code ClprCompleteChannel} as {@code endpoint_manifest_proof_bytes} (required under
-     * {@code clpr.endpointManifestEnabled=true}, whose V2 verifier ABI rejects an empty manifest proof),
+     * {@code clpr.endpointManifestEnabled=true}, whose manifest-aware verifier ABI rejects an empty manifest proof),
      * and (b) advertises each network's real ECDSA CLPR CA cert ({@code caDerA}/{@code caDerB}) as the
      * endpoint {@code tls_certificate}, with {@code portA}/{@code portB} expected to be each network's
      * {@code clpr.mtlsPort}. The channel therefore completes over, and syncs across, the dedicated
@@ -1016,7 +1017,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                 spec,
                                 clprGetLedgerConfiguration().payingWith(GENESIS).exposingProofTo(sink::set));
                         final var captured = sink.get();
-                        // Freshness gate: re-runs verifyConfig(bytes) on the captured proof and
+                        // Freshness gate: re-runs verifyConfig(bytes,bytes32) on the captured proof and
                         // checks the throttles ENCODED IN THE PROOF — not the live query response.
                         // clprGetLedgerConfiguration's StateProof references a SIGNED block which
                         // can lag the latest committed state by several seconds. Without this
@@ -1127,38 +1128,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     }
 
     /**
-     * Legacy V1 ABI for {@code verifyConfig(bytes proofBytes) returns (bytes)} on the CLPR
-     * system contract precompile. Matches the default {@code clpr.endpointManifestEnabled=false}
-     * runtime dispatch. The precompile has no Solidity-generated .json on disk; we hand-craft
-     * the single-function ABI for {@code Function.fromJson}.
-     *
-     * <p>Used by the freshness probe, which only inspects the decoded
-     * {@code ClprLedgerConfiguration} — no manifest info needed.
-     */
-    private static final String VERIFY_CONFIG_ABI = "{\"name\":\"verifyConfig\","
-            + "\"inputs\":[{\"name\":\"proofBytes\",\"type\":\"bytes\"}],"
-            + "\"outputs\":[{\"name\":\"\",\"type\":\"bytes\"}],"
-            + "\"stateMutability\":\"view\",\"type\":\"function\"}";
-
-    /**
-     * Manifest-aware V2 ABI for
-     * {@code verifyConfig(bytes proofBytes, bytes channelId, bytes manifestProofBytes)
-     * returns (bytes configBytes, bytes manifestBytes)}. Matches the runtime dispatch when
-     * {@code clpr.endpointManifestEnabled=true}. Not used by the current freshness probe —
-     * kept here so future manifest-aware tests can invoke the V2 selector by swapping the
-     * ABI constant on the individual call site.
-     */
-    @SuppressWarnings("unused")
-    private static final String VERIFY_CONFIG_V2_ABI = "{\"name\":\"verifyConfig\","
-            + "\"inputs\":[{\"name\":\"proofBytes\",\"type\":\"bytes\"},"
-            + "{\"name\":\"channelId\",\"type\":\"bytes\"},"
-            + "{\"name\":\"manifestProofBytes\",\"type\":\"bytes\"}],"
-            + "\"outputs\":[{\"name\":\"configBytes\",\"type\":\"bytes\"},"
-            + "{\"name\":\"manifestBytes\",\"type\":\"bytes\"}],"
-            + "\"stateMutability\":\"view\",\"type\":\"function\"}";
-
-    /**
-     * Phase 3: cross-network probe. Runs {@code verifyConfig(bytes)} on the PEER network — the
+     * Phase 3: cross-network probe. Runs {@code verifyConfig(bytes,bytes32)} on the PEER network — the
      * same {@code EvmClprVerifier} code path {@code clprCompleteChannel} will exercise — so
      * a SUCCESS here means the peer will accept the source's proof. Required because a proof
      * that self-verifies on the source ledger may still be rejected on a peer that doesn't yet
@@ -1199,7 +1169,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
 
     /**
      * Probes whether the given network's CLPR system contract precompile will accept the
-     * captured StateProof via {@code verifyConfig(bytes)}. Issues a CONSENSUS contract call
+     * captured StateProof via {@code verifyConfig(bytes,bytes32)}. Issues a CONSENSUS contract call
      * (not a local static call) — same code path {@code clprCompleteChannel}'s
      * {@code EvmClprVerifier} dispatch runs, so by construction it returns the same
      * accept/reject decision the peer would.
@@ -1208,7 +1178,12 @@ public abstract class HieroToHieroBase implements LifecycleTest {
         // Accept SUCCESS or CONTRACT_REVERT_EXECUTED as permissible outcomes so the polling loop
         // doesn't throw (and log ERROR) on every attempt while the proof is still stale. The
         // caller distinguishes accept vs retry by inspecting the actual status below.
-        final var op = contractCallWithFunctionAbi(VERIFIER + "_PROBE", VERIFY_CONFIG_ABI, (Object) capturedProof)
+        // The probe only inspects config fields; its channel context uses a zero channel ID.
+        final var op = contractCallWithFunctionAbi(
+                        VERIFIER + "_PROBE",
+                        VERIFY_CONFIG_WITH_SEED_ENDPOINTS.toJson(false),
+                        capturedProof,
+                        new byte[32])
                 .payingWith(GENESIS)
                 .gas(GAS)
                 .hasKnownStatusFrom(ResponseCodeEnum.SUCCESS, ResponseCodeEnum.CONTRACT_REVERT_EXECUTED)
@@ -1218,8 +1193,8 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     }
 
     /**
-     * Stronger freshness gate: runs {@code verifyConfig(bytes)} on the proof and inspects the
-     * decoded {@link ClprLedgerConfiguration} the precompile recovers from inside the proof.
+     * Stronger freshness gate: runs {@code verifyConfig(bytes,bytes32)} on the proof and inspects the
+     * configuration fields the precompile recovers from inside the proof.
      * If the decoded throttles don't match what we just installed, the proof references a block
      * signed BEFORE our install committed — caller re-polls. {@link #probeProofVerifies}'s
      * SUCCESS check alone catches the "no install ever ran" case (empty initialTrustAnchor) but
@@ -1239,7 +1214,12 @@ public abstract class HieroToHieroBase implements LifecycleTest {
         // Function.decodeReturn. Instead: name the txn via .via(...), then when we see SUCCESS,
         // fetch the record and decode ourselves in a controlled try-block.
         final var probeTxn = "clprProofFreshnessProbe_" + PROBE_COUNTER.incrementAndGet();
-        final var op = contractCallWithFunctionAbi(VERIFIER + "_PROBE", VERIFY_CONFIG_ABI, (Object) capturedProof)
+        // The probe only inspects config fields; its channel context uses a zero channel ID.
+        final var op = contractCallWithFunctionAbi(
+                        VERIFIER + "_PROBE",
+                        VERIFY_CONFIG_WITH_SEED_ENDPOINTS.toJson(false),
+                        capturedProof,
+                        new byte[32])
                 .payingWith(GENESIS)
                 .gas(GAS)
                 .via(probeTxn)
@@ -1249,35 +1229,22 @@ public abstract class HieroToHieroBase implements LifecycleTest {
         if (op.getActualStatus() != ResponseCodeEnum.SUCCESS) {
             return false;
         }
-        final var decoded = new AtomicReference<byte[]>();
+        final var decoded = new AtomicReference<Tuple>();
         allRunFor(spec, getTxnRecord(probeTxn).assertingNothing().noLogging().exposingTo(record -> {
             try {
                 final var callResult =
                         record.getContractCallResult().getContractCallResult().toByteArray();
-                final var result = Function.fromJson(VERIFY_CONFIG_ABI).decodeReturn(callResult);
-                if (result.size() >= 1 && result.get(0) instanceof byte[] b) {
-                    decoded.set(b);
-                }
+                decoded.set(VERIFY_CONFIG_WITH_SEED_ENDPOINTS
+                        .decodeReturn(callResult)
+                        .get(4));
             } catch (final Exception e) {
                 log.warn("[HieroToHieroBase] proofMatchesExpectedThrottles: verifyConfig result decode failed", e);
             }
         }));
-        final byte[] configBytes = decoded.get();
-        if (configBytes == null || configBytes.length == 0) {
-            return false;
-        }
-        try {
-            final var parsed = ClprLedgerConfiguration.parseFrom(configBytes);
-            if (!parsed.hasThrottles()) {
-                return false;
-            }
-            final var t = parsed.getThrottles();
-            return t.getMaxMessagesPerBundle() == expectedMaxMessagesPerBundle
-                    && t.getMaxQueueDepth() == expectedMaxQueueDepth;
-        } catch (final Exception e) {
-            log.warn("[HieroToHieroBase] proofMatchesExpectedThrottles: ClprLedgerConfiguration parse failed", e);
-            return false;
-        }
+        final var throttles = decoded.get();
+        return throttles != null
+                && BigInteger.valueOf(expectedMaxMessagesPerBundle).equals(throttles.get(0))
+                && BigInteger.valueOf(expectedMaxQueueDepth).equals(throttles.get(3));
     }
 
     /**

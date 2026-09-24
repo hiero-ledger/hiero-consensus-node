@@ -11,6 +11,7 @@ import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADD
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_NUM;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -38,8 +39,9 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hiero.base.crypto.CryptographyProvider;
@@ -93,17 +95,30 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
     private static final Bytes ETHEREUM_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS =
             Bytes.wrap(new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, (byte) 0x71});
 
-    private static final Set<Long> BUILT_IN_VERIFIER_NUMS = Set.of(
-            CLPR_SERVICE_ACCOUNT_NUM,
-            BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_NUM,
-            SEI_VERIFIER_SYSTEM_CONTRACT_NUM,
-            ETHEREUM_VERIFIER_SYSTEM_CONTRACT_NUM);
+    private record BuiltInVerifier(String displayName, Bytes fingerprint) {}
 
-    private static final Set<Bytes> BUILT_IN_VERIFIER_EVM_ADDRESSES = Set.of(
-            CLPR_EVM_ADDRESS_BYTES,
-            BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS,
-            SEI_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS,
-            ETHEREUM_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS);
+    // Identity names are permanent protocol labels, separate from the readable display names.
+    // Their hashes identify verifier types and do not change with native implementation updates.
+    private static final BuiltInVerifier HIERO_TSS_VERIFIER =
+            new BuiltInVerifier("Hiero TSS (0x16e)", builtInFingerprint("hiero-tss"));
+    private static final BuiltInVerifier BESU_QBFT_VERIFIER =
+            new BuiltInVerifier("Besu QBFT (0x16f)", builtInFingerprint("besu-qbft"));
+    private static final BuiltInVerifier SEI_VERIFIER =
+            new BuiltInVerifier("Sei CometBFT (0x170)", builtInFingerprint("sei-cometbft"));
+    private static final BuiltInVerifier ETHEREUM_VERIFIER =
+            new BuiltInVerifier("Ethereum sync committee (0x171)", builtInFingerprint("ethereum-sync-committee"));
+
+    private static final Map<Long, BuiltInVerifier> BUILT_IN_VERIFIERS_BY_NUM = Map.of(
+            CLPR_SERVICE_ACCOUNT_NUM, HIERO_TSS_VERIFIER,
+            BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_NUM, BESU_QBFT_VERIFIER,
+            SEI_VERIFIER_SYSTEM_CONTRACT_NUM, SEI_VERIFIER,
+            ETHEREUM_VERIFIER_SYSTEM_CONTRACT_NUM, ETHEREUM_VERIFIER);
+
+    private static final Map<Bytes, BuiltInVerifier> BUILT_IN_VERIFIERS_BY_ADDRESS = Map.of(
+            CLPR_EVM_ADDRESS_BYTES, HIERO_TSS_VERIFIER,
+            BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS, BESU_QBFT_VERIFIER,
+            SEI_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS, SEI_VERIFIER,
+            ETHEREUM_VERIFIER_SYSTEM_CONTRACT_EVM_ADDRESS, ETHEREUM_VERIFIER);
 
     private final ClprVerifierFactory verifierFactory;
     private final ClprChannelLifecycle channelLifecycle;
@@ -215,7 +230,7 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                 shortHex(Bytes.wrap(messageHash)));
 
         // 4. Verify verifier contract exists and is a smart contract.
-        //    Built-in system contracts (0x16e, 0x16f) are valid verifiers but have no on-ledger
+        //    Built-in system contracts (0x16e..0x171) are valid verifiers but have no on-ledger
         //    account record, so skip the account-store lookup for those. See ClprVerifierFactory
         //    (TODO CLPR-5.3) for the planned built-in verifier registry that will subsume this.
         if (!isBuiltInVerifier(op.verifierContractOrThrow())) {
@@ -320,13 +335,14 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
         final var channelContextBytes = buildChannelContext(peerConfig, op);
         final Bytes channelContext = Bytes.wrap(channelContextBytes);
 
-        // 6. Compute verifier_fingerprint: keccak256 of verifier contract bytecode at registration time.
-        // Informational — lets observers detect if the verifier contract was swapped after registration.
-        // Built-in verifiers have no on-ledger bytecode, so they get ZERO_HASH.
+        // 6. Record an informational verifier fingerprint: a fixed identity hash for built-ins,
+        // or keccak256 of deployed verifier bytecode. Keep readable names in diagnostics as well.
         final var verifierFingerprint = computeVerifierFingerprint(context, op.verifierContractOrThrow());
+        final var builtInVerifier = resolveBuiltInVerifier(op.verifierContractOrThrow());
         log.debug(
-                "[ClprCompleteChannel] verifier fingerprint channelId={} verifierContract={} fingerprint={}",
+                "[ClprCompleteChannel] verifier fingerprint channelId={} verifierName={} verifierContract={} fingerprint={}",
                 shortHex(op.channelId()),
+                builtInVerifier != null ? builtInVerifier.displayName() : "Deployed contract",
                 op.verifierContractOrThrow(),
                 shortHex(verifierFingerprint));
 
@@ -436,13 +452,24 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
      * representation.
      */
     private static boolean isBuiltInVerifier(@NonNull final ContractID verifierContract) {
+        return resolveBuiltInVerifier(verifierContract) != null;
+    }
+
+    @Nullable
+    private static BuiltInVerifier resolveBuiltInVerifier(@NonNull final ContractID verifierContract) {
         if (verifierContract.hasContractNum()) {
-            return BUILT_IN_VERIFIER_NUMS.contains(verifierContract.contractNumOrElse(0L));
+            return BUILT_IN_VERIFIERS_BY_NUM.get(verifierContract.contractNumOrElse(0L));
         }
         if (verifierContract.hasEvmAddress()) {
-            return BUILT_IN_VERIFIER_EVM_ADDRESSES.contains(verifierContract.evmAddressOrElse(Bytes.EMPTY));
+            return BUILT_IN_VERIFIERS_BY_ADDRESS.get(verifierContract.evmAddressOrElse(Bytes.EMPTY));
         }
-        return false;
+        return null;
+    }
+
+    /** Fixed keccak256 identity derived from an explicit UTF-8 namespace and permanent verifier name. */
+    @NonNull
+    private static Bytes builtInFingerprint(@NonNull final String name) {
+        return MiscCryptoUtils.keccak256DigestOf(Bytes.wrap(("hiero.clpr.builtin-verifier/" + name).getBytes(UTF_8)));
     }
 
     @NonNull
@@ -470,12 +497,16 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
     }
 
     /**
-     * Returns keccak256 of the verifier contract's deployed bytecode, or {@link #ZERO_HASH}
-     * if the bytecode is unavailable (e.g. for built-in verifiers).
+     * Returns a fixed identity hash for built-in verifiers, or keccak256 of a deployed verifier's bytecode.
+     * Returns {@link #ZERO_HASH} when a custom verifier's bytecode is unavailable.
      */
     @NonNull
     private Bytes computeVerifierFingerprint(
             @NonNull final HandleContext context, @NonNull final ContractID verifierContractId) {
+        final var builtInVerifier = resolveBuiltInVerifier(verifierContractId);
+        if (builtInVerifier != null) {
+            return builtInVerifier.fingerprint();
+        }
         final var contractApi = context.storeFactory().serviceApi(SmartContractServiceApi.class);
         final var bytecode = contractApi.getContractBytecode(verifierContractId);
         if (bytecode == null || bytecode.length() == 0) {

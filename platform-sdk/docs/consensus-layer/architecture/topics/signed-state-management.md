@@ -179,7 +179,7 @@ A complete round directory contains:
 - `stateMetadata.txt` — human-readable key/value file written by
   [`SavedStateMetadata`](../../../../consensus-state/src/main/java/org/hiero/consensus/state/saved/SavedStateMetadata.java).
 - `hashInfo.txt` — mnemonic of the state hash, diagnostic only.
-- `currentRoster.json` — the active `Roster` as PBJ JSON.
+- `activeRoster.json` — the active `Roster` as PBJ JSON.
 - `consensusSnapshot.json` — the round's `ConsensusSnapshot` as PBJ JSON.
 - `signatureSet.pbj` — the `SigSet` as PBJ binary.
 - `settingsUsed.txt` — effective configuration dump.

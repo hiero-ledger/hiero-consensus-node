@@ -86,8 +86,12 @@ message ClprChannel {
     proto.ContractID verifier_contract = 5;
 
     /**
-     * Code hash (keccak256 of bytecode) of verifier_contract at registration time.
-     * Informational only.
+     * Informational fingerprint of verifier_contract at registration time.
+     * For deployed contracts, this is keccak256 of bytecode (all zeros if unavailable).
+     * For built-in verifiers, this is keccak256 of the UTF-8 string
+     * "hiero.clpr.builtin-verifier/" followed by "hiero-tss" (0x16e), "besu-qbft" (0x16f),
+     * "sei-cometbft" (0x170), or "ethereum-sync-committee" (0x171).
+     * Built-in fingerprints identify the verifier type, not its implementation version.
      */
     bytes verifier_fingerprint = 6;
 
