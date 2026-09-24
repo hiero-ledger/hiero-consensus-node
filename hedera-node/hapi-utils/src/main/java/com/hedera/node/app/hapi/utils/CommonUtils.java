@@ -157,6 +157,59 @@ public final class CommonUtils {
         return digest.digest();
     }
 
+    /**
+     * Returns a {@link MessageDigest} instance for the SHA-256 algorithm, throwing an unchecked exception if the
+     * algorithm is not found.
+     * @return a {@link MessageDigest} instance for the SHA-256 algorithm
+     */
+    public static MessageDigest sha256DigestOrThrow() {
+        try {
+            return MessageDigest.getInstance(DigestType.SHA_256.algorithmName());
+        } catch (final NoSuchAlgorithmException fatal) {
+            throw new IllegalStateException(fatal);
+        }
+    }
+
+    // SHA-256 hash functions with the default-provided message digest
+    // ** BEGIN Bytes Variants **
+    public static Bytes noThrowSha256HashOf(@NonNull final Bytes bytes) {
+        final var digest = sha256DigestOrThrow();
+        return hashOfAll(digest, bytes);
+    }
+
+    public static Bytes sha256HashOfAll(final Bytes... allBytes) {
+        final var digest = sha256DigestOrThrow();
+        return hashOfAll(digest, allBytes);
+    }
+
+    // ** BEGIN byte[] Variants **
+    public static byte[] noThrowSha256HashOf(final byte[] byteArray) {
+        requireNonNull(byteArray);
+
+        final var digest = sha256DigestOrThrow();
+        return digest.digest(byteArray);
+    }
+
+    public static Bytes sha256HashOfAll(final byte[]... bytes) {
+        return Bytes.wrap(sha256HashOf(bytes));
+    }
+
+    public static byte[] sha256HashOf(final byte[]... bytes) {
+        return hashOfAll(sha256DigestOrThrow(), bytes);
+    }
+
+    public static Bytes sha256HashOf(
+            @NonNull final Bytes first, @NonNull final Bytes second, @NonNull final byte[] third) {
+        requireNonNull(first);
+        requireNonNull(second);
+        requireNonNull(third);
+
+        final var digest = sha256DigestOrThrow();
+        first.writeTo(digest);
+        second.writeTo(digest);
+        return Bytes.wrap(digest.digest(third));
+    }
+
     public static boolean productWouldOverflow(final long multiplier, final long multiplicand) {
         if (multiplicand == 0) {
             return false;

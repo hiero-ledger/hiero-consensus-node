@@ -7,7 +7,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNAT
 import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.stateNameOf;
 import static com.hedera.node.app.history.impl.HistoryLibraryImpl.WRAPS;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
@@ -369,7 +369,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         logger.info("Beginning validation of expected root hash {}", expectedRootHash);
         var previousBlockHash = BlockStreamManager.HASH_OF_ZERO;
         var startOfStateHash = requireNonNull(initializedGenesisStateHash).getBytes();
-        var incrementalBlockHashes = new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
+        var incrementalBlockHashes = new IncrementalStreamingHasher(CommonUtils.sha256DigestOrThrow(), List.of(), 0);
 
         // If cutover is enabled, first process preview blocks for state changes and hash chain
         if (cutoverEnabled == CutoverEnabled.YES && preservedPreviewBlocksDir != null) {
@@ -421,15 +421,15 @@ public class StateChangesValidator implements BlockStreamValidator {
 
                     if (blockTimestamp != null) {
                         final IncrementalStreamingHasher previewInputHasher =
-                                new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                                new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
                         final IncrementalStreamingHasher previewOutputHasher =
-                                new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                                new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
                         final IncrementalStreamingHasher previewConsensusHasher =
-                                new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                                new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
                         final IncrementalStreamingHasher previewStateChangesHasher =
-                                new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                                new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
                         final IncrementalStreamingHasher previewTraceDataHasher =
-                                new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                                new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
                         for (final var item : block.items()) {
                             hashSubTrees(
                                     item,
@@ -482,7 +482,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 previousBlockHash = blockInfo.previousWrappedRecordBlockRootHash();
                 // Rebuild the incremental block hashes tree from wrapped intermediate hashes
                 incrementalBlockHashes = new IncrementalStreamingHasher(
-                        sha384DigestOrThrow(),
+                        sha256DigestOrThrow(),
                         blockInfo.wrappedIntermediatePreviousBlockRootHashes().stream()
                                 .map(Bytes::toByteArray)
                                 .toList(),
@@ -522,15 +522,15 @@ public class StateChangesValidator implements BlockStreamValidator {
                         requireNonNull(stateToBeCopied.getRoot().getHash()).getBytes();
             }
             final IncrementalStreamingHasher inputTreeHasher =
-                    new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                    new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
             final IncrementalStreamingHasher outputTreeHasher =
-                    new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                    new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
             final IncrementalStreamingHasher consensusHeaderHasher =
-                    new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                    new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
             final IncrementalStreamingHasher stateChangesHasher =
-                    new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                    new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
             final IncrementalStreamingHasher traceDataHasher =
-                    new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                    new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
 
             long firstBlockRound = -1;
             long eventNodeId = -1;
@@ -805,14 +805,14 @@ public class StateChangesValidator implements BlockStreamValidator {
     }
 
     private static Bytes hashLeaf(final Bytes leafData) {
-        final var digest = sha384DigestOrThrow();
+        final var digest = sha256DigestOrThrow();
         digest.update(BlockImplUtils.LEAF_PREFIX);
         digest.update(leafData.toByteArray());
         return Bytes.wrap(digest.digest());
     }
 
     private static Bytes hashInternalNode(final Bytes leftChildHash, final Bytes rightChildHash) {
-        final var digest = sha384DigestOrThrow();
+        final var digest = sha256DigestOrThrow();
         digest.update(BlockImplUtils.INTERNAL_NODE_PREFIX);
         digest.update(leftChildHash.toByteArray());
         digest.update(rightChildHash.toByteArray());

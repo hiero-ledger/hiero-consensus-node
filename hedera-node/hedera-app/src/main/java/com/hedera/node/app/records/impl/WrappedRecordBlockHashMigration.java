@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static java.util.Objects.requireNonNull;
@@ -228,7 +228,7 @@ public class WrappedRecordBlockHashMigration {
             hashes.add(hash.toByteArray());
         }
         final var hasher = new IncrementalStreamingHasher(
-                sha384DigestOrThrow(), hashes, jumpstartConfig.streamingHasherLeafCount());
+                sha256DigestOrThrow(), hashes, jumpstartConfig.streamingHasherLeafCount());
         if (hasher.leafCount() == 0) {
             log.error("Jumpstart config contains no entries (leaf count is 0). {}", RESUME_MESSAGE);
             return null;

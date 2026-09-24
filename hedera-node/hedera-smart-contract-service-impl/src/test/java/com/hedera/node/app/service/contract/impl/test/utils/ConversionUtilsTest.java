@@ -249,8 +249,20 @@ class ConversionUtilsTest {
     }
 
     @Test
-    void wrapsExpectedHashPrefix() {
-        assertEquals(Hash.wrap(Bytes32.leftPad(Bytes.EMPTY, (byte) 0)), ConversionUtils.ethHashFrom(ZERO_ENTROPY));
+    void wrapsZeroBlockRootHash() {
+        final var zeroBlockRootHash = com.hedera.pbj.runtime.io.buffer.Bytes.wrap(new byte[32]);
+        assertEquals(Hash.wrap(Bytes32.ZERO), ConversionUtils.ethHashFrom(zeroBlockRootHash));
+    }
+
+    @Test
+    void wrapsNonZeroBlockRootHash() {
+        final var blockRootHash = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("11".repeat(32));
+        assertEquals(Hash.wrap(Bytes32.wrap(blockRootHash.toByteArray())), ConversionUtils.ethHashFrom(blockRootHash));
+    }
+
+    @Test
+    void rejectsBlockRootHashOfWrongLength() {
+        assertThrows(IllegalArgumentException.class, () -> ConversionUtils.ethHashFrom(ZERO_ENTROPY));
     }
 
     @Test

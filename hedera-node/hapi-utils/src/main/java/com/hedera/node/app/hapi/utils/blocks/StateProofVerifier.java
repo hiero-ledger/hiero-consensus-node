@@ -301,7 +301,7 @@ public final class StateProofVerifier {
     }
 
     /**
-     * Computes SHA-384(0x00 || stateItemBytes) for a VirtualMap state-item leaf.
+     * Computes SHA-256(0x00 || stateItemBytes) for a VirtualMap state-item leaf.
      *
      * @param path a merkle path containing a {@code stateItemLeaf}
      * @return the computed leaf hash
@@ -318,7 +318,7 @@ public final class StateProofVerifier {
     /**
      * Computes the hash for a single-child node with the single-child prefix (0x01).
      *
-     * <p>Format: SHA-384(0x01 || childHash)
+     * <p>Format: SHA-256(0x01 || childHash)
      *
      * @param childHash the hash of the single child
      * @return the computed single-child hash
@@ -331,7 +331,7 @@ public final class StateProofVerifier {
     /**
      * Joins two child hashes to create an internal node hash with the internal prefix (0x02).
      *
-     * <p>Format: SHA-384(0x02 || leftHash || rightHash)
+     * <p>Format: SHA-256(0x02 || leftHash || rightHash)
      *
      * @param leftHash the hash of the left child
      * @param rightHash the hash of the right child

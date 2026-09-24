@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
@@ -234,7 +234,7 @@ public class ClprStateProofManager {
         // Precompute the block-root extension siblings appended to every leaf path
         // (same shape used by buildBundleStateProof: state root → block subtree root → hashed timestamp).
         final var tsBytes = Timestamp.PROTOBUF.toBytes(snapshot.blockTimestamp());
-        final var hashedTs = Bytes.wrap(HashUtils.computeRawLeafHash(sha384DigestOrThrow(), tsBytes));
+        final var hashedTs = Bytes.wrap(HashUtils.computeRawLeafHash(sha256DigestOrThrow(), tsBytes));
         final var baseSibs = snapshot.path().siblings();
         final var extendedSibs = new ArrayList<SiblingNode>(baseSibs.size() + 1);
         extendedSibs.addAll(baseSibs);
@@ -522,7 +522,7 @@ public class ClprStateProofManager {
 
         // Precompute the block-root extension siblings appended to every leaf path.
         final var tsBytes = Timestamp.PROTOBUF.toBytes(snapshot.blockTimestamp());
-        final var hashedTs = Bytes.wrap(HashUtils.computeRawLeafHash(sha384DigestOrThrow(), tsBytes));
+        final var hashedTs = Bytes.wrap(HashUtils.computeRawLeafHash(sha256DigestOrThrow(), tsBytes));
         final var baseSibs = snapshot.path().siblings();
         final var extendedSibs = new ArrayList<SiblingNode>(baseSibs.size() + 1);
         extendedSibs.addAll(baseSibs);

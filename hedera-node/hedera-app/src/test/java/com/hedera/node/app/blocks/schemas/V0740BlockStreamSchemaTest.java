@@ -37,17 +37,21 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
+import org.hiero.base.crypto.DigestType;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class V0740BlockStreamSchemaTest {
 
+    // RunningHashes (HASH_A-D) remain chained SHA-384 (48 bytes), independent of the block-root Merkle
+    // tree's HASH_SIZE (SHA-256-sized, 32 bytes) used for classic BlockInfo.blockHashes/WRAPPED_HASH.
+    private static final int RUNNING_HASH_SIZE = DigestType.SHA_384.digestLength();
     private static final Bytes WRAPPED_HASH = Bytes.wrap(new byte[HASH_SIZE]);
-    private static final Bytes HASH_A = Bytes.fromHex("aa".repeat(HASH_SIZE));
-    private static final Bytes HASH_B = Bytes.fromHex("bb".repeat(HASH_SIZE));
-    private static final Bytes HASH_C = Bytes.fromHex("cc".repeat(HASH_SIZE));
-    private static final Bytes HASH_D = Bytes.fromHex("dd".repeat(HASH_SIZE));
+    private static final Bytes HASH_A = Bytes.fromHex("aa".repeat(RUNNING_HASH_SIZE));
+    private static final Bytes HASH_B = Bytes.fromHex("bb".repeat(RUNNING_HASH_SIZE));
+    private static final Bytes HASH_C = Bytes.fromHex("cc".repeat(RUNNING_HASH_SIZE));
+    private static final Bytes HASH_D = Bytes.fromHex("dd".repeat(RUNNING_HASH_SIZE));
 
     @Mock
     private MigrationContext<SemanticVersion> ctx;
@@ -352,13 +356,13 @@ class V0740BlockStreamSchemaTest {
         // So the output should be [HASH_D | HASH_C | HASH_B | HASH_A]
         // (RunningHashes constructor is (runningHash=A, nMinus1=B, nMinus2=C, nMinus3=D))
         final var outputBytes = written.trailingOutputHashes().toByteArray();
-        assertEquals(HASH_SIZE * 4, outputBytes.length);
+        assertEquals(RUNNING_HASH_SIZE * 4, outputBytes.length);
 
-        final var expectedOutput = new byte[HASH_SIZE * 4];
-        HASH_D.getBytes(0, expectedOutput, 0, HASH_SIZE);
-        HASH_C.getBytes(0, expectedOutput, HASH_SIZE, HASH_SIZE);
-        HASH_B.getBytes(0, expectedOutput, HASH_SIZE * 2, HASH_SIZE);
-        HASH_A.getBytes(0, expectedOutput, HASH_SIZE * 3, HASH_SIZE);
+        final var expectedOutput = new byte[RUNNING_HASH_SIZE * 4];
+        HASH_D.getBytes(0, expectedOutput, 0, RUNNING_HASH_SIZE);
+        HASH_C.getBytes(0, expectedOutput, RUNNING_HASH_SIZE, RUNNING_HASH_SIZE);
+        HASH_B.getBytes(0, expectedOutput, RUNNING_HASH_SIZE * 2, RUNNING_HASH_SIZE);
+        HASH_A.getBytes(0, expectedOutput, RUNNING_HASH_SIZE * 3, RUNNING_HASH_SIZE);
         assertEquals(Bytes.wrap(expectedOutput), written.trailingOutputHashes());
     }
 

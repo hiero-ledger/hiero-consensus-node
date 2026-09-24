@@ -25,6 +25,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Schema that executes the block stream cutover during migration. Reads the final record-stream
@@ -123,14 +124,17 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
                             + fullBlockHashes.length + " bytes (need >= " + HASH_SIZE + ")");
         }
         final Bytes lastBlockHashes = Bytes.wrap(fullBlockHashes, 0, fullBlockHashes.length - HASH_SIZE);
-        // 2.2. Running hashes
-        Bytes lastFourHashes =
-                appendHash(Bytes.wrap(runningHashes.nMinus3RunningHash().toByteArray()), Bytes.EMPTY, 4);
-        lastFourHashes =
-                appendHash(Bytes.wrap(runningHashes.nMinus2RunningHash().toByteArray()), lastFourHashes, 4);
-        lastFourHashes =
-                appendHash(Bytes.wrap(runningHashes.nMinus1RunningHash().toByteArray()), lastFourHashes, 4);
-        lastFourHashes = appendHash(Bytes.wrap(runningHashes.runningHash().toByteArray()), lastFourHashes, 4);
+        // 2.2. Running hashes; these remain chained SHA-384 (48 bytes), independent of the block-root Merkle
+        // tree's HASH_SIZE (SHA-256-sized), so use the size-parameterized appendHash overload
+        final var runningHashSize = DigestType.SHA_384.digestLength();
+        Bytes lastFourHashes = appendHash(
+                Bytes.wrap(runningHashes.nMinus3RunningHash().toByteArray()), Bytes.EMPTY, 4, runningHashSize);
+        lastFourHashes = appendHash(
+                Bytes.wrap(runningHashes.nMinus2RunningHash().toByteArray()), lastFourHashes, 4, runningHashSize);
+        lastFourHashes = appendHash(
+                Bytes.wrap(runningHashes.nMinus1RunningHash().toByteArray()), lastFourHashes, 4, runningHashSize);
+        lastFourHashes = appendHash(
+                Bytes.wrap(runningHashes.runningHash().toByteArray()), lastFourHashes, 4, runningHashSize);
         // 2.3. Wrapped prev record block root hashes
         final List<Bytes> wrappedPrevRecordBlockRootHashes = blockInfo.wrappedIntermediatePreviousBlockRootHashes();
 

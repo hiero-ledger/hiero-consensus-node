@@ -43,7 +43,7 @@ public interface BlockRootTreeHasher {
     /** The number of sibling hashes on the path from branch 1 to the block root, one per level. */
     int SIBLING_COUNT = Integer.numberOfTrailingZeros(SLOT_COUNT);
 
-    /** The hash of an empty branch, {@code sha384(0x00)}. */
+    /** The hash of an empty branch, {@code sha256(0x00)}. */
     Bytes EMPTY_SUBTREE = HASH_OF_ZERO;
 
     /** A block's root hash together with the sibling hashes on the path from branch 1 up to the root. */

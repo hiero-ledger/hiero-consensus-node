@@ -2,8 +2,8 @@
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.hashOfAll;
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384HashOf;
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384HashOfAll;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha256HashOf;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha256HashOfAll;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -15,8 +15,8 @@ import org.hiero.base.crypto.DigestType;
  * Utility methods for block implementation.
  */
 public class BlockImplUtils {
-    /** The size in bytes of a single SHA-384 block hash. */
-    public static final int HASH_SIZE = DigestType.SHA_384.digestLength();
+    /** The size in bytes of a single SHA-256 block hash. */
+    public static final int HASH_SIZE = DigestType.SHA_256.digestLength();
 
     public static final byte[] LEAF_PREFIX = {0x0};
     public static final Bytes LEAF_PREFIX_BYTES = Bytes.wrap(LEAF_PREFIX);
@@ -31,31 +31,50 @@ public class BlockImplUtils {
     }
 
     /**
-     * Appends the given hash to the given hashes. If the number of hashes exceeds the given maximum, the oldest hash
-     * is removed.
+     * Appends the given hash to the given hashes, assuming both are {@link #HASH_SIZE}-byte block-root hashes.
+     * If the number of hashes exceeds the given maximum, the oldest hash is removed.
      * @param hash the hash to append
      * @param hashes the hashes
      * @param maxHashes the maximum number of hashes
      * @return the new hashes
      */
     public static Bytes appendHash(@NonNull final Bytes hash, @NonNull final Bytes hashes, final int maxHashes) {
-        final var limit = HASH_SIZE * maxHashes;
+        return appendHash(hash, hashes, maxHashes, HASH_SIZE);
+    }
+
+    /**
+     * Appends the given hash to the given hashes, where every hash (including {@code hash} itself) is
+     * {@code hashSize} bytes long. If the number of hashes exceeds the given maximum, the oldest hash is removed.
+     *
+     * <p>Use this overload for hash chains that are <b>not</b> {@link #HASH_SIZE}-byte block-root hashes — for
+     * example, the classic {@code RunningHashManager} chain, which remains SHA-384 (48 bytes) independent of the
+     * block-root Merkle tree's hash size.
+     *
+     * @param hash the hash to append
+     * @param hashes the hashes
+     * @param maxHashes the maximum number of hashes
+     * @param hashSize the size in bytes of each hash in the chain
+     * @return the new hashes
+     */
+    public static Bytes appendHash(
+            @NonNull final Bytes hash, @NonNull final Bytes hashes, final int maxHashes, final int hashSize) {
+        final var limit = hashSize * maxHashes;
         final byte[] bytes = hashes.toByteArray();
         final byte[] newBytes;
         if (bytes.length < limit) {
-            newBytes = new byte[bytes.length + HASH_SIZE];
+            newBytes = new byte[bytes.length + hashSize];
             System.arraycopy(bytes, 0, newBytes, 0, bytes.length);
-            hash.getBytes(0, newBytes, newBytes.length - HASH_SIZE, HASH_SIZE);
+            hash.getBytes(0, newBytes, newBytes.length - hashSize, hashSize);
         } else {
             newBytes = bytes;
-            System.arraycopy(newBytes, HASH_SIZE, newBytes, 0, newBytes.length - HASH_SIZE);
-            hash.getBytes(0, newBytes, newBytes.length - HASH_SIZE, HASH_SIZE);
+            System.arraycopy(newBytes, hashSize, newBytes, 0, newBytes.length - hashSize);
+            hash.getBytes(0, newBytes, newBytes.length - hashSize, hashSize);
         }
         return Bytes.wrap(newBytes);
     }
 
     /**
-     * Given a concatenated sequence of 48-byte block hashes, where the rightmost hash was for the given last block
+     * Given a concatenated sequence of 32-byte block hashes, where the rightmost hash was for the given last block
      * number, returns either the hash of the block at the given block number, or null if the block number is out of
      * range. This is block-format agnostic: it is used both for the legacy {@code BlockInfo.blockHashes} and for the
      * {@code BlockStreamInfo.trailingBlockHashes}.
@@ -103,15 +122,15 @@ public class BlockImplUtils {
      * @return the combined hash
      */
     public static byte[] combine(@NonNull final byte[] leftHash, @NonNull final byte[] rightHash) {
-        return sha384HashOfAll(leftHash, rightHash).toByteArray();
+        return sha256HashOfAll(leftHash, rightHash).toByteArray();
     }
 
     public static byte[] hashLeaf(@NonNull final byte[] leafData) {
-        return sha384HashOf(LEAF_PREFIX, leafData);
+        return sha256HashOf(LEAF_PREFIX, leafData);
     }
 
     public static Bytes hashLeaf(@NonNull final Bytes leafData) {
-        return sha384HashOfAll(LEAF_PREFIX_BYTES, leafData);
+        return sha256HashOfAll(LEAF_PREFIX_BYTES, leafData);
     }
 
     public static Bytes hashLeaf(@NonNull final MessageDigest digest, @NonNull final Bytes leafData) {
@@ -123,15 +142,15 @@ public class BlockImplUtils {
     }
 
     public static Bytes hashInternalNode(@NonNull final Bytes leftHash, @NonNull final byte[] rightHash) {
-        return sha384HashOf(INTERNAL_NODE_PREFIX_BYTES, leftHash, rightHash);
+        return sha256HashOf(INTERNAL_NODE_PREFIX_BYTES, leftHash, rightHash);
     }
 
     public static Bytes hashInternalNode(@NonNull final Bytes leftHash, @NonNull final Bytes rightHash) {
-        return sha384HashOfAll(INTERNAL_NODE_PREFIX_BYTES, leftHash, rightHash);
+        return sha256HashOfAll(INTERNAL_NODE_PREFIX_BYTES, leftHash, rightHash);
     }
 
     public static byte[] hashInternalNode(@NonNull final byte[] leftHash, @NonNull final byte[] rightHash) {
-        return sha384HashOfAll(INTERNAL_NODE_PREFIX, leftHash, rightHash).toByteArray();
+        return sha256HashOfAll(INTERNAL_NODE_PREFIX, leftHash, rightHash).toByteArray();
     }
 
     public static byte[] hashInternalNode(

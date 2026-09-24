@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
@@ -74,7 +74,7 @@ public final class WrappedRecordFileBlockHashesCalculator {
                 .hapiProtoVersion(in.hapiProtoVersion())
                 .number(in.blockNumber())
                 .blockTimestamp(firstConsensusTimestamp)
-                .hashAlgorithm(BlockHashAlgorithm.SHA2_384);
+                .hashAlgorithm(BlockHashAlgorithm.SHA2_256);
 
         final var headerItem = BlockItem.newBuilder().blockHeader(header).build();
         final var recordFileBlockItem =
@@ -85,7 +85,7 @@ public final class WrappedRecordFileBlockHashesCalculator {
         final Bytes headerItemBytes = BlockItem.PROTOBUF.toBytes(headerItem);
         final Bytes recordFileItemBytes = BlockItem.PROTOBUF.toBytes(recordFileBlockItem);
 
-        final var hasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        final var hasher = new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
         hasher.addLeaf(headerItemBytes.toByteArray());
         hasher.addLeaf(recordFileItemBytes.toByteArray());
         final Bytes outputItemsTreeRootHash = Bytes.wrap(hasher.computeRootHash());

@@ -57,7 +57,7 @@ class PartialPathBuilder {
 
         // Sibling 1: calculate the second sibling, depth 5 node 1 (from prevBlockHash and prevBlockRootsHash)
         final var d5n1 = Bytes.wrap(HashUtils.joinHashes(
-                CommonUtils.sha384DigestOrThrow(), previousBlockHash.toByteArray(), prevBlockRootsHash.toByteArray()));
+                CommonUtils.sha256DigestOrThrow(), previousBlockHash.toByteArray(), prevBlockRootsHash.toByteArray()));
         blockAccessorSiblings[1] =
                 SiblingNode.newBuilder().isLeft(true).hash(d5n1).build();
 

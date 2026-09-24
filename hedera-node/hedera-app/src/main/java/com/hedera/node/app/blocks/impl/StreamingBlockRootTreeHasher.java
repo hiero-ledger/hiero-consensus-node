@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -56,7 +56,7 @@ public final class StreamingBlockRootTreeHasher implements BlockRootTreeHasher {
      * @return the root hash
      */
     public static Bytes streamedRootOf(@NonNull final Bytes[] nodes) {
-        final var hasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        final var hasher = new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
         for (final var node : nodes) {
             hasher.addNodeByHash(node.toByteArray());
         }

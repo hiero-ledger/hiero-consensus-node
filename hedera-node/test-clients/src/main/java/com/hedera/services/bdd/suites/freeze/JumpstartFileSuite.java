@@ -53,6 +53,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
@@ -365,16 +366,18 @@ class JumpstartFileSuite implements LifecycleTest {
         final var fullBlockHashes = bi.blockHashes().toByteArray();
         final var expectedTrailingBlockHashes = Bytes.wrap(fullBlockHashes, 0, fullBlockHashes.length - HASH_SIZE);
         assertLogContains(log, "trailingBlockHashes", expectedTrailingBlockHashes.toHex());
-        // trailingOutputHashes must be exactly the final four record stream running hashes
+        // trailingOutputHashes must be exactly the final four record stream running hashes; these remain
+        // chained SHA-384 (48 bytes), independent of the block-root Merkle tree's HASH_SIZE (SHA-256-sized)
         final var rh = capturedRunningHashes.get();
-        Bytes expectedOutputHashes =
-                BlockImplUtils.appendHash(Bytes.wrap(rh.nMinus3RunningHash().toByteArray()), Bytes.EMPTY, 4);
-        expectedOutputHashes =
-                BlockImplUtils.appendHash(Bytes.wrap(rh.nMinus2RunningHash().toByteArray()), expectedOutputHashes, 4);
-        expectedOutputHashes =
-                BlockImplUtils.appendHash(Bytes.wrap(rh.nMinus1RunningHash().toByteArray()), expectedOutputHashes, 4);
-        expectedOutputHashes =
-                BlockImplUtils.appendHash(Bytes.wrap(rh.runningHash().toByteArray()), expectedOutputHashes, 4);
+        final var runningHashSize = DigestType.SHA_384.digestLength();
+        Bytes expectedOutputHashes = BlockImplUtils.appendHash(
+                Bytes.wrap(rh.nMinus3RunningHash().toByteArray()), Bytes.EMPTY, 4, runningHashSize);
+        expectedOutputHashes = BlockImplUtils.appendHash(
+                Bytes.wrap(rh.nMinus2RunningHash().toByteArray()), expectedOutputHashes, 4, runningHashSize);
+        expectedOutputHashes = BlockImplUtils.appendHash(
+                Bytes.wrap(rh.nMinus1RunningHash().toByteArray()), expectedOutputHashes, 4, runningHashSize);
+        expectedOutputHashes = BlockImplUtils.appendHash(
+                Bytes.wrap(rh.runningHash().toByteArray()), expectedOutputHashes, 4, runningHashSize);
         assertLogContains(log, "trailingOutputHashes", expectedOutputHashes.toHex());
 
         // Verify the logged RunningHashes hex values match what we captured

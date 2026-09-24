@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
@@ -89,7 +89,7 @@ public class WrappedRecordBlockHashMigrationBenchmark {
 
         // Construct jumpstart config directly (matching the production config-property path)
         final var rng = new Random();
-        final var hasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0L);
+        final var hasher = new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0L);
         var prevHash = new byte[HASH_SIZE];
         for (int i = 0; i < HASH_COUNT; i++) {
             final var randomHash = new byte[HASH_SIZE];

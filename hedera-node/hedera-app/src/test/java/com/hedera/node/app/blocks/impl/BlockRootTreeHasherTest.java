@@ -32,17 +32,17 @@ import org.junit.jupiter.params.provider.MethodSource;
  * from the code under test.
  */
 class BlockRootTreeHasherTest {
-    /** {@code sha384(0x00)} — the hash of an empty branch. */
-    private static final Bytes EXPECTED_EMPTY_SUBTREE = Bytes.fromHex(
-            "bec021b4f368e3069134e012c2b4307083d3a9bdd206e24e5f0d86e13d6636655933ec2b413465966817a9c208a11717");
+    /** {@code sha256(0x00)} — the hash of an empty branch. */
+    private static final Bytes EXPECTED_EMPTY_SUBTREE =
+            Bytes.fromHex("6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d");
 
     /** The root of the eight reserved branches 9-16, all empty. */
-    private static final Bytes EXPECTED_EMPTY_RESERVED_HALF = Bytes.fromHex(
-            "cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8");
+    private static final Bytes EXPECTED_EMPTY_RESERVED_HALF =
+            Bytes.fromHex("ececb642184ad1483e673c83ad0c6c593976b441d072f90a5323cf3cbfb70197");
 
     /** The root of all sixteen branches, all empty. */
-    private static final Bytes EXPECTED_ALL_EMPTY_ROOT = Bytes.fromHex(
-            "5028fe48c7fca408b16bd62b8089c8644be351cbc653e6786136ce144055d18f9495864b270772f664004eed7b97e6b7");
+    private static final Bytes EXPECTED_ALL_EMPTY_ROOT =
+            Bytes.fromHex("65d350d061d90fe6150bcda9bd28548fb4cdaf4766a15d7e4af5f92f6b7a8202");
 
     private static final Timestamp A_TIMESTAMP = new Timestamp(1_700_000_000L, 123_456_789);
     private static final Bytes A_TIMESTAMP_LEAF = BlockRootTree.hashTimestampLeaf(A_TIMESTAMP);
@@ -58,7 +58,7 @@ class BlockRootTreeHasherTest {
     @DisplayName("Cross-repo conformance constants")
     class ConformanceConstants {
         @Test
-        @DisplayName("an empty sub-tree hashes to sha384(0x00)")
+        @DisplayName("an empty sub-tree hashes to sha256(0x00)")
         void emptySubtreeMatchesSpec() {
             assertThat(EMPTY_SUBTREE).isEqualTo(EXPECTED_EMPTY_SUBTREE);
         }

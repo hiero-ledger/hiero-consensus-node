@@ -2,12 +2,13 @@
 package com.hedera.node.app.records.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
+import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.WritableBlockRecordStore;
@@ -37,7 +38,7 @@ import org.hiero.consensus.roster.ReadableRosterStore;
 public class MigrationRootHashVoteHandler implements TransactionHandler {
     private static final Logger log = LogManager.getLogger(MigrationRootHashVoteHandler.class);
 
-    private static final int SHA_384_HASH_LENGTH = 48;
+    private static final int WRAPPED_RECORD_BLOCK_HASH_LENGTH = BlockImplUtils.HASH_SIZE;
     // Far beyond any realistic number of wrapped record blocks; also keeps the leaf count clear of
     // overflow as it is incremented per queued hash during finalization.
     private static final long MAX_INTERMEDIATE_LEAF_COUNT = 1L << 40;
@@ -156,7 +157,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
 
         var previousWrappedRecordBlockRootHash = op.previousWrappedRecordBlockRootHash();
         final var hasher = new IncrementalStreamingHasher(
-                sha384DigestOrThrow(),
+                sha256DigestOrThrow(),
                 op.wrappedIntermediatePreviousBlockRootHashes().stream()
                         .map(Bytes::toByteArray)
                         .toList(),
@@ -201,7 +202,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
 
     /**
      * Returns whether a vote body is internally consistent: both the previous root hash and every
-     * intermediate-state hash must be the expected SHA-384 length, the leaf count must be a sane
+     * intermediate-state hash must be the expected block-root hash length, the leaf count must be a sane
      * non-negative value, and the number of intermediate hashes must equal the number of set bits in
      * the leaf count (the pending-subtree invariant the streaming hasher relies on).
      *
@@ -209,7 +210,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
      * @return true if the body is structurally consistent
      */
     private static boolean isStructurallyValid(@NonNull final MigrationRootHashVoteTransactionBody op) {
-        if (op.previousWrappedRecordBlockRootHash().length() != SHA_384_HASH_LENGTH) {
+        if (op.previousWrappedRecordBlockRootHash().length() != WRAPPED_RECORD_BLOCK_HASH_LENGTH) {
             return false;
         }
         final var leafCount = op.wrappedIntermediateBlockRootsLeafCount();
@@ -221,7 +222,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
             return false;
         }
         for (final var hash : intermediateHashes) {
-            if (hash.length() != SHA_384_HASH_LENGTH) {
+            if (hash.length() != WRAPPED_RECORD_BLOCK_HASH_LENGTH) {
                 return false;
             }
         }

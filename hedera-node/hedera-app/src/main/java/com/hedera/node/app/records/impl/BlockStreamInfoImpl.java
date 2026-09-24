@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl;
 
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.HASH_SIZE;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static java.util.Objects.requireNonNull;
@@ -16,6 +15,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * A {@link BlockRecordInfo} that derives the current block number, timestamp, PRNG seed, and trailing block hashes
@@ -53,15 +53,19 @@ public final class BlockStreamInfoImpl implements BlockRecordInfo {
         this.blockStreamInfo = requireNonNull(blockStreamInfo);
     }
 
+    // Chained SHA-384 over stream items, independent of the block-root Merkle tree's HASH_SIZE (SHA-256-sized);
+    // do not conflate the two. Mirrors BlockStreamManagerImpl.RunningHashManager.RUNNING_HASH_SIZE.
+    private static final int RUNNING_HASH_SIZE = DigestType.SHA_384.digestLength();
+
     /** {@inheritDoc} */
     @Nullable
     @Override
     public Bytes prngSeed() {
         // Mirrors BlockStreamManagerImpl.RunningHashManager: the n-minus-3 running hash is the seed, and is the
-        // leftmost HASH_SIZE bytes of the trailing output hashes once at least four hashes are present.
+        // leftmost RUNNING_HASH_SIZE bytes of the trailing output hashes once at least four hashes are present.
         final var hashes = blockStreamInfo.trailingOutputHashes();
-        final var n = (int) (hashes.length() / HASH_SIZE);
-        return n < 4 ? null : hashes.slice(0, HASH_SIZE);
+        final var n = (int) (hashes.length() / RUNNING_HASH_SIZE);
+        return n < 4 ? null : hashes.slice(0, RUNNING_HASH_SIZE);
     }
 
     /** {@inheritDoc} */

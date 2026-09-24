@@ -11,7 +11,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATIO
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static com.hedera.node.app.hints.impl.RsaContext.CONSTRUCTION_ID;
 import static java.util.Comparator.comparingLong;
 import static java.util.Objects.requireNonNull;
@@ -283,7 +283,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                     "Discovered {}-byte ledger id for block #0 signature verification", discoveredLedgerId.length());
         }
         var previousBlockHash = HASH_OF_ZERO;
-        var incrementalBlockHashes = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        var incrementalBlockHashes = new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
 
         for (int epochIndex = 0; epochIndex < blockEpochs.size(); epochIndex++) {
             final var blocks = blockEpochs.get(epochIndex);
@@ -305,15 +305,15 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                 final var block = blocks.get(i);
                 final var blockNumber = blockNumberOf(block);
                 final IncrementalStreamingHasher inputTreeHasher =
-                        new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                        new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
                 final IncrementalStreamingHasher outputTreeHasher =
-                        new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                        new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
                 final IncrementalStreamingHasher consensusHeaderHasher =
-                        new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                        new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
                 final IncrementalStreamingHasher stateChangesHasher =
-                        new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                        new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
                 final IncrementalStreamingHasher traceDataHasher =
-                        new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                        new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
 
                 long firstBlockRound = -1;
                 long eventNodeId = -1;
@@ -508,7 +508,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                     + " but its first block has no BlockInfo with wrapped record block hashes");
         }
         final var incrementalBlockHashes = new IncrementalStreamingHasher(
-                sha384DigestOrThrow(),
+                sha256DigestOrThrow(),
                 blockInfo.wrappedIntermediatePreviousBlockRootHashes().stream()
                         .map(Bytes::toByteArray)
                         .toList(),

@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Verifies that the cutover correctly transferred record stream state into the block stream.
@@ -111,7 +112,9 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
         for (final var item : firstPostCutover.items()) {
             if (item.hasTransactionResult()) {
                 final var serialized = BlockItem.PROTOBUF.toBytes(item).toByteArray();
-                final var hashedLeaf = BlockImplUtils.hashLeaf(serialized);
+                // Running hashes remain chained SHA-384, independent of the block-root Merkle tree's
+                // (SHA-256) BlockImplUtils.hashLeaf(byte[]) default
+                final var hashedLeaf = BlockImplUtils.hashLeaf(CommonUtils.sha384DigestOrThrow(), serialized);
                 nMinus3 = nMinus2;
                 nMinus2 = nMinus1;
                 nMinus1 = current;
@@ -124,10 +127,13 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
         }
         log.info("Computed running hashes through {} TRANSACTION_RESULT items", resultCount);
         assertTrue(resultCount > 0, "First post-cutover block should contain at least one transaction result");
-        Bytes expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus3), Bytes.EMPTY, 4);
-        expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus2), expectedOutputHashes, 4);
-        expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus1), expectedOutputHashes, 4);
-        expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(current), expectedOutputHashes, 4);
+        // Running hashes remain chained SHA-384 (48 bytes), independent of the block-root Merkle tree's
+        // HASH_SIZE (SHA-256-sized), so use the size-parameterized appendHash overload
+        final var runningHashSize = DigestType.SHA_384.digestLength();
+        Bytes expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus3), Bytes.EMPTY, 4, runningHashSize);
+        expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus2), expectedOutputHashes, 4, runningHashSize);
+        expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus1), expectedOutputHashes, 4, runningHashSize);
+        expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(current), expectedOutputHashes, 4, runningHashSize);
         assertEquals(
                 expectedOutputHashes,
                 blockStreamInfo.trailingOutputHashes(),
@@ -147,7 +153,7 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
 
         // === Verify hash chain by computing block root hashes from items ===
         final var prevBlockHashesTree = new IncrementalStreamingHasher(
-                CommonUtils.sha384DigestOrThrow(),
+                CommonUtils.sha256DigestOrThrow(),
                 capturedBlockInfo.get().wrappedIntermediatePreviousBlockRootHashes().stream()
                         .map(Bytes::toByteArray)
                         .toList(),
@@ -196,7 +202,7 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
 
             if (i == 0) {
                 assertNotEquals(
-                        Bytes.wrap(new byte[48]),
+                        Bytes.wrap(new byte[BlockImplUtils.HASH_SIZE]),
                         footer.startOfBlockStateRootHash(),
                         "Block #" + blockNum + " footer.startOfBlockStateRootHash" + " should not be the hash of zero");
             }
@@ -214,12 +220,12 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
 
     private static Bytes computeBlockRootHash(
             final Block block, final Bytes previousBlockHash, final IncrementalStreamingHasher prevBlockHashesTree) {
-        final var inputTreeHasher = new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
-        final var outputTreeHasher = new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
+        final var inputTreeHasher = new IncrementalStreamingHasher(CommonUtils.sha256DigestOrThrow(), List.of(), 0);
+        final var outputTreeHasher = new IncrementalStreamingHasher(CommonUtils.sha256DigestOrThrow(), List.of(), 0);
         final var consensusHeaderHasher =
-                new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
-        final var stateChangesHasher = new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
-        final var traceDataHasher = new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0);
+                new IncrementalStreamingHasher(CommonUtils.sha256DigestOrThrow(), List.of(), 0);
+        final var stateChangesHasher = new IncrementalStreamingHasher(CommonUtils.sha256DigestOrThrow(), List.of(), 0);
+        final var traceDataHasher = new IncrementalStreamingHasher(CommonUtils.sha256DigestOrThrow(), List.of(), 0);
 
         Timestamp blockTimestamp = null;
         for (final var item : block.items()) {

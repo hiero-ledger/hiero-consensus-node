@@ -18,6 +18,7 @@ import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import java.util.List;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -47,6 +48,14 @@ class BlockStreamInfoImplTest {
     /** A distinct, deterministic 48-byte (SHA-384-length) hash filled with the given byte. */
     private static Bytes hash(final int seed) {
         final var bytes = new byte[HASH_SIZE];
+        java.util.Arrays.fill(bytes, (byte) seed);
+        return Bytes.wrap(bytes);
+    }
+
+    // trailingOutputHashes are chained SHA-384 running hashes (48 bytes), independent of the block-root
+    // Merkle tree's HASH_SIZE (SHA-256-sized, 32 bytes) used for trailingBlockHashes/blockHashes above.
+    private static Bytes runningHash(final int seed) {
+        final var bytes = new byte[DigestType.SHA_384.digestLength()];
         java.util.Arrays.fill(bytes, (byte) seed);
         return Bytes.wrap(bytes);
     }
@@ -102,15 +111,15 @@ class BlockStreamInfoImplTest {
     @Test
     void prngSeedIsLeftmostTrailingOutputHashOnceFourArePresent() {
         // Four or more output hashes: seed is the leftmost (n-minus-3 running hash).
-        final var four = concat(hash(1), hash(2), hash(3), hash(4));
+        final var four = concat(runningHash(1), runningHash(2), runningHash(3), runningHash(4));
         assertEquals(
-                hash(1),
+                runningHash(1),
                 new BlockStreamInfoImpl(BlockStreamInfo.newBuilder()
                                 .trailingOutputHashes(four)
                                 .build())
                         .prngSeed());
         // Fewer than four: not yet available.
-        final var three = concat(hash(1), hash(2), hash(3));
+        final var three = concat(runningHash(1), runningHash(2), runningHash(3));
         assertNull(new BlockStreamInfoImpl(
                         BlockStreamInfo.newBuilder().trailingOutputHashes(three).build())
                 .prngSeed());

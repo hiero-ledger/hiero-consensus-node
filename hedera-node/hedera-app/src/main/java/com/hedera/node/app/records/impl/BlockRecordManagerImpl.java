@@ -5,7 +5,7 @@ import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockHashSigner.Request.LIST_OF_PARTIAL_SIGNATURES;
 import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.BlockRecordService.GENESIS_BLOCK_INFO;
 import static com.hedera.node.app.records.BlockRecordService.GENESIS_RUNNING_HASHES;
@@ -354,7 +354,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             final var intermediateHashes =
                     initialIntermediates.stream().map(Bytes::toByteArray).toList();
             this.prevWrappedRecordBlockHashes =
-                    new IncrementalStreamingHasher(sha384DigestOrThrow(), intermediateHashes, initialLeafCount);
+                    new IncrementalStreamingHasher(sha256DigestOrThrow(), intermediateHashes, initialLeafCount);
             this.previousWrappedRecordBlockRootHash = initialPrevHash;
 
             // When a state is saved mid-voting, the migrationWrappedHashes queue in BlockInfo
@@ -391,7 +391,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                     this.previousWrappedRecordBlockRootHash);
         } else if (initTrigger == InitTrigger.GENESIS) {
             // Initialize with empty defaults at genesis
-            this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+            this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
             this.previousWrappedRecordBlockRootHash = HASH_OF_ZERO;
         }
 
@@ -1401,7 +1401,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         }
         this.previousWrappedRecordBlockRootHash = prevWrappedRecordBlockRootHash;
         this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(
-                sha384DigestOrThrow(),
+                sha256DigestOrThrow(),
                 intermediateHashes.stream().map(Bytes::toByteArray).toList(),
                 leafCount);
         this.lastBlockInfo = this.lastBlockInfo

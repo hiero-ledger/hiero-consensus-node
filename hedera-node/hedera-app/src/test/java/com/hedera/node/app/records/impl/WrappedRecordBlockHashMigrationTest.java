@@ -293,10 +293,10 @@ class WrappedRecordBlockHashMigrationTest {
     @Test
     void returnsEarlyWhenPreviousBlockHashHasWrongLength() throws Exception {
         final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
-        // previousWrappedRecordBlockHash is 32 bytes instead of HASH_SIZE (48)
+        // previousWrappedRecordBlockHash has an invalid length: one byte short of HASH_SIZE
         final var badConfig = new BlockStreamJumpstartConfig(
                 100,
-                Bytes.wrap(new byte[32]),
+                Bytes.wrap(new byte[HASH_SIZE - 1]),
                 4,
                 1,
                 List.of(Bytes.wrap(new byte[HASH_SIZE])),
@@ -309,13 +309,13 @@ class WrappedRecordBlockHashMigrationTest {
     @Test
     void returnsEarlyWhenSubtreeHashHasWrongLength() throws Exception {
         final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
-        // One subtree hash is 32 bytes instead of HASH_SIZE (48)
+        // One subtree hash has an invalid length: one byte short of HASH_SIZE
         final var badConfig = new BlockStreamJumpstartConfig(
                 100,
                 Bytes.wrap(new byte[HASH_SIZE]),
                 4,
                 2,
-                List.of(Bytes.wrap(new byte[HASH_SIZE]), Bytes.wrap(new byte[32])),
+                List.of(Bytes.wrap(new byte[HASH_SIZE]), Bytes.wrap(new byte[HASH_SIZE - 1])),
                 Bytes.wrap(new byte[HASH_SIZE]),
                 Bytes.wrap(new byte[HASH_SIZE]));
         subject.execute(StreamMode.RECORDS, config, badConfig, false);
@@ -503,7 +503,7 @@ class WrappedRecordBlockHashMigrationTest {
         // previousWrappedRecordBlockHash has the wrong length, so validation fails before any hashes are computed.
         final var badConfig = new BlockStreamJumpstartConfig(
                 100,
-                Bytes.wrap(new byte[32]),
+                Bytes.wrap(new byte[HASH_SIZE - 1]),
                 4,
                 1,
                 List.of(Bytes.wrap(new byte[HASH_SIZE])),

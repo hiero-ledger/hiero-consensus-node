@@ -314,17 +314,15 @@ public class ConversionUtils {
     }
 
     /**
-     * Wraps the first 32 bytes of the given SHA-384 {@link org.hiero.base.crypto.Hash hash} in a Besu {@link Hash}.
+     * Wraps the given 32-byte SHA-256 block-root {@link org.hiero.base.crypto.Hash hash} in a Besu {@link Hash}.
      *
-     * @param sha384Hash the SHA-384 hash
-     * @return the first 32 bytes as a Besu {@link Hash}
+     * @param blockRootHash the 32-byte block-root hash
+     * @return the hash as a Besu {@link Hash}
      */
     public static org.hyperledger.besu.datatypes.Hash ethHashFrom(
-            @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes sha384Hash) {
-        requireNonNull(sha384Hash);
-        final byte[] prefixBytes = new byte[32];
-        sha384Hash.getBytes(0, prefixBytes, 0, prefixBytes.length);
-        return org.hyperledger.besu.datatypes.Hash.wrap(Bytes32.wrap(prefixBytes));
+            @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes blockRootHash) {
+        requireNonNull(blockRootHash);
+        return org.hyperledger.besu.datatypes.Hash.wrap(Bytes32.wrap(blockRootHash.toByteArray()));
     }
 
     /**
