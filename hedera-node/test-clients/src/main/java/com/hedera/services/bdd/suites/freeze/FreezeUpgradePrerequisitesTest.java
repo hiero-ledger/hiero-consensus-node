@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.freeze;
 
-import static com.hedera.services.bdd.junit.ContextRequirement.UPGRADE_FILE_CONTENT;
-import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
+import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.BYTES_4K;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildUpgradeZipFrom;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeAbort;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.updateSpecialFile;
@@ -18,9 +16,7 @@ import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgra
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileHashAt;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_UPGRADE_HAS_BEEN_PREPARED;
 
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
+import com.hedera.services.bdd.junit.GenesisHapiTest;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -32,19 +28,14 @@ import org.junit.jupiter.api.Tag;
  *
  * <p>A {@code FREEZE_UPGRADE} is expected to be honored only when it confirms a prepared upgrade, so the
  * network-admin service design requires this transaction to be rejected with
- * {@code NO_UPGRADE_HAS_BEEN_PREPARED}. The spec still ends with a {@code FREEZE_ABORT}: should that
- * rejection ever stop holding, the freeze would be scheduled 60 seconds out and every later spec
- * sharing this network would fail.
+ * {@code NO_UPGRADE_HAS_BEEN_PREPARED}. The spec runs on its own genesis network, so no earlier spec
+ * can have prepared an upgrade and no later spec can be affected if the rejection ever stops holding.
  */
-@Tag(UPGRADE)
-@HapiTestLifecycle
-public class FreezeUpgradePrerequisitesTest implements LifecycleTest {
-    @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
+@Tag(INTEGRATION)
+public class FreezeUpgradePrerequisitesTest {
+    @GenesisHapiTest
     final Stream<DynamicTest> freezeUpgradeIsRejectedWithoutPreparedUpgrade() {
         return hapiTest(
-                // Clear any upgrade prepared by an earlier spec sharing this network, so the condition
-                // under test - that no upgrade has been prepared - holds regardless of execution order.
-                freezeAbort().payingWith(GENESIS),
                 buildUpgradeZipFrom(FAKE_ASSETS_LOC),
                 // Stage 0.0.150 so the pre-handle file-hash check passes, without a PREPARE_UPGRADE.
                 sourcing(() -> updateSpecialFile(
@@ -59,9 +50,6 @@ public class FreezeUpgradePrerequisitesTest implements LifecycleTest {
                         .withUpdateFile(DEFAULT_UPGRADE_FILE_ID)
                         .havingHash(upgradeFileHashAt(FAKE_UPGRADE_ZIP_LOC))
                         .payingWith(GENESIS)
-                        .hasKnownStatus(NO_UPGRADE_HAS_BEEN_PREPARED)),
-                // If the assertion above ever stops holding, the freeze is scheduled 60 seconds out
-                // and every later spec on this network would fail. Abort unconditionally.
-                freezeAbort().payingWith(GENESIS));
+                        .hasKnownStatus(NO_UPGRADE_HAS_BEEN_PREPARED)));
     }
 }
