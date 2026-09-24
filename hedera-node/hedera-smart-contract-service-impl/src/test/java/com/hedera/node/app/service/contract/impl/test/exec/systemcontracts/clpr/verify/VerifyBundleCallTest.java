@@ -153,8 +153,8 @@ class VerifyBundleCallTest {
         private static final Bytes SERVICE_ADDR = Bytes.wrap(new byte[20]);
 
         @Test
-        @DisplayName("manifest-only bundle (no channel leaf, flag on) → V3 SUCCESS with absent metadata + manifest")
-        void manifestOnlyBundleReturnsV3SuccessWhenFlagOn() {
+        @DisplayName("manifest-only bundle (no channel leaf, flag on) → SUCCESS with absent metadata + manifest")
+        void manifestOnlyBundleSucceedsWhenFlagOn() {
             final var manifest = ClprEndpointManifest.newBuilder()
                     .version(2L)
                     .serviceAddress(SERVICE_ADDR)
@@ -166,7 +166,7 @@ class VerifyBundleCallTest {
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
             assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.COMPLETED_SUCCESS);
 
-            final var decoded = ClprVerifierAbi.VERIFY_BUNDLE_V3_RETURN.decode(
+            final var decoded = ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN.decode(
                     result.fullResult().output().toArray());
             assertThat(decoded.size()).isEqualTo(5);
             // Member 0: absent-metadata sentinel — nextMessageId == 0.
