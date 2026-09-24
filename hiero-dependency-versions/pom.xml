@@ -1,0 +1,573 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright (C) 2024-2025 Hedera Hashgraph, LLC
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~      http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.hedera.hashgraph</groupId>
+    <artifactId>hiero-dependency-versions</artifactId>
+    <version>0.70.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <name>Hiero Dependency Versions (BOM)</name>
+    <description>Bill of Materials for Hiero Consensus Node dependencies</description>
+
+    <properties>
+        <!-- Core dependency versions (from build.gradle.kts) -->
+        <autoService.version>1.1.1</autoService.version>
+        <besu.version>25.2.2</besu.version>
+        <bouncycastle.version>1.81</bouncycastle.version>
+        <caffeine.version>3.2.0</caffeine.version>
+        <dagger.version>2.56.2</dagger.version>
+        <dockerJava.version>3.5.3</dockerJava.version>
+        <eclipseCollections.version>13.0.0</eclipseCollections.version>
+        <grpc.version>1.72.0</grpc.version>
+        <guava.version>33.4.8-jre</guava.version>
+        <headlong.version>13.3.0</headlong.version>
+        <hederaCryptography.version>3.0.0</hederaCryptography.version>
+        <helidon.version>4.3.2</helidon.version>
+        <jackson.version>2.19.0</jackson.version>
+        <jimfs.version>1.3.0</jimfs.version>
+        <jna.version>5.17.0</jna.version>
+        <junit5.version>5.10.3</junit5.version>
+        <lazysodium.version>5.2.0</lazysodium.version>
+        <log4j.version>2.25.0</log4j.version>
+        <mockito.version>5.18.0</mockito.version>
+        <netty.version>4.2.4.Final</netty.version>
+        <pbj.version>0.12.10</pbj.version>
+        <picocli.version>4.7.7</picocli.version>
+        <protobuf.version>4.31.1</protobuf.version>
+        <prometheus.version>0.16.0</prometheus.version>
+        <spotbugs.version>4.9.3</spotbugs.version>
+        <testContainers.version>2.0.2</testContainers.version>
+        <tuweni.version>2.4.2</tuweni.version>
+        <webcompare.version>2.1.8</webcompare.version>
+        <blockNodeProtobufSources.version>0.21.2</blockNodeProtobufSources.version>
+
+        <!-- Additional versions -->
+        <antlr4.version>4.13.2</antlr4.version>
+        <assertj.version>3.27.3</assertj.version>
+        <awaitility.version>4.3.0</awaitility.version>
+        <classgraph.version>4.8.179</classgraph.version>
+        <commonsCodec.version>1.18.0</commonsCodec.version>
+        <commonsCompress.version>1.27.1</commonsCompress.version>
+        <commonsIo.version>2.19.0</commonsIo.version>
+        <commonsLang3.version>3.18.0</commonsLang3.version>
+        <eddsa.version>0.3.0</eddsa.version>
+        <j2objc.version>3.0.0</j2objc.version>
+        <jakartaInject.version>2.0.1</jakartaInject.version>
+        <javaxInject.version>1</javaxInject.version>
+        <javapoet.version>1.13.0</javapoet.version>
+        <jetbrainsAnnotations.version>26.0.2</jetbrainsAnnotations.version>
+        <jmh.version>1.37</jmh.version>
+        <json.version>20250517</json.version>
+        <opentest4j.version>1.3.0</opentest4j.version>
+        <perfmark.version>0.27.0</perfmark.version>
+        <secp256k1.version>1.3.0</secp256k1.version>
+        <snakeyaml.version>2.4</snakeyaml.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- ==================== BOMs (import first) ==================== -->
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-bom</artifactId>
+                <version>${netty.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
+                <version>${junit5.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- ==================== Helidon ==================== -->
+            <dependency>
+                <groupId>io.helidon.common</groupId>
+                <artifactId>helidon-common</artifactId>
+                <version>${helidon.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.helidon.webclient</groupId>
+                <artifactId>helidon-webclient</artifactId>
+                <version>${helidon.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.helidon.webclient</groupId>
+                <artifactId>helidon-webclient-grpc</artifactId>
+                <version>${helidon.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.helidon.webclient</groupId>
+                <artifactId>helidon-webclient-http2</artifactId>
+                <version>${helidon.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.helidon.webclient</groupId>
+                <artifactId>helidon-webclient-api</artifactId>
+                <version>${helidon.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.helidon.common</groupId>
+                <artifactId>helidon-common-tls</artifactId>
+                <version>${helidon.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.helidon.grpc</groupId>
+                <artifactId>helidon-grpc-core</artifactId>
+                <version>${helidon.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.helidon.webserver</groupId>
+                <artifactId>helidon-webserver</artifactId>
+                <version>${helidon.version}</version>
+            </dependency>
+
+            <!-- ==================== Jackson ==================== -->
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-core</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.dataformat</groupId>
+                <artifactId>jackson-dataformat-yaml</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-annotations</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.datatype</groupId>
+                <artifactId>jackson-datatype-jsr310</artifactId>
+                <version>${jackson.version}</version>
+            </dependency>
+
+            <!-- ==================== gRPC ==================== -->
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-api</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-netty</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-protobuf</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-stub</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.grpc</groupId>
+                <artifactId>grpc-netty-shaded</artifactId>
+                <version>${grpc.version}</version>
+            </dependency>
+
+            <!-- ==================== Protocol Buffers ==================== -->
+            <dependency>
+                <groupId>com.google.protobuf</groupId>
+                <artifactId>protobuf-java</artifactId>
+                <version>${protobuf.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.protobuf</groupId>
+                <artifactId>protobuf-java-util</artifactId>
+                <version>${protobuf.version}</version>
+            </dependency>
+
+            <!-- ==================== PBJ (Protocol Buffer Java) ==================== -->
+            <dependency>
+                <groupId>com.hedera.pbj</groupId>
+                <artifactId>pbj-runtime</artifactId>
+                <version>${pbj.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.hedera.pbj</groupId>
+                <artifactId>pbj-grpc-helidon</artifactId>
+                <version>${pbj.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.hedera.pbj</groupId>
+                <artifactId>pbj-grpc-client-helidon</artifactId>
+                <version>${pbj.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.hedera.pbj</groupId>
+                <artifactId>pbj-grpc-helidon-config</artifactId>
+                <version>${pbj.version}</version>
+            </dependency>
+
+            <!-- ==================== Google Libraries ==================== -->
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>${guava.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jspecify</groupId>
+                <artifactId>jspecify</artifactId>
+                <version>1.0.0</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.auto.service</groupId>
+                <artifactId>auto-service-annotations</artifactId>
+                <version>${autoService.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.auto.service</groupId>
+                <artifactId>auto-service</artifactId>
+                <version>${autoService.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.j2objc</groupId>
+                <artifactId>j2objc-annotations</artifactId>
+                <version>${j2objc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.jimfs</groupId>
+                <artifactId>jimfs</artifactId>
+                <version>${jimfs.version}</version>
+            </dependency>
+
+            <!-- ==================== Dagger (Dependency Injection) ==================== -->
+            <dependency>
+                <groupId>com.google.dagger</groupId>
+                <artifactId>dagger</artifactId>
+                <version>${dagger.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.google.dagger</groupId>
+                <artifactId>dagger-compiler</artifactId>
+                <version>${dagger.version}</version>
+            </dependency>
+
+            <!-- ==================== Logging ==================== -->
+            <dependency>
+                <groupId>org.apache.logging.log4j</groupId>
+                <artifactId>log4j-api</artifactId>
+                <version>${log4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.logging.log4j</groupId>
+                <artifactId>log4j-core</artifactId>
+                <version>${log4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.logging.log4j</groupId>
+                <artifactId>log4j-slf4j2-impl</artifactId>
+                <version>${log4j.version}</version>
+            </dependency>
+
+            <!-- ==================== BouncyCastle (Cryptography) ==================== -->
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcpkix-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+
+            <!-- ==================== Hedera Cryptography ==================== -->
+            <dependency>
+                <groupId>com.hedera.cryptography</groupId>
+                <artifactId>hedera-cryptography-rpm</artifactId>
+                <version>${hederaCryptography.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.hedera.cryptography</groupId>
+                <artifactId>hedera-cryptography-wraps</artifactId>
+                <version>${hederaCryptography.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.hedera.cryptography</groupId>
+                <artifactId>hedera-cryptography-hints</artifactId>
+                <version>${hederaCryptography.version}</version>
+            </dependency>
+
+            <!-- ==================== Hyperledger Besu (EVM) ==================== -->
+            <dependency>
+                <groupId>org.hyperledger.besu</groupId>
+                <artifactId>besu-datatypes</artifactId>
+                <version>${besu.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.hyperledger.besu</groupId>
+                <artifactId>evm</artifactId>
+                <version>${besu.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.hyperledger.besu</groupId>
+                <artifactId>secp256k1</artifactId>
+                <version>${secp256k1.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.hyperledger.besu.internal</groupId>
+                <artifactId>algorithms</artifactId>
+                <version>${besu.version}</version>
+            </dependency>
+            <!-- ==================== SLF4J ==================== -->
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>2.0.16</version>
+            </dependency>
+
+            <!-- ==================== Eclipse Collections ==================== -->
+            <dependency>
+                <groupId>org.eclipse.collections</groupId>
+                <artifactId>eclipse-collections-api</artifactId>
+                <version>${eclipseCollections.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.eclipse.collections</groupId>
+                <artifactId>eclipse-collections</artifactId>
+                <version>${eclipseCollections.version}</version>
+            </dependency>
+
+            <!-- ==================== Tuweni ==================== -->
+            <dependency>
+                <groupId>io.tmio</groupId>
+                <artifactId>tuweni-bytes</artifactId>
+                <version>${tuweni.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.tmio</groupId>
+                <artifactId>tuweni-units</artifactId>
+                <version>${tuweni.version}</version>
+            </dependency>
+
+            <!-- ==================== Apache Commons ==================== -->
+            <dependency>
+                <groupId>commons-codec</groupId>
+                <artifactId>commons-codec</artifactId>
+                <version>${commonsCodec.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-io</groupId>
+                <artifactId>commons-io</artifactId>
+                <version>${commonsIo.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>${commonsLang3.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-compress</artifactId>
+                <version>${commonsCompress.version}</version>
+            </dependency>
+
+            <!-- ==================== Utilities ==================== -->
+            <dependency>
+                <groupId>com.github.ben-manes.caffeine</groupId>
+                <artifactId>caffeine</artifactId>
+                <version>${caffeine.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.docker-java</groupId>
+                <artifactId>docker-java-api</artifactId>
+                <version>${dockerJava.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-annotations</artifactId>
+                <version>${spotbugs.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.squareup</groupId>
+                <artifactId>javapoet</artifactId>
+                <version>${javapoet.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.java.dev.jna</groupId>
+                <artifactId>jna</artifactId>
+                <version>${jna.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.esaulpaugh</groupId>
+                <artifactId>headlong</artifactId>
+                <version>${headlong.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>info.picocli</groupId>
+                <artifactId>picocli</artifactId>
+                <version>${picocli.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.classgraph</groupId>
+                <artifactId>classgraph</artifactId>
+                <version>${classgraph.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.perfmark</groupId>
+                <artifactId>perfmark-api</artifactId>
+                <version>${perfmark.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>jakarta.inject</groupId>
+                <artifactId>jakarta.inject-api</artifactId>
+                <version>${jakartaInject.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>javax.inject</groupId>
+                <artifactId>javax.inject</artifactId>
+                <version>${javaxInject.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.goterl</groupId>
+                <artifactId>lazysodium-java</artifactId>
+                <version>${lazysodium.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.i2p.crypto</groupId>
+                <artifactId>eddsa</artifactId>
+                <version>${eddsa.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.antlr</groupId>
+                <artifactId>antlr4-runtime</artifactId>
+                <version>${antlr4.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jetbrains</groupId>
+                <artifactId>annotations</artifactId>
+                <version>${jetbrainsAnnotations.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.json</groupId>
+                <artifactId>json</artifactId>
+                <version>${json.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.yaml</groupId>
+                <artifactId>snakeyaml</artifactId>
+                <version>${snakeyaml.version}</version>
+            </dependency>
+
+            <!-- ==================== Prometheus ==================== -->
+            <dependency>
+                <groupId>io.prometheus</groupId>
+                <artifactId>simpleclient</artifactId>
+                <version>${prometheus.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.prometheus</groupId>
+                <artifactId>simpleclient_httpserver</artifactId>
+                <version>${prometheus.version}</version>
+            </dependency>
+
+            <!-- ==================== Testing ==================== -->
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-api</artifactId>
+                <version>${junit5.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-engine</artifactId>
+                <version>${junit5.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.junit.jupiter</groupId>
+                <artifactId>junit-jupiter-params</artifactId>
+                <version>${junit5.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-core</artifactId>
+                <version>${mockito.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mockito</groupId>
+                <artifactId>mockito-junit-jupiter</artifactId>
+                <version>${mockito.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.assertj</groupId>
+                <artifactId>assertj-core</artifactId>
+                <version>${assertj.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.awaitility</groupId>
+                <artifactId>awaitility</artifactId>
+                <version>${awaitility.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.opentest4j</groupId>
+                <artifactId>opentest4j</artifactId>
+                <version>${opentest4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers</artifactId>
+                <version>${testContainers.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>uk.org.webcompere</groupId>
+                <artifactId>system-stubs-core</artifactId>
+                <version>${webcompare.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>uk.org.webcompere</groupId>
+                <artifactId>system-stubs-jupiter</artifactId>
+                <version>${webcompare.version}</version>
+            </dependency>
+
+            <!-- ==================== JMH Benchmarking ==================== -->
+            <dependency>
+                <groupId>org.openjdk.jmh</groupId>
+                <artifactId>jmh-core</artifactId>
+                <version>${jmh.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.openjdk.jmh</groupId>
+                <artifactId>jmh-generator-annprocess</artifactId>
+                <version>${jmh.version}</version>
+            </dependency>
+
+            <!-- ==================== Block Node Protobuf Sources ==================== -->
+            <dependency>
+                <groupId>org.hiero.block</groupId>
+                <artifactId>block-node-protobuf-sources</artifactId>
+                <version>${blockNodeProtobufSources.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+</project>
