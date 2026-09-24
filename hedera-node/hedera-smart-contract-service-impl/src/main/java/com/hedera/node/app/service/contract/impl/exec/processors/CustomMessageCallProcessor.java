@@ -22,14 +22,12 @@ import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractClprSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmContract;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.state.ScheduleEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.TokenEvmAccount;
-import com.hedera.node.config.data.ClprConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
@@ -219,15 +217,7 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
     }
 
     private boolean isSystemContractCall(@NonNull final CustomMessageCallContext context) {
-        final var systemContract = systemContracts.get(context.executableCodeAddress);
-        // While disabled, preserve the system-account path, including its value-transfer,
-        // code-delegation, and gas-consumption semantics. Read the current frame's config
-        // so enabling CLPR does not require rebuilding the singleton contract registry.
-        return systemContract != null
-                && (!(systemContract instanceof AbstractClprSystemContract)
-                        || configOf(context.frame)
-                                .getConfigData(ClprConfig.class)
-                                .enabled());
+        return systemContracts.containsKey(context.executableCodeAddress);
     }
 
     private void handleSystemContractCall(

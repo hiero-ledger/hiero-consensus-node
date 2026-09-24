@@ -13,8 +13,7 @@ option java_multiple_files = true;
  * The bundle_payload is opaque to the protocol and passed to the Channel's
  * verifier contract, which returns verified queue metadata and message payloads.
  * The submitting endpoint is identified by its node ID in the address book;
- * a user transaction must be signed with that node's admin key. A node-generated
- * transaction may instead rely on its authenticated consensus event, provided
+ * A node-generated transaction may instead rely on its authenticated consensus event, provided
  * both the event creator and payer identify that endpoint node.
  *
  * Authority: any endpoint node registered in the address book.
@@ -36,11 +35,9 @@ message ClprSubmitBundleTransactionBody {
 
     /**
      * Node ID of the endpoint that received and is submitting this bundle.
-     * Must correspond to a node in the address book. The transaction must
-     * be signed with this node's admin key, unless it is a node-generated
-     * transaction whose authenticated event creator and payer identify this node.
+     * Must correspond to a node in the address book.
      */
-    uint64 endpoint_node_id = 3;
+    uint64 endpoint_node_id = 3 [deprecated = true];
 
     /**
      * Deprecated. Accepted for wire compatibility but ignored by the handler.

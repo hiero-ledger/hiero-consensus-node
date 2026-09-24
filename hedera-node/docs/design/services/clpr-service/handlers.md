@@ -94,9 +94,6 @@ side-effects.
 - Source of bundles: the `ClprBundleSubmitter` running on the same node — the platform's
   event-level signature substitutes for an explicit `SignatureMap` (which is empty);
   `CLPR_SUBMIT_BUNDLE` is therefore in `networkAdmin.nodeTransactionsAllowList`.
-  This exemption requires NODE category, an endpoint ID matching the authenticated
-  event creator, and the endpoint's account as payer. User submissions require the
-  endpoint node's admin-key signature, even when creator and payer match the endpoint.
 - Validation pipeline (each step is from spec §4.2):
   1. Lookup channel; check it is `ACTIVE`/`PAUSED`. If `DRAINED`/`CLOSED`, reject.
   2. Call `ClprVerifier.verifyBundle` (see [`verifier.md`](verifier.md)) → `ClprBundleContent`.

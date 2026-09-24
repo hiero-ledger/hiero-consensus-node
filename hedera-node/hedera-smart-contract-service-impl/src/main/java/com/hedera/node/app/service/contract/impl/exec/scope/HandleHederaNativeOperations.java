@@ -11,7 +11,6 @@ import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FE
 import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
-import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.STATIC_CALL;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.SUPPRESSING_SIGNED_TX_CUSTOMIZER;
 import static java.util.Objects.requireNonNull;
@@ -337,11 +336,7 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
                         .build())
                 .build();
         final var result = context.dispatch(stepDispatch(
-                payerId,
-                syntheticBody,
-                HookDispatchStreamBuilder.class,
-                signedTxCustomizer,
-                dispatchMetadata.withMetadata(STATIC_CALL, Boolean.TRUE)));
+                payerId, syntheticBody, HookDispatchStreamBuilder.class, signedTxCustomizer, dispatchMetadata));
         if (result.status() != SUCCESS) {
             return null;
         }

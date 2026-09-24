@@ -121,32 +121,16 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
-        final var op = context.body().clprSubmitBundleOrThrow();
-        final var nodeStore = context.createStore(ReadableNodeStore.class);
-        final var node = nodeStore.get(op.endpointNodeId());
-        validateTruePreCheck(node != null && !node.deleted(), INVALID_NODE_ID);
-        if (context.creatorInfo() != null
-                && context.creatorInfo().nodeId() == op.endpointNodeId()
-                && context.payer().equals(node.accountId())) {
-            // Pre-handle does not expose the transaction category. Expand an optional admin
-            // signature here; handle requires it for USER transactions, while authenticated
-            // NODE transactions may rely on the creator's event signature.
-            if (node.adminKey() != null) {
-                context.optionalKey(node.adminKey());
-            }
-        } else {
-            context.requireKeyOrThrow(node.adminKey(), INVALID_NODE_ID);
-        }
+
     }
 
     @Override
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
         final var op = context.body().clprSubmitBundleOrThrow();
         log.debug(
-                "[ClprSubmitBundle] doHandle ENTER conn={} bundleBytes={} endpointNode={} creatorNode={} payer={}",
+                "[ClprSubmitBundle] doHandle ENTER conn={} bundleBytes={} creatorNode={} payer={}",
                 op.channelId(),
                 op.bundlePayload().length(),
-                op.endpointNodeId(),
                 context.creatorInfo().nodeId(),
                 context.payer());
         final var configuration = context.configuration();
@@ -157,25 +141,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         final var penaltyAmount = clprConfig.endpointMisbehaviorPenaltyTinybars();
         final var storeFactory = context.storeFactory();
 
-        // Authenticate the endpoint before any verifier call, state mutation, or penalty.
-        // Re-read its state because it may have changed since pre-handle.
-        final var nodeStore = storeFactory.readableStore(ReadableNodeStore.class);
-        final var endpointNode = nodeStore.get(op.endpointNodeId());
-        validateTrue(endpointNode != null && !endpointNode.deleted(), INVALID_NODE_ID);
-        final var endpointAccountId = endpointNode.accountIdOrThrow();
-        if (context.savepointStack().getBaseBuilder(StreamBuilder.class).category() == NODE) {
-            validateTrue(
-                    context.creatorInfo().nodeId() == op.endpointNodeId()
-                            && context.payer().equals(endpointAccountId),
-                    INVALID_NODE_ID);
-        } else {
-            validateTrue(
-                    endpointNode.adminKey() != null
-                            && context.keyVerifier()
-                                    .verificationFor(endpointNode.adminKey())
-                                    .passed(),
-                    INVALID_SIGNATURE);
-        }
         final var connectorStore = storeFactory.writableStore(WritableConnectorStore.class);
         final var channelStore = storeFactory.writableStore(WritableChannelStore.class);
         final var messageQueueStore = storeFactory.writableStore(WritableMessageQueueStore.class);
@@ -388,14 +353,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 throttles.maxMessagesPerBundle());
 
         // --- Step 4b: Per-message payload size check (spec §3.5.4) ---
-        // Bound worst-case message execution before processing any messages. Division
-        // avoids overflow for malicious or stale ledger-configuration limits.
-        final var maxBundleGas =
-                configuration.getConfigData(ContractsConfig.class).maxGasPerTransaction();
-        validateTrue(
-                throttles.maxGasPerMessage() > 0 && messages.size() <= maxBundleGas / throttles.maxGasPerMessage(),
-                MAX_GAS_LIMIT_EXCEEDED);
-
         final long maxPayloadBytes = throttles.maxMessagePayloadBytes();
         if (maxPayloadBytes > 0) {
             for (final var payload : messages) {

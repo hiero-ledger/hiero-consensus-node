@@ -71,18 +71,6 @@ others are node-local.
 > `clpr.enabled=true` explicitly to activate it after the `LEDGER_CONFIGURATION`
 > singleton exists.
 
-Bundle submissions use the dedicated `ClprBundles` throttle bucket: one bundle per
-second with a one-second burst window. Node payers are not exempt from this limit.
-The aggregate worst-case message gas in one bundle must fit
-`contracts.maxGasPerTransaction` (15M by default); verifier execution has its own
-`clpr.verifierGasLimit` budget. Genesis therefore advertises one message per bundle
-at 15M gas per message. Larger batches require a correspondingly lower
-`maxGasPerMessage`. Configuration updates that exceed the aggregate budget are
-rejected, and bundle handling independently checks the actual message count before
-executing any callbacks. Existing CLPR configurations are preserved during migration;
-operators must lower their advertised message count or per-message gas before
-sending batches that exceed the new budget.
-
 ## Throttles inside `ClprLedgerConfiguration`
 
 Distinct from `ClprConfig` — these are *protocol-level* limits stored in state, set by
