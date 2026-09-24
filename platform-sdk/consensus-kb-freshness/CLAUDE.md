@@ -12,7 +12,7 @@ This file covers what differs from repo defaults; see `README.md` for user-facin
 ./gradlew :consensus-kb-freshness:run --args="--kb platform-sdk/docs/consensus-layer --repo $(pwd) --out build/kb-freshness"
 ```
 
-The application module also produces a standalone shadow jar (`org.hiero.gradle.feature.shadow`):
+The application module also produces a standalone shadow jar (`org.gradlex.java-module-packaging`):
 `./gradlew :consensus-kb-freshness:assemble` → `build/libs/consensus-kb-freshness-*-all.jar`, runnable
 with `java -jar`.
 

@@ -313,7 +313,7 @@ jobs:
       - name: Gradle Assemble
         id: gradle-build
         working-directory: ${{ github.workspace }}
-        run: ./gradlew assemble :test-clients:shadowJar
+        run: ./gradlew assemble :test-clients:fatModuleJar
 
       - name: Regression Gradle Assemble
         id: regression-gradle-build
