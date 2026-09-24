@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 /**
@@ -91,7 +92,8 @@ public class RootHashValidator implements Validator {
 
         if (!java.util.Objects.equals(expectedRootHashLine, actualRootHashLine)) {
             throw new ValidationException(
-                    getName(), String.format("Expected <%s> but was <%s>", expectedRootHashLine, actualRootHashLine));
+                    getName(),
+                    String.format(Locale.ROOT, "Expected <%s> but was <%s>", expectedRootHashLine, actualRootHashLine));
         }
     }
 }

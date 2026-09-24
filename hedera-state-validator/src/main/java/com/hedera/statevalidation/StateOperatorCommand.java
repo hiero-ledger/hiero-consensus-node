@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import picocli.CommandLine;
@@ -104,7 +105,8 @@ public class StateOperatorCommand implements Runnable {
                     resolvedStateDir = innerDir.toFile();
                     trackTempDirectory(cacheDir);
                     log.info("Reusing cached state directory: {}", resolvedStateDir.getAbsolutePath());
-                    System.out.printf("Reusing cached state directory: %s%n", resolvedStateDir.getAbsolutePath());
+                    System.out.printf(
+                            Locale.ROOT, "Reusing cached state directory: %s%n", resolvedStateDir.getAbsolutePath());
                 } else {
                     // Remove any partial download leftovers before re-downloading
                     if (Files.isDirectory(cacheDir)) {

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.report;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import com.hedera.statevalidation.validator.util.ValidationException;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -30,7 +32,7 @@ public final class ErrorsFileReport {
             return;
         }
 
-        try (final var writer = new FileWriter(REPORT_FILE)) {
+        try (final var writer = new FileWriter(REPORT_FILE, UTF_8)) {
             for (final var exception : exceptions) {
                 writer.write(exception.getValidatorName() + ':' + exception.getMessage());
             }
