@@ -69,7 +69,7 @@ public class SyncGossipModular implements Gossip {
      * @param time the time source
      * @param threadManager the thread manager
      * @param ownKeysAndCerts private keys and public certificates for this node
-     * @param roster the current roster
+     * @param roster the active roster
      * @param selfId this node's ID
      * @param appVersion the version of the app
      * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
