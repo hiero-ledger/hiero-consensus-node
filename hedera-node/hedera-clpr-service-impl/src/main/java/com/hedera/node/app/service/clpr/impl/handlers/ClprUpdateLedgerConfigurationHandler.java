@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_SEED_ENDPO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_TOO_MANY_SEED_ENDPOINTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CLPR_CONFIGURATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -19,7 +20,9 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -104,6 +107,7 @@ public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
         final var op = context.body().clprUpdateLedgerConfigurationOrThrow();
         final var supplied = op.configurationOrThrow();
+        validateTrue(fitsBundleGasBudget(supplied, context.configuration()), INVALID_CLPR_CONFIGURATION);
 
         final var storeFactory = context.storeFactory();
         final var configStore = storeFactory.writableStore(WritableLedgerConfigurationStore.class);
@@ -137,6 +141,16 @@ public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
                 .build();
 
         configStore.put(updatedConfig);
+    }
+
+    private static boolean fitsBundleGasBudget(
+            @NonNull final ClprLedgerConfiguration ledgerConfig, @NonNull final Configuration configuration) {
+        final var throttles = ledgerConfig.throttlesOrElse(ClprThrottles.DEFAULT);
+        final var maxBundleGas =
+                configuration.getConfigData(ContractsConfig.class).maxGasPerTransaction();
+        return throttles.maxMessagesPerBundle() > 0
+                && throttles.maxGasPerMessage() > 0
+                && throttles.maxMessagesPerBundle() <= maxBundleGas / throttles.maxGasPerMessage();
     }
 
     private static void validateEndpoint(@NonNull final ClprEndpoint endpoint) throws PreCheckException {
