@@ -118,6 +118,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     @Override
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
         final var op = context.body().clprSubmitBundleOrThrow();
+        final var nodeAccountId = context.body().transactionIDOrThrow().accountIDOrThrow();
         log.debug(
                 "[ClprSubmitBundle] doHandle ENTER conn={} bundleBytes={} creatorNode={} payer={}",
                 op.channelId(),
@@ -173,7 +174,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         validateTrueOrPenalize(
                 op.bundlePayload().length() <= throttles.maxSyncBytes(),
                 CLPR_PAYLOAD_TOO_LARGE,
-                endpointAccountId,
+                nodeAccountId,
                 penaltyAmount);
 
         // --- Step 4: Verifier call ---
@@ -218,7 +219,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         validateTrueOrPenalize(
                 newTrustAnchor.length() == 0 ? newTrustAnchorId.length() == 0 : newTrustAnchorId.length() > 0,
                 CLPR_BUNDLE_VERIFICATION_FAILED,
-                endpointAccountId,
+                nodeAccountId,
                 penaltyAmount);
         log.debug("[ClprSubmitBundle] check passed: trust-anchor invariant");
 
@@ -296,7 +297,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             validateTrueOrPenalize(
                     messages.isEmpty() && (newTrustAnchor.length() > 0 || shouldUpdateManifest),
                     CLPR_BUNDLE_VERIFICATION_FAILED,
-                    endpointAccountId,
+                    nodeAccountId,
                     penaltyAmount);
             log.debug(
                     "[ClprSubmitBundle] state-update-only bundle accepted conn={} trustAnchorLen={} manifestUpdated={}",
@@ -329,14 +330,14 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         || hasStateTransition
                         || hasManifestAdvancement,
                 CLPR_NO_PROGRESS,
-                endpointAccountId,
+                nodeAccountId,
                 penaltyAmount);
         log.debug("[ClprSubmitBundle] check passed: makes progress");
 
         validateTrueOrPenalize(
                 messages.size() <= throttles.maxMessagesPerBundle(),
                 CLPR_BUNDLE_VERIFICATION_FAILED,
-                endpointAccountId,
+                nodeAccountId,
                 penaltyAmount);
         log.debug(
                 "[ClprSubmitBundle] check passed: maxMessagesPerBundle (size={} max={})",
@@ -351,7 +352,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     validateTrueOrPenalize(
                             payload.messageOrThrow().messageData().length() <= maxPayloadBytes,
                             CLPR_PAYLOAD_TOO_LARGE,
-                            endpointAccountId,
+                            nodeAccountId,
                             penaltyAmount);
                 }
             }
@@ -374,13 +375,13 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         validateTrueOrPenalize(
                 peerAckedMessageId >= 0 && peerAckedMessageId <= channel.receivedMessageId(),
                 CLPR_BUNDLE_VERIFICATION_FAILED,
-                endpointAccountId,
+                nodeAccountId,
                 penaltyAmount);
         final int skipCount = (int) (channel.receivedMessageId() - peerAckedMessageId);
         // skipCount <= messages.size() iff our.receivedMessageId <= peer.nextMessageId - 1
         // (we can't have received more than peer has sent). Reject if violated.
         validateTrueOrPenalize(
-                skipCount <= messages.size(), CLPR_BUNDLE_VERIFICATION_FAILED, endpointAccountId, penaltyAmount);
+                skipCount <= messages.size(), CLPR_BUNDLE_VERIFICATION_FAILED, nodeAccountId, penaltyAmount);
         // Trim the replayed prefix; downstream steps process only the new tail.
         final var newMessages = skipCount > 0 ? messages.subList(skipCount, messages.size()) : messages;
         final var expectedFirstId = channel.receivedMessageId() + 1;
@@ -417,10 +418,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // Empty hash is only valid on the very first bundle.
         if (computedHash.length() == 0) {
             validateTrueOrPenalize(
-                    channel.receivedMessageId() == 0,
-                    CLPR_BUNDLE_VERIFICATION_FAILED,
-                    endpointAccountId,
-                    penaltyAmount);
+                    channel.receivedMessageId() == 0, CLPR_BUNDLE_VERIFICATION_FAILED, nodeAccountId, penaltyAmount);
             computedHash = ZERO_HASH;
         }
         for (final var payload : newMessages) {
@@ -434,7 +432,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 validateTrueOrPenalize(
                         messageHash != null && messageHash.length() == 32,
                         CLPR_RUNNING_HASH_MISMATCH,
-                        endpointAccountId,
+                        nodeAccountId,
                         penaltyAmount);
                 computedHash = ClprHashUtils.computeRunningHashFromPayloadHash(computedHash, messageHash);
                 log.debug(
@@ -458,7 +456,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         validateTrueOrPenalize(
                 computedHash.equals(metadata.sentRunningHash()),
                 CLPR_RUNNING_HASH_MISMATCH,
-                endpointAccountId,
+                nodeAccountId,
                 penaltyAmount);
         log.debug(
                 "[ClprSubmitBundle] step6 running-hash PASS conn={} computedHash={}",
@@ -474,17 +472,14 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 oldAckedMessageId,
                 channel.nextMessageId());
         validateTrueOrPenalize(
-                newAckedMessageId >= oldAckedMessageId,
-                CLPR_BUNDLE_VERIFICATION_FAILED,
-                endpointAccountId,
-                penaltyAmount);
+                newAckedMessageId >= oldAckedMessageId, CLPR_BUNDLE_VERIFICATION_FAILED, nodeAccountId, penaltyAmount);
         // Allow newAckedMessageId == oldAckedMessageId (no change) even when nextMessageId=0 (initial state).
         // The condition newAckedMessageId < nextMessageId would otherwise incorrectly reject the "nothing sent,
         // nothing acked" initial state (0 < 0 = false).
         validateTrueOrPenalize(
                 newAckedMessageId < channel.nextMessageId() || newAckedMessageId == oldAckedMessageId,
                 CLPR_BUNDLE_VERIFICATION_FAILED,
-                endpointAccountId,
+                nodeAccountId,
                 penaltyAmount);
 
         var currentStatus = channel.status(); // Our current channel status
@@ -555,7 +550,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     channelStore.put(channel.copyBuilder()
                             .status(ClprChannelStatus.PAUSED)
                             .build());
-                    context.tryToCharge(endpointAccountId, penaltyAmount);
+                    context.tryToCharge(nodeAccountId, penaltyAmount);
                 }
                 return;
             }
@@ -603,7 +598,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             if (currentStatus == ClprChannelStatus.ACTIVE) {
                 channelStore.put(
                         channel.copyBuilder().status(ClprChannelStatus.PAUSED).build());
-                context.tryToCharge(endpointAccountId, penaltyAmount);
+                context.tryToCharge(nodeAccountId, penaltyAmount);
             }
             return;
         }
@@ -701,7 +696,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                 peerConfig == null ? 0 : peerConfig.endpoints().size());
                         if (peerConfig != null) {
                             validatePeerConfig(
-                                    peerConfig, ledgerConfig, peerConfigTimestamp, endpointAccountId, penaltyAmount);
+                                    peerConfig, ledgerConfig, peerConfigTimestamp, nodeAccountId, penaltyAmount);
                             peerConfigTimestamp = peerConfig.timestamp();
                         }
                         if (peerConfig != null && peerConfig.throttles() != null) {
@@ -722,8 +717,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                 "[ClprSubmitBundle] CONTROL unknown variant conn={} receivedMsgId={}",
                                 channelId,
                                 receivedMessageId);
-                        validateTrueOrPenalize(
-                                false, CLPR_BUNDLE_VERIFICATION_FAILED, endpointAccountId, penaltyAmount);
+                        validateTrueOrPenalize(false, CLPR_BUNDLE_VERIFICATION_FAILED, nodeAccountId, penaltyAmount);
                     }
                 } else if (payload.hasMessage()) {
                     // We must be ACTIVE, CLOSING, or DRAINED (CLOSED channels are rejected at the top of the
@@ -1508,17 +1502,17 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             @NonNull final ClprLedgerConfiguration peerConfig,
             @NonNull final ClprLedgerConfiguration ledgerConfig,
             @Nullable final Timestamp peerConfigTimestamp,
-            @NonNull final AccountID endpointAccountId,
+            @NonNull final AccountID nodeAccountId,
             final long penaltyAmount) {
         requireNonNull(peerConfig);
         requireNonNull(ledgerConfig);
-        requireNonNull(endpointAccountId);
+        requireNonNull(nodeAccountId);
 
         // Spec §1.1 Protocol Version: both sides MUST agree; cross-version messaging is not supported.
         validateTrueOrPenalize(
                 peerConfig.protocolVersion() == ledgerConfig.protocolVersion(),
                 CLPR_BUNDLE_VERIFICATION_FAILED,
-                endpointAccountId,
+                nodeAccountId,
                 penaltyAmount);
 
         // Spec §1.1 Timestamp: seconds MUST be non-negative and nanos MUST be in [0, 999_999_999].
@@ -1528,7 +1522,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         validateTrueOrPenalize(
                 peerTs != null && peerTs.seconds() >= 0 && peerTs.nanos() >= 0 && peerTs.nanos() < 1_000_000_000,
                 CLPR_BUNDLE_VERIFICATION_FAILED,
-                endpointAccountId,
+                nodeAccountId,
                 penaltyAmount);
 
         // Spec §1.3: the enclosed configuration's timestamp MUST be strictly greater than the
@@ -1536,7 +1530,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         validateTrueOrPenalize(
                 isTimestampBefore(peerConfigTimestamp, peerTs),
                 CLPR_BUNDLE_VERIFICATION_FAILED,
-                endpointAccountId,
+                nodeAccountId,
                 penaltyAmount);
     }
 
@@ -1551,26 +1545,26 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
     /**
      * Validates a condition and, if false, throws a {@link HandleException} whose
-     * {@link HandleException.OnRollback} charges the endpoint's account a flat penalty.
+     * {@link HandleException.OnRollback} charges the submitting node's account a flat penalty.
      * The penalty is applied via {@link com.hedera.node.app.spi.fees.FeeCharging.Context#charge}
      * after the framework rolls back all state mutations, so it persists independently of the
      * failed transaction.
      *
      * @param condition          the condition that must be true
      * @param errorStatus        the response code to report on failure
-     * @param endpointAccountId  the endpoint node's account to penalize
+     * @param nodeAccountId      the submitting node's account from the transaction ID
      * @param penaltyAmount      the penalty in tinybars
      */
     private static void validateTrueOrPenalize(
             final boolean condition,
             @NonNull final ResponseCodeEnum errorStatus,
-            @NonNull final AccountID endpointAccountId,
+            @NonNull final AccountID nodeAccountId,
             final long penaltyAmount) {
         if (!condition) {
             throw new HandleException(errorStatus, (feeChargingContext, ignored) -> {
                 if (penaltyAmount > 0) {
                     try {
-                        feeChargingContext.charge(endpointAccountId, new Fees(0, penaltyAmount, 0), null);
+                        feeChargingContext.charge(nodeAccountId, new Fees(0, penaltyAmount, 0), null);
                     } catch (final Exception e) {
                         // Best effort — endpoint may be insolvent; the failed transaction
                         // status is punishment enough
