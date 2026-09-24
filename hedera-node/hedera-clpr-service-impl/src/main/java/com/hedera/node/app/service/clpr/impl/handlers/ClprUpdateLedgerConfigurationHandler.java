@@ -5,7 +5,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_SEED_ENDPO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_TOO_MANY_SEED_ENDPOINTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CLPR_CONFIGURATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 

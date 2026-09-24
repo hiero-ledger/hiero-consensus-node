@@ -7,16 +7,12 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INTERNAL_STATE_COR
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_RUNNING_HASH_MISMATCH;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CLPR_DISPATCH;
-import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
@@ -37,7 +33,6 @@ import com.hedera.hapi.node.state.clpr.ClprMessageReply;
 import com.hedera.hapi.node.state.clpr.ClprMessageReplyStatus;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
 import com.hedera.node.app.service.clpr.impl.ClprHashUtils;
@@ -59,10 +54,8 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ClprConfig;
-import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -120,9 +113,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     }
 
     @Override
-    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
-
-    }
+    public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {}
 
     @Override
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
