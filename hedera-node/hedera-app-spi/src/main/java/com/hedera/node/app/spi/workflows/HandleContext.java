@@ -184,6 +184,12 @@ public interface HandleContext {
              */
             EXPLICIT_WRITE_TRACING,
             /**
+             * Signals that the dispatched contract call must execute in a static EVM frame. State-modifying
+             * opcodes (SSTORE, LOG*, CREATE*, SELFDESTRUCT, value-bearing CALL) halt with ILLEGAL_STATE_CHANGE.
+             * Used by system-contract sub-calls that must not mutate state.
+             */
+            STATIC_CALL,
+            /**
              * Batch inner transaction bytes. Used to pre-handle inner transaction while dispatching them.
              */
             INNER_TRANSACTION_BYTES,
@@ -194,9 +200,19 @@ public interface HandleContext {
              */
             BATCH_ROLLBACK_CALLBACK_CONSUMER,
             /**
+             * Metadata for a contract child dispatch executed by the native CLPR service.
+             */
+            CLPR_DISPATCH,
+            /**
              * An entity num to be created by transplant system transactions.
              */
-            SYSTEM_TXN_CREATION_ENTITY_NUM
+            SYSTEM_TXN_CREATION_ENTITY_NUM,
+            /**
+             * The {@link com.hedera.hapi.node.base.TransactionID} of the atomic batch inner transaction a dispatch
+             * belongs to, when that cannot be inferred from the dispatching stack; used to attribute the side effects
+             * an inner transaction is replayed with after the batch has already unwound its savepoints.
+             */
+            ATTRIBUTED_BATCH_INNER_ID
         }
     }
 

@@ -63,8 +63,8 @@ class RosterHistoryTest {
 
     @ParameterizedTest
     @MethodSource({"provideArguments"})
-    void testGetCurrentRoster(final RosterHistory rosterHistory) {
-        assertEquals(ROSTER_2, rosterHistory.getCurrentRoster());
+    void testGetActiveRoster(final RosterHistory rosterHistory) {
+        assertEquals(ROSTER_2, rosterHistory.getActiveRoster());
     }
 
     @ParameterizedTest

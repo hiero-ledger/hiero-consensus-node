@@ -4,7 +4,6 @@ package org.hiero.consensus.event.intake.impl;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.wiring.framework.wires.SolderType.INJECT;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -34,9 +33,10 @@ import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
-import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.wiring.framework.component.ComponentWiring;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
@@ -88,7 +88,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final RosterHistory rosterHistory,
+            @NonNull final RosterWrapperHistory rosterHistory,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final TransactionLimits transactionLimits,
             @Nullable final EventPipelineTracker pipelineTracker) {
@@ -193,7 +193,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         branchReporterWiring.getInputWire(BranchReporter::clear);
 
         // Create and bind components
-        final Roster currentRoster = rosterHistory.getCurrentRoster();
+        final RosterWrapper activeRoster = rosterHistory.activeRoster();
         final EventHasher eventHasher = new DefaultEventHasher();
         eventHasherWiring.bind(eventHasher);
         final InternalEventValidator internalEventValidator = new DefaultInternalEventValidator(
@@ -206,9 +206,9 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         eventSignatureValidatorWiring.bind(eventSignatureValidator);
         final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
         orphanBufferWiring.bind(orphanBuffer);
-        final BranchDetector branchDetector = new DefaultBranchDetector(currentRoster);
+        final BranchDetector branchDetector = new DefaultBranchDetector(activeRoster);
         branchDetectorWiring.bind(branchDetector);
-        final BranchReporter branchReporter = new DefaultBranchReporter(metrics, time, currentRoster);
+        final BranchReporter branchReporter = new DefaultBranchReporter(metrics, time, activeRoster);
         branchReporterWiring.bind(branchReporter);
     }
 
@@ -263,7 +263,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
      */
     @Override
     @NonNull
-    public InputWire<RosterHistory> rosterHistoryInputWire() {
+    public InputWire<RosterWrapperHistory> rosterHistoryInputWire() {
         return requireNonNull(eventSignatureValidatorWiring, "Not initialized")
                 .getInputWire(EventSignatureValidator::updateRosterHistory);
     }

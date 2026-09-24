@@ -10,12 +10,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A Roster History object that encapsulates information about the current active roster
+ * A Roster History object that encapsulates information about the active roster
  * and the previous active roster, and their corresponding starting round numbers.
  */
-public class RosterHistory {
-    private final List<RoundRosterPair> history;
-    private final Map<Bytes, Roster> rosters;
+public record RosterHistory(
+        @NonNull List<RoundRosterPair> history, @NonNull Map<Bytes, Roster> rosters) {
 
     /**
      * Construct a RosterHistory for a genesis roster.
@@ -34,10 +33,7 @@ public class RosterHistory {
      * @param history a non-empty list of round number/roster hash pairs
      * @param rosters a map from roster hash to roster objects which must contain all the roster hashes found in the history.
      */
-    public RosterHistory(@NonNull final List<RoundRosterPair> history, @NonNull final Map<Bytes, Roster> rosters) {
-        this.history = history;
-        this.rosters = rosters;
-
+    public RosterHistory {
         if (history.isEmpty()) {
             throw new IllegalArgumentException("Roster history is empty");
         }
@@ -50,17 +46,17 @@ public class RosterHistory {
     }
 
     /**
-     * Returns the current active roster, which is the very first (index == 0) entry in the history list.
-     * @return the current active roster
+     * Returns the active roster, which is the very first (index == 0) entry in the history list.
+     * @return the active roster
      */
     @NonNull
-    public Roster getCurrentRoster() {
+    public Roster getActiveRoster() {
         return rosters.get(history.getFirst().activeRosterHash());
     }
 
     /**
      * Returns the previous roster, which is the second (index == 1) entry in the history list,
-     * or the very first entry equal to the current active roster if the history has a single entry only.
+     * or the very first entry equal to the active roster if the history has a single entry only.
      * @return the previous roster
      */
     @NonNull
@@ -94,7 +90,7 @@ public class RosterHistory {
         final boolean previousExists = history.size() > 1;
 
         final StringBuilder sb = new StringBuilder();
-        sb.append("RosterHistory[ currentRosterRound: ")
+        sb.append("RosterHistory[ activeRosterRound: ")
                 .append(history.getFirst().roundNumber())
                 .append(" ][ ");
         if (previousExists) {
@@ -102,7 +98,7 @@ public class RosterHistory {
         } else {
             sb.append("no previous roster set");
         }
-        sb.append(" ]\nCurrent Roster: ").append(Roster.JSON.toJSON(getCurrentRoster()));
+        sb.append(" ]\nActive Roster: ").append(Roster.JSON.toJSON(getActiveRoster()));
         if (previousExists) {
             sb.append("\nPrevious Roster: ").append(Roster.JSON.toJSON(getPreviousRoster()));
         }
