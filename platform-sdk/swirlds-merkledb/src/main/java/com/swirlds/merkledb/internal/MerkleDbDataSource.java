@@ -93,9 +93,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     private static final FieldDefinition FIELD_DSMETADATA_HASHCHUNKHEIGHT =
             new FieldDefinition("hashChunkHeight", FieldType.UINT32, false, true, false, 7);
 
-    // Hash digest type length, e.g. 48 for SHA_384
-    private static final FieldDefinition FIELD_DSMETADATA_HASHLENGTH =
-            new FieldDefinition("hashLength", FieldType.UINT32, false, true, false, 8);
+    // Hash digest type ID. See DigestType.id() for details
+    private static final FieldDefinition FIELD_DSMETADATA_HASHDIGESTTYPEID =
+            new FieldDefinition("hashDigestTypeId", FieldType.UINT32, false, true, false, 8);
 
     /*
      * MerkleDb configuration.
@@ -195,15 +195,16 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     private volatile KeyRange validLeafPathRange = INVALID_KEY_RANGE;
 
     /**
-     * If this data source is created from scratch, the length is always DEFAULT_DIGEST_TYPE
-     * length. If the data source is loaded from a snapshot, the length is initialized from
-     * data source metadata.
+     * If this data source is created from scratch, the digest type is always DEFAULT_DIGEST_TYPE.
+     * If the data source is loaded from a snapshot, the digest type is initialized from
+     * data source metadata. If there is no information about message digest type in the
+     * metadata, this indicates the snapshot is old, and all hashes in it are SHA-384.
      *
      * <p>During data flushes, all hashes must be of DEFAULT_DIGEST_TYPE. This field is only
      * used to check whether full tree rehash is needed at startup because of default message
      * digest type change.
      */
-    private volatile int loadedHashLengthOrDefault = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+    private volatile DigestType loadedHashDigestTypeOrDefault = Cryptography.DEFAULT_DIGEST_TYPE;
 
     /** Paths to all database files and directories */
     private final MerkleDbPaths dbPaths;
@@ -551,9 +552,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         return hashChunkHeight;
     }
 
+    @NonNull
     @Override
-    public int getLoadedHashLength() {
-        return loadedHashLengthOrDefault;
+    public DigestType getLoadedHashDigestType() {
+        return loadedHashDigestTypeOrDefault;
     }
 
     /**
@@ -1027,9 +1029,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             // Hash chunk height
             ProtoWriterTools.writeTag(out, FIELD_DSMETADATA_HASHCHUNKHEIGHT);
             out.writeVarInt(hashChunkHeight, false);
-            // Message digest length for hashes
-            ProtoWriterTools.writeTag(out, FIELD_DSMETADATA_HASHLENGTH);
-            out.writeVarInt(Cryptography.DEFAULT_DIGEST_TYPE.digestLength(), false);
+            // Message digest type ID for hashes
+            ProtoWriterTools.writeTag(out, FIELD_DSMETADATA_HASHDIGESTTYPEID);
+            out.writeVarInt(Cryptography.DEFAULT_DIGEST_TYPE.id(), false);
             // Flush
             fileOut.flush();
         }
@@ -1040,9 +1042,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final Path sourceFile = sourceDir.metadataFile;
             long minValidKey = 0;
             long maxValidKey = 0;
-            // If there is no hash length field in the metadata, it must be an old data
+            // If there is no hash type ID field in the metadata, it must be an old data
             // source snapshot, where SHA-384 was used by default
-            loadedHashLengthOrDefault = DigestType.SHA_384.digestLength();
+            loadedHashDigestTypeOrDefault = DigestType.SHA_384;
             try (final ReadableStreamingData in = new ReadableStreamingData(sourceFile)) {
                 while (in.hasRemaining()) {
                     final int tag = in.readVarInt(false);
@@ -1059,8 +1061,12 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                             throw new IllegalStateException("Hash chunk height mismatch, config=" + this.hashChunkHeight
                                     + " disk=" + hashChunkHeight);
                         }
-                    } else if (fieldNum == FIELD_DSMETADATA_HASHLENGTH.number()) {
-                        loadedHashLengthOrDefault = in.readVarInt(false);
+                    } else if (fieldNum == FIELD_DSMETADATA_HASHDIGESTTYPEID.number()) {
+                        final int digestTypeId = in.readVarInt(false);
+                        loadedHashDigestTypeOrDefault = DigestType.valueOf(digestTypeId);
+                        if (loadedHashDigestTypeOrDefault == null) {
+                            throw new IOException("Unknown hash digest type ID: " + digestTypeId);
+                        }
                     } else {
                         throw new IOException("Unknown data source metadata field: " + fieldNum);
                     }

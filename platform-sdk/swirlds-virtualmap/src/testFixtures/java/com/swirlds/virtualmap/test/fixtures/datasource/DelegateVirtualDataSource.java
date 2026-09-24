@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Helper class to wrap {@link VirtualDataSource} to override some methods for testing.
@@ -115,7 +116,7 @@ public class DelegateVirtualDataSource implements VirtualDataSource {
     }
 
     @Override
-    public int getLoadedHashLength() {
-        return delegate.getLoadedHashLength();
+    public DigestType getLoadedHashDigestType() {
+        return delegate.getLoadedHashDigestType();
     }
 }

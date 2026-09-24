@@ -13,6 +13,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * In memory implementation of VirtualDataSource for use in testing.
@@ -284,9 +285,10 @@ public class InMemoryDataSource implements VirtualDataSource {
         return DEFAULT_HASH_CHUNK_HEIGHT;
     }
 
+    @NonNull
     @Override
-    public int getLoadedHashLength() {
-        return Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+    public DigestType getLoadedHashDigestType() {
+        return Cryptography.DEFAULT_DIGEST_TYPE;
     }
 
     @Override

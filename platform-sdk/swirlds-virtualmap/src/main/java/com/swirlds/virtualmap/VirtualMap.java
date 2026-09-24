@@ -438,8 +438,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             return;
         }
         try {
-            final boolean digestTypeChanged =
-                    Cryptography.DEFAULT_DIGEST_TYPE.digestLength() != dataSource.getLoadedHashLength();
+            final boolean digestTypeChanged = Cryptography.DEFAULT_DIGEST_TYPE != dataSource.getLoadedHashDigestType();
             if (!digestTypeChanged) {
                 final Hash loadedHash = records.findHash(firstLeafPath);
                 final VirtualLeafBytes<?> virtualLeafBytes = dataSource.loadLeafRecord(firstLeafPath);
