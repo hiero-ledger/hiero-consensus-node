@@ -27,7 +27,9 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import java.util.List;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,6 +65,12 @@ class MigrationRootHashVoteHandlerTest {
 
     @Mock
     private BlockRecordManager blockRecordManager;
+
+    @Mock
+    private Configuration configuration;
+
+    @Mock
+    private TssConfig tssConfig;
 
     private MigrationRootHashVoteHandler subject;
 
@@ -211,7 +219,10 @@ class MigrationRootHashVoteHandlerTest {
                 RosterEntry.newBuilder().nodeId(NODE_ID).weight(20L).build(),
                 RosterEntry.newBuilder().nodeId(1L).weight(10L).build()));
 
-        given(context.storeFactory()).willReturn(storeFactory);
+                lenient().when(context.configuration()).thenReturn(configuration);
+        lenient().when(configuration.getConfigData(TssConfig.class)).thenReturn(tssConfig);
+        lenient().when(tssConfig.useSha256()).thenReturn(true);
+given(context.storeFactory()).willReturn(storeFactory);
         given(context.body()).willReturn(body);
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(nodeInfo.nodeId()).willReturn(NODE_ID);
@@ -415,7 +426,10 @@ class MigrationRootHashVoteHandlerTest {
                 RosterEntry.newBuilder().nodeId(1L).weight(1L).build(),
                 RosterEntry.newBuilder().nodeId(2L).weight(1L).build()));
 
-        given(context.storeFactory()).willReturn(storeFactory);
+                lenient().when(context.configuration()).thenReturn(configuration);
+        lenient().when(configuration.getConfigData(TssConfig.class)).thenReturn(tssConfig);
+        lenient().when(tssConfig.useSha256()).thenReturn(true);
+given(context.storeFactory()).willReturn(storeFactory);
         given(context.body()).willReturn(body);
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(nodeInfo.nodeId()).willReturn(NODE_ID);
@@ -586,7 +600,10 @@ class MigrationRootHashVoteHandlerTest {
         final var activeRoster = new Roster(
                 List.of(RosterEntry.newBuilder().nodeId(NODE_ID).weight(1L).build()));
 
-        given(context.storeFactory()).willReturn(storeFactory);
+                lenient().when(context.configuration()).thenReturn(configuration);
+        lenient().when(configuration.getConfigData(TssConfig.class)).thenReturn(tssConfig);
+        lenient().when(tssConfig.useSha256()).thenReturn(true);
+given(context.storeFactory()).willReturn(storeFactory);
         given(context.body()).willReturn(body);
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(nodeInfo.nodeId()).willReturn(NODE_ID);

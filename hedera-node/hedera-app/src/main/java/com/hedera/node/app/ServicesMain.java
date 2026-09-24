@@ -44,6 +44,7 @@ import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.SchedulingConfig;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.swirlds.base.time.Time;
@@ -238,7 +239,8 @@ public class ServicesMain {
                         hederaConfig.getConfigData(BlockStreamConfig.class).streamMode(),
                         hederaConfig.getConfigData(BlockRecordStreamConfig.class),
                         hederaConfig.getConfigData(BlockStreamJumpstartConfig.class),
-                        migrationAlreadyApplied);
+                        migrationAlreadyApplied,
+                        hederaConfig.getConfigData(TssConfig.class).useSha256());
 
         final var transactionOffsetNanos = transactionOffsetNanos(hederaConfig);
         hedera.setTxnOffsetNanos(transactionOffsetNanos);

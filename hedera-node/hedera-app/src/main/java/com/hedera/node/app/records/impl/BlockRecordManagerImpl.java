@@ -4,8 +4,6 @@ package com.hedera.node.app.records.impl;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockHashSigner.Request.LIST_OF_PARTIAL_SIGNATURES;
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.BlockRecordService.GENESIS_BLOCK_INFO;
 import static com.hedera.node.app.records.BlockRecordService.GENESIS_RUNNING_HASHES;
@@ -36,7 +34,9 @@ import com.hedera.hapi.streams.TransactionSidecarRecord;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.impl.BlockRootTree;
+import com.hedera.node.app.blocks.impl.BlockRootTreeHasher;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TctProbe;
@@ -49,6 +49,7 @@ import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.StakingConfig;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.PendingProof;
@@ -60,6 +61,7 @@ import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -354,7 +356,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             final var intermediateHashes =
                     initialIntermediates.stream().map(Bytes::toByteArray).toList();
             this.prevWrappedRecordBlockHashes =
-                    new IncrementalStreamingHasher(sha256DigestOrThrow(), intermediateHashes, initialLeafCount);
+                    new IncrementalStreamingHasher(digestOrThrow(), intermediateHashes, initialLeafCount);
             this.previousWrappedRecordBlockRootHash = initialPrevHash;
 
             // When a state is saved mid-voting, the migrationWrappedHashes queue in BlockInfo
@@ -369,6 +371,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 for (final MigrationWrappedHashes queued : queuedHashes) {
                     final var allPrevBlocksRootHash = Bytes.wrap(this.prevWrappedRecordBlockHashes.computeRootHash());
                     final var blockRootHash = computeWrappedRecordBlockRootHash(
+                            this::digestOrThrow,
                             this.previousWrappedRecordBlockRootHash,
                             allPrevBlocksRootHash,
                             WrappedRecordFileBlockHashes.newBuilder()
@@ -391,8 +394,9 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                     this.previousWrappedRecordBlockRootHash);
         } else if (initTrigger == InitTrigger.GENESIS) {
             // Initialize with empty defaults at genesis
-            this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
-            this.previousWrappedRecordBlockRootHash = HASH_OF_ZERO;
+            final var digest = digestOrThrow();
+            this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(digest, List.of(), 0);
+            this.previousWrappedRecordBlockRootHash = BlockRootTreeHasher.emptySubtreeFor(digest);
         }
 
         // Initialize the stream file producer. NOTE, if the producer cannot be initialized, and a random exception is
@@ -615,8 +619,16 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         lastBlockInfo = updatedBlockInfo;
     }
 
+    private MessageDigest digestOrThrow() {
+        return CommonUtils.digestOrThrow(
+                configProvider.getConfiguration().getConfigData(TssConfig.class).useSha256());
+    }
+
     /**
-     * Computes the wrapped record block root hash for a single block from its constituent hashes.
+     * Computes the wrapped record block root hash for a single block from its constituent hashes, using the
+     * SHA-384 default. Kept for callers/tests without config access; see
+     * {@link #computeWrappedRecordBlockRootHash(Supplier, Bytes, Bytes, WrappedRecordFileBlockHashes)} for the
+     * flag-aware overload production uses.
      *
      * @param previousWrappedRecordBlockRootHash the root hash of the previous wrapped record block
      * @param allPrevBlocksRootHash the Merkle root of all previous block root hashes
@@ -628,27 +640,49 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             @NonNull final Bytes previousWrappedRecordBlockRootHash,
             @NonNull final Bytes allPrevBlocksRootHash,
             @NonNull final WrappedRecordFileBlockHashes entry) {
+        return computeWrappedRecordBlockRootHash(
+                CommonUtils::sha384DigestOrThrow, previousWrappedRecordBlockRootHash, allPrevBlocksRootHash, entry);
+    }
+
+    /**
+     * Computes the wrapped record block root hash for a single block from its constituent hashes.
+     *
+     * @param digestFactory supplies a fresh {@link MessageDigest} for each hashing step; must match whichever
+     *                      digest {@code entry}'s hashes were computed with
+     * @param previousWrappedRecordBlockRootHash the root hash of the previous wrapped record block
+     * @param allPrevBlocksRootHash the Merkle root of all previous block root hashes
+     * @param entry the wrapped record file block hashes for the current block
+     * @return the computed block root hash
+     */
+    @VisibleForTesting
+    public static Bytes computeWrappedRecordBlockRootHash(
+            @NonNull final Supplier<MessageDigest> digestFactory,
+            @NonNull final Bytes previousWrappedRecordBlockRootHash,
+            @NonNull final Bytes allPrevBlocksRootHash,
+            @NonNull final WrappedRecordFileBlockHashes entry) {
         // A wrapped record block fills the same branches as any other block; only the previous block root, the
         // all-previous-block-roots tree and the output items tree carry data. The consensus timestamp leaf
         // is already hashed on the entry.
+        final var emptySubtree = BlockRootTreeHasher.emptySubtreeFor(digestFactory.get());
         return BlockRootTree.computeBlockRootHash(
+                digestFactory,
                 entry.consensusTimestampHash(),
                 // Branch 1: previous wrapped record block root hash
                 previousWrappedRecordBlockRootHash,
                 // Branch 2: root of the tree of all previous block root hashes
                 allPrevBlocksRootHash,
                 // Branch 3: no start-of-block state hash in a wrapped record block
-                BlockRootTree.EMPTY_SUBTREE,
+                emptySubtree,
                 // Branch 4: no consensus headers
-                BlockRootTree.EMPTY_SUBTREE,
+                emptySubtree,
                 // Branch 5: no input items
-                BlockRootTree.EMPTY_SUBTREE,
+                emptySubtree,
                 // Branch 6: the output items tree, holding the block header and the record file item
                 entry.outputItemsTreeRootHash(),
                 // Branch 7: no state changes
-                BlockRootTree.EMPTY_SUBTREE,
+                emptySubtree,
                 // Branch 8: no trace data
-                BlockRootTree.EMPTY_SUBTREE);
+                emptySubtree);
     }
 
     @Override
@@ -807,7 +841,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
         final var input =
                 buildWrappedBlockHashesInput(justFinishedBlockNumber, justFinishedBlockCreationTime, endRunningHash);
-        final var result = WrappedRecordFileBlockHashesCalculator.computeWithItems(input);
+        final var result = WrappedRecordFileBlockHashesCalculator.computeWithItems(input, this::digestOrThrow);
         final var entry = result.hashes();
 
         final Bytes previousBlockRootHash = requireNonNull(previousWrappedRecordBlockRootHash);
@@ -815,8 +849,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final Bytes allPrevBlocksRootHash = Bytes.wrap(prevWrappedRecordBlockHashes.computeRootHash());
 
         // Compute the wrapped record block root hash for this block
-        final Bytes blockRootHash =
-                computeWrappedRecordBlockRootHash(previousBlockRootHash, allPrevBlocksRootHash, entry);
+        final Bytes blockRootHash = computeWrappedRecordBlockRootHash(
+                this::digestOrThrow, previousBlockRootHash, allPrevBlocksRootHash, entry);
 
         // Update running state: add this block's root hash as a leaf to the streaming hasher
         prevWrappedRecordBlockHashes.addNodeByHash(requireNonNull(blockRootHash).toByteArray());
@@ -927,7 +961,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final var footer = BlockFooter.newBuilder()
                 .previousBlockRootHash(previousBlockRootHash)
                 .rootHashOfAllBlockHashesTree(allPrevBlocksRootHash)
-                .startOfBlockStateRootHash(HASH_OF_ZERO)
+                .startOfBlockStateRootHash(BlockRootTreeHasher.emptySubtreeFor(digestOrThrow()))
                 .build();
         final var footerItem = BlockItem.newBuilder().blockFooter(footer).build();
         writer.writePbjItemAndBytes(footerItem, BlockItem.PROTOBUF.toBytes(footerItem));
@@ -1401,7 +1435,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         }
         this.previousWrappedRecordBlockRootHash = prevWrappedRecordBlockRootHash;
         this.prevWrappedRecordBlockHashes = new IncrementalStreamingHasher(
-                sha256DigestOrThrow(),
+                digestOrThrow(),
                 intermediateHashes.stream().map(Bytes::toByteArray).toList(),
                 leafCount);
         this.lastBlockInfo = this.lastBlockInfo

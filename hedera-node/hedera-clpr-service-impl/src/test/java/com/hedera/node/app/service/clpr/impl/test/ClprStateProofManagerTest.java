@@ -14,6 +14,8 @@ import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.BinaryState;
 import com.swirlds.state.State;
@@ -41,9 +43,6 @@ class ClprStateProofManagerTest {
     private TssVerifier tssVerifier;
 
     @Mock
-    private ConfigProvider configProvider;
-
-    @Mock
     private BlockProvenSnapshot snapshot;
 
     // The real snapshot state implements both State (the declared return type) and BinaryState (checked
@@ -59,7 +58,8 @@ class ClprStateProofManagerTest {
 
     @BeforeEach
     void setUp() {
-        subject = new ClprStateProofManager(snapshotProvider, tssVerifier, configProvider);
+        subject = new ClprStateProofManager(
+                snapshotProvider, tssVerifier, HederaTestConfigBuilder.createConfigProvider());
         binaryState = (BinaryState) provenState;
     }
 
@@ -94,6 +94,31 @@ class ClprStateProofManagerTest {
         // The bytes are a real serialized StateProof carrying exactly the one singleton path.
         final var proof = StateProof.PROTOBUF.parse(result.proof().toReadableSequentialData());
         assertThat(proof.paths()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("tss.useSha256=true -> proof still built correctly, hashing with SHA-256 end-to-end")
+    void sha256ConfiguredBuildsValidProof() throws Exception {
+        subject = new ClprStateProofManager(snapshotProvider, tssVerifier, configProviderWithUseSha256(true));
+        final var manifest = ClprEndpointManifest.newBuilder().version(5L).build();
+        givenProvableSnapshot();
+        given(binaryState.getSingleton(ENDPOINT_MANIFEST_STATE_ID))
+                .willReturn(ClprEndpointManifest.PROTOBUF.toBytes(manifest));
+
+        final var result = subject.buildManifestStateProofWithValue();
+
+        assertThat(result).isNotNull();
+        assertThat(result.manifest()).isEqualTo(manifest);
+        final var proof = StateProof.PROTOBUF.parse(result.proof().toReadableSequentialData());
+        assertThat(proof.paths()).hasSize(1);
+    }
+
+    private static ConfigProvider configProviderWithUseSha256(final boolean useSha256) {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("tss.useSha256", useSha256)
+                .getOrCreateConfig();
+        final var versioned = new VersionedConfigImpl(config, 0);
+        return () -> versioned;
     }
 
     @Test

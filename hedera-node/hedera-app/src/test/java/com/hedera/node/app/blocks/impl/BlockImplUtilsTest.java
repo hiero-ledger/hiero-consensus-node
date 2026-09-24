@@ -21,7 +21,7 @@ class BlockImplUtilsTest {
         byte[] combinedHash = BlockImplUtils.combine(leftHash, rightHash);
 
         assertNotNull(combinedHash);
-        assertEquals(32, combinedHash.length); // SHA-256 produces 32-byte hash
+        assertEquals(48, combinedHash.length); // no digest specified defaults to SHA-384, 48-byte hash
     }
 
     @Test
@@ -30,7 +30,7 @@ class BlockImplUtilsTest {
         byte[] combinedHash = BlockImplUtils.combine(emptyHash, emptyHash);
 
         assertNotNull(combinedHash);
-        assertEquals(32, combinedHash.length); // SHA-256 produces 32-byte hash
+        assertEquals(48, combinedHash.length); // no digest specified defaults to SHA-384, 48-byte hash
     }
 
     @Test
@@ -70,6 +70,8 @@ class BlockImplUtilsTest {
     @Test
     void hashLeafAppendsLeafPrefix() throws NoSuchAlgorithmException {
         final Bytes expected = Bytes.fromBase64("PC20jsnX7c+XYzhwCGLaSo/loMpfqYLL6vxvzycqJD0=");
+        final Bytes expectedDefaultDigest = Bytes.fromHex(
+                "cf40581b3ee9cdc254dad0000fa8e588f4fd44a907fed453ac697415f1bb5a017c6eb99832f407a08503e05a75e3c302");
 
         final MessageDigest digest = MessageDigest.getInstance("SHA-256");
         final Bytes data = Bytes.fromHex("2a120816120c08d9d5d2c90610ffa8bba5033a00");
@@ -78,13 +80,13 @@ class BlockImplUtilsTest {
         // Precondition: verify expected matches computed value
         assertEquals(expected, computed);
 
-        // Test the Bytes overload
+        // Test the Bytes overload (no digest specified defaults to SHA-384)
         final Bytes actual = BlockImplUtils.hashLeaf(data);
-        assertEquals(expected, actual);
+        assertEquals(expectedDefaultDigest, actual);
 
-        // Test the byte array overload
+        // Test the byte array overload (no digest specified defaults to SHA-384)
         final byte[] actualArray = BlockImplUtils.hashLeaf(data.toByteArray());
-        assertArrayEquals(expected.toByteArray(), actualArray);
+        assertArrayEquals(expectedDefaultDigest.toByteArray(), actualArray);
 
         // Test byte array + digest overload
         digest.reset(); // Not necessary, but specifies intent
@@ -127,6 +129,8 @@ class BlockImplUtilsTest {
     @Test
     void hashInternalNodeAppendsInternalNodePrefix() {
         final Bytes expected = Bytes.fromHex("784e119f0efa9ff049e2da4370e15e2a24f2658c542322fa3805a9976b5ecbae");
+        final Bytes expectedDefaultDigest = Bytes.fromHex(
+                "754ceb6301824804cd0488b2ed7a32e4594302f274c8363aa6696b427b3f586438ee367ba99320320e8df2d896425cd7");
 
         final MessageDigest digest = sha256DigestOrThrow();
         final Bytes data1 = Bytes.fromBase64("z0BYGz7pzcJU2tAAD6jliPT9RKkH/tRTrGl0FfG7WgF8brmYMvQHoIUD4Fp148MC");
@@ -139,15 +143,15 @@ class BlockImplUtilsTest {
         // Precondition: verify expected matches computed value
         assertEquals(expected, computed);
 
-        // Test the Bytes overload
+        // Test the Bytes overload (no digest specified defaults to SHA-384)
         final Bytes actualFromBytes = BlockImplUtils.hashInternalNode(data1, data2);
-        assertEquals(expected, actualFromBytes);
+        assertEquals(expectedDefaultDigest, actualFromBytes);
 
-        // Test the byte arrays overload
+        // Test the byte arrays overload (no digest specified defaults to SHA-384)
         final byte[] data1Array = data1.toByteArray();
         final byte[] data2Array = data2.toByteArray();
         final byte[] actualFromArrays = BlockImplUtils.hashInternalNode(data1Array, data2Array);
-        assertArrayEquals(expected.toByteArray(), actualFromArrays);
+        assertArrayEquals(expectedDefaultDigest.toByteArray(), actualFromArrays);
 
         // Test the explicit digest overload
         digest.reset(); // Not necessary, but specifies intent
@@ -262,8 +266,9 @@ class BlockImplUtilsTest {
         digest.update(BlockImplUtils.LEAF_PREFIX);
         // 70de4281b61ccc51ce0d1ef69cd28a4e28c2e6be36dc0be230d9d090ce07c94a
         final var computedLeafPrefix = Bytes.wrap(digest.digest(data.toByteArray()));
+        // BlockImplUtils.hashLeaf(Bytes) with no digest specified defaults to SHA-384, not SHA-256
         final var actualLeafPrefix = BlockImplUtils.hashLeaf(data);
-        assertEquals(computedLeafPrefix, actualLeafPrefix);
+        assertNotEquals(computedLeafPrefix, actualLeafPrefix);
         assertNotEquals(computedNoPrefix, actualLeafPrefix);
 
         digest.update(BlockImplUtils.INTERNAL_NODE_PREFIX);
@@ -272,13 +277,14 @@ class BlockImplUtilsTest {
         data.writeTo(digest);
         // f7396629d18804df928e70c1c54085a482ecba86e676349433d6eb2d357ba252
         final var computedInternalNodePrefix = Bytes.wrap(digest.digest());
+        // BlockImplUtils.hashInternalNode(Bytes, Bytes) with no digest specified defaults to SHA-384, not SHA-256
         final var actualInternalNodePrefix = BlockImplUtils.hashInternalNode(data, data);
-        assertEquals(computedInternalNodePrefix, actualInternalNodePrefix);
+        assertNotEquals(computedInternalNodePrefix, actualInternalNodePrefix);
         assertNotEquals(computedNoPrefix, actualInternalNodePrefix);
 
         // Test the mixed param types variant
         final var actualInternalMixedPrefix = BlockImplUtils.hashInternalNode(data, data.toByteArray());
         // Only equality check needed, as previous checks already guarantee the no prefix case is different
-        assertEquals(computedInternalNodePrefix, actualInternalMixedPrefix);
+        assertEquals(actualInternalNodePrefix, actualInternalMixedPrefix);
     }
 }

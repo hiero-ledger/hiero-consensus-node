@@ -2,7 +2,6 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
-import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.history.HistoryService.isCompleted;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.history.impl.ProofVoteCategory.INVALID_RECURSIVE;
@@ -20,6 +19,7 @@ import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
@@ -97,14 +97,17 @@ public class ProofControllerImpl implements ProofController {
         private final Bytes tag;
         private final HistoryProofVote historyProofVote;
 
-        public ExplicitProofVote(@NonNull final HistoryProofVote historyProofVote) {
+        public ExplicitProofVote(@NonNull final HistoryProofVote historyProofVote, final boolean useSha256) {
             this.historyProofVote = requireNonNull(historyProofVote);
             final var proof = historyProofVote.proofOrThrow();
             final var chainOfTrustProof = proof.chainOfTrustProofOrThrow();
-            tag = chainOfTrustProof.hasAggregatedNodeSignatures()
-                    ? noThrowSha384HashOf(AggregatedNodeSignatures.PROTOBUF.toBytes(
-                            chainOfTrustProof.aggregatedNodeSignaturesOrThrow()))
-                    : noThrowSha384HashOf(proof.uncompressedWrapsProof());
+            tag = Bytes.wrap(CommonUtils.noThrowHashOf(
+                    (chainOfTrustProof.hasAggregatedNodeSignatures()
+                                    ? AggregatedNodeSignatures.PROTOBUF.toBytes(
+                                            chainOfTrustProof.aggregatedNodeSignaturesOrThrow())
+                                    : proof.uncompressedWrapsProof())
+                            .toByteArray(),
+                    useSha256));
         }
 
         public Bytes tag() {
@@ -415,7 +418,7 @@ public class ProofControllerImpl implements ProofController {
             return false;
         }
         if (vote.hasProof()) {
-            votes.put(nodeId, new ExplicitProofVote(vote));
+            votes.put(nodeId, new ExplicitProofVote(vote, tssConfig.useSha256()));
         } else if (vote.hasCongruentNodeId()) {
             final var congruentVote = votes.get(vote.congruentNodeIdOrThrow());
             if (congruentVote != null) {
@@ -451,7 +454,7 @@ public class ProofControllerImpl implements ProofController {
         final Deque<Long> resolvedVoters = new ArrayDeque<>();
         persistedVotes.forEach((nodeId, vote) -> {
             if (vote.hasProof()) {
-                votes.put(nodeId, new ExplicitProofVote(vote));
+                votes.put(nodeId, new ExplicitProofVote(vote, tssConfig.useSha256()));
                 resolvedVoters.add(nodeId);
             } else if (vote.hasCongruentNodeId()) {
                 congruentVotersByReferent

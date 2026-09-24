@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.MessageDigest;
 
 /**
  * Builds the block root tree from its {@link #SLOT_COUNT} branches.
@@ -43,8 +44,24 @@ public interface BlockRootTreeHasher {
     /** The number of sibling hashes on the path from branch 1 to the block root, one per level. */
     int SIBLING_COUNT = Integer.numberOfTrailingZeros(SLOT_COUNT);
 
-    /** The hash of an empty branch, {@code sha256(0x00)}. */
+    /**
+     * The hash of an empty branch under the SHA-384 default, {@code sha384(0x00)}. Callers whose hash
+     * algorithm is chosen by {@code TssConfig.useSha256} must use {@link #emptySubtreeFor(MessageDigest)}
+     * with the same digest instead, since this constant does not vary with that flag.
+     */
     Bytes EMPTY_SUBTREE = HASH_OF_ZERO;
+
+    /**
+     * The hash of an empty branch under the given digest, {@code hash(0x00)}. Equivalent to
+     * {@code BlockImplUtils.hashLeaf(digest, Bytes.EMPTY)} — an empty branch is the leaf hash of no data.
+     *
+     * @param digest the digest to hash with; must be freshly reset (no pending buffered updates)
+     * @return the empty-branch hash for that digest
+     */
+    static Bytes emptySubtreeFor(@NonNull final MessageDigest digest) {
+        requireNonNull(digest);
+        return BlockImplUtils.hashLeaf(digest, Bytes.EMPTY);
+    }
 
     /** A block's root hash together with the sibling hashes on the path from branch 1 up to the root. */
     record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}

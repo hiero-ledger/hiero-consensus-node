@@ -244,7 +244,8 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             verify(diskWriter).appendAsync(captor.capture());
             final var input = captor.getValue();
             assertEquals(0, input.blockNumber());
-            final var entry = WrappedRecordFileBlockHashesCalculator.compute(input);
+            final var entry = WrappedRecordFileBlockHashesCalculator.compute(
+                    input, com.hedera.node.app.hapi.utils.CommonUtils::sha384DigestOrThrow);
 
             // Compute expected consensus_timestamp_hash
             final Bytes expectedConsensusTsHash = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(creationTime));
@@ -294,14 +295,14 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                     .hapiProtoVersion(hapiProtoVersion)
                     .number(0)
                     .blockTimestamp(creationTime)
-                    .hashAlgorithm(BlockHashAlgorithm.SHA2_256);
+                    .hashAlgorithm(BlockHashAlgorithm.SHA2_384);
 
             final var headerItem = BlockItem.newBuilder().blockHeader(header).build();
             final var recordFileBlockItem =
                     BlockItem.newBuilder().recordFile(recordFileItem).build();
 
             final var hasher = new IncrementalStreamingHasher(
-                    MessageDigest.getInstance(DigestType.SHA_256.algorithmName()), List.of(), 0);
+                    MessageDigest.getInstance(DigestType.SHA_384.algorithmName()), List.of(), 0);
             hasher.addLeaf(BlockItem.PROTOBUF.toBytes(headerItem).toByteArray());
             hasher.addLeaf(BlockItem.PROTOBUF.toBytes(recordFileBlockItem).toByteArray());
             final Bytes expectedOutputRoot = Bytes.wrap(hasher.computeRootHash());
@@ -850,10 +851,10 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
 
         // Build a migration result with a real hasher that has 1 leaf
         final var seedHasher = new IncrementalStreamingHasher(
-                MessageDigest.getInstance(DigestType.SHA_256.algorithmName()), List.of(), 0);
+                MessageDigest.getInstance(DigestType.SHA_384.algorithmName()), List.of(), 0);
         seedHasher.addLeaf(new byte[] {1, 2, 3});
         final var seedIntermediateHashes = seedHasher.intermediateHashingState();
-        final var seedPrevHashBytes = new byte[32];
+        final var seedPrevHashBytes = new byte[48];
         seedPrevHashBytes[0] = (byte) 0xAB;
         final var seedPrevHash = Bytes.wrap(seedPrevHashBytes);
 
@@ -934,10 +935,10 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
 
         // Build seed wrapped hash state from a real hasher with 1 leaf
         final var seedHasher = new IncrementalStreamingHasher(
-                MessageDigest.getInstance(DigestType.SHA_256.algorithmName()), List.of(), 0);
+                MessageDigest.getInstance(DigestType.SHA_384.algorithmName()), List.of(), 0);
         seedHasher.addLeaf(new byte[] {4, 5, 6});
         final var seedIntermediateHashes = seedHasher.intermediateHashingState();
-        final var seedPrevHashBytes = new byte[32];
+        final var seedPrevHashBytes = new byte[48];
         seedPrevHashBytes[0] = (byte) 0xCD;
         final var seedPrevHash = Bytes.wrap(seedPrevHashBytes);
 
@@ -1231,9 +1232,10 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
         final var syncedPrevHash = Bytes.wrap(new byte[] {
-            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7
         });
-        final var syncedIntermediate = List.of(Bytes.wrap(new byte[32]));
+        final var syncedIntermediate = List.of(Bytes.wrap(new byte[48]));
         try (final var mgr = new BlockRecordManagerImpl(
                 app.configProvider(),
                 state,
@@ -1299,9 +1301,10 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
         final var syncedPrevHash = Bytes.wrap(new byte[] {
-            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7
         });
-        final var syncedIntermediate = List.of(Bytes.wrap(new byte[32]));
+        final var syncedIntermediate = List.of(Bytes.wrap(new byte[48]));
         try (final var mgr = new BlockRecordManagerImpl(
                 app.configProvider(),
                 state,
@@ -1379,7 +1382,8 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
         final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
         final var syncedPrevHash = Bytes.wrap(new byte[] {
-            9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9
+            9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,
+            9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9
         });
         try (final var mgr = new BlockRecordManagerImpl(
                 app.configProvider(),
@@ -1392,7 +1396,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 () -> mock(BlockItemWriter.class),
                 NO_OP_BLOCK_HASH_SIGNER,
                 InitTrigger.RESTART)) {
-            mgr.syncFinalizedMigrationHashes(syncedPrevHash, List.of(Bytes.wrap(new byte[32])), 1);
+            mgr.syncFinalizedMigrationHashes(syncedPrevHash, List.of(Bytes.wrap(new byte[48])), 1);
         }
 
         final var blockInfo = state.getWritableStates(BlockRecordService.NAME)
@@ -1413,12 +1417,12 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
 
         // Build seed wrapped hash state from a real hasher with 3 leaves
         final var seedHasher = new IncrementalStreamingHasher(
-                MessageDigest.getInstance(DigestType.SHA_256.algorithmName()), List.of(), 0);
+                MessageDigest.getInstance(DigestType.SHA_384.algorithmName()), List.of(), 0);
         seedHasher.addLeaf(new byte[] {10, 20, 30});
         seedHasher.addLeaf(new byte[] {40, 50, 60});
         seedHasher.addLeaf(new byte[] {70, 80, 90});
         final var seedIntermediateHashes = seedHasher.intermediateHashingState();
-        final var seedPrevHashBytes = new byte[32];
+        final var seedPrevHashBytes = new byte[48];
         seedPrevHashBytes[0] = (byte) 0xEF;
         final var seedPrevHash = Bytes.wrap(seedPrevHashBytes);
 
@@ -2209,9 +2213,9 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                     new QuiescenceConfig(false, Duration.ofSeconds(5)), InstantSource.system(), () -> 0);
             final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
             final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
-            final var migrationPrevHash = Bytes.fromHex("ab".repeat(32));
+            final var migrationPrevHash = Bytes.fromHex("ab".repeat(48));
             final var migrationResult = new WrappedRecordBlockHashMigration.Result(
-                    migrationPrevHash, List.of(Bytes.fromHex("cd".repeat(32))), 2L);
+                    migrationPrevHash, List.of(Bytes.fromHex("cd".repeat(48))), 2L);
 
             try (final var mgr = new BlockRecordManagerImpl(
                     app.configProvider(),
@@ -2246,8 +2250,8 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                     .withConfigValue("hedera.recordStream.liveWritePrevWrappedRecordHashes", true)
                     .build();
             final var queued = List.of(
-                    new MigrationWrappedHashes(1L, Bytes.fromHex("11".repeat(32)), Bytes.fromHex("22".repeat(32))),
-                    new MigrationWrappedHashes(2L, Bytes.fromHex("33".repeat(32)), Bytes.fromHex("44".repeat(32))));
+                    new MigrationWrappedHashes(1L, Bytes.fromHex("11".repeat(48)), Bytes.fromHex("22".repeat(48))),
+                    new MigrationWrappedHashes(2L, Bytes.fromHex("33".repeat(48)), Bytes.fromHex("44".repeat(48))));
             seedRequiredStateMidVoting(app, queued);
 
             final var state = requireNonNullState(app.workingStateAccessor().getState());
@@ -2257,7 +2261,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
             final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
             final var migrationResult =
-                    new WrappedRecordBlockHashMigration.Result(Bytes.fromHex("ab".repeat(32)), List.of(), 0L);
+                    new WrappedRecordBlockHashMigration.Result(Bytes.fromHex("ab".repeat(48)), List.of(), 0L);
 
             try (final var mgr = new BlockRecordManagerImpl(
                     app.configProvider(),
@@ -2300,7 +2304,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             final var heartbeat = new QuiescedHeartbeat(controller, app.platform());
             final var diskWriter = mock(WrappedRecordFileBlockHashesDiskWriter.class);
             final var migrationResult =
-                    new WrappedRecordBlockHashMigration.Result(Bytes.fromHex("ab".repeat(32)), List.of(), 0L);
+                    new WrappedRecordBlockHashMigration.Result(Bytes.fromHex("ab".repeat(48)), List.of(), 0L);
 
             try (final var mgr = new BlockRecordManagerImpl(
                     app.configProvider(),
@@ -2337,7 +2341,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
     @Test
     void restartMidVotingProducesSameWrappedRootAsNoRestart() {
         final var migrationResult = new WrappedRecordBlockHashMigration.Result(
-                Bytes.fromHex("ab".repeat(32)), List.of(Bytes.fromHex("cd".repeat(32))), 1L);
+                Bytes.fromHex("ab".repeat(48)), List.of(Bytes.fromHex("cd".repeat(48))), 1L);
         final long[] votingBlockSeconds = {10, 13, 16, 19};
         final long finalBlockSeconds = 22;
 

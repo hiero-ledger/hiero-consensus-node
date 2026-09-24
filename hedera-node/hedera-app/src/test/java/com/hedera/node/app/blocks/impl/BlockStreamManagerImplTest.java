@@ -8,6 +8,7 @@ import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
+import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashLeaf;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_LABEL;
@@ -106,7 +107,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.consensus.model.event.ConsensusEvent;
@@ -132,17 +132,17 @@ class BlockStreamManagerImplTest {
     private static final long N_BLOCK_NO = 666L;
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L);
     private static final Timestamp CONSENSUS_THEN = new Timestamp(890, 0);
-    private static final Hash FAKE_START_OF_BLOCK_STATE_HASH = new Hash(HASH_OF_ZERO.toByteArray(), DigestType.SHA_256);
-    private static final Bytes FAKE_RESTART_BLOCK_HASH = Bytes.fromHex("abcd".repeat(16));
+    private static final Hash FAKE_START_OF_BLOCK_STATE_HASH = new Hash(HASH_OF_ZERO.toByteArray());
+    private static final Bytes FAKE_RESTART_BLOCK_HASH = Bytes.fromHex("abcd".repeat(24));
     // Effective last block hash computed by the restart path from blockStreamInfoWith(Bytes.EMPTY, patch(0))
-    private static final Bytes FAKE_PATCH_RESTART_HASH =
-            Bytes.fromHex("6b635e4a517016fb93e3832a523e16e32e6a31da7634493eb17dcfa965becb20");
+    private static final Bytes FAKE_PATCH_RESTART_HASH = Bytes.fromHex(
+            "2de59a37a8dfd9099e6baf892c04452aa8df8f04e3fadb852087a08c54efe001a94dd97a27be310ac2eded4020740ef8");
     // Effective last block hash computed by the restart path from blockStreamInfoWith(resultHashes, CREATION_VERSION)
-    private static final Bytes FAKE_NON_EMPTY_RESULTS_RESTART_HASH =
-            Bytes.fromHex("81d03111ca304228392c68fcfd4e744c0a212e0cebe7cbcd588947dcac146f2d");
+    private static final Bytes FAKE_NON_EMPTY_RESULTS_RESTART_HASH = Bytes.fromHex(
+            "8234622d520f27d04f8349244a19f3253b32e081685382669bb2003beed31de1a53422cbf585cbb7698b20b0161ec380");
     // Effective last block hash computed by the restart path from blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION)
-    private static final Bytes FAKE_EMPTY_RESULTS_RESTART_HASH =
-            Bytes.fromHex("2510688bc204eabe94b9d6a88d5521de223ae90f978f83013b5a6ba5b7e2cdc6");
+    private static final Bytes FAKE_EMPTY_RESULTS_RESTART_HASH = Bytes.fromHex(
+            "4ee4a6159b50ecf7a5de17d0bc9e088a2a756167cc237158ce1cf6d969a1c33b9c5d715ba808fac80a082280c6f90b1f");
     private static final Bytes N_MINUS_2_BLOCK_HASH = hashLeaf(Bytes.wrap((new byte[] {(byte) 0xAB})));
     private static final Bytes NONZERO_PREV_BLOCK_HASH =
             BlockImplUtils.appendHash(N_MINUS_2_BLOCK_HASH, Bytes.EMPTY, 256);
@@ -744,23 +744,25 @@ class BlockStreamManagerImplTest {
         final var expectedBlockInfo = new BlockStreamInfo(
                 N_BLOCK_NO,
                 asTimestamp(CONSENSUS_NOW),
-                // The running output-hash chain (RunningHashManager) hashes each result leaf into the chain via a
-                // plain SHA-384 digest of (previous || leaf); the literal below is the actual chain value for a
-                // zero start hash combined with FAKE_RESULT_HASH.
-                Bytes.fromHex(
-                        "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000096b78e77761cccd8761e48d9c7eddb782f4e886a0aff26ef4ae724293f83d43083ee8a2c8687aac719653892e9c15508"),
+                appendHash(
+                        combine(Bytes.wrap(new byte[HASH_SIZE]), FAKE_RESULT_HASH),
+                        appendHash(Bytes.wrap(new byte[HASH_SIZE]), Bytes.EMPTY, 4),
+                        4),
                 appendHash(FAKE_PATCH_RESTART_HASH, NONZERO_PREV_BLOCK_HASH, 256),
                 FAKE_SIGNED_TRANSACTION_HASHED,
                 HASH_OF_ZERO,
                 2,
-                List.of(Bytes.fromHex("5c1ff1a0c756bd8ad47b9b21fbc93797450095e70cfca993dec4bd10ce565f3b")),
+                List.of(
+                        Bytes.fromHex(
+                                "41c6949285489fa59ddf82402a2670489ba298a235e2963d5594f952620cb91254aacdea53f97d0d6b46259392aeb198")),
                 FAKE_TRANSACTION_RESULT.transactionResultOrThrow().consensusTimestampOrThrow(),
                 true,
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
                 CONSENSUS_THEN,
                 HASH_OF_ZERO,
-                Bytes.fromHex("b93f09815dc374a1f1bd39791ec787b2f92764aac7e4ff53dd58fe7c8d0bd4b1"),
+                Bytes.fromHex(
+                        "9362621b45a8b81d91d65f58bc82aca40fcc2576157b6775052f66b23f968a4a0bde57d401840abb4c916ab7d9be081b"),
                 HASH_OF_ZERO,
                 List.of(FAKE_PATCH_RESTART_HASH),
                 1);
@@ -1184,22 +1186,22 @@ class BlockStreamManagerImplTest {
         final var expectedBlockInfo = new BlockStreamInfo(
                 N_BLOCK_NO,
                 asTimestamp(CONSENSUS_NOW),
-                // The running output-hash chain's actual SHA-384 value (see comment in the single-round test
-                // above) for this scenario's resultHashes/FAKE_RESULT_HASH inputs.
-                Bytes.fromHex(
-                        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd7a4b2d47eb0fa42ff298638819432321cf984aae66c38ca3c629d95f1837b5732045ea0dc5d93f8229a12a2291ec1f3d"),
+                appendHash(combine(Bytes.fromHex("dd".repeat(48)), FAKE_RESULT_HASH), resultHashes, 4),
                 appendHash(FAKE_NON_EMPTY_RESULTS_RESTART_HASH, NONZERO_PREV_BLOCK_HASH, 256),
                 FAKE_SIGNED_TRANSACTION_HASHED,
                 HASH_OF_ZERO,
                 2,
-                List.of(Bytes.fromHex("5c1ff1a0c756bd8ad47b9b21fbc93797450095e70cfca993dec4bd10ce565f3b")),
+                List.of(
+                        Bytes.fromHex(
+                                "41c6949285489fa59ddf82402a2670489ba298a235e2963d5594f952620cb91254aacdea53f97d0d6b46259392aeb198")),
                 FAKE_TRANSACTION_RESULT.transactionResultOrThrow().consensusTimestampOrThrow(),
                 false,
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
                 CONSENSUS_THEN,
                 HASH_OF_ZERO,
-                Bytes.fromHex("ad38d14e92c171148add66e861aa13fa73540e56be94c4287e3889113cb4b49b"),
+                Bytes.fromHex(
+                        "b4a01b52bd0d845e70cecaa6bc6851d8d6f1000e3dcd808f88a1f2999009c48462da8e2b247d771b783188147946fca7"),
                 HASH_OF_ZERO,
                 List.of(FAKE_NON_EMPTY_RESULTS_RESTART_HASH),
                 1);

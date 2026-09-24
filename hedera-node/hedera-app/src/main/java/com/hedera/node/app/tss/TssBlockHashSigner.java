@@ -2,11 +2,11 @@
 package com.hedera.node.app.tss;
 
 import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNATURE;
-import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.BlockHashSigner;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.history.HistoryService;
@@ -27,7 +27,8 @@ import org.apache.logging.log4j.Logger;
  *     <li><b>If neither hinTS nor history proofs are enabled:</b>
  *     <ul>
  *         <li>Is always ready to sign.</li>
- *         <li>To sign, schedules async delivery of the SHA-384 hash of the block hash as its "signature".</li>
+ *         <li>To sign, schedules async delivery of the hash (SHA-384 or SHA-256, per
+ *         {@code TssConfig.useSha256}) of the block hash as its "signature".</li>
  *     </ul>
  *     <li><b>If only hinTS is enabled:</b>
  *     <ul>
@@ -112,7 +113,12 @@ public class TssBlockHashSigner implements BlockHashSigner {
         }
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.forceMockSignatures() || hintsService == null) {
-            return new Attempt(null, null, CompletableFuture.supplyAsync(() -> noThrowSha384HashOf(blockHash)));
+            final var useSha256 = tssConfig.useSha256();
+            return new Attempt(
+                    null,
+                    null,
+                    CompletableFuture.supplyAsync(
+                            () -> Bytes.wrap(CommonUtils.noThrowHashOf(blockHash.toByteArray(), useSha256))));
         } else {
             final var signingResult = hintsService.sign(blockHash);
             if (!(signingResult.signing() instanceof HintsContext.Signing signing)) {

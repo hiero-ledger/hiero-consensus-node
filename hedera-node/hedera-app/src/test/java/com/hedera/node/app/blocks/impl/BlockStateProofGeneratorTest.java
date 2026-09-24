@@ -529,11 +529,11 @@ class BlockStateProofGeneratorTest {
     private static final long MAX_BLOCK_NUM = 5L; // Includes the final pending (signed) block
 
     private static final Bytes[] EXPECTED_FIRST_SIBLING_HASHES = new Bytes[] {
-        Bytes.fromBase64("bjQLnP+zepicpUTmu3gKLHiQHT+zNzh2hRGjBhevoB0="),
-        Bytes.fromBase64("szITXG1kGEeXF7DN1DvaAbyUh8cPXASqotbz+ddav6k="),
-        Bytes.fromBase64("Neol38vLZtLyxE3J2b6Hah7XTQgwpu3e3TGlyDRlUbU="),
+        Bytes.fromBase64("vsAhtPNo4waRNOASwrQwcIPTqb3SBuJOXw2G4T1mNmVZM+wrQTRllmgXqcIIoRcX"),
+        Bytes.fromBase64("szITXG1kGEeXF7DN1DvaAbyUh8cPXASqotbz+ddav6nSZkOGN3cg44MAtTf49zxN"),
+        Bytes.fromBase64("Neol38vLZtLyxE3J2b6Hah7XTQgwpu3e3TGlyDRlUbW7xA3gqXZnm3jGlXIY9S6j"),
         // The root of the reserved branches 9-16
-        Bytes.fromBase64("7Oy2QhhK0Ug+ZzyDrQxsWTl2tEHQcvkKUyPPPL+3AZc=")
+        Bytes.fromBase64("z352R/V4BwBvT1hw0iELW0A40ACyv6cRvO639KMnNGtQxh/aTlxoEQsDznCPuRz4")
     };
 
     private static final Map<Long, Timestamp> EXPECTED_BLOCK_TIMESTAMPS = Map.of(
@@ -553,17 +553,17 @@ class BlockStateProofGeneratorTest {
             TssSignedBlockProof.newBuilder().blockSignature(FINAL_SIGNATURE).build();
     private static final Map<Long, Bytes> EXPECTED_BLOCK_HASHES = Map.of(
             0L,
-            Bytes.fromBase64("bqWdJb4SNU8E2SOukRMhZj01CCOyY5BtAVIWGscvw2g="),
+            Bytes.fromBase64("uSoOcoQxNudtZLRHmr5xRGFJ6ulFlCpVkJGy66zOy79Eblzud7HXmWraO10BGNBe"),
             1L,
-            Bytes.fromBase64("MBRSjuhQv2VsfdGTVsAZC/II4nnMaqV955DUBN0Vmac="),
+            Bytes.fromBase64("bf8uIiwZm7Q7HuyWNUyu0Vm7BKaU3EtfQMpn3cWMr3DndK3EIVcXVbI9vdRe4unV"),
             2L,
-            Bytes.fromBase64("2R0lhcS8VxU4ldc7z2DUJw1VuwKx2+Gi+G9lVDfPv1k="),
+            Bytes.fromBase64("4ZovgLbr2KOVk3zTgjVWclMgIDTRR5wVMA16s2SVlcBTYM46z9g4IO7jBngztTPl"),
             3L,
-            Bytes.fromBase64("N9ZZBXiwBoAOO24fRpE4a2VDbBjV09AITYQMM7zM7fo="),
+            Bytes.fromBase64("rV4yBTsadYQcKbiLNurMTskWz0WglVts057Xu3RBWgclDsjZMWLifvoqx1uJPNHi"),
             4L,
-            Bytes.fromBase64("9jmadINYzq31mbX6M83+6HUrU6xSxzHHvdDb4VbppUE="),
+            Bytes.fromBase64("8Hz6NrOOi+iyv6fResvEZ8CQwzX1KVAlDZvpvrQBCqH79aY/8ElKowzPa9xYAdp2"),
             5L,
-            Bytes.fromBase64("7Pg73/VjmamiN0aDvWD/rv/kEnms2KmY3dm3AOOrvsg="));
+            Bytes.fromBase64("6gXxZsMRh+2XEFovdXrdnKPW1uX0p8JtlreK3MvMLJX1+WmnzBaW/WtfSazGuzWg"));
     private static final Map<Long, Bytes> EXPECTED_PREVIOUS_BLOCK_HASHES;
 
     static {

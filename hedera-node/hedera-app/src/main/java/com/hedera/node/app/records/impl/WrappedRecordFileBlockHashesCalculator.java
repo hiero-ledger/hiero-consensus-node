@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
@@ -17,8 +16,10 @@ import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Computes {@link WrappedRecordFileBlockHashes} deterministically from a snapshot of record-block inputs.
@@ -28,10 +29,12 @@ public final class WrappedRecordFileBlockHashesCalculator {
 
     /**
      * Computes the wrapped record file block hashes only. Equivalent to calling
-     * {@link #computeWithItems(WrappedRecordFileBlockHashesComputationInput)} and discarding the items.
+     * {@link #computeWithItems(WrappedRecordFileBlockHashesComputationInput, Supplier)} and discarding the items.
      */
-    public static WrappedRecordFileBlockHashes compute(@NonNull final WrappedRecordFileBlockHashesComputationInput in) {
-        return computeWithItems(in).hashes();
+    public static WrappedRecordFileBlockHashes compute(
+            @NonNull final WrappedRecordFileBlockHashesComputationInput in,
+            @NonNull final Supplier<MessageDigest> digestFactory) {
+        return computeWithItems(in, digestFactory).hashes();
     }
 
     /**
@@ -39,18 +42,24 @@ public final class WrappedRecordFileBlockHashesCalculator {
      * (the {@link BlockHeader} and the {@link RecordFileItem}) that were used to derive them.
      * Callers that need to forward those items to a {@code BlockItemWriter} should use this overload
      * to avoid rebuilding them.
+     *
+     * @param in the computation input
+     * @param digestFactory supplies a fresh {@link MessageDigest} for each hashing step; must match whichever
+     *                      digest the rest of the wrapped-record-block-root tree is being built with
      */
     public static WrappedRecordFileBlockResult computeWithItems(
-            @NonNull final WrappedRecordFileBlockHashesComputationInput in) {
+            @NonNull final WrappedRecordFileBlockHashesComputationInput in,
+            @NonNull final Supplier<MessageDigest> digestFactory) {
         requireNonNull(in);
+        requireNonNull(digestFactory);
         if (in.recordStreamItems().isEmpty()) {
             throw new IllegalArgumentException("recordStreamItems must not be empty");
         }
 
         final var firstItem = in.recordStreamItems().getFirst();
         final var firstConsensusTimestamp = requireNonNull(firstItem.record()).consensusTimestampOrThrow();
-        final Bytes consensusTimestampHash =
-                BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(firstConsensusTimestamp));
+        final Bytes consensusTimestampHash = BlockImplUtils.hashLeaf(
+                digestFactory.get(), Timestamp.PROTOBUF.toBytes(firstConsensusTimestamp));
 
         final var sidecarBundles =
                 WrappedRecordSidecarUtils.buildSidecarBundles(in.sidecarRecords(), in.maxSidecarSizeInBytes());
@@ -70,11 +79,12 @@ public final class WrappedRecordFileBlockHashesCalculator {
                 .sidecarFileContents(sidecarBundles.sidecarFiles())
                 .build();
 
+        final var digest = digestFactory.get();
         final var header = BlockHeader.newBuilder()
                 .hapiProtoVersion(in.hapiProtoVersion())
                 .number(in.blockNumber())
                 .blockTimestamp(firstConsensusTimestamp)
-                .hashAlgorithm(BlockHashAlgorithm.SHA2_256);
+                .hashAlgorithm(digest.getDigestLength() == 32 ? BlockHashAlgorithm.SHA2_256 : BlockHashAlgorithm.SHA2_384);
 
         final var headerItem = BlockItem.newBuilder().blockHeader(header).build();
         final var recordFileBlockItem =
@@ -85,7 +95,7 @@ public final class WrappedRecordFileBlockHashesCalculator {
         final Bytes headerItemBytes = BlockItem.PROTOBUF.toBytes(headerItem);
         final Bytes recordFileItemBytes = BlockItem.PROTOBUF.toBytes(recordFileBlockItem);
 
-        final var hasher = new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
+        final var hasher = new IncrementalStreamingHasher(digest, List.of(), 0);
         hasher.addLeaf(headerItemBytes.toByteArray());
         hasher.addLeaf(recordFileItemBytes.toByteArray());
         final Bytes outputItemsTreeRootHash = Bytes.wrap(hasher.computeRootHash());

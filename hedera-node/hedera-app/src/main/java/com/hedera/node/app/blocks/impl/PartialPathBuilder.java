@@ -6,10 +6,10 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.SiblingNode;
-import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.blocks.HashUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.MessageDigest;
 
 /**
  * A builder for creating a partial merkle path; specifically, the path from a block's starting state
@@ -24,6 +24,7 @@ class PartialPathBuilder {
      * root hash. Note that, while the block timestamp must eventually be added to complete any merkle path
      * dependent on the block root, the timestamp is intentionally excluded from the path's siblings here.
      *
+     * @param digest the digest to hash with, matching whichever algorithm the rest of the block-root tree used
      * @param previousBlockHash the block's previous block hash
      * @param prevBlockRootsHash the block's subroot of previous block root hashes
      * @param startingStateHash the block's starting state subroot hash
@@ -36,11 +37,13 @@ class PartialPathBuilder {
      *         block root's path entry
      */
     static MerklePath startingStateToBlockRoot(
+            @NonNull final MessageDigest digest,
             @NonNull final Bytes previousBlockHash,
             @NonNull final Bytes prevBlockRootsHash,
             @NonNull final Bytes startingStateHash,
             @NonNull final Bytes consensusHeaderRootHash,
             @NonNull final MerkleSiblingHash... siblingHashes) {
+        requireNonNull(digest);
         requireNonNull(previousBlockHash);
         requireNonNull(prevBlockRootsHash);
         requireNonNull(startingStateHash);
@@ -56,8 +59,8 @@ class PartialPathBuilder {
                 .build(); // consensus subroot
 
         // Sibling 1: calculate the second sibling, depth 5 node 1 (from prevBlockHash and prevBlockRootsHash)
-        final var d5n1 = Bytes.wrap(HashUtils.joinHashes(
-                CommonUtils.sha256DigestOrThrow(), previousBlockHash.toByteArray(), prevBlockRootsHash.toByteArray()));
+        final var d5n1 = Bytes.wrap(
+                HashUtils.joinHashes(digest, previousBlockHash.toByteArray(), prevBlockRootsHash.toByteArray()));
         blockAccessorSiblings[1] =
                 SiblingNode.newBuilder().isLeft(true).hash(d5n1).build();
 

@@ -8,6 +8,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.hapi.streams.RecordStreamItem;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -35,7 +36,8 @@ class WrappedRecordFileBlockHashesCalculatorTest {
                 List.of(),
                 1024 * 1024);
 
-        final var result = WrappedRecordFileBlockHashesCalculator.computeWithItems(input);
+        final var result =
+                WrappedRecordFileBlockHashesCalculator.computeWithItems(input, CommonUtils::sha384DigestOrThrow);
 
         final var actualCreationTime =
                 result.recordFileItem().recordFileOrThrow().creationTime();

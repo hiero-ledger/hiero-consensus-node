@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
@@ -17,6 +16,7 @@ import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprMessageKey;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.blocks.HashUtils;
 import com.hedera.node.app.hapi.utils.blocks.MerklePathBuilder;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
@@ -25,10 +25,12 @@ import com.hedera.node.app.spi.state.BlockProvenSnapshot;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.ClprConfig;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.BinaryState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -86,6 +88,17 @@ public class ClprStateProofManager {
         this.snapshotProvider = requireNonNull(snapshotProvider);
         this.tssVerifier = requireNonNull(tssVerifier);
         this.configProvider = requireNonNull(configProvider);
+    }
+
+    /**
+     * Returns a fresh {@link MessageDigest} matching the block-root Merkle tree's current hashing algorithm
+     * ({@code TssConfig.useSha256}), so CLPR state-proof construction/verification always hashes with the
+     * same algorithm as the live tree being proved. Mirrors
+     * {@code BlockStreamManagerImpl.digestOrThrow()}.
+     */
+    private MessageDigest digestOrThrow() {
+        return CommonUtils.digestOrThrow(
+                configProvider.getConfiguration().getConfigData(TssConfig.class).useSha256());
     }
 
     /**
@@ -233,8 +246,9 @@ public class ClprStateProofManager {
 
         // Precompute the block-root extension siblings appended to every leaf path
         // (same shape used by buildBundleStateProof: state root → block subtree root → hashed timestamp).
+        final var digest = digestOrThrow();
         final var tsBytes = Timestamp.PROTOBUF.toBytes(snapshot.blockTimestamp());
-        final var hashedTs = Bytes.wrap(HashUtils.computeRawLeafHash(sha256DigestOrThrow(), tsBytes));
+        final var hashedTs = Bytes.wrap(HashUtils.computeRawLeafHash(digest, tsBytes));
         final var baseSibs = snapshot.path().siblings();
         final var extendedSibs = new ArrayList<SiblingNode>(baseSibs.size() + 1);
         extendedSibs.addAll(baseSibs);
@@ -257,7 +271,7 @@ public class ClprStateProofManager {
         }
 
         final var allPaths = new ArrayList<MerklePath>();
-        allPaths.add(MerklePathBuilder.fromStateApi(singletonMerkleProof)
+        allPaths.add(MerklePathBuilder.fromStateApi(singletonMerkleProof, digest)
                 .appendSiblingNodes(extendedSibs)
                 .build());
 
@@ -413,7 +427,7 @@ public class ClprStateProofManager {
             byte[] rootHash = null;
             for (final var path : stateProof.paths()) {
                 if (path.hasStateItemLeaf()) {
-                    rootHash = StateProofVerifier.computeBlockRootHashFromPath(path);
+                    rootHash = StateProofVerifier.computeBlockRootHashFromPath(path, digestOrThrow());
                     break;
                 }
             }
@@ -462,7 +476,8 @@ public class ClprStateProofManager {
             @NonNull final BinaryState binaryState,
             @NonNull final Bytes channelId,
             @NonNull final List<SiblingNode> extendedSibs,
-            final boolean includeEndpointManifest) {
+            final boolean includeEndpointManifest,
+            @NonNull final MessageDigest digest) {
         final boolean manifestFeatureEnabled = configProvider
                 .getConfiguration()
                 .getConfigData(ClprConfig.class)
@@ -490,7 +505,7 @@ public class ClprStateProofManager {
                     manifestPath);
             return;
         }
-        allPaths.add(MerklePathBuilder.fromStateApi(manifestMerkleProof)
+        allPaths.add(MerklePathBuilder.fromStateApi(manifestMerkleProof, digest)
                 .appendSiblingNodes(extendedSibs)
                 .build());
         log.debug(
@@ -521,8 +536,9 @@ public class ClprStateProofManager {
                 snapshot.blockTimestamp());
 
         // Precompute the block-root extension siblings appended to every leaf path.
+        final var digest = digestOrThrow();
         final var tsBytes = Timestamp.PROTOBUF.toBytes(snapshot.blockTimestamp());
-        final var hashedTs = Bytes.wrap(HashUtils.computeRawLeafHash(sha256DigestOrThrow(), tsBytes));
+        final var hashedTs = Bytes.wrap(HashUtils.computeRawLeafHash(digest, tsBytes));
         final var baseSibs = snapshot.path().siblings();
         final var extendedSibs = new ArrayList<SiblingNode>(baseSibs.size() + 1);
         extendedSibs.addAll(baseSibs);
@@ -545,7 +561,7 @@ public class ClprStateProofManager {
         // Build each leaf path independently (no merging). Each path is a complete
         // leaf-to-block-root proof verified independently against the block root.
         final var allPaths = new ArrayList<MerklePath>();
-        final var connPathBuilder = MerklePathBuilder.fromStateApi(connMerkleProof);
+        final var connPathBuilder = MerklePathBuilder.fromStateApi(connMerkleProof, digest);
         connPathBuilder.appendSiblingNodes(extendedSibs);
         allPaths.add(connPathBuilder.build());
         // Track how many message-queue leaves we've added, so the pure-ACK guard below
@@ -553,7 +569,7 @@ public class ClprStateProofManager {
         int messageLeafCount = 0;
 
         // ── Endpoint manifest singleton leaf (spec §4.9) ──────────────────────────
-        addEndpointManifestIfEnabled(allPaths, binaryState, channelId, extendedSibs, includeEndpointManifest);
+        addEndpointManifestIfEnabled(allPaths, binaryState, channelId, extendedSibs, includeEndpointManifest, digest);
 
         final var tssProof = TssSignedBlockProof.newBuilder()
                 .blockSignature(snapshot.tssSignature())
@@ -594,7 +610,7 @@ public class ClprStateProofManager {
                         msgPath);
                 break;
             }
-            final var candidatePath = MerklePathBuilder.fromStateApi(msgMerkleProof)
+            final var candidatePath = MerklePathBuilder.fromStateApi(msgMerkleProof, digest)
                     .appendSiblingNodes(extendedSibs)
                     .build();
             allPaths.add(candidatePath);

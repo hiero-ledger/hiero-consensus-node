@@ -76,6 +76,9 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "data/keys/wraps.tar.gz") @NodeProperty
         String wrapsProvingKeyPath,
 
+        // Must be a hash of the archive at wrapsProvingKeyDownloadUrl computed with whichever algorithm
+        // useSha256 currently selects (SHA-384 by default, 48-byte hex; SHA-256 when useSha256=true,
+        // 32-byte hex) - this is not derived automatically, so update it if useSha256 changes.
         @ConfigProperty(
                 defaultValue =
                         "620cbcf69098d31a0893081cb76113ee0f72091b3417e601178cdc376c81e5c2407c1827d123df44bccb78ad4bb11fb3")

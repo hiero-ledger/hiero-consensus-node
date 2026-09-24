@@ -15,8 +15,6 @@ import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.bloc
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.cleanUpPendingBlock;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadContiguousPendingBlocks;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
@@ -1256,6 +1254,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             .enabled()) {
                 try {
                     final var path = PartialPathBuilder.startingStateToBlockRoot(
+                            digestOrThrow(),
                             currentPendingBlock.previousBlockHash(),
                             currentPendingBlock.siblingHashes()[0].siblingHash(),
                             currentPendingBlock.startingStateHash(),
@@ -1813,9 +1812,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private MessageDigest digestOrThrow() {
-        return configProvider.getConfiguration().getConfigData(TssConfig.class).useSha256()
-                ? sha256DigestOrThrow()
-                : sha384DigestOrThrow();
+        return CommonUtils.digestOrThrow(
+                configProvider.getConfiguration().getConfigData(TssConfig.class).useSha256());
     }
 
     /**

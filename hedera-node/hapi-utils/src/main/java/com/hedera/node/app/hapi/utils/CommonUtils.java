@@ -110,6 +110,27 @@ public final class CommonUtils {
         }
     }
 
+    /**
+     * Returns a {@link MessageDigest} for SHA-256 if {@code useSha256} is true, or SHA-384 otherwise. Centralizes
+     * the choice driven by {@code TssConfig.useSha256} so callers don't each re-derive the same ternary.
+     * @param useSha256 whether to use SHA-256 instead of the SHA-384 default
+     * @return the selected {@link MessageDigest}
+     */
+    public static MessageDigest digestOrThrow(final boolean useSha256) {
+        return useSha256 ? sha256DigestOrThrow() : sha384DigestOrThrow();
+    }
+
+    /**
+     * Hashes the given bytes with the digest selected by {@code useSha256} (see {@link #digestOrThrow(boolean)}).
+     * @param byteArray the bytes to hash
+     * @param useSha256 whether to use SHA-256 instead of the SHA-384 default
+     * @return the resulting hash
+     */
+    public static byte[] noThrowHashOf(@NonNull final byte[] byteArray, final boolean useSha256) {
+        requireNonNull(byteArray);
+        return digestOrThrow(useSha256).digest(byteArray);
+    }
+
     // SHA-256 hash functions with the default-provided message digest
     // ** BEGIN Bytes Variants **
     public static Bytes noThrowSha256HashOf(@NonNull final Bytes bytes) {
