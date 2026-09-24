@@ -61,6 +61,7 @@ import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.OnDiskPendingBlock;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
@@ -240,6 +241,8 @@ class BlockStreamManagerImplTest {
 
     private boolean clprEnabled = false;
 
+    private boolean useSha256 = false;
+
     @BeforeEach
     void setUp() {
         writableStates = mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
@@ -249,6 +252,76 @@ class BlockStreamManagerImplTest {
                     ? blockSizeCircuitBreakerTripsCounter
                     : indirectProofsCounter;
         });
+    }
+
+    @Test
+    void reconstructLastBlockHashWithSha256DigestSupplierReturns32ByteHash() {
+        final var blockStreamInfo = blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION);
+        final Bytes hash =
+                BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo, CommonUtils::sha256DigestOrThrow);
+        assertEquals(32, hash.length());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void blockRootHashIsThirtyTwoBytesWithSha256() {
+        useSha256 = true;
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter,
+                bWriter);
+        givenEndOfRoundSetup();
+        lenient().doAnswer(inv -> bWriter).when(bWriter).writePbjItemAndBytes(any(), any());
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        final CompletableFuture<Void> postAcceptFuture = (CompletableFuture<Void>) mock(CompletableFuture.class);
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(mockSigningFuture.thenAcceptAsync(any())).willReturn(postAcceptFuture);
+
+        subject.endRound(state, ROUND_NO); // closes block N
+
+        // Start block N+1: triggers blockHashManager.startBlock with the SHA-256 root hash of block N
+        given(round.getRoundNum()).willReturn(ROUND_NO + 1);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW.plusSeconds(1));
+        subject.startRound(round, state);
+
+        // Block N's root hash must be 32 bytes (SHA-256)
+        assertEquals(32, subject.blockHashByBlockNumber(N_BLOCK_NO).length());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void trailingOutputHashesAreThirtyTwoBytesPerEntryWithSha256() {
+        useSha256 = true;
+        givenSubjectWith(
+                1, 0, blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION), platformStateWithFreezeTime(null), aWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+
+        final CompletableFuture<Void> postAcceptFuture = (CompletableFuture<Void>) mock(CompletableFuture.class);
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(mockSigningFuture.thenAcceptAsync(any())).willReturn(postAcceptFuture);
+
+        subject.endRound(state, ROUND_NO);
+
+        // With SHA-256, each trailing output hash entry is 32 bytes, not 48
+        assertEquals(64, infoRef.get().trailingOutputHashes().length());
     }
 
     @Test
@@ -2342,6 +2415,7 @@ class BlockStreamManagerImplTest {
                 .withValue("blockStream.streamMode", streamMode.name())
                 .withValue("blockStream.maxBlockSizeBytes", maxBlockSizeBytes)
                 .withValue("clpr.enabled", clprEnabled)
+                .withValue("tss.useSha256", useSha256)
                 .getOrCreateConfig();
         return new VersionedConfigImpl(config, version);
     }

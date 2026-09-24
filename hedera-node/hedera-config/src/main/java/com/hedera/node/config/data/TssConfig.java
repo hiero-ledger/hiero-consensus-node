@@ -98,4 +98,8 @@ public record TssConfig(
 
         // How long the download may go without receiving any bytes before it is treated as stalled; bounds a
         // server that sends headers and then stops mid-body
-        @ConfigProperty(defaultValue = "120s") @NodeProperty Duration wrapsProvingKeyStallTimeout) {}
+        @ConfigProperty(defaultValue = "120s") @NodeProperty Duration wrapsProvingKeyStallTimeout,
+
+        // Whether to use SHA-256 instead of SHA-384 for block stream-related hashing
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean useSha256) {}

@@ -118,8 +118,10 @@ class BlockImplUtilsTest {
     void hashInternalNodeWithDigestWithNullParamsThrows() {
         final var digest = sha256DigestOrThrow();
         assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(null, new byte[0], new byte[0]));
-        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(digest, null, new byte[0]));
-        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(digest, new byte[0], null));
+        assertThrows(
+                NullPointerException.class, () -> BlockImplUtils.hashInternalNode(digest, (byte[]) null, new byte[0]));
+        assertThrows(
+                NullPointerException.class, () -> BlockImplUtils.hashInternalNode(digest, new byte[0], (byte[]) null));
     }
 
     @Test
@@ -151,6 +153,102 @@ class BlockImplUtilsTest {
         digest.reset(); // Not necessary, but specifies intent
         final byte[] actual = BlockImplUtils.hashInternalNode(digest, data1Array, data2Array);
         assertArrayEquals(expected.toByteArray(), actual);
+    }
+
+    @SuppressWarnings("DataFlowIssue")
+    @Test
+    void hashInternalNodeBytesWithDigestThrowsOnNull() {
+        final var digest = sha256DigestOrThrow();
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(null, Bytes.EMPTY, Bytes.EMPTY));
+        assertThrows(
+                NullPointerException.class, () -> BlockImplUtils.hashInternalNode(digest, (Bytes) null, Bytes.EMPTY));
+        assertThrows(
+                NullPointerException.class, () -> BlockImplUtils.hashInternalNode(digest, Bytes.EMPTY, (Bytes) null));
+    }
+
+    @Test
+    void hashInternalNodeBytesWithDigestUsesProvidedAlgorithm() {
+        final Bytes left = Bytes.wrap(new byte[] {1, 2, 3});
+        final Bytes right = Bytes.wrap(new byte[] {4, 5, 6});
+
+        final var referenceDigest = sha256DigestOrThrow();
+        BlockImplUtils.INTERNAL_NODE_PREFIX_BYTES.writeTo(referenceDigest);
+        left.writeTo(referenceDigest);
+        right.writeTo(referenceDigest);
+        final Bytes expected = Bytes.wrap(referenceDigest.digest());
+
+        assertEquals(expected, BlockImplUtils.hashInternalNode(sha256DigestOrThrow(), left, right));
+        assertEquals(32, expected.length());
+    }
+
+    @SuppressWarnings("DataFlowIssue")
+    @Test
+    void hashInternalNodeMixedWithDigestThrowsOnNull() {
+        final var digest = sha256DigestOrThrow();
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(null, Bytes.EMPTY, new byte[0]));
+        assertThrows(
+                NullPointerException.class, () -> BlockImplUtils.hashInternalNode(digest, (Bytes) null, new byte[0]));
+        assertThrows(
+                NullPointerException.class, () -> BlockImplUtils.hashInternalNode(digest, Bytes.EMPTY, (byte[]) null));
+    }
+
+    @Test
+    void hashInternalNodeMixedWithDigestUsesProvidedAlgorithm() {
+        final Bytes left = Bytes.wrap(new byte[] {1, 2, 3});
+        final byte[] right = new byte[] {4, 5, 6};
+
+        final var referenceDigest = sha256DigestOrThrow();
+        BlockImplUtils.INTERNAL_NODE_PREFIX_BYTES.writeTo(referenceDigest);
+        left.writeTo(referenceDigest);
+        final Bytes expected = Bytes.wrap(referenceDigest.digest(right));
+
+        assertEquals(expected, BlockImplUtils.hashInternalNode(sha256DigestOrThrow(), left, right));
+        assertEquals(32, expected.length());
+    }
+
+    @SuppressWarnings("DataFlowIssue")
+    @Test
+    void combineByteArraysWithDigestThrowsOnNull() {
+        final var digest = sha256DigestOrThrow();
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.combine(null, new byte[0], new byte[0]));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.combine(digest, (byte[]) null, new byte[0]));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.combine(digest, new byte[0], (byte[]) null));
+    }
+
+    @Test
+    void combineByteArraysWithDigestUsesProvidedAlgorithm() {
+        final var digest = sha256DigestOrThrow();
+        final byte[] left = {1, 2, 3};
+        final byte[] right = {4, 5, 6};
+
+        final var referenceDigest = sha256DigestOrThrow();
+        referenceDigest.update(left);
+        final byte[] expected = referenceDigest.digest(right);
+
+        assertArrayEquals(expected, BlockImplUtils.combine(digest, left, right));
+        assertEquals(32, expected.length);
+    }
+
+    @SuppressWarnings("DataFlowIssue")
+    @Test
+    void combineBytesWithDigestThrowsOnNull() {
+        final var digest = sha256DigestOrThrow();
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.combine(null, Bytes.EMPTY, Bytes.EMPTY));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.combine(digest, (Bytes) null, Bytes.EMPTY));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.combine(digest, Bytes.EMPTY, (Bytes) null));
+    }
+
+    @Test
+    void combineBytesWithDigestUsesProvidedAlgorithm() {
+        final Bytes left = Bytes.wrap(new byte[] {1, 2, 3});
+        final Bytes right = Bytes.wrap(new byte[] {4, 5, 6});
+
+        final var referenceDigest = sha256DigestOrThrow();
+        referenceDigest.update(left.toByteArray());
+        final Bytes expected = Bytes.wrap(referenceDigest.digest(right.toByteArray()));
+
+        assertEquals(expected, BlockImplUtils.combine(sha256DigestOrThrow(), left, right));
+        assertEquals(32, expected.length());
     }
 
     @Test

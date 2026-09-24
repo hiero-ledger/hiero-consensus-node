@@ -10,6 +10,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.Arrays;
 import java.util.List;
@@ -220,6 +221,28 @@ class BlockRootTreeHasherTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("reserved")
                     .hasMessageContaining("StreamingBlockRootTreeHasher");
+        }
+    }
+
+    @Nested
+    @DisplayName("SHA-256 support")
+    class Sha256Support {
+        @Test
+        @DisplayName("streamedRootOf with SHA-256 supplier produces a 32-byte root")
+        void streamedRootOfWithSha256Produces32ByteRoot() {
+            final var slots = new Bytes[] {Bytes.wrap(new byte[32]), Bytes.wrap(new byte[32])};
+            final Bytes root = StreamingBlockRootTreeHasher.streamedRootOf(CommonUtils::sha256DigestOrThrow, slots);
+            assertThat(root.length()).isEqualTo(32);
+        }
+
+        @Test
+        @DisplayName("streamedRootOf with SHA-256 differs from SHA-384 for the same input")
+        void streamedRootOfSha256DiffersFromSha384() {
+            final var slots = emptySlots(4);
+            final Bytes sha384Root = StreamingBlockRootTreeHasher.streamedRootOf(slots);
+            final Bytes sha256Root =
+                    StreamingBlockRootTreeHasher.streamedRootOf(CommonUtils::sha256DigestOrThrow, slots);
+            assertThat(sha256Root).isNotEqualTo(sha384Root);
         }
     }
 

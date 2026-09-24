@@ -2,7 +2,6 @@
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.node.app.blocks.impl.BlockRootTreeHasher.ASSIGNED_SLOT_COUNT;
-import static com.hedera.node.app.blocks.impl.BlockRootTreeHasher.EMPTY_SUBTREE;
 import static com.hedera.node.app.blocks.impl.BlockRootTreeHasher.SLOT_COUNT;
 import static java.util.Objects.requireNonNull;
 
@@ -11,7 +10,9 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.blocks.impl.BlockRootTreeHasher.RootAndSiblingHashes;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.function.Supplier;
 
 /**
  * The block-stream-facing entry point to the block root tree, used by block production, the wrapped record
@@ -86,6 +87,36 @@ public final class BlockRootTree {
     }
 
     /**
+     * Computes a block's root hash and sibling hashes using the given digest algorithm.
+     *
+     * @param digestFactory supplies a fresh {@link MessageDigest} for each hashing step
+     * @param timestampLeafHash the already-hashed timestamp leaf
+     * @param slots the {@link BlockRootTreeHasher#ASSIGNED_SLOT_COUNT} assigned branch roots
+     * @return the block root hash and the sibling hashes on branch 1's path
+     */
+    public static RootAndSiblingHashes computeRootAndSiblings(
+            @NonNull final Supplier<MessageDigest> digestFactory,
+            @NonNull final Bytes timestampLeafHash,
+            @NonNull final Bytes... slots) {
+        requireNonNull(digestFactory);
+        requireNonNull(timestampLeafHash);
+        final var paddedSlots = withReservedSlots(slots);
+        final var subtreesRootHash = StreamingBlockRootTreeHasher.streamedRootOf(digestFactory, paddedSlots);
+        final var blockRootHash =
+                BlockImplUtils.hashInternalNode(digestFactory.get(), timestampLeafHash, subtreesRootHash);
+        final var siblings = new MerkleSiblingHash[BlockRootTreeHasher.SIBLING_COUNT];
+        for (int level = 0; level < BlockRootTreeHasher.SIBLING_COUNT; level++) {
+            final int from = 1 << level;
+            final int to = from << 1;
+            siblings[level] = new MerkleSiblingHash(
+                    false,
+                    StreamingBlockRootTreeHasher.streamedRootOf(
+                            digestFactory, Arrays.copyOfRange(paddedSlots, from, to)));
+        }
+        return new RootAndSiblingHashes(blockRootHash, siblings);
+    }
+
+    /**
      * Computes a block's root hash, for callers that do not need the sibling hashes.
      *
      * @param timestampLeafHash the already-hashed timestamp leaf
@@ -106,6 +137,27 @@ public final class BlockRootTree {
     public static Bytes computeBlockRootHash(
             @NonNull final Timestamp consensusTimestamp, @NonNull final Bytes... slots) {
         return computeBlockRootHash(hashTimestampLeaf(consensusTimestamp), slots);
+    }
+
+    /**
+     * Computes a block's root hash using the given digest, for callers that need a configurable hash algorithm.
+     *
+     * @param digestFactory supplies a fresh {@link MessageDigest} for each hashing step
+     * @param consensusTimestamp the block's first consensus timestamp
+     * @param slots the assigned branch roots
+     * @return the block root hash
+     */
+    public static Bytes computeBlockRootHash(
+            @NonNull final Supplier<MessageDigest> digestFactory,
+            @NonNull final Timestamp consensusTimestamp,
+            @NonNull final Bytes... slots) {
+        requireNonNull(digestFactory);
+        requireNonNull(consensusTimestamp);
+        final var paddedSlots = withReservedSlots(slots);
+        final var timestampLeafHash =
+                BlockImplUtils.hashLeaf(digestFactory.get(), Timestamp.PROTOBUF.toBytes(consensusTimestamp));
+        final var subtreesRootHash = StreamingBlockRootTreeHasher.streamedRootOf(digestFactory, paddedSlots);
+        return BlockImplUtils.hashInternalNode(digestFactory.get(), timestampLeafHash, subtreesRootHash);
     }
 
     /**

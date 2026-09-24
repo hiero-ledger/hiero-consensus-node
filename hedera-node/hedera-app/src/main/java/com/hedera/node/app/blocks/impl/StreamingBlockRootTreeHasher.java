@@ -6,8 +6,10 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * The plain statement of the block root tree: every branch goes into an {@link IncrementalStreamingHasher} and
@@ -57,6 +59,22 @@ public final class StreamingBlockRootTreeHasher implements BlockRootTreeHasher {
      */
     public static Bytes streamedRootOf(@NonNull final Bytes[] nodes) {
         final var hasher = new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0);
+        for (final var node : nodes) {
+            hasher.addNodeByHash(node.toByteArray());
+        }
+        return Bytes.wrap(hasher.computeRootHash());
+    }
+
+    /**
+     * Folds pre-hashed nodes into a single root with {@link IncrementalStreamingHasher} using the given digest.
+     *
+     * @param digestSupplier supplies a fresh {@link MessageDigest} for hashing
+     * @param nodes the pre-hashed nodes
+     * @return the root hash
+     */
+    public static Bytes streamedRootOf(
+            @NonNull final Supplier<MessageDigest> digestSupplier, @NonNull final Bytes[] nodes) {
+        final var hasher = new IncrementalStreamingHasher(digestSupplier.get(), List.of(), 0);
         for (final var node : nodes) {
             hasher.addNodeByHash(node.toByteArray());
         }

@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.crypto.DigestType;
 
 /**
  * Verifies that the cutover correctly transferred record stream state into the block stream.
@@ -129,11 +128,10 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
         assertTrue(resultCount > 0, "First post-cutover block should contain at least one transaction result");
         // Running hashes remain chained SHA-384 (48 bytes), independent of the block-root Merkle tree's
         // HASH_SIZE (SHA-256-sized), so use the size-parameterized appendHash overload
-        final var runningHashSize = DigestType.SHA_384.digestLength();
-        Bytes expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus3), Bytes.EMPTY, 4, runningHashSize);
-        expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus2), expectedOutputHashes, 4, runningHashSize);
-        expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus1), expectedOutputHashes, 4, runningHashSize);
-        expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(current), expectedOutputHashes, 4, runningHashSize);
+        Bytes expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus3), Bytes.EMPTY, 4);
+        expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus2), expectedOutputHashes, 4);
+        expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus1), expectedOutputHashes, 4);
+        expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(current), expectedOutputHashes, 4);
         assertEquals(
                 expectedOutputHashes,
                 blockStreamInfo.trailingOutputHashes(),

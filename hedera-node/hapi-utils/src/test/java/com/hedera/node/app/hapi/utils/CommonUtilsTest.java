@@ -9,8 +9,12 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBodyB
 import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBodyBytes;
 import static com.hedera.node.app.hapi.utils.CommonUtils.functionOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.hashOfAll;
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha256HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha256HashOf;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha256HashOfAll;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384HashOfAll;
@@ -669,6 +673,295 @@ class CommonUtilsTest {
             void sha384HashOfAllThrowsWithIncludedNull() {
                 assertThrows(NullPointerException.class, () -> sha384HashOfAll(BYTE_ARRAY_1_OBJ, null));
                 assertThrows(NullPointerException.class, () -> sha384HashOfAll(BYTE_ARRAY_1, null));
+            }
+        }
+    }
+
+    @Nested
+    class Sha256HashOfTest {
+        private static final byte[] BYTE_ARRAY_1 = new byte[] {1, 2, 3, 4};
+        private static final Bytes BYTE_ARRAY_1_OBJ = Bytes.wrap(BYTE_ARRAY_1);
+        private static final byte[] BYTE_ARRAY_2 = new byte[] {5, 6};
+        private static final Bytes BYTE_ARRAY_2_OBJ = Bytes.wrap(BYTE_ARRAY_2);
+        private static final byte[] EMPTY_BYTES = new byte[0];
+
+        @Nested
+        class BytesVariants {
+            @Test
+            void noThrowSha256HashOfBytesWorksWithEmptyBytes() {
+                final var digest = sha256DigestOrThrow();
+
+                final var result = noThrowSha256HashOf(Bytes.EMPTY);
+                Bytes.EMPTY.writeTo(digest);
+                assertEquals(Bytes.wrap(digest.digest()), result);
+            }
+
+            @Test
+            void noThrowSha256HashOfBytesThrowsOnNull() {
+                assertThrows(NullPointerException.class, () -> {
+                    //noinspection DataFlowIssue
+                    noThrowSha256HashOf((Bytes) null);
+                });
+            }
+
+            @Test
+            void noThrowSha256HashOfBytesWorksWithByteArray() {
+                final var digest = sha256DigestOrThrow();
+
+                final var result1 = noThrowSha256HashOf(BYTE_ARRAY_1_OBJ);
+                BYTE_ARRAY_1_OBJ.writeTo(digest);
+                assertEquals(Bytes.wrap(digest.digest()), result1);
+
+                final var result2 = noThrowSha256HashOf(BYTE_ARRAY_2_OBJ);
+                BYTE_ARRAY_2_OBJ.writeTo(digest);
+                assertEquals(Bytes.wrap(digest.digest()), result2);
+            }
+
+            @Test
+            void sha256HashOfAllThrowsOnNull() {
+                assertThrows(NullPointerException.class, () -> sha256HashOfAll((byte[]) null));
+            }
+
+            @Test
+            void sha256HashOfAllBytesThrowsOnNull() {
+                assertThrows(NullPointerException.class, () -> sha256HashOfAll((Bytes) null));
+                assertThrows(NullPointerException.class, () -> sha256HashOfAll(new Bytes[] {null, null}));
+            }
+
+            @Test
+            void sha256HashOfAllBytesWorksWithEmptyByteArray() {
+                final var digest = sha256DigestOrThrow();
+
+                final var result = sha256HashOfAll(Bytes.EMPTY);
+                Bytes.EMPTY.writeTo(digest);
+                assertEquals(Bytes.wrap(digest.digest()), result);
+            }
+
+            @Test
+            void sha256HashOfAllBytesWorksWithMultipleEmptyByteArrays() {
+                final var digest = sha256DigestOrThrow();
+
+                final var result = sha256HashOfAll(Bytes.EMPTY, Bytes.EMPTY);
+                Bytes.EMPTY.writeTo(digest);
+                Bytes.EMPTY.writeTo(digest);
+                assertEquals(Bytes.wrap(digest.digest()), result);
+            }
+
+            @Test
+            void sha256HashOfAllBytesWorksWithSingleByteArray() {
+                final var digest = sha256DigestOrThrow();
+
+                final var result = sha256HashOfAll(BYTE_ARRAY_1_OBJ);
+                BYTE_ARRAY_1_OBJ.writeTo(digest);
+                assertEquals(Bytes.wrap(digest.digest()), result);
+            }
+
+            @Test
+            void sha256HashOfAllBytesThrowsOnNullArray() {
+                assertThrows(NullPointerException.class, () -> sha256HashOfAll(BYTE_ARRAY_1_OBJ, null));
+            }
+
+            @Test
+            void sha256HashOfAllBytesWorksWithMultipleByteArrays() {
+                final var digest = sha256DigestOrThrow();
+
+                final var resultDirect = sha256HashOfAll(BYTE_ARRAY_1_OBJ, BYTE_ARRAY_2_OBJ);
+                BYTE_ARRAY_1_OBJ.writeTo(digest);
+                BYTE_ARRAY_2_OBJ.writeTo(digest);
+                assertEquals(Bytes.wrap(digest.digest()), resultDirect);
+
+                final var arrOfArrays = new Bytes[] {BYTE_ARRAY_2_OBJ, BYTE_ARRAY_1_OBJ};
+                final var resultAsArr = sha256HashOfAll(arrOfArrays);
+                arrOfArrays[0].writeTo(digest);
+                arrOfArrays[1].writeTo(digest);
+                assertEquals(Bytes.wrap(digest.digest()), resultAsArr);
+            }
+        }
+
+        @Nested
+        class ByteArrayVariants {
+            @Test
+            void noThrowSha256HashOfWorksWithEmptyBytes() {
+                final var digest = sha256DigestOrThrow();
+
+                final var result = noThrowSha256HashOf(EMPTY_BYTES);
+                assertArrayEquals(digest.digest(EMPTY_BYTES), result);
+            }
+
+            @Test
+            void noThrowSha256HashOfThrowsOnNull() {
+                assertThrows(NullPointerException.class, () -> noThrowSha256HashOf((byte[]) null));
+            }
+
+            @Test
+            void noThrowSha256HashOfWorksWithByteArray() {
+                final var digest = sha256DigestOrThrow();
+
+                final var result1 = noThrowSha256HashOf(BYTE_ARRAY_1);
+                assertArrayEquals(digest.digest(BYTE_ARRAY_1), result1);
+
+                final var result2 = noThrowSha256HashOf(BYTE_ARRAY_2);
+                assertArrayEquals(digest.digest(BYTE_ARRAY_2), result2);
+            }
+
+            @Test
+            void sha256HashOfWorksWithMultipleByteArrays() {
+                final var digest = sha256DigestOrThrow();
+
+                final var result = CommonUtils.sha256HashOf(BYTE_ARRAY_1, BYTE_ARRAY_2);
+                digest.update(BYTE_ARRAY_1);
+                assertArrayEquals(digest.digest(BYTE_ARRAY_2), result);
+            }
+
+            @Test
+            void sha256HashOfAllThrowsOnNull() {
+                assertThrows(NullPointerException.class, () -> CommonUtils.sha256HashOfAll((byte[]) null));
+                assertThrows(NullPointerException.class, () -> CommonUtils.sha256HashOfAll(new byte[][] {null, null}));
+            }
+
+            @Test
+            void sha256HashOfAllWorksWithEmptyByteArray() {
+                final var digest = sha256DigestOrThrow();
+
+                final var result = CommonUtils.sha256HashOfAll(EMPTY_BYTES);
+                assertEquals(Bytes.wrap(digest.digest(EMPTY_BYTES)), result);
+            }
+
+            @Test
+            void sha256HashOfAllWorksWithMultipleEmptyByteArrays() {
+                final var digest = sha256DigestOrThrow();
+
+                final var result = CommonUtils.sha256HashOfAll(EMPTY_BYTES, EMPTY_BYTES);
+                digest.update(EMPTY_BYTES);
+                assertEquals(Bytes.wrap(digest.digest(EMPTY_BYTES)), result);
+            }
+
+            @Test
+            void sha256HashOfAllWorksWithSingleByteArray() {
+                final var digest = sha256DigestOrThrow();
+
+                final var result = CommonUtils.sha256HashOfAll(BYTE_ARRAY_1);
+                assertEquals(Bytes.wrap(digest.digest(BYTE_ARRAY_1)), result);
+            }
+
+            @Test
+            void sha256HashOfThrowsOnIncludedNullArray() {
+                assertThrows(NullPointerException.class, () -> sha256HashOfAll(BYTE_ARRAY_1, null));
+            }
+
+            @Test
+            void sha256HashOfAllWorksWithMultipleByteArrays() {
+                final var digest = sha256DigestOrThrow();
+
+                final var resultDirect = CommonUtils.sha256HashOfAll(BYTE_ARRAY_1, BYTE_ARRAY_2);
+                digest.update(BYTE_ARRAY_1);
+                assertEquals(Bytes.wrap(digest.digest(BYTE_ARRAY_2)), resultDirect);
+
+                final var arrOfArrays = new byte[][] {BYTE_ARRAY_2, BYTE_ARRAY_1};
+                final var resultAsArr = CommonUtils.sha256HashOfAll(arrOfArrays);
+                digest.update(arrOfArrays[0]);
+                assertEquals(Bytes.wrap(digest.digest(arrOfArrays[1])), resultAsArr);
+            }
+        }
+
+        @Nested
+        class MixedVariant {
+            @SuppressWarnings("DataFlowIssue")
+            @Test
+            void sha256HashOfThrowsOnNull() {
+                assertThrows(NullPointerException.class, () -> sha256HashOf(null, Bytes.EMPTY, new byte[0]));
+                assertThrows(NullPointerException.class, () -> sha256HashOf(Bytes.EMPTY, null, new byte[0]));
+                assertThrows(NullPointerException.class, () -> sha256HashOf(Bytes.EMPTY, Bytes.EMPTY, null));
+            }
+
+            @Test
+            void sha256HashOfWorksWithEmpty() {
+                final var digest = sha256DigestOrThrow();
+
+                final var result = sha256HashOf(Bytes.EMPTY, Bytes.EMPTY, new byte[0]);
+                Bytes.EMPTY.writeTo(digest);
+                Bytes.EMPTY.writeTo(digest);
+                digest.update(new byte[0]);
+                assertEquals(Bytes.wrap(digest.digest()), result);
+            }
+
+            @Test
+            void sha256HashOfWorksWithNonEmpty() {
+                final var digest = sha256DigestOrThrow();
+
+                BYTE_ARRAY_1_OBJ.writeTo(digest);
+                BYTE_ARRAY_2_OBJ.writeTo(digest);
+                digest.update(BYTE_ARRAY_1);
+                final var actual = sha256HashOf(BYTE_ARRAY_1_OBJ, BYTE_ARRAY_2_OBJ, BYTE_ARRAY_1);
+                assertEquals(Bytes.wrap(digest.digest()), actual);
+            }
+        }
+
+        @Nested
+        class BytesAndByteArrayEquivalence {
+            @Test
+            void noThrowSha256HashOfWorksWithEmptyBytes() {
+                final var byteArrResult = noThrowSha256HashOf(EMPTY_BYTES);
+                final var bytesResult = noThrowSha256HashOf(Bytes.EMPTY);
+                assertEquals(Bytes.wrap(byteArrResult), bytesResult);
+            }
+
+            @Test
+            void noThrowSha256HashOfWorksWithByteArray() {
+                final var byteArrResult1 = noThrowSha256HashOf(BYTE_ARRAY_1);
+                final var bytesResult1 = noThrowSha256HashOf(BYTE_ARRAY_1_OBJ);
+                assertEquals(Bytes.wrap(byteArrResult1), bytesResult1);
+
+                final var byteArrResult2 = noThrowSha256HashOf(BYTE_ARRAY_2);
+                final var bytesResult2 = noThrowSha256HashOf(BYTE_ARRAY_2_OBJ);
+                assertEquals(Bytes.wrap(byteArrResult2), bytesResult2);
+            }
+
+            @Test
+            void sha256HashOfWorksWithMultipleByteArrays() {
+                final var byteArrResult = CommonUtils.sha256HashOf(BYTE_ARRAY_1, BYTE_ARRAY_2);
+                final var bytesResult = sha256HashOfAll(BYTE_ARRAY_1_OBJ, BYTE_ARRAY_2_OBJ);
+                assertEquals(Bytes.wrap(byteArrResult), bytesResult);
+            }
+
+            @Test
+            void sha256HashOfAllWorksWithEmptyByteArray() {
+                final var byteArrResult = CommonUtils.sha256HashOfAll(EMPTY_BYTES);
+                final var bytesResult = sha256HashOfAll(Bytes.EMPTY);
+                assertEquals(byteArrResult, bytesResult);
+            }
+
+            @Test
+            void sha256HashOfAllWorksWithMultipleEmptyByteArrays() {
+                final var byteArrResult = CommonUtils.sha256HashOfAll(EMPTY_BYTES, EMPTY_BYTES);
+                final var bytesResult = sha256HashOfAll(Bytes.EMPTY, Bytes.EMPTY);
+                assertEquals(byteArrResult, bytesResult);
+            }
+
+            @Test
+            void noThrowSha256HashOfAllWorksWithSingleByteArray() {
+                final var byteArrResult = CommonUtils.sha256HashOfAll(BYTE_ARRAY_1);
+                final var bytesResult = sha256HashOfAll(BYTE_ARRAY_1_OBJ);
+                assertEquals(byteArrResult, bytesResult);
+            }
+
+            @Test
+            void sha256HashOfAllWorksWithMultipleByteArrays() {
+                final var byteArrResultDirect = CommonUtils.sha256HashOfAll(BYTE_ARRAY_1, BYTE_ARRAY_2);
+                final var bytesResultDirect = sha256HashOfAll(BYTE_ARRAY_1_OBJ, BYTE_ARRAY_2_OBJ);
+                assertEquals(byteArrResultDirect, bytesResultDirect);
+
+                final var arrOfArrays = new byte[][] {BYTE_ARRAY_2, BYTE_ARRAY_1};
+                final var resultAsArr = CommonUtils.sha256HashOfAll(arrOfArrays);
+                final var bytesArrOfArrays = new Bytes[] {BYTE_ARRAY_2_OBJ, BYTE_ARRAY_1_OBJ};
+                final var bytesResultAsArr = sha256HashOfAll(bytesArrOfArrays);
+                assertEquals(resultAsArr, bytesResultAsArr);
+            }
+
+            @Test
+            void sha256HashOfAllThrowsWithIncludedNull() {
+                assertThrows(NullPointerException.class, () -> sha256HashOfAll(BYTE_ARRAY_1_OBJ, null));
+                assertThrows(NullPointerException.class, () -> sha256HashOfAll(BYTE_ARRAY_1, null));
             }
         }
     }
