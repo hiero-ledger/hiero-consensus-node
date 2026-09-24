@@ -371,8 +371,7 @@ public class HapiUtils {
                     .accountNum(Long.parseLong(parts[2]))
                     .build();
         } catch (final NumberFormatException | ArrayIndexOutOfBoundsException e) {
-            throw new IllegalArgumentException(
-                    String.format(Locale.ROOT, "'%s' is not a dot-separated triplet", string));
+            throw new IllegalArgumentException(String.format("'%s' is not a dot-separated triplet", string));
         }
     }
 
