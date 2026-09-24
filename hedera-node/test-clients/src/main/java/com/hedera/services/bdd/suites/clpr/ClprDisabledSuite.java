@@ -37,6 +37,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.VERIFY_CONFIG_WITH_SEED_ENDPOINTS;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toBundleProofBytes;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toConfigProofBytes;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_NOT_ENABLED;
@@ -127,10 +128,6 @@ public class ClprDisabledSuite {
             EnumSet.of(HederaFunctionality.ClprEndpointPublication);
     private static final List<String> CLPR_SYSTEM_CONTRACT_NUMS =
             List.of(String.valueOf(0x16eL), String.valueOf(0x16fL), String.valueOf(0x170L), String.valueOf(0x171L));
-    private static final String PROBE_ABI = "{\"name\":\"verifyConfig\","
-            + "\"inputs\":[{\"name\":\"proofBytes\",\"type\":\"bytes\"}],"
-            + "\"outputs\":[{\"name\":\"\",\"type\":\"bytes\"}],"
-            + "\"stateMutability\":\"view\",\"type\":\"function\"}";
 
     @BeforeAll
     static void beforeAll(final TestLifecycle lifecycle) {
@@ -184,7 +181,8 @@ public class ClprDisabledSuite {
         // A direct call exposes the native halt reason, rather than a wrapper's generic revert.
         // Enabled execution reaches selector/proof validation and cannot satisfy this assertion.
         return hapiTest(CLPR_SYSTEM_CONTRACT_NUMS.stream()
-                .map(num -> contractCallWithFunctionAbi(num, PROBE_ABI, (Object) new byte[] {1})
+                .map(num -> contractCallWithFunctionAbi(
+                                num, VERIFY_CONFIG_WITH_SEED_ENDPOINTS.toJson(false), new byte[] {1}, new byte[32])
                         .payingWith(GENESIS)
                         .gas(GAS_TO_OFFER)
                         .refusingEthConversion()

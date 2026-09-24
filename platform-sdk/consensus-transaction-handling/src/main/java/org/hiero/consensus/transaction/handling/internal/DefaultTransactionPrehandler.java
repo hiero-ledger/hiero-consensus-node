@@ -86,6 +86,7 @@ public class DefaultTransactionPrehandler implements TransactionPrehandler {
         try {
             latestImmutableState = signedStateNexus.getState(RESERVATION_LABEL);
             while (latestImmutableState == null) {
+                Thread.yield();
                 latestImmutableState = signedStateNexus.getState(RESERVATION_LABEL);
             }
 
