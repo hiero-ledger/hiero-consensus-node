@@ -108,6 +108,7 @@ public class ConsensusLayerImpl implements ConsensusLayer {
     public void requestNextRound(@Nullable final Roster newRoster, @Nullable final Instant freezeTime) {
         throwOnInvalidFreezeTime(freezeTime);
         freezePeriodChecker.setFreezeTime(freezeTime);
+        hashgraphModule.requestRoundInputWire().inject(NoInput.getInstance());
     }
 
     private void throwOnInvalidFreezeTime(@Nullable final Instant freezeTime) {

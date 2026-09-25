@@ -27,14 +27,14 @@ class SimulationStats {
                 .map(ConsensusEngineOutput::preConsensusEvents)
                 .mapToLong(List::size)
                 .sum();
-        engineOutputs.stream()
-                .map(ConsensusEngineOutput::consensusRounds)
-                .flatMap(List::stream)
-                .map(cr -> cr.getPlatformEvents().stream()
-                        .map(ce -> Duration.between(ce.getTimeCreated(), cr.getReachedConsTimestamp()))
-                        .toList())
-                .flatMap(List::stream)
-                .forEach(c2cs::add);
+//        engineOutputs.stream()
+//                .map(ConsensusEngineOutput::consensusRounds)
+//                .flatMap(List::stream)
+//                .map(cr -> cr.getPlatformEvents().stream()
+//                        .map(ce -> Duration.between(ce.getTimeCreated(), cr.getReachedConsTimestamp()))
+//                        .toList())
+//                .flatMap(List::stream)
+//                .forEach(c2cs::add);
     }
 
     public void records(final List<PlatformEvent> events) {

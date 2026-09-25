@@ -20,6 +20,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.pool.CachedPoolParallelExecutor;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
+import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.GossipController;
 import org.hiero.consensus.gossip.impl.gossip.permits.SyncGuard;
@@ -53,6 +54,7 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
     private final SyncMetrics syncMetrics;
     private final SyncConfig syncConfig;
     private final BroadcastConfig broadcastConfig;
+    private final GossipConfig gossipConfig;
     private final ShadowgraphSynchronizer synchronizer;
     private final SyncPermitProvider permitProvider;
     private final AtomicBoolean gossipHalted = new AtomicBoolean(false);
@@ -117,6 +119,7 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
 
         this.syncConfig = configuration.getConfigData(SyncConfig.class);
         this.broadcastConfig = configuration.getConfigData(BroadcastConfig.class);
+        this.gossipConfig = configuration.getConfigData(GossipConfig.class);
         final int permitCount;
         if (syncConfig.onePermitPerPeer()) {
             permitCount = rosterSize - 1;
@@ -169,6 +172,7 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
                 fallenBehindMonitor,
                 syncConfig,
                 broadcastConfig,
+                gossipConfig,
                 statusMonitorModule);
 
         peerProtocol.setRpcPeerHandler(handler);

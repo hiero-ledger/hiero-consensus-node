@@ -17,6 +17,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
 import org.hiero.consensus.main.model.NodeId;
@@ -61,16 +62,16 @@ public class ShadowgraphSynchronizer {
     private final Duration nonAncestorFilterThreshold;
 
     /**
-     * For events that are ancestors of self events, we must have had this event for at least this amount
-     * of time before it is eligible to be sent. Ignored if {@link #filterLikelyDuplicates} is false. It helps to reduce
-     * the duplicate ratio when using broadcast. Not active if broadcast is disabled.
+     * For events that are ancestors of self events, we must have had this event for at least this amount of time before
+     * it is eligible to be sent. Ignored if {@link #filterLikelyDuplicates} is false. It helps to reduce the duplicate
+     * ratio when using broadcast. Not active if broadcast is disabled.
      */
     private final Duration ancestorFilterThreshold;
 
     /**
-     * For events that are self events, we must have had this event for at least this amount
-     * of time before it is eligible to be sent. Ignored if {@link #filterLikelyDuplicates} is false. It helps to reduce
-     * the duplicate ratio when using broadcast. Not active if broadcast is disabled.
+     * For events that are self events, we must have had this event for at least this amount of time before it is
+     * eligible to be sent. Ignored if {@link #filterLikelyDuplicates} is false. It helps to reduce the duplicate ratio
+     * when using broadcast. Not active if broadcast is disabled.
      */
     private final Duration selfFilterThreshold;
 
@@ -81,16 +82,18 @@ public class ShadowgraphSynchronizer {
 
     private final Consumer<SyncProgress> syncProgressHandler;
 
+    private final int farFutureEventThreshold;
+
     /**
      * Constructs a new ShadowgraphSynchronizer.
      *
-     * @param configuration the platform configuration
-     * @param metrics the metrics system
-     * @param time source of time
-     * @param numberOfNodes number of nodes in the network
-     * @param syncMetrics metrics for sync
+     * @param configuration      the platform configuration
+     * @param metrics            the metrics system
+     * @param time               source of time
+     * @param numberOfNodes      number of nodes in the network
+     * @param syncMetrics        metrics for sync
      * @param intakeEventCounter used for tracking events in the intake pipeline per peer
-     * @param syncLagHandler callback for reporting median sync lag
+     * @param syncLagHandler     callback for reporting median sync lag
      */
     public ShadowgraphSynchronizer(
             @NonNull final Configuration configuration,
@@ -109,6 +112,7 @@ public class ShadowgraphSynchronizer {
         this.nonAncestorFilterThreshold = syncConfig.nonAncestorFilterThreshold();
         this.ancestorFilterThreshold = syncConfig.ancestorFilterThreshold();
         this.selfFilterThreshold = syncConfig.selfFilterThreshold();
+        this.farFutureEventThreshold = configuration.getConfigData(GossipConfig.class).farFutureEventThreshold();
 
         this.filterLikelyDuplicates = syncConfig.filterLikelyDuplicates();
         this.maximumEventsPerSync = syncConfig.maxSyncEventCount();
@@ -198,11 +202,20 @@ public class ShadowgraphSynchronizer {
             sendList = eventsTheyMayNeed;
         }
 
-        if (maximumEventsPerSync > 0 && sendList.size() > maximumEventsPerSync) {
-            sendList = sendList.subList(0, maximumEventsPerSync);
+        List<PlatformEvent> nonFarFutureEventsToSend = filterFarFutureEvents(
+                theirEventWindow.getPendingConsensusRound(), sendList);
+
+        if (maximumEventsPerSync > 0 && nonFarFutureEventsToSend.size() > maximumEventsPerSync) {
+            nonFarFutureEventsToSend = nonFarFutureEventsToSend.subList(0, maximumEventsPerSync);
         }
 
-        return sendList;
+        return nonFarFutureEventsToSend;
+    }
+
+    private List<PlatformEvent> filterFarFutureEvents(final long theirPendingRound,
+            @NonNull final List<PlatformEvent> sendList) {
+        final long minimumPeerRejectedBirthRound = theirPendingRound + farFutureEventThreshold;
+        return sendList.stream().filter(e -> e.getBirthRound() < minimumPeerRejectedBirthRound).toList();
     }
 
     /**

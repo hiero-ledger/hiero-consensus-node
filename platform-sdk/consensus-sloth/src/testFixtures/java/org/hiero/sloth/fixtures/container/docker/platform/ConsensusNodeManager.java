@@ -162,10 +162,11 @@ public class ConsensusNodeManager {
 
         // Wiring: Forward consensus rounds to registered listeners
         final ConsensusLayerAdapterBuildingBlocks buildingBlocks = builder.buildingBlocks();
-        buildingBlocks
-                .hashgraphModule()
-                .consensusRoundOutputWire()
-                .solderTo("dockerApp", "consensusRounds", this::notifyConsensusRoundListeners);
+        // TODO
+//        buildingBlocks
+//                .hashgraphModule()
+//                .consensusRoundOutputWire()
+//                .solderTo("dockerApp", "consensusRounds", this::notifyConsensusRoundListeners);
     }
 
     /**

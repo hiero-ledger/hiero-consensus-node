@@ -22,6 +22,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
+import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.impl.gossip.permits.SyncGuard;
 import org.hiero.consensus.gossip.impl.gossip.rpc.GossipRpcReceiverHandler;
@@ -135,6 +136,8 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
     @NonNull
     private final StatusMonitorModule statusMonitorModule;
 
+    private final int farFutureEventThresdhold;
+
     /**
      * Create new state class for an RPC peer
      *
@@ -151,6 +154,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      *                                      behind
      * @param syncConfig                    sync configuration
      * @param broadcastConfig               broadcast configuration
+     * @param gossipConfig                  gossip configuration
      * @param statusMonitorModule           the status monitor module
      */
     public RpcPeerHandler(
@@ -166,6 +170,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final SyncConfig syncConfig,
             @NonNull final BroadcastConfig broadcastConfig,
+            @NonNull final GossipConfig gossipConfig,
             @NonNull final StatusMonitorModule statusMonitorModule) {
         this.sharedShadowgraphSynchronizer = Objects.requireNonNull(sharedShadowgraphSynchronizer);
         this.sender = Objects.requireNonNull(sender);
@@ -182,6 +187,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         this.syncConfig = Objects.requireNonNull(syncConfig);
         this.broadcastConfig = Objects.requireNonNull(broadcastConfig);
         this.statusMonitorModule = Objects.requireNonNull(statusMonitorModule);
+        this.farFutureEventThresdhold = gossipConfig.farFutureEventThreshold();
     }
 
     /**
@@ -357,6 +363,15 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
         this.syncMetrics.eventsReceived(lastReceiveEventFinished, gossipEvents.size());
     }
 
+    private boolean isFarFutureEvent(@NonNull final GossipEvent event) {
+        if (event.eventCore() == null) {
+            return true;
+        }
+        final long minimumUnacceptableBirthRound =
+                this.state.shadowWindow.getEventWindow().getPendingConsensusRound() + farFutureEventThresdhold;
+        return event.eventCore().birthRound() >= minimumUnacceptableBirthRound;
+    }
+
     /**
      * {@inheritDoc}
      */
@@ -382,6 +397,11 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
 
         if (ignoreIncomingEvents) {
             // we need to ignore broadcast events if system is unhealthy
+            return;
+        }
+
+        if (isFarFutureEvent(gossipEvent)) {
+            // reject far future events
             return;
         }
 
@@ -533,6 +553,9 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      * @param gossipEvent event received from the remote peer
      */
     private void handleIncomingSyncEvent(@NonNull final GossipEvent gossipEvent) {
+        if (isFarFutureEvent(gossipEvent)) {
+            return;
+        }
         final PlatformEvent platformEvent = new PlatformEvent(gossipEvent, EventOrigin.GOSSIP);
         platformEvent.setSenderId(peerId);
         this.intakeEventCounter.eventEnteredIntakePipeline(peerId);
