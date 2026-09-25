@@ -81,6 +81,9 @@ public class ClprNegativePeerSuite {
     final Stream<DynamicTest> malformedBundleRejected() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
+                // clpr.enabled defaults to false in this repo; enable it per-spec (like the
+                // setupChannelWithTwoSends helper does) since this positive case needs CLPR active.
+                overridingTwo("clpr.enabled", "true", "clpr.minLockedStake", "100"),
                 clprUpdateLedgerConfiguration()
                         .configuration(defaultLedgerConfig())
                         .payingWith(GENESIS),
