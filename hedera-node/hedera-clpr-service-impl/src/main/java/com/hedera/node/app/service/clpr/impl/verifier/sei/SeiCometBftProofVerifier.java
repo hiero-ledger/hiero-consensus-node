@@ -173,7 +173,7 @@ public final class SeiCometBftProofVerifier {
                 anchorBytes.length(),
                 anchorId.toHex());
         // No config-path manifest proof for Sei yet (see VerifiedConfig#endpointManifestBytes);
-        // the V3 config selector seed-falls-back to a bring-up manifest in SeiVerifyConfigCall.
+        // the manifest-aware config selector seed-falls-back to a bring-up manifest in SeiVerifyConfigCall.
         return new VerifiedConfig(ledgerCfg, new byte[0]);
     }
 
@@ -330,7 +330,7 @@ public final class SeiCometBftProofVerifier {
             // authenticates the peer chain and proves the endpoint manifest while carrying no queue
             // state — the store root comes from the multistore commitment, not the per-slot proofs, so
             // verifyStateProof tolerates zero queue slots. bundleContentBytes/queueMetadata stay null;
-            // the precompile Call turns this into a V3 manifestOnlySuccess (nextMessageId == 0 sentinel).
+            // the precompile Call turns this into a endpoint manifestOnlySuccess (nextMessageId == 0 sentinel).
             // NOTE: this wire shape is not yet produced by the clpr-evm-endpoint relay (a cross-repo
             // follow-up); today it is exercised only by the synthetic fixtures in the unit tests.
             final boolean manifestOnly = payload.bundleContent().length() == 0 && hasManifestProof;
@@ -1134,7 +1134,7 @@ public final class SeiCometBftProofVerifier {
      * @param endpointManifestBytes protobuf {@code ClprEndpointManifest} preimage proven by a
      *     config-path manifest proof; currently always empty for Sei (there is no config-path manifest
      *     proof producer yet — the real manifest advances via the bundle path, spec §4.2 Step 1b), so
-     *     the V3 config selector uses a bring-up seed-fallback in {@code SeiVerifyConfigCall}
+     *     the manifest-aware config selector uses a bring-up seed-fallback in {@code SeiVerifyConfigCall}
      */
     public record VerifiedConfig(
             @NonNull ClprLedgerConfiguration ledgerConfiguration,
