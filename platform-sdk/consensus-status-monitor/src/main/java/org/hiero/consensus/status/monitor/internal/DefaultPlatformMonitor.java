@@ -9,6 +9,9 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.Set;
+import org.hiero.consensus.model.event.ConsensusEvent;
+import org.hiero.consensus.model.event.EventOrigin;
+import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
@@ -36,6 +39,8 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
     private final StatusStateMachine statusStateMachine;
     /** Tracks the node's uptime based on consensus events */
     private final UptimeTracker uptimeTracker;
+    /** The ID of this node. Used to detect self events reaching consensus. */
+    private final NodeId selfId;
     /** Tracks the last QuiescenceCommand submitted to the node */
     private QuiescenceCommand lastQuiescenceCommand;
     /** Tracks the moment a QuiescenceCommand was submitted to the node */
@@ -55,6 +60,7 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
             @NonNull final Time time,
             @NonNull final NodeId selfId) {
         this.time = time;
+        this.selfId = Objects.requireNonNull(selfId);
         statusStateMachine = new StatusStateMachine(configuration, metrics, time);
         uptimeTracker = new UptimeTracker(configuration, metrics, time, selfId);
         lastQuiescenceCommand = QuiescenceCommand.DONT_QUIESCE;
@@ -90,8 +96,29 @@ public class DefaultPlatformMonitor implements PlatformMonitor {
         if (!selfEventReachedConsensus) {
             return null;
         }
+        // If ANY self event in this round was created in the current runtime, that's enough
+        // to fire the CHECKING → ACTIVE flip — a co-existing replayed or gossiped self event
+        // does not override the liveness signal from a locally-created one. Only when EVERY
+        // self event in the round is non-RUNTIME do we suppress the transition.
+        final boolean hasRuntimeSelfEvent = hasRuntimeSelfEvent(round);
         // the action receives the wall clock time, NOT the consensus timestamp
-        return statusStateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now()));
+        return statusStateMachine.submitStatusAction(
+                new SelfEventReachedConsensusAction(time.now(), hasRuntimeSelfEvent));
+    }
+
+    /**
+     * @return {@code true} if {@code round} contains at least one event created by this node
+     *         whose origin is {@link EventOrigin#RUNTIME}
+     */
+    private boolean hasRuntimeSelfEvent(@NonNull final ConsensusRound round) {
+        for (final ConsensusEvent event : round) {
+            if (event.getCreatorId().equals(selfId)
+                    && event instanceof PlatformEvent pe
+                    && pe.getOrigin() == EventOrigin.RUNTIME) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
