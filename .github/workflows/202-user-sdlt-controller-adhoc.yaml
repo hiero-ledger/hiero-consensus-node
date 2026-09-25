@@ -268,7 +268,7 @@ jobs:
       nlg-version: "${{ needs.extract-citr-vars.outputs.nlg-version }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
-      github-token: ${{ inputs.perf_code }} #FIXME
+      github-token: ${{ inputs.perf_code }} #FIXME GITHUB_TOKEN
       chewie-id-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
       chewie-host: ${{ secrets.CHEWIE_HOST }}
 
