@@ -294,6 +294,7 @@ tasks.registerHapiTest(
     "(INTEGRATION|STREAM_VALIDATION)",
     embeddedMode = "per-class",
     junitParallelMode = "same_thread",
+    pinFileWriterAndMockSignatures = true,
 )
 
 registerTestSubprocess("testSubprocess", "") // standard tasks for local dev without tag filter
