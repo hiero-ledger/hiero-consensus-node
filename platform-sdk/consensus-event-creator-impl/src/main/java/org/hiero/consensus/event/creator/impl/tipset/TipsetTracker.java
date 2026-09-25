@@ -53,7 +53,7 @@ public class TipsetTracker {
      *
      * @param time        provides wall clock time
      * @param selfId      the id of this node
-     * @param roster      the current roster
+     * @param roster      the active roster
      */
     public TipsetTracker(@NonNull final Time time, @NonNull final NodeId selfId, @NonNull final RosterWrapper roster) {
         this.roster = Objects.requireNonNull(roster);
