@@ -365,7 +365,8 @@ class JumpstartFileSuite implements LifecycleTest {
         final var fullBlockHashes = bi.blockHashes().toByteArray();
         final var expectedTrailingBlockHashes = Bytes.wrap(fullBlockHashes, 0, fullBlockHashes.length - HASH_SIZE);
         assertLogContains(log, "trailingBlockHashes", expectedTrailingBlockHashes.toHex());
-        // trailingOutputHashes must be exactly the final four record stream running hashes
+        // trailingOutputHashes must be exactly the final four record stream running hashes; these remain
+        // chained SHA-384 (48 bytes), independent of the block-root Merkle tree's HASH_SIZE (SHA-256-sized)
         final var rh = capturedRunningHashes.get();
         Bytes expectedOutputHashes =
                 BlockImplUtils.appendHash(Bytes.wrap(rh.nMinus3RunningHash().toByteArray()), Bytes.EMPTY, 4);

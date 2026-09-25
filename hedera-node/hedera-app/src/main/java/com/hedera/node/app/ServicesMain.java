@@ -238,7 +238,8 @@ public class ServicesMain {
                         hederaConfig.getConfigData(BlockStreamConfig.class).streamMode(),
                         hederaConfig.getConfigData(BlockRecordStreamConfig.class),
                         hederaConfig.getConfigData(BlockStreamJumpstartConfig.class),
-                        migrationAlreadyApplied);
+                        migrationAlreadyApplied,
+                        hederaConfig.getConfigData(BlockStreamConfig.class).useSha256());
 
         final var transactionOffsetNanos = transactionOffsetNanos(hederaConfig);
         hedera.setTxnOffsetNanos(transactionOffsetNanos);

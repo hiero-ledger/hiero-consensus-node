@@ -121,6 +121,11 @@ enum BlockHashAlgorithm {
      * serialized message is read.
      */
     SHA2_384 = 0;
+
+    /**
+     * A SHA2 algorithm SHA-256 hash.
+     */
+    SHA2_256 = 1;
 }
 
 /**

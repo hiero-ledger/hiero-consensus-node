@@ -10,7 +10,10 @@ public enum DigestType {
     SHA_384(0x58ff811b, "SHA-384", "SUN", 48),
 
     /** 512-bit SHA2 message digest meeting current CNSA standards */
-    SHA_512(0x8fc9497e, "SHA-512", "SUN", 64);
+    SHA_512(0x8fc9497e, "SHA-512", "SUN", 64),
+
+    /** 256-bit SHA2 message digest */
+    SHA_256(0x1c15d3fb, "SHA-256", "SUN", 32);
 
     /**
      * Enum constructor used to initialize the values with the algorithm characteristics.
@@ -62,6 +65,8 @@ public enum DigestType {
                 return SHA_384;
             case 0x8fc9497e:
                 return SHA_512;
+            case 0x1c15d3fb:
+                return SHA_256;
             default:
                 return null;
         }

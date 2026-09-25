@@ -18,11 +18,11 @@ import java.security.NoSuchAlgorithmException;
  *   <li>Two-child (internal) nodes: prefixed with 0x02</li>
  * </ul>
  *
- * <p>All hashing uses SHA-384 for security and consistency with the broader Hedera ecosystem.
+ * <p>All hashing uses SHA-256, matching the block root Merkle tree algorithm.
  */
 public final class HashUtils {
 
-    private static final String HASH_ALGORITHM = "SHA-384";
+    private static final String HASH_ALGORITHM = "SHA-256";
 
     private HashUtils() {
         throw new UnsupportedOperationException("Utility class");
@@ -37,7 +37,7 @@ public final class HashUtils {
     }
 
     /**
-     * Computes the raw block-tree leaf hash: {@code SHA-384(0x00 || bytes)}.
+     * Computes the raw block-tree leaf hash: {@code SHA-256(0x00 || bytes)}.
      *
      * <p>Use this for block-tree leaves that are NOT represented as standalone {@link com.hedera.hapi.block.stream.MerklePath}
      * leaf fields — for example, the block timestamp used as a sibling in state-proof extension paths.
@@ -58,7 +58,7 @@ public final class HashUtils {
     }
 
     /**
-     * Computes the hash of a VirtualMap state-item leaf: {@code SHA-384(0x00 || stateItemBytes)}.
+     * Computes the hash of a VirtualMap state-item leaf: {@code SHA-256(0x00 || stateItemBytes)}.
      *
      * <p>Matches {@code VirtualLeafBytes.writeToForHashing()} on the current platform, which writes
      * the leaf-prefix byte followed directly by the serialised {@code StateItem} bytes (field 2 = key,
@@ -81,9 +81,9 @@ public final class HashUtils {
     }
 
     /**
-     * Computes SHA-384(0x01 || childHash) — the single-child internal-node hash format.
+     * Computes SHA-256(0x01 || childHash) — the single-child internal-node hash format.
      *
-     * @param digest    a fresh or reset SHA-384 {@link MessageDigest}
+     * @param digest    a fresh or reset SHA-256 {@link MessageDigest}
      * @param childHash the child node's hash bytes
      * @return the resulting hash bytes
      */
@@ -97,9 +97,9 @@ public final class HashUtils {
     }
 
     /**
-     * Computes SHA-384(0x02 || left || right) — the two-child internal-node hash format.
+     * Computes SHA-256(0x02 || left || right) — the two-child internal-node hash format.
      *
-     * @param digest a fresh or reset SHA-384 {@link MessageDigest}
+     * @param digest a fresh or reset SHA-256 {@link MessageDigest}
      * @param left   the left child's hash bytes
      * @param right  the right child's hash bytes
      * @return the resulting hash bytes

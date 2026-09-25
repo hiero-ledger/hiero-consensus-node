@@ -244,7 +244,8 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             verify(diskWriter).appendAsync(captor.capture());
             final var input = captor.getValue();
             assertEquals(0, input.blockNumber());
-            final var entry = WrappedRecordFileBlockHashesCalculator.compute(input);
+            final var entry = WrappedRecordFileBlockHashesCalculator.compute(
+                    input, com.hedera.node.app.hapi.utils.CommonUtils::sha384DigestOrThrow);
 
             // Compute expected consensus_timestamp_hash
             final Bytes expectedConsensusTsHash = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(creationTime));

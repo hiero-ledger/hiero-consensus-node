@@ -147,7 +147,7 @@ class BlockStateProofGeneratorTest {
 
     /**
      * Builds a minimal {@link PendingBlock} with the given number and sibling-hash count. Each sibling hash reuses
-     * {@link com.hedera.node.app.blocks.BlockStreamManager#HASH_OF_ZERO}, a valid SHA-384-length value, so that hash
+     * {@link com.hedera.node.app.blocks.BlockStreamManager#HASH_OF_ZERO}, a valid HASH_SIZE-length value, so that hash
      * conversion succeeds and only the guard under test can fail.
      */
     private static PendingBlock pendingBlock(final long number, final int siblingCount) {

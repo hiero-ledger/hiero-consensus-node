@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.hapi.utils.CommonUtils;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -188,7 +189,13 @@ public class WrapsProvingKeyVerification {
 
         final var downloadUrl = tssConfig.wrapsProvingKeyDownloadUrl();
         final var retryInterval = tssConfig.wrapsProvingKeyRetryInterval();
-        verifyFileAndDownloadIfNeeded(provingKeyPath, bootstrapHash, downloadUrl, downloader, retryInterval);
+        verifyFileAndDownloadIfNeeded(
+                provingKeyPath,
+                bootstrapHash,
+                downloadUrl,
+                downloader,
+                retryInterval,
+                config.getConfigData(BlockStreamConfig.class).useSha256());
     }
 
     /**
@@ -273,7 +280,8 @@ public class WrapsProvingKeyVerification {
             @NonNull final String bootstrapHash,
             @NonNull final String downloadUrl,
             @NonNull final HttpWrapsProvingKeyDownloader downloader,
-            @NonNull final Duration retryInterval) {
+            @NonNull final Duration retryInterval,
+            final boolean useSha256) {
         // Claim the guard for the WHOLE attempt, not just the download. The synchronous branch below hashes a
         // multi-gigabyte archive and then installs it, and the scheduled retry acquires the same guard; without
         // holding it here the two could extract into the same staging directory and delete each other's files,
@@ -288,16 +296,16 @@ public class WrapsProvingKeyVerification {
             final var expectedHash = Bytes.fromHex(bootstrapHash);
             if (!Files.exists(provingKeyPath)) {
                 log.info("WRAPS proving key file not found at {}. Initiating download", provingKeyPath);
-                asyncDownloadAndVerify(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
+                asyncDownloadAndVerify(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval, useSha256);
                 handedOff = true;
                 return;
             }
             final Bytes fileHash;
             try {
-                fileHash = hashFile(provingKeyPath);
+                fileHash = hashFile(provingKeyPath, useSha256);
             } catch (final UncheckedIOException e) {
                 log.warn("Failed to read WRAPS proving key file at {}; initiating download", provingKeyPath, e);
-                asyncDownloadAndVerify(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
+                asyncDownloadAndVerify(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval, useSha256);
                 handedOff = true;
                 return;
             }
@@ -307,13 +315,13 @@ public class WrapsProvingKeyVerification {
                         provingKeyPath,
                         expectedHash,
                         fileHash);
-                asyncDownloadAndVerify(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
+                asyncDownloadAndVerify(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval, useSha256);
                 handedOff = true;
                 return;
             }
             // Hash matches - install the archive, retrying only if a later attempt could succeed
             if (tryExtractTarGz(provingKeyPath, expectedHash.toHex()) == InstallOutcome.RETRYABLE) {
-                scheduleRetry(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
+                scheduleRetry(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval, useSha256);
             }
         } finally {
             // A leaked guard would block every later acquisition for the life of the process
@@ -333,19 +341,26 @@ public class WrapsProvingKeyVerification {
             @NonNull final Bytes expectedHash,
             @NonNull final String downloadUrl,
             @NonNull final HttpWrapsProvingKeyDownloader downloader,
-            @NonNull final Duration retryInterval) {
+            @NonNull final Duration retryInterval,
+            final boolean useSha256) {
         try {
             CompletableFuture.runAsync(
                     () -> {
                         try {
                             downloader.download(downloadUrl, provingKeyPath);
-                            final Bytes downloadedHash = hashFile(provingKeyPath);
+                            final Bytes downloadedHash = hashFile(provingKeyPath, useSha256);
                             if (!downloadedHash.equals(expectedHash)) {
                                 log.error(
                                         "Downloaded WRAPS proving key hash mismatch: expected={}, actual={}",
                                         expectedHash,
                                         downloadedHash);
-                                scheduleRetry(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
+                                scheduleRetry(
+                                        provingKeyPath,
+                                        expectedHash,
+                                        downloadUrl,
+                                        downloader,
+                                        retryInterval,
+                                        useSha256);
                                 return;
                             }
                             final var outcome = tryExtractTarGz(provingKeyPath, expectedHash.toHex());
@@ -354,14 +369,21 @@ public class WrapsProvingKeyVerification {
                                         "Successfully downloaded and verified WRAPS proving key (hash={})",
                                         expectedHash);
                             } else if (outcome == InstallOutcome.RETRYABLE) {
-                                scheduleRetry(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
+                                scheduleRetry(
+                                        provingKeyPath,
+                                        expectedHash,
+                                        downloadUrl,
+                                        downloader,
+                                        retryInterval,
+                                        useSha256);
                             }
                         } catch (final Throwable t) {
                             log.error(
                                     "Failed to initiate async download of WRAPS proving key (from URL {}):",
                                     downloadUrl,
                                     t);
-                            scheduleRetry(provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval);
+                            scheduleRetry(
+                                    provingKeyPath, expectedHash, downloadUrl, downloader, retryInterval, useSha256);
                         } finally {
                             downloadInFlight.set(false);
                         }
@@ -381,7 +403,8 @@ public class WrapsProvingKeyVerification {
             @NonNull final Bytes expectedHash,
             @NonNull final String downloadUrl,
             @NonNull final HttpWrapsProvingKeyDownloader downloader,
-            @NonNull final Duration retryInterval) {
+            @NonNull final Duration retryInterval,
+            final boolean useSha256) {
         if (retryScheduler == null || retryFuture != null) {
             return;
         }
@@ -396,7 +419,7 @@ public class WrapsProvingKeyVerification {
                         // A retry may be here only because the install failed, not the download. Re-pulling a
                         // multi-gigabyte archive that is already on disk and still verifies wastes bandwidth
                         // every interval, so re-run the install directly in that case.
-                        if (archiveAlreadyVerifies(provingKeyPath, expectedHash)) {
+                        if (archiveAlreadyVerifies(provingKeyPath, expectedHash, useSha256)) {
                             log.info(
                                     "WRAPS proving key archive at {} still matches the expected hash; retrying the "
                                             + "install without re-downloading",
@@ -404,7 +427,7 @@ public class WrapsProvingKeyVerification {
                         } else {
                             log.info("Retrying WRAPS proving key download from {}", downloadUrl);
                             downloader.download(downloadUrl, provingKeyPath);
-                            final Bytes downloadedHash = hashFile(provingKeyPath);
+                            final Bytes downloadedHash = hashFile(provingKeyPath, useSha256);
                             if (!downloadedHash.equals(expectedHash)) {
                                 log.error(
                                         "Downloaded WRAPS proving key hash mismatch on retry: expected={}, actual={}",
@@ -440,12 +463,13 @@ public class WrapsProvingKeyVerification {
      * to re-run the install. A read failure is reported as "does not verify" so the retry falls back to
      * downloading.
      */
-    private static boolean archiveAlreadyVerifies(@NonNull final Path provingKeyPath, @NonNull final Bytes expected) {
+    private static boolean archiveAlreadyVerifies(
+            @NonNull final Path provingKeyPath, @NonNull final Bytes expected, final boolean useSha256) {
         if (!Files.exists(provingKeyPath)) {
             return false;
         }
         try {
-            return hashFile(provingKeyPath).equals(expected);
+            return hashFile(provingKeyPath, useSha256).equals(expected);
         } catch (final UncheckedIOException e) {
             log.warn("Failed to read WRAPS proving key archive at {} on retry; will re-download", provingKeyPath, e);
             return false;
@@ -716,11 +740,30 @@ public class WrapsProvingKeyVerification {
 
     // --- File hashing ---
 
+    /**
+     * Hashes the given file with SHA-384. Used only for the {@code wraps-artifacts.sha384} manifest, whose
+     * format is fixed by the published proving-key image build pipeline (an external system this flag does
+     * not control), so it does not vary with {@code BlockStreamConfig.useSha256}.
+     */
     private static Bytes hashFile(@NonNull final Path path) {
+        return hashFile(path, false);
+    }
+
+    /**
+     * Hashes the given file with the algorithm selected by {@code BlockStreamConfig.useSha256}, matching whichever algorithm
+     * {@code tss.wrapsProvingKeyHash} is currently configured for.
+     *
+     * <p>Note: {@link #artifactsAlreadyPresent}/{@link #installationDefect} take a different, independent
+     * path — they compare against the {@value #WRAPS_HASH_FILE_NAME} file written by the published image
+     * build, which is always SHA-384 regardless of this flag. Setting {@code useSha256=true} does not break
+     * that shortcut; it simply never matches, so the node falls through to downloading and verifying the
+     * archive here instead.
+     */
+    private static Bytes hashFile(@NonNull final Path path, final boolean useSha256) {
         requireNonNull(path);
 
         try {
-            final MessageDigest digest = sha384DigestOrThrow();
+            final MessageDigest digest = CommonUtils.digestOrThrow(useSha256);
             // We expect these files to be large, so allocate a large buffer
             final byte[] buffer = new byte[READ_BUFFER_SIZE];
             try (final FileInputStream fileInputStream = new FileInputStream(path.toFile())) {

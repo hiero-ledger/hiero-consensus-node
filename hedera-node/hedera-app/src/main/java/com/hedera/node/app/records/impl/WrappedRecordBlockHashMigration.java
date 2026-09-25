@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
-import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashesLog;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.node.config.types.StreamMode;
@@ -77,18 +76,21 @@ public class WrappedRecordBlockHashMigration {
      * @param jumpstartConfig the jumpstart configuration properties
      * @param migrationAlreadyApplied should be true if migration voting has already completed.
      *                                Prevents re-execution on restart
+     * @param useSha256 whether the wrapped-record-block-root tree uses SHA-256 instead of the SHA-384 default
+     *                  (see {@code BlockStreamConfig.useSha256})
      */
     public void execute(
             @NonNull final StreamMode streamMode,
             @NonNull final BlockRecordStreamConfig recordsConfig,
             @NonNull final BlockStreamJumpstartConfig jumpstartConfig,
-            final boolean migrationAlreadyApplied) {
+            final boolean migrationAlreadyApplied,
+            final boolean useSha256) {
         requireNonNull(streamMode);
         requireNonNull(recordsConfig);
         requireNonNull(jumpstartConfig);
 
         try {
-            runJumpstartMigration(streamMode, recordsConfig, jumpstartConfig, migrationAlreadyApplied);
+            runJumpstartMigration(streamMode, recordsConfig, jumpstartConfig, migrationAlreadyApplied, useSha256);
         } finally {
             if (result != null) {
                 truncateHashesFileIfWritingEnabled(recordsConfig);
@@ -100,7 +102,8 @@ public class WrappedRecordBlockHashMigration {
             @NonNull final StreamMode streamMode,
             @NonNull final BlockRecordStreamConfig recordsConfig,
             @NonNull final BlockStreamJumpstartConfig jumpstartConfig,
-            final boolean migrationAlreadyApplied) {
+            final boolean migrationAlreadyApplied,
+            final boolean useSha256) {
         if (migrationAlreadyApplied) {
             if (jumpstartConfig.blockNum() < 0) {
                 log.info("Jumpstart migration already applied (votingComplete=true) and no jumpstart config, skipping");
@@ -117,7 +120,7 @@ public class WrappedRecordBlockHashMigration {
             return;
         }
         try {
-            executeInternal(recordsConfig, jumpstartConfig);
+            executeInternal(recordsConfig, jumpstartConfig, useSha256);
         } catch (Exception e) {
             log.error("Unable to compute continuing historical hash over recent wrapped records. " + RESUME_MESSAGE, e);
         }
@@ -150,7 +153,8 @@ public class WrappedRecordBlockHashMigration {
 
     private void executeInternal(
             @NonNull final BlockRecordStreamConfig recordsConfig,
-            @NonNull final BlockStreamJumpstartConfig jumpstartConfig)
+            @NonNull final BlockStreamJumpstartConfig jumpstartConfig,
+            final boolean useSha256)
             throws Exception {
         // Check if jumpstart config is populated (blockNum defaults to -1 when unconfigured)
         if (jumpstartConfig.blockNum() < 0) {
@@ -158,7 +162,7 @@ public class WrappedRecordBlockHashMigration {
             return;
         }
 
-        if (!validateHashLengths(jumpstartConfig)) {
+        if (!validateHashLengths(jumpstartConfig, useSha256)) {
             return;
         }
 
@@ -167,7 +171,7 @@ public class WrappedRecordBlockHashMigration {
             return;
         }
 
-        final var hasher = createHasherFromConfig(jumpstartConfig);
+        final var hasher = createHasherFromConfig(jumpstartConfig, useSha256);
         if (hasher == null) {
             return;
         }
@@ -186,7 +190,7 @@ public class WrappedRecordBlockHashMigration {
         }
 
         // Compute hashes (state write deferred to SystemTransactions.doPostUpgradeSetup)
-        computeHashes(jumpstartConfig, hasher, allRecentWrappedRecordHashes);
+        computeHashes(jumpstartConfig, hasher, allRecentWrappedRecordHashes, useSha256);
     }
 
     private Path resolveRecentHashesPath(@NonNull final BlockRecordStreamConfig recordsConfig) {
@@ -213,7 +217,7 @@ public class WrappedRecordBlockHashMigration {
      * hash as the "previous block hash" for the first local wrapped record block).
      */
     private IncrementalStreamingHasher createHasherFromConfig(
-            @NonNull final BlockStreamJumpstartConfig jumpstartConfig) {
+            @NonNull final BlockStreamJumpstartConfig jumpstartConfig, final boolean useSha256) {
         final var subtreeHashes = jumpstartConfig.streamingHasherSubtreeHashes();
         if (jumpstartConfig.streamingHasherHashCount() != subtreeHashes.size()) {
             log.error(
@@ -228,7 +232,7 @@ public class WrappedRecordBlockHashMigration {
             hashes.add(hash.toByteArray());
         }
         final var hasher = new IncrementalStreamingHasher(
-                sha384DigestOrThrow(), hashes, jumpstartConfig.streamingHasherLeafCount());
+                CommonUtils.digestOrThrow(useSha256), hashes, jumpstartConfig.streamingHasherLeafCount());
         if (hasher.leafCount() == 0) {
             log.error("Jumpstart config contains no entries (leaf count is 0). {}", RESUME_MESSAGE);
             return null;
@@ -363,46 +367,48 @@ public class WrappedRecordBlockHashMigration {
         return true;
     }
 
-    private boolean validateHashLengths(@NonNull final BlockStreamJumpstartConfig jumpstartConfig) {
+    private boolean validateHashLengths(
+            @NonNull final BlockStreamJumpstartConfig jumpstartConfig, final boolean useSha256) {
         boolean foundError = false;
+        final int hashSize = CommonUtils.digestOrThrow(useSha256).getDigestLength();
 
         final var prevHash = jumpstartConfig.previousWrappedRecordBlockHash();
-        if (prevHash.length() != HASH_SIZE) {
+        if (prevHash.length() != hashSize) {
             log.error(
                     "Jumpstart previousWrappedRecordBlockHash has invalid length {} (expected {}). {}",
                     prevHash.length(),
-                    HASH_SIZE,
+                    hashSize,
                     RESUME_MESSAGE);
             foundError = true;
         }
         for (int i = 0; i < jumpstartConfig.streamingHasherSubtreeHashes().size(); i++) {
             final var hash = jumpstartConfig.streamingHasherSubtreeHashes().get(i);
-            if (hash.length() != HASH_SIZE) {
+            if (hash.length() != hashSize) {
                 log.error(
                         "Jumpstart streamingHasherSubtreeHashes[{}] has invalid length {} (expected {}). {}",
                         i,
                         hash.length(),
-                        HASH_SIZE,
+                        hashSize,
                         RESUME_MESSAGE);
                 foundError = true;
             }
         }
         // currentBlock*Hash properties may not be present; only validate length when populated
         final var timestampHash = jumpstartConfig.currentBlockConsensusTimestampHash();
-        if (timestampHash.length() != 0 && timestampHash.length() != HASH_SIZE) {
+        if (timestampHash.length() != 0 && timestampHash.length() != hashSize) {
             log.error(
                     "Jumpstart currentBlockConsensusTimestampHash has invalid length {} (expected {}). {}",
                     timestampHash.length(),
-                    HASH_SIZE,
+                    hashSize,
                     RESUME_MESSAGE);
             foundError = true;
         }
         final var outputHash = jumpstartConfig.currentBlockOutputItemsTreeRootHash();
-        if (outputHash.length() != 0 && outputHash.length() != HASH_SIZE) {
+        if (outputHash.length() != 0 && outputHash.length() != hashSize) {
             log.error(
                     "Jumpstart currentBlockOutputItemsTreeRootHash has invalid length {} (expected {}). {}",
                     outputHash.length(),
-                    HASH_SIZE,
+                    hashSize,
                     RESUME_MESSAGE);
             foundError = true;
         }
@@ -412,7 +418,8 @@ public class WrappedRecordBlockHashMigration {
     private void computeHashes(
             @NonNull final BlockStreamJumpstartConfig jumpstartConfig,
             @NonNull final IncrementalStreamingHasher allPrevBlocksHasher,
-            @NonNull final WrappedRecordFileBlockHashesLog allRecentWrappedRecordHashes) {
+            @NonNull final WrappedRecordFileBlockHashesLog allRecentWrappedRecordHashes,
+            final boolean useSha256) {
         final var jumpstartBlockNum = jumpstartConfig.blockNum();
         final var neededRecentWrappedRecords = allRecentWrappedRecordHashes.entries().stream()
                 .filter(rwr -> rwr.blockNumber() > jumpstartBlockNum)
@@ -429,7 +436,10 @@ public class WrappedRecordBlockHashMigration {
         for (final var recentWrappedRecordHashes : neededRecentWrappedRecords) {
             final Bytes allPrevBlocksHash = Bytes.wrap(allPrevBlocksHasher.computeRootHash());
             final Bytes finalBlockHash = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
-                    prevWrappedBlockHash, allPrevBlocksHash, recentWrappedRecordHashes);
+                    () -> CommonUtils.digestOrThrow(useSha256),
+                    prevWrappedBlockHash,
+                    allPrevBlocksHash,
+                    recentWrappedRecordHashes);
             if (wrappedRecordsProcessed != 0 && wrappedRecordsProcessed % 10000 == 0) {
                 log.info("Processed {} wrapped record file block hashes", wrappedRecordsProcessed);
             }

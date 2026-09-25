@@ -17,7 +17,7 @@ import java.time.Instant;
  */
 public final class BlockRecordInfoUtils {
     /**
-     * The size in bytes of a single SHA-384 block hash. Re-exported from {@link BlockImplUtils#HASH_SIZE}, the
+     * The size in bytes of a single SHA-256 block hash. Re-exported from {@link BlockImplUtils#HASH_SIZE}, the
      * canonical (block-format agnostic) definition, to avoid churning the many existing references to this constant.
      */
     public static final int HASH_SIZE = BlockImplUtils.HASH_SIZE;

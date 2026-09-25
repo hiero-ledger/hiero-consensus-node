@@ -15,7 +15,6 @@ import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.bloc
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.cleanUpPendingBlock;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.loadContiguousPendingBlocks;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
@@ -314,7 +313,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.diskNetworkExportFile = networkAdminConfig.diskNetworkExportFile();
         this.diskNetworkExportTss = networkAdminConfig.diskNetworkExportTss();
         this.blockHashManager = new BlockHashManager(config);
-        this.runningHashManager = new RunningHashManager();
+        this.runningHashManager = new RunningHashManager(this::digestOrThrow);
         this.lastRoundOfPrevBlock = initialStateHash.roundNum();
         this.streamingObs = requireNonNull(streamingObs);
         final var hashFuture = initialStateHash.hashFuture();
@@ -375,7 +374,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Update in-memory vars
             this.cutoverTrailingBlockHash = Bytes.wrap(fullBlockHashes, fullBlockHashes.length - HASH_SIZE, HASH_SIZE);
             this.previousBlockHashes = new IncrementalStreamingHasher(
-                    sha384DigestOrThrow(),
+                    digestOrThrow(),
                     wrappedPrevRecordBlockRootHashes.stream()
                             .map(Bytes::toByteArray)
                             .toList(),
@@ -386,8 +385,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         } else if (Objects.equals(HASH_OF_ZERO, lastBlockHash)) {
             // Genesis case
             effectiveLastBlockHash = lastBlockHash;
-            this.previousBlockHashes =
-                    new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), new ArrayList<>(), 0);
+            this.previousBlockHashes = new IncrementalStreamingHasher(digestOrThrow(), new ArrayList<>(), 0);
         } else {
             final var blockStreamInfo = state.getReadableStates(BlockStreamService.NAME)
                     .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID)
@@ -399,12 +397,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // previous-block-hashes hasher as live state for ongoing production; reconstructLastBlockHash()
             // re-derives the same all-previous-blocks root internally.
             this.previousBlockHashes = new IncrementalStreamingHasher(
-                    sha384DigestOrThrow(),
+                    digestOrThrow(),
                     blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
                             .map(Bytes::toByteArray)
                             .toList(),
                     blockStreamInfo.intermediateBlockRootsLeafCount());
-            effectiveLastBlockHash = reconstructLastBlockHash(blockStreamInfo);
+            effectiveLastBlockHash = reconstructLastBlockHash(blockStreamInfo, this::digestOrThrow);
         }
         this.lastBlockHash = effectiveLastBlockHash;
         if (!previousBlockHashesUpdated && !Objects.equals(effectiveLastBlockHash, HASH_OF_ZERO)) {
@@ -427,18 +425,26 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * @return the block root hash of {@code blockStreamInfo.blockNumber()}, or {@link #HASH_OF_ZERO} if no block has completed
      */
     public static Bytes reconstructLastBlockHash(@NonNull final BlockStreamInfo blockStreamInfo) {
+        return reconstructLastBlockHash(blockStreamInfo, CommonUtils::sha384DigestOrThrow);
+    }
+
+    public static Bytes reconstructLastBlockHash(
+            @NonNull final BlockStreamInfo blockStreamInfo, @NonNull final Supplier<MessageDigest> digestFactory) {
         requireNonNull(blockStreamInfo);
+        requireNonNull(digestFactory);
         if (blockStreamInfo.blockNumber() < 0L) {
             return HASH_OF_ZERO;
         }
+        final int hashSize = digestFactory.get().getDigestLength();
         final var prevBlockHash = blockStreamInfo.blockNumber() == 0L
                 ? HASH_OF_ZERO
                 : BlockImplUtils.blockHashByBlockNumber(
                         blockStreamInfo.trailingBlockHashes(),
                         blockStreamInfo.blockNumber() - 1,
-                        blockStreamInfo.blockNumber() - 1);
+                        blockStreamInfo.blockNumber() - 1,
+                        hashSize);
         final var prevBlocksHasher = new IncrementalStreamingHasher(
-                sha384DigestOrThrow(),
+                digestFactory.get(),
                 blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
                         .map(Bytes::toByteArray)
                         .toList(),
@@ -448,7 +454,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // The final state-changes subtree root isn't persisted directly (only the penultimate roots are), so
         // reconstruct the final state-change block item that wrote this very singleton and complete the subtree.
         final var stateChangesHasher = new IncrementalStreamingHasher(
-                sha384DigestOrThrow(),
+                digestFactory.get(),
                 blockStreamInfo.rightmostPrecedingStateChangesTreeHashes().stream()
                         .map(Bytes::toByteArray)
                         .toList(),
@@ -469,6 +475,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // Straight to BlockRootTree rather than through combine(), which also derives the sibling hashes
         // that only a pending proof needs
         return BlockRootTree.computeBlockRootHash(
+                digestFactory,
                 blockStreamInfo.blockTimeOrThrow(),
                 prevBlockHash,
                 allPrevBlocksHash,
@@ -1247,6 +1254,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             .enabled()) {
                 try {
                     final var path = PartialPathBuilder.startingStateToBlockRoot(
+                            digestOrThrow(),
                             currentPendingBlock.previousBlockHash(),
                             currentPendingBlock.siblingHashes()[0].siblingHash(),
                             currentPendingBlock.startingStateHash(),
@@ -1434,7 +1442,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             outputTreeHasher.addLeaf(serialized);
 
                             // Also update running hashes
-                            final var hashedLeaf = BlockImplUtils.hashLeaf(serialized);
+                            final var hashedLeaf = BlockImplUtils.hashLeaf(digestOrThrow(), serialized);
                             runningHashManager.nextResultHash(ByteBuffer.wrap(hashedLeaf));
                         }
                         case TRANSACTION_OUTPUT, BLOCK_HEADER -> outputTreeHasher.addLeaf(serialized);
@@ -1490,14 +1498,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private static class RunningHashManager {
-        private static final ThreadLocal<byte[]> HASHES = ThreadLocal.withInitial(() -> new byte[HASH_SIZE]);
-        private static final ThreadLocal<MessageDigest> DIGESTS =
-                ThreadLocal.withInitial(CommonUtils::sha384DigestOrThrow);
+        private final int hashSize;
+        private final ThreadLocal<MessageDigest> digests;
+        private final ThreadLocal<byte[]> hashes;
 
         byte[] nMinus3Hash;
         byte[] nMinus2Hash;
         byte[] nMinus1Hash;
         byte[] hash;
+
+        RunningHashManager(@NonNull final Supplier<MessageDigest> digestSupplier) {
+            requireNonNull(digestSupplier);
+            this.hashSize = digestSupplier.get().getDigestLength();
+            this.digests = ThreadLocal.withInitial(digestSupplier);
+            this.hashes = ThreadLocal.withInitial(() -> new byte[hashSize]);
+        }
 
         Bytes latestHashes() {
             final var all = new byte[][] {nMinus3Hash, nMinus2Hash, nMinus1Hash, hash};
@@ -1505,11 +1520,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             while (numMissing < all.length && all[numMissing] == null) {
                 numMissing++;
             }
-            final byte[] hashes = new byte[(all.length - numMissing) * HASH_SIZE];
+            final byte[] result = new byte[(all.length - numMissing) * hashSize];
             for (int i = numMissing; i < all.length; i++) {
-                System.arraycopy(all[i], 0, hashes, (i - numMissing) * HASH_SIZE, HASH_SIZE);
+                System.arraycopy(all[i], 0, result, (i - numMissing) * hashSize, hashSize);
             }
-            return Bytes.wrap(hashes);
+            return Bytes.wrap(result);
         }
 
         /**
@@ -1518,12 +1533,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
          * @param blockStreamInfo the trailing block hashes at the start of the round
          */
         void startBlock(@NonNull final BlockStreamInfo blockStreamInfo) {
-            final var hashes = blockStreamInfo.trailingOutputHashes();
-            final var n = (int) (hashes.length() / HASH_SIZE);
-            nMinus3Hash = n < 4 ? null : hashes.toByteArray(0, HASH_SIZE);
-            nMinus2Hash = n < 3 ? null : hashes.toByteArray((n - 3) * HASH_SIZE, HASH_SIZE);
-            nMinus1Hash = n < 2 ? null : hashes.toByteArray((n - 2) * HASH_SIZE, HASH_SIZE);
-            hash = n < 1 ? new byte[HASH_SIZE] : hashes.toByteArray((n - 1) * HASH_SIZE, HASH_SIZE);
+            final var stored = blockStreamInfo.trailingOutputHashes();
+            final var n = (int) (stored.length() / hashSize);
+            nMinus3Hash = n < 4 ? null : stored.toByteArray(0, hashSize);
+            nMinus2Hash = n < 3 ? null : stored.toByteArray((n - 3) * hashSize, hashSize);
+            nMinus1Hash = n < 2 ? null : stored.toByteArray((n - 2) * hashSize, hashSize);
+            hash = n < 1 ? new byte[hashSize] : stored.toByteArray((n - 1) * hashSize, hashSize);
         }
 
         /**
@@ -1536,9 +1551,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             nMinus3Hash = nMinus2Hash;
             nMinus2Hash = nMinus1Hash;
             nMinus1Hash = this.hash;
-            final var digest = DIGESTS.get();
+            final var digest = digests.get();
             digest.update(this.hash);
-            final var resultHash = HASHES.get();
+            final var resultHash = hashes.get();
             hash.get(resultHash);
             digest.update(resultHash);
             this.hash = digest.digest();
@@ -1577,7 +1592,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
          */
         @Nullable
         Bytes hashOfBlock(final long blockNo) {
-            return BlockImplUtils.blockHashByBlockNumber(blockHashes, blockNumber - 1, blockNo);
+            final int hashSize = digestOrThrow().getDigestLength();
+            return BlockImplUtils.blockHashByBlockNumber(blockHashes, blockNumber - 1, blockNo, hashSize);
         }
 
         /**
@@ -1784,15 +1800,22 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      */
     private void resetSubtrees() {
         // Branch 4
-        consensusHeaderHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        consensusHeaderHasher = new IncrementalStreamingHasher(digestOrThrow(), List.of(), 0);
         // Branch 5
-        inputTreeHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        inputTreeHasher = new IncrementalStreamingHasher(digestOrThrow(), List.of(), 0);
         // Branch 6
-        outputTreeHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        outputTreeHasher = new IncrementalStreamingHasher(digestOrThrow(), List.of(), 0);
         // Branch 7
-        stateChangesHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        stateChangesHasher = new IncrementalStreamingHasher(digestOrThrow(), List.of(), 0);
         // Branch 8
-        traceDataHasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        traceDataHasher = new IncrementalStreamingHasher(digestOrThrow(), List.of(), 0);
+    }
+
+    private MessageDigest digestOrThrow() {
+        return CommonUtils.digestOrThrow(configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .useSha256());
     }
 
     /**
@@ -1810,7 +1833,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * @return the block root hash and all possibly-required sibling hashes, ordered from bottom (the
      * branch level) to top (the root)
      */
-    private static BlockRootTreeHasher.RootAndSiblingHashes combine(
+    private BlockRootTreeHasher.RootAndSiblingHashes combine(
             @NonNull final Bytes prevBlockHash,
             @NonNull final Bytes prevBlockRootsHash,
             @NonNull final Bytes startingStateHash,
@@ -1821,8 +1844,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final Bytes traceDataHash,
             @NonNull final Timestamp firstConsensusTimeOfCurrentBlock) {
         requireNonNull(prevBlockHash);
+        final var timestampLeafHash =
+                BlockImplUtils.hashLeaf(digestOrThrow(), Timestamp.PROTOBUF.toBytes(firstConsensusTimeOfCurrentBlock));
         return BlockRootTree.computeRootAndSiblings(
-                BlockRootTree.hashTimestampLeaf(firstConsensusTimeOfCurrentBlock),
+                this::digestOrThrow,
+                timestampLeafHash,
                 prevBlockHash,
                 prevBlockRootsHash,
                 startingStateHash,

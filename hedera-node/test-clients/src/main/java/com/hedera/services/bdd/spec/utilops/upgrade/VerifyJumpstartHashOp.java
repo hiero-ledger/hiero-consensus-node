@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.upgrade;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
@@ -84,6 +84,6 @@ public class VerifyJumpstartHashOp extends UtilOp {
         for (final var hash : subtreeHashes) {
             hashes.add(hash.toByteArray());
         }
-        return new IncrementalStreamingHasher(sha384DigestOrThrow(), hashes, config.streamingHasherLeafCount());
+        return new IncrementalStreamingHasher(sha256DigestOrThrow(), hashes, config.streamingHasherLeafCount());
     }
 }

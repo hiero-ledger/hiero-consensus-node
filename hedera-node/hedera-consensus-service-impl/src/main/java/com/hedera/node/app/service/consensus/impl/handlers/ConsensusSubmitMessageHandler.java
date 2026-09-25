@@ -36,6 +36,7 @@ import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
 import com.hedera.node.app.service.consensus.impl.handlers.customfee.ConsensusCustomFeeAssessor;
@@ -51,6 +52,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -159,7 +161,12 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
         }
 
         try {
-            final var updatedTopic = updateRunningHashAndSequenceNumber(txn, topic, handleContext.consensusNow());
+            final var useSha256 = handleContext
+                    .configuration()
+                    .getConfigData(BlockStreamConfig.class)
+                    .useSha256();
+            final var updatedTopic =
+                    updateRunningHashAndSequenceNumber(txn, topic, handleContext.consensusNow(), useSha256);
 
             /* --- Put the modified topic. It will be in underlying state's modifications map.
             It will not be committed to state until commit is called on the state.--- */
@@ -249,11 +256,16 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
      * @param txn the {@link TransactionBody} of the active transaction
      * @param topic the topic to which the message is being submitted
      * @param consensusNow the consensus time of the active transaction
+     * @param useSha256 whether to hash with SHA-256 instead of the SHA-384 default (see
+     *                  {@code BlockStreamConfig.useSha256})
      * @return the updated topic
      * @throws IOException if there is an error while updating the running hash
      */
     public Topic updateRunningHashAndSequenceNumber(
-            @NonNull final TransactionBody txn, @NonNull final Topic topic, @Nullable Instant consensusNow)
+            @NonNull final TransactionBody txn,
+            @NonNull final Topic topic,
+            @Nullable Instant consensusNow,
+            final boolean useSha256)
             throws IOException {
         requireNonNull(txn);
         requireNonNull(topic);
@@ -288,9 +300,9 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
             topicBuilder.sequenceNumber(++sequenceNumber);
 
             out.writeLong(sequenceNumber);
-            out.writeObject(noThrowSha384HashOf(message));
+            out.writeObject(CommonUtils.noThrowHashOf(message, useSha256));
             out.flush();
-            runningHash = Bytes.wrap(noThrowSha384HashOf(boas.toByteArray()));
+            runningHash = Bytes.wrap(CommonUtils.noThrowHashOf(boas.toByteArray(), useSha256));
 
             /* Update the running hash */
             topicBuilder.runningHash(runningHash);

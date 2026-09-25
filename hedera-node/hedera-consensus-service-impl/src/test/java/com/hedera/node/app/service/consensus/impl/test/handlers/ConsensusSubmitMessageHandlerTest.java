@@ -231,7 +231,10 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
         subject = new ConsensusSubmitMessageHandler(new ConsensusCustomFeeAssessor()) {
             @Override
             public Topic updateRunningHashAndSequenceNumber(
-                    @NonNull final TransactionBody txn, @NonNull final Topic topic, @Nullable Instant consensusNow)
+                    @NonNull final TransactionBody txn,
+                    @NonNull final Topic topic,
+                    @Nullable Instant consensusNow,
+                    final boolean useSha256)
                     throws IOException {
                 throw new IOException();
             }

@@ -9,6 +9,7 @@ import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.binary.MerkleProof;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -19,13 +20,28 @@ import java.util.List;
  */
 public final class StateProofBuilder {
 
+    private final MessageDigest digest;
     private MPTreeNode root;
     private Bytes explicitSignature;
 
-    private StateProofBuilder() {}
+    private StateProofBuilder(@NonNull final MessageDigest digest) {
+        this.digest = requireNonNull(digest, "digest must not be null");
+    }
 
+    /**
+     * @return a new builder that hashes with the default SHA-256 digest
+     */
     public static StateProofBuilder newBuilder() {
-        return new StateProofBuilder();
+        return new StateProofBuilder(HashUtils.newMessageDigest());
+    }
+
+    /**
+     * @param digest the digest instance to hash with (e.g. a SHA-384 digest when the caller must match a
+     *               block-root tree hashed with a non-default algorithm)
+     * @return a new builder that hashes with the supplied digest
+     */
+    public static StateProofBuilder newBuilder(@NonNull final MessageDigest digest) {
+        return new StateProofBuilder(requireNonNull(digest, "digest must not be null"));
     }
 
     /**
@@ -36,7 +52,7 @@ public final class StateProofBuilder {
      */
     public StateProofBuilder addProof(@NonNull final MerkleProof merkleProof) {
         requireNonNull(merkleProof, "merkleProof must not be null");
-        return addMerklePath(MerklePathBuilder.fromStateApi(merkleProof));
+        return addMerklePath(MerklePathBuilder.fromStateApi(merkleProof, digest));
     }
 
     /**
@@ -48,7 +64,7 @@ public final class StateProofBuilder {
     public StateProofBuilder addMerklePath(@NonNull final MerklePathBuilder path) {
         requireNonNull(path, "path must not be null");
         if (root == null) {
-            root = new MPTreeNode(path);
+            root = new MPTreeNode(digest, path);
         } else {
             root.merge(path);
         }
@@ -128,18 +144,24 @@ public final class StateProofBuilder {
      * describing the shared suffix for the subtree beneath it.
      */
     static final class MPTreeNode {
+        private final MessageDigest digest;
         private MerklePathBuilder merklePathBuilder;
         private MPTreeNode leftBranch;
         private MPTreeNode rightBranch;
         private byte[] rootHash;
 
-        MPTreeNode(@NonNull final MerklePathBuilder merklePathBuilder) {
+        MPTreeNode(@NonNull final MessageDigest digest, @NonNull final MerklePathBuilder merklePathBuilder) {
+            this.digest = requireNonNull(digest, "digest must not be null");
             this.merklePathBuilder = requireNonNull(merklePathBuilder, "merklePathBuilder must not be null");
             this.rootHash = requireNonNull(merklePathBuilder.getRootHash(), "path root hash must not be null");
         }
 
         private MPTreeNode(
-                @NonNull final MerklePathBuilder parent, final MPTreeNode leftBranch, final MPTreeNode rightBranch) {
+                @NonNull final MessageDigest digest,
+                @NonNull final MerklePathBuilder parent,
+                final MPTreeNode leftBranch,
+                final MPTreeNode rightBranch) {
+            this.digest = requireNonNull(digest, "digest must not be null");
             this.merklePathBuilder = requireNonNull(parent, "parent must not be null");
             this.leftBranch = leftBranch;
             this.rightBranch = rightBranch;
@@ -218,12 +240,8 @@ public final class StateProofBuilder {
 
             final boolean treePathIsLeftBranch = !treeBranchSibling.isLeft();
             final byte[] expectedInnerNodeHash = treePathIsLeftBranch
-                    ? HashUtils.joinHashes(
-                            HashUtils.newMessageDigest(), prunedExistingPath.getRootHash(), prunedNewPath.getRootHash())
-                    : HashUtils.joinHashes(
-                            HashUtils.newMessageDigest(),
-                            prunedNewPath.getRootHash(),
-                            prunedExistingPath.getRootHash());
+                    ? HashUtils.joinHashes(digest, prunedExistingPath.getRootHash(), prunedNewPath.getRootHash())
+                    : HashUtils.joinHashes(digest, prunedNewPath.getRootHash(), prunedExistingPath.getRootHash());
 
             final var treeInnerNodeHash = merklePathBuilder.getInnerNodeHash(treeBranchIndex + 1);
             final var newInnerNodeHash = newPath.getInnerNodeHash(newPathBranchIndex + 1);
@@ -232,8 +250,8 @@ public final class StateProofBuilder {
                 throw new IllegalStateException("Incompatible inner node hashes for branching at match point");
             }
 
-            final var prunedExistingNode = new MPTreeNode(prunedExistingPath, leftBranch, rightBranch);
-            final var prunedNewNode = new MPTreeNode(prunedNewPath);
+            final var prunedExistingNode = new MPTreeNode(digest, prunedExistingPath, leftBranch, rightBranch);
+            final var prunedNewNode = new MPTreeNode(digest, prunedNewPath);
 
             this.merklePathBuilder = treePrefix;
             if (treePathIsLeftBranch) {

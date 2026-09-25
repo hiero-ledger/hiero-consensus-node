@@ -123,7 +123,6 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
                             + fullBlockHashes.length + " bytes (need >= " + HASH_SIZE + ")");
         }
         final Bytes lastBlockHashes = Bytes.wrap(fullBlockHashes, 0, fullBlockHashes.length - HASH_SIZE);
-        // 2.2. Running hashes
         Bytes lastFourHashes =
                 appendHash(Bytes.wrap(runningHashes.nMinus3RunningHash().toByteArray()), Bytes.EMPTY, 4);
         lastFourHashes =

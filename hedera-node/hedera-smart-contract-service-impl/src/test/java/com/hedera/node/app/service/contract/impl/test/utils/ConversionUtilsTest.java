@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.test.utils;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
-import static com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations.ZERO_ENTROPY;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ALIASED_SOMEBODY;
@@ -249,8 +248,25 @@ class ConversionUtilsTest {
     }
 
     @Test
-    void wrapsExpectedHashPrefix() {
-        assertEquals(Hash.wrap(Bytes32.leftPad(Bytes.EMPTY, (byte) 0)), ConversionUtils.ethHashFrom(ZERO_ENTROPY));
+    void wrapsZeroBlockRootHash() {
+        final var zeroBlockRootHash = com.hedera.pbj.runtime.io.buffer.Bytes.wrap(new byte[32]);
+        assertEquals(Hash.wrap(Bytes32.ZERO), ConversionUtils.ethHashFrom(zeroBlockRootHash));
+    }
+
+    @Test
+    void wrapsNonZeroBlockRootHash() {
+        final var blockRootHash = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("11".repeat(32));
+        assertEquals(Hash.wrap(Bytes32.wrap(blockRootHash.toByteArray())), ConversionUtils.ethHashFrom(blockRootHash));
+    }
+
+    @Test
+    void truncatesFortyEightByteBlockRootHashToLeadingThirtyTwoBytes() {
+        // A 48-byte (SHA-384) block-root hash, as produced when BlockStreamConfig.useSha256=false (the default)
+        final var fortyEightByteBlockRootHash =
+                com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("11".repeat(32) + "22".repeat(16));
+        final var expected = Hash.wrap(Bytes32.wrap(
+                com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("11".repeat(32)).toByteArray()));
+        assertEquals(expected, ConversionUtils.ethHashFrom(fortyEightByteBlockRootHash));
     }
 
     @Test
