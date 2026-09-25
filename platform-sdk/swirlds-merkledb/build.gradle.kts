@@ -19,7 +19,6 @@ mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 jmhModuleInfo {
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.config.api")
-    requires("jmh.core")
 
     runtimeOnly("com.swirlds.config.impl")
 }
