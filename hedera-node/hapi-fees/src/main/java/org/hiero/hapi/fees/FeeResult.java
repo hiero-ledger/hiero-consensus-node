@@ -3,6 +3,7 @@ package org.hiero.hapi.fees;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedSubtract;
 import static org.hiero.hapi.fees.HighVolumePricingCalculator.DEFAULT_HIGH_VOLUME_MULTIPLIER;
 
 import java.util.ArrayList;
@@ -71,7 +72,10 @@ public class FeeResult {
      * @param included how many of the extra were included for free
      */
     public void addServiceExtraFeeTinycents(String name, long unitCost, long used, long included) {
-        var charged = Math.max(0, used - included);
+        // clampedSubtract, not a bare subtraction: for a client-supplied `used` within `included` of
+        // Long.MIN_VALUE the difference underflows and wraps positive, which would slip past the
+        // Math.max(0, ...) guard and charge the maximum fee instead of none.
+        var charged = Math.max(0, clampedSubtract(used, included));
         if (charged > 0) {
             serviceExtrasDetails.add(new FeeDetail(name, unitCost, used, included, charged));
             serviceTotal = clampedAdd(serviceTotal, clampedMultiply(unitCost, charged));
@@ -158,7 +162,10 @@ public class FeeResult {
      * @param included how many of the extra were included for free
      */
     public void addNodeExtraFeeTinycents(String name, long unitCost, long used, long included) {
-        var charged = Math.max(0, used - included);
+        // clampedSubtract, not a bare subtraction: for a client-supplied `used` within `included` of
+        // Long.MIN_VALUE the difference underflows and wraps positive, which would slip past the
+        // Math.max(0, ...) guard and charge the maximum fee instead of none.
+        var charged = Math.max(0, clampedSubtract(used, included));
         if (charged > 0) {
             nodeExtrasDetails.add(new FeeDetail(name, unitCost, used, included, charged));
             nodeTotal = clampedAdd(nodeTotal, clampedMultiply(unitCost, charged));
