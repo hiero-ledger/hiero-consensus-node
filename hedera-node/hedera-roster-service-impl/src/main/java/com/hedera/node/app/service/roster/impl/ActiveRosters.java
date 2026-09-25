@@ -92,7 +92,7 @@ public class ActiveRosters {
             @NonNull final BooleanSupplier activeHintsInProgress,
             @Nullable final BooleanSupplier activeProofInProgress) {
         requireNonNull(activeHintsInProgress);
-        final var currentRosterHash = requireNonNull(rosterStore.getCurrentRosterHash());
+        final var currentRosterHash = requireNonNull(rosterStore.getActiveRosterHash());
         // Set at either a stake period boundary with weight rotation; or on handling a PREPARE_UPGRADE
         var candidateRosterHash = rosterStore.getCandidateRosterHash();
         // A candidate identical to the current roster is not a transition; a construction with the same

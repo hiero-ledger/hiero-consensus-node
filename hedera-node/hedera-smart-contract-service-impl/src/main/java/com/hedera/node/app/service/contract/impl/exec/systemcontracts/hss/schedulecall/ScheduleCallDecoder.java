@@ -14,6 +14,7 @@ import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleCreateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.utils.keys.KeyComparator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.HssCallAttempt;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -28,6 +29,8 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class ScheduleCallDecoder {
+
+    private static final KeyComparator KEY_COMPARATOR = new KeyComparator();
 
     /**
      * Default constructor for injection.
@@ -139,8 +142,9 @@ public class ScheduleCallDecoder {
         requireNonNull(payer);
         return ScheduleCreateTransactionBody.newBuilder()
                 .scheduledTransactionBody(scheduleTrx)
-                // we need to set adminKey for make schedule not immutable and to be able to delete schedule
-                .adminKey(keys.stream().findFirst().orElse(null))
+                // we need to set adminKey for make schedule not immutable and to be able to delete schedule;
+                // select it by KeyComparator so the choice does not depend on the iteration order of `keys`
+                .adminKey(keys.stream().min(KEY_COMPARATOR).orElse(null))
                 .expirationTime(Timestamp.newBuilder().seconds(expirySecond))
                 .payerAccountID(payer)
                 .waitForExpiry(waitForExpiry)

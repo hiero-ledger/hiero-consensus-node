@@ -831,7 +831,7 @@
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values({environment!~\"nmt.*\"}, environment)",
+          "query": "label_values({environment=~\".+\"}, environment)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,

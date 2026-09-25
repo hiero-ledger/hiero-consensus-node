@@ -689,7 +689,7 @@ class BlockStreamManagerImplTest {
                 CONSENSUS_THEN,
                 HASH_OF_ZERO,
                 Bytes.fromHex(
-                        "9362621b45a8b81d91d65f58bc82aca40fcc2576157b6775052f66b23f968a4a0bde57d401840abb4c916ab7d9be081b"),
+                        "c2973cea38b088de3996cf45ce5dbe339ae9b2c217204b40b7c6176c42a6000ed8619c487cd1db3509dc84bde58b18a2"),
                 HASH_OF_ZERO,
                 List.of(FAKE_PATCH_RESTART_HASH),
                 1);
@@ -1128,7 +1128,7 @@ class BlockStreamManagerImplTest {
                 CONSENSUS_THEN,
                 HASH_OF_ZERO,
                 Bytes.fromHex(
-                        "b4a01b52bd0d845e70cecaa6bc6851d8d6f1000e3dcd808f88a1f2999009c48462da8e2b247d771b783188147946fca7"),
+                        "b14cb3ba5c0610ba2c18c12540725aa65eac623190c37014123b371aa2aaa86506b687a1fec7f03de5c7dfb30934dc7e"),
                 HASH_OF_ZERO,
                 List.of(FAKE_NON_EMPTY_RESULTS_RESTART_HASH),
                 1);

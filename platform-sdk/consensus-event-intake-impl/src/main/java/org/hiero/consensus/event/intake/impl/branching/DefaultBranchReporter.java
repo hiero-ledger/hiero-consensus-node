@@ -75,15 +75,15 @@ public class DefaultBranchReporter implements BranchReporter {
      *
      * @param metrics the metrics system
      * @param time the time source
-     * @param currentRoster the current roster
+     * @param activeRoster the active roster
      */
     public DefaultBranchReporter(
-            @NonNull final Metrics metrics, @NonNull final Time time, @NonNull final RosterWrapper currentRoster) {
+            @NonNull final Metrics metrics, @NonNull final Time time, @NonNull final RosterWrapper activeRoster) {
 
-        this.roster = requireNonNull(currentRoster);
+        this.roster = requireNonNull(activeRoster);
 
         // The stream MUST be sequential to modify external collections in forEach().
-        currentRoster.nodeIds().forEach(nodeId -> {
+        activeRoster.nodeIds().forEach(nodeId -> {
             nodes.add(nodeId);
             nodeLoggers.put(nodeId, new RateLimitedLogger(logger, time, Duration.ofMinutes(10)));
         });

@@ -37,7 +37,7 @@ public interface EventCreatorModule {
      * @param time                      provides the time source for the event creator
      * @param random                    provides the secure random source for the event creator
      * @param keysAndCerts              provides the keys and certificates for this node
-     * @param roster                    provides the current roster
+     * @param roster                    provides the active roster
      * @param selfId                    the ID of this node
      * @param transactionSupplier       provides transactions to include in events
      * @param signatureTransactionCheck checks for pending signature transactions
