@@ -193,7 +193,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: hashgraph/network-load-generator
-          ref: "00429-update-throttles"
+          ref: "main"
           token: ${{ secrets.github-token }}
           path: network-load-generator
 
