@@ -114,12 +114,6 @@ on:
       gcp-sa-key-contents:
         description: "GCP Service Account Key Contents"
         required: false
-      gradle-cache-username:
-        description: "Gradle Cache Username"
-        required: false
-      gradle-cache-password:
-        description: "Gradle Cache Password"
-        required: false
       jrs-ssh-user-name:
         description: "JRS SSH User Name"
         required: false
@@ -188,8 +182,7 @@ jobs:
       ref: ${{ needs.commit-info.outputs.sha }}
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   xts-timing-sensitive-tests:
     name: XTS Timing Sensitive Tests
@@ -203,8 +196,7 @@ jobs:
       java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   xts-hammer-tests:
     name: XTS Hammer Tests
@@ -218,8 +210,7 @@ jobs:
       java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   xts-hapi-tests:
     name: XTS HAPI Tests
@@ -236,8 +227,7 @@ jobs:
       java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   xts-otter-tests:
     name: XTS Otter Tests
@@ -254,8 +244,7 @@ jobs:
       java-version: "${{ inputs.java-version }}"
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   hedera-node-jrs-panel:
     name: Hedera Node JRS Panel
@@ -279,8 +268,6 @@ jobs:
       gcp-project-number: ${{ secrets.gcp-project-number }}
       gcp-sa-key-contents: ${{ secrets.gcp-sa-key-contents }}
       slack-api-token: ${{ secrets.slack-api-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   sdk-tck-regression-panel:
     name: SDK TCK Regression Panel

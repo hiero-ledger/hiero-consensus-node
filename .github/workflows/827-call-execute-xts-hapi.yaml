@@ -41,11 +41,8 @@ on:
       access-token:
         description: "The GitHub access token used to checkout the repository, submodules, and make GitHub API calls."
         required: true
-      gradle-cache-username:
-        description: "The username used to authenticate with the Gradle Build Cache Node."
-        required: true
-      gradle-cache-password:
-        description: "The password used to authenticate with the Gradle Build Cache Node."
+      gcp-project-number:
+        description: "GCP project for storing Gradle remote cache entries."
         required: true
     outputs:
       failure-mode:
@@ -75,8 +72,7 @@ jobs:
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   hapi-tests-wraps:
     if: ${{ inputs.enable-hapi-tests-wraps == 'true' }}
@@ -89,8 +85,7 @@ jobs:
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   hapi-tests-cutover:
     if: ${{ inputs.enable-hapi-tests-cutover == 'true' }}
@@ -103,8 +98,7 @@ jobs:
       enable-network-log-capture: ${{ inputs.enable-network-log-capture }}
     secrets:
       access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+      gcp-project-number: ${{ secrets.gcp-project-number }}
 
   set-failure-mode:
     name: "Set Failure Mode"
