@@ -28,9 +28,11 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.DEFAULT_UPGRADE_FILE_ID;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileHashAt;
 
+import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
+import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode.ReassignPorts;
 import com.hedera.services.bdd.junit.support.validators.block.StateChangesValidator;
@@ -70,13 +72,11 @@ public class WrapsHandoffsTest implements LifecycleTest {
     private static final String FRESH_GENESIS_CONSTRUCTION_PATTERN =
             "Created NEXT construction #(\\d+) for rosters \\(source=([0-9a-f]+), target=\\2\\) WITH WRAPS-extensible source proof";
     /**
-     * The upgrade that requests the fresh genesis proof also forces mock signatures and disables the cutover,
-     * since a fresh genesis proof is only requested while block proofs do not yet carry the chain of trust.
+     * The upgrade that requests the fresh genesis proof also forces mock signatures, since a fresh genesis
+     * proof is only requested while block proofs do not yet carry the chain of trust.
      */
-    private static final Map<String, String> FRESH_GENESIS_UPGRADE_ENV = Map.of(
-            "tss.needsFreshGenesisWrapsProof", "true",
-            "tss.forceMockSignatures", "true",
-            "blockStream.enableCutover", "false");
+    private static final Map<String, String> FRESH_GENESIS_UPGRADE_ENV =
+            Map.of("tss.needsFreshGenesisWrapsProof", "true", "tss.forceMockSignatures", "true");
 
     private static final Duration LEDGER_ID_TIMEOUT = Duration.ofMinutes(1);
     private static final Duration WRAPS_PROOF_TIMEOUT = Duration.ofMinutes(20);
@@ -100,6 +100,28 @@ public class WrapsHandoffsTest implements LifecycleTest {
      * the network must have nothing else in flight for the fresh genesis proof to be the only construction.
      */
     @HapiTest
+    // Its own network, pinned pre-cutover from genesis: once the CLPR sync point fires the block node
+    // expects chain-of-trust proofs and rejects the fresh genesis proof this test exists to produce.
+    @HapiBlockNode(
+            networkSize = 3,
+            blockNodeConfigs = {@HapiBlockNode.BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
+            subProcessNodeConfigs = {
+                @HapiBlockNode.SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {"blockStream.enableCutover", "false"}),
+                @HapiBlockNode.SubProcessNodeConfig(
+                        nodeId = 1,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {"blockStream.enableCutover", "false"}),
+                @HapiBlockNode.SubProcessNodeConfig(
+                        nodeId = 2,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {"blockStream.enableCutover", "false"})
+            })
     @Order(0)
     final Stream<DynamicTest> upgradeRequestingFreshGenesisWrapsProofGroundsOne() {
         return hapiTest(sourcingContextual(spec -> {
