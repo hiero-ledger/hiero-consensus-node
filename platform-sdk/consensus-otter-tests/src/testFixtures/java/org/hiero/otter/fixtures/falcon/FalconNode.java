@@ -24,6 +24,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProfilerEvent;
@@ -55,6 +56,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
     private final SimulatedNetworkConnectivity networkConnectivity;
     private final NodeConfiguration nodeConfiguration;
     private final NodeResultsCollector resultsCollector;
+    private final ConsensusLatencyRecorder latencyRecorder;
 
     @Nullable
     private FalconWiring wiring;
@@ -69,6 +71,7 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
      * @param networkConnectivity the simulated network connectivity
      * @param networkConfiguration the network configuration
      * @param consensusRoundPool the consensus round pool that collects and deduplicates consensus rounds
+     * @param latencyRecorder the recorder of creation-to-consensus latency and event throughput, shared by all nodes
      */
     public FalconNode(
             @NonNull final Random random,
@@ -77,11 +80,13 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final SimulatedNetworkConnectivity networkConnectivity,
             @NonNull final NetworkConfiguration networkConfiguration,
-            @NonNull final ConsensusRoundPool consensusRoundPool) {
+            @NonNull final ConsensusRoundPool consensusRoundPool,
+            @NonNull final ConsensusLatencyRecorder latencyRecorder) {
         super(selfId, keysAndCerts, networkConfiguration);
         this.random = requireNonNull(random);
         this.timeManager = requireNonNull(timeManager);
         this.networkConnectivity = requireNonNull(networkConnectivity);
+        this.latencyRecorder = requireNonNull(latencyRecorder);
 
         this.nodeConfiguration =
                 new FalconNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
@@ -150,7 +155,9 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
         final SecureRandom secureRandom = new SecureRandomBuilder(random.nextLong()).get();
 
         wiring = new FalconWiring(currentConfiguration, time, selfId, roster(), secureRandom);
+        latencyRecorder.markStarted(time.now());
         wiring.sentGossipEventsOutputWire().solderTo("EventSubmitter_" + selfId, "event", event -> {
+            latencyRecorder.onEventCreated(event);
             // Self-created events have no sender until now; the network identifies the source by this field
             event.setSenderId(selfId);
             networkConnectivity.submitEvent(event);
@@ -160,11 +167,17 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
                         "EventWindowSubmitter_" + selfId,
                         "event window",
                         eventWindow -> networkConnectivity.updateEventWindow(selfId, eventWindow));
-        wiring.consensusOutputWire()
+        final OutputWire<ConsensusRound> consensusRounds = wiring.consensusOutputWire()
                 .buildTransformer(
                         "ConsensusResultCollector", "consensus result", ConsensusEngineOutput::consensusRounds)
-                .<ConsensusRound>buildSplitter("ConsensusResultSplitter", "consensus rounds")
-                .solderTo("ResultsCollector", "consensus round", resultsCollector::addConsensusRound);
+                .<ConsensusRound>buildSplitter("ConsensusResultSplitter", "consensus rounds");
+        // The latency recorder is fed directly from this node's output. Subscribers of the results collector receive
+        // the
+        // instance interned in the consensus round pool, which carries the reached timestamp of the first node that
+        // reported the round, not the one of this node.
+        consensusRounds.solderTo(
+                "LatencyRecorder", "consensus round", round -> latencyRecorder.onConsensusRound(selfId, round));
+        consensusRounds.solderTo("ResultsCollector", "consensus round", resultsCollector::addConsensusRound);
         wiring.start();
 
         platformStatus = PlatformStatus.ACTIVE;

@@ -4,6 +4,7 @@ package org.hiero.otter.fixtures.junit;
 import static org.hiero.otter.fixtures.junit.AnnotationUtils.findAnnotation;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
@@ -39,20 +40,39 @@ public class FalconTestExtension implements TestTemplateInvocationContextProvide
     public Stream<TestTemplateInvocationContext> provideTestTemplateInvocationContexts(
             @NonNull final ExtensionContext context) {
         final FalconTest falconTest = findAnnotation(context, FalconTest.class).orElseThrow();
+        final String testName = context.getRequiredTestMethod().getName();
+        final Duration granularity = granularityFor(testName, falconTest);
 
         final long pinnedSeed = falconTest.randomSeed();
         if (pinnedSeed != 0L) {
-            return Stream.of(FalconInvocationContext.replay(pinnedSeed));
+            return Stream.of(FalconInvocationContext.replay(pinnedSeed, granularity));
         }
 
-        final String testName = context.getRequiredTestMethod().getName();
         final int repetitions = repetitionsFor(testName, falconTest);
         final int failureThreshold = failureThresholdFor(testName, falconTest);
         final AtomicInteger failureCount = new AtomicInteger();
         final Random random = new Random();
         return IntStream.rangeClosed(1, repetitions)
                 .mapToObj(index -> FalconInvocationContext.sweep(
-                        index, repetitions, random.nextLong(), failureCount, failureThreshold));
+                        index, repetitions, random.nextLong(), failureCount, failureThreshold, granularity));
+    }
+
+    /**
+     * Determines the granularity of the simulation from {@link FalconTest#granularityMicros()}.
+     *
+     * @param testName the name of the test method, used in error messages
+     * @param falconTest the annotation of the test method
+     * @return the granularity of the simulation
+     */
+    @NonNull
+    private static Duration granularityFor(@NonNull final String testName, @NonNull final FalconTest falconTest) {
+        final long granularityMicros = falconTest.granularityMicros();
+        if (granularityMicros < 1) {
+            throw new IllegalArgumentException(
+                    "Falcon test %s must declare a positive granularity, but %d was requested"
+                            .formatted(testName, granularityMicros));
+        }
+        return Duration.ofNanos(granularityMicros * 1_000L);
     }
 
     /**

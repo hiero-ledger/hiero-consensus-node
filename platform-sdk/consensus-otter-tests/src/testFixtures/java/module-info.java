@@ -6,6 +6,7 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.assertions;
     exports org.hiero.otter.fixtures.chaosbot;
     exports org.hiero.otter.fixtures.exceptions;
+    exports org.hiero.otter.fixtures.internal.network;
     exports org.hiero.otter.fixtures.junit;
     exports org.hiero.otter.fixtures.logging;
     exports org.hiero.otter.fixtures.network.transactions;
@@ -29,6 +30,8 @@ module org.hiero.otter.fixtures {
             org.hiero.consensus.otter.docker.app;
     exports org.hiero.otter.fixtures.container.utils to
             org.hiero.consensus.otter.docker.app;
+    exports org.hiero.otter.fixtures.falcon to
+            org.hiero.otter.test;
     exports org.hiero.otter.fixtures.internal to
             com.swirlds.config.impl,
             org.hiero.consensus.otter.docker.app,
@@ -61,6 +64,7 @@ module org.hiero.otter.fixtures {
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.gossip.impl;
     requires transitive org.hiero.consensus.gossip;
+    requires transitive org.hiero.consensus.hashgraph.impl;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility.test.fixtures;
     requires transitive org.hiero.consensus.utility;
@@ -89,7 +93,6 @@ module org.hiero.otter.fixtures {
     requires org.hiero.consensus.event.stream;
     requires org.hiero.consensus.fakes;
     requires org.hiero.consensus.hashgraph.impl.test.fixtures;
-    requires org.hiero.consensus.hashgraph.impl;
     requires org.hiero.consensus.hashgraph;
     requires org.hiero.consensus.iss.detection;
     requires org.hiero.consensus.metrics;
@@ -113,6 +116,7 @@ module org.hiero.otter.fixtures {
     requires org.junit.jupiter.params;
     requires org.junit.platform.commons;
     requires static com.github.spotbugs.annotations;
+    requires static org.jspecify;
 
     provides GossipModule with
             TurtleGossipModule;

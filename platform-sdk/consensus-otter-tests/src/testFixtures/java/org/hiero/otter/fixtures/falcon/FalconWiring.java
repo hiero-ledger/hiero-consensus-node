@@ -52,7 +52,11 @@ import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
  */
 public class FalconWiring implements TimeTickReceiver {
 
-    private static final Bytes DEFAULT_SIGNATURE = Bytes.EMPTY;
+    /**
+     * The signature attached to every event. Nothing in the Falcon wiring validates signatures, but it has the length of
+     * an ED25519 signature so that the size of events matches that of real, signed events.
+     */
+    private static final Bytes DEFAULT_SIGNATURE = Bytes.wrap(new byte[64]);
 
     private final DeterministicWiringModel model;
     private final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring;

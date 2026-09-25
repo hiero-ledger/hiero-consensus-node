@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.junit;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.extension.Extension;
@@ -24,11 +25,13 @@ final class FalconInvocationContext implements TestTemplateInvocationContext {
             final int repetitionIndex,
             final int repetitionCount,
             final long randomSeed,
+            @NonNull final Duration granularity,
             @Nullable final FalconFailureThresholdExtension failureThresholdExtension) {
         this.repetitionCount = repetitionCount;
         this.randomSeed = randomSeed;
         final String repetition = repetitionCount == REPLAY ? "replay" : repetitionIndex + "/" + repetitionCount;
-        final FalconEnvironmentExtension environmentExtension = new FalconEnvironmentExtension(randomSeed, repetition);
+        final FalconEnvironmentExtension environmentExtension =
+                new FalconEnvironmentExtension(randomSeed, granularity, repetition);
         this.extensions = failureThresholdExtension == null
                 ? List.of(environmentExtension)
                 : List.of(failureThresholdExtension, environmentExtension);
@@ -42,6 +45,7 @@ final class FalconInvocationContext implements TestTemplateInvocationContext {
      * @param randomSeed the seed of this repetition
      * @param failureCount the number of repetitions of this sweep that have failed so far, shared by all repetitions
      * @param failureThreshold the number of failed repetitions that stops the sweep
+     * @param granularity the granularity of the simulation
      * @return the invocation context
      */
     @NonNull
@@ -50,11 +54,13 @@ final class FalconInvocationContext implements TestTemplateInvocationContext {
             final int repetitionCount,
             final long randomSeed,
             @NonNull final AtomicInteger failureCount,
-            final int failureThreshold) {
+            final int failureThreshold,
+            @NonNull final Duration granularity) {
         return new FalconInvocationContext(
                 repetitionIndex,
                 repetitionCount,
                 randomSeed,
+                granularity,
                 new FalconFailureThresholdExtension(failureCount, failureThreshold));
     }
 
@@ -63,11 +69,12 @@ final class FalconInvocationContext implements TestTemplateInvocationContext {
      * threshold applies.
      *
      * @param randomSeed the seed to replay
+     * @param granularity the granularity of the simulation
      * @return the invocation context
      */
     @NonNull
-    static FalconInvocationContext replay(final long randomSeed) {
-        return new FalconInvocationContext(REPLAY, REPLAY, randomSeed, null);
+    static FalconInvocationContext replay(final long randomSeed, @NonNull final Duration granularity) {
+        return new FalconInvocationContext(REPLAY, REPLAY, randomSeed, granularity, null);
     }
 
     /**
