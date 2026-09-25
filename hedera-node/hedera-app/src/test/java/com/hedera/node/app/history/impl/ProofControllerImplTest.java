@@ -579,6 +579,9 @@ class ProofControllerImplTest {
         // into prover.advance as the can-submit flag.
         verify(prover).advance(eq(now), eq(construction), eq(METADATA), any(), eq(tssConfig), any(), eq(false));
         verify(writableHistoryStore).completeProof(CONSTRUCTION_ID, proof);
+        // The handoff to the history service is part of the same ungated path
+        verify(writableHistoryStore).getLedgerId();
+        verify(historyService).onFinished(eq(writableHistoryStore), eq(construction), any());
     }
 
     @Test

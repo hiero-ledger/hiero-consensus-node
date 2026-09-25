@@ -17,6 +17,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
@@ -1087,16 +1088,26 @@ class HintsControllerImplTest {
         subject.setFinalCrsFuture(
                 CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 1)));
 
+        final var restartedState = CRSState.newBuilder()
+                .stage(CRSStage.GATHERING_CONTRIBUTIONS)
+                .nextContributingNodeId(0L)
+                .contributionEndTime(asTimestamp(CONSENSUS_NOW.plus(Duration.ofSeconds(10))))
+                .crs(INITIAL_CRS)
+                .build();
+
         subject.advanceCrsWork(CONSENSUS_NOW, store, false);
 
         // CRS state transition is written regardless of node-local ACTIVE status
-        verify(store)
-                .setCrsState(CRSState.newBuilder()
-                        .stage(CRSStage.GATHERING_CONTRIBUTIONS)
-                        .nextContributingNodeId(0L)
-                        .contributionEndTime(asTimestamp(CONSENSUS_NOW.plus(Duration.ofSeconds(10))))
-                        .crs(INITIAL_CRS)
-                        .build());
+        verify(store).setCrsState(restartedState);
+
+        // Contrast: the same state with isActive=true writes the identical transition. A never()
+        // assertion could not show this, because the restart branch is selected on
+        // nextContributingNodeId being null, so the isActive-gated self-submission branch is
+        // unreachable here for either value of the flag.
+        subject.advanceCrsWork(CONSENSUS_NOW, store, true);
+
+        verify(store, times(2)).setCrsState(restartedState);
+        verify(submissions, never()).submitCrsUpdate(any(), any());
     }
 
     @Test
@@ -1117,6 +1128,8 @@ class HintsControllerImplTest {
         // Only the node-local self-submission is gated by isActive: no task scheduled, nothing submitted
         assertTrue(scheduledTasks.isEmpty());
         verify(submissions, never()).submitCrsUpdate(any(), any());
+        verify(store, never()).setCrsState(any());
+        verify(store, never()).moveToNextNode(anyLong(), any());
     }
 
     @Test
