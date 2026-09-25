@@ -70,7 +70,7 @@ public class RpcPeerProtocolTests {
 
         for (int i = 0; i < 2; i++) {
 
-            final NodeId selfId = roster.nodeId(i);
+            final NodeId selfId = roster.nodeIdAtIndex(i);
 
             final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
             // other peer will be the only one in list of other peers

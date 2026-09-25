@@ -24,7 +24,7 @@ public class RosterMetadata {
         numMembers = m;
         memberLabels = new String[m];
         for (int i = 0; i < m; i++) {
-            memberLabels[i] = "ID:%s W:%d".formatted(roster.nodeId(i), roster.weight(i));
+            memberLabels[i] = "ID:%s W:%d".formatted(roster.nodeIdAtIndex(i), roster.weightAtIndex(i));
         }
     }
 

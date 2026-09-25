@@ -65,8 +65,8 @@ class TlsFactoryTest extends ConnectivityTestBase {
         assertTrue(roster.rosterEntries().size() > 1, "Roster must contain at least 2 nodes");
 
         // choose 2 nodes to test connections
-        final NodeId nodeA = roster.nodeId(0);
-        final NodeId nodeB = roster.nodeId(1);
+        final NodeId nodeA = roster.nodeIdAtIndex(0);
+        final NodeId nodeB = roster.nodeIdAtIndex(1);
 
         peersA = Utilities.createPeerInfoList(roster, nodeA);
         final List<PeerInfo> peersB = Utilities.createPeerInfoList(roster, nodeB);
@@ -113,7 +113,7 @@ class TlsFactoryTest extends ConnectivityTestBase {
         peersA = Utilities.createPeerInfoList(updatedRoster, nodeA); // Peers of A as in updated addressBook
 
         // pick a node for the 3rd connection C.
-        final NodeId nodeC = updatedRoster.nodeId(4);
+        final NodeId nodeC = updatedRoster.nodeIdAtIndex(4);
         final List<PeerInfo> peersC = Utilities.createPeerInfoList(updatedRoster, nodeC);
         socketFactoryC =
                 NetworkUtils.createSocketFactory(nodeC, peersC, updatedKeysAndCerts.get(nodeC), TLS_NO_IP_TOS_CONFIG);

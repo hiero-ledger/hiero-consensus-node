@@ -46,7 +46,7 @@ public class PriorityEventEmitter extends BufferingEventEmitter {
         // Repeat in priority order until an event can be emitted.
         for (final int nodeIndex : nodePriorities) {
             final NodeId nodeId =
-                    getGraphGenerator().getRoster().rosterEntry(nodeIndex).nodeId();
+                    getGraphGenerator().getRoster().nodeIdAtIndex(nodeIndex);
             attemptToGenerateEventFromNode(nodeId);
             if (isReadyToEmitEvent(nodeId)) {
                 eventEmittedFromBuffer();

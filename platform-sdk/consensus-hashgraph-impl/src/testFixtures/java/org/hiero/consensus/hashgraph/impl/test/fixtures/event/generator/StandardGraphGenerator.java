@@ -293,7 +293,7 @@ public class StandardGraphGenerator implements GraphGenerator {
 
         for (int index = 0; index < eventSourceCount; index++) {
             final EventSource source = eventSources.get(index);
-            final NodeId nodeId = roster.rosterEntry(index).nodeId();
+            final NodeId nodeId = roster.nodeIdAtIndex(index);
             source.setNodeId(nodeId);
         }
     }
@@ -333,10 +333,10 @@ public class StandardGraphGenerator implements GraphGenerator {
         final List<List<Double>> matrix = new ArrayList<>(sources.size());
 
         for (int nodeIndex = 0; nodeIndex < sources.size(); nodeIndex++) {
-            final NodeId nodeId = roster.rosterEntry(nodeIndex).nodeId();
+            final NodeId nodeId = roster.nodeIdAtIndex(nodeIndex);
             final List<Double> affinityVector = new ArrayList<>(sources.size());
             for (int otherNodeIndex = 0; otherNodeIndex < sources.size(); otherNodeIndex++) {
-                final NodeId otherNodeId = roster.rosterEntry(otherNodeIndex).nodeId();
+                final NodeId otherNodeId = roster.nodeIdAtIndex(otherNodeIndex);
                 if (Objects.equals(nodeId, otherNodeId)) {
                     affinityVector.add(0.0);
                 } else {

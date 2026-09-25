@@ -26,8 +26,8 @@ class DefaultIntakeEventCounterTests {
     void setup() {
         final ResettableRandom random = getRandomPrintSeed();
         final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, 2);
-        nodeId1 = roster.nodeId(0);
-        nodeId2 = roster.nodeId(1);
+        nodeId1 = roster.nodeIdAtIndex(0);
+        nodeId2 = roster.nodeIdAtIndex(1);
 
         this.intakeCounter = new DefaultIntakeEventCounter(roster);
     }

@@ -73,7 +73,7 @@ class RpcPeerHandlerTest {
         // SELF or OTHER is behind based on exchanged event windows.
         final double fallenBehindThreshold = 1.0;
         this.roster = RosterWrapperFactory.randomRoster(new Random(), NUM_NODES);
-        this.selfId = roster.nodeId(0);
+        this.selfId = roster.nodeIdAtIndex(0);
         this.fallenBehindManager = new FallenBehindMonitor(roster, new NoOpMetrics(), selfId, fallenBehindThreshold);
         this.eventHandler = mock(Consumer.class);
         this.gossipSender = mock(GossipRpcSender.class);
@@ -89,7 +89,7 @@ class RpcPeerHandlerTest {
 
     @Test
     void createPeerHandlerStartSync() {
-        final NodeId otherNodeId = roster.nodeId(1);
+        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
         final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
         conversation.checkForPeriodicActions(false, false);
         Mockito.verify(gossipSender).sendSyncData(any());
@@ -113,7 +113,7 @@ class RpcPeerHandlerTest {
 
     @Test
     void fullEmptySync() {
-        final NodeId otherNodeId = roster.nodeId(1);
+        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
         final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
         conversation.checkForPeriodicActions(false, false);
         Mockito.verify(gossipSender).sendSyncData(any());
@@ -127,7 +127,7 @@ class RpcPeerHandlerTest {
 
     @Test
     void errorOnDoubleSyncData() {
-        final NodeId otherNodeId = roster.nodeId(1);
+        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
         final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
         conversation.checkForPeriodicActions(false, false);
         Mockito.verify(gossipSender).sendSyncData(any());
@@ -137,7 +137,7 @@ class RpcPeerHandlerTest {
 
     @Test
     void errorOnTipsWithoutSyncData() {
-        final NodeId otherNodeId = roster.nodeId(1);
+        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
         final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
         conversation.checkForPeriodicActions(false, false);
         Mockito.verify(gossipSender).sendSyncData(any());
@@ -146,7 +146,7 @@ class RpcPeerHandlerTest {
 
     @Test
     void errorOnDoubleTips() {
-        final NodeId otherNodeId = roster.nodeId(1);
+        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
         final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
         conversation.checkForPeriodicActions(false, false);
         Mockito.verify(gossipSender).sendSyncData(any());
@@ -160,7 +160,7 @@ class RpcPeerHandlerTest {
 
     @Test
     void disconnectInMiddleOfEventSendingNotBreakingNextSync() {
-        final NodeId otherNodeId = roster.nodeId(1);
+        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
         final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
         conversation.checkForPeriodicActions(false, false);
         Mockito.verify(gossipSender).sendSyncData(any());
@@ -182,7 +182,7 @@ class RpcPeerHandlerTest {
 
     @Test
     void fullEmptySyncIgnoreEvents() {
-        final NodeId otherNodeId = roster.nodeId(1);
+        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
         final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
         conversation.checkForPeriodicActions(false, true);
         Mockito.verify(gossipSender).sendSyncData(any());
@@ -195,7 +195,7 @@ class RpcPeerHandlerTest {
 
     @Test
     void testFallenBehind() {
-        final NodeId otherNodeId = roster.nodeId(1);
+        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
         final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
         conversation.checkForPeriodicActions(false, false);
         Mockito.verify(gossipSender).sendSyncData(any());
@@ -209,7 +209,7 @@ class RpcPeerHandlerTest {
     @Test
     void testSyncProgressReporting() {
         for (int i = 2; i <= 5; i++) {
-            final NodeId otherNodeId = roster.nodeId(i);
+            final NodeId otherNodeId = roster.nodeIdAtIndex(i);
             final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
             conversation.checkForPeriodicActions(false, false);
             final EventWindow eventWindow = new EventWindow(20 + i, 20 + i, 10, 5);
@@ -221,7 +221,7 @@ class RpcPeerHandlerTest {
 
     @Test
     void testUnhealthyExit() {
-        final NodeId otherNodeId = roster.nodeId(1);
+        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
         final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
         // we don't want to start sync in unhealthy state
         assertFalse(conversation.checkForPeriodicActions(true, false));
@@ -243,7 +243,7 @@ class RpcPeerHandlerTest {
 
     @Test
     void removeFallenBehind() {
-        final NodeId otherNodeId = roster.nodeId(1);
+        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
         final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
         synchronizer.updateEventWindow(new EventWindow(100, 101, 10, 5));
         conversation.checkForPeriodicActions(false, false);

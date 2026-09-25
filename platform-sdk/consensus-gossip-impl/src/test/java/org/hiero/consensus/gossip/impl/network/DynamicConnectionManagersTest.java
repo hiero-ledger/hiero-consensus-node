@@ -41,7 +41,7 @@ class DynamicConnectionManagersTest {
     void testShouldConnectToMe(final int numNodes) throws Exception {
         final Random r = RandomUtils.getRandomPrintSeed();
         final RosterWrapper roster = RosterWrapperFactory.randomRoster(r, numNodes);
-        final NodeId selfId = roster.nodeId(r.nextInt(numNodes));
+        final NodeId selfId = roster.nodeIdAtIndex(r.nextInt(numNodes));
 
         final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
         final NetworkTopology topology = new StaticTopology(peers, selfId);
@@ -88,7 +88,7 @@ class DynamicConnectionManagersTest {
     void testShouldConnectTo(final int numNodes) throws Exception {
         final Random r = RandomUtils.getRandomPrintSeed();
         final RosterWrapper roster = RosterWrapperFactory.randomRoster(r, numNodes);
-        final NodeId selfId = roster.nodeId(r.nextInt(numNodes));
+        final NodeId selfId = roster.nodeIdAtIndex(r.nextInt(numNodes));
         final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
         final NetworkTopology topology = new StaticTopology(peers, selfId);
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();

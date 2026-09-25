@@ -1089,7 +1089,7 @@ public class ConsensusImpl implements Consensus {
                 long weight = 0;
                 for (int m3 = 0; m3 < roster.size(); m3++) {
                     if (seeThru(x, mm, m3) == st) { // only count intermediates that see the canonical witness
-                        weight += roster.weight(m3);
+                        weight += roster.weightAtIndex(m3);
                     }
                 }
                 if (Threshold.SUPER_MAJORITY.isSatisfiedBy(
@@ -1209,7 +1209,7 @@ public class ConsensusImpl implements Consensus {
         int numStronglySeen = 0;
         for (int m = 0; m < numMembers; m++) {
             if (timedStronglySeeP(x, m) != null) {
-                weight += roster.weight(m);
+                weight += roster.weightAtIndex(m);
                 numStronglySeen++;
             }
         }

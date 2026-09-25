@@ -112,7 +112,7 @@ public class RosterWrapper {
      * @throws ArrayIndexOutOfBoundsException if the index is out of bounds
      */
     @NonNull
-    public RosterEntryWrapper rosterEntry(final int index) {
+    public RosterEntryWrapper rosterEntryAtIndex(final int index) {
         return rosterEntries.get(index);
     }
 
@@ -141,7 +141,7 @@ public class RosterWrapper {
      * @return the {@link NodeId} at the given index
      * @throws ArrayIndexOutOfBoundsException if the index is out of bounds
      */
-    public NodeId nodeId(final int index) {
+    public NodeId nodeIdAtIndex(final int index) {
         return nodeIds.get(index);
     }
 
@@ -193,7 +193,7 @@ public class RosterWrapper {
      * @return the weight of the entry at the given index
      * @throws ArrayIndexOutOfBoundsException if the index is out of bounds
      */
-    public long weight(final int index) {
+    public long weightAtIndex(final int index) {
         return weightLookupTable[index];
     }
 

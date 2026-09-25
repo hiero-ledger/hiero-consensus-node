@@ -114,7 +114,7 @@ class BranchDetectorTests {
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
         final NodeId branchingNode =
-                roster.nodeId(randotron.nextInt(0, roster.nodeIds().size()));
+                roster.nodeIdAtIndex(randotron.nextInt(0, roster.nodeIds().size()));
         PlatformEvent branchingEvent = null;
         PlatformEvent siblingEvent = null;
 
@@ -206,7 +206,7 @@ class BranchDetectorTests {
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
         final NodeId branchingNode =
-                roster.nodeId(randotron.nextInt(0, roster.nodeIds().size()));
+                roster.nodeIdAtIndex(randotron.nextInt(0, roster.nodeIds().size()));
         PlatformEvent branchingEvent = null;
 
         final List<PlatformEvent> events = new ArrayList<>();
@@ -278,7 +278,7 @@ class BranchDetectorTests {
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
         final NodeId branchingNode =
-                roster.nodeId(randotron.nextInt(0, roster.nodeIds().size()));
+                roster.nodeIdAtIndex(randotron.nextInt(0, roster.nodeIds().size()));
         PlatformEvent branchingEvent = null;
 
         final List<PlatformEvent> events = new ArrayList<>();
@@ -351,7 +351,7 @@ class BranchDetectorTests {
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
         final NodeId branchingNode =
-                roster.nodeId(randotron.nextInt(0, roster.nodeIds().size()));
+                roster.nodeIdAtIndex(randotron.nextInt(0, roster.nodeIds().size()));
         PlatformEvent branchingEvent = null;
 
         final List<PlatformEvent> events = new ArrayList<>();
@@ -419,7 +419,7 @@ class BranchDetectorTests {
         final int initialBirthRound = randotron.nextInt(1, 1000);
 
         final NodeId branchingNode =
-                roster.nodeId(randotron.nextInt(0, roster.nodeIds().size()));
+                roster.nodeIdAtIndex(randotron.nextInt(0, roster.nodeIds().size()));
         PlatformEvent branchingEvent = null;
 
         final List<PlatformEvent> events = new ArrayList<>();

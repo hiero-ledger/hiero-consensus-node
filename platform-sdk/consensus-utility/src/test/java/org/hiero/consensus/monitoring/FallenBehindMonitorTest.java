@@ -162,7 +162,7 @@ class FallenBehindMonitorTest {
             final Random random = getRandomPrintSeed();
 
             this.roster = RosterWrapperFactory.randomRoster(random, 41, WeightGenerators.BALANCED);
-            this.selfId = roster.nodeId(0);
+            this.selfId = roster.nodeIdAtIndex(0);
             this.fallenBehindMonitor = new FallenBehindMonitor(roster, selfId, 0.25);
         }
     }

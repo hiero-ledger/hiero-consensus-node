@@ -147,7 +147,7 @@ public class Tipset {
             }
 
             if (this.tips[index] < that.tips[index]) {
-                final RosterEntryWrapper address = roster.rosterEntry(index);
+                final RosterEntryWrapper address = roster.rosterEntryAtIndex(index);
 
                 if (address.weight() == 0) {
                     zeroWeightCount += 1;
@@ -167,7 +167,7 @@ public class Tipset {
     public String toString() {
         final StringBuilder sb = new StringBuilder("(");
         for (int index = 0; index < tips.length; index++) {
-            sb.append(roster.nodeId(index)).append(":").append(tips[index]);
+            sb.append(roster.nodeIdAtIndex(index)).append(":").append(tips[index]);
             if (index < tips.length - 1) {
                 sb.append(", ");
             }

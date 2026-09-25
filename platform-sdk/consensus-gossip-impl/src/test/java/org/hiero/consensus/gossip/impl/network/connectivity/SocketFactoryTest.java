@@ -118,8 +118,8 @@ class SocketFactoryTest extends ConnectivityTestBase {
                 .limit(2)
                 .boxed()
                 .toList();
-        final NodeId node1 = roster.nodeId(nodeIndexes.get(0));
-        final NodeId node2 = roster.nodeId(nodeIndexes.get(1));
+        final NodeId node1 = roster.nodeIdAtIndex(nodeIndexes.get(0));
+        final NodeId node2 = roster.nodeIdAtIndex(nodeIndexes.get(1));
         final KeysAndCerts keysAndCerts1 = keysAndCerts.get(node1);
         final KeysAndCerts keysAndCerts2 = keysAndCerts.get(node2);
         final List<PeerInfo> node1Peers = Utilities.createPeerInfoList(roster, node1);
@@ -151,7 +151,7 @@ class SocketFactoryTest extends ConnectivityTestBase {
             @FreePort final int port)
             throws IOException {
         assertTrue(roster.rosterEntries().size() > 1, "Address book must contain at least 2 nodes");
-        final NodeId node0 = roster.nodeId(0);
+        final NodeId node0 = roster.nodeIdAtIndex(0);
 
         final Configuration config = new TestConfigBuilder()
                 .withValues(
@@ -177,7 +177,7 @@ class SocketFactoryTest extends ConnectivityTestBase {
             @FreePort final int port)
             throws IOException {
         assertTrue(roster.rosterEntries().size() > 1, "Address book must contain at least 2 nodes");
-        final NodeId node0 = roster.nodeId(0);
+        final NodeId node0 = roster.nodeIdAtIndex(0);
 
         final Configuration config = new TestConfigBuilder().getOrCreateConfig();
         testInterfaceBinding(node0, roster, keysAndCerts, config, port);
@@ -199,7 +199,7 @@ class SocketFactoryTest extends ConnectivityTestBase {
             @NonNull final Map<NodeId, KeysAndCerts> keysAndCerts,
             @FreePort final int port) {
         assertTrue(roster.rosterEntries().size() > 1, "Address book must contain at least 2 nodes");
-        final NodeId node0 = roster.nodeId(0);
+        final NodeId node0 = roster.nodeIdAtIndex(0);
 
         final Configuration config = new TestConfigBuilder()
                 .withValues(

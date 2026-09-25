@@ -53,7 +53,7 @@ public class ShuffledEventEmitter extends BufferingEventEmitter {
         while (true) {
             final int nodeIndex = random.nextInt(getGraphGenerator().getNumberOfSources());
             final NodeId nodeID =
-                    getGraphGenerator().getRoster().rosterEntry(nodeIndex).nodeId();
+                    getGraphGenerator().getRoster().nodeIdAtIndex(nodeIndex);
             attemptToGenerateEventFromNode(nodeID);
             if (isReadyToEmitEvent(nodeID)) {
                 eventEmittedFromBuffer();

@@ -43,8 +43,8 @@ class InboundConnectionHandlerTest extends ConnectivityTestBase {
                 .limit(2)
                 .boxed()
                 .toList();
-        final NodeId node1 = roster.nodeId(nodeIndexes.get(0));
-        final NodeId node2 = roster.nodeId(nodeIndexes.get(1));
+        final NodeId node1 = roster.nodeIdAtIndex(nodeIndexes.get(0));
+        final NodeId node2 = roster.nodeIdAtIndex(nodeIndexes.get(1));
         final KeysAndCerts thisKeysAndCerts = keysAndCerts.get(node1);
         final KeysAndCerts OtherKeysAndCerts = keysAndCerts.get(node2);
         final List<PeerInfo> node1Peers = Utilities.createPeerInfoList(roster, node1);
@@ -89,8 +89,8 @@ class InboundConnectionHandlerTest extends ConnectivityTestBase {
                 .limit(2)
                 .boxed()
                 .toList();
-        final NodeId node1 = roster.nodeId(nodeIndexes.get(0));
-        final NodeId node2 = roster.nodeId(nodeIndexes.get(1));
+        final NodeId node1 = roster.nodeIdAtIndex(nodeIndexes.get(0));
+        final NodeId node2 = roster.nodeIdAtIndex(nodeIndexes.get(1));
         final KeysAndCerts keysAndCerts1 = keysAndCerts.get(node1);
         final KeysAndCerts keysAndCerts2 = keysAndCerts.get(node2);
 
