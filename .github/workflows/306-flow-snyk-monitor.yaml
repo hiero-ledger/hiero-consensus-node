@@ -50,7 +50,7 @@ jobs:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
       - name: Disable Gradle Isolated Projects
-        run: sed -i 's/^org.gradle.unsafe.isolated-projects=.*$/org.gradle.unsafe.isolated-projects=false/' gradle.properties
+        run: sed -i 's/^org.gradle.isolated-projects=.*$/org.gradle.isolated-projects=false/' gradle.properties
 
       - name: Run Snyk Monitor
         env:
