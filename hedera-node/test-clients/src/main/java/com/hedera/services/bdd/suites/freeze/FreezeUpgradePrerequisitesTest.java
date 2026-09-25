@@ -19,6 +19,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_UPGRADE_HAS
 import com.hedera.services.bdd.junit.GenesisHapiTest;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
@@ -31,6 +32,8 @@ import org.junit.jupiter.api.Tag;
  * {@code NO_UPGRADE_HAS_BEEN_PREPARED}. The spec runs on its own genesis network, so no earlier spec
  * can have prepared an upgrade and no later spec can be affected if the rejection ever stops holding.
  */
+// Genesis tests build their own network, so they must run before any shared network exists
+@Order(Integer.MIN_VALUE)
 @Tag(INTEGRATION)
 public class FreezeUpgradePrerequisitesTest {
     @GenesisHapiTest
