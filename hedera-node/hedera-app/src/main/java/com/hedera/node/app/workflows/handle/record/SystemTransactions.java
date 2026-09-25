@@ -13,6 +13,7 @@ import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStaki
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.fromStakingInfo;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.lastInstantOfPreviousPeriodFor;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.dispatchSynthNodeRewards;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INTERNAL_SYSTEM_TRANSACTION;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
@@ -1000,6 +1001,7 @@ public class SystemTransactions {
                 parentTxnFactory.createSystemTxn(state, creatorInfo, now, INTERNAL_TRANSACTION, payerId, body);
         parentTxn.initBaseBuilder(exchangeRateManager.exchangeRates());
         final var createMetadata = new HandleContext.DispatchMetadata(SYSTEM_TXN_CREATION_ENTITY_NUM, nextEntityNum);
+        createMetadata.putMetadata(INTERNAL_SYSTEM_TRANSACTION, true);
         final var dispatch = parentTxnFactory.createDispatch(
                 parentTxn, parentTxn.baseBuilder(), ignore -> true, NODE, createMetadata);
         stakePeriodChanges.advanceTimeTo(parentTxn, applyStakePeriodSideEffects);
