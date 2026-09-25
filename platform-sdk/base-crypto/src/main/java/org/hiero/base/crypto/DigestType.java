@@ -67,6 +67,14 @@ public enum DigestType {
         }
     }
 
+    public static DigestType algorithmNameToDigestType(final String algorithmName) {
+        return switch (algorithmName) {
+            case "SHA-384" -> SHA_384;
+            case "SHA-512" -> SHA_512;
+            default -> null;
+        };
+    }
+
     /**
      * Getter to retrieve the unique identifier for the algorithm.
      *

@@ -10,6 +10,7 @@ import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThre
 
 import com.hedera.pbj.runtime.FieldDefinition;
 import com.hedera.pbj.runtime.FieldType;
+import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -93,9 +94,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     private static final FieldDefinition FIELD_DSMETADATA_HASHCHUNKHEIGHT =
             new FieldDefinition("hashChunkHeight", FieldType.UINT32, false, true, false, 7);
 
-    // Hash digest type ID. See DigestType.id() for details
-    private static final FieldDefinition FIELD_DSMETADATA_HASHDIGESTTYPEID =
-            new FieldDefinition("hashDigestTypeId", FieldType.UINT32, false, true, false, 8);
+    // Hash digest type (algorithm). See DigestType.algorithmName() for details
+    private static final FieldDefinition FIELD_DSMETADATA_HASHDIGESTTYPE =
+            new FieldDefinition("hashDigestType", FieldType.STRING, false, true, false, 8);
 
     /*
      * MerkleDb configuration.
@@ -1029,9 +1030,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             // Hash chunk height
             ProtoWriterTools.writeTag(out, FIELD_DSMETADATA_HASHCHUNKHEIGHT);
             out.writeVarInt(hashChunkHeight, false);
-            // Message digest type ID for hashes
-            ProtoWriterTools.writeTag(out, FIELD_DSMETADATA_HASHDIGESTTYPEID);
-            out.writeVarInt(Cryptography.DEFAULT_DIGEST_TYPE.id(), false);
+            // Message digest type (algorithm name) for hashes
+            ProtoWriterTools.writeString(
+                    out, FIELD_DSMETADATA_HASHDIGESTTYPE, Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
             // Flush
             fileOut.flush();
         }
@@ -1061,11 +1062,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                             throw new IllegalStateException("Hash chunk height mismatch, config=" + this.hashChunkHeight
                                     + " disk=" + hashChunkHeight);
                         }
-                    } else if (fieldNum == FIELD_DSMETADATA_HASHDIGESTTYPEID.number()) {
-                        final int digestTypeId = in.readVarInt(false);
-                        loadedHashDigestTypeOrDefault = DigestType.valueOf(digestTypeId);
+                    } else if (fieldNum == FIELD_DSMETADATA_HASHDIGESTTYPE.number()) {
+                        final String name = ProtoParserTools.readString(in);
+                        loadedHashDigestTypeOrDefault = DigestType.algorithmNameToDigestType(name);
                         if (loadedHashDigestTypeOrDefault == null) {
-                            throw new IOException("Unknown hash digest type ID: " + digestTypeId);
+                            throw new IOException("Unknown hash digest type: " + name);
                         }
                     } else {
                         throw new IOException("Unknown data source metadata field: " + fieldNum);
