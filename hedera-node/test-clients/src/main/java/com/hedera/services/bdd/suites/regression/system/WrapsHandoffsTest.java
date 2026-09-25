@@ -100,8 +100,8 @@ public class WrapsHandoffsTest implements LifecycleTest {
      * the network must have nothing else in flight for the fresh genesis proof to be the only construction.
      */
     @HapiTest
-    // Its own network, pinned pre-cutover from genesis: once the CLPR sync point fires the block node
-    // expects chain-of-trust proofs and rejects the fresh genesis proof this test exists to produce.
+    // Its own network, pinned pre-cutover from genesis. Mock signatures keep block proofs free of a
+    // chain of trust, so the block node never expects one and the fresh genesis proof is not a downgrade.
     @HapiBlockNode(
             networkSize = 3,
             blockNodeConfigs = {@HapiBlockNode.BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
@@ -110,17 +110,32 @@ public class WrapsHandoffsTest implements LifecycleTest {
                         nodeId = 0,
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {"blockStream.enableCutover", "false"}),
+                        applicationPropertiesOverrides = {
+                            "blockStream.enableCutover",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
+                        }),
                 @HapiBlockNode.SubProcessNodeConfig(
                         nodeId = 1,
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {"blockStream.enableCutover", "false"}),
+                        applicationPropertiesOverrides = {
+                            "blockStream.enableCutover",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
+                        }),
                 @HapiBlockNode.SubProcessNodeConfig(
                         nodeId = 2,
                         blockNodeIds = {0},
                         blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {"blockStream.enableCutover", "false"})
+                        applicationPropertiesOverrides = {
+                            "blockStream.enableCutover",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
+                        })
             })
     @Order(0)
     final Stream<DynamicTest> upgradeRequestingFreshGenesisWrapsProofGroundsOne() {
