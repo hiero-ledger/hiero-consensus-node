@@ -117,6 +117,9 @@ public class EventualBlockStreamAssertion extends AbstractEventualStreamAssertio
             @Override
             public void onNewBlock(@NonNull final Block block) {
                 requireNonNull(block);
+                if (isDone()) {
+                    return;
+                }
                 try {
                     if (assertion.test(block)) {
                         result.pass();

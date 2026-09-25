@@ -33,6 +33,12 @@ public abstract class AbstractEventualStreamAssertion extends UtilOp {
     @Nullable
     protected Runnable unsubscribe;
 
+    /**
+     * Set once this assertion has concluded, so a stream item still in flight is not evaluated against
+     * a spec that has already been torn down. Volatile because delivery is on the stream's own thread.
+     */
+    private volatile boolean done;
+
     protected AbstractEventualStreamAssertion(final boolean hasPassedIfNothingFailed) {
         result = new EventualAssertionResult(hasPassedIfNothingFailed, DEFAULT_TIMEOUT);
     }
@@ -53,9 +59,17 @@ public abstract class AbstractEventualStreamAssertion extends UtilOp {
      * If this assertion has subscribed to a stream, this method unsubscribes from it.
      */
     public void unsubscribe() {
+        done = true;
         if (unsubscribe != null) {
             unsubscribe.run();
         }
+    }
+
+    /**
+     * @return whether this assertion has concluded and must no longer evaluate stream items
+     */
+    protected boolean isDone() {
+        return done;
     }
 
     /**
