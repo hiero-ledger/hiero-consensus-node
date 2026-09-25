@@ -6,6 +6,7 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.assertions;
     exports org.hiero.otter.fixtures.chaosbot;
     exports org.hiero.otter.fixtures.exceptions;
+    exports org.hiero.otter.fixtures.internal.network;
     exports org.hiero.otter.fixtures.junit;
     exports org.hiero.otter.fixtures.logging;
     exports org.hiero.otter.fixtures.network.transactions;
@@ -110,6 +111,7 @@ module org.hiero.otter.fixtures {
     requires java.net.http;
     requires org.antlr.antlr4.runtime;
     requires org.apache.commons.lang3;
+    requires org.jspecify;
     requires org.junit.jupiter.params;
     requires org.junit.platform.commons;
     requires static com.github.spotbugs.annotations;

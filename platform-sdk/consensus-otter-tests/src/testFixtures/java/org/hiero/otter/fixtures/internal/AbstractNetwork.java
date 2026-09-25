@@ -60,6 +60,7 @@ import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl;
 import org.hiero.otter.fixtures.internal.network.MeshTopologyImpl;
+import org.hiero.otter.fixtures.internal.network.PredefinedPingTopologyImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeEventStreamResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
@@ -72,6 +73,7 @@ import org.hiero.otter.fixtures.network.GeoMeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.LatencyRange;
 import org.hiero.otter.fixtures.network.MeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.Partition;
+import org.hiero.otter.fixtures.network.PredefinedPingTopologyConfiguration;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 import org.hiero.otter.fixtures.network.TopologyConfiguration;
@@ -185,6 +187,8 @@ public abstract class AbstractNetwork implements Network {
                 new MeshTopologyImpl(meshConfig, this::createNodes, this::createInstrumentedNode);
             case GeoMeshTopologyConfiguration geoConfig ->
                 new GeoMeshTopologyImpl(geoConfig, random, this::createNodes, this::createInstrumentedNode);
+            case PredefinedPingTopologyConfiguration pingConfig ->
+                new PredefinedPingTopologyImpl(pingConfig, this::createNodes, this::createInstrumentedNode);
             default ->
                 throw new IllegalArgumentException("Unknown topology configuration type: " + configuration.getClass());
         };
