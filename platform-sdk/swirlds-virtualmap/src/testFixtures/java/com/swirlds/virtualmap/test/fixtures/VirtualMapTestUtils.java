@@ -39,8 +39,12 @@ public final class VirtualMapTestUtils {
             DEFAULT_CONFIGURATION.getConfigData(VirtualMapConfig.class);
 
     public static VirtualMap createMap() {
+        return createMap(DEFAULT_CONFIGURATION);
+    }
+
+    public static VirtualMap createMap(final Configuration config) {
         final VirtualDataSourceBuilder builder = new InMemoryBuilder();
-        return new VirtualMap(builder, DEFAULT_CONFIGURATION);
+        return new VirtualMap(builder, config);
     }
 
     public static Hash hash(final long t) {
