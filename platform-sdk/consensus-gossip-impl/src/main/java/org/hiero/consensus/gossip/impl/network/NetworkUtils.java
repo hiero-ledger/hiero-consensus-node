@@ -76,12 +76,15 @@ public final class NetworkUtils {
         // we use a different marker depending on what the root cause is
         final Marker marker = NetworkUtils.determineExceptionMarker(e);
         if (SOCKET_EXCEPTIONS.getMarker().equals(marker)) {
-            if (socketExceptionRateLimiter.requestAndTrigger()) {
-                logger.warn(marker, "Connection broken: {}", description, e);
-            } else {
-                final String formattedException = NetworkUtils.formatException(e);
-                logger.warn(marker, "Connection broken: {} {}", description, formattedException);
+            if (logger.isDebugEnabled()) {
+                if (socketExceptionRateLimiter.requestAndTrigger()) {
+                    logger.debug(marker, "Connection broken: {}", description, e);
+                } else {
+                    final String formattedException = NetworkUtils.formatException(e);
+                    logger.debug(marker, "Connection broken: {} {}", description, formattedException);
+                }
             }
+
         } else {
             logger.error(EXCEPTION.getMarker(), "Connection broken: {}", description, e);
         }
