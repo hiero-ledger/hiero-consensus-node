@@ -219,16 +219,22 @@ val prCheckPropOverrides =
         "hapiTestAtomicBatch" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
-        // CLPR suites: pin the CLPR + TSS/wraps surface explicitly to the values clpr-hiero runs
-        // with (where clpr.enabled and the tss.* flags are all on by config default). Defensive:
-        // hcn defaults clpr.enabled=false, and any future default drift here must not silently
-        // change
-        // how these suites run. hapiTestClprMultinetwork additionally gets its wraps proving-key
-        // material via prCheckTssLibWrapsArtifactsPaths (canonicalWrapsArtifactsPath) below.
+        // CLPR suites: pin the TSS/wraps surface to the values clpr-hiero runs with. Do NOT pin
+        // clpr.enabled for the single-network tasks: these tasks include negative "…WhenDisabled"
+        // suites (ClprDisabledSuite etc.) that must run with CLPR OFF and assert CLPR_NOT_ENABLED.
+        // A task-wide clpr.enabled=true arrives as a subprocess env var at ordinal 300, which
+        // OUTRANKS a spec's own overriding("clpr.enabled",…) (ordinal 101) and would force those
+        // negative tests to fail. Positive specs self-enable clpr.enabled per-spec (ordinal 101);
+        // negative specs rely on the config default (false on this repo). Multi-network is the one
+        // task with no negative case and an always-on CLPR requirement, so it pins
+        // clpr.enabled=true
+        // (applied via seedPerNodeApplicationOverrides in MultiNetworkExtension); it also gets its
+        // wraps proving-key material via prCheckTssLibWrapsArtifactsPaths
+        // (canonicalWrapsArtifactsPath).
         "hapiTestClpr" to
-            "clpr.enabled=true,tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestClprEmbedded" to
-            "clpr.enabled=true,tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=true",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=true",
         "hapiTestClprMultinetwork" to
             "clpr.enabled=true,tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=true",
     )

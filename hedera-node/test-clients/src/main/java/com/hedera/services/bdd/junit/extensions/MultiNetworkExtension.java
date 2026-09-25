@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.WORKING_DIR;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ClprTssFixtureHarvester.resolveCachedFixturePath;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.awaitStatus;
+import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.prCheckOverrides;
 import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.ConfigVersionSource.PER_NETWORK_CONFIG_VERSION;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
@@ -40,8 +41,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -529,6 +533,13 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             overrides.put("clpr.minLockedStake", "100");
             overrides.put("clpr.nodeSubmitBundleMaxFee", "10000000000");
             overrides.put("clpr.verifierGasLimit", "5000000");
+            // Apply the per-task build.gradle.kts overrides (hapi.spec.test.overrides) so ANY network
+            // property can be set from the build file for the multi-network tasks — e.g. the CLPR
+            // tasks set clpr.enabled=true. These are seeded into each node's application.properties
+            // (via seedPerNodeApplicationOverrides below), the reliable path that takes effect at
+            // genesis. Layered above the infra defaults but below the test's own setupOverrides, so a
+            // per-test @ConfigOverride still wins.
+            overrides.putAll(prCheckOverrides());
             for (final var o : cfg.setupOverrides()) {
                 overrides.put(o.key(), o.value());
             }
@@ -603,20 +614,14 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             // Failures in any task surface via Future.get() and
             // are caught by the outer catch, which then terminates every started network.
             try (final var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-                final List<Future<Void>> futures = networks.stream()
-                        .map(n -> executor.<Void>submit(() -> {
+                final List<Callable<Void>> tasks = networks.stream()
+                        .<Callable<Void>>map(n -> () -> {
                             n.start(PER_NETWORK_CONFIG_VERSION);
                             n.awaitReady(STARTUP_TIMEOUT);
                             return null;
-                        }))
+                        })
                         .toList();
-                for (final var f : futures) {
-                    try {
-                        f.get();
-                    } catch (final ExecutionException e) {
-                        throw new RuntimeException("Network startup failed", e.getCause());
-                    }
-                }
+                awaitAllFailFast(executor, tasks, "Network startup failed");
             }
             // Second pass: per-network TSS-readiness gate for tssPreload-opted networks, run in
             // parallel (one virtual thread per network) — every step below is per-network state
@@ -634,12 +639,12 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             // preloaded so the test runs against a warm-loaded network (byte-identical to every
             // subsequent run).
             try (final var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-                final List<Future<Void>> futures = new ArrayList<>();
+                final List<Callable<Void>> tasks = new ArrayList<>();
                 for (int i = 0; i < networks.size(); i++) {
                     final int idx = i;
                     final var cfg = configs[idx];
                     if (!cfg.tssPreload()) continue;
-                    futures.add(executor.submit(() -> {
+                    tasks.add(() -> {
                         final var n = networks.get(idx);
                         final boolean coldBootstrap = awaitTssReady(n);
                         if (coldBootstrap) {
@@ -667,15 +672,9 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                             // flag, so no entry to add here.
                         }
                         return null;
-                    }));
+                    });
                 }
-                for (final var f : futures) {
-                    try {
-                        f.get();
-                    } catch (final ExecutionException e) {
-                        throw new RuntimeException("Network TSS bootstrap failed", e.getCause());
-                    }
-                }
+                awaitAllFailFast(executor, tasks, "Network TSS bootstrap failed");
             }
             return networks.toArray(SubProcessNetwork[]::new);
         } catch (Throwable t) {
@@ -691,6 +690,39 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             n.terminate();
         } catch (Throwable t) {
             log.warn("Cleanup failed for '{}'", n.name(), t);
+        }
+    }
+
+    /**
+     * Runs {@code tasks} on {@code executor} and waits for them all, but FAILS FAST: the moment any one
+     * task throws, the still-running siblings are cancelled (interrupted) so the surrounding
+     * try-with-resources {@code executor.close()} returns promptly instead of blocking on a sibling that
+     * is mid-way through its (up to 25-minute) WRAPS/TSS wait. Uses an {@link ExecutorCompletionService}
+     * so the first *completed* task is observed in completion order — a fast initialization failure is
+     * detected immediately even if a slow task was submitted first. The original failure cause is
+     * rewrapped in a {@link RuntimeException} with {@code failMessage} and rethrown to the caller, whose
+     * outer catch terminates every started network.
+     */
+    private static void awaitAllFailFast(
+            @NonNull final ExecutorService executor,
+            @NonNull final List<Callable<Void>> tasks,
+            @NonNull final String failMessage) {
+        final var completion = new ExecutorCompletionService<Void>(executor);
+        final List<Future<Void>> futures =
+                tasks.stream().map(completion::submit).toList();
+        try {
+            for (int i = 0; i < futures.size(); i++) {
+                // take() blocks for the next task to finish (in completion order), so a fast failure
+                // is seen without first waiting on a slower sibling.
+                completion.take().get();
+            }
+        } catch (final ExecutionException e) {
+            futures.forEach(f -> f.cancel(true));
+            throw new RuntimeException(failMessage, e.getCause());
+        } catch (final InterruptedException e) {
+            futures.forEach(f -> f.cancel(true));
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(failMessage + " (interrupted while awaiting networks)", e);
         }
     }
 
@@ -1001,6 +1033,9 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         // Same defaults shape as the primary path above.
         final var overrides = new LinkedHashMap<String, String>();
         overrides.put("clpr.minLockedStake", "100");
+        // Same build.gradle.kts override pass as the primary path (see there) so the warm restart
+        // brings the network back up with the identical property set.
+        overrides.putAll(prCheckOverrides());
         for (final var o : cfg.setupOverrides()) {
             overrides.put(o.key(), o.value());
         }
