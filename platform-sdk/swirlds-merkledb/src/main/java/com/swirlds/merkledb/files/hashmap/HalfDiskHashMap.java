@@ -19,6 +19,7 @@ import com.swirlds.merkledb.files.DataFileCollection.LoadedDataCallback;
 import com.swirlds.merkledb.files.DataFileCommon;
 import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
+import com.swirlds.merkledb.internal.MerkleDbDataSource;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -105,6 +106,8 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
 
     /** Fork-join pool for HDHM.endWriting() */
     private final ForkJoinPool flushPool;
+
+    private volatile AbstractTask notifyTask;
 
     /** Bucket pool used by this HDHM */
     private final ReusableBucketPool bucketPool;
@@ -511,10 +514,25 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         try {
             if (size > 0) {
                 fileCollection.startWriting();
-                final AbstractTask notifyTask = new NotifyTask(flushPool, size);
+                notifyTask = new NotifyTask(flushPool, size);
                 final SubmitBucketTask submitTask = new SubmitBucketTask(flushPool, notifyTask);
                 submitTask.send();
-                notifyTask.get();
+                // Check if the flushing pool is still alive or not. The goal is to make sure
+                // the current thread doesn't get stuck in notifyTask.get() waiting for all bucket
+                // tasks to complete, but they cannot complete because the pool is already down.
+                // The following scenarios are possible:
+                // 1. flushPool is already shut down. notifyTask.get() is not called. No data is
+                // written to the new file, but the data source is closing , and all data files
+                // will be deleted shortly anyway
+                // 2. flushPool is alive. notifyTask is set above, it will be canceled in
+                // cancelWriting(), if the data source is closed
+                if (flushPool.isShutdown()) {
+                    logger.warn(
+                            MERKLE_DB.getMarker(),
+                            "Failed to finish writing to HDHM, the flushing pool has been closed. This may happen, if the data source is closed in a parallel thread");
+                } else {
+                    notifyTask.get();
+                }
                 // close files session
                 dataFileReader = fileCollection.endWriting();
                 logger.info(
@@ -534,8 +552,28 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         } finally {
             writingThread = null;
             oneTransactionsData = null;
+            notifyTask = null;
         }
         return dataFileReader;
+    }
+
+    /**
+     * If this HDHM is writing data in {@link #endWriting()} in a parallel thread, the writing
+     * is canceled. That thread is made sure to not stuck waiting for writing to complete. If
+     * there is no active writing, this method does nothing.
+     *
+     * <p>The method should be called only after the flushing pool is requested to shut down.
+     * This is what {@link MerkleDbDataSource#close()} does.
+     */
+    public void cancelWriting() {
+        // This method is expected to be called only after the flushing pool has been
+        // requested to shut down
+        assert flushPool.isShutdown();
+        // Use a local var, since notifyTask field may be changed by a different thread
+        final AbstractTask t = notifyTask;
+        if (t != null) {
+            t.cancel(true);
+        }
     }
 
     /**

@@ -592,12 +592,15 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 waitForMetadata.get();
                 if (waitForHashes != null) {
                     waitForHashes.get();
-                    runHashChunkStoreCompaction();
                 }
+                // Run all compactions even if there have been no objects written. This will take
+                // care of scenarios like when leaf range becomes empty, and the stream of dirty
+                // leaves to store is empty
+                runHashChunkStoreCompaction();
                 if (waitForLeaves != null) {
                     waitForLeaves.get();
-                    runPathToKeyValueStoreCompaction();
                 }
+                runPathToKeyValueStoreCompaction();
                 runKeyToPathStoreCompaction();
             } catch (final InterruptedException e) {
                 logger.warn(EXCEPTION.getMarker(), "[{}] Flush interrupted", tableName, e);
@@ -788,6 +791,11 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 // Shut down all executors. If a flush is currently in progress, it will be interrupted
                 flushPool.shutdownNow();
                 snapshotExecutor.shutdownNow();
+                // If another thread is writing to HDHM in parallel, it may be waiting in
+                // HDHM.endWriting(), and flushPool shutdown above may not interrupt the wait.
+                // cancelWriting() is exactly the way to unblock (interrupt) such threads. It's
+                // safe to call cancelWriting() even if there is no writing in progress
+                keyToPath.cancelWriting();
             } finally {
                 try {
                     // close all closable data stores
