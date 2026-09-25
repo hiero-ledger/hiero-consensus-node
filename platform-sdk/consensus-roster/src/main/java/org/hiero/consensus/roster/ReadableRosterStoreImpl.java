@@ -67,7 +67,7 @@ public class ReadableRosterStoreImpl implements ReadableRosterStore {
     @Nullable
     @Override
     public Roster getActiveRoster() {
-        final var activeRosterHash = getCurrentRosterHash();
+        final var activeRosterHash = getActiveRosterHash();
         if (activeRosterHash == null) {
             return null;
         }
@@ -88,7 +88,7 @@ public class ReadableRosterStoreImpl implements ReadableRosterStore {
      */
     @Nullable
     @Override
-    public Bytes getCurrentRosterHash() {
+    public Bytes getActiveRosterHash() {
         final RosterState rosterStateSingleton = rosterState.get();
         if (rosterStateSingleton == null) {
             return null;

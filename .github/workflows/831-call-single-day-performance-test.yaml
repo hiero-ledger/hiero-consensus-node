@@ -178,7 +178,7 @@ jobs:
         with:
           checkout: "true"
           checkout-ref: "${{ github.ref }}"
-          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          checkout-token: "${{ secrets.github-token }}"
 
       - name: Checkout target CN Code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2

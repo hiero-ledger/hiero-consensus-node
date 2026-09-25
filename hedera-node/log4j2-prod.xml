@@ -168,6 +168,10 @@
       <AppenderRef ref="Console"/>
       <AppenderRef ref="RollingFile"/>
     </Logger>
+    <Logger name="com.hedera.node.app.service.clpr" level="debug" additivity="false">
+        <AppenderRef ref="Console"/>
+        <AppenderRef ref="RollingFile"/>
+    </Logger>
 
 
     <Logger name="org.springframework" level="ERROR" additivity="false">

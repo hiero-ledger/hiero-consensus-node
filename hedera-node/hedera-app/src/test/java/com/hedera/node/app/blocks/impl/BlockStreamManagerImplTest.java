@@ -67,6 +67,7 @@ import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
+import com.hedera.node.app.state.BlockProvenStateAccessor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -232,6 +233,12 @@ class BlockStreamManagerImplTest {
     private WritableSingletonStateBase<BlockStreamInfo> blockStreamInfoState;
 
     private BlockStreamManagerImpl subject;
+
+    // Set by tests that want to observe CLPR block metadata registrations; null elsewhere
+    @Nullable
+    private BlockProvenStateAccessor clprStateAccessor = null;
+
+    private boolean clprEnabled = false;
 
     @BeforeEach
     void setUp() {
@@ -410,6 +417,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
+                null,
                 streamingObs);
         assertSame(EPOCH, subject.lastIntervalProcessTime());
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
@@ -437,6 +445,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
+                null,
                 streamingObs);
 
         final var recovered = subject.recoverableSuffixOf(
@@ -479,6 +488,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
+                null,
                 streamingObs);
 
         final var recovered = subject.recoverableSuffixOf(List.of(
@@ -523,6 +533,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
+                null,
                 streamingObs);
 
         final var recovered = subject.recoverableSuffixOf(List.of(
@@ -552,6 +563,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
+                null,
                 streamingObs);
         assertThrows(IllegalStateException.class, () -> subject.startRound(round, state));
     }
@@ -677,7 +689,7 @@ class BlockStreamManagerImplTest {
                 CONSENSUS_THEN,
                 HASH_OF_ZERO,
                 Bytes.fromHex(
-                        "9362621b45a8b81d91d65f58bc82aca40fcc2576157b6775052f66b23f968a4a0bde57d401840abb4c916ab7d9be081b"),
+                        "c2973cea38b088de3996cf45ce5dbe339ae9b2c217204b40b7c6176c42a6000ed8619c487cd1db3509dc84bde58b18a2"),
                 HASH_OF_ZERO,
                 List.of(FAKE_PATCH_RESTART_HASH),
                 1);
@@ -1116,7 +1128,7 @@ class BlockStreamManagerImplTest {
                 CONSENSUS_THEN,
                 HASH_OF_ZERO,
                 Bytes.fromHex(
-                        "b4a01b52bd0d845e70cecaa6bc6851d8d6f1000e3dcd808f88a1f2999009c48462da8e2b247d771b783188147946fca7"),
+                        "b14cb3ba5c0610ba2c18c12540725aa65eac623190c37014123b371aa2aaa86506b687a1fec7f03de5c7dfb30934dc7e"),
                 HASH_OF_ZERO,
                 List.of(FAKE_NON_EMPTY_RESULTS_RESTART_HASH),
                 1);
@@ -1221,6 +1233,79 @@ class BlockStreamManagerImplTest {
         assertEquals(FIRST_FAKE_SIGNATURE, bProof.signedBlockProof().blockSignature());
 
         verify(indirectProofsCounter).increment();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void registersClprBlockMetadataOnlyForDirectlySignedBlock() {
+        clprStateAccessor = mock(BlockProvenStateAccessor.class);
+        clprEnabled = true;
+        given(blockHashSigner.isReady()).willReturn(true);
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter,
+                bWriter);
+        givenEndOfRoundSetup();
+        doAnswer(invocationOnMock -> {
+                    lastBItem.set(invocationOnMock.getArgument(1));
+                    return bWriter;
+                })
+                .when(bWriter)
+                .writePbjItemAndBytes(any(), any());
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+
+        // Initialize the last (N-1) block hash
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+
+        // Start the round that will be block N
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+        subject.writeItem(FAKE_RECORD_FILE_ITEM);
+        final CompletableFuture<Bytes> firstSignature = (CompletableFuture<Bytes>) mock(CompletableFuture.class);
+        final CompletableFuture<Bytes> secondSignature = (CompletableFuture<Bytes>) mock(CompletableFuture.class);
+        given(firstSignature.thenAcceptAsync(any())).willReturn(completedFuture(null));
+        given(secondSignature.thenAcceptAsync(any())).willReturn(completedFuture(null));
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, firstSignature))
+                .willReturn(new BlockHashSigner.Attempt(null, null, secondSignature));
+        // End the round in block N
+        subject.endRound(state, ROUND_NO);
+
+        // Start the round that will be block N+1
+        given(round.getRoundNum()).willReturn(ROUND_NO + 1);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW.plusSeconds(1));
+        given(notification.round()).willReturn(ROUND_NO);
+        given(notification.hash()).willReturn(FAKE_START_OF_BLOCK_STATE_HASH);
+        subject.notify(notification);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_SIGNED_TRANSACTION);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+        subject.writeItem(FAKE_STATE_CHANGES);
+        subject.writeItem(FAKE_RECORD_FILE_ITEM);
+        // End the round in block N+1
+        subject.endRound(state, ROUND_NO + 1);
+
+        final ArgumentCaptor<Consumer<Bytes>> firstCaptor = ArgumentCaptor.forClass(Consumer.class);
+        final ArgumentCaptor<Consumer<Bytes>> secondCaptor = ArgumentCaptor.forClass(Consumer.class);
+        verify(firstSignature).thenAcceptAsync(firstCaptor.capture());
+        verify(secondSignature).thenAcceptAsync(secondCaptor.capture());
+        // The signature for block N+1 arrives first, closing block N with an indirect proof
+        secondCaptor.getValue().accept(FIRST_FAKE_SIGNATURE);
+        firstCaptor.getValue().accept(SECOND_FAKE_SIGNATURE);
+
+        // CLPR block metadata must be registered ONLY for the directly-signed block N+1; the
+        // indirectly-proven block N's Merkle path terminates at its own root, which the
+        // registered signature does not sign, so pairing them would never verify
+        verify(clprStateAccessor)
+                .registerBlockMetadata(
+                        eq(FAKE_START_OF_BLOCK_STATE_HASH.getBytes()), any(), eq(FIRST_FAKE_SIGNATURE), any(), any());
+        verifyNoMoreInteractions(clprStateAccessor);
     }
 
     @Test
@@ -1950,6 +2035,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
+                null,
                 streamingObs);
 
         // init with HASH_OF_ZERO should NOT read from BlockRecordService at all
@@ -1986,6 +2072,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
+                null,
                 streamingObs);
 
         final var blockRecordReadable = mock(ReadableStates.class);
@@ -2038,6 +2125,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
+                null,
                 streamingObs);
 
         final var blockRecordReadable = mock(ReadableStates.class);
@@ -2088,6 +2176,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
+                null,
                 streamingObs);
 
         final var blockRecordReadable = mock(ReadableStates.class);
@@ -2137,6 +2226,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
+                null,
                 streamingObs);
 
         final var blockRecordReadable = mock(ReadableStates.class);
@@ -2225,6 +2315,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
+                clprStateAccessor,
                 streamingObs);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(PLATFORM_STATE_STATE_ID)).willReturn(platformStateReadableSingletonState);
@@ -2252,6 +2343,7 @@ class BlockStreamManagerImplTest {
                 .withValue("blockStream.blockPeriod", Duration.of(blockPeriod, ChronoUnit.SECONDS))
                 .withValue("blockStream.streamMode", streamMode.name())
                 .withValue("blockStream.maxBlockSizeBytes", maxBlockSizeBytes)
+                .withValue("clpr.enabled", clprEnabled)
                 .getOrCreateConfig();
         return new VersionedConfigImpl(config, version);
     }
