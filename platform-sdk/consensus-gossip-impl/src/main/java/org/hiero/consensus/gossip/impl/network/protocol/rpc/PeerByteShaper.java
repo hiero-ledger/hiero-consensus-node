@@ -68,7 +68,7 @@ public class PeerByteShaper {
         }
 
         final long used = tatNanos - now;
-        lastOccupancy = used <= 0 ? 0.0 : Math.min(1.0, (double) used / burstNanos);
+        lastOccupancy = Math.clamp((double) used / burstNanos, 0.0, 1.0);
 
         return Math.max(0L, used - burstNanos);
     }
