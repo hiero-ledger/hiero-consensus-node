@@ -421,16 +421,18 @@ message TransactionID {
     /**
      * An identifier for an internal transaction.<br/>
      * An internal transaction is one that was spawned as part of handling a
-     * user transaction. These internal transactions share the
-     * transactionValidStart and accountID of the user transaction, so a nonce
-     * is necessary to give them a unique TransactionID.
+     * user transaction, or an inner transaction of an
+     * `AtomicBatchTransactionBody`. These internal transactions share the
+     * transactionValidStart and accountID of the transaction that spawned
+     * them, so a nonce is necessary to give them a unique TransactionID.
      * <p>
      * An example is when a "parent" ContractCreate or ContractCall transaction
      * calls one or more HTS precompiled contracts; each of the "child"
      * transactions spawned for a precompile has a transaction id with a
      * different nonce.
      * <p>
-     * This value MUST be unset for user-submitted transactions.
+     * This value MUST be unset for user-submitted transactions, including
+     * the inner transactions of an atomic batch.
      */
     int32 nonce = 4;
 }

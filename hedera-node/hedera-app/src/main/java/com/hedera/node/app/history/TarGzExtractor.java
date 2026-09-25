@@ -234,21 +234,44 @@ public final class TarGzExtractor {
         return new String(block, offset, end - offset, StandardCharsets.US_ASCII);
     }
 
-    private static long parseOctalSize(@NonNull final byte[] header) {
+    private static long parseOctalSize(@NonNull final byte[] header) throws IOException {
+        final long size;
         // GNU binary size encoding: high bit set in first byte
         if ((header[SIZE_OFFSET] & 0x80) != 0) {
-            long size = 0;
-            for (int i = SIZE_OFFSET + 1; i < SIZE_OFFSET + SIZE_LENGTH; i++) {
-                size = (size << 8) | (header[i] & 0xFF);
+            // The big-endian value spans the whole field, including the marker byte's low 7 bits.
+            // Only the low 8 bytes fit in a long, so reject any value bits above them rather than
+            // silently discarding them and wrapping around.
+            if ((header[SIZE_OFFSET] & 0x7F) != 0) {
+                throw new IOException("Tar entry size field overflows a 64-bit value");
             }
-            return size;
+            for (int i = SIZE_OFFSET + 1; i < SIZE_OFFSET + SIZE_LENGTH - 8; i++) {
+                if (header[i] != 0) {
+                    throw new IOException("Tar entry size field overflows a 64-bit value");
+                }
+            }
+            long value = 0;
+            for (int i = SIZE_OFFSET + SIZE_LENGTH - 8; i < SIZE_OFFSET + SIZE_LENGTH; i++) {
+                value = (value << 8) | (header[i] & 0xFF);
+            }
+            size = value;
+        } else {
+            final String octal = extractNullTerminatedString(header, SIZE_OFFSET, SIZE_LENGTH)
+                    .trim();
+            if (octal.isEmpty()) {
+                return 0;
+            }
+            try {
+                // parseLong accepts a leading '-', and throws an unchecked NumberFormatException on
+                // malformed input; both are turned into a checked IOException here.
+                size = Long.parseLong(octal, 8);
+            } catch (final NumberFormatException e) {
+                throw new IOException("Tar entry has an invalid octal size field: '" + octal + "'", e);
+            }
         }
-        final String octal =
-                extractNullTerminatedString(header, SIZE_OFFSET, SIZE_LENGTH).trim();
-        if (octal.isEmpty()) {
-            return 0;
+        if (size < 0 || size > MAX_ENTRY_BYTES) {
+            throw new IOException("Tar entry size " + size + " is out of range [0, " + MAX_ENTRY_BYTES + "]");
         }
-        return Long.parseLong(octal, 8);
+        return size;
     }
 
     private static String readLongName(@NonNull final InputStream is, final long size) throws IOException {

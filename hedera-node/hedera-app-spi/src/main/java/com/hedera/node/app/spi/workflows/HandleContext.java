@@ -204,9 +204,20 @@ public interface HandleContext {
              */
             CLPR_DISPATCH,
             /**
+             * Boolean marker set by the app when dispatching a trusted internal system transaction.
+             * Never populate this from a submitted transaction or propagate it to child dispatches.
+             */
+            INTERNAL_SYSTEM_TRANSACTION,
+            /**
              * An entity num to be created by transplant system transactions.
              */
-            SYSTEM_TXN_CREATION_ENTITY_NUM
+            SYSTEM_TXN_CREATION_ENTITY_NUM,
+            /**
+             * The {@link com.hedera.hapi.node.base.TransactionID} of the atomic batch inner transaction a dispatch
+             * belongs to, when that cannot be inferred from the dispatching stack; used to attribute the side effects
+             * an inner transaction is replayed with after the batch has already unwound its savepoints.
+             */
+            ATTRIBUTED_BATCH_INNER_ID
         }
     }
 

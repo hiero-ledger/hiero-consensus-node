@@ -41,9 +41,9 @@ import org.junit.jupiter.api.Test;
 class EventIntakeProcessorTests {
 
     private static final int PREVIOUS_ROSTER_ROUND = 2;
-    private static final int CURRENT_ROSTER_ROUND = 3;
+    private static final int ACTIVE_ROSTER_ROUND = 3;
     private static final NodeId PREVIOUS_ROSTER_NODE_ID = NodeId.of(66);
-    private static final NodeId CURRENT_ROSTER_NODE_ID = NodeId.of(77);
+    private static final NodeId ACTIVE_ROSTER_NODE_ID = NodeId.of(77);
 
     private Randotron random;
     private Metrics metrics;
@@ -97,7 +97,7 @@ class EventIntakeProcessorTests {
                 .eventExitedIntakePipeline(any());
 
         rosterHistory = buildRosterHistory(
-                PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND, EventIntakeProcessorTests::generateMockRosterEntry);
+                PREVIOUS_ROSTER_ROUND, ACTIVE_ROSTER_ROUND, EventIntakeProcessorTests::generateMockRosterEntry);
 
         processorWithTrueVerifier = new ConcurrentEventIntakeProcessor(
                 metrics,
@@ -123,13 +123,13 @@ class EventIntakeProcessorTests {
     private RosterWrapperHistory buildRosterHistory(
             final long previousRound, final long round, final Function<NodeId, RosterEntry> rosterEntryGenerator) {
         final RosterEntry previousNodeRosterEntry = rosterEntryGenerator.apply(PREVIOUS_ROSTER_NODE_ID);
-        final RosterEntry currentNodeRosterEntry = rosterEntryGenerator.apply(CURRENT_ROSTER_NODE_ID);
+        final RosterEntry activeNodeRosterEntry = rosterEntryGenerator.apply(ACTIVE_ROSTER_NODE_ID);
 
         final RosterWrapper previousRoster = createRosterWrapper(previousNodeRosterEntry);
-        final RosterWrapper currentRoster = createRosterWrapper(currentNodeRosterEntry);
+        final RosterWrapper activeRoster = createRosterWrapper(activeNodeRosterEntry);
 
         return createRosterWrapperHistory(
-                round, currentRoster,
+                round, activeRoster,
                 previousRound, previousRoster);
     }
 
@@ -137,8 +137,8 @@ class EventIntakeProcessorTests {
     @DisplayName("Valid gossip event passes all stages")
     void validGossipEvent() {
         final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(CURRENT_ROSTER_NODE_ID)
-                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
                 .build();
 
         assertNotNull(processorWithTrueVerifier.processHashedEvent(event));
@@ -149,8 +149,8 @@ class EventIntakeProcessorTests {
     @DisplayName("Ancient events are discarded before any other work")
     void ancientEventDiscarded() {
         final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(CURRENT_ROSTER_NODE_ID)
-                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
                 .build();
 
         processorWithTrueVerifier.setEventWindow(
@@ -174,8 +174,8 @@ class EventIntakeProcessorTests {
                 null);
 
         final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(CURRENT_ROSTER_NODE_ID)
-                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
                 .build();
 
         assertNull(processor.processHashedEvent(event));
@@ -186,8 +186,8 @@ class EventIntakeProcessorTests {
     @DisplayName("Duplicate events are discarded")
     void duplicateEventDiscarded() {
         final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(CURRENT_ROSTER_NODE_ID)
-                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
                 .build();
 
         // First time — passes
@@ -203,16 +203,16 @@ class EventIntakeProcessorTests {
     @DisplayName("Same descriptor with different signature is not a duplicate")
     void disparateSignatureNotDuplicate() {
         final PlatformEvent event1 = new TestingEventBuilder(random)
-                .setCreatorId(CURRENT_ROSTER_NODE_ID)
-                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
                 .build();
 
         assertNotNull(processorWithTrueVerifier.processHashedEvent(event1));
 
         // Build a different event with the same creator/round (different random content → different signature)
         final PlatformEvent event2 = new TestingEventBuilder(random)
-                .setCreatorId(CURRENT_ROSTER_NODE_ID)
-                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
                 .build();
 
         assertNotNull(processorWithTrueVerifier.processHashedEvent(event2));
@@ -223,8 +223,8 @@ class EventIntakeProcessorTests {
     @DisplayName("Event failing signature verification is discarded")
     void signatureVerificationFailure() {
         final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(CURRENT_ROSTER_NODE_ID)
-                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
                 .build();
 
         assertNull(processorWithFalseVerifier.processHashedEvent(event));
@@ -235,8 +235,8 @@ class EventIntakeProcessorTests {
     @DisplayName("RUNTIME events skip signature verification")
     void runtimeEventsSkipSigVerification() {
         final PlatformEvent runtimeEvent = new TestingEventBuilder(random)
-                .setCreatorId(CURRENT_ROSTER_NODE_ID)
-                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
                 .setOrigin(EventOrigin.RUNTIME)
                 .build();
 
@@ -249,8 +249,8 @@ class EventIntakeProcessorTests {
     @DisplayName("GOSSIP events are subject to signature verification")
     void gossipEventsVerified() {
         final PlatformEvent gossipEvent = new TestingEventBuilder(random)
-                .setCreatorId(CURRENT_ROSTER_NODE_ID)
-                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
                 .setOrigin(EventOrigin.GOSSIP)
                 .build();
 
@@ -276,7 +276,7 @@ class EventIntakeProcessorTests {
     void nodeMissingFromRoster() {
         final PlatformEvent event = new TestingEventBuilder(random)
                 .setCreatorId(NodeId.of(99))
-                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
                 .build();
 
         assertNull(processorWithTrueVerifier.processHashedEvent(event));
@@ -300,21 +300,21 @@ class EventIntakeProcessorTests {
     void rosterUpdateAffectsNewBirthRounds() {
         // First event passes with the initial roster
         final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(CURRENT_ROSTER_NODE_ID)
-                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
                 .build();
 
         assertNotNull(processorWithTrueVerifier.processHashedEvent(event));
 
         // Update to a roster that doesn't contain the node, effective at a new round
-        final long newRosterRound = CURRENT_ROSTER_ROUND + 10;
+        final long newRosterRound = ACTIVE_ROSTER_ROUND + 10;
         final RosterWrapper emptyRoster = createRosterWrapper(List.of());
         final RosterWrapperHistory newHistory = createRosterWrapperHistory(newRosterRound, emptyRoster);
         processorWithTrueVerifier.updateRosterHistory(newHistory);
 
         // Event at the NEW birth round should fail — node not in the new roster
         final PlatformEvent event2 = new TestingEventBuilder(random)
-                .setCreatorId(CURRENT_ROSTER_NODE_ID)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
                 .setBirthRound(newRosterRound)
                 .build();
 
@@ -325,8 +325,8 @@ class EventIntakeProcessorTests {
     @DisplayName("Clear resets deduplication state")
     void clearResetsDedup() {
         final PlatformEvent event = new TestingEventBuilder(random)
-                .setCreatorId(CURRENT_ROSTER_NODE_ID)
-                .setBirthRound(CURRENT_ROSTER_ROUND)
+                .setCreatorId(ACTIVE_ROSTER_NODE_ID)
+                .setBirthRound(ACTIVE_ROSTER_ROUND)
                 .build();
 
         // First pass
