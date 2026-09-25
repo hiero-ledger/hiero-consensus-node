@@ -39,6 +39,7 @@ sibling tasks can run in parallel without clashing.
 | `hapiTestTimeConsuming`          | `LONG_RUNNING`                                | `testSubprocessConcurrent` | default               |
 | `hapiTestTimeConsumingSerial`    | `(LONG_RUNNING&SERIAL)`                       | `testSubprocess`           | default               |
 | `hapiTestIss`                    | `ISS`                                         | `testSubprocess`           | default               |
+| `hapiTestIssGrpc`                | `ISS_GRPC`                                    | `testSubprocess`           | default               |
 | `hapiTestBlockNodeCommunication` | `BLOCK_NODE`                                  | `testSubprocess`           | default               |
 | `hapiTestMisc`                   | everything outside the area tags (see source) | `testSubprocessConcurrent` | default               |
 | `hapiTestMiscSerial`             | `<miscTags>&SERIAL`                           | `testSubprocess`           | default               |
@@ -56,7 +57,7 @@ For `testSubprocess` / `testSubprocessConcurrent`, the resulting JUnit `includeT
 (<task's expression>|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE)
 ```
 
-except for the ISS and BLOCK_NODE tasks, which skip validation:
+except for the ISS, ISS_GRPC, and BLOCK_NODE tasks, which skip validation:
 
 ```
 (<task's expression>)&!(EMBEDDED|REPEATABLE)
@@ -64,8 +65,8 @@ except for the ISS and BLOCK_NODE tasks, which skip validation:
 
 ## `remoteTest*` PR check tasks
 
-For every entry in `prCheckTags` other than `hapiTestIss`, `hapiTestRestart`, `hapiTestToken`,
-`hapiTestTokenSerial`, `hapiTestWrapsDownload`, a sibling `remoteTest…` task is generated that
+For every entry in `prCheckTags` other than `hapiTestIss`, `hapiTestIssGrpc`, `hapiTestRestart`,
+`hapiTestToken`, `hapiTestTokenSerial`, `hapiTestWrapsDownload`, a sibling `remoteTest…` task is generated that
 delegates to `testRemote` with the same tag expression.
 
 ## `hapiTest*Embedded` and `hapiTest*Repeatable` PR check tasks
