@@ -167,8 +167,12 @@ public class ConsensusEngineContractTest {
     @NonNull
     private static RosterWrapper allWeightToOneNode(@NonNull final RosterWrapper originalRoster) {
         final List<RosterEntry> modifiedEntries = new ArrayList<>();
-        modifiedEntries.add(
-                originalRoster.rosterEntryAtIndex(0).toPbj().copyBuilder().weight(1).build());
+        modifiedEntries.add(originalRoster
+                .rosterEntryAtIndex(0)
+                .toPbj()
+                .copyBuilder()
+                .weight(1)
+                .build());
         for (int i = 1; i < originalRoster.size(); i++) {
             modifiedEntries.add(originalRoster
                     .rosterEntryAtIndex(i)

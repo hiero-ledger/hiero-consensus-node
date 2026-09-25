@@ -105,10 +105,8 @@ class UptimeTests {
 
         // First, simulate a round starting at genesis
         final int eventCount = 100;
-        final Set<NodeId> noFirstRoundEvents =
-                Set.of(roster.nodeIdAtIndex(0), roster.nodeIdAtIndex(1));
-        final Set<NodeId> noFirstRoundJudges =
-                Set.of(roster.nodeIdAtIndex(8), roster.nodeIdAtIndex(9));
+        final Set<NodeId> noFirstRoundEvents = Set.of(roster.nodeIdAtIndex(0), roster.nodeIdAtIndex(1));
+        final Set<NodeId> noFirstRoundJudges = Set.of(roster.nodeIdAtIndex(8), roster.nodeIdAtIndex(9));
         final List<PlatformEvent> firstRoundEvents = generateEvents(
                 random, time, Duration.ofSeconds(1), roster, eventCount, noFirstRoundEvents, noFirstRoundJudges);
 
@@ -150,10 +148,8 @@ class UptimeTests {
             }
         });
 
-        final Set<NodeId> noSecondRoundEvents =
-                Set.of(roster.nodeIdAtIndex(0), roster.nodeIdAtIndex(2));
-        final Set<NodeId> noSecondRoundJudges =
-                Set.of(roster.nodeIdAtIndex(7), roster.nodeIdAtIndex(9));
+        final Set<NodeId> noSecondRoundEvents = Set.of(roster.nodeIdAtIndex(0), roster.nodeIdAtIndex(2));
+        final Set<NodeId> noSecondRoundJudges = Set.of(roster.nodeIdAtIndex(7), roster.nodeIdAtIndex(9));
         final List<PlatformEvent> secondRoundEvents = generateEvents(
                 random, time, Duration.ofSeconds(1), roster, eventCount, noSecondRoundEvents, noSecondRoundJudges);
 
@@ -213,10 +209,8 @@ class UptimeTests {
         final UptimeData uptimeData = uptimeTracker.uptimeData;
         // First, simulate a round starting at genesis
         final int eventCount = 100;
-        final Set<NodeId> noFirstRoundEvents =
-                Set.of(roster.nodeIdAtIndex(0), roster.nodeIdAtIndex(1));
-        final Set<NodeId> noFirstRoundJudges =
-                Set.of(roster.nodeIdAtIndex(8), roster.nodeIdAtIndex(9));
+        final Set<NodeId> noFirstRoundEvents = Set.of(roster.nodeIdAtIndex(0), roster.nodeIdAtIndex(1));
+        final Set<NodeId> noFirstRoundJudges = Set.of(roster.nodeIdAtIndex(8), roster.nodeIdAtIndex(9));
         final List<PlatformEvent> firstRoundEvents = generateEvents(
                 random, time, Duration.ofSeconds(1), roster, eventCount, noFirstRoundEvents, noFirstRoundJudges);
 
