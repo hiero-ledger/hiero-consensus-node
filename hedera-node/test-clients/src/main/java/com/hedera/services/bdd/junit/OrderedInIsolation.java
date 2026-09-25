@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.junit;
 
 import static com.hedera.services.bdd.junit.TestTags.SERIAL;
+import static org.junit.jupiter.api.parallel.ResourceAccessMode.READ_WRITE;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -12,7 +13,7 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestClassOrder;
 import org.junit.jupiter.api.TestMethodOrder;
-import org.junit.jupiter.api.parallel.Isolated;
+import org.junit.jupiter.api.parallel.ResourceLock;
 
 /**
  * Convenience annotation to mark a test class that requires strictly sequential execution,
@@ -21,7 +22,7 @@ import org.junit.jupiter.api.parallel.Isolated;
  */
 @Target({ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
-@Isolated
+@ResourceLock(value = "NETWORK", mode = READ_WRITE)
 @Tag(SERIAL)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestClassOrder(ClassOrderer.OrderAnnotation.class)
