@@ -6,9 +6,9 @@ import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -198,8 +198,8 @@ public class Hip1195EnabledTest {
                         .withPreHookFor(OWNER, 123L, 5_000_000L, "")
                         .payingWith(PAYER)
                         .via("associateAndXferTxn"),
-                getTxnRecord("associateAndXferTxn").andAllChildRecords().logged(),
-                getAccountInfo(OWNER).logged());
+                getTxnRecord("associateAndXferTxn").andAllChildRecords(),
+                getAccountInfo(OWNER));
     }
 
     @HapiTest
@@ -278,8 +278,7 @@ public class Hip1195EnabledTest {
                         .via("staticCallWithoutAssociation"),
                 getTxnRecord("staticCallWithoutAssociation")
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(CONTRACT_REVERT_EXECUTED))
-                        .logged(),
+                        .hasChildRecords(recordWith().status(CONTRACT_REVERT_EXECUTED)),
                 tokenAssociate(OWNER, "token"),
                 cryptoTransfer(TokenMovement.moving(10, "token").between(PAYER, OWNER))
                         .withPreHookFor(OWNER, 123L, 5_000_000L, "")
@@ -288,8 +287,7 @@ public class Hip1195EnabledTest {
                         .via("staticCallWithAssociation"),
                 getTxnRecord("staticCallWithAssociation")
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(CONTRACT_REVERT_EXECUTED))
-                        .logged());
+                        .hasChildRecords(recordWith().status(CONTRACT_REVERT_EXECUTED)));
     }
 
     @HapiTest
@@ -338,8 +336,7 @@ public class Hip1195EnabledTest {
                         .via("successfulTransfer"),
                 getTxnRecord("successfulTransfer")
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(SUCCESS))
-                        .logged());
+                        .hasChildRecords(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
@@ -394,8 +391,7 @@ public class Hip1195EnabledTest {
                         .via("txnWithWrongHook"),
                 getTxnRecord("txnWithWrongHook")
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(HOOK_NOT_FOUND))
-                        .logged(),
+                        .hasChildRecords(recordWith().status(HOOK_NOT_FOUND)),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPrePostHookFor("accountWithDifferentHooks", 123L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
@@ -436,10 +432,8 @@ public class Hip1195EnabledTest {
                         .signedBy(PAYER),
                 // even though the hook says msg.sender transfers 10 hbars to receiver,
                 // the owner of the hook transfers 1 tinybar in addition to the 10 hbars
-                getAccountBalance(OWNER)
-                        .hasTinyBars(ONE_HUNDRED_HBARS - 10 * ONE_HBAR - 1)
-                        .logged(),
-                getAccountBalance("receiver").hasTinyBars(10 * ONE_HBAR).logged());
+                getAccountInfo(OWNER).has(accountWith().balance(ONE_HUNDRED_HBARS - 10 * ONE_HBAR - 1)),
+                getAccountInfo("receiver").has(accountWith().balance(10 * ONE_HBAR)));
     }
 
     @HapiTest
@@ -489,8 +483,7 @@ public class Hip1195EnabledTest {
                         .via("txnWithMoreThanMaxGas"),
                 getTxnRecord("txnWithMoreThanMaxGas")
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED))
-                        .logged());
+                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED)));
     }
 
     @LeakyHapiTest(overrides = {"contracts.maxGasPerTransaction"})
@@ -528,8 +521,7 @@ public class Hip1195EnabledTest {
                         .via("txnWithMoreThanMaxGas"),
                 getTxnRecord("txnWithMoreThanMaxGas")
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED))
-                        .logged());
+                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED)));
     }
 
     @LeakyHapiTest(overrides = {"contracts.maxGasPerTransaction"})
@@ -573,8 +565,7 @@ public class Hip1195EnabledTest {
                         .via("txnWithMoreThanMaxGas"),
                 getTxnRecord("txnWithMoreThanMaxGas")
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED))
-                        .logged());
+                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED)));
     }
 
     @HapiTest
@@ -625,7 +616,7 @@ public class Hip1195EnabledTest {
                         .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .via("customFeeTxn"),
-                getTxnRecord("customFeeTxn").logged());
+                getTxnRecord("customFeeTxn"));
     }
 
     @HapiTest
@@ -825,7 +816,7 @@ public class Hip1195EnabledTest {
                         .andAllChildRecords()
                         .hasChildRecords(
                                 recordWith().contractCallResult(resultWith().error("INVALID_OPERATION"))),
-                getAccountInfo(OWNER).logged());
+                getAccountInfo(OWNER));
     }
 
     @HapiTest
@@ -868,8 +859,8 @@ public class Hip1195EnabledTest {
                                         ADDRESS_ABI)))
                         .payingWith(PAYER)
                         .via("tokenRedirectTxn")),
-                getTxnRecord("tokenRedirectTxn").andAllChildRecords().logged(),
-                getAccountInfo(OWNER).logged());
+                getTxnRecord("tokenRedirectTxn").andAllChildRecords(),
+                getAccountInfo(OWNER));
     }
 
     @HapiTest
@@ -911,8 +902,7 @@ public class Hip1195EnabledTest {
                 getTxnRecord("nftCallCodeTxn")
                         .andAllChildRecords()
                         .hasChildRecords(
-                                recordWith().contractCallResult(resultWith().error("INVALID_OPERATION")))
-                        .logged());
+                                recordWith().contractCallResult(resultWith().error("INVALID_OPERATION"))));
     }
 
     @HapiTest
@@ -953,8 +943,7 @@ public class Hip1195EnabledTest {
                 getAccountInfo(OWNER).hasNoTokenRelationship("nftToken"),
                 getTxnRecord("nftStaticCallTxn")
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(CONTRACT_REVERT_EXECUTED))
-                        .logged());
+                        .hasChildRecords(recordWith().status(CONTRACT_REVERT_EXECUTED)));
     }
 
     @HapiTest
@@ -1204,10 +1193,8 @@ public class Hip1195EnabledTest {
                         .payingWith(PAYER)
                         .via("createHookTxn"),
                 withOpContext((spec, opLog) -> {
-                    final var successTxn = getTxnRecord("createHookTxn")
-                            .andAllChildRecords()
-                            .hasNonStakingChildRecordCount(2)
-                            .logged();
+                    final var successTxn =
+                            getTxnRecord("createHookTxn").andAllChildRecords().hasNonStakingChildRecordCount(2);
                     allRunFor(spec, successTxn);
 
                     spec.registry()
@@ -1242,10 +1229,8 @@ public class Hip1195EnabledTest {
                         .payingWith(OWNER)
                         .via("create2HookTxn"),
                 withOpContext((spec, opLog) -> {
-                    final var successTxn = getTxnRecord("create2HookTxn")
-                            .andAllChildRecords()
-                            .hasNonStakingChildRecordCount(2)
-                            .logged();
+                    final var successTxn =
+                            getTxnRecord("create2HookTxn").andAllChildRecords().hasNonStakingChildRecordCount(2);
                     allRunFor(spec, successTxn);
 
                     spec.registry()
@@ -1297,7 +1282,7 @@ public class Hip1195EnabledTest {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .via("exactlyMaxHooks"),
-                getTxnRecord("exactlyMaxHooks").logged(),
+                getTxnRecord("exactlyMaxHooks"),
                 // 6 pre+post hooks = 12 invocations, should fail
                 cryptoTransfer(
                                 movingHbar(1).between("owner1", GENESIS),
@@ -1358,12 +1343,8 @@ public class Hip1195EnabledTest {
                         .payingWith(PAYER)
                         .via("aboveCapTransfer"),
                 withOpContext((spec, opLog) -> {
-                    final var belowCapRecord = getTxnRecord("belowCapTransfer")
-                            .andAllChildRecords()
-                            .logged();
-                    final var aboveCapRecord = getTxnRecord("aboveCapTransfer")
-                            .andAllChildRecords()
-                            .logged();
+                    final var belowCapRecord = getTxnRecord("belowCapTransfer").andAllChildRecords();
+                    final var aboveCapRecord = getTxnRecord("aboveCapTransfer").andAllChildRecords();
                     allRunFor(spec, belowCapRecord, aboveCapRecord);
 
                     final long belowCapFee = belowCapRecord.getResponseRecord().getTransactionFee();
@@ -1452,7 +1433,7 @@ public class Hip1195EnabledTest {
                 ownerHoldsSerialOne(cryptoCreate(OWNER), cryptoCreate(RECEIVER)),
                 createHollow(
                         1,
-                        i -> HOLLOW,
+                        _ -> HOLLOW,
                         address -> cryptoTransfer(movingUnique(NFT, 3L).between(TREASURY, address))),
                 getAccountInfo(HOLLOW).isHollow(),
                 receiverSignedTransfer(HOLLOW, 3L).hasKnownStatus(INVALID_SIGNATURE),
