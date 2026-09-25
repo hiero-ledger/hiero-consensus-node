@@ -17,7 +17,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
@@ -54,6 +53,8 @@ import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -1051,8 +1052,9 @@ class HintsControllerImplTest {
         verify(submissions, never()).submitHintsVote(eq(CONSTRUCTION_ID), any(PreprocessedKeys.class));
     }
 
-    @Test
-    void movesToNextNodeEvenWhenNodeIsNotActive() {
+    @ParameterizedTest(name = "isActive={0}")
+    @ValueSource(booleans = {false, true})
+    void movesToNextNodeRegardlessOfNodeActiveStatus(final boolean isActive) {
         setupWith(UNFINISHED_CONSTRUCTION);
 
         given(store.getCrsState())
@@ -1067,14 +1069,15 @@ class HintsControllerImplTest {
         subject.setFinalCrsFuture(
                 CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 1)));
 
-        subject.advanceCrsWork(CONSENSUS_NOW, store, false);
+        subject.advanceCrsWork(CONSENSUS_NOW, store, isActive);
 
         // State write happens regardless of node-local ACTIVE status
         verify(store).moveToNextNode(2L, CONSENSUS_NOW.plus(Duration.ofSeconds(10)));
     }
 
-    @Test
-    void repeatsProcessEvenWhenNodeIsNotActive() {
+    @ParameterizedTest(name = "isActive={0}")
+    @ValueSource(booleans = {false, true})
+    void repeatsProcessRegardlessOfNodeActiveStatus(final boolean isActive) {
         setupWith(UNFINISHED_CONSTRUCTION);
 
         given(store.getCrsState())
@@ -1095,18 +1098,11 @@ class HintsControllerImplTest {
                 .crs(INITIAL_CRS)
                 .build();
 
-        subject.advanceCrsWork(CONSENSUS_NOW, store, false);
+        subject.advanceCrsWork(CONSENSUS_NOW, store, isActive);
 
-        // CRS state transition is written regardless of node-local ACTIVE status
+        // The restart branch is selected on nextContributingNodeId being null, so the isActive-gated
+        // self-submission branch is unreachable here; the transition is written for either value.
         verify(store).setCrsState(restartedState);
-
-        // Contrast: the same state with isActive=true writes the identical transition. A never()
-        // assertion could not show this, because the restart branch is selected on
-        // nextContributingNodeId being null, so the isActive-gated self-submission branch is
-        // unreachable here for either value of the flag.
-        subject.advanceCrsWork(CONSENSUS_NOW, store, true);
-
-        verify(store, times(2)).setCrsState(restartedState);
         verify(submissions, never()).submitCrsUpdate(any(), any());
     }
 
@@ -1132,8 +1128,9 @@ class HintsControllerImplTest {
         verify(store, never()).moveToNextNode(anyLong(), any());
     }
 
-    @Test
-    void setsFinalCrsIfAllIdsCompletedEvenWhenNodeIsNotActive() {
+    @ParameterizedTest(name = "isActive={0}")
+    @ValueSource(booleans = {false, true})
+    void setsFinalCrsIfAllIdsCompletedRegardlessOfNodeActiveStatus(final boolean isActive) {
         setupWith(UNFINISHED_CONSTRUCTION);
 
         given(store.getCrsState())
@@ -1143,7 +1140,7 @@ class HintsControllerImplTest {
                         .crs(INITIAL_CRS)
                         .build());
 
-        subject.advanceCrsWork(CONSENSUS_NOW, store, false);
+        subject.advanceCrsWork(CONSENSUS_NOW, store, isActive);
 
         // The GATHERING -> WAITING_FOR_ADOPTING_FINAL_CRS transition is written regardless of ACTIVE status
         verify(store)
@@ -1155,8 +1152,9 @@ class HintsControllerImplTest {
                         .build());
     }
 
-    @Test
-    void setsFinalCrsAndRemovesContributionEndTimeEvenWhenNodeIsNotActive() {
+    @ParameterizedTest(name = "isActive={0}")
+    @ValueSource(booleans = {false, true})
+    void setsFinalCrsAndRemovesContributionEndTimeRegardlessOfNodeActiveStatus(final boolean isActive) {
         setupWith(UNFINISHED_CONSTRUCTION);
 
         given(store.getCrsState())
@@ -1170,7 +1168,7 @@ class HintsControllerImplTest {
         subject.setFinalCrsFuture(
                 CompletableFuture.completedFuture(new HintsControllerImpl.CRSValidation(INITIAL_CRS, 18)));
 
-        subject.advanceCrsWork(CONSENSUS_NOW, store, false);
+        subject.advanceCrsWork(CONSENSUS_NOW, store, isActive);
 
         // The threshold-met -> COMPLETED adoption is written regardless of ACTIVE status
         verify(store)
