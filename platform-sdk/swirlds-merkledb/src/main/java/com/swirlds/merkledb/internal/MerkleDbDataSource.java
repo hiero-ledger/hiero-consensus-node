@@ -164,6 +164,20 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     private final ForkJoinPool flushPool;
 
     /**
+     * During flush, this is the future to wait for hashes writing to complete. The
+     * future is used to interrupt the flushing thread, if the data source is closed
+     * in parallel. When a flush is complete, this field is set to null.
+     */
+    private volatile Future<?> flushingHashesFuture;
+
+    /**
+     * During flush, this is the future to wait for leaves writing to complete. The
+     * future is used to interrupt the flushing thread, if the data source is closed
+     * in parallel. When a flush is complete, this field is set to null.
+     */
+    private volatile Future<?> flushingLeavesFuture;
+
+    /**
      * Cache size for reading virtual leaf records. Initialized in data source creation time from
      * MerkleDb settings. If the value is zero, the leaf records cache isn't used.
      */
@@ -570,16 +584,30 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 }
             });
 
+            // Hashes
             final VirtualHashChunk[] dirtyHashes = hashChunksToUpdate.toArray(VirtualHashChunk[]::new);
-            // Store hashes
-            final Future<Void> waitForHashes = writeHashes(lastLeafPath, dirtyHashes);
+            flushingHashesFuture = writeHashes(lastLeafPath, dirtyHashes);
 
+            // Leaves
             final VirtualLeafBytes<?>[] dirtyLeaves = leafRecordsToAddOrUpdate.toArray(VirtualLeafBytes[]::new);
-            // Store leaves
-            final Future<Void> waitForLeaves = writeLeavesToPathToKeyValue(firstLeafPath, lastLeafPath, dirtyLeaves);
+            flushingLeavesFuture = writeLeavesToPathToKeyValue(firstLeafPath, lastLeafPath, dirtyLeaves);
 
+            // In some rare cases, the data source can be closed, while the flush is still in
+            // progress, for example during failed reconnects. We need to make sure the current
+            // thread doesn't get stuck in flushingHashes/LeavesFuture.get() below, when the
+            // flushing pool is already down, and some hashes/leaves tasks are not executed.
+            // Check if the pool is still alive. If it is alive, and the data source is closed
+            // later, the futures will be canceled in cancelFlush()
+            if (flushPool.isShutdown()) {
+                logger.warn(
+                        MERKLE_DB.getMarker(),
+                        "Failed to flush data, the flushing pool has been closed. This may happen if the data source is closed in a different thread");
+                return;
+            }
+
+            // Key to path
             final VirtualLeafBytes<?>[] deletedLeaves = leafRecordsToDelete.toArray(VirtualLeafBytes[]::new);
-            // Store key/path mappings. This call is blocking, it returns after all mappings are updated in HDHM
+            // This call is blocking, it returns after all mappings are updated in HDHM
             writeLeavesToKeyToPath(firstLeafPath, lastLeafPath, dirtyLeaves, deletedLeaves, isReconnectContext);
 
             // As soon as this method returns, virtual node cache will start deleting the flushed
@@ -590,15 +618,15 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             // (or in the cache, if not purged from memory yet - purging is asynchronous)
             try {
                 waitForMetadata.get();
-                if (waitForHashes != null) {
-                    waitForHashes.get();
+                if (flushingHashesFuture != null) {
+                    flushingHashesFuture.get();
                 }
                 // Run all compactions even if there have been no objects written. This will take
                 // care of scenarios like when leaf range becomes empty, and the stream of dirty
                 // leaves to store is empty
                 runHashChunkStoreCompaction();
-                if (waitForLeaves != null) {
-                    waitForLeaves.get();
+                if (flushingLeavesFuture != null) {
+                    flushingLeavesFuture.get();
                 }
                 runPathToKeyValueStoreCompaction();
                 runKeyToPathStoreCompaction();
@@ -610,6 +638,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 throw new RuntimeException(e);
             }
         } finally {
+            flushingLeavesFuture = null;
+            flushingHashesFuture = null;
             // Report total size on disk as sum of all store files. All metadata and other helper files
             // are considered small enough to be ignored. If/when we decide to use on-disk long lists
             // for indices, they should be added here
@@ -780,6 +810,27 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     }
 
     /**
+     * If there is an active flush, it gets interrupted. If the flushing thread
+     * is waiting on various flushing tasks to complete (leaves, hashes, HDHM), it
+     * will be unblocked.
+     *
+     * <p>This method is safe to call even if there is no flush currently in progress.
+     */
+    private void cancelFlush() {
+        // This method should be called only after the flushing pool is marked to shut down
+        assert flushPool.isShutdown();
+        final Future<?> hf = flushingHashesFuture;
+        if (hf != null) {
+            hf.cancel(true);
+        }
+        final Future<?> lf = flushingLeavesFuture;
+        if (lf != null) {
+            lf.cancel(true);
+        }
+        keyToPath.cancelWriting();
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
@@ -791,11 +842,13 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 // Shut down all executors. If a flush is currently in progress, it will be interrupted
                 flushPool.shutdownNow();
                 snapshotExecutor.shutdownNow();
-                // If another thread is writing to HDHM in parallel, it may be waiting in
-                // HDHM.endWriting(), and flushPool shutdown above may not interrupt the wait.
-                // cancelWriting() is exactly the way to unblock (interrupt) such threads. It's
-                // safe to call cancelWriting() even if there is no writing in progress
-                keyToPath.cancelWriting();
+                // If there is a flush in progress on another thread, that thread may be
+                // stuck in waiting for hashes/leaves or HDHM writing to complete. Flushing
+                // pool shutdown interrupts all existing hashes/leaves/HDHM tasks, but the
+                // flushing thread is not interrupted. cancelFlush() is exactly to solve
+                // this problem. If there is no active flush, cancelFlush() is still safe
+                // to call
+                cancelFlush();
             } finally {
                 try {
                     // close all closable data stores

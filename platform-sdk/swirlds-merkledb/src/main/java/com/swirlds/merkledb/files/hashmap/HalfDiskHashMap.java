@@ -529,7 +529,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 if (flushPool.isShutdown()) {
                     logger.warn(
                             MERKLE_DB.getMarker(),
-                            "Failed to finish writing to HDHM, the flushing pool has been closed. This may happen, if the data source is closed in a parallel thread");
+                            "Failed to finish writing to HDHM, the flushing pool has been closed. This may happen if the data source is closed in a different thread");
                 } else {
                     notifyTask.get();
                 }
