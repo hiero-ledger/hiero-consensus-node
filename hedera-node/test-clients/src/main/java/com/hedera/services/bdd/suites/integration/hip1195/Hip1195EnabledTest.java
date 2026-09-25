@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.r
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relationshipWith;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
@@ -183,7 +184,7 @@ public class Hip1195EnabledTest {
                         .initialSupply(10L)
                         .maxSupply(1000L),
                 mintToken("token", 10),
-                getAccountInfo(OWNER),
+                getAccountInfo(OWNER).hasNoTokenRelationship("token"),
                 withOpContext((spec, opLog) -> payerMirror.set(
                         unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER))))),
                 sourcing(() -> accountEvmHookStore(OWNER, 123L)
@@ -198,8 +199,8 @@ public class Hip1195EnabledTest {
                         .withPreHookFor(OWNER, 123L, 5_000_000L, "")
                         .payingWith(PAYER)
                         .via("associateAndXferTxn"),
-                getTxnRecord("associateAndXferTxn").andAllChildRecords(),
-                getAccountInfo(OWNER));
+                getTxnRecord("associateAndXferTxn").andAllChildRecords().logged(),
+                getAccountInfo(OWNER).hasToken(relationshipWith("token").balance(10)));
     }
 
     @HapiTest
@@ -616,7 +617,7 @@ public class Hip1195EnabledTest {
                         .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .signedBy(DEFAULT_PAYER)
                         .via("customFeeTxn"),
-                getTxnRecord("customFeeTxn"));
+                getTxnRecord("customFeeTxn").logged());
     }
 
     @HapiTest
@@ -816,7 +817,7 @@ public class Hip1195EnabledTest {
                         .andAllChildRecords()
                         .hasChildRecords(
                                 recordWith().contractCallResult(resultWith().error("INVALID_OPERATION"))),
-                getAccountInfo(OWNER));
+                getAccountInfo(OWNER).hasNoTokenRelationship("nftToken"));
     }
 
     @HapiTest
@@ -859,8 +860,8 @@ public class Hip1195EnabledTest {
                                         ADDRESS_ABI)))
                         .payingWith(PAYER)
                         .via("tokenRedirectTxn")),
-                getTxnRecord("tokenRedirectTxn").andAllChildRecords(),
-                getAccountInfo(OWNER));
+                getTxnRecord("tokenRedirectTxn").andAllChildRecords().logged(),
+                getAccountInfo(OWNER).hasToken(relationshipWith("nftToken").balance(1)));
     }
 
     @HapiTest
@@ -1282,7 +1283,7 @@ public class Hip1195EnabledTest {
                         .payingWith(PAYER)
                         .signedBy(PAYER)
                         .via("exactlyMaxHooks"),
-                getTxnRecord("exactlyMaxHooks"),
+                getTxnRecord("exactlyMaxHooks").logged(),
                 // 6 pre+post hooks = 12 invocations, should fail
                 cryptoTransfer(
                                 movingHbar(1).between("owner1", GENESIS),
