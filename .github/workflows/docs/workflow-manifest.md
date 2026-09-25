@@ -108,6 +108,7 @@
 | 861-call-get-test-config.yaml                | 861: [CALL] Get CITR Test Config       |                                                       |                                                                   |
 | 862-call-get-chewie-properties.yaml          | 862: [CALL] Get CITR Chewie Properties |                                                       |                                                                   |
 | 863-call-get-chewie-allocation.yaml          | 863: [CALL] Get Chewie Allocation Details |                                                       |                                                                   |
+| 870-call-evm-functional-tests.yaml           | 870: [CALL] EVM Functional Tests       | N/A                                                   | N/A                                                               |
 |                                              |                                        |                                                       |                                                                   |
 | # CRON (900-999)                             |                                        |                                                       |                                                                   |
 | 900-cron-extended-test-suite.yaml            | 900: [CRON] CITR Ext Test Suite        | zxcron-extended-test-suite.yaml                       | ZXCron: [CITR] Extended Test Suite                                |
@@ -129,7 +130,8 @@
   numbered in that consumer's block; per-suite leaves are neutral and are not.
 
 - **The contiguous space below 850 is now exhausted.** The next batch of leaf workflows starts at
-  **870**, on a clean ten boundary. 812-814 and 829-830 are reserved for MATS- and XTS-specific
+  **870**, on a clean ten boundary; `870-call-evm-functional-tests.yaml` is the first of them, so the
+  next free leaf number is **871**. 812-814 and 829-830 are reserved for MATS- and XTS-specific
   callees respectively.
 
 - **`disp`-class operational controllers live in 100-199.** `106-disp-xts-optional-tests.yaml` is

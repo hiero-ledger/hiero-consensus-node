@@ -4,12 +4,16 @@ module.exports = async ({ github, context, core }) => {
   // Get labels associated to the pull request
   const labels = context.payload.pull_request.labels || [];
 
+  // "Run EVM Tests" forces the EVM functional tests (870) regardless of which files changed
+  const forceEvmTests = labels.some(l => l.name === 'Run EVM Tests');
+
   // Check for Run Full CI label first — forces full CI regardless
   if (labels.some(l => l.name === 'Run Full CI')) {
     core.info('Label "Run Full CI" detected — forcing full CI');
     core.setOutput('docs-only', 'false');
     core.setOutput('enable-tests', 'true');
     core.setOutput('workflow-files-changed', 'true');
+    core.setOutput('smart-contracts-changed', 'true');
     return;
   }
 
@@ -27,6 +31,7 @@ module.exports = async ({ github, context, core }) => {
     core.setOutput('docs-only', 'false');
     core.setOutput('enable-tests', 'true');
     core.setOutput('workflow-files-changed','true');
+    core.setOutput('smart-contracts-changed', 'true');
     return;
   }
 
@@ -45,6 +50,13 @@ module.exports = async ({ github, context, core }) => {
   // Any file under .github/workflows is considered a workflow file
   const isWorkflowFile = (filename) => /^\.github\/workflows\//.test(filename);
 
+  // Smart-contract service modules whose changes run the EVM functional tests (870). Only non-doc files count,
+  // so a README change under these modules does not deploy 18 solo networks. Other modules that influence EVM
+  // behaviour (ContractsConfig in hedera-config, the HTS system-contract handlers in hedera-token-service-impl,
+  // hedera-node/configuration, hapi) rely on the "Run EVM Tests" label.
+  const isSmartContractFile = (filename) =>
+      /^hedera-node\/hedera-smart-contract-service(-impl)?\//.test(filename);
+
   const nonDocFiles = files.filter(f => !isDocFile(f.filename));
 
   if (nonDocFiles.length > 0) {
@@ -56,6 +68,19 @@ module.exports = async ({ github, context, core }) => {
     core.info(`All ${files.length} changed file(s) are documentation — docs-only mode`);
     core.setOutput('docs-only', 'true');
     core.setOutput('enable-tests', 'false');
+  }
+
+  // check for non-doc files under the smart-contract service modules
+  const smartContractFiles = nonDocFiles.filter(f => isSmartContractFile(f.filename));
+  if (forceEvmTests) {
+    core.info('Label "Run EVM Tests" detected — enabling EVM functional tests');
+    core.setOutput('smart-contracts-changed', 'true');
+  } else if (smartContractFiles.length > 0) {
+    core.info(`Found ${smartContractFiles.length} smart-contract service file(s) — enabling EVM functional tests`);
+    smartContractFiles.slice(0, 10).forEach(f => core.info(`  - ${f.filename}`));
+    core.setOutput('smart-contracts-changed', 'true');
+  } else {
+    core.setOutput('smart-contracts-changed', 'false');
   }
 
   // check for all files that are workflow files
