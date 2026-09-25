@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATA
 import static com.hedera.services.bdd.junit.hedera.subprocess.ConditionStatus.PENDING;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ConditionStatus.REACHED;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.conditionFuture;
+import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.prCheckOverrides;
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.classicMetadataFor;
 import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.generateNetworkConfig;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.updateBootstrapProperties;
@@ -221,9 +222,14 @@ public class EmbeddedNetwork extends AbstractNetwork {
         // Initialize the working directory
         embeddedNode.initWorkingDir(network);
 
-        // Differently from the dev/application.properties config, embedded networks require mocked
-        // TSS signatures and a 1-min staking period for node rewards tests.
-        final Map<String, String> effectiveOverrides = new HashMap<>(bootstrapOverrides);
+        // Apply the per-task build.gradle.kts overrides (hapi.spec.test.overrides) as the base layer so
+        // embedded specs honor the same node config as subprocess specs do (subprocess gets them as env
+        // vars via ProcessUtils). Without this, e.g. the CLPR tasks' clpr.enabled=true never reaches an
+        // embedded @Tag(CLPR) spec, which then runs with CLPR at its config default (false on this repo).
+        // The test's own bootstrapOverrides layer on top (per-test wins), then the embedded-mandatory
+        // settings below: embedded networks require mocked TSS signatures and a 1-min staking period.
+        final Map<String, String> effectiveOverrides = new HashMap<>(prCheckOverrides());
+        effectiveOverrides.putAll(bootstrapOverrides);
         effectiveOverrides.put("tss.forceMockSignatures", "true");
         effectiveOverrides.put("staking.periodMins", "1");
         updateBootstrapProperties(embeddedNode.getExternalPath(APPLICATION_PROPERTIES), effectiveOverrides);

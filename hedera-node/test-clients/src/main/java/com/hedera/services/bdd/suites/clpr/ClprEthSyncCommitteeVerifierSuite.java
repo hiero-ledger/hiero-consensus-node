@@ -73,7 +73,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
 
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit"})
+            overrides = {"clpr.enabled", "clpr.verifierGasLimit"})
     @DisplayName("Eth verifier: self-submitted single-message bundle")
     final Stream<DynamicTest> completesChannelAndDeliversBundle() {
         final var crypto = new ClprChannelCrypto();
@@ -96,11 +96,12 @@ public class ClprEthSyncCommitteeVerifierSuite {
 
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit"})
+            overrides = {"clpr.enabled", "clpr.verifierGasLimit"})
     @DisplayName("Eth verifier: peer serviceAddress not 20 bytes → CLPR_VERIFIER_CONFIG_FAILED")
     final Stream<DynamicTest> rejectsConfigWithBadServiceAddress() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
+                overriding("clpr.enabled", "true"),
                 // A full 512-key committee makes the verifier calldata ~25KB+, so the dispatch needs
                 // more than the 300k default verifier gas.
                 overriding("clpr.verifierGasLimit", "5000000"),
@@ -121,7 +122,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
 
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit"})
+            overrides = {"clpr.enabled", "clpr.verifierGasLimit"})
     @DisplayName("Eth verifier: tampered bundle account proof → CLPR_BUNDLE_VERIFICATION_FAILED")
     final Stream<DynamicTest> rejectsTamperedBundle() {
         final var crypto = new ClprChannelCrypto();
@@ -149,7 +150,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit"})
+            overrides = {"clpr.enabled", "clpr.verifierGasLimit"})
     @DisplayName("Eth verifier: rotation bundle updates trust anchor; new-committee bundle succeeds")
     final Stream<DynamicTest> completesChannelAfterCommitteeRotation() {
         final var crypto = new ClprChannelCrypto();
@@ -194,13 +195,14 @@ public class ClprEthSyncCommitteeVerifierSuite {
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit", "clpr.endpointManifestEnabled"})
+            overrides = {"clpr.enabled", "clpr.verifierGasLimit", "clpr.endpointManifestEnabled"})
     @DisplayName("Eth verifier: completeChannel installs the config endpoint manifest (0, 1, N endpoints)")
     final Stream<DynamicTest> completeChannelInstallsConfigManifest() {
         final int[] endpointCounts = {0, 1, 3};
         final List<SpecOperation> ops = new ArrayList<>();
         // A full 512-key committee makes the verifier calldata ~25KB+, so the dispatch needs more than
         // the 300k default verifier gas.
+        ops.add(overriding("clpr.enabled", "true"));
         ops.add(overriding("clpr.verifierGasLimit", "5000000"));
         ops.add(overriding("clpr.endpointManifestEnabled", "true"));
         ops.add(clprUpdateLedgerConfiguration()
@@ -239,7 +241,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit", "clpr.endpointManifestEnabled"})
+            overrides = {"clpr.enabled", "clpr.verifierGasLimit", "clpr.endpointManifestEnabled"})
     @DisplayName("Eth verifier: bundle carrying a higher-version manifest updates the Channel via Step-1b")
     final Stream<DynamicTest> bundleAdvancesEndpointManifest() {
         final var crypto = new ClprChannelCrypto();
@@ -275,11 +277,12 @@ public class ClprEthSyncCommitteeVerifierSuite {
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit", "clpr.endpointManifestEnabled"})
+            overrides = {"clpr.enabled", "clpr.verifierGasLimit", "clpr.endpointManifestEnabled"})
     @DisplayName("Eth verifier: manifest service_address mismatch → CLPR_VERIFIER_CONFIG_FAILED")
     final Stream<DynamicTest> rejectsManifestWithMismatchedServiceAddress() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
+                overriding("clpr.enabled", "true"),
                 overriding("clpr.verifierGasLimit", "5000000"),
                 overriding("clpr.endpointManifestEnabled", "true"),
                 clprUpdateLedgerConfiguration()
@@ -319,6 +322,9 @@ public class ClprEthSyncCommitteeVerifierSuite {
     private static SpecOperation[] setupChannelWithEthereumVerifier(
             ClprChannelCrypto crypto, byte[] ledgerConfigPayload) {
         return new SpecOperation[] {
+            // clpr.enabled defaults to false in this repo; enable it per-spec (ordinal 101) so this
+            // suite works without a task-wide pin (which would break the negative WhenDisabled suites).
+            overriding("clpr.enabled", "true"),
             // A full 512-key committee makes the verifier calldata ~25KB+, so the dispatch needs
             // more than the 300k default verifier gas.
             overriding("clpr.verifierGasLimit", "5000000"),

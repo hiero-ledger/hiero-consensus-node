@@ -219,7 +219,32 @@ val prCheckPropOverrides =
         "hapiTestAtomicBatch" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
-        "hapiTestClpr" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        // CLPR suites: pin the TSS/wraps surface to the values clpr-hiero runs with. Do NOT pin
+        // clpr.enabled for the single-network tasks: these tasks include negative "…WhenDisabled"
+        // suites (ClprDisabledSuite etc.) that must run with CLPR OFF and assert CLPR_NOT_ENABLED.
+        // A task-wide clpr.enabled=true arrives as a subprocess env var at ordinal 300, which
+        // OUTRANKS a spec's own overriding("clpr.enabled",…) (ordinal 101) and would force those
+        // negative tests to fail. Positive specs self-enable clpr.enabled per-spec (ordinal 101);
+        // negative specs rely on the config default (false on this repo). Multi-network is the one
+        // task with no negative case and an always-on CLPR requirement, so it pins
+        // clpr.enabled=true
+        // (applied via seedPerNodeApplicationOverrides in MultiNetworkExtension); it also gets its
+        // wraps proving-key material via prCheckTssLibWrapsArtifactsPaths
+        // (canonicalWrapsArtifactsPath).
+        "hapiTestClpr" to
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        "hapiTestClprEmbedded" to
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=true",
+        // Multi-network CLPR needs REAL block signatures: the WRAPS recursive proof is only
+        // embedded
+        // in a block proof when the signer produces a real hinTS verification key + history
+        // chain-of-trust proof (BlockStreamManagerImpl.finishProofWithSignature). With
+        // tss.forceMockSignatures=true the signer emits a mock signature (verificationKey and
+        // chainOfTrustProof both null), so WRAPS never lands in a block and the [CLPR-SYNC-POINT]
+        // the
+        // TSS-readiness gate waits for never fires. Hence forceMockSignatures=false here.
+        "hapiTestClprMultinetwork" to
+            "clpr.enabled=true,tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false",
     )
 // hapiTestRestart reconnects the same node repeatedly; the 10m production throttle would starve it.
 val prCheckPlatformOverrides =
