@@ -219,7 +219,18 @@ val prCheckPropOverrides =
         "hapiTestAtomicBatch" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
-        "hapiTestClpr" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        // CLPR suites: pin the CLPR + TSS/wraps surface explicitly to the values clpr-hiero runs
+        // with (where clpr.enabled and the tss.* flags are all on by config default). Defensive:
+        // hcn defaults clpr.enabled=false, and any future default drift here must not silently
+        // change
+        // how these suites run. hapiTestClprMultinetwork additionally gets its wraps proving-key
+        // material via prCheckTssLibWrapsArtifactsPaths (canonicalWrapsArtifactsPath) below.
+        "hapiTestClpr" to
+            "clpr.enabled=true,tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        "hapiTestClprEmbedded" to
+            "clpr.enabled=true,tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=true",
+        "hapiTestClprMultinetwork" to
+            "clpr.enabled=true,tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=true",
     )
 // hapiTestRestart reconnects the same node repeatedly; the 10m production throttle would starve it.
 val prCheckPlatformOverrides =
