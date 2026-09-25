@@ -34,17 +34,17 @@ public class CryptoTransferValidationHelper {
             final PreHandleContext meta,
             final ReadableAccountStore accountStore)
             throws PreCheckException {
-        final var hasSenderHook =
-                nftTransfer.hasPreTxSenderAllowanceHook() || nftTransfer.hasPrePostTxSenderAllowanceHook();
-        if (hasSenderHook) {
-            // If there is a sender hook, we skip the sender checks, as the hook will handle them.
-            return;
-        }
-
         // Lookup the sender account and verify it.
         final var senderAccount = accountStore.getAliasedAccountById(senderId);
         if (senderAccount == null) {
             throw new PreCheckException(INVALID_ACCOUNT_ID);
+        }
+
+        final var hasSenderHook =
+                nftTransfer.hasPreTxSenderAllowanceHook() || nftTransfer.hasPrePostTxSenderAllowanceHook();
+        if (hasSenderHook) {
+            // If there is a sender hook, we skip the sender key checks, as the hook will handle them.
+            return;
         }
 
         // If the sender account is immutable, then we throw an exception.

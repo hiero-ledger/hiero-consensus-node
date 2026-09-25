@@ -10,6 +10,7 @@ import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.re
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
@@ -32,6 +33,8 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.GLOBAL_WATCHER;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createHollow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -40,6 +43,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.STAKING_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
@@ -49,6 +53,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_IN_USE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
@@ -69,8 +74,11 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoCreate;
+import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
@@ -131,6 +139,14 @@ public class Hip1195EnabledTest {
     static final String OWNER = "owner";
     static final String PAYER = "payer";
     public static final String HOOK_CONTRACT_NUM = "365";
+    private static final String RECEIVER = "receiver";
+    private static final String TREASURY = "treasury";
+    private static final String NFT = "nft";
+    private static final String HOLLOW = "hollow";
+    private static final String MISSING_NUMERIC_SENDER = "999999999";
+    private static final String MISSING_EVM_SENDER = "0x" + "de".repeat(20);
+    private static final long HOOK_ID = 1L;
+    private static final long HOOK_GAS = 25_000L;
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -1362,5 +1378,112 @@ public class Hip1195EnabledTest {
                             "Above-cap transfer should cost more due to higher effective gas. " + "Below cap fee: "
                                     + belowCapFee + ", Above cap fee: " + aboveCapFee);
                 }));
+    }
+
+    // Pre-handle skips NFT sender key checks when a sender hook is named; handle must still enforce the hook
+    @HapiTest
+    final Stream<DynamicTest> nftSenderHookMustBeInstalledBySender() {
+        return hapiTest(
+                ownerHoldsSerialOne(cryptoCreate(OWNER), cryptoCreate(RECEIVER)),
+                receiverSignedTransfer(OWNER, 1L).hasKnownStatus(INVALID_SIGNATURE),
+                receiverSignedTransfer(OWNER, 1L)
+                        .withNftSenderPreHookFor(OWNER, HOOK_ID, HOOK_GAS, "")
+                        .via("preHookTransfer")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                getTxnRecord("preHookTransfer")
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(HOOK_NOT_FOUND)),
+                receiverSignedTransfer(OWNER, 1L)
+                        .withNftSenderPrePostHookFor(OWNER, HOOK_ID, HOOK_GAS, "")
+                        .via("prePostHookTransfer")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                getTxnRecord("prePostHookTransfer")
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(HOOK_NOT_FOUND)),
+                getTokenNftInfo(NFT, 1L).hasAccountID(OWNER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> nftSenderHookIsLookedUpOnSenderNotPayer() {
+        return hapiTest(
+                ownerHoldsSerialOne(
+                        cryptoCreate(OWNER).withHooks(accountAllowanceHook(HOOK_ID, FALSE_ALLOWANCE_HOOK.name())),
+                        cryptoCreate(RECEIVER).withHooks(accountAllowanceHook(HOOK_ID, TRUE_ALLOWANCE_HOOK.name()))),
+                receiverSignedTransfer(OWNER, 1L)
+                        .withNftSenderPreHookFor(OWNER, HOOK_ID, HOOK_GAS, "")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                getTokenNftInfo(NFT, 1L).hasAccountID(OWNER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> nftSenderHookWithMissingSenderIsRejected() {
+        return hapiTest(
+                ownerHoldsSerialOne(cryptoCreate(OWNER), cryptoCreate(RECEIVER)),
+                receiverSignedTransfer(MISSING_NUMERIC_SENDER, 2L)
+                        .withNftSenderPreHookFor(MISSING_NUMERIC_SENDER, HOOK_ID, HOOK_GAS, "")
+                        .via("missingNumericSender")
+                        .hasKnownStatus(INVALID_ACCOUNT_ID),
+                getTxnRecord("missingNumericSender")
+                        .exposingTo(r -> assertTrue(r.getTransactionFee() > 0, "payer should be charged")),
+                receiverSignedTransfer(MISSING_EVM_SENDER, 2L)
+                        .withNftSenderPreHookFor(MISSING_EVM_SENDER, HOOK_ID, HOOK_GAS, "")
+                        .hasKnownStatus(INVALID_ACCOUNT_ID),
+                getTokenNftInfo(NFT, 2L).hasAccountID(TREASURY));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> nftSenderHookWithImmutableSenderIsRejected() {
+        return hapiTest(
+                ownerHoldsSerialOne(cryptoCreate(OWNER), cryptoCreate(RECEIVER)),
+                receiverSignedTransfer(STAKING_REWARD, 1L).hasKnownStatus(INVALID_ACCOUNT_ID),
+                receiverSignedTransfer(STAKING_REWARD, 1L)
+                        .withNftSenderPreHookFor(STAKING_REWARD, HOOK_ID, HOOK_GAS, "")
+                        .via("immutableSenderTransfer")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                getTxnRecord("immutableSenderTransfer")
+                        .andAllChildRecords()
+                        .hasChildRecords(recordWith().status(HOOK_NOT_FOUND)),
+                getTokenNftInfo(NFT, 1L).hasAccountID(OWNER));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> nftSenderHookWithHollowSenderIsRejectedAndStaysHollow() {
+        return hapiTest(
+                ownerHoldsSerialOne(cryptoCreate(OWNER), cryptoCreate(RECEIVER)),
+                createHollow(
+                        1,
+                        i -> HOLLOW,
+                        address -> cryptoTransfer(movingUnique(NFT, 3L).between(TREASURY, address))),
+                getAccountInfo(HOLLOW).isHollow(),
+                receiverSignedTransfer(HOLLOW, 3L).hasKnownStatus(INVALID_SIGNATURE),
+                receiverSignedTransfer(HOLLOW, 3L)
+                        .withNftSenderPreHookFor(HOLLOW, HOOK_ID, HOOK_GAS, "")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK),
+                getAccountInfo(HOLLOW).isHollow(),
+                getTokenNftInfo(NFT, 3L).hasAccountID(HOLLOW));
+    }
+
+    private static SpecOperation ownerHoldsSerialOne(
+            @NonNull final HapiCryptoCreate ownerCreation, @NonNull final HapiCryptoCreate receiverCreation) {
+        return blockingOrder(
+                newKeyNamed("supplyKey"),
+                cryptoCreate(TREASURY),
+                ownerCreation,
+                receiverCreation.balance(ONE_HUNDRED_HBARS),
+                tokenCreate(NFT)
+                        .treasury(TREASURY)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey("supplyKey")
+                        .initialSupply(0),
+                mintToken(NFT, List.of(copyFromUtf8("1"), copyFromUtf8("2"), copyFromUtf8("3"))),
+                tokenAssociate(OWNER, NFT),
+                tokenAssociate(RECEIVER, NFT),
+                cryptoTransfer(movingUnique(NFT, 1L).between(TREASURY, OWNER)));
+    }
+
+    private static HapiCryptoTransfer receiverSignedTransfer(final String sender, final long serialNo) {
+        return cryptoTransfer(movingUnique(NFT, serialNo).between(sender, RECEIVER))
+                .payingWith(RECEIVER)
+                .signedBy(RECEIVER);
     }
 }
