@@ -70,11 +70,13 @@ public class WrapsHandoffsTest implements LifecycleTest {
     private static final String FRESH_GENESIS_CONSTRUCTION_PATTERN =
             "Created NEXT construction #(\\d+) for rosters \\(source=([0-9a-f]+), target=\\2\\) WITH WRAPS-extensible source proof";
     /**
-     * The upgrade that requests the fresh genesis proof also forces mock signatures, since a fresh genesis
-     * proof is only requested while block proofs do not yet carry the chain of trust.
+     * The upgrade that requests the fresh genesis proof also forces mock signatures and disables the cutover,
+     * since a fresh genesis proof is only requested while block proofs do not yet carry the chain of trust.
      */
-    private static final Map<String, String> FRESH_GENESIS_UPGRADE_ENV =
-            Map.of("tss.needsFreshGenesisWrapsProof", "true", "tss.forceMockSignatures", "true");
+    private static final Map<String, String> FRESH_GENESIS_UPGRADE_ENV = Map.of(
+            "tss.needsFreshGenesisWrapsProof", "true",
+            "tss.forceMockSignatures", "true",
+            "blockStream.enableCutover", "false");
 
     private static final Duration LEDGER_ID_TIMEOUT = Duration.ofMinutes(1);
     private static final Duration WRAPS_PROOF_TIMEOUT = Duration.ofMinutes(20);
