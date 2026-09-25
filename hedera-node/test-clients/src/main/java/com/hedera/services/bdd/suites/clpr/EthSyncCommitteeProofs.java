@@ -36,9 +36,9 @@ import org.bouncycastle.jcajce.provider.digest.Keccak;
  * already shaped as if signatures were verified.
  *
  * <p>The config payload is the raw RLP {@code [slot, syncCommittee, genesisValidatorsRoot,
- * forkVersion, ledgerConfigBytes]} that the verifier's {@code verifyConfig(bytes)} expects — <em>not</em>
+ * forkVersion, ledgerConfigBytes]} that the verifier's {@code verifyConfig(bytes,bytes32)} expects — <em>not</em>
  * the {@code StateProof} envelope {@link ClprTestProofs} builds for the passthrough verifier. The bundle
- * payload is the raw RLP 9-item list that {@code verifyBundle(bytes,bytes)} expects.
+ * payload is the raw RLP 9-item list that {@code verifyBundle(bytes,bytes,bytes)} expects.
  */
 final class EthSyncCommitteeProofs {
 

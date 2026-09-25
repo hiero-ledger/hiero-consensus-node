@@ -52,7 +52,7 @@ public class Tipset {
      * <p>
      * The generation for each node ID will be equal to the maximum generation found for that node ID from all source
      * tipsets.
-     * In the case of empty list, a new Tipset instance with the current roster will be returned.
+     * In the case of empty list, a new Tipset instance with the active roster will be returned.
      *
      * @param tipsets the tipsets to merge, tipsets must be constructed from the same roster or
      *                else this method has undefined behavior

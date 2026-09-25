@@ -114,7 +114,7 @@ public class TipsetEventCreator implements EventCreator {
      * @param time                provides the time source for the event creator
      * @param random              a source of randomness that must be cryptographically secure
      * @param signer              used for signing things with this node's private key
-     * @param roster              the current roster
+     * @param roster              the active roster
      * @param selfId              this node's ID
      * @param transactionSupplier provides transactions to be included in new events
      */

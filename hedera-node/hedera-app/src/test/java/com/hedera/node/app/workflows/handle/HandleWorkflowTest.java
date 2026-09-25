@@ -3,7 +3,9 @@ package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
@@ -149,7 +151,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -853,7 +857,7 @@ class HandleWorkflowTest {
 
         final var reconciliationTimes = ArgumentCaptor.forClass(Instant.class);
         verify(historyService, times(4))
-                .reconcile(any(), any(), any(), reconciliationTimes.capture(), any(), eq(true), any());
+                .reconcile(any(), any(), any(), reconciliationTimes.capture(), any(), eq(true), any(), eq(false));
         assertEquals(
                 List.of(firstRoundTime, afterGracePeriod, readyBlockTime, readyBlockTime),
                 reconciliationTimes.getAllValues());
@@ -884,6 +888,14 @@ class HandleWorkflowTest {
         lenient()
                 .when(historyStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID))
                 .thenReturn(mock(WritableSingletonState.class));
+        final WritableSingletonState<HistoryProofConstruction> proofConstruction = mock(WritableSingletonState.class);
+        lenient()
+                .when(historyStates.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID))
+                .thenReturn(proofConstruction);
+        lenient()
+                .when(historyStates.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID))
+                .thenReturn(proofConstruction);
+        lenient().when(proofConstruction.get()).thenReturn(HistoryProofConstruction.DEFAULT);
 
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
         given(event.getCreatorId()).willReturn(NodeId.of(0));
@@ -1092,8 +1104,8 @@ class HandleWorkflowTest {
 
         // The iterator was obtained (confirms we reached executeAsManyScheduled)
         verify(scheduleService).executableTxns(any(), any(), any());
-        // But the loop body never entered — no scheduled txn was started
-        verify(stakePeriodManager, never()).setCurrentStakePeriodFor(any());
+        // Only the round-start initialization — no scheduled txn dispatch triggered a second call
+        verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW));
     }
 
     @Test
@@ -1211,5 +1223,24 @@ class HandleWorkflowTest {
                 ledgerIdConsTime.isAfter(afterEvents),
                 "The ledger id publication was assigned " + ledgerIdConsTime + ", which precedes the last transaction "
                         + "handled in the round at " + afterEvents);
+    }
+
+    @Test
+    void stakePeriodInitializedBeforeFeeDistribution() {
+        final var creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
+
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
+
+        subject.handleRound(state, round, txns -> {});
+
+        final InOrder inOrder = Mockito.inOrder(stakePeriodManager, nodeFeeManager);
+        inOrder.verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW));
+        inOrder.verify(nodeFeeManager).distributeFees(any(), any(), any());
     }
 }

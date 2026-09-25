@@ -4,9 +4,8 @@ package org.hiero.consensus.event.intake.concurrent;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_2;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
+import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.metrics.api.LongAccumulator;
@@ -17,7 +16,6 @@ import java.security.PublicKey;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.HashMap;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -36,9 +34,9 @@ import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterEntryNotFoundException;
-import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
 
 /**
  * Implementation of {@link EventIntakeProcessor}. Combines hashing, field validation,
@@ -64,7 +62,7 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
             new ConcurrentHashMap<>();
 
     private final Function<PublicKey, BytesSignatureVerifier> verifierFactory;
-    private volatile RosterHistory rosterHistory;
+    private volatile RosterWrapperHistory rosterHistory;
 
     /**
      * Shared public key cache keyed by {@code (nodeId, birthRound)}.
@@ -140,15 +138,15 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
             @NonNull final EventHasher eventHasher,
             @NonNull final EventFieldValidator eventFieldValidator,
             @NonNull final Function<PublicKey, BytesSignatureVerifier> verifierFactory,
-            @NonNull final RosterHistory rosterHistory,
+            @NonNull final RosterWrapperHistory rosterHistory,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @Nullable final EventPipelineTracker pipelineTracker) {
 
-        this.eventHasher = Objects.requireNonNull(eventHasher);
-        this.eventFieldValidator = Objects.requireNonNull(eventFieldValidator);
-        this.verifierFactory = Objects.requireNonNull(verifierFactory);
-        this.rosterHistory = Objects.requireNonNull(rosterHistory);
-        this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
+        this.eventHasher = requireNonNull(eventHasher);
+        this.eventFieldValidator = requireNonNull(eventFieldValidator);
+        this.verifierFactory = requireNonNull(verifierFactory);
+        this.rosterHistory = requireNonNull(rosterHistory);
+        this.intakeEventCounter = requireNonNull(intakeEventCounter);
         this.pipelineTracker = pipelineTracker;
 
         this.rateLimitedLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
@@ -325,23 +323,17 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
      */
     @Nullable
     private PublicKey resolvePublicKey(@NonNull final VerifierKey key) {
-        final Roster roster = rosterHistory.getRosterForRound(key.birthRound());
-        if (roster == null) {
-            rateLimitedLogger.error(
-                    EXCEPTION.getMarker(),
-                    "Cannot validate events for birth round {} without a roster",
-                    key.birthRound());
-            return null;
-        }
-        final RosterEntry rosterEntry;
+        final RosterEntryWrapper rosterEntry;
         try {
-            rosterEntry = RosterUtils.getRosterEntry(roster, key.nodeId().id());
-        } catch (RosterEntryNotFoundException e) {
-            rateLimitedLogger.error(EXCEPTION.getMarker(), "Node {} doesn't exist in applicable roster", key.nodeId());
+            final RosterWrapper roster = rosterHistory.rosterForRound(key.birthRound());
+            rosterEntry = roster.getRosterEntry(key.nodeId());
+        } catch (final IllegalArgumentException e) {
+            rateLimitedLogger.error(
+                    EXCEPTION.getMarker(), "Cannot find roster entry for event with verifier key {}", key);
             return null;
         }
 
-        final X509Certificate cert = RosterUtils.fetchGossipCaCertificate(rosterEntry);
+        final X509Certificate cert = rosterEntry.gossipCaCertificate();
         if (cert == null || cert.getPublicKey() == null) {
             rateLimitedLogger.error(
                     EXCEPTION.getMarker(), "Cannot find publicKey for creator with ID: {}", key.nodeId());
@@ -356,7 +348,7 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
      */
     @Override
     public void setEventWindow(@NonNull final EventWindow eventWindow) {
-        this.eventWindow = Objects.requireNonNull(eventWindow);
+        this.eventWindow = requireNonNull(eventWindow);
         // Purge all birth-round buckets below the ancient threshold.
         // Iterates only round keys (~20), not every event entry.
         observedEvents.keySet().removeIf(round -> round < eventWindow.ancientThreshold());
@@ -368,8 +360,8 @@ public class ConcurrentEventIntakeProcessor implements EventIntakeProcessor {
      * {@inheritDoc}
      */
     @Override
-    public void updateRosterHistory(@NonNull final RosterHistory rosterHistory) {
-        this.rosterHistory = Objects.requireNonNull(rosterHistory);
+    public void updateRosterHistory(@NonNull final RosterWrapperHistory rosterHistory) {
+        this.rosterHistory = requireNonNull(rosterHistory);
     }
 
     /**

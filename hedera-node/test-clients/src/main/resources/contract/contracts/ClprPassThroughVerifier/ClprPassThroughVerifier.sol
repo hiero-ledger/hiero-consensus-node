@@ -7,21 +7,15 @@ pragma solidity ^0.8.0;
  * Accepts a serialized StateProof (com.hedera.hapi.block.stream.StateProof) and
  * extracts attested content WITHOUT any cryptographic verification.
  *
- * verifyConfig(bytes): V1 — finds the first state_item_leaf in the proof paths, unwraps the
- * StateValue's first field (ClprLedgerConfiguration, StateValue field 59), and
- * returns those bytes.
+ * verifyConfig(bytes,bytes32): extracts ClprLedgerConfiguration from the proof and
+ * returns its fields in the ABI 8-tuple expected by EvmClprVerifier dispatch with seed endpoints.
  *
- * verifyConfig(bytes,bytes32): V2 — same extraction, then parses ClprLedgerConfiguration
- * proto fields into the ABI 8-tuple expected by EvmClprVerifier V2 dispatch.
- *
- * verifyBundle(bytes,bytes): V1 — walks all state_item_leaf paths and dispatches on the StateValue tag:
- *   - [0xE2,0x03] = field 60 = ClprChannel  → queue metadata source
+ * verifyBundle(bytes,bytes,bytes): walks all state_item_leaf paths and dispatches on the StateValue tag:
+ *   - [0xE2,0x03] = field 60 = ClprChannel → queue metadata source
  *   - [0xF2,0x03] = field 62 = ClprMessageValue → ordered message payloads
- * Assembles and returns serialized ClprBundleContent (metadata + messages).
- *
- * verifyBundle(bytes,bytes,bytes): V2 — same scan, returns ABI 4-tuple
+ * Returns the ABI 4-tuple
  * ((uint64,bytes32,uint64,bytes32,uint8), bytes[], bytes, bytes) expected by
- * EvmClprVerifier V2 dispatch.
+ * EvmClprVerifier bundle dispatch with endpoint manifests disabled.
  *
  * No Merkle path verification, no TSS signature check, no hash computation.
  * DO NOT use in production.
@@ -52,17 +46,6 @@ contract ClprPassThroughVerifier {
     uint64 private constant MV_PAYLOAD = 0x0a; // field 1, WT 2
     uint64 private constant MV_HASH    = 0x12; // field 2, WT 2
 
-    // ClprQueueMetadata output field tags
-    uint8 private constant QM_NEXT_ID   = 0x08; // field 1, WT 0
-    uint8 private constant QM_SENT_HASH = 0x12; // field 2, WT 2
-    uint8 private constant QM_RCVD_ID   = 0x18; // field 3, WT 0
-    uint8 private constant QM_RCVD_HASH = 0x22; // field 4, WT 2
-    uint8 private constant QM_STATE     = 0x28; // field 5, WT 0
-
-    // ClprBundleContent output field tags
-    uint8 private constant CBC_METADATA = 0x0a; // field 1, WT 2
-    uint8 private constant CBC_MESSAGES = 0x12; // field 2, WT 2
-
     // Packs the six ClprChannel fields extracted by _scanLeaves into one stack slot.
     struct ConnData {
         uint64 status;
@@ -72,7 +55,7 @@ contract ClprPassThroughVerifier {
         uint256 rcvdHL;
     }
 
-    // V2 verifyConfig return: ClprThrottles fields as ABI (uint64,uint64,uint64,uint64,uint64)
+    // Config return with seed endpoints: ClprThrottles fields as ABI (uint64,uint64,uint64,uint64,uint64)
     struct ThrottlesData {
         uint64 maxMessagesPerBundle;
         uint64 maxMessagePayloadBytes;
@@ -81,7 +64,7 @@ contract ClprPassThroughVerifier {
         uint64 maxSyncBytes;
     }
 
-    // V2 verifyConfig return: ClprEndpoint as ABI (string,uint32,bytes,bytes)
+    // Config return with seed endpoints: ClprEndpoint as ABI (string,uint32,bytes,bytes)
     struct EndpointData {
         string ipAddress;
         uint32 port;
@@ -89,7 +72,7 @@ contract ClprPassThroughVerifier {
         bytes accountId;
     }
 
-    // V2 verifyBundle return: ClprQueueMetadata as ABI (uint64,bytes32,uint64,bytes32,uint8)
+    // Bundle return without a manifest: ClprQueueMetadata as ABI (uint64,bytes32,uint64,bytes32,uint8)
     struct BundleMeta {
         uint64 nextMessageId;
         bytes32 sentRunningHash;
@@ -103,38 +86,8 @@ contract ClprPassThroughVerifier {
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * V1: Extracts ClprLedgerConfiguration bytes from a StateProof without verification.
-     * The proof must contain a state_item_leaf whose StateValue wraps a
-     * ClprLedgerConfiguration (field 59). The raw inner bytes are returned verbatim.
-     */
-    function verifyConfig(bytes calldata proofBytes) external pure returns (bytes memory) {
-        uint256 n = proofBytes.length;
-        uint256 i = 0;
-        while (i < n) {
-            (uint64 tag, uint256 tl) = _readV(proofBytes, i); i += tl;
-            (uint64 vLen, uint256 ll) = _readV(proofBytes, i); i += ll;
-            uint256 vEnd = i + uint256(vLen);
-            require(vEnd <= n, "verifyConfig: OOB");
-            if (tag == SP_PATHS) {
-                (uint256 lS, uint256 lL, bool lOk) = _findLd(proofBytes, i, vEnd, MP_LEAF);
-                if (lOk) {
-                    (uint256 svS, uint256 svL, bool svOk) = _findLd(proofBytes, lS, lS + lL, SI_VALUE);
-                    if (svOk && svL > 0) {
-                        // Unwrap the first (and only) field of the StateValue —
-                        // that is the raw ClprLedgerConfiguration bytes.
-                        (uint256 innerS, uint256 innerL) = _unwrapFirst(proofBytes, svS);
-                        return _copy(proofBytes, innerS, innerL);
-                    }
-                }
-            }
-            i = vEnd;
-        }
-        revert("verifyConfig: no config leaf found");
-    }
-
-    /**
-     * V2: Extracts ClprLedgerConfiguration from a StateProof and returns the ABI 8-tuple
-     * expected by EvmClprVerifier.decodeVerifyConfigV2Return.
+     * Seed endpoints: Extracts ClprLedgerConfiguration from a StateProof and returns the ABI 8-tuple
+     * expected by EvmClprVerifier.decodeVerifyConfigWithSeedEndpointsReturn.
      *
      * Returns (channelContext, chainId, serviceAddress, peerConfigNanos,
      *          throttles, initialTrustAnchor, initialTrustAnchorId, endpoints).
@@ -239,33 +192,8 @@ contract ClprPassThroughVerifier {
     }
 
     /**
-     * V1: Builds ClprBundleContent from a StateProof without verification.
-     *
-     * Walks every state_item_leaf path. The ClprChannel leaf supplies queue
-     * metadata; each ClprMessageValue leaf contributes one ordered payload. The
-     * returned bytes are a serialized ClprBundleContent carrying a ClprQueueMetadata
-     * and the ordered ClprMessagePayload list, exactly as a real verifier would return.
-     */
-    function verifyBundle(bytes calldata bp, bytes calldata /* trustAnchor */) external pure returns (bytes memory) {
-        // The trustAnchor parameter is accepted to match the production EvmClprVerifier ABI
-        // (since PR #81 / commit eceb3b0caa: verifyBundle(bytes,bytes)), but this pass-through
-        // verifier does not validate against it — it exists only so the function selector
-        // (keccak256("verifyBundle(bytes,bytes)")[0:4]) matches. Real verifiers (e.g. the QBFT
-        // verifier) use trustAnchor to authenticate the bundle.
-        uint256 msgCount = _countMsgs(bp);
-        uint256[] memory pS = new uint256[](msgCount); // payload starts
-        uint256[] memory pL = new uint256[](msgCount); // payload lengths
-        uint256[] memory hS = new uint256[](msgCount); // running-hash starts
-        uint256[] memory hL = new uint256[](msgCount); // running-hash lengths
-
-        ConnData memory conn;
-        require(_scanLeaves(bp, conn, pS, pL, hS, hL), "verifyBundle: no channel leaf");
-        return _assembleBundleContent(bp, conn, msgCount, pS, pL, hS, hL);
-    }
-
-    /**
-     * V2: Extracts bundle content from a StateProof and returns the ABI 4-tuple
-     * expected by EvmClprVerifier.decodeVerifyBundleV2Return:
+     * Extracts bundle content from a StateProof and returns the ABI 4-tuple
+     * expected by EvmClprVerifier.decodeVerifyBundleReturn:
      * (BundleMeta meta, bytes[] messages, bytes newTrustAnchor, bytes newTrustAnchorId).
      *
      * trustAnchor and channelContext are accepted for selector compatibility
@@ -311,21 +239,6 @@ contract ClprPassThroughVerifier {
         // Pass-through verifier never rotates trust anchor.
         newTrustAnchor   = new bytes(0);
         newTrustAnchorId = new bytes(0);
-    }
-
-    /** Builds the final ClprBundleContent bytes from pre-scanned data. */
-    function _assembleBundleContent(
-        bytes calldata bp, ConnData memory conn,
-        uint256 msgCount,
-        uint256[] memory pS, uint256[] memory pL,
-        uint256[] memory hS, uint256[] memory hL
-    ) private pure returns (bytes memory) {
-        uint64 nextId = conn.acked + 1 + uint64(msgCount);
-        uint256 sentHS = msgCount > 0 ? hS[msgCount - 1] : 0;
-        uint256 sentHL = msgCount > 0 ? hL[msgCount - 1] : 0;
-        bytes memory meta = _buildMeta(bp, nextId, sentHS, sentHL,
-                                       conn.rcvdId, conn.rcvdHS, conn.rcvdHL, conn.status);
-        return _buildContent(bp, meta, msgCount, pS, pL);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -402,75 +315,6 @@ contract ClprPassThroughVerifier {
             }
             i = vEnd;
         }
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Internal: output building (V1)
-    // ──────────────────────────────────────────────────────────────────────────
-
-    function _buildMeta(
-        bytes calldata buf,
-        uint64 nextId,
-        uint256 sentHS, uint256 sentHL,
-        uint64 rcvdId,
-        uint256 rcvdHS, uint256 rcvdHL,
-        uint64 status
-    ) private pure returns (bytes memory) {
-        // Compute serialized size; proto3 omits default-zero scalar fields.
-        uint256 sz = 1 + _vs(nextId);                            // QM_NEXT_ID always written
-        if (sentHL > 0) sz += 1 + _vs(uint64(sentHL)) + sentHL; // QM_SENT_HASH
-        if (rcvdId > 0) sz += 1 + _vs(rcvdId);                  // QM_RCVD_ID
-        if (rcvdHL > 0) sz += 1 + _vs(uint64(rcvdHL)) + rcvdHL; // QM_RCVD_HASH
-        if (status > 0) sz += 1 + _vs(status);                  // QM_STATE
-
-        bytes memory out = new bytes(sz);
-        uint256 o = 0;
-        out[o++] = bytes1(QM_NEXT_ID);
-        o = _wv(out, o, nextId);
-        if (sentHL > 0) {
-            out[o++] = bytes1(QM_SENT_HASH);
-            o = _wv(out, o, uint64(sentHL));
-            for (uint256 k = 0; k < sentHL; k++) out[o++] = buf[sentHS + k];
-        }
-        if (rcvdId > 0) {
-            out[o++] = bytes1(QM_RCVD_ID);
-            o = _wv(out, o, rcvdId);
-        }
-        if (rcvdHL > 0) {
-            out[o++] = bytes1(QM_RCVD_HASH);
-            o = _wv(out, o, uint64(rcvdHL));
-            for (uint256 k = 0; k < rcvdHL; k++) out[o++] = buf[rcvdHS + k];
-        }
-        if (status > 0) {
-            out[o++] = bytes1(QM_STATE);
-            o = _wv(out, o, status);
-        }
-        return out;
-    }
-
-    function _buildContent(
-        bytes calldata buf, bytes memory meta,
-        uint256 msgCount,
-        uint256[] memory pS, uint256[] memory pL
-    ) private pure returns (bytes memory) {
-        uint256 metaL = meta.length;
-        uint256 total = 1 + _vs(uint64(metaL)) + metaL;
-        for (uint256 i = 0; i < msgCount; i++) {
-            total += 1 + _vs(uint64(pL[i])) + pL[i];
-        }
-        bytes memory out = new bytes(total);
-        uint256 o = 0;
-        // field 1: metadata
-        out[o++] = bytes1(CBC_METADATA);
-        o = _wv(out, o, uint64(metaL));
-        for (uint256 k = 0; k < metaL; k++) out[o++] = meta[k];
-        // field 2: messages (repeated, in proof order)
-        for (uint256 i = 0; i < msgCount; i++) {
-            out[o++] = bytes1(CBC_MESSAGES);
-            o = _wv(out, o, uint64(pL[i]));
-            for (uint256 k = 0; k < pL[i]; k++) out[o++] = buf[pS[i] + k];
-        }
-        return out;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -645,16 +489,5 @@ contract ClprPassThroughVerifier {
             shift += 7;
         }
         revert("varint overflow");
-    }
-
-    function _vs(uint64 v) private pure returns (uint256 n) {
-        n = 1;
-        while (v >= 0x80) { v >>= 7; n++; }
-    }
-
-    function _wv(bytes memory buf, uint256 off, uint64 v) private pure returns (uint256) {
-        while (v >= 0x80) { buf[off++] = bytes1(uint8((v & 0x7f) | 0x80)); v >>= 7; }
-        buf[off++] = bytes1(uint8(v));
-        return off;
     }
 }

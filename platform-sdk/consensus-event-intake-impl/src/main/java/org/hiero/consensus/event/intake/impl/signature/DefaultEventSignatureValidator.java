@@ -4,8 +4,6 @@ package org.hiero.consensus.event.intake.impl.signature;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
@@ -24,9 +22,9 @@ import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterEntryNotFoundException;
-import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
 
 /**
  * Default implementation for verifying event signatures
@@ -47,7 +45,7 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
     /**
      * The complete roster history, i.e. all rosters for non-ancient rounds.
      */
-    private RosterHistory rosterHistory;
+    private RosterWrapperHistory rosterHistory;
 
     /**
      * The current event window.
@@ -83,7 +81,7 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
             @NonNull final Metrics metrics,
             @NonNull final Time time,
             @NonNull final SignatureVerifier signatureVerifier,
-            @Nullable final RosterHistory rosterHistory,
+            @Nullable final RosterWrapperHistory rosterHistory,
             @NonNull final IntakeEventCounter intakeEventCounter) {
 
         this.signatureVerifier = Objects.requireNonNull(signatureVerifier);
@@ -104,28 +102,22 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
      * @return true if the event has a valid signature, otherwise false
      */
     private boolean isSignatureValid(@NonNull final PlatformEvent event) {
-        final Roster applicableRoster = rosterHistory.getRosterForRound(event.getBirthRound());
-        if (applicableRoster == null) {
-            rateLimitedLogger.error(
-                    EXCEPTION.getMarker(),
-                    "Cannot validate events for birth round {} without a roster",
-                    event.getBirthRound());
-            return false;
-        }
         final NodeId eventCreatorId = event.getCreatorId();
-        final RosterEntry rosterEntry;
+        final RosterEntryWrapper rosterEntry;
         try {
-            rosterEntry = RosterUtils.getRosterEntry(applicableRoster, eventCreatorId.id());
-        } catch (RosterEntryNotFoundException e) {
+            final RosterWrapper applicableRoster = rosterHistory.rosterForRound(event.getBirthRound());
+            rosterEntry = applicableRoster.getRosterEntry(eventCreatorId);
+        } catch (final IllegalArgumentException e) {
             rateLimitedLogger.error(
                     EXCEPTION.getMarker(),
-                    "Node {} doesn't exist in applicable roster. Event: {}",
+                    "Cannot find roster entry for event with birth round {} and creator ID {}. Event: {}",
+                    event.getBirthRound(),
                     eventCreatorId,
                     event);
             return false;
         }
 
-        final X509Certificate cert = RosterUtils.fetchGossipCaCertificate(rosterEntry);
+        final X509Certificate cert = rosterEntry.gossipCaCertificate();
 
         final PublicKey publicKey = cert == null ? null : cert.getPublicKey();
         if (publicKey == null) {
@@ -188,7 +180,7 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
      * {@inheritDoc}
      */
     @Override
-    public void updateRosterHistory(@NonNull final RosterHistory rosterHistory) {
+    public void updateRosterHistory(@NonNull final RosterWrapperHistory rosterHistory) {
         this.rosterHistory = Objects.requireNonNull(rosterHistory);
     }
 }

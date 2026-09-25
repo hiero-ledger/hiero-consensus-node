@@ -3,7 +3,7 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.veri
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.VERIFY_BUNDLE_V3_RETURN;
+import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN;
 import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.absentMetadataTuple;
 import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.manifestStructTuple;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.ordinalRevertResult;
@@ -28,7 +28,6 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import org.apache.logging.log4j.LogManager;
@@ -36,7 +35,7 @@ import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
- * Implements {@code verifyBundle(bytes bundlePayload, bytes trustAnchor) returns (bytes)}.
+ * Implements {@code verifyBundle(bytes bundlePayload, bytes trustAnchor, bytes channelContext)}.
  *
  * <p>For Hiero TSS the {@code trustAnchor} parameter carries the peer ledger_id (as stored in
  * {@code Channel.trust_anchor}). The TSS aggregate signature check is delegated to the
@@ -45,7 +44,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  * computed from the first state-item-leaf path via
  * {@link StateProofVerifier#computeBlockRootHashFromPath}; each remaining path is then
  * independently verified against that root before its state value is dispatched on tag
- * (482 = channel, 498 = message). Returns the serialized {@link ClprBundleContent} on
+ * (482 = channel, 498 = message). Returns an ABI tuple containing the verified bundle content on
  * success. {@code new_trust_anchor} / {@code new_trust_anchor_id} are populated only when the
  * proof carries a state-proven ledger-ID succession; under normal operation both are empty
  * because the Hiero TSS ledger_id does not rotate.
@@ -58,9 +57,6 @@ public class VerifyBundleCall extends AbstractCall {
     private final byte[] trustAnchor;
     private final TssVerifier tssVerifier;
 
-    @Nullable
-    private final byte[] channelContext;
-
     public VerifyBundleCall(
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
             @NonNull final SystemContractGasCalculator gasCalculator,
@@ -70,21 +66,6 @@ public class VerifyBundleCall extends AbstractCall {
         super(gasCalculator, enhancement, true);
         this.bundlePayload = requireNonNull(bundlePayload);
         this.trustAnchor = requireNonNull(trustAnchor);
-        this.tssVerifier = requireNonNull(tssVerifier);
-        this.channelContext = null;
-    }
-
-    public VerifyBundleCall(
-            @NonNull final HederaWorldUpdater.Enhancement enhancement,
-            @NonNull final SystemContractGasCalculator gasCalculator,
-            @NonNull final byte[] bundlePayload,
-            @NonNull final byte[] trustAnchor,
-            @NonNull final byte[] channelContext,
-            @NonNull final TssVerifier tssVerifier) {
-        super(gasCalculator, enhancement, true);
-        this.bundlePayload = requireNonNull(bundlePayload);
-        this.trustAnchor = requireNonNull(trustAnchor);
-        this.channelContext = requireNonNull(channelContext);
         this.tssVerifier = requireNonNull(tssVerifier);
     }
 
@@ -211,7 +192,7 @@ public class VerifyBundleCall extends AbstractCall {
 
         if (channel == null) {
             // Manifest-only recovery bundle (spec §8.1.4 manual recovery): a state-proven endpoint
-            // manifest with no channel leaf. Accepted only on the V3 (endpoint-manifest-enabled)
+            // manifest with no channel leaf. Accepted only on the manifest-enabled
             // path, so the CLPR Service can apply the manifest update out-of-band — no gRPC to any
             // (stale) endpoint. With the feature off this stays a hard rejection.
             //
@@ -265,32 +246,17 @@ public class VerifyBundleCall extends AbstractCall {
             bundleContentBuilder.newEndpointManifest(newEndpointManifest);
         }
         final var bundleContent = bundleContentBuilder.build();
-        final var serialized = ClprBundleContent.PROTOBUF.toBytes(bundleContent);
 
         if (log.isDebugEnabled()) {
-            log.debug(
-                    "verifyBundle: trustAnchor={} OK ({} messages, {} bytes)",
-                    trustAnchorBytes,
-                    messages.size(),
-                    serialized.length());
+            log.debug("verifyBundle: trustAnchor={} OK ({} messages)", trustAnchorBytes, messages.size());
         }
-        if (channelContext != null) {
-            final boolean manifestEnabled =
-                    configOf(frame).getConfigData(ClprConfig.class).endpointManifestEnabled();
-            return v2Success(bundleContent, manifestEnabled);
-        }
-        return gasOnly(
-                successResult(
-                        VerifyBundleTranslator.VERIFY_BUNDLE
-                                .getOutputs()
-                                .encode(Tuple.singleton(serialized.toByteArray())),
-                        GAS_REQUIREMENT),
-                SUCCESS,
-                true);
+        final boolean manifestEnabled =
+                configOf(frame).getConfigData(ClprConfig.class).endpointManifestEnabled();
+        return bundleSuccess(bundleContent, manifestEnabled);
     }
 
     @NonNull
-    private PricedResult v2Success(@NonNull final ClprBundleContent outContent, final boolean manifestEnabled) {
+    private PricedResult bundleSuccess(@NonNull final ClprBundleContent outContent, final boolean manifestEnabled) {
         final ClprQueueMetadata meta = outContent.metadataOrElse(ClprQueueMetadata.DEFAULT);
         final Tuple metaTuple = Tuple.of(
                 BigInteger.valueOf(meta.nextMessageId()),
@@ -309,7 +275,7 @@ public class VerifyBundleCall extends AbstractCall {
                     manifestStructTuple(outContent.newEndpointManifestOrElse(ClprEndpointManifest.DEFAULT));
             return gasOnly(
                     successResult(
-                            VERIFY_BUNDLE_V3_RETURN.encode(
+                            VERIFY_BUNDLE_WITH_MANIFEST_RETURN.encode(
                                     Tuple.of(metaTuple, messageBytes, newTrustAnchor, newTrustAnchorId, manifestTuple)),
                             GAS_REQUIREMENT),
                     SUCCESS,
@@ -317,7 +283,7 @@ public class VerifyBundleCall extends AbstractCall {
         }
         return gasOnly(
                 successResult(
-                        VerifyBundleTranslator.VERIFY_BUNDLE_V2
+                        VerifyBundleTranslator.VERIFY_BUNDLE
                                 .getOutputs()
                                 .encode(Tuple.of(metaTuple, messageBytes, newTrustAnchor, newTrustAnchorId)),
                         GAS_REQUIREMENT),
@@ -326,7 +292,7 @@ public class VerifyBundleCall extends AbstractCall {
     }
 
     /**
-     * V3 success return for a manifest-only recovery bundle (spec §8.1.4): the endpoint manifest with
+     * Manifest-aware success return for a manifest-only recovery bundle (spec §8.1.4): the endpoint manifest with
      * an empty message set and no trust-anchor rotation. The metadata is signalled absent via a zero
      * {@code nextMessageId} sentinel — a normal bundle's {@code nextMessageId} is always {@code >= 1}
      * ({@code ackedMessageId + 1 + messages.size()}) — so {@link com.hedera.node.app.service.clpr.impl.verifier.EvmClprVerifier}
@@ -338,7 +304,7 @@ public class VerifyBundleCall extends AbstractCall {
         final Tuple absentMetadata = absentMetadataTuple();
         return gasOnly(
                 successResult(
-                        VERIFY_BUNDLE_V3_RETURN.encode(Tuple.of(
+                        VERIFY_BUNDLE_WITH_MANIFEST_RETURN.encode(Tuple.of(
                                 absentMetadata,
                                 new byte[0][],
                                 new byte[0],

@@ -98,7 +98,7 @@ public class TipsetWeightCalculator {
      *
      * @param configuration         the configuration for the weight calculator
      * @param time                  the time source for the weight calculator
-     * @param roster                the current roster
+     * @param roster                the active roster
      * @param selfId                the ID of the node tracked by this object
      * @param tipsetTracker         builds tipsets for individual events
      * @param childlessEventTracker tracks non-ancient events without children

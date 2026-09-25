@@ -1,14 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INTERNAL_SYSTEM_TRANSACTION;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
@@ -23,10 +29,13 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
+import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -35,6 +44,7 @@ import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
@@ -47,9 +57,17 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
 import com.hedera.node.app.spi.workflows.SystemContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
+import com.hedera.node.app.state.recordcache.BlockRecordSource;
+import com.hedera.node.app.workflows.TransactionInfo;
+import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.DispatchProcessor;
+import com.hedera.node.app.workflows.handle.HandleOutput;
+import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
+import com.hedera.node.app.workflows.handle.steps.ParentTxn;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
@@ -69,6 +87,9 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -191,6 +212,59 @@ class SystemTransactionsTest {
         // No exception means success - the nonce is private so we can't directly verify,
         // but we can verify the method doesn't throw
         assertDoesNotThrow(() -> subject.resetNextDispatchNonce());
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0, 1005})
+    void marksInternalAdminAndCreationDispatchesAsTrusted(final long entityNum) {
+        final var adminId = AccountID.newBuilder().accountNum(50).build();
+        given(entityIdFactory.newAccountId(50)).willReturn(adminId);
+        final var parentTxn = mock(ParentTxn.class);
+        final var stack = mock(SavepointStackImpl.class);
+        final var builder = mock(StreamBuilder.class);
+        final var dispatch = mock(Dispatch.class);
+        final var txnInfo = mock(TransactionInfo.class);
+        final var writableStates = mock(WritableStates.class);
+        final WritableSingletonState<EntityNumber> entityNumber = mock(WritableSingletonState.class);
+        final var records = new BlockRecordSource(List.of());
+        final var output = new HandleOutput(records, null, NOW);
+        given(parentTxnFactory.createSystemTxn(any(), any(), any(), any(), any(), any()))
+                .willReturn(parentTxn);
+        given(parentTxn.baseBuilder()).willReturn(builder);
+        given(parentTxn.stack()).willReturn(stack);
+        given(parentTxn.consensusNow()).willReturn(NOW);
+        given(parentTxn.txnInfo()).willReturn(txnInfo);
+        given(txnInfo.transactionID()).willReturn(TransactionID.DEFAULT);
+        given(exchangeRateManager.exchangeRates()).willReturn(ExchangeRateSet.DEFAULT);
+        given(parentTxnFactory.createDispatch(eq(parentTxn), eq(builder), any(), eq(NODE), any()))
+                .willReturn(dispatch);
+        given(dispatch.stack()).willReturn(stack);
+        given(dispatch.streamBuilder()).willReturn(builder);
+        given(builder.status()).willReturn(SUCCESS);
+        given(stack.getWritableStates(EntityIdService.NAME)).willReturn(writableStates);
+        given(writableStates.<EntityNumber>getSingleton(ENTITY_ID_STATE_ID)).willReturn(entityNumber);
+        given(entityNumber.get()).willReturn(new EntityNumber(1000));
+        given(stack.buildHandleOutput(NOW, ExchangeRateSet.DEFAULT, 0L)).willReturn(output);
+        final var context = subject.newSystemContext(
+                NOW,
+                state,
+                _ -> {},
+                SystemTransactions.UseReservedConsensusTimes.NO,
+                SystemTransactions.TriggerStakePeriodSideEffects.NO);
+
+        if (entityNum == 0) {
+            context.dispatchAdmin(body -> body.memo("internal admin transaction"));
+        } else {
+            context.dispatchCreation(body -> body.memo("internal creation transaction"), entityNum);
+        }
+
+        final var metadata = ArgumentCaptor.forClass(DispatchMetadata.class);
+        verify(parentTxnFactory).createDispatch(eq(parentTxn), eq(builder), any(), eq(NODE), metadata.capture());
+        assertEquals(
+                Boolean.TRUE, metadata.getValue().getMetadataIfPresent(INTERNAL_SYSTEM_TRANSACTION, Boolean.class));
+        assertEquals(entityNum, metadata.getValue().getMetadataIfPresent(SYSTEM_TXN_CREATION_ENTITY_NUM, Long.class));
+        verify(dispatchProcessor).processDispatch(dispatch);
+        verify(stack).commitFullStack();
     }
 
     @Test

@@ -17,7 +17,6 @@ import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumSyncCommi
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.VerifiedConfig;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
-import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.math.BigInteger;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -28,8 +27,8 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
     private static final String VERIFIER_NAME = "EthereumSyncCommitteeProofVerifier";
     private static final byte[] CONFIG_PAYLOAD = {1, 2, 3};
 
-    /** ABI index of the manifest struct in the V3 output tuple. */
-    private static final int V3_MANIFEST_INDEX = 7;
+    /** ABI index of the manifest struct in the manifest-aware output tuple. */
+    private static final int MANIFEST_INDEX = 7;
 
     @Test
     void allowsStaticFrame() {
@@ -37,9 +36,9 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
     }
 
     @Test
-    void returnsVerifiedLedgerConfiguration() throws ParseException {
+    void returnsVerifiedLedgerConfiguration() {
         // The verifier already bakes the complete trust anchor (committee + chain pins + service
-        // address) into initial_trust_anchor; the call returns the configuration verbatim.
+        // address) into initial_trust_anchor; the call preserves it in the returned tuple.
         final var config = ClprLedgerConfiguration.newBuilder()
                 .chainId("ethereum:mainnet")
                 .serviceAddress(Bytes.wrap(new byte[20]))
@@ -52,7 +51,19 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
             assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.COMPLETED_SUCCESS);
-            assertThat(decodedConfig(result.fullResult().output().toArray())).isEqualTo(config);
+            final var decoded = EthereumVerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS
+                    .getOutputs()
+                    .decode(result.fullResult().output().toArray());
+            assertThat(decoded).isEqualTo(Tuple.from(new Object[] {
+                new byte[52],
+                config.chainId(),
+                config.serviceAddress().toByteArray(),
+                BigInteger.ZERO,
+                Tuple.of(BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO),
+                config.initialTrustAnchor().toByteArray(),
+                config.initialTrustAnchorId().toByteArray(),
+                new Tuple[0]
+            }));
         }
     }
 
@@ -83,7 +94,7 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
     }
 
     @Test
-    void v2EncodingReturns8TupleWithAllConfigFields() {
+    void seedEndpointsEncodingReturns8TupleWithAllConfigFields() {
         final byte[] channelId32 = new byte[32];
         channelId32[0] = (byte) 0xAB;
         final var config = ClprLedgerConfiguration.newBuilder()
@@ -102,7 +113,7 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
             assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.COMPLETED_SUCCESS);
 
-            final var decoded = EthereumVerifyConfigTranslator.VERIFY_CONFIG_V2
+            final var decoded = EthereumVerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS
                     .getOutputs()
                     .decode(result.fullResult().output().toArray());
             // field 0: channelContext = channelId32 ++ serviceAddress
@@ -119,7 +130,7 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
     }
 
     @Test
-    void v3ReturnsConfigFieldsAndManifest() {
+    void returnsConfigFieldsAndManifest() {
         final var config = configWithAnchor();
         final var manifest = ClprEndpointManifest.newBuilder()
                 .version(2L)
@@ -127,7 +138,7 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
                 .build();
 
         try (final var ignored = mockVerifier(new VerifiedConfig(config, 7L))) {
-            final var result = subjectV3(serializeManifest(manifest)).execute(frame);
+            final var result = subjectWithManifest(serializeManifest(manifest)).execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
             final Tuple manifestStruct =
@@ -138,11 +149,11 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
     }
 
     @Test
-    void v3EmptyManifest_synthesizesFromConfig() {
+    void emptyManifestSynthesizesFromConfig() {
         final var config = configWithAnchor();
 
         try (final var ignored = mockVerifier(new VerifiedConfig(config, 7L))) {
-            final var result = subjectV3(new byte[0]).execute(frame);
+            final var result = subjectWithManifest(new byte[0]).execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
             final Tuple manifestStruct =
@@ -154,7 +165,7 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
     }
 
     @Test
-    void v3ManifestVersionZero_fails() {
+    void manifestVersionZeroFails() {
         final var config = configWithAnchor();
         final var manifest = ClprEndpointManifest.newBuilder()
                 .version(0L)
@@ -162,12 +173,12 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
                 .build();
 
         try (final var ignored = mockVerifier(new VerifiedConfig(config, 7L))) {
-            assertFailed(subjectV3(serializeManifest(manifest)).execute(frame));
+            assertFailed(subjectWithManifest(serializeManifest(manifest)).execute(frame));
         }
     }
 
     @Test
-    void v3ManifestServiceAddressMismatch_fails() {
+    void manifestServiceAddressMismatchFails() {
         final var config = configWithAnchor();
         final byte[] otherAddr = new byte[20];
         otherAddr[0] = 0x7;
@@ -177,17 +188,16 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
                 .build();
 
         try (final var ignored = mockVerifier(new VerifiedConfig(config, 7L))) {
-            assertFailed(subjectV3(serializeManifest(manifest)).execute(frame));
+            assertFailed(subjectWithManifest(serializeManifest(manifest)).execute(frame));
         }
     }
 
     private EthereumVerifyConfigCall subject() {
-        // Legacy V1 (flag off): config payload only.
-        return new EthereumVerifyConfigCall(mockEnhancement(), gasCalculator, CONFIG_PAYLOAD);
+        return new EthereumVerifyConfigCall(mockEnhancement(), gasCalculator, CONFIG_PAYLOAD, new byte[32]);
     }
 
-    /** V3 (flag on): channel context + raw manifest bytes. */
-    private EthereumVerifyConfigCall subjectV3(final byte[] manifestBytes) {
+    /** Manifest-aware (flag on): channel context + raw manifest bytes. */
+    private EthereumVerifyConfigCall subjectWithManifest(final byte[] manifestBytes) {
         return new EthereumVerifyConfigCall(
                 mockEnhancement(), gasCalculator, CONFIG_PAYLOAD, new byte[32], manifestBytes);
     }
@@ -205,11 +215,12 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
         return ClprEndpointManifest.PROTOBUF.toBytes(manifest).toByteArray();
     }
 
-    /** Decodes the V3 output tuple and returns the manifest struct {@code (version, serviceAddress, endpoints[])}. */
+    /** Decodes the manifest-aware output tuple and returns the manifest struct {@code (version, serviceAddress, endpoints[])}. */
     private static Tuple manifestStructOf(final byte[] output) {
-        final var tuple =
-                EthereumVerifyConfigTranslator.VERIFY_CONFIG_V3.getOutputs().decode(output);
-        return tuple.get(V3_MANIFEST_INDEX);
+        final var tuple = EthereumVerifyConfigTranslator.VERIFY_CONFIG_WITH_MANIFEST
+                .getOutputs()
+                .decode(output);
+        return tuple.get(MANIFEST_INDEX);
     }
 
     private static MockedConstruction<EthereumSyncCommitteeProofVerifier> mockVerifier(final VerifiedConfig verified) {
@@ -223,13 +234,6 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
         return mockConstruction(
                 EthereumSyncCommitteeProofVerifier.class,
                 (mock, ctx) -> given(mock.verifyConfigPayload(any())).willThrow(toThrow));
-    }
-
-    private static ClprLedgerConfiguration decodedConfig(final byte[] output) throws ParseException {
-        final var tuple =
-                EthereumVerifyConfigTranslator.VERIFY_CONFIG.getOutputs().decode(output);
-        return ClprLedgerConfiguration.PROTOBUF.parse(
-                Bytes.wrap((byte[]) tuple.get(0)).toReadableSequentialData());
     }
 
     private static void assertFailed(final PricedResult result) {

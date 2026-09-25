@@ -28,7 +28,7 @@ import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
- * Implements {@code verifyConfig(bytes stateProofBytes) returns (bytes)} for the Besu QBFT
+ * Implements {@code verifyConfig} with seed endpoints or an endpoint manifest for the Besu QBFT
  * verifier system contract (EVM address {@code 0x16f}).
  *
  * <p>The {@code stateProofBytes} is a proto-encoded {@code QbftLedgerConfigurationPayload}
@@ -46,22 +46,12 @@ public class BesuQBFTVerifyConfigCall extends AbstractCall {
 
     private final byte[] stateProofBytes;
 
-    @Nullable
+    @NonNull
     private final byte[] channelId32;
 
-    /** Non-null only on the V3 (manifest-aware) path; selects v3Success over v2Success. */
+    /** Non-null only on the manifest-aware path; selects manifestSuccess over seedEndpointsSuccess. */
     @Nullable
     private final byte[] manifestProofBytes;
-
-    public BesuQBFTVerifyConfigCall(
-            @NonNull final HederaWorldUpdater.Enhancement enhancement,
-            @NonNull final SystemContractGasCalculator gasCalculator,
-            @NonNull final byte[] stateProofBytes) {
-        super(gasCalculator, enhancement, true);
-        this.stateProofBytes = requireNonNull(stateProofBytes);
-        this.channelId32 = null;
-        this.manifestProofBytes = null;
-    }
 
     public BesuQBFTVerifyConfigCall(
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
@@ -121,13 +111,10 @@ public class BesuQBFTVerifyConfigCall extends AbstractCall {
             return fail();
         }
 
-        if (channelId32 == null) {
-            return v1Success(parsed);
-        }
         if (manifestProofBytes == null) {
-            return v2Success(parsed);
+            return seedEndpointsSuccess(parsed);
         }
-        // V3: proven manifest verbatim when a real manifest proof was supplied; otherwise a bring-up
+        // Manifest-aware: proven manifest verbatim when a real manifest proof was supplied; otherwise a bring-up
         // seed-fallback (version 1, bound to the proven service address, seeded with the config's
         // endpoints) so the channel bootstraps a dial target — the real manifest advances via Step 1b.
         final byte[] provenManifestBytes = verified.endpointManifestBytes();
@@ -148,21 +135,15 @@ public class BesuQBFTVerifyConfigCall extends AbstractCall {
                     .build();
         }
         log.info(
-                "verifyConfig (QBFT) V3 manifest: source={} version={} endpoints={}",
+                "verifyConfigWithManifest (QBFT): source={} version={} endpoints={}",
                 provenManifestBytes.length > 0 ? "proven-proof" : "seed-fallback",
                 manifest.version(),
                 manifest.endpoints().size());
-        return v3Success(parsed, manifest);
+        return manifestSuccess(parsed, manifest);
     }
 
     @NonNull
-    private PricedResult v1Success(@NonNull final ClprLedgerConfiguration parsed) {
-        log.info("verifyConfig (QBFT) EXIT: SUCCESS trustAnchor={}", parsed.initialTrustAnchor());
-        return configSuccess(parsed);
-    }
-
-    @NonNull
-    private PricedResult v2Success(@NonNull final ClprLedgerConfiguration parsed) {
+    private PricedResult seedEndpointsSuccess(@NonNull final ClprLedgerConfiguration parsed) {
         final byte[] id32 = requireNonNull(channelId32);
         final byte[] serviceAddressBytes = parsed.serviceAddress().toByteArray();
         final byte[] channelContextBytes = new byte[32 + serviceAddressBytes.length];
@@ -191,10 +172,10 @@ public class BesuQBFTVerifyConfigCall extends AbstractCall {
         final var ts = parsed.timestamp();
         final long peerConfigNanos = ts != null ? ts.seconds() * 1_000_000_000L + ts.nanos() : 0L;
 
-        log.info("verifyConfig V2 (QBFT) EXIT: SUCCESS chainId={}", parsed.chainId());
+        log.info("verifyConfigWithSeedEndpoints (QBFT) EXIT: SUCCESS chainId={}", parsed.chainId());
         return gasOnly(
                 successResult(
-                        BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG_V2
+                        BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS
                                 .getOutputs()
                                 .encode(Tuple.from(
                                         channelContextBytes,
@@ -211,7 +192,7 @@ public class BesuQBFTVerifyConfigCall extends AbstractCall {
     }
 
     @NonNull
-    private PricedResult v3Success(
+    private PricedResult manifestSuccess(
             @NonNull final ClprLedgerConfiguration parsed, @NonNull final ClprEndpointManifest manifest) {
         final byte[] id32 = requireNonNull(channelId32);
         final byte[] serviceAddressBytes = parsed.serviceAddress().toByteArray();
@@ -232,10 +213,10 @@ public class BesuQBFTVerifyConfigCall extends AbstractCall {
         final var ts = parsed.timestamp();
         final long peerConfigNanos = ts != null ? ts.seconds() * 1_000_000_000L + ts.nanos() : 0L;
 
-        log.info("verifyConfig V3 (QBFT) EXIT: SUCCESS chainId={}", parsed.chainId());
+        log.info("verifyConfigWithManifest (QBFT) EXIT: SUCCESS chainId={}", parsed.chainId());
         return gasOnly(
                 successResult(
-                        BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG_V3
+                        BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG_WITH_MANIFEST
                                 .getOutputs()
                                 .encode(Tuple.from(
                                         channelContextBytes,
@@ -246,20 +227,6 @@ public class BesuQBFTVerifyConfigCall extends AbstractCall {
                                         parsed.initialTrustAnchor().toByteArray(),
                                         parsed.initialTrustAnchorId().toByteArray(),
                                         manifestStructTuple(manifest))),
-                        GAS_REQUIREMENT),
-                SUCCESS,
-                true);
-    }
-
-    @NonNull
-    private PricedResult configSuccess(@NonNull final ClprLedgerConfiguration config) {
-        return gasOnly(
-                successResult(
-                        BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG
-                                .getOutputs()
-                                .encode(Tuple.singleton(ClprLedgerConfiguration.PROTOBUF
-                                        .toBytes(config)
-                                        .toByteArray())),
                         GAS_REQUIREMENT),
                 SUCCESS,
                 true);

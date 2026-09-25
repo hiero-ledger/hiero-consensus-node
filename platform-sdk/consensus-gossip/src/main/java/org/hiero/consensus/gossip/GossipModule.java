@@ -43,7 +43,7 @@ public interface GossipModule {
      * @param metrics the metrics system
      * @param time the time source
      * @param keysAndCerts the keys and certificates of this node
-     * @param currentRoster the current roster of nodes in the network
+     * @param activeRoster the active roster of nodes in the network
      * @param selfId the ID of this node
      * @param appVersion the application version
      * @param intakeEventCounter the counter for events in the intake pipeline
@@ -59,7 +59,7 @@ public interface GossipModule {
             @NonNull Metrics metrics,
             @NonNull Time time,
             @NonNull KeysAndCerts keysAndCerts,
-            @NonNull Roster currentRoster,
+            @NonNull Roster activeRoster,
             @NonNull NodeId selfId,
             @NonNull SemanticVersion appVersion,
             @NonNull IntakeEventCounter intakeEventCounter,
