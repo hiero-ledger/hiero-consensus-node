@@ -10,6 +10,7 @@ import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThre
 
 import com.hedera.pbj.runtime.FieldDefinition;
 import com.hedera.pbj.runtime.FieldType;
+import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -57,6 +58,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.io.IORunnable;
 
@@ -74,17 +77,26 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     private static final LongAdder COUNT_OF_OPEN_DATABASES = new LongAdder();
 
     /** Data source metadata fields */
+
+    // First leaf path
     private static final FieldDefinition FIELD_DSMETADATA_MINVALIDKEY =
             new FieldDefinition("minValidKey", FieldType.UINT64, false, true, false, 1);
 
+    // Last leaf path
     private static final FieldDefinition FIELD_DSMETADATA_MAXVALIDKEY =
             new FieldDefinition("maxValidKey", FieldType.UINT64, false, true, false, 2);
 
+    // Initial capacity
     private static final FieldDefinition FIELD_DSMETADATA_INITIALCAPACITY =
             new FieldDefinition("initialCapacity", FieldType.UINT64, false, true, false, 3);
 
+    // Hash chunk height
     private static final FieldDefinition FIELD_DSMETADATA_HASHCHUNKHEIGHT =
             new FieldDefinition("hashChunkHeight", FieldType.UINT32, false, true, false, 7);
+
+    // Hash digest type (algorithm). See DigestType.algorithmName() for details
+    private static final FieldDefinition FIELD_DSMETADATA_HASHDIGESTTYPE =
+            new FieldDefinition("hashDigestType", FieldType.STRING, false, true, false, 8);
 
     /*
      * MerkleDb configuration.
@@ -182,6 +194,18 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
     /** The range of valid leaf paths for data currently stored by this data source. */
     private volatile KeyRange validLeafPathRange = INVALID_KEY_RANGE;
+
+    /**
+     * If this data source is created from scratch, the digest type is always DEFAULT_DIGEST_TYPE.
+     * If the data source is loaded from a snapshot, the digest type is initialized from
+     * data source metadata. If there is no information about message digest type in the
+     * metadata, this indicates the snapshot is old, and all hashes in it are SHA-384.
+     *
+     * <p>During data flushes, all hashes must be of DEFAULT_DIGEST_TYPE. This field is only
+     * used to check whether full tree rehash is needed at startup because of default message
+     * digest type change.
+     */
+    private volatile DigestType loadedHashDigestTypeOrDefault = Cryptography.DEFAULT_DIGEST_TYPE;
 
     /** Paths to all database files and directories */
     private final MerkleDbPaths dbPaths;
@@ -527,6 +551,12 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     @Override
     public int getHashChunkHeight() {
         return hashChunkHeight;
+    }
+
+    @NonNull
+    @Override
+    public DigestType getLoadedHashDigestType() {
+        return loadedHashDigestTypeOrDefault;
     }
 
     /**
@@ -984,10 +1014,12 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         // newOutputStream() overrides the file, if it exists, no need to delete explicitly
         try (final OutputStream fileOut = Files.newOutputStream(targetFile)) {
             final WritableSequentialData out = new WritableStreamingData(fileOut);
+            // First leaf path
             if (leafRange.getMinValidKey() != 0) {
                 ProtoWriterTools.writeTag(out, FIELD_DSMETADATA_MINVALIDKEY);
                 out.writeVarLong(leafRange.getMinValidKey(), false);
             }
+            // Last leaf path
             if (leafRange.getMaxValidKey() != 0) {
                 ProtoWriterTools.writeTag(out, FIELD_DSMETADATA_MAXVALIDKEY);
                 out.writeVarLong(leafRange.getMaxValidKey(), false);
@@ -995,6 +1027,13 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             // Initial capacity is always greater than 0
             ProtoWriterTools.writeTag(out, FIELD_DSMETADATA_INITIALCAPACITY);
             out.writeVarLong(initialCapacity, false);
+            // Hash chunk height
+            ProtoWriterTools.writeTag(out, FIELD_DSMETADATA_HASHCHUNKHEIGHT);
+            out.writeVarInt(hashChunkHeight, false);
+            // Message digest type (algorithm name) for hashes
+            ProtoWriterTools.writeString(
+                    out, FIELD_DSMETADATA_HASHDIGESTTYPE, Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
+            // Flush
             fileOut.flush();
         }
     }
@@ -1004,6 +1043,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final Path sourceFile = sourceDir.metadataFile;
             long minValidKey = 0;
             long maxValidKey = 0;
+            // If there is no hash type ID field in the metadata, it must be an old data
+            // source snapshot, where SHA-384 was used by default
+            loadedHashDigestTypeOrDefault = DigestType.SHA_384;
             try (final ReadableStreamingData in = new ReadableStreamingData(sourceFile)) {
                 while (in.hasRemaining()) {
                     final int tag = in.readVarInt(false);
@@ -1019,6 +1061,12 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                         if (this.hashChunkHeight != hashChunkHeight) {
                             throw new IllegalStateException("Hash chunk height mismatch, config=" + this.hashChunkHeight
                                     + " disk=" + hashChunkHeight);
+                        }
+                    } else if (fieldNum == FIELD_DSMETADATA_HASHDIGESTTYPE.number()) {
+                        final String name = ProtoParserTools.readString(in);
+                        loadedHashDigestTypeOrDefault = DigestType.algorithmNameToDigestType(name);
+                        if (loadedHashDigestTypeOrDefault == null) {
+                            throw new IOException("Unknown hash digest type: " + name);
                         }
                     } else {
                         throw new IOException("Unknown data source metadata field: " + fieldNum);
