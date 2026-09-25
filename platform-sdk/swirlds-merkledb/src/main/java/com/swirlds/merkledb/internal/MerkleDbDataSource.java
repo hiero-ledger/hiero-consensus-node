@@ -86,7 +86,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     private static final FieldDefinition FIELD_DSMETADATA_MAXVALIDKEY =
             new FieldDefinition("maxValidKey", FieldType.UINT64, false, true, false, 2);
 
-    // Initial
+    // Initial capacity
     private static final FieldDefinition FIELD_DSMETADATA_INITIALCAPACITY =
             new FieldDefinition("initialCapacity", FieldType.UINT64, false, true, false, 3);
 

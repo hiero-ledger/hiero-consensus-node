@@ -67,6 +67,13 @@ public enum DigestType {
         }
     }
 
+    /**
+     * Returns a digest type for a given algorithm name.
+     *
+     * @param algorithmName the algorithm name
+     * @return a valid DigestType or null if the provided algorithm name does not correspond to
+     *      any registered digest type
+     */
     public static DigestType algorithmNameToDigestType(final String algorithmName) {
         return switch (algorithmName) {
             case "SHA-384" -> SHA_384;
