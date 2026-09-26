@@ -197,10 +197,11 @@ jobs:
           ref: ${{ inputs.bnref }}
 
       - name: Checkout Solo Code
+        if: false
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: hiero-ledger/solo
-          ref: "fix/resumable-wraps-copy-6027"
+          ref: "${{ inputs.solo-version }}"
           token: ${{ secrets.github-token }}
           path: solo
 
@@ -377,7 +378,6 @@ jobs:
           wait: 120s
 
       - name: Install Solo
-        if: false
         env:
           SOLO_VERSION: ${{ inputs.solo-version || 'latest' }}
         run: |
@@ -387,6 +387,7 @@ jobs:
           solo --version
 
       - name: Build Solo
+        if: false
         run: |
           set +x
           set +e
