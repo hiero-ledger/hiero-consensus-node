@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ForkJoinPool;
 import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -32,12 +33,15 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class HalfDiskHashMapTest extends AbstractFileManagerAwareTest {
 
+    private static final ForkJoinPool FLUSH_POOL = new ForkJoinPool(2);
+
     // =================================================================================================================
     // Helper Methods
     private HalfDiskHashMap createNewTempMap(final String name, final long count) throws IOException {
         // create map
         HalfDiskHashMap map = new HalfDiskHashMap(
                 DEFAULT_MERKLE_DB_CONFIG,
+                FLUSH_POOL,
                 fileSystemManager,
                 count,
                 fileSystemManager.resolve(name),
@@ -120,6 +124,7 @@ class HalfDiskHashMapTest extends AbstractFileManagerAwareTest {
             // open snapshot and check data
             HalfDiskHashMap mapFromSnapshot = new HalfDiskHashMap(
                     DEFAULT_MERKLE_DB_CONFIG,
+                    FLUSH_POOL,
                     fileSystemManager,
                     count,
                     tempSnapshotDir,
@@ -607,6 +612,7 @@ class HalfDiskHashMapTest extends AbstractFileManagerAwareTest {
                 .getConfigData(MerkleDbConfig.class);
         final HalfDiskHashMap hdhm = new HalfDiskHashMap(
                 config,
+                FLUSH_POOL,
                 fileSystemManager,
                 100,
                 fileSystemManager.resolve("test"),

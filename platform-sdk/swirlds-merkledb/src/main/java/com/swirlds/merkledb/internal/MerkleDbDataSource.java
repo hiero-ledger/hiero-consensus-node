@@ -46,16 +46,22 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.AbstractTask;
+import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.crypto.Cryptography;
@@ -164,6 +170,26 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     private final MemoryIndexDiskKeyValueStore keyValueStore;
 
     /**
+     * Thread pool to run all tasks during flushes: to store hashes, to store leaves, and
+     * to update key/path mappings.
+     */
+    private final ForkJoinPool flushPool;
+
+    /**
+     * During flush, this is the future to wait for hashes writing to complete. The
+     * future is used to interrupt the flushing thread, if the data source is closed
+     * in parallel. When a flush is complete, this field is set to null.
+     */
+    private volatile Future<?> flushingHashesFuture;
+
+    /**
+     * During flush, this is the future to wait for leaves writing to complete. The
+     * future is used to interrupt the flushing thread, if the data source is closed
+     * in parallel. When a flush is complete, this field is set to null.
+     */
+    private volatile Future<?> flushingLeavesFuture;
+
+    /**
      * Cache size for reading virtual leaf records. Initialized in data source creation time from
      * MerkleDb settings. If the value is zero, the leaf records cache isn't used.
      */
@@ -176,15 +202,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
      * put to the cache.
      */
     private final VirtualLeafBytes[] leafRecordCache;
-
-    /** Thread pool storing path-to-hash mappings */
-    private final ExecutorService storeHashesExecutor;
-
-    /** Thread pool storing path-to-leaf mappings */
-    private final ExecutorService storeLeavesExecutor;
-
-    /** Thread pool storing key-to-path mappings */
-    private final ExecutorService storeLeafKeysExecutor;
 
     /** Thread pool creating snapshots, it is unbounded in threads, but we use at most 7 */
     private final ExecutorService snapshotExecutor;
@@ -289,35 +306,17 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         // create thread group with label
         final ThreadGroup threadGroup = new ThreadGroup("MerkleDb-" + tableName);
-        // create thread pool storing virtual node hashes
-        storeHashesExecutor = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
-                .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Store hashes"))
-                .setThreadGroup(threadGroup)
-                .setExceptionHandler((t, ex) -> logger.error(
-                        EXCEPTION.getMarker(), "[{}] Uncaught exception during storing hashes", tableName, ex))
-                .buildFactory());
-        // create thread pool storing virtual leaf nodes
-        storeLeavesExecutor = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
-                .setThreadGroup(threadGroup)
-                .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Store leaves"))
-                .setExceptionHandler((t, ex) -> logger.error(
-                        EXCEPTION.getMarker(), "[{}] Uncaught exception during storing leaves", tableName, ex))
-                .buildFactory());
-        // create thread pool storing virtual leaf keys
-        storeLeafKeysExecutor = Executors.newSingleThreadExecutor(new ThreadConfiguration(getStaticThreadManager())
-                .setThreadGroup(threadGroup)
-                .setThreadNameProvider(
-                        CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Store leaf keys"))
-                .setExceptionHandler((t, ex) -> logger.error(
-                        EXCEPTION.getMarker(), "[{}] Uncaught exception during storing leaf keys", tableName, ex))
-                .buildFactory());
         // thread pool creating snapshots, it is unbounded in threads, but we use at most 7
         snapshotExecutor = Executors.newCachedThreadPool(new ThreadConfiguration(getStaticThreadManager())
                 .setThreadGroup(threadGroup)
                 .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Snapshot"))
                 .setExceptionHandler(
-                        (t, ex) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during snapshots", ex))
+                        (_, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during snapshots", e))
                 .buildFactory());
+        // thread pool to run tasks during flushes
+        final ExecutorFactory flushPoolFactory = ExecutorFactory.create(
+                "MerkleDbFlusher", (_, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during flush", e));
+        flushPool = flushPoolFactory.createForkJoinPool(config.getNumFlushThreads());
 
         dbPaths = new MerkleDbPaths(storageDir);
 
@@ -447,6 +446,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         // Keys (keys to paths)
         keyToPath = new HalfDiskHashMap(
                 config,
+                flushPool,
                 fileSystemManager,
                 this.initialCapacity,
                 dbPaths.keyToPathDirectory,
@@ -603,74 +603,73 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             throws IOException {
         try {
             validLeafPathRange = new KeyRange(firstLeafPath, lastLeafPath);
-            final CountDownLatch countDownLatch = new CountDownLatch(lastLeafPath > 0 ? 3 : 2);
-
-            if (lastLeafPath > 0) {
-                // Use an executor to make sure the data source is not closed in parallel. See
-                // the comment in close() for details
-                storeHashesExecutor.execute(() -> {
-                    try {
-                        writeHashes(lastLeafPath, hashChunksToUpdate, true);
-                        runHashChunkStoreCompaction();
-                    } catch (final IOException e) {
-                        logger.error(EXCEPTION.getMarker(), "[{}] Failed to store hashes", tableName, e);
-                        throw new UncheckedIOException(e);
-                    } finally {
-                        countDownLatch.countDown();
-                    }
-                });
-            }
-
-            final VirtualLeafBytes<?>[] dirtyLeaves = leafRecordsToAddOrUpdate.toArray(VirtualLeafBytes[]::new);
-            final VirtualLeafBytes<?>[] deletedLeaves = leafRecordsToDelete.toArray(VirtualLeafBytes[]::new);
-
-            // Use an executor to make sure the data source is not closed in parallel. See
-            // the comment in close() for details
-            storeLeavesExecutor.execute(() -> {
-                try {
-                    writeLeavesToPathToKeyValue(firstLeafPath, lastLeafPath, dirtyLeaves);
-                    runPathToKeyValueStoreCompaction();
-                } catch (final IOException e) {
-                    logger.error(EXCEPTION.getMarker(), "[{}] Failed to store leaves", tableName, e);
-                    throw new UncheckedIOException(e);
-                } finally {
-                    countDownLatch.countDown();
-                }
-            });
-
-            // Use an executor to make sure the data source is not closed in parallel. See
-            // the comment in close() for details
-            storeLeafKeysExecutor.execute(() -> {
-                try {
-                    writeLeavesToKeyToPath(firstLeafPath, lastLeafPath, dirtyLeaves, deletedLeaves, isReconnectContext);
-                    runKeyToPathStoreCompaction();
-                } catch (final IOException e) {
-                    logger.error(EXCEPTION.getMarker(), "[{}] Failed to store leaf keys", tableName, e);
-                    throw new UncheckedIOException(e);
-                } finally {
-                    countDownLatch.countDown();
-                }
-            });
 
             // Update valid key range in the metadata file
-            saveMetadata(dbPaths);
+            final Future<?> waitForMetadata = flushPool.submit(() -> {
+                try {
+                    saveMetadata(dbPaths);
+                } catch (final IOException e) {
+                    logger.error(EXCEPTION.getMarker(), "Failed to save MerkleDb metadata", e);
+                    throw new UncheckedIOException(e);
+                }
+            });
 
-            // wait for the other threads in the rare case they are not finished yet. We need to
-            // have all writing
-            // done before we return as when we return the state version we are writing is deleted
-            // from the cache and
-            // the flood gates are opened for reads through to the data we have written here.
-            try {
-                countDownLatch.await();
-            } catch (final InterruptedException e) {
+            // Hashes
+            final VirtualHashChunk[] dirtyHashes = hashChunksToUpdate.toArray(VirtualHashChunk[]::new);
+            flushingHashesFuture = writeHashes(lastLeafPath, dirtyHashes);
+
+            // Leaves
+            final VirtualLeafBytes<?>[] dirtyLeaves = leafRecordsToAddOrUpdate.toArray(VirtualLeafBytes[]::new);
+            flushingLeavesFuture = writeLeavesToPathToKeyValue(firstLeafPath, lastLeafPath, dirtyLeaves);
+
+            // In some rare cases, the data source can be closed, while the flush is still in
+            // progress, for example during failed reconnects. We need to make sure the current
+            // thread doesn't get stuck in flushingHashes/LeavesFuture.get() below, when the
+            // flushing pool is already down, and some hashes/leaves tasks are not executed.
+            // Check if the pool is still alive. If it is alive, and the data source is closed
+            // later, the futures will be canceled in cancelFlush()
+            if (flushPool.isShutdown()) {
                 logger.warn(
-                        EXCEPTION.getMarker(),
-                        "[{}] Interrupted while waiting on internal record storage",
-                        tableName,
-                        e);
+                        MERKLE_DB.getMarker(),
+                        "Failed to flush data, the flushing pool has been closed. This may happen if the data source is closed in a different thread");
+                return;
+            }
+
+            // Key to path
+            final VirtualLeafBytes<?>[] deletedLeaves = leafRecordsToDelete.toArray(VirtualLeafBytes[]::new);
+            // This call is blocking, it returns after all mappings are updated in HDHM
+            writeLeavesToKeyToPath(firstLeafPath, lastLeafPath, dirtyLeaves, deletedLeaves, isReconnectContext);
+
+            // As soon as this method returns, virtual node cache will start deleting the flushed
+            // data from memory. To avoid data loss, it's critical to wait till all data is written
+            // to disk before returning from this method. If there is a request to read an object
+            // while this method is still running, the object will be found in the cache. If a
+            // read request is made after the flush is complete, the object will be found on disk
+            // (or in the cache, if not purged from memory yet - purging is asynchronous)
+            try {
+                waitForMetadata.get();
+                if (flushingHashesFuture != null) {
+                    flushingHashesFuture.get();
+                }
+                // Run all compactions even if there have been no objects written. This will take
+                // care of scenarios like when leaf range becomes empty, and the stream of dirty
+                // leaves to store is empty
+                runHashChunkStoreCompaction();
+                if (flushingLeavesFuture != null) {
+                    flushingLeavesFuture.get();
+                }
+                runPathToKeyValueStoreCompaction();
+                runKeyToPathStoreCompaction();
+            } catch (final InterruptedException e) {
+                logger.warn(EXCEPTION.getMarker(), "[{}] Flush interrupted", tableName, e);
                 Thread.currentThread().interrupt();
+            } catch (final ExecutionException e) {
+                logger.error(EXCEPTION.getMarker(), "[{}] Flush failed", tableName, e);
+                throw new RuntimeException(e);
             }
         } finally {
+            flushingLeavesFuture = null;
+            flushingHashesFuture = null;
             // Report total size on disk as sum of all store files. All metadata and other helper files
             // are considered small enough to be ignored. If/when we decide to use on-disk long lists
             // for indices, they should be added here
@@ -841,19 +840,45 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     }
 
     /**
+     * If there is an active flush, it gets interrupted. If the flushing thread
+     * is waiting on various flushing tasks to complete (leaves, hashes, HDHM), it
+     * will be unblocked.
+     *
+     * <p>This method is safe to call even if there is no flush currently in progress.
+     */
+    private void cancelFlush() {
+        // This method should be called only after the flushing pool is marked to shut down
+        assert flushPool.isShutdown();
+        final Future<?> hf = flushingHashesFuture;
+        if (hf != null) {
+            hf.cancel(true);
+        }
+        final Future<?> lf = flushingLeavesFuture;
+        if (lf != null) {
+            lf.cancel(true);
+        }
+        keyToPath.cancelWriting();
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
-    public void close(final boolean keepData) throws IOException {
+    public void close() throws IOException {
         if (!closed.getAndSet(true)) {
             try {
-                // Stop merging and shutdown the datasource compactor
-                compactionCoordinator.stopAndDisableBackgroundCompaction(true);
-                // Shut down all executors. If a flush is currently in progress, it will be interrupted.
-                // It's critical to make sure there are no disk read/write operations before all indiced
-                // and file collections are closed below
-                shutdownThreadsAndWait(
-                        storeHashesExecutor, storeLeavesExecutor, storeLeafKeysExecutor, snapshotExecutor);
+                // Stop file compaction
+                compactionCoordinator.stopAndDisableBackgroundCompaction(false);
+                // Shut down all executors. If a flush is currently in progress, it will be interrupted
+                flushPool.shutdownNow();
+                snapshotExecutor.shutdownNow();
+                // If there is a flush in progress on another thread, that thread may be
+                // stuck in waiting for hashes/leaves or HDHM writing to complete. Flushing
+                // pool shutdown interrupts all existing hashes/leaves/HDHM tasks, but the
+                // flushing thread is not interrupted. cancelFlush() is exactly to solve
+                // this problem. If there is no active flush, cancelFlush() is still safe
+                // to call
+                cancelFlush();
             } finally {
                 try {
                     // close all closable data stores
@@ -879,9 +904,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                     // updated count of open databases
                     COUNT_OF_OPEN_DATABASES.decrement();
                     // Delete the data dir
-                    if (!keepData) {
-                        DataFileCommon.deleteDirectoryAndContents(dbPaths.storageDir);
-                    }
+                    DataFileCommon.deleteDirectoryAndContents(dbPaths.storageDir);
                 }
             }
         }
@@ -921,13 +944,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             // main snapshotting process in multiple-threads
             try {
                 // Flush cached hash chunks to the hash chunk store
-                if (getLastLeafPath() > 0) {
-                    final long maxValidChunkId =
-                            VirtualHashChunk.lastChunkIdForPaths(getLastLeafPath(), hashChunkHeight);
-                    final Stream<VirtualHashChunk> cacheChunksToFlush =
-                            hashChunkCache.values().stream().filter(c -> c.getChunkId() <= maxValidChunkId);
-                    writeHashes(getLastLeafPath(), cacheChunksToFlush, false);
-                }
+                flushHashChunkCache();
                 final CountDownLatch countDownLatch = new CountDownLatch(6);
                 // write all data stores
                 runWithSnapshotExecutor(countDownLatch, "idToDiskLocationHashChunks", () -> {
@@ -1099,31 +1116,6 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     // private methods
 
     /**
-     * Shutdown threads if they are running and wait for them to finish
-     *
-     * @param executors array of threads to shut down.
-     * @throws IOException if there was a problem or timeout shutting down threads.
-     */
-    private void shutdownThreadsAndWait(final ExecutorService... executors) throws IOException {
-        try {
-            // shutdown threads
-            for (final ExecutorService executor : executors) {
-                if (!executor.isShutdown()) {
-                    executor.shutdown();
-                    final boolean finishedWithoutTimeout = executor.awaitTermination(5, TimeUnit.MINUTES);
-                    if (!finishedWithoutTimeout) {
-                        throw new IOException("Timeout while waiting for executor service to finish.");
-                    }
-                }
-            }
-        } catch (final InterruptedException e) {
-            logger.warn(EXCEPTION.getMarker(), "[{}] Interrupted while waiting on executors to shutdown", tableName, e);
-            Thread.currentThread().interrupt();
-            throw new IOException("Interrupted while waiting for shutdown to finish.", e);
-        }
-    }
-
-    /**
      * Run a runnable on background thread using snapshot ExecutorService, counting down latch when
      * done.
      *
@@ -1156,10 +1148,13 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     }
 
     /**
-     * Write all hashes to hashStore
+     * Write all the given hash chunks to hashChunkStore. The hash chunks are processed in
+     * multiple threads by submitting several tasks to {@link #flushPool}.
+     *
+     * <p>The method returns as soon as the tasks are submitted and returns a {@link Future}
+     * object that can be used to wait for all tasks to complete.
      */
-    private void writeHashes(
-            final long maxValidPath, @NonNull final Stream<VirtualHashChunk> dirtyHashes, final boolean useCache)
+    private Future<Void> writeHashes(final long maxValidPath, @NonNull final VirtualHashChunk[] dirtyHashes)
             throws IOException {
         if (maxValidPath < 0) {
             // Empty store
@@ -1168,34 +1163,79 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             hashChunkStore.updateValidKeyRange(0, VirtualHashChunk.lastChunkIdForPaths(maxValidPath, hashChunkHeight));
         }
 
-        if (maxValidPath < 0) {
+        if ((maxValidPath < 0) || (dirtyHashes.length == 0)) {
             // nothing to do
-            return;
+            return null;
         }
 
         hashChunkStore.startWriting();
 
-        dirtyHashes.forEach(chunk -> {
-            statisticsUpdater.countFlushHashesWritten();
-            final long chunkId = chunk.getChunkId();
-            if (useCache && (chunkId < hashChunkCacheThreshold)) {
-                hashChunkCache.put(chunkId, chunk);
-            } else {
-                try {
-                    hashChunkStore.put(chunkId, chunk::writeTo, chunk.getSerializedSizeInBytes());
-                } catch (final IOException e) {
-                    logger.error(EXCEPTION.getMarker(), "[{}] IOException writing hash chunks", tableName, e);
-                    throw new UncheckedIOException(e);
+        final CompletableFuture<Void> result = new CompletableFuture<>();
+        // A counter to check how many tasks have been finished. Once it reaches zero, the result
+        // future is marked complete
+        final AtomicInteger tasksRemaining = new AtomicInteger(dirtyHashes.length);
+        // Hash index in the dirtyHashes array. Every task gets and increments the index to
+        // find out what hash chunk to write
+        final AtomicInteger index = new AtomicInteger(0);
+
+        final class StoreHashChunkTask extends AbstractTask {
+
+            StoreHashChunkTask() {
+                super(flushPool, 1);
+            }
+
+            @Override
+            protected boolean onExecute() throws IOException {
+                final int chunkIndex = index.getAndIncrement();
+                if (chunkIndex >= dirtyHashes.length) {
+                    return true;
                 }
+                if (chunkIndex < dirtyHashes.length - 1) {
+                    new StoreHashChunkTask().send();
+                }
+                final VirtualHashChunk chunk = dirtyHashes[chunkIndex];
+                final long chunkId = chunk.getChunkId();
+                if (chunkId < hashChunkCacheThreshold) {
+                    hashChunkCache.put(chunkId, chunk);
+                } else {
+                    hashChunkStore.put(chunkId, chunk::writeTo, chunk.getSerializedSizeInBytes());
+                }
+                statisticsUpdater.countFlushHashesWritten(); // Count hash chunk as one hash write
+                if (tasksRemaining.decrementAndGet() == 0) {
+                    result.complete(null);
+                }
+                return true;
+            }
+
+            @Override
+            protected void onException(final Throwable t) {
+                logger.error(MERKLE_DB.getMarker(), "Failed to write a hash chunk to disk", t);
+                result.completeExceptionally(t);
+            }
+        }
+
+        // Schedule the first task. It will schedule more tasks when run
+        new StoreHashChunkTask().send();
+
+        return result.thenRun(() -> {
+            // Finish writing to the data file and update file stats
+            try {
+                final DataFileReader newHashesFile = hashChunkStore.endWriting();
+                statisticsUpdater.setFlushHashesStoreFileSize(newHashesFile);
+            } catch (final IOException e) {
+                throw new UncheckedIOException(e);
             }
         });
-
-        final DataFileReader newHashesFile = hashChunkStore.endWriting();
-        statisticsUpdater.setFlushHashesStoreFileSize(newHashesFile);
     }
 
-    /** Write all the given leaf records to pathToKeyValue */
-    private void writeLeavesToPathToKeyValue(
+    /**
+     * Write all the given leaf records to pathToKeyValue. The leaf records are processed in
+     * multiple threads by submitting several tasks to {@link #flushPool}.
+     *
+     * <p>The method returns as soon as the tasks are submitted and returns a {@link Future}
+     * object that can be used to wait for all tasks to complete.
+     */
+    private Future<Void> writeLeavesToPathToKeyValue(
             final long firstLeafPath, final long lastLeafPath, @NonNull final VirtualLeafBytes<?>[] dirtyLeaves)
             throws IOException {
         if (lastLeafPath < 0) {
@@ -1205,34 +1245,71 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             keyValueStore.updateValidKeyRange(firstLeafPath, lastLeafPath);
         }
 
-        if (dirtyLeaves.length == 0) {
+        if ((lastLeafPath < 0) || (dirtyLeaves.length == 0)) {
             // Nothing to do
-            return;
+            return null;
         }
-
-        // Functionally, leaves don't have to be sorted. However, performance wise, sorting
-        // is beneficial, as adjacent leaves are written together, which reduces the number
-        // of random reads later. Treat dirtyLeaves as immutable.
-        VirtualLeafBytes<?>[] sortedDirtyLeaves = dirtyLeaves.clone();
-        Arrays.parallelSort(sortedDirtyLeaves, Comparator.comparingLong(VirtualLeafBytes::path));
 
         keyValueStore.startWriting();
 
-        // Iterate over leaf records
-        for (VirtualLeafBytes<?> leafBytes : sortedDirtyLeaves) {
-            // Update path to K/V store
-            try {
-                keyValueStore.put(leafBytes.path(), leafBytes::writeTo, leafBytes.getSizeInBytes());
-            } catch (final IOException e) {
-                logger.error(EXCEPTION.getMarker(), "[{}] IOException writing to pathToKeyValue", tableName, e);
-                throw new UncheckedIOException(e);
+        // Functionally, leaves don't have to be sorted. However, performance wise, sorting
+        // is beneficial, as adjacent leaves are written together, which reduces the number
+        // of random reads later. Treat dirtyLeaves as immutable
+        VirtualLeafBytes<?>[] sortedDirtyLeaves = dirtyLeaves.clone();
+        Arrays.parallelSort(sortedDirtyLeaves, Comparator.comparingLong(VirtualLeafBytes::path));
+
+        final CompletableFuture<Void> result = new CompletableFuture<>();
+        // A counter to check how many tasks have been finished. Once it reaches zero, the result
+        // future is marked complete
+        final AtomicInteger tasksRemaining = new AtomicInteger(sortedDirtyLeaves.length);
+        // Leaf record index in the sortedDirtyLeaves array. Every task gets and increments the index
+        // to find out what leaf to write. This (almost) preserves the sorted order in which leaves
+        // are written to disk
+        final AtomicInteger index = new AtomicInteger(0);
+
+        final class StoreLeafTask extends AbstractTask {
+
+            StoreLeafTask() {
+                super(flushPool, 1);
             }
-            statisticsUpdater.countFlushLeavesWritten();
+
+            @Override
+            protected boolean onExecute() throws Exception {
+                final int leafIndex = index.getAndIncrement();
+                if (leafIndex >= sortedDirtyLeaves.length) {
+                    return true;
+                }
+                if (leafIndex < sortedDirtyLeaves.length - 1) {
+                    new StoreLeafTask().send();
+                }
+                final VirtualLeafBytes<?> leafBytes = sortedDirtyLeaves[leafIndex];
+                keyValueStore.put(leafBytes.path(), leafBytes::writeTo, leafBytes.getSizeInBytes());
+                statisticsUpdater.countFlushLeavesWritten();
+                if (tasksRemaining.decrementAndGet() == 0) {
+                    result.complete(null);
+                }
+                return true;
+            }
+
+            @Override
+            protected void onException(final Throwable t) {
+                logger.error(MERKLE_DB.getMarker(), "Failed to write a leaf record to disk", t);
+                result.completeExceptionally(t);
+            }
         }
 
-        // end writing
-        final DataFileReader pathToKeyValueReader = keyValueStore.endWriting();
-        statisticsUpdater.setFlushLeavesStoreFileSize(pathToKeyValueReader);
+        // Schedule the first task. It will schedule more tasks when run
+        new StoreLeafTask().send();
+
+        return result.thenRun(() -> {
+            try {
+                // Finish writing to the data file and update file stats
+                final DataFileReader pathToKeyValueReader = keyValueStore.endWriting();
+                statisticsUpdater.setFlushLeavesStoreFileSize(pathToKeyValueReader);
+            } catch (final IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
     }
 
     /** Write all the given leaf records to keyToPath */
@@ -1241,8 +1318,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final long lastLeafPath,
             @NonNull final VirtualLeafBytes<?>[] dirtyLeaves,
             @NonNull final VirtualLeafBytes<?>[] deletedLeaves,
-            boolean isReconnect)
-            throws IOException {
+            boolean isReconnect) {
         if (dirtyLeaves.length == 0 && deletedLeaves.length == 0) {
             // Nothing to do
             return;
@@ -1295,6 +1371,26 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         if (!compactionCoordinator.isCompactionRunning(OBJECT_KEY_TO_PATH)) {
             keyToPath.resizeIfNeeded(firstLeafPath, lastLeafPath);
         }
+    }
+
+    /**
+     * Flushes {@link #hashChunkCache} to disk by writing all cached hash chunks to a new
+     * data file and adding it to {@link #hashChunkStore}.
+     */
+    private void flushHashChunkCache() throws IOException {
+        if (getLastLeafPath() <= 0) {
+            return;
+        }
+        final long maxValidChunkId = VirtualHashChunk.lastChunkIdForPaths(getLastLeafPath(), hashChunkHeight);
+        hashChunkStore.startWriting();
+        for (final VirtualHashChunk chunk : hashChunkCache.values()) {
+            final long chunkId = chunk.getChunkId();
+            if (chunkId <= maxValidChunkId) {
+                hashChunkStore.put(chunkId, chunk::writeTo, chunk.getSerializedSizeInBytes());
+            }
+        }
+        final DataFileReader newHashesFile = hashChunkStore.endWriting();
+        statisticsUpdater.setFlushHashesStoreFileSize(newHashesFile);
     }
 
     /**

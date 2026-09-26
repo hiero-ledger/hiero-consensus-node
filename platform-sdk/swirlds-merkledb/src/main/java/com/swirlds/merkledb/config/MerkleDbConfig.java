@@ -58,12 +58,11 @@ import com.swirlds.config.api.validation.annotation.Positive;
  *      Comma-delimited list of data source names, may be empty. When a MerkleDb data source with a name from the
  *      list is loaded from a snapshot, its key to path map will be rebuilt from path to KV data files. Note that
  *      to rebuild the map may take very long. Don't enable it for large tables!
- * @param percentHalfDiskHashMapFlushThreads
- *      Percentage, from 0.0 to 100.0, of available processors to use for half disk hash map background flushing
- *      threads.
- * @param numHalfDiskHashMapFlushThreads
- *      Number of threads to use for half disk hash map background flushing. If set to a negative value, the number of
- *      threads to use is calculated based on {@link #percentHalfDiskHashMapFlushThreads}
+ * @param percentFlushThreads
+ *      Percentage, from 0.0 to 100.0, of available processors to use for MerkleDb background flushing threads.
+ * @param numFlushThreads
+ *      Number of threads to use for MerkleDb background flushing. If set to a negative value, the number of
+ *      threads to use is calculated based on {@link #percentFlushThreads}
  * @param leafRecordCacheSize
  *      Cache size in bytes for reading virtual leaf records. Initialized in data source creation time from MerkleDb config.
  *      If the value is zero, leaf records cache isn't used.
@@ -101,8 +100,8 @@ public record MerkleDbConfig(
         @ConfigProperty(defaultValue = "false") boolean indexRebuildingEnforced,
         @ConfigProperty(defaultValue = "32") int goodAverageBucketEntryCount,
         @ConfigProperty(defaultValue = "") String tablesToRepairHdhm,
-        @ConfigProperty(defaultValue = "75.0") double percentHalfDiskHashMapFlushThreads,
-        @ConfigProperty(defaultValue = "-1") int numHalfDiskHashMapFlushThreads,
+        @ConfigProperty(defaultValue = "75.0") double percentFlushThreads,
+        @ConfigProperty(defaultValue = "-1") int numFlushThreads,
         @ConfigProperty(defaultValue = "1048576") int leafRecordCacheSize,
         @Min(1) @ConfigProperty(defaultValue = "8") int maxFileChannelsPerFileReader,
         @Min(1) @ConfigProperty(defaultValue = "8") int maxThreadsPerFileChannel,
@@ -114,11 +113,11 @@ public record MerkleDbConfig(
 
     static double UNIT_FRACTION_PERCENT = 100.0;
 
-    public int getNumHalfDiskHashMapFlushThreads() {
+    public int getNumFlushThreads() {
         final int numProcessors = Runtime.getRuntime().availableProcessors();
-        final int threads = (numHalfDiskHashMapFlushThreads() == -1)
-                ? (int) (numProcessors * (percentHalfDiskHashMapFlushThreads() / UNIT_FRACTION_PERCENT))
-                : numHalfDiskHashMapFlushThreads();
+        final int threads = (numFlushThreads() == -1)
+                ? (int) (numProcessors * (percentFlushThreads() / UNIT_FRACTION_PERCENT))
+                : numFlushThreads();
         return Math.max(1, threads);
     }
 }
