@@ -204,16 +204,27 @@ class ProofControllersTest {
 
     @Test
     void freshGenesisIsRequestedOnlyInThePostUpgradeRoundWhileConfiguredAndBeforeTheCutover() {
-        final var requested = configWith("tss.needsFreshGenesisWrapsProof", "true");
+        // Both flags are pinned: their defaults differ per branch, and the cutover branch flips each
+        final var requested = configWith(
+                "tss.needsFreshGenesisWrapsProof", "true",
+                "blockStream.enableCutover", "false",
+                "tss.forceMockSignatures", "true");
 
         assertTrue(freshGenesisRequested(tssConfig(requested), blockStreamConfig(requested), true));
 
         // Never outside the round that carries the post-upgrade work
         assertFalse(freshGenesisRequested(tssConfig(requested), blockStreamConfig(requested), false));
         // Never unless asked for, or without WRAPS
-        final var notRequested = configWith("tss.needsFreshGenesisWrapsProof", "false");
+        final var notRequested = configWith(
+                "tss.needsFreshGenesisWrapsProof", "false",
+                "blockStream.enableCutover", "false",
+                "tss.forceMockSignatures", "true");
         assertFalse(freshGenesisRequested(tssConfig(notRequested), blockStreamConfig(notRequested), true));
-        final var noWraps = configWith("tss.needsFreshGenesisWrapsProof", "true", "tss.wrapsEnabled", "false");
+        final var noWraps = configWith(
+                "tss.needsFreshGenesisWrapsProof", "true",
+                "tss.wrapsEnabled", "false",
+                "blockStream.enableCutover", "false",
+                "tss.forceMockSignatures", "true");
         assertFalse(freshGenesisRequested(tssConfig(noWraps), blockStreamConfig(noWraps), true));
     }
 

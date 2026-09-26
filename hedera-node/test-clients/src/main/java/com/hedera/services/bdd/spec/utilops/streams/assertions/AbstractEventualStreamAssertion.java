@@ -33,6 +33,12 @@ public abstract class AbstractEventualStreamAssertion extends UtilOp {
     @Nullable
     protected Runnable unsubscribe;
 
+    /**
+     * Set once this assertion has concluded, so a stream item still in flight is not evaluated against
+     * a spec that has already been torn down. Volatile because delivery is on the stream's own thread.
+     */
+    private volatile boolean done;
+
     protected AbstractEventualStreamAssertion(final boolean hasPassedIfNothingFailed) {
         result = new EventualAssertionResult(hasPassedIfNothingFailed, DEFAULT_TIMEOUT);
     }
@@ -53,9 +59,17 @@ public abstract class AbstractEventualStreamAssertion extends UtilOp {
      * If this assertion has subscribed to a stream, this method unsubscribes from it.
      */
     public void unsubscribe() {
+        done = true;
         if (unsubscribe != null) {
             unsubscribe.run();
         }
+    }
+
+    /**
+     * @return whether this assertion has concluded and must no longer evaluate stream items
+     */
+    protected boolean isDone() {
+        return done;
     }
 
     /**
@@ -65,7 +79,9 @@ public abstract class AbstractEventualStreamAssertion extends UtilOp {
     public void assertHasPassed() {
         try {
             final var eventualResult = result.get();
-            if (!eventualResult.passed()) {
+            // Only a timeout is eligible for recovery; an explicitly recorded failure must stand, or a
+            // fresh full-stream rescan could find an unrelated satisfying item and mask the real failure.
+            if (!eventualResult.passed() && !(eventualResult.timedOut() && recoveredAfterTimeout())) {
                 Assertions.fail(assertionDescription() + " ended with result: " + eventualResult.getErrorDetails());
             }
         } catch (final InterruptedException e) {
@@ -74,6 +90,18 @@ public abstract class AbstractEventualStreamAssertion extends UtilOp {
         } finally {
             unsubscribe();
         }
+    }
+
+    /**
+     * Hook invoked when the eventual result timed out (never when it explicitly failed), giving a subclass
+     * a final chance to determine the assertion actually holds — e.g. by re-reading the whole stream once with
+     * fully-populated spec state. Returns true to treat the assertion as passed despite the timeout;
+     * defaults to no recovery.
+     *
+     * @return true if a final check determined the assertion has passed
+     */
+    protected boolean recoveredAfterTimeout() {
+        return false;
     }
 
     /**

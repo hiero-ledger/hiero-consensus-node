@@ -28,9 +28,11 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.DEFAULT_UPGRADE_FILE_ID;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileHashAt;
 
+import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
+import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode.ReassignPorts;
 import com.hedera.services.bdd.junit.support.validators.block.StateChangesValidator;
@@ -98,6 +100,43 @@ public class WrapsHandoffsTest implements LifecycleTest {
      * the network must have nothing else in flight for the fresh genesis proof to be the only construction.
      */
     @HapiTest
+    // Its own network, pinned pre-cutover from genesis. Mock signatures keep block proofs free of a
+    // chain of trust, so the block node never expects one and the fresh genesis proof is not a downgrade.
+    @HapiBlockNode(
+            networkSize = 3,
+            blockNodeConfigs = {@HapiBlockNode.BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
+            subProcessNodeConfigs = {
+                @HapiBlockNode.SubProcessNodeConfig(
+                        nodeId = 0,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.enableCutover",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
+                        }),
+                @HapiBlockNode.SubProcessNodeConfig(
+                        nodeId = 1,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.enableCutover",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
+                        }),
+                @HapiBlockNode.SubProcessNodeConfig(
+                        nodeId = 2,
+                        blockNodeIds = {0},
+                        blockNodePriorities = {0},
+                        applicationPropertiesOverrides = {
+                            "blockStream.enableCutover",
+                            "false",
+                            "tss.forceMockSignatures",
+                            "true"
+                        })
+            })
     @Order(0)
     final Stream<DynamicTest> upgradeRequestingFreshGenesisWrapsProofGroundsOne() {
         return hapiTest(sourcingContextual(spec -> {
