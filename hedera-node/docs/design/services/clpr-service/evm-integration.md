@@ -16,7 +16,7 @@ contract.
 | Class              | `ClprSystemContract` (`hedera-smart-contract-service-impl/.../exec/systemcontracts/`) |
 | Address constant   | `CLPR_EVM_ADDRESS = 0x16e`                                                            |
 | Name               | `CLPR`                                                                                |
-| Disabled behaviour | When `clpr.enabled = false`, halts with `CLPR_NOT_ENABLED`.                           |
+| Disabled behaviour | When `clpr.enabled = false`, the address behaves as a nonexistent system account.     |
 
 ### Method registry
 

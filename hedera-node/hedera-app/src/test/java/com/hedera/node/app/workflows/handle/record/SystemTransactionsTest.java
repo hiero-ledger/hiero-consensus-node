@@ -2,9 +2,11 @@
 package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INTERNAL_SYSTEM_TRANSACTION;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
@@ -18,6 +20,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -35,7 +38,9 @@ import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -51,6 +56,7 @@ import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.app.service.token.NodeRewardActivity;
 import com.hedera.node.app.service.token.NodeRewardAmounts;
 import com.hedera.node.app.service.token.NodeRewardGroups;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -83,6 +89,7 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -100,6 +107,9 @@ class SystemTransactionsTest {
             AccountID.newBuilder().accountNum(3L).build();
     private static final AccountID PAYER_ID =
             AccountID.newBuilder().accountNum(800L).build();
+    private static final long CLPR_STAKING_ACCOUNT_NUM = 803L;
+    private static final AccountID CLPR_STAKING_ACCOUNT_ID =
+            AccountID.newBuilder().accountNum(CLPR_STAKING_ACCOUNT_NUM).build();
 
     @Mock(strictness = Mock.Strictness.LENIENT)
     private InitTrigger initTrigger;
@@ -409,6 +419,38 @@ class SystemTransactionsTest {
     }
 
     @Test
+    void genesisSetupCreatesClprStakingAccountWhileClprIsDisabled() {
+        final var systemContext = doGenesisSetup();
+
+        final var body = capturedClprStakingAccountCreation(systemContext);
+        assertEquals("CLPR staking account creation record", body.memo());
+        assertEquals(
+                IMMUTABILITY_SENTINEL_KEY, body.cryptoCreateAccountOrThrow().key());
+    }
+
+    @Test
+    void postUpgradeCreatesMissingClprStakingAccountWhileClprIsDisabled() {
+        givenAccountsState();
+
+        final var systemContext = doPostUpgradeSetupWithMockContext();
+
+        final var body = capturedClprStakingAccountCreation(systemContext);
+        assertEquals("CLPR staking account creation record", body.memo());
+        assertEquals(
+                IMMUTABILITY_SENTINEL_KEY, body.cryptoCreateAccountOrThrow().key());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void postUpgradeDoesNotRecreateExistingClprStakingAccount() {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
+
+        final var systemContext = doPostUpgradeSetupWithMockContext();
+
+        verify(systemContext, never()).dispatchCreation(any(Consumer.class), eq(CLPR_STAKING_ACCOUNT_NUM));
+    }
+
+    @Test
     void testFirstReservedSystemTimeForWithZeroReservedNanos() {
         // Create config with 0 reserved nanos
         final var config = HederaTestConfigBuilder.create()
@@ -544,6 +586,7 @@ class SystemTransactionsTest {
         // Mock fileService.fileSchema() to return a mock schema
         final var fileSchema = mock(V0490FileSchema.class);
         given(fileService.fileSchema()).willReturn(fileSchema);
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
 
         // Recreate subject with updated config
         subject = new SystemTransactions(
@@ -598,6 +641,7 @@ class SystemTransactionsTest {
         given(state.getReadableStates(FileService.NAME)).willReturn(readableStates);
         given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
         given(filesState.get(any())).willReturn(File.DEFAULT);
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
         // Recreate subject with updated config
         subject = new SystemTransactions(
                 initTrigger,
@@ -738,5 +782,65 @@ class SystemTransactionsTest {
         assertEquals(123L, method.invoke(subject));
         verify(blockStreamManager).blockNo();
         verify(blockRecordManager, never()).blockNo();
+    }
+
+    @SuppressWarnings("unchecked")
+    private ReadableKVState<AccountID, Account> givenAccountsState() {
+        given(entityIdFactory.newAccountId(CLPR_STAKING_ACCOUNT_NUM)).willReturn(CLPR_STAKING_ACCOUNT_ID);
+        final var readableStates = mock(ReadableStates.class);
+        final ReadableKVState<AccountID, Account> accounts = mock(ReadableKVState.class);
+        given(state.getReadableStates(TokenService.NAME)).willReturn(readableStates);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(accounts);
+        return accounts;
+    }
+
+    @SuppressWarnings("unchecked")
+    private SystemContext doPostUpgradeSetupWithMockContext() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("nodes.enableDAB", "false")
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        final var selfNodeInfo = mock(NodeInfo.class);
+        given(selfNodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
+        given(networkInfo.selfNodeInfo()).willReturn(selfNodeInfo);
+        // The simple fees file already exists, so the CLPR staking account is the only possible creation
+        final ReadableStates fileStates = mock(ReadableStates.class);
+        final ReadableKVState<FileID, File> filesState = mock(ReadableKVState.class);
+        given(state.getReadableStates(FileService.NAME)).willReturn(fileStates);
+        given(fileStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
+        given(filesState.get(any())).willReturn(File.DEFAULT);
+        final var systemContext = mock(SystemContext.class);
+        final var spySubject = spy(subject);
+        doReturn(systemContext).when(spySubject).newSystemContext(any(), any(), any(), any(), any());
+
+        spySubject.doPostUpgradeSetup(NOW, state);
+
+        return systemContext;
+    }
+
+    private SystemContext doGenesisSetup() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        given(startupNetworks.genesisNetworkOrThrow(any())).willThrow(new IllegalStateException("No genesis network"));
+        given(state.getReadableStates(any())).willReturn(mock(ReadableStates.class));
+        final var systemContext = mock(SystemContext.class);
+        final var spySubject = spy(subject);
+        doReturn(systemContext).when(spySubject).newSystemContext(any(), any(), any(), any(), any());
+
+        spySubject.doGenesisSetup(NOW, state, stateChangeStreaming);
+
+        return systemContext;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static TransactionBody capturedClprStakingAccountCreation(@NonNull final SystemContext systemContext) {
+        final ArgumentCaptor<Consumer<TransactionBody.Builder>> spec = ArgumentCaptor.forClass(Consumer.class);
+        verify(systemContext).dispatchCreation(spec.capture(), eq(CLPR_STAKING_ACCOUNT_NUM));
+        final var builder = TransactionBody.newBuilder();
+        spec.getValue().accept(builder);
+        return builder.build();
     }
 }

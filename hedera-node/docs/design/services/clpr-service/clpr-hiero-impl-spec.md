@@ -857,7 +857,7 @@ system (property files / dynamic config).
 
 |               Property                |       Type        | Default |                                                    Description                                                     |
 |---------------------------------------|-------------------|---------|--------------------------------------------------------------------------------------------------------------------|
-| `clpr.enabled`                        | `boolean`         | `false` | Master enable switch. When false, all CLPR transactions and system-contract calls return `CLPR_NOT_ENABLED`.       |
+| `clpr.enabled`                        | `boolean`         | `false` | Master enable switch. When false, CLPR transactions return `CLPR_NOT_ENABLED`; CLPR system contracts are inert.    |
 | `clpr.chainId`                        | `String`          | `""`    | CAIP-2 chain identifier. Set at genesis; immutable thereafter. Populates `ClprLedgerConfiguration.chain_id`.       |
 | `clpr.protocolVersion`                | `int`             | `1`     | CLPR protocol version. Set at genesis; immutable thereafter. Populates `ClprLedgerConfiguration.protocol_version`. |
 | `clpr.defaultSyncsPerSec`             | `int`             | `1`     | Conservative default sync rate per endpoint when peer's `max_syncs_per_sec` is not yet known.                      |

@@ -12,18 +12,18 @@ others are node-local.
 
 ### Top-level
 
-|        Key        |     Default      | Network? |                                                  Purpose                                                  |
-|-------------------|------------------|----------|-----------------------------------------------------------------------------------------------------------|
-| `enabled`         | `true`           | yes      | Master flag. When `false`, CLPR APIs are inert and CLPR-related precompiles halt with `CLPR_NOT_ENABLED`. |
-| `chainId`         | `hiero:localnet` | yes      | CAIP-2 chain ID seeded into `LEDGER_CONFIGURATION` at genesis.                                            |
-| `protocolVersion` | `1`              | yes      | CLPR protocol version seeded into `LEDGER_CONFIGURATION`.                                                 |
+|        Key        |     Default      | Network? |                                                 Purpose                                                  |
+|-------------------|------------------|----------|----------------------------------------------------------------------------------------------------------|
+| `enabled`         | `false`          | yes      | Master flag. When `false`, CLPR APIs are inert and CLPR system contracts behave as nonexistent accounts. |
+| `chainId`         | `hiero:localnet` | yes      | CAIP-2 chain ID seeded into `LEDGER_CONFIGURATION` at genesis.                                           |
+| `protocolVersion` | `1`              | yes      | CLPR protocol version seeded into `LEDGER_CONFIGURATION`.                                                |
 
 ### Stake / slashing economics (consumed by `ClprSlashingUtils`)
 
 |            Key            |            Default            | Network? |                                  Purpose                                   |
 |---------------------------|-------------------------------|----------|----------------------------------------------------------------------------|
 | `minLockedStake`          | `100 000 000` tinybars        | yes      | Required stake for `completeConnector`; transferred to `stakingAccount`.   |
-| `stakingAccount`          | `0.0.803` (account num `803`) | yes      | Custodian for locked connector stake.                                      |
+| `stakingAccount`          | `0.0.803` (account num `803`) | yes      | Custodian for locked connector stake; created at genesis or on upgrade.    |
 | `slashBasePenalty`        | `10 000 000` tinybars         | yes      | Base slash on first offence.                                               |
 | `slashMultiplier`         | `2`                           | yes      | Geometric escalation factor per repeat offence.                            |
 | `slashBanThreshold`       | `5`                           | yes      | Cumulative offences after which a connector is banned.                     |

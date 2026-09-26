@@ -1,5 +1,19 @@
 {
   "buckets": [
+    {
+      "burstPeriod": 0,
+      "burstPeriodMs": 1000,
+      "name": "ClprBundles",
+      "throttleGroups": [
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 10000,
+          "operations": [
+            "ClprSubmitBundle"
+          ]
+        }
+      ]
+    },
 	{
 	  "name": "ThroughputLimits",
 	  "burstPeriod": 1,
@@ -50,7 +64,6 @@
 				"ClprCloseChannel",
 				"ClprRegisterConnector",
 				"ClprDeregisterConnector",
-				"ClprSubmitBundle",
 				"ClprRedactMessage",
 				"ClprGetLedgerConfiguration",
 				"ClprGetEndpointManifest"

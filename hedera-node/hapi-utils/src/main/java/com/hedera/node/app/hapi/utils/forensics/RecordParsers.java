@@ -69,7 +69,8 @@ public class RecordParsers {
                                     itemRecord,
                                     timestampToInstant(itemRecord.getConsensusTimestamp())));
                         }));
-            } catch (IOException ignore) {
+            } catch (IOException e) {
+                throw new IOException("Unable to read record stream file " + recordFile, e);
             }
         }
         return entries;

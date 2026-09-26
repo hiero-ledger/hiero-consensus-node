@@ -73,6 +73,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
@@ -363,9 +364,12 @@ class ClprSubmitBundleHandlerTest {
                 .messages(List.of(payload))
                 .build();
         setupHandleContext(bundleTxn(bundle), true);
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(CLPR_RUNNING_HASH_MISMATCH));
+        final var exception = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(exception).has(responseCode(CLPR_RUNNING_HASH_MISMATCH));
+
+        exception.maybeReplay(feeChargingContext, handleContext);
+        verify(feeChargingContext).charge(PAYER_ID, new Fees(0, 5_000_000L, 0), null);
+        verify(feeChargingContext, never()).charge(eq(ENDPOINT_ACCOUNT), any(Fees.class), any());
     }
 
     @Test
@@ -1216,6 +1220,8 @@ class ClprSubmitBundleHandlerTest {
 
         subject.handle(handleContext);
 
+        verify(handleContext).tryToCharge(PAYER_ID, 5_000_000L);
+        verify(handleContext, never()).tryToCharge(eq(ENDPOINT_ACCOUNT), anyLong());
         assertThat(channelStore.getChannel(CHANNEL_ID).status()).isEqualTo(ClprChannelStatus.PAUSED);
         // Neither data message should be deleted
         assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNotNull();
@@ -2487,9 +2493,12 @@ class ClprSubmitBundleHandlerTest {
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload()));
         setupHandleContext(bundle, true, 1000, 65536, 1L /* max_sync_bytes = 1 forces rejection */);
 
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
+        final var exception = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(exception).has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
+
+        exception.maybeReplay(feeChargingContext, handleContext);
+        verify(feeChargingContext).charge(PAYER_ID, new Fees(0, 5_000_000L, 0), null);
+        verify(feeChargingContext, never()).charge(eq(ENDPOINT_ACCOUNT), any(Fees.class), any());
 
         // Channel state must not advance
         final var conn = channelStore.getChannel(CHANNEL_ID);
