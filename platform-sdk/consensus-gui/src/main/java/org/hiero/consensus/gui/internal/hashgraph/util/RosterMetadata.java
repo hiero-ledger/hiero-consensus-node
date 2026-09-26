@@ -24,10 +24,7 @@ public class RosterMetadata {
         numMembers = m;
         memberLabels = new String[m];
         for (int i = 0; i < m; i++) {
-            memberLabels[i] = "ID:%d W:%d"
-                    .formatted(
-                            roster.rosterEntry(i).nodeId(),
-                            roster.rosterEntry(i).weight());
+            memberLabels[i] = "ID:%s W:%d".formatted(roster.nodeIdAtIndex(i), roster.weightAtIndex(i));
         }
     }
 
@@ -50,7 +47,7 @@ public class RosterMetadata {
      */
     public int mems2col(@NonNull final EventImpl e) {
         Objects.requireNonNull(e, "e must not be null");
-        return roster.getIndex(e.getCreatorId());
+        return roster.index(e.getCreatorId());
     }
 
     /**

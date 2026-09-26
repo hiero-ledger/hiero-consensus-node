@@ -275,7 +275,7 @@ public class ConsensusLayerFactory {
     private FallenBehindMonitor createFallenBehindMonitor() {
         final double fallenBehindThreshold =
                 configuration.getConfigData(FallenBehindConfig.class).fallenBehindThreshold();
-        return new FallenBehindMonitor(rosterHistory.activeRoster().toPbj(), selfId, fallenBehindThreshold);
+        return new FallenBehindMonitor(rosterHistory.activeRoster(), selfId, fallenBehindThreshold);
     }
 
     @NonNull
@@ -403,7 +403,7 @@ public class ConsensusLayerFactory {
                 metrics,
                 time,
                 keysAndCerts,
-                rosterHistory.activeRoster().toPbj(),
+                rosterHistory.activeRoster(),
                 selfId,
                 version,
                 intakeEventCounter,
@@ -475,7 +475,7 @@ public class ConsensusLayerFactory {
     @NonNull
     private IntakeEventCounter createIntakeEventCounter() {
         if (configuration.getConfigData(SyncConfig.class).waitForEventsInIntake()) {
-            return new DefaultIntakeEventCounter(rosterHistory.activeRoster().toPbj());
+            return new DefaultIntakeEventCounter(rosterHistory.activeRoster());
         } else {
             return new NoOpIntakeEventCounter();
         }

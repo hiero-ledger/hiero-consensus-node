@@ -20,6 +20,6 @@ public class CryptoArgsProvider {
     static Stream<Arguments> basicTestArgs() {
         final RosterWithKeys rosterWithKeys = RosterWrapperFactory.randomRosterWithKeys(
                 Randotron.create(), NUMBER_OF_ADDRESSES, WeightGenerators.BALANCED_1000_PER_NODE);
-        return Stream.of(Arguments.of(rosterWithKeys.roster().toPbj(), rosterWithKeys.privateKeys()));
+        return Stream.of(Arguments.of(rosterWithKeys.roster(), rosterWithKeys.privateKeys()));
     }
 }

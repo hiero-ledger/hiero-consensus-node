@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.wiring.framework.wires.SolderType.INJECT;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -28,6 +27,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -58,7 +58,7 @@ public class TurtleGossipModule implements GossipModule {
             @NonNull final Metrics metrics,
             @NonNull final Time time,
             @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final Roster activeRoster,
+            @NonNull final RosterWrapper activeRoster,
             @NonNull final NodeId selfId,
             @NonNull final SemanticVersion appVersion,
             @NonNull final IntakeEventCounter intakeEventCounter,
