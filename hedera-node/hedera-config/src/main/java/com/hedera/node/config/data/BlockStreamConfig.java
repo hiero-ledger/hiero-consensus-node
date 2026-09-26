@@ -78,11 +78,7 @@ public record BlockStreamConfig(
         boolean streamWrappedRecordBlocks,
 
         @ConfigProperty(defaultValue = "false") @NodeProperty
-        boolean enhancedObservabilityEnabled,
-
-        // Whether to use SHA-256 instead of SHA-384 for block stream-related hashing
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
-        boolean useSha256) {
+        boolean enhancedObservabilityEnabled) {
 
     /**
      * Whether the node should maintain an active stream to block nodes — true when the main
