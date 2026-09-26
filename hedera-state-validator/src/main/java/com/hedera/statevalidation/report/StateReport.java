@@ -3,6 +3,8 @@ package com.hedera.statevalidation.report;
 
 import static com.hedera.statevalidation.util.ConfigUtils.NODE_NAME;
 
+import java.util.Locale;
+
 /**
  * Represents a comprehensive report for a node, containing details about different storage types and their respective analyses.
  */
@@ -49,7 +51,7 @@ public class StateReport {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(String.format("Report for node: %s\n\n", nodeName));
+        sb.append(String.format(Locale.ROOT, "Report for node: %s\n\n", nodeName));
 
         if (pathToHashReport != null) {
             sb.append("Path-to-Hash Storage:\n");

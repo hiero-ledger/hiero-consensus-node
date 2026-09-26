@@ -3,6 +3,7 @@ package com.hedera.statevalidation.exporter;
 
 import static com.hedera.statevalidation.util.ConfigUtils.getVirtualMapValueParseMaxSizeBytes;
 import static com.swirlds.state.merkle.StateKeyUtils.extractStateIdFromStateKeyOneOf;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
@@ -106,14 +108,14 @@ public class DiffExporter {
         createOutputFile(state1Entries, STATE_1_DIFF_JSON);
         createOutputFile(state2Entries, STATE_2_DIFF_JSON);
 
-        System.out.printf("Diff time: %d seconds%n", (System.currentTimeMillis() - startTimestamp) / 1000);
+        System.out.printf(Locale.ROOT, "Diff time: %d seconds%n", (System.currentTimeMillis() - startTimestamp) / 1000);
 
         return (state1Entries.isEmpty() && state2Entries.isEmpty()) ? 0 : 1;
     }
 
     private void createOutputFile(List<DiffEntry> diffEntries, String fileName) {
         final File resultFile = new File(resultDir.getParent(), fileName);
-        try (BufferedWriter writer1 = new BufferedWriter(new FileWriter(resultFile))) {
+        try (BufferedWriter writer1 = new BufferedWriter(new FileWriter(resultFile, UTF_8))) {
             for (DiffEntry e : diffEntries) {
                 String record = buildDiffRecord(e.path, e.keyBytes, e.valueBytes);
                 writer1.write(record);
@@ -245,26 +247,31 @@ public class DiffExporter {
 
         final String record;
         if (stateKey.key().kind().equals(StateKey.KeyOneOfType.SINGLETON)) {
-            record = "{\"p\":%d, \"v\":%s}"
-                    .formatted(path, StateUtils.valueToJson(stateValue.value()).replace("\n", ""));
+            record = String.format(
+                    Locale.ROOT,
+                    "{\"p\":%d, \"v\":%s}",
+                    path,
+                    StateUtils.valueToJson(stateValue.value()).replace("\n", ""));
         } else if (stateKey.key().value() instanceof Long) { // queue
-            record = "{\"p\":%d, \"i\":%s, \"v\":%s}"
-                    .formatted(
-                            path,
-                            stateKey.key().value(),
-                            StateUtils.valueToJson(stateValue.value()).replace("\n", ""));
+            record = String.format(
+                    Locale.ROOT,
+                    "{\"p\":%d, \"i\":%s, \"v\":%s}",
+                    path,
+                    stateKey.key().value(),
+                    StateUtils.valueToJson(stateValue.value()).replace("\n", ""));
         } else { // kv
-            record = "{\"p\":%d, \"k\":\"%s\", \"v\":\"%s\"}"
-                    .formatted(
-                            path,
-                            StateUtils.keyToJson(stateKey.key())
-                                    .replace("\\", "\\\\")
-                                    .replace("\"", "\\\"")
-                                    .replace("\n", ""),
-                            StateUtils.valueToJson(stateValue.value())
-                                    .replace("\\", "\\\\")
-                                    .replace("\"", "\\\"")
-                                    .replace("\n", ""));
+            record = String.format(
+                    Locale.ROOT,
+                    "{\"p\":%d, \"k\":\"%s\", \"v\":\"%s\"}",
+                    path,
+                    StateUtils.keyToJson(stateKey.key())
+                            .replace("\\", "\\\\")
+                            .replace("\"", "\\\"")
+                            .replace("\n", ""),
+                    StateUtils.valueToJson(stateValue.value())
+                            .replace("\\", "\\\\")
+                            .replace("\"", "\\\"")
+                            .replace("\n", ""));
         }
         return record;
     }

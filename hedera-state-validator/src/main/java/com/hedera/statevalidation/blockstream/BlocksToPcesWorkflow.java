@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
@@ -448,18 +449,22 @@ public final class BlocksToPcesWorkflow {
         // BlocksToPcesCommand.resolveGcpBlockStream for the GCS path.)
         if (selected.isEmpty()) {
             throw new IllegalArgumentException(String.format(
+                    Locale.ROOT,
                     "No block files fall within round window [%d, %d]. The block stream does not cover the "
                             + "requested rounds.",
-                    leftRound, targetRound));
+                    leftRound,
+                    targetRound));
         }
         final long firstSelectedMinRound = spans[orderedFiles.indexOf(selected.get(0))][0];
         if (firstSelectedMinRound > leftRound) {
             throw new IllegalArgumentException(String.format(
+                    Locale.ROOT,
                     "Block stream does not reach back far enough: the earliest available block starts at round %d, "
                             + "but the extraction requires rounds from %d. The origin round and its non-ancient "
                             + "parent tail are not present in the stream. Choose an origin round whose covered range "
                             + "(including the roundsNonAncient rounds before it) is fully within the available stream.",
-                    firstSelectedMinRound, leftRound));
+                    firstSelectedMinRound,
+                    leftRound));
         }
 
         // Right-boundary validation: the target round must actually be covered by the available blocks.
@@ -468,10 +473,13 @@ public final class BlocksToPcesWorkflow {
         // silently yields a PCES stream that never reaches the requested target round.
         if (maxSelectedRound < targetRound) {
             throw new IllegalArgumentException(String.format(
+                    Locale.ROOT,
                     "Target round %d is not covered by the available block files (highest round present is %d). "
                             + "Provide blocks through at least the block containing round %d, or lower "
                             + "--target-round.",
-                    targetRound, maxSelectedRound, targetRound));
+                    targetRound,
+                    maxSelectedRound,
+                    targetRound));
         }
         return selected;
     }

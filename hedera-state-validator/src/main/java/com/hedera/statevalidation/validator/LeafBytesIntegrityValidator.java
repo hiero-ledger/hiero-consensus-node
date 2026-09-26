@@ -22,6 +22,7 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
@@ -213,20 +214,21 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
         if (!ok) {
             throw new ValidationException(
                     getName(),
-                    ("%s validation failed. "
+                    String.format(
+                            Locale.ROOT,
+                            "%s validation failed. "
                                     + "successCount=%d vs expectedCount=%d, "
                                     + "pathMismatchCount=%d, valueErrorCount=%d, hashMismatchCount=%d, "
-                                    + "indexMismatchCount=%d, storeMismatchCount=%d, exceptionCount=%d")
-                            .formatted(
-                                    getName(),
-                                    successCount.get(),
-                                    leafCount,
-                                    pathMismatchCount.get(),
-                                    valueErrorCount.get(),
-                                    hashMismatchCount.get(),
-                                    indexMismatchCount.get(),
-                                    storeMismatchCount.get(),
-                                    exceptionCount.get()));
+                                    + "indexMismatchCount=%d, storeMismatchCount=%d, exceptionCount=%d",
+                            getName(),
+                            successCount.get(),
+                            leafCount,
+                            pathMismatchCount.get(),
+                            valueErrorCount.get(),
+                            hashMismatchCount.get(),
+                            indexMismatchCount.get(),
+                            storeMismatchCount.get(),
+                            exceptionCount.get()));
         }
     }
 

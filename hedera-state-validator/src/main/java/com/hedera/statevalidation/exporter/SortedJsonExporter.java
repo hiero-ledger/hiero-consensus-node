@@ -5,6 +5,7 @@ import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.hedera.statevalidation.util.ConfigUtils.MAX_OBJ_PER_FILE;
 import static com.hedera.statevalidation.util.ConfigUtils.PRETTY_PRINT_ENABLED;
 import static com.hedera.statevalidation.util.ConfigUtils.getVirtualMapValueParseMaxSizeBytes;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.hapi.platform.state.StateKey;
@@ -29,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -179,7 +181,8 @@ public class SortedJsonExporter {
             final int writingParallelism = keys.size() / MAX_OBJ_PER_FILE;
             final Pair<String, String> namePair = nameByStateId.get(entry.getKey());
             for (int i = 0; i <= writingParallelism; i++) {
-                final String fileName = String.format(SINGLE_STATE_TMPL, namePair.left(), namePair.right(), i + 1);
+                final String fileName =
+                        String.format(Locale.ROOT, SINGLE_STATE_TMPL, namePair.left(), namePair.right(), i + 1);
                 final int firstBatchIndex = i * MAX_OBJ_PER_FILE;
                 final int lastBatchIndex = Math.min((i + 1) * MAX_OBJ_PER_FILE, keys.size() - 1);
                 futures.add(CompletableFuture.runAsync(
@@ -194,7 +197,7 @@ public class SortedJsonExporter {
         final VirtualMap vm = state.getRoot();
         final File file = new File(resultDir, fileName);
         boolean emptyFile = true;
-        try (final BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
+        try (final BufferedWriter writer = new BufferedWriter(new FileWriter(file, UTF_8))) {
             for (int i = start; i <= end; i++) {
                 final long path = keys.get(i).left();
                 final Bytes keyBytes = keys.get(i).right();
@@ -271,24 +274,30 @@ public class SortedJsonExporter {
         }
         if (stateKey.key().kind().equals(StateKey.KeyOneOfType.SINGLETON)) {
             JsonUtils.write(
-                    writer, "{\"v\":%s}\n".formatted(StateUtils.valueToJson(stateValue.value())), PRETTY_PRINT_ENABLED);
+                    writer,
+                    String.format(Locale.ROOT, "{\"v\":%s}\n", StateUtils.valueToJson(stateValue.value())),
+                    PRETTY_PRINT_ENABLED);
         } else if (stateKey.key().value() instanceof Long) { // queue
             JsonUtils.write(
                     writer,
-                    "{\"i\":%s, \"v\":%s}\n"
-                            .formatted(stateKey.key().value(), StateUtils.valueToJson(stateValue.value())),
+                    String.format(
+                            Locale.ROOT,
+                            "{\"i\":%s, \"v\":%s}\n",
+                            stateKey.key().value(),
+                            StateUtils.valueToJson(stateValue.value())),
                     PRETTY_PRINT_ENABLED);
         } else { // kv
             JsonUtils.write(
                     writer,
-                    "{\"k\":\"%s\", \"v\":\"%s\"}\n"
-                            .formatted(
-                                    StateUtils.keyToJson(stateKey.key())
-                                            .replace("\\", "\\\\")
-                                            .replace("\"", "\\\""),
-                                    StateUtils.valueToJson(stateValue.value())
-                                            .replace("\\", "\\\\")
-                                            .replace("\"", "\\\"")),
+                    String.format(
+                            Locale.ROOT,
+                            "{\"k\":\"%s\", \"v\":\"%s\"}\n",
+                            StateUtils.keyToJson(stateKey.key())
+                                    .replace("\\", "\\\\")
+                                    .replace("\"", "\\\""),
+                            StateUtils.valueToJson(stateValue.value())
+                                    .replace("\\", "\\\\")
+                                    .replace("\"", "\\\"")),
                     PRETTY_PRINT_ENABLED);
         }
     }

@@ -6,6 +6,7 @@ import static com.hedera.statevalidation.exporter.SortedJsonExporter.SINGLE_STAT
 import static com.hedera.statevalidation.exporter.SortedJsonExporter.keyComparatorFor;
 import static com.hedera.statevalidation.exporter.SortedJsonExporter.writeEntry;
 import static com.hedera.statevalidation.util.ConfigUtils.MAX_OBJ_PER_FILE;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -27,6 +28,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -198,13 +200,14 @@ public class SortedDiffExporter {
             return;
         }
         // Both files are written even if one chunk is empty, so file n always exists on both sides.
-        final String fileName = String.format(SINGLE_STATE_TMPL, namePair.left(), namePair.right(), fileIndex + 1);
+        final String fileName =
+                String.format(Locale.ROOT, SINGLE_STATE_TMPL, namePair.left(), namePair.right(), fileIndex + 1);
         writes.add(CompletableFuture.runAsync(() -> writeFile(new File(dir1, fileName), chunk1, vm1), executorService));
         writes.add(CompletableFuture.runAsync(() -> writeFile(new File(dir2, fileName), chunk2, vm2), executorService));
     }
 
     private void writeFile(final File file, final List<Pair<Long, Bytes>> entries, final VirtualMap vm) {
-        try (final BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
+        try (final BufferedWriter writer = new BufferedWriter(new FileWriter(file, UTF_8))) {
             for (final Pair<Long, Bytes> entry : entries) {
                 final Bytes valueBytes =
                         vm.getRecords().findLeafRecord(entry.left()).valueBytes();
@@ -282,7 +285,8 @@ public class SortedDiffExporter {
             final Pair<String, String> namePair = nameByStateId.get(entry.getKey());
             final int fileCount = keys.size() / MAX_OBJ_PER_FILE;
             for (int i = 0; i <= fileCount; i++) {
-                final String fileName = String.format(SINGLE_STATE_TMPL, namePair.left(), namePair.right(), i + 1);
+                final String fileName =
+                        String.format(Locale.ROOT, SINGLE_STATE_TMPL, namePair.left(), namePair.right(), i + 1);
                 final int start = i * MAX_OBJ_PER_FILE;
                 final int end = Math.min((i + 1) * MAX_OBJ_PER_FILE, keys.size()) - 1;
                 futures.add(CompletableFuture.runAsync(
@@ -301,7 +305,7 @@ public class SortedDiffExporter {
             final int end) {
         final File file = new File(dir, fileName);
         boolean emptyFile = true;
-        try (final BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
+        try (final BufferedWriter writer = new BufferedWriter(new FileWriter(file, UTF_8))) {
             for (int i = start; i <= end; i++) {
                 final long path = keys.get(i).left();
                 final Bytes keyBytes = keys.get(i).right();
