@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
+import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_KEYS;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -37,9 +38,11 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
@@ -426,6 +429,39 @@ public class CryptoUpdateSuite {
                 newKeyNamed(UPD_KEY).shape(updKeySigs),
                 cryptoCreate(TEST_ACCOUNT).key(ORIG_KEY),
                 cryptoUpdate(TEST_ACCOUNT).key(UPD_KEY).hasPrecheck(INVALID_ADMIN_KEY));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateToEmptyKeyListFailsForRegularAccount() {
+        return hapiTest(
+                newKeyNamed(ORIG_KEY),
+                cryptoCreate(TEST_ACCOUNT).key(ORIG_KEY).balance(ONE_HUNDRED_HBARS),
+                cryptoUpdate(TEST_ACCOUNT)
+                        .protoKey(EMPTY_KEY)
+                        .payingWith(TEST_ACCOUNT)
+                        .signedBy(TEST_ACCOUNT)
+                        .hasKnownStatus(INVALID_ADMIN_KEY),
+                getAccountInfo(TEST_ACCOUNT).has(accountWith().key(ORIG_KEY)));
+    }
+
+    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_KEYS)
+    final Stream<DynamicTest> systemAdminCanSetSystemAccountKeyToEmptyKeyList() {
+        final var systemAccount = "96";
+        final var originalKey = new AtomicReference<Key>();
+        return hapiTest(
+                getAccountInfo(systemAccount).exposingKeyTo(originalKey::set),
+                cryptoUpdate(systemAccount)
+                        .protoKey(EMPTY_KEY)
+                        .payingWith(SYSTEM_ADMIN)
+                        .signedBy(SYSTEM_ADMIN)
+                        .hasKnownStatus(SUCCESS),
+                getAccountInfo(systemAccount).has(accountWith().hasEmptyKey()),
+                // Restore the original key
+                sourcing(() -> cryptoUpdate(systemAccount)
+                        .protoKey(originalKey.get())
+                        .payingWith(SYSTEM_ADMIN)
+                        .signedBy(SYSTEM_ADMIN)),
+                sourcing(() -> getAccountInfo(systemAccount).has(accountWith().key(originalKey.get()))));
     }
 
     @HapiTest
