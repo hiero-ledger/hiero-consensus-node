@@ -48,7 +48,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
      * Impl collapses {@code CLOSING → DRAINED → CLOSED} in one bundle-processing pass, violating
      * spec §2.1.1's "peer observes DRAINED during sync" guarantee — the collapsing side never
      * emits a bundle carrying {@code DRAINED}, so the peer sticks at {@code DRAINED} and its
-     * retries trip the peer-scoped {@code CircuitBreaker} in {@code ClprSynchronizerImpl},
+     * retries trip the peer-scoped {@code CircuitBreaker} in {@code ClprPeerSelector},
      * blackholing every other channel to the same host:port until cooldown expires.
      *
      * <p>Fix per spec: defer {@code DRAINED → CLOSED} to a subsequent bundle-processing pass so
