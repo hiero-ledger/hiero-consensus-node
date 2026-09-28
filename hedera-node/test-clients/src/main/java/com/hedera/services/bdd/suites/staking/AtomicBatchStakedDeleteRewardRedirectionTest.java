@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
@@ -90,6 +91,18 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
     private static final String SD_OUTER_PAYER = "rewardRedirectSdOuterPayer";
     private static final String SD_INNER = "rewardRedirectSdInner";
     private static final String SD_BATCH = "rewardRedirectSdBatch";
+
+    private static final String DRAIN_FEE_PAYER = "drainDeleteFeePayer";
+    private static final String DRAIN_OUTER_PAYER = "drainDeleteOuterPayer";
+    private static final String DRAIN_EARNER = "drainDeleteEarner";
+    private static final String DRAIN_BENEFICIARY = "drainDeleteBeneficiary";
+    private static final String DRAIN_TARGET = "drainDeleteTarget";
+    private static final String DRAIN_INNER = "drainDeleteDrainInner";
+    private static final String DRAIN_DELETE_INNER = "drainDeleteDeleteInner";
+    private static final String DRAIN_BATCH = "drainDeleteBatch";
+    private static final String DRAIN_EARNER_BEFORE = "drainDeleteEarnerBefore";
+    private static final String DRAIN_BENEFICIARY_BEFORE = "drainDeleteBeneficiaryBefore";
+    private static final String DRAIN_BENEFICIARY_AFTER = "drainDeleteBeneficiaryAfter";
 
     private static final int WORK_INNER_COUNT = 15;
     private static final long GAS_LIMIT = 500_000L;
@@ -462,6 +475,181 @@ class AtomicBatchStakedDeleteRewardRedirectionTest {
                             "PASS: self-destruct batch SUCCESS, reward {} redirected to beneficiary, fees charged",
                             paidRewards.get(0).getAmount());
                 })));
+    }
+
+    /**
+     * Regression for the drain-then-delete forfeiture. In one atomic batch, rewardable A is first
+     * fully drained to a third account C and then deleted with independently rewardable,
+     * otherwise-untouched B as beneficiary; the delete transfers zero tinybars, so B is absent from
+     * the reward-receiver set snapshotted at root staking finalization. The distributor must then
+     * not only redirect A's reward to B, but also assess and pay B's OWN pending reward before B's
+     * stake metadata is advanced -- otherwise advancing {@code stakePeriodStart} silently forfeits
+     * B's accrued reward periods. A and B are created with different balances so the combined
+     * payout {@code R_A + R_B} cannot be confused with any double-payment of either reward.
+     */
+    @LeakyRepeatableHapiTest(
+            value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS},
+            overrides = {
+                "staking.startThreshold",
+                "staking.perHbarRewardRate",
+                "staking.rewardBalanceThreshold",
+                "staking.requireMinStakeToReward"
+            })
+    final Stream<DynamicTest> drainedStakedDeleteInAtomicBatchAlsoPaysBeneficiaryOwnReward() {
+        final var earnerPendingReward = new AtomicLong();
+        final var beneficiaryPendingReward = new AtomicLong();
+        final var beneficiaryBefore = new AtomicLong();
+        final var beneficiaryAfter = new AtomicLong();
+        final var drainTargetBefore = new AtomicLong();
+        final var drainTargetAfter = new AtomicLong();
+        final var networkPendingBefore = new AtomicLong();
+        final var networkPendingAfter = new AtomicLong();
+        final var beneficiaryStakePeriodStartBefore = new AtomicLong();
+        final var beneficiaryStakePeriodStartAfter = new AtomicLong();
+        final var beneficiaryStakeAtStartOfLastRewardedPeriod = new AtomicLong();
+        final var batchRecord = new AtomicReference<TransactionRecord>();
+
+        final var drainInner = cryptoTransfer(tinyBarsFromTo(DRAIN_EARNER, DRAIN_TARGET, ONE_HUNDRED_HBARS))
+                .payingWith(DRAIN_FEE_PAYER)
+                .signedBy(DRAIN_FEE_PAYER, DRAIN_EARNER)
+                .memo("t1")
+                .batchKey(BATCH_KEY)
+                .via(DRAIN_INNER);
+        final var deleteInner = cryptoDelete(DRAIN_EARNER)
+                .transfer(DRAIN_BENEFICIARY)
+                .payingWith(DRAIN_FEE_PAYER)
+                .signedBy(DRAIN_FEE_PAYER, DRAIN_EARNER)
+                .memo("t2")
+                .batchKey(BATCH_KEY)
+                .via(DRAIN_DELETE_INNER);
+        final var batch = atomicBatch(drainInner, deleteInner)
+                .payingWith(DRAIN_OUTER_PAYER)
+                .signedBy(DRAIN_OUTER_PAYER, BATCH_KEY)
+                .memo("b")
+                .via(DRAIN_BATCH)
+                .hasKnownStatus(SUCCESS);
+
+        return hapiTest(
+                // Activate staking rewards with a payable reward fund.
+                overridingAllOf(java.util.Map.of(
+                        "staking.startThreshold", "" + 10 * ONE_HBAR,
+                        "staking.perHbarRewardRate", "6849",
+                        "staking.rewardBalanceThreshold", "0",
+                        "staking.requireMinStakeToReward", "false")),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, STAKING_REWARD, ONE_MILLION_HBARS)),
+                newKeyNamed(BATCH_KEY),
+                cryptoCreate(DRAIN_FEE_PAYER).balance(ONE_MILLION_HBARS),
+                cryptoCreate(DRAIN_OUTER_PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(DRAIN_EARNER).balance(ONE_HUNDRED_HBARS).stakedNodeId(0),
+                // A different stake than the earner's, so R_A + R_B is unambiguous
+                cryptoCreate(DRAIN_BENEFICIARY)
+                        .balance(ONE_HUNDRED_HBARS / 2)
+                        .stakedNodeId(0)
+                        .receiverSigRequired(false),
+                cryptoCreate(DRAIN_TARGET).balance(0L).receiverSigRequired(false),
+
+                // Accrue positive, payable pending rewards for BOTH staked accounts.
+                waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
+                waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
+                waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
+                getAccountInfo(DRAIN_EARNER).savingSnapshot(DRAIN_EARNER_BEFORE),
+                getAccountInfo(DRAIN_BENEFICIARY).savingSnapshot(DRAIN_BENEFICIARY_BEFORE),
+                assertionsHold((spec, log) -> {
+                    earnerPendingReward.set(pendingOf(spec.registry().getAccountInfo(DRAIN_EARNER_BEFORE)));
+                    beneficiaryPendingReward.set(pendingOf(spec.registry().getAccountInfo(DRAIN_BENEFICIARY_BEFORE)));
+                    Assertions.assertThat(earnerPendingReward.get())
+                            .as("precondition: the earner must have a positive pending reward")
+                            .isPositive();
+                    Assertions.assertThat(beneficiaryPendingReward.get())
+                            .as("precondition: the beneficiary must have its own positive pending reward")
+                            .isPositive();
+                    Assertions.assertThat(earnerPendingReward.get())
+                            .as("precondition: the two pending rewards must differ, or the combined "
+                                    + "payout could not be distinguished from a double payment")
+                            .isNotEqualTo(beneficiaryPendingReward.get());
+                }),
+
+                // Snapshot everything the fix should change.
+                getAccountBalance(DRAIN_BENEFICIARY).exposingBalanceTo(beneficiaryBefore::set),
+                getAccountBalance(DRAIN_TARGET).exposingBalanceTo(drainTargetBefore::set),
+                viewAccount(
+                        DRAIN_BENEFICIARY,
+                        account -> beneficiaryStakePeriodStartBefore.set(account.stakePeriodStart())),
+                viewSingleton(
+                        TokenService.NAME,
+                        STAKING_NETWORK_REWARDS_STATE_ID,
+                        (NetworkStakingRewards rewards) -> networkPendingBefore.set(rewards.pendingRewards())),
+
+                // Drain A to C, then delete A to B -- all inside one atomic batch.
+                batch,
+
+                // Rewards are finalized once, at the root: the batch record externalizes exactly one
+                // paid staking reward (to B), and the inner delete record none.
+                getTxnRecord(DRAIN_BATCH)
+                        .hasPriority(recordWith().status(SUCCESS))
+                        .hasPaidStakingRewardsCount(1)
+                        .exposingTo(batchRecord::set),
+                getTxnRecord(DRAIN_INNER).hasPriority(recordWith().status(SUCCESS)),
+                getTxnRecord(DRAIN_DELETE_INNER)
+                        .hasPriority(recordWith().status(SUCCESS))
+                        .hasPaidStakingRewardsCount(0),
+                getAccountBalance(DRAIN_BENEFICIARY).exposingBalanceTo(beneficiaryAfter::set),
+                getAccountBalance(DRAIN_TARGET).exposingBalanceTo(drainTargetAfter::set),
+                viewAccount(DRAIN_BENEFICIARY, account -> {
+                    beneficiaryStakePeriodStartAfter.set(account.stakePeriodStart());
+                    beneficiaryStakeAtStartOfLastRewardedPeriod.set(account.stakeAtStartOfLastRewardedPeriod());
+                }),
+                viewSingleton(
+                        TokenService.NAME,
+                        STAKING_NETWORK_REWARDS_STATE_ID,
+                        (NetworkStakingRewards rewards) -> networkPendingAfter.set(rewards.pendingRewards())),
+                getAccountInfo(DRAIN_BENEFICIARY).savingSnapshot(DRAIN_BENEFICIARY_AFTER),
+                assertionsHold((spec, log) -> {
+                    final long expectedPayout = earnerPendingReward.get() + beneficiaryPendingReward.get();
+
+                    // The drain really emptied A into C, so the delete transferred zero principal.
+                    Assertions.assertThat(drainTargetAfter.get() - drainTargetBefore.get())
+                            .as("the drain target receives the earner's whole balance")
+                            .isEqualTo(ONE_HUNDRED_HBARS);
+
+                    // B receives A's redirected reward AND its own pending reward -- and nothing else.
+                    Assertions.assertThat(beneficiaryAfter.get() - beneficiaryBefore.get())
+                            .as("beneficiary receives the redirected reward plus its own pending reward")
+                            .isEqualTo(expectedPayout);
+
+                    // Record-level proof: one paid staking reward, to B, for the combined amount.
+                    final var paidRewards = batchRecord.get().getPaidStakingRewardsList();
+                    Assertions.assertThat(paidRewards).hasSize(1);
+                    Assertions.assertThat(paidRewards.get(0).getAccountID())
+                            .isEqualTo(spec.registry().getAccountID(DRAIN_BENEFICIARY));
+                    Assertions.assertThat(paidRewards.get(0).getAmount()).isEqualTo(expectedPayout);
+
+                    // Both pending-reward liabilities are reduced exactly once.
+                    Assertions.assertThat(networkPendingBefore.get() - networkPendingAfter.get())
+                            .as("the network pending reward decreases by exactly both paid rewards")
+                            .isEqualTo(expectedPayout);
+
+                    // B's stake metadata advanced only together with that own assessment: its
+                    // stakePeriodStart moved forward, its stake at the start of the last rewarded
+                    // period was remembered, and it has no leftover (forfeited) pending reward.
+                    Assertions.assertThat(beneficiaryStakePeriodStartAfter.get())
+                            .as("beneficiary stakePeriodStart advances after its own reward is paid")
+                            .isGreaterThan(beneficiaryStakePeriodStartBefore.get());
+                    Assertions.assertThat(beneficiaryStakeAtStartOfLastRewardedPeriod.get())
+                            .as("beneficiary stakeAtStartOfLastRewardedPeriod reflects its ORIGINAL "
+                                    + "stake, not a balance inflated by the redirected reward")
+                            .isEqualTo(ONE_HUNDRED_HBARS / 2);
+                    Assertions.assertThat(pendingOf(spec.registry().getAccountInfo(DRAIN_BENEFICIARY_AFTER)))
+                            .as("no beneficiary pending reward may remain unpaid after the advance")
+                            .isZero();
+                    log.info(
+                            "PASS: batch SUCCESS, beneficiary paid redirected {} plus own {}",
+                            earnerPendingReward.get(),
+                            beneficiaryPendingReward.get());
+                }));
     }
 
     private static HapiTxnOp<?>[] workThen(final String payer, final HapiTxnOp<?> terminalOperation) {
