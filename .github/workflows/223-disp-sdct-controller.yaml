@@ -1,6 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "223: [DISP] CITR SDCT Controller"
 
+# TODO: 901 dispatches this workflow with only `build-tag`; the required `blocknode-version` and
+#       `mirrornode-version` inputs will be supplied once the external framework changes land.
+# TODO: SDCT runs on the single perf1 network; the concurrency group below serializes runs of this workflow,
+#       overlapping runs from other sources will be prevented by the external framework changes.
+# TODO: add an ad hoc SDCT controller workflow for user dispatches, as 201 is to 221 for SDPT.
 on:
   workflow_dispatch:
     inputs:
@@ -13,13 +18,34 @@ on:
         required: true
         description: "build-XXXXX tag associated with the ref input."
         type: string
+      blocknode-version:
+        required: true
+        description: "BlockNode version associated with the ref input."
+        type: string
+      mirrornode-version:
+        required: true
+        description: "MirrorNode version associated with the ref input."
+        type: string
+      test-name:
+        required: false
+        default: "sdct"
+        description: "SDCT test: sdct (full test), mini (short run for debugging, not tagged), custom (ad hoc, not tagged)."
+        type: choice
+        options:
+          - sdct
+          - mini
+          - custom
+
+concurrency:
+  group: sdct-perf1
+  cancel-in-progress: false
 
 defaults:
   run:
     shell: bash
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
@@ -27,7 +53,8 @@ jobs:
     name: Canonical
     runs-on: hl-cn-sdct-lin-sm
 
-    timeout-minutes: 90 # max one hour timeout
+    # No workflow deadline: the SDCT run time is bounded by the test driver; 5 days is the self-hosted job maximum
+    timeout-minutes: 7200
 
     outputs:
       harden-runner: ${{ steps.harden-runner.outcome }}
@@ -40,6 +67,11 @@ jobs:
       start-canonical-test: ${{ steps.start-canonical-test.outcome }}
       summary: ${{ steps.summary.outcome }}
       commit: ${{ steps.parameters.outputs.sha || 'N/A' }}
+      build-number: ${{ steps.parameters.outputs.build-number }}
+      jenkins-build-url: ${{ steps.start-canonical-test.outputs.build-url }}
+      jenkins-result: ${{ steps.start-canonical-test.outputs.jenkins-result }}
+      verdict: ${{ steps.start-canonical-test.outputs.verdict }}
+      reason: ${{ steps.start-canonical-test.outputs.reason }}
 
     steps:
       - name: Harden Runner
@@ -96,6 +128,8 @@ jobs:
         env:
           REF_INPUT: ${{ inputs.ref }}
           BUILD_TAG_INPUT: ${{ inputs.build-tag }}
+          BLOCKNODE_INPUT: ${{ inputs.blocknode-version }}
+          MIRRORNODE_INPUT: ${{ inputs.mirrornode-version }}
         run: |-
           # log functions
           log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
@@ -108,7 +142,19 @@ jobs:
           BRANCH_NAME_LOWER="$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]')"
           BUILD_ARTIFACT="${BUILD_TAG_INPUT//[^a-zA-Z0-9\-_.]/_}"
 
+          for var in BLOCKNODE_INPUT MIRRORNODE_INPUT; do
+            if [[ -z "${!var// }" ]]; then
+              log_error "Required input ${var} is empty"
+              exit 1
+            fi
+          done
+
           log_info "Parameters: Branch: ${BRANCH_NAME}, Build: ${BUILD_ARTIFACT}"
+          # main: the artifact is named after the commit of the build tag and doubles as the service version;
+          # other refs: the build tag is the artifact name, the ref is the service version, no commit lookup
+          TAG_COMMIT_SHA=""
+          TAG_COMMIT_SHORT=""
+          VERSION_SERVICE="${REF_INPUT}"
           if [[ "${BRANCH_NAME_LOWER}" = "main" ]]; then
             TAG_COMMIT_SHA=$(git rev-list -n 1 "${BUILD_ARTIFACT}") || {
               log_error "Failed to get commit SHA for tag: ${BUILD_ARTIFACT}"
@@ -117,12 +163,26 @@ jobs:
               exit 1
             }
             TAG_COMMIT_SHORT="${TAG_COMMIT_SHA:0:8}"
-            BUILD_ARTIFACT="build-${BRANCH_NAME_LOWER}-${TAG_COMMIT_SHORT}"
-            log_info "Artifact name for main branch: ${BUILD_ARTIFACT}"
             echo "sha=${TAG_COMMIT_SHA}" >> "${GITHUB_OUTPUT}"
+            BUILD_ARTIFACT="build-${BRANCH_NAME_LOWER}-${TAG_COMMIT_SHORT}"
+            VERSION_SERVICE="${BUILD_ARTIFACT}"
+            log_info "Artifact name for main branch: ${BUILD_ARTIFACT}"
+          else
+            log_info "Non-main ref, commit lookup skipped, artifact name: ${BUILD_ARTIFACT}"
           fi
+
+          # Build number for the sdct-pass-/sdct-fail- result tags; only build tags with a known commit are tagged
+          BUILD_NUMBER=""
+          if [[ -n "${TAG_COMMIT_SHA}" && "${BUILD_TAG_INPUT}" =~ ^build-(.{5})$ ]]; then
+            BUILD_NUMBER="${BASH_REMATCH[1]}"
+          else
+            echo "::notice title=Untagged Build::The provided tag (${BUILD_TAG_INPUT}) on ref (${REF_INPUT}) is not a main build tag, the SDCT result will not be tagged."
+          fi
+          echo "build-number=${BUILD_NUMBER}" >> "${GITHUB_OUTPUT}"
+
           log_pass "Parameter verification completed"
           echo "artifact-name=${BUILD_ARTIFACT}" >> "${GITHUB_OUTPUT}"
+          echo "version-service=${VERSION_SERVICE}" >> "${GITHUB_OUTPUT}"
 
           # Update Summary
           {
@@ -130,10 +190,12 @@ jobs:
             echo "- **Input Branch/Ref**: ${BRANCH_NAME}"
             echo "- **Input Build Tag**: ${{ inputs.build-tag }}"
             echo "- **Generated Artifact Name**: ${BUILD_ARTIFACT}"
-            if [[ "${BRANCH_NAME_LOWER}" = "main" ]]; then
-              echo "- **Commit SHA**: \`${TAG_COMMIT_SHA}\`"
-              echo "- **Short Commit**: \`${TAG_COMMIT_SHORT}\`"
-            fi
+            echo "- **Service Version**: ${VERSION_SERVICE}"
+            echo "- **BlockNode Version**: ${BLOCKNODE_INPUT}"
+            echo "- **MirrorNode Version**: ${MIRRORNODE_INPUT}"
+            echo "- **Commit SHA**: \`${TAG_COMMIT_SHA:-N/A}\`"
+            echo "- **Short Commit**: \`${TAG_COMMIT_SHORT:-N/A}\`"
+            echo "- **Build Number**: ${BUILD_NUMBER:-N/A}"
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Check Artifact Availability
@@ -198,6 +260,14 @@ jobs:
           PASSWORD: ${{ secrets.TESTING_JENKINS_API_PASSWORD }}
           SERVER: ${{ secrets.TESTING_JENKINS_API_SERVER }}
           TEST_SCRIPT: ".github/workflows/support/scripts/sdct.sh"
+          WAIT_SCRIPT: ".github/workflows/support/scripts/sdct-wait.sh"
+          VERSION_SERVICE: ${{ steps.parameters.outputs.version-service }}
+          BLOCKNODE_VERSION: ${{ inputs.blocknode-version }}
+          MIRRORNODE_VERSION: ${{ inputs.mirrornode-version }}
+          GH_RUN_ID: ${{ github.run_id }}
+          GH_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SDCT_TEST: ${{ inputs.test-name || 'sdct' }}
+          SDCT_OUT_DIR: ${{ runner.temp }}/sdct
         run: |-
           # log functions
           log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
@@ -208,10 +278,13 @@ jobs:
           set -euo pipefail
 
           TEST_SCRIPT_PATH="${{ github.workspace }}/${{ env.TEST_SCRIPT }}"
-          if [ ! -f "${TEST_SCRIPT_PATH}" ]; then
-            log_error "Test script not found: ${TEST_SCRIPT_PATH}"
-            exit 1
-          fi
+          WAIT_SCRIPT_PATH="${{ github.workspace }}/${{ env.WAIT_SCRIPT }}"
+          for script in "${TEST_SCRIPT_PATH}" "${WAIT_SCRIPT_PATH}"; do
+            if [ ! -f "${script}" ]; then
+              log_error "Test script not found: ${script}"
+              exit 1
+            fi
+          done
 
           for var in USERNAME PASSWORD SERVER; do
             if [[ -z "${!var:-}" ]]; then
@@ -223,23 +296,54 @@ jobs:
           BUILD_TAG="${{ steps.check-if-exist.outputs.build-tag }}"
           BUILD_VERSION="${{ steps.check-if-exist.outputs.build-version }}"
 
-          log_info "Starting canonical test execution......"
+          log_info "Starting canonical test [${SDCT_TEST}] execution......"
           log_info "Build Tag: ${BUILD_TAG}"
           log_info "Build Version: ${BUILD_VERSION}"
+          log_info "Service Version: ${VERSION_SERVICE}"
+          log_info "BlockNode Version: ${BLOCKNODE_VERSION}"
+          log_info "MirrorNode Version: ${MIRRORNODE_VERSION}"
 
-
-          if bash "${TEST_SCRIPT_PATH}" "${BUILD_TAG}" "${BUILD_VERSION}"; then
-            log_pass "Canonical test started successfully"
-            echo "status=success" >> "${GITHUB_OUTPUT}"
-          else
+          if ! QUEUE_ID=$(bash "${TEST_SCRIPT_PATH}" "${BUILD_TAG}" "${BUILD_VERSION}" "${VERSION_SERVICE}" "${BLOCKNODE_VERSION}" "${MIRRORNODE_VERSION}" "${SDCT_TEST}"); then
             log_error "Canonical test failed to start"
-            echo "status=failure" >> "${GITHUB_OUTPUT}"
+            echo "verdict=infra" >> "${GITHUB_OUTPUT}"
+            echo "reason=Canonical test failed to start" >> "${GITHUB_OUTPUT}"
             exit 1
           fi
+          log_pass "Canonical test started successfully, Jenkins queue item ${QUEUE_ID}"
+
+          # Follows the Jenkins build until it finishes, writes build-number, build-url,
+          # jenkins-result, verdict and reason outputs, exits non-zero unless the verdict is pass
+          bash "${WAIT_SCRIPT_PATH}" wait "${QUEUE_ID}"
+
+      - name: Stop Jenkins Build on Cancel
+        id: stop-canonical-test
+        if: ${{ cancelled() }}
+        env:
+          USERNAME: ${{ secrets.TESTING_JENKINS_API_USERNAME }}
+          PASSWORD: ${{ secrets.TESTING_JENKINS_API_PASSWORD }}
+          SERVER: ${{ secrets.TESTING_JENKINS_API_SERVER }}
+          SDCT_OUT_DIR: ${{ runner.temp }}/sdct
+        run: |-
+          # Stops the Jenkins build, or cancels the queue item if the build has not started yet
+          bash "${{ github.workspace }}/.github/workflows/support/scripts/sdct-wait.sh" cancel
+
+      - name: Upload SDCT Results
+        id: upload-results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
+        with:
+          name: sdct-results
+          path: ${{ runner.temp }}/sdct
+          if-no-files-found: ignore
 
       - name: Summary
         id: summary
         if: always()
+        env:
+          JENKINS_BUILD_URL: ${{ steps.start-canonical-test.outputs.build-url }}
+          VERDICT: ${{ steps.start-canonical-test.outputs.verdict }}
+          REASON: ${{ steps.start-canonical-test.outputs.reason }}
         run: |-
           # log functions
           log_info() { echo "[$(date '+%Y-%m-%d %T')] ℹ️  $1"; }
@@ -263,11 +367,17 @@ jobs:
             echo "## Input Parameters"
             echo "- **Reference**: \`${{ inputs.ref }}\`"
             echo "- **Build Tag**: \`${{ inputs.build-tag }}\`"
+            echo "- **SDCT Test**: \`${{ inputs.test-name || 'sdct' }}\`"
             echo
             echo "## Processing Results"
             echo "- **Generated Artifact Name**: \`${{ steps.check-if-exist.outputs.build-version || 'N/A' }}\`"
             echo "- **Artifact Check**: ${{ steps.check-if-exist.outcome == 'success' && '✅ Passed' || '❌ Failed' }}"
-            echo "- **Test Trigger**: ${{ steps.start-canonical-test.outcome == 'success' && '✅ Passed' || '❌ Failed' }}"
+            echo "- **Test Trigger**: ${{ steps.start-canonical-test.outputs.build-number != '' && '✅ Passed' || '❌ Failed' }}"
+            echo "- **Jenkins Build**: ${JENKINS_BUILD_URL:-N/A}"
+            echo "- **SDCT Verdict**: ${VERDICT:-N/A}"
+            if [[ -n "${REASON}" ]]; then
+              echo "- **Reason**: ${REASON}"
+            fi
             echo
             echo "## Execution Details"
             echo "- **Workflow Run ID**: ${{ github.run_id }}"
@@ -281,43 +391,129 @@ jobs:
               echo "## ⚠️ Troubleshooting"
               echo "1. Check the artifact exists in the specified bucket"
               echo "2. Review the test script for any issues"
+              echo "3. Review the Jenkins build console and the sdct-results artifact"
             fi
           } >> "${GITHUB_STEP_SUMMARY}"
 
-  report-failures:
-    name: Report Failures to Rootly
+  tag-sdct-result:
+    name: Tag SDCT Result
+    runs-on: hl-cn-sdct-lin-sm
     needs:
       - canonical-test
-    if: ${{ needs.canonical-test.result != 'success' }}
+    # Only the full SDCT test (sdct) is tagged; mini and custom runs report in the summary and artifact only
+    if: ${{ !cancelled() && (inputs.test-name || 'sdct') == 'sdct' &&
+      (needs.canonical-test.outputs.verdict == 'pass' || needs.canonical-test.outputs.verdict == 'fail') &&
+      needs.canonical-test.outputs.build-number != '' }}
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ github.ref }}"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+          checkout-fetch-depth: "0"
+
+      - name: Import GPG Key
+        id: gpg_importer
+        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
+        with:
+          git_commit_gpgsign: true
+          git_tag_gpgsign: true
+          git_user_signingkey: true
+          gpg_private_key: ${{ secrets.SVCS_GPG_KEY_CONTENTS }}
+          passphrase: ${{ secrets.SVCS_GPG_KEY_PASSPHRASE }}
+
+      - name: Tag SDCT Result
+        env:
+          VERDICT: ${{ needs.canonical-test.outputs.verdict }}
+          BUILD_NUM: ${{ needs.canonical-test.outputs.build-number }}
+          COMMIT: ${{ needs.canonical-test.outputs.commit }}
+        run: |
+          if [[ "${VERDICT}" == "pass" ]]; then
+            TAG_NAME="sdct-pass-${BUILD_NUM}"
+            MSG="Single Day Canonical Test passed for build-${BUILD_NUM}"
+          else
+            TAG_NAME="sdct-fail-${BUILD_NUM}"
+            MSG="Single Day Canonical Test FAILED for build-${BUILD_NUM}"
+          fi
+
+          git tag --annotate "${TAG_NAME}" --message "${MSG}" "${COMMIT}"
+          git push origin "refs/tags/${TAG_NAME}"
+
+          echo "### SDCT Result - Tag Information" >> "${GITHUB_STEP_SUMMARY}"
+          echo "SDCT Tag: ${TAG_NAME}" >> "${GITHUB_STEP_SUMMARY}"
+
+          # TODO: push the SDCT result to Chewie once Chewie supports result reporting
+
+  report-failure:
+    name: Report SDCT execution failure
     runs-on: hl-cn-sdct-lin-sm
+    needs:
+      - canonical-test
+      - tag-sdct-result
+    # Only the full SDCT test (sdct) raises Rootly alerts
+    if: ${{ (needs.canonical-test.result != 'success' ||
+      needs.tag-sdct-result.result == 'failure') &&
+      (inputs.test-name || 'sdct') == 'sdct' &&
+      !cancelled() }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
           egress-policy: audit
 
+      - name: Collect run logs in a log file
+        env:
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        continue-on-error: true
+        run: |
+          for job_id in $(gh run view ${{ github.run_id }} --repo ${{ github.repository }} --json jobs --jq '.jobs | map(.databaseId) | .[0:-1] | .[]'); do
+            echo "Fetching logs for job $job_id..."
+
+            current_job_name=$(gh run view ${{ github.run_id }} --repo ${{ github.repository }} --json jobs | jq --argjson job_id "$job_id" -r '.jobs[] | select(.databaseId == $job_id) | .name')
+
+            echo "Logs for job $current_job_name :" >> run.log
+
+            gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${{ github.repository }}/actions/jobs/${job_id}/logs" >> run.log
+          done
+
+      - name: Upload log as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        continue-on-error: true
+        with:
+          path: run.log
+
       - name: Set Rootly Service
         id: set-rootly-service
+        env:
+          VERDICT: ${{ needs.canonical-test.outputs.verdict }}
         run: |
-          ROOTLY_SERVICE="CITR SDCT"
-          if [[ "${{ needs.canonical-test.outputs.harden-runner }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.canonical-test.outputs.checkout-code }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.canonical-test.outputs.gcloud-auth }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.canonical-test.outputs.setup-gcloud }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.canonical-test.outputs.install-tools }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.canonical-test.outputs.summary }}" =~ ^(cancelled|failure)$ ]]; then
-            ROOTLY_SERVICE="CI/CD Workflows"
+          # Only an SDCT test failure goes to the SDCT service, setup, infra and tagging failures go to CI/CD
+          ROOTLY_SERVICE="CI/CD Workflows"
+          if [[ "${VERDICT}" == "fail" ]]; then
+            ROOTLY_SERVICE="CITR SDCT"
           fi
           echo "service=${ROOTLY_SERVICE}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Rootly Summary
         id: rootly-summary
+        env:
+          VERDICT: ${{ needs.canonical-test.outputs.verdict || 'N/A' }}
+          REASON: ${{ needs.canonical-test.outputs.reason || 'N/A' }}
+          JENKINS_RESULT: ${{ needs.canonical-test.outputs.jenkins-result || 'N/A' }}
+          JENKINS_BUILD_URL: ${{ needs.canonical-test.outputs.jenkins-build-url || 'N/A' }}
+          BUILD_TAG: ${{ inputs.build-tag }}
         run: |
           title="The SDCT Job Failed"
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'
             echo "------------------------------------"
+            echo "Status of each step:"
             echo "- Harden Runner: ${{ needs.canonical-test.outputs.harden-runner }}"
             echo "- Checkout Code: ${{ needs.canonical-test.outputs.checkout-code }}"
             echo "- GCloud Auth: ${{ needs.canonical-test.outputs.gcloud-auth }}"
@@ -327,21 +523,32 @@ jobs:
             echo "- Check Artifact: ${{ needs.canonical-test.outputs.check-if-exist }}"
             echo "- Start Canonical Test: ${{ needs.canonical-test.outputs.start-canonical-test }}"
             echo "- Summary: ${{ needs.canonical-test.outputs.summary }}"
+            echo "- Tag SDCT Result: ${{ needs.tag-sdct-result.result }}"
+            echo "------------------------------------"
+            echo "SDCT result:"
+            echo "- Verdict: ${VERDICT}"
+            echo "- Reason: ${REASON}"
+            echo "- Jenkins Result: ${JENKINS_RESULT}"
+            echo "- Jenkins Build: <${JENKINS_BUILD_URL}>"
             echo "------------------------------------"
             echo "Commit Information:"
-            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.canonical-test.outputs.commit }}
-            echo "- Tag: ${{ inputs.build-tag }}"
+            echo "- Commit: <${{ github.server_url }}/${{ github.repository }}/commit/${{ needs.canonical-test.outputs.commit }}>"
+            echo "- Tag: ${BUILD_TAG}"
             echo "- Workflow: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}>"
             echo EOF
           } >> "${GITHUB_OUTPUT}"
 
       - name: Log Rootly Summary
+        env:
+          ROOTLY_TITLE: ${{ steps.rootly-summary.outputs.title }}
+          ROOTLY_SUMMARY: ${{ steps.rootly-summary.outputs.summary }}
+          ROOTLY_SERVICE: ${{ steps.set-rootly-service.outputs.service }}
         run: |
           echo "## Rootly Summary:"
-          echo "### Title: ${{ steps.rootly-summary.outputs.title }}" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.rootly-summary.outputs.summary }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "### Title: ${ROOTLY_TITLE}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${ROOTLY_SUMMARY}" >> "${GITHUB_STEP_SUMMARY}"
           echo "### Service" >> "${GITHUB_STEP_SUMMARY}"
-          echo "${{ steps.set-service.outputs.service }}" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${ROOTLY_SERVICE}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Create Rootly Alert
         id: create-rootly-alert
@@ -352,7 +559,7 @@ jobs:
           summary: ${{ steps.rootly-summary.outputs.title }}
           details: ${{ steps.rootly-summary.outputs.summary }}
           notification_target_type: "Service"
-          notification_target: ${{ steps.set-service.outputs.service }}
+          notification_target: ${{ steps.set-rootly-service.outputs.service }}
           set_as_noise: "false"
           alert_urgency: "High"
           environments: "CITR"
