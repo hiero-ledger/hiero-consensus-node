@@ -51,7 +51,7 @@ permissions:
 jobs:
   canonical-test:
     name: Canonical
-    runs-on: hiero-citr-linux-small
+    runs-on: hl-cn-sdct-lin
 
     # No workflow deadline: the SDCT run time is bounded by the test driver; 5 days is the self-hosted job maximum
     timeout-minutes: 7200
