@@ -132,7 +132,6 @@ public class ContractServiceImpl implements ContractService {
         contractMetrics.createContractPrimaryMetrics();
         contractMetrics.createContractSecondaryMetrics();
     }
-    // This should potentially trigger the build and run the evm tests
     /**
      * @return all contract transaction handlers
      */
