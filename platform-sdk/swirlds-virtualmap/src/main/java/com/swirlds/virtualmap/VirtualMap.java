@@ -430,14 +430,12 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         assert firstLeafPath == metadata.getFirstLeafPath();
         assert lastLeafPath == metadata.getLastLeafPath();
 
-        final ConcurrentBlockingIterator<VirtualLeafBytes> rehashIterator =
-                new ConcurrentBlockingIterator<>(MAX_REHASHING_BUFFER_SIZE);
-
         if (firstLeafPath < 0 || lastLeafPath < 0) {
             logger.info(STARTUP.getMarker(), "VirtualMap is empty, skipping full rehash.");
             return;
         }
-        try {
+
+        /*try {
             final boolean digestTypeChanged = Cryptography.DEFAULT_DIGEST_TYPE != dataSource.getLoadedHashDigestType();
             if (!digestTypeChanged) {
                 final Hash loadedHash = records.findHash(firstLeafPath);
@@ -459,7 +457,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
-        }
+        }*/
 
         logger.info(STARTUP.getMarker(), "Doing full rehash for the path range: {} - {}", firstLeafPath, lastLeafPath);
         final FullLeafRehashHashListener hashListener = new FullLeafRehashHashListener(
@@ -470,6 +468,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 // even though this listener has nothing to do with the reconnect, reconnect flush interval value
                 // is appropriate to use here.
                 virtualMapConfig.reconnectFlushInterval());
+
+        final ConcurrentBlockingIterator<VirtualLeafBytes> rehashIterator =
+                new ConcurrentBlockingIterator<>(MAX_REHASHING_BUFFER_SIZE);
 
         // This background thread will be responsible for hashing the tree and sending the
         // data to the hash listener to flush.
@@ -516,6 +517,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             final long millisSpent = System.currentTimeMillis() - start;
             logger.info(STARTUP.getMarker(), "It took {} seconds to feed all leaves to the hasher", millisSpent / 1000);
             setHashPrivate(fullRehashFuture.get(virtualMapConfig.fullRehashTimeoutMs() - millisSpent, MILLISECONDS));
+            logger.info(STARTUP.getMarker(), "Full rehash took {} seconds", (System.currentTimeMillis() - start) / 1000);
         } catch (ExecutionException e) {
             final var message = "Failed to get hash during full rehashing";
             throw new RuntimeException(message, e.getCause() != null ? e.getCause() : e);
