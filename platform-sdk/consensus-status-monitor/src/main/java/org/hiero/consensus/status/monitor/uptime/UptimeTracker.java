@@ -5,8 +5,6 @@ import static com.swirlds.base.units.TimeUnit.UNIT_MICROSECONDS;
 import static com.swirlds.base.units.TimeUnit.UNIT_NANOSECONDS;
 import static org.hiero.consensus.status.monitor.uptime.UptimeData.NO_ROUND;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -24,7 +22,8 @@ import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.status.monitor.config.UptimeConfig;
 
 /**
@@ -82,11 +81,12 @@ public class UptimeTracker {
 
         final Instant start = time.now();
 
-        addAndRemoveNodes(uptimeData, round.getConsensusRoster());
+        final RosterWrapper roster = round.getConsensusRosterWrapper();
+        addAndRemoveNodes(uptimeData, roster);
         final Map<NodeId, ConsensusEvent> lastEventsInRoundByCreator = new HashMap<>();
         final boolean newSelfEvent = scanRound(round, lastEventsInRoundByCreator);
-        updateUptimeData(round.getConsensusRoster(), uptimeData, lastEventsInRoundByCreator, round.getRoundNum());
-        reportUptime(round.getConsensusRoster(), uptimeData, round.getConsensusTimestamp(), round.getRoundNum());
+        updateUptimeData(roster, uptimeData, lastEventsInRoundByCreator, round.getRoundNum());
+        reportUptime(roster, uptimeData, round.getConsensusTimestamp(), round.getRoundNum());
 
         final Instant end = time.now();
         final Duration elapsed = Duration.between(start, end);
@@ -103,10 +103,9 @@ public class UptimeTracker {
      * @param uptimeData the uptime data
      * @param roster     the active roster
      */
-    private void addAndRemoveNodes(@NonNull final UptimeData uptimeData, @NonNull final Roster roster) {
-        final Set<NodeId> rosterNodes = roster.rosterEntries().stream()
-                .map(entry -> NodeId.of(entry.nodeId()))
-                .collect(Collectors.toSet());
+    private void addAndRemoveNodes(@NonNull final UptimeData uptimeData, @NonNull final RosterWrapper roster) {
+        final Set<NodeId> rosterNodes =
+                roster.rosterEntries().stream().map(RosterEntryWrapper::nodeId).collect(Collectors.toSet());
         final Set<NodeId> trackedNodes = uptimeData.getTrackedNodes();
         for (final NodeId nodeId : rosterNodes) {
             if (!trackedNodes.contains(nodeId)) {
@@ -179,13 +178,13 @@ public class UptimeTracker {
      * @param roundNum                   the round number
      */
     private void updateUptimeData(
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final UptimeData uptimeData,
             @NonNull final Map<NodeId, ConsensusEvent> lastEventsInRoundByCreator,
             final long roundNum) {
 
-        for (final RosterEntry rosterEntry : roster.rosterEntries()) {
-            final ConsensusEvent lastEvent = lastEventsInRoundByCreator.get(NodeId.of(rosterEntry.nodeId()));
+        for (final RosterEntryWrapper rosterEntry : roster.rosterEntries()) {
+            final ConsensusEvent lastEvent = lastEventsInRoundByCreator.get(rosterEntry.nodeId());
             if (lastEvent != null) {
                 uptimeData.recordLastEvent(lastEvent, roundNum);
             }
@@ -204,14 +203,14 @@ public class UptimeTracker {
      * @param uptimeData the uptime data
      */
     private void reportUptime(
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final UptimeData uptimeData,
             @NonNull final Instant lastRoundEndTime,
             final long currentRound) {
 
         long nonDegradedConsensusWeight = 0;
-        for (final RosterEntry entry : roster.rosterEntries()) {
-            final NodeId id = NodeId.of(entry.nodeId());
+        for (final RosterEntryWrapper entry : roster.rosterEntries()) {
+            final NodeId id = entry.nodeId();
 
             final Instant lastConsensusEventTime = uptimeData.getLastEventTime(id);
             if (lastConsensusEventTime != null) {
@@ -233,8 +232,7 @@ public class UptimeTracker {
             //                uptimeMetrics.getRoundsSinceLastJudgeMetric(id).update(currentRound - lastJudgeRound);
             //            }
         }
-        final double fractionOfNetworkAlive =
-                (double) nonDegradedConsensusWeight / RosterUtils.computeTotalWeight(roster);
+        final double fractionOfNetworkAlive = (double) nonDegradedConsensusWeight / roster.totalWeight();
         uptimeMetrics.getHealthyNetworkFraction().update(fractionOfNetworkAlive);
     }
 }
