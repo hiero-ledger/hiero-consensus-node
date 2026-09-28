@@ -13,15 +13,23 @@ import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
+import com.hedera.hapi.node.state.clpr.ClprChannel;
+import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.hapi.node.state.clpr.ClprMessage;
+import com.hedera.hapi.node.state.clpr.ClprMessageKey;
+import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.platform.state.StateItem;
+import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.hapi.utils.blocks.NativeTssVerifier;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verify.VerifyBundleCall;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -29,15 +37,23 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Unit tests for {@link VerifyBundleCall}, in two flavours:
@@ -48,9 +64,13 @@ import org.junit.jupiter.api.Test;
  *   <li>{@link ManifestOnlyBranch} — drives {@link VerifyBundleCall#execute} with a stubbed
  *       {@link TssVerifier} and synthetic {@link StateProof}s to cover the manifest-only recovery
  *       branch (spec §8.1.4).</li>
+ *   <li>{@link BundleRange} — the bundle-scoped {@code next_message_id} derived from the proven
+ *       message keys, and the rejection of message leaves that are not one contiguous run.</li>
  * </ul>
  */
 class VerifyBundleCallTest {
+
+    private static final Bytes CHANNEL_ID = Bytes.wrap(new byte[] {1, 1, 1});
 
     /**
      * Offline replay of the {@code VerifyBundle} verifier path against checked-in fixtures captured
@@ -204,9 +224,7 @@ class VerifyBundleCallTest {
                     .version(2L)
                     .serviceAddress(SERVICE_ADDR)
                     .build();
-            final var message = ClprMessageValue.newBuilder()
-                    .runningHashAfterProcessing(Bytes.wrap(new byte[32]))
-                    .build();
+            final var message = messageValue(1);
             stubManifestFlag(true);
 
             // Two independent leaves cannot share a self-rooting nextPathIndex=-1 root, so stub the
@@ -217,7 +235,8 @@ class VerifyBundleCallTest {
                         .thenReturn(new byte[32]);
                 verifier.when(() -> StateProofVerifier.verifyPath(any(), any())).thenReturn(true);
 
-                final var result = subject(twoLeafProof(manifestLeaf(manifest), messageLeaf(message)))
+                final var result = subject(
+                                multiLeafProof(manifestLeaf(manifest), keyedMessageLeaf(CHANNEL_ID, 1, message)))
                         .execute(frame);
 
                 assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
@@ -241,6 +260,239 @@ class VerifyBundleCallTest {
         }
     }
 
+    /**
+     * Covers how {@link VerifyBundleCall} places the bundle in the sender's queue: {@code next_message_id} is one past
+     * the last proven message key, so the receiver's positional
+     * {@code bundle_first_id = next_message_id - messages.length} holds for any range start — in particular for a
+     * streaming bundle shaped from the peer's {@code received_message_id + 1} rather than
+     * {@code acked_message_id + 1}.
+     *
+     * <p>Multi-leaf proofs stub {@link StateProofVerifier} so independent synthetic leaves share one block root,
+     * isolating the range logic from Merkle-path construction.
+     */
+    @Nested
+    class BundleRange extends CallTestBase {
+
+        private static final byte[] TRUST_ANCHOR = {1, 2, 3, 4};
+
+        /**
+         * The sender's Channel: nothing acked yet, messages 1..5 queued.
+         */
+        private static final ClprChannel CHANNEL = ClprChannel.newBuilder()
+                .channelId(CHANNEL_ID)
+                .ackedMessageId(0)
+                .nextMessageId(6)
+                .sentRunningHash(Bytes.wrap(new byte[32]))
+                .receivedRunningHash(Bytes.wrap(new byte[32]))
+                .status(ClprChannelStatus.ACTIVE)
+                .build();
+
+        @Test
+        @DisplayName("given messages 4 and 5 with nothing acked, then nextMessageId is 6, one past the last key")
+        void givenMessagesAboveAckedPlusOne_thenNextMessageIdIsOnePastTheLastKey() {
+            stubManifestFlag();
+
+            final var metadata = executeWithStubbedPaths(channelLeaf(CHANNEL), messageLeaf(4), messageLeaf(5));
+
+            assertThat(nextMessageIdOf(metadata)).isEqualTo(6L);
+            assertThat((byte[]) metadata.get(1))
+                    .isEqualTo(messageValue(5).runningHashAfterProcessing().toByteArray());
+        }
+
+        @Test
+        @DisplayName("given messages 1 to 3 starting at acked + 1, then nextMessageId matches the unary formula")
+        void givenMessagesStartingAtAckedPlusOne_thenNextMessageIdMatchesAckedPlusOnePlusSize() {
+            stubManifestFlag();
+
+            final var metadata =
+                    executeWithStubbedPaths(channelLeaf(CHANNEL), messageLeaf(1), messageLeaf(2), messageLeaf(3));
+
+            assertThat(nextMessageIdOf(metadata)).isEqualTo(CHANNEL.ackedMessageId() + 1 + 3);
+        }
+
+        @Test
+        @DisplayName("given a pure-ACK bundle, then nextMessageId is acked + 1")
+        void givenPureAckBundle_thenNextMessageIdIsAckedPlusOne() {
+            stubManifestFlag();
+            final var channel = CHANNEL.copyBuilder().ackedMessageId(2).build();
+
+            final var metadata = executeWithStubbedPaths(channelLeaf(channel));
+
+            assertThat(nextMessageIdOf(metadata)).isEqualTo(3L);
+        }
+
+        @Test
+        @DisplayName(
+                "given the captured real bundle, then it verifies and nextMessageId is one past its last message key")
+        void givenCapturedRealBundle_thenNextMessageIdIsOnePastItsLastMessageKey() throws IOException, ParseException {
+            final byte[] proofBytes = loadResource("stateProof.bin");
+            final byte[] trustAnchor = loadResource("trustAnchor.bin");
+            final var proof = StateProof.PROTOBUF.parse(Bytes.wrap(proofBytes).toReadableSequentialData());
+            final var messageIds = new ArrayList<Long>();
+            ClprChannel channel = null;
+            for (final var path : proof.paths()) {
+                if (!path.hasStateItemLeaf()) {
+                    continue;
+                }
+                final var item =
+                        StateItem.PROTOBUF.parse(path.stateItemLeafOrThrow().toReadableSequentialData());
+                if (item.valueOrThrow().hasClprServiceIMessageQueue()) {
+                    messageIds.add(
+                            item.keyOrThrow().clprServiceIMessageQueueOrThrow().messageId());
+                } else if (item.valueOrThrow().hasClprServiceIChannels()) {
+                    channel = item.valueOrThrow().clprServiceIChannelsOrThrow();
+                }
+            }
+            assertThat(channel).as("captured proof carries a channel leaf").isNotNull();
+            final long expectedNextMessageId =
+                    messageIds.isEmpty() ? channel.ackedMessageId() + 1 : messageIds.getLast() + 1;
+            stubManifestFlag();
+
+            final var result = new VerifyBundleCall(
+                            mockEnhancement(), gasCalculator, proofBytes, trustAnchor, new NativeTssVerifier())
+                    .execute(frame);
+
+            assertThat(result.responseCode()).isEqualTo(SUCCESS);
+            final Tuple decoded = ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN.decode(
+                    result.fullResult().output().toArray());
+            assertThat((byte[][]) decoded.get(1)).hasNumberOfRows(messageIds.size());
+            assertThat(nextMessageIdOf(decoded.get(0))).isEqualTo(expectedNextMessageId);
+        }
+
+        @Test
+        @DisplayName("given message leaves out of id order, then the messages are returned sorted by their proven ids")
+        void givenMessageLeavesOutOfIdOrder_thenMessagesAreReturnedSortedByProvenId() throws ParseException {
+            stubManifestFlag();
+
+            final var decoded = executeWithStubbedPathsForOutput(
+                    channelLeaf(CHANNEL), messageLeaf(5), messageLeaf(3), messageLeaf(4));
+
+            final Tuple metadata = decoded.get(0);
+            assertThat(nextMessageIdOf(metadata)).isEqualTo(6L);
+            // The running hash handed to the receiver is the one after the highest id, not after the last leaf.
+            assertThat((byte[]) metadata.get(1))
+                    .isEqualTo(messageValue(5).runningHashAfterProcessing().toByteArray());
+            final var messageIds = new ArrayList<Long>();
+            for (final byte[] payloadBytes : (byte[][]) decoded.get(1)) {
+                final var payload = ClprMessagePayload.PROTOBUF.parse(
+                        Bytes.wrap(payloadBytes).toReadableSequentialData());
+                messageIds.add((long) payload.messageOrThrow().messageData().getByte(0));
+            }
+            assertThat(messageIds).containsExactly(3L, 4L, 5L);
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("nonContiguousRuns")
+        @DisplayName("given message leaves that are not one contiguous run of the channel, then the bundle is rejected")
+        void givenNonContiguousMessageLeaves_thenRejected(final String description, final List<Bytes> messageLeaves) {
+            final var leaves = new ArrayList<Bytes>();
+            leaves.add(channelLeaf(CHANNEL));
+            leaves.addAll(messageLeaves);
+
+            final var result = executeWithStubbedPathsForResult(leaves.toArray(Bytes[]::new));
+
+            assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
+            assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
+        }
+
+        static Stream<Arguments> nonContiguousRuns() {
+            final var otherChannelId = Bytes.wrap(new byte[] {7, 7, 7});
+            return Stream.of(
+                    Arguments.of("gap (4, 6)", List.of(messageLeaf(4), messageLeaf(6))),
+                    Arguments.of("duplicate (4, 4)", List.of(messageLeaf(4), messageLeaf(4))),
+                    Arguments.of("message id 0", List.of(messageLeaf(0), messageLeaf(1))),
+                    Arguments.of("at the channel's nextMessageId (5, 6)", List.of(messageLeaf(5), messageLeaf(6))),
+                    Arguments.of(
+                            "key of another channel",
+                            List.of(messageLeaf(4), keyedMessageLeaf(otherChannelId, 5, messageValue(5)))));
+        }
+
+        @Test
+        @DisplayName("given a message leaf without a key, then the bundle is rejected")
+        void givenMessageLeafWithoutKey_thenRejected() {
+            final var keylessMessageLeaf = leaf(
+                    null,
+                    StateValue.newBuilder()
+                            .clprServiceIMessageQueue(messageValue(4))
+                            .build());
+
+            final var result = executeWithStubbedPathsForResult(channelLeaf(CHANNEL), keylessMessageLeaf);
+
+            assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
+        }
+
+        @Test
+        @DisplayName("given a message leaf keyed as another state, then the bundle is rejected")
+        void givenMessageLeafWithNonMessageKey_thenRejected() {
+            final var channelKey = StateKey.newBuilder()
+                    .clprServiceIChannels(
+                            ProtoBytes.newBuilder().value(CHANNEL_ID).build())
+                    .build();
+            final var misKeyedMessageLeaf = leaf(
+                    channelKey,
+                    StateValue.newBuilder()
+                            .clprServiceIMessageQueue(messageValue(4))
+                            .build());
+
+            final var result = executeWithStubbedPathsForResult(channelLeaf(CHANNEL), misKeyedMessageLeaf);
+
+            assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
+        }
+
+        private Tuple executeWithStubbedPaths(@NonNull final Bytes... leaves) {
+            return executeWithStubbedPathsForOutput(leaves).get(0);
+        }
+
+        private Tuple executeWithStubbedPathsForOutput(@NonNull final Bytes... leaves) {
+            final var result = executeWithStubbedPathsForResult(leaves);
+            assertThat(result.responseCode()).isEqualTo(SUCCESS);
+            return ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN.decode(
+                    result.fullResult().output().toArray());
+        }
+
+        private PricedResult executeWithStubbedPathsForResult(@NonNull final Bytes... leaves) {
+            try (var verifier = mockStatic(StateProofVerifier.class)) {
+                verifier.when(() -> StateProofVerifier.computeBlockRootHashFromPath(any()))
+                        .thenReturn(new byte[32]);
+                verifier.when(() -> StateProofVerifier.verifyPath(any(), any())).thenReturn(true);
+                return new VerifyBundleCall(
+                                mockEnhancement(), gasCalculator, multiLeafProof(leaves), TRUST_ANCHOR, acceptingTss())
+                        .execute(frame);
+            }
+        }
+
+        /**
+         * Stubs {@code configOf(frame)} with the endpoint-manifest flag on, so the manifest-aware ABI is returned.
+         */
+        private void stubManifestFlag() {
+            final Configuration config = HederaTestConfigBuilder.create()
+                    .withValue("clpr.endpointManifestEnabled", true)
+                    .getOrCreateConfig();
+            given(frame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
+            given(frame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE)).willReturn(config);
+        }
+
+        private byte[] loadResource(final String name) throws IOException {
+            try (InputStream input = Objects.requireNonNull(
+                    VerifyBundleCallTest.class.getResourceAsStream(name), "missing test resource: " + name)) {
+                return input.readAllBytes();
+            }
+        }
+
+        private static long nextMessageIdOf(@NonNull final Tuple metadata) {
+            return ((BigInteger) metadata.get(0)).longValue();
+        }
+
+        private static Bytes channelLeaf(@NonNull final ClprChannel channel) {
+            return leaf(
+                    null, StateValue.newBuilder().clprServiceIChannels(channel).build());
+        }
+
+        private static Bytes messageLeaf(final long messageId) {
+            return keyedMessageLeaf(CHANNEL_ID, messageId, messageValue(messageId));
+        }
+    }
+
     private static TssVerifier acceptingTss() {
         final var verifier = mock(TssVerifier.class);
         given(verifier.verifyTss(any(), any(), any())).willReturn(true);
@@ -252,13 +504,48 @@ class VerifyBundleCallTest {
                 StateValue.newBuilder().clprServiceIEndpointManifest(manifest).build());
     }
 
-    private static Bytes messageLeaf(@NonNull final ClprMessageValue message) {
-        return leaf(StateValue.newBuilder().clprServiceIMessageQueue(message).build());
+    /**
+     * A message leaf keyed, as in real state, by its {@code ClprMessageKey}.
+     */
+    private static Bytes keyedMessageLeaf(
+            @NonNull final Bytes channelId, final long messageId, @NonNull final ClprMessageValue message) {
+        final var key = StateKey.newBuilder()
+                .clprServiceIMessageQueue(ClprMessageKey.newBuilder()
+                        .channelId(channelId)
+                        .messageId(messageId)
+                        .build())
+                .build();
+        return leaf(
+                key, StateValue.newBuilder().clprServiceIMessageQueue(message).build());
+    }
+
+    /**
+     * A message value whose running hash and payload data both identify the message, so tests can tell which one was
+     * returned and in what order.
+     */
+    private static ClprMessageValue messageValue(final long messageId) {
+        final var runningHash = new byte[32];
+        runningHash[31] = (byte) messageId;
+        return ClprMessageValue.newBuilder()
+                .payload(ClprMessagePayload.newBuilder()
+                        .message(ClprMessage.newBuilder()
+                                .messageData(Bytes.wrap(new byte[] {(byte) messageId}))
+                                .build())
+                        .build())
+                .runningHashAfterProcessing(Bytes.wrap(runningHash))
+                .build();
     }
 
     private static Bytes leaf(@NonNull final StateValue stateValue) {
-        return StateItem.PROTOBUF.toBytes(
-                StateItem.newBuilder().value(stateValue).build());
+        return leaf(null, stateValue);
+    }
+
+    private static Bytes leaf(@Nullable final StateKey key, @NonNull final StateValue stateValue) {
+        final var item = StateItem.newBuilder().value(stateValue);
+        if (key != null) {
+            item.key(key);
+        }
+        return StateItem.PROTOBUF.toBytes(item.build());
     }
 
     /**
@@ -272,13 +559,17 @@ class VerifyBundleCallTest {
         return proofOf(path);
     }
 
-    /** A two-leaf {@link StateProof}; use only with a stubbed {@link StateProofVerifier}. */
-    private static byte[] twoLeafProof(@NonNull final Bytes first, @NonNull final Bytes second) {
-        final var p1 =
-                MerklePath.newBuilder().stateItemLeaf(first).nextPathIndex(-1).build();
-        final var p2 =
-                MerklePath.newBuilder().stateItemLeaf(second).nextPathIndex(-1).build();
-        return proofOf(p1, p2);
+    /**
+     * A multi-leaf {@link StateProof}, one path per leaf in order; use only with a stubbed {@link StateProofVerifier}.
+     */
+    private static byte[] multiLeafProof(@NonNull final Bytes... leaves) {
+        final var paths = Arrays.stream(leaves)
+                .map(leaf -> MerklePath.newBuilder()
+                        .stateItemLeaf(leaf)
+                        .nextPathIndex(-1)
+                        .build())
+                .toArray(MerklePath[]::new);
+        return proofOf(paths);
     }
 
     private static byte[] proofOf(@NonNull final MerklePath... paths) {

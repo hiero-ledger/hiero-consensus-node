@@ -481,6 +481,61 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @Test
+    @DisplayName("given a bundle starting at our received + 1 above the sender's ack, then every message is processed")
+    void givenBundleStartingAtReceivedPlusOne_thenEveryMessageIsProcessed() {
+        // We hold messages 1..3; the sender's ack still reads 0, but it shaped the bundle from our
+        // received_message_id + 1 (streaming sync), so the bundle carries 4 and 5 and its bundle-scoped
+        // next_message_id is 6. Positionally, bundle_first_id = 6 - 2 = 4: nothing to trim.
+        putChannel(ClprChannelStatus.ACTIVE, 0, 0, 3, INTERMEDIATE_HASH);
+        putConnector();
+        final var messages = List.of(dataPayload(), dataPayload());
+        setupHandleContext(bundleTxn(bundleEndingAt(6, INTERMEDIATE_HASH, messages)), true);
+
+        subject.handle(handleContext);
+
+        final var updated = channelStore.getChannel(CHANNEL_ID);
+        assertThat(updated.receivedMessageId()).isEqualTo(5L);
+        assertThat(updated.receivedRunningHash()).isEqualTo(runningHashOver(INTERMEDIATE_HASH, messages));
+        verify(handleContext, times(2)).dispatch(any());
+    }
+
+    @Test
+    @DisplayName("given a bundle whose leading messages we already hold, then only the new tail is processed")
+    void givenBundleWithReplayedPrefix_thenOnlyTheNewTailIsProcessed() {
+        // We hold messages 1..3; the bundle carries 2..5 (next_message_id 6), so 2 and 3 are replays.
+        putChannel(ClprChannelStatus.ACTIVE, 0, 0, 3, INTERMEDIATE_HASH);
+        putConnector();
+        final var newTail = List.of(dataPayload(), dataPayload());
+        final var messages = List.of(dataPayload(), dataPayload(), dataPayload(), dataPayload());
+        final var bundle = bundleEndingAt(6, INTERMEDIATE_HASH, newTail)
+                .copyBuilder()
+                .messages(messages)
+                .build();
+        setupHandleContext(bundleTxn(bundle), true);
+
+        subject.handle(handleContext);
+
+        final var updated = channelStore.getChannel(CHANNEL_ID);
+        assertThat(updated.receivedMessageId()).isEqualTo(5L);
+        assertThat(updated.receivedRunningHash()).isEqualTo(runningHashOver(INTERMEDIATE_HASH, newTail));
+        verify(handleContext, times(2)).dispatch(any());
+    }
+
+    @Test
+    @DisplayName("given a bundle starting past our received + 1, then it is rejected as a gap")
+    void givenBundleStartingPastReceivedPlusOne_thenRejected() {
+        // We hold messages 1..3; the bundle carries 5 and 6 (next_message_id 7), skipping 4.
+        putChannel(ClprChannelStatus.ACTIVE, 0, 0, 3, INTERMEDIATE_HASH);
+        final var messages = List.of(dataPayload(), dataPayload());
+        setupHandleContext(bundleTxn(bundleEndingAt(7, INTERMEDIATE_HASH, messages)), true);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+        assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isEqualTo(3L);
+    }
+
+    @Test
     @DisplayName("duplicate bundle — second submission is a no-op, channel state unchanged")
     void duplicateBundleIsNoOp() {
         putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
@@ -1226,6 +1281,75 @@ class ClprSubmitBundleHandlerTest {
         // Neither data message should be deleted
         assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNotNull();
         assertThat(messageQueueStore.getMessage(CHANNEL_ID, 3)).isNotNull();
+    }
+
+    @Test
+    @DisplayName("given a bundle acking more messages than it carries replies for, then the ack stops before the first"
+            + " unanswered data message and the channel stays ACTIVE")
+    void givenBundleAckingMoreThanItsReplies_thenAckStopsBeforeFirstUnansweredDataMessage() {
+        // The peer received all 4 of our data messages, but its bundle was truncated after the first two replies.
+        for (long id = 1; id <= 4; id++) {
+            putOutboundDataMessage(id);
+        }
+        putChannel(ClprChannelStatus.ACTIVE, 5, 0, ZERO_HASH);
+        setupHandleContext(
+                buildBundle(ClprChannelStatus.ACTIVE, 0, 4, ZERO_HASH, List.of(replyPayload(1), replyPayload(2))),
+                true);
+
+        subject.handle(handleContext);
+
+        final var updated = channelStore.getChannel(CHANNEL_ID);
+        assertThat(updated.status()).isEqualTo(ClprChannelStatus.ACTIVE);
+        assertThat(updated.ackedMessageId()).isEqualTo(2L);
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 2)).isNull();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 3)).isNotNull();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 4)).isNotNull();
+    }
+
+    @Test
+    @DisplayName("given the remaining replies arrive in a later bundle, when it is handled, then the ack completes")
+    void givenRemainingRepliesInLaterBundle_whenHandled_thenAckCompletes() {
+        for (long id = 1; id <= 4; id++) {
+            putOutboundDataMessage(id);
+        }
+        putChannel(ClprChannelStatus.ACTIVE, 5, 0, ZERO_HASH);
+        final var firstReplies = List.of(replyPayload(1), replyPayload(2));
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 4, ZERO_HASH, firstReplies), true);
+        subject.handle(handleContext);
+        var hashAfterFirst = ZERO_HASH;
+        for (final var reply : firstReplies) {
+            hashAfterFirst = ClprHashUtils.computeRunningHash(hashAfterFirst, reply);
+        }
+
+        setupHandleContext(
+                buildBundle(ClprChannelStatus.ACTIVE, 2, 4, hashAfterFirst, List.of(replyPayload(3), replyPayload(4))),
+                true);
+        subject.handle(handleContext);
+
+        final var updated = channelStore.getChannel(CHANNEL_ID);
+        assertThat(updated.status()).isEqualTo(ClprChannelStatus.ACTIVE);
+        assertThat(updated.ackedMessageId()).isEqualTo(4L);
+        assertThat(updated.receivedMessageId()).isEqualTo(4L);
+        for (long id = 1; id <= 4; id++) {
+            assertThat(messageQueueStore.getMessage(CHANNEL_ID, id)).isNull();
+        }
+    }
+
+    @Test
+    @DisplayName("given a bundle acking data messages with a reply for the wrong one, then the channel is PAUSED")
+    void givenBundleWithReplyForWrongDataMessage_thenChannelIsPaused() {
+        for (long id = 1; id <= 4; id++) {
+            putOutboundDataMessage(id);
+        }
+        putChannel(ClprChannelStatus.ACTIVE, 5, 0, ZERO_HASH);
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 4, ZERO_HASH, List.of(replyPayload(2))), true);
+
+        subject.handle(handleContext);
+
+        final var updated = channelStore.getChannel(CHANNEL_ID);
+        assertThat(updated.status()).isEqualTo(ClprChannelStatus.PAUSED);
+        assertThat(updated.ackedMessageId()).isZero();
     }
 
     @Test
@@ -2885,6 +3009,35 @@ class ClprSubmitBundleHandlerTest {
                 .messages(messages)
                 .build();
         return bundleTxn(bundle);
+    }
+
+    /**
+     * A bundle whose bundle-scoped {@code next_message_id} is {@code nextMessageId}, and whose
+     * {@code sent_running_hash} folds {@code newMessages} from {@code startingHash}.
+     */
+    private static ClprBundleContent bundleEndingAt(
+            final long nextMessageId,
+            @NonNull final Bytes startingHash,
+            @NonNull final List<ClprMessagePayload> newMessages) {
+        final var metadata = ClprQueueMetadata.newBuilder()
+                .nextMessageId(nextMessageId)
+                .sentRunningHash(runningHashOver(startingHash, newMessages))
+                .receivedMessageId(0)
+                .status(ClprChannelStatus.ACTIVE)
+                .build();
+        return ClprBundleContent.newBuilder()
+                .metadata(metadata)
+                .messages(newMessages)
+                .build();
+    }
+
+    private static Bytes runningHashOver(
+            @NonNull final Bytes startingHash, @NonNull final List<ClprMessagePayload> messages) {
+        var hash = startingHash;
+        for (final var message : messages) {
+            hash = ClprHashUtils.computeRunningHash(hash, message);
+        }
+        return hash;
     }
 
     private TransactionBody validSingleDataBundle() {
