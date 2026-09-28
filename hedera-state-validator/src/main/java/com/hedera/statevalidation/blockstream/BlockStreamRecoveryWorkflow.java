@@ -11,8 +11,6 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.state.common.EntityIDPair;
-import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
-import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.pbj.runtime.ParseException;
@@ -29,7 +27,6 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,12 +34,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
-import org.hiero.consensus.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.state.SignedStateFileWriter;
 import org.hiero.consensus.state.signed.SignedState;
@@ -89,7 +84,7 @@ public class BlockStreamRecoveryWorkflow {
         this.expectedRootHash = expectedRootHash;
     }
 
-        /**
+    /**
      * Reads blocks from the given directory and applies them to the default state with optional
      * rate limiting.
      *
@@ -117,8 +112,8 @@ public class BlockStreamRecoveryWorkflow {
         stateLifecycleManager.initWithState(StateUtils.getDefaultState());
         validateNoMissingBlocks(blockStreamDirectory);
         final var blocks = BlockStreamAccess.readBlocks(blockStreamDirectory, false);
-        final BlockStreamRecoveryWorkflow workflow = new BlockStreamRecoveryWorkflow(
-                stateLifecycleManager, targetRound, outputPath, expectedHash);
+        final BlockStreamRecoveryWorkflow workflow =
+                new BlockStreamRecoveryWorkflow(stateLifecycleManager, targetRound, outputPath, expectedHash);
         workflow.applyBlocks(blocks, selfId, getPlatformContext());
     }
 
