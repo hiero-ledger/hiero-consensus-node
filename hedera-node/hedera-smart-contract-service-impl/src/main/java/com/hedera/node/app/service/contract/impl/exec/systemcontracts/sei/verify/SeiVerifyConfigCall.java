@@ -28,7 +28,7 @@ import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
- * Implements {@code verifyConfig(bytes configPayload) returns (bytes)} for the Sei verifier
+ * Implements {@code verifyConfig} with seed endpoints or an endpoint manifest for the Sei verifier
  * system contract (EVM address {@code 0x170}).
  *
  * <p>The {@code configPayload} is a proto-encoded {@code ClprSeiLedgerConfigurationPayload}
@@ -37,8 +37,8 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  *
  * <p>Payload validation is delegated to
  * {@link SeiCometBftProofVerifier#verifyConfigPayload(byte[])}. On success the decoded
- * {@link ClprLedgerConfiguration} bytes (with the derived {@code initial_trust_anchor}) are
- * returned so {@code ClprCompleteChannelHandler} can seed Channel state from them directly.
+ * {@link ClprLedgerConfiguration} fields (with the derived {@code initial_trust_anchor}) are
+ * returned in an ABI tuple so {@code ClprCompleteChannelHandler} can seed Channel state from them directly.
  */
 public class SeiVerifyConfigCall extends AbstractCall {
     private static final Logger log = LogManager.getLogger(SeiVerifyConfigCall.class);
@@ -46,23 +46,12 @@ public class SeiVerifyConfigCall extends AbstractCall {
 
     private final byte[] configPayload;
 
-    /** Non-null on the V2 and V3 (context-bound) paths. */
-    @Nullable
+    @NonNull
     private final byte[] channelId32;
 
-    /** Non-null only on the V3 (manifest-aware) path; selects v3Success over v2Success. */
+    /** Non-null only on the manifest-aware path; selects manifestSuccess over seedEndpointsSuccess. */
     @Nullable
     private final byte[] manifestProofBytes;
-
-    public SeiVerifyConfigCall(
-            @NonNull final HederaWorldUpdater.Enhancement enhancement,
-            @NonNull final SystemContractGasCalculator gasCalculator,
-            @NonNull final byte[] configPayload) {
-        super(gasCalculator, enhancement, true);
-        this.configPayload = requireNonNull(configPayload);
-        this.channelId32 = null;
-        this.manifestProofBytes = null;
-    }
 
     public SeiVerifyConfigCall(
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
@@ -124,13 +113,10 @@ public class SeiVerifyConfigCall extends AbstractCall {
             return fail();
         }
 
-        if (channelId32 == null) {
-            return v1Success(parsed);
-        }
         if (manifestProofBytes == null) {
-            return v2Success(parsed);
+            return seedEndpointsSuccess(parsed);
         }
-        // V3: proven manifest verbatim when the verifier supplied one; otherwise a bring-up seed-fallback
+        // Manifest-aware: proven manifest verbatim when the verifier supplied one; otherwise a bring-up seed-fallback
         // (version 1, bound to the proven service address, seeded with the config's endpoints) so the
         // channel bootstraps a dial target. Sei has no config-path manifest-proof producer yet (see
         // SeiCometBftProofVerifier.VerifiedConfig#endpointManifestBytes), so the seed-fallback is the live
@@ -152,25 +138,11 @@ public class SeiVerifyConfigCall extends AbstractCall {
                     .endpoints(parsed.endpoints())
                     .build();
         }
-        return v3Success(parsed, manifest);
+        return manifestSuccess(parsed, manifest);
     }
 
     @NonNull
-    private PricedResult v1Success(@NonNull final ClprLedgerConfiguration parsed) {
-        final var configBytesOut = ClprLedgerConfiguration.PROTOBUF.toBytes(parsed);
-        log.info("verifyConfig (Sei) EXIT: SUCCESS config={} bytes", configBytesOut.length());
-        return gasOnly(
-                successResult(
-                        SeiVerifyConfigTranslator.VERIFY_CONFIG
-                                .getOutputs()
-                                .encode(Tuple.singleton(configBytesOut.toByteArray())),
-                        GAS_REQUIREMENT),
-                SUCCESS,
-                false);
-    }
-
-    @NonNull
-    private PricedResult v2Success(@NonNull final ClprLedgerConfiguration parsed) {
+    private PricedResult seedEndpointsSuccess(@NonNull final ClprLedgerConfiguration parsed) {
         final byte[] serviceAddressBytes = parsed.serviceAddress().toByteArray();
         final byte[] channelContextBytes = new byte[32 + serviceAddressBytes.length];
         System.arraycopy(channelId32, 0, channelContextBytes, 0, 32);
@@ -199,10 +171,12 @@ public class SeiVerifyConfigCall extends AbstractCall {
         final long peerConfigNanos = ts != null ? ts.seconds() * 1_000_000_000L + ts.nanos() : 0L;
 
         log.info(
-                "verifyConfig V2 (Sei) EXIT: SUCCESS chainId={} endpoints={}", parsed.chainId(), endpointTuples.length);
+                "verifyConfigWithSeedEndpoints (Sei) EXIT: SUCCESS chainId={} endpoints={}",
+                parsed.chainId(),
+                endpointTuples.length);
         return gasOnly(
                 successResult(
-                        SeiVerifyConfigTranslator.VERIFY_CONFIG_V2
+                        SeiVerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS
                                 .getOutputs()
                                 .encode(Tuple.from(
                                         channelContextBytes,
@@ -219,7 +193,7 @@ public class SeiVerifyConfigCall extends AbstractCall {
     }
 
     @NonNull
-    private PricedResult v3Success(
+    private PricedResult manifestSuccess(
             @NonNull final ClprLedgerConfiguration parsed, @NonNull final ClprEndpointManifest manifest) {
         final byte[] serviceAddressBytes = parsed.serviceAddress().toByteArray();
         final byte[] channelContextBytes = new byte[32 + serviceAddressBytes.length];
@@ -242,13 +216,13 @@ public class SeiVerifyConfigCall extends AbstractCall {
         final long peerConfigNanos = ts != null ? ts.seconds() * 1_000_000_000L + ts.nanos() : 0L;
 
         log.info(
-                "verifyConfig V3 (Sei) EXIT: SUCCESS chainId={} manifestVersion={} manifestEndpoints={}",
+                "verifyConfigWithManifest (Sei) EXIT: SUCCESS chainId={} manifestVersion={} manifestEndpoints={}",
                 parsed.chainId(),
                 manifest.version(),
                 manifest.endpoints().size());
         return gasOnly(
                 successResult(
-                        SeiVerifyConfigTranslator.VERIFY_CONFIG_V3
+                        SeiVerifyConfigTranslator.VERIFY_CONFIG_WITH_MANIFEST
                                 .getOutputs()
                                 .encode(Tuple.from(
                                         channelContextBytes,

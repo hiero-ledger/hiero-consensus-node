@@ -20,7 +20,7 @@ class ClprVerifierAbiTest {
         assertThat((byte[]) absent.get(1)).hasSize(32);
         assertThat((byte[]) absent.get(3)).hasSize(32);
         // Round-trips through the return tuple's encoder.
-        assertThat(ClprVerifierAbi.VERIFY_BUNDLE_V3_RETURN.encode(Tuple.of(
+        assertThat(ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN.encode(Tuple.of(
                         absent,
                         new byte[0][],
                         new byte[0],

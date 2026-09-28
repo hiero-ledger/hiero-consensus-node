@@ -30,7 +30,7 @@ import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
- * Implements {@code verifyConfig(bytes stateProofBytes) returns (bytes)}.
+ * Implements {@code verifyConfig} with seed endpoints or an endpoint manifest.
  *
  * <p>The trust anchor used to authenticate the proof is the {@code initial_trust_anchor}
  * carried inside the proven {@link ClprLedgerConfiguration} — for Hiero TSS the source ledger's
@@ -39,7 +39,7 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  * {@code verifyTss(ledgerId, signature, blockRootHash)}. The Merkle structure is validated by
  * computing the block root hash from the proof's paths (which throws on bad structure), the
  * inner {@code ClprLedgerConfiguration} bytes are extracted from the single state-item leaf,
- * and the parsed config is returned unchanged. A proof whose inner config has an empty
+ * and the verified config fields are returned in an ABI tuple. A proof whose inner config has an empty
  * {@code initial_trust_anchor} is rejected — the source ledger must populate the field before
  * peers can register against it.
  */
@@ -50,25 +50,12 @@ public class VerifyConfigCall extends AbstractCall {
     private final byte[] stateProofBytes;
     private final TssVerifier tssVerifier;
 
-    /** Non-null on the V2/V3 (context) paths; null on V1. */
-    @Nullable
+    @NonNull
     private final byte[] channelId32;
 
-    /** Non-null only on the V3 (manifest-aware) path; selects v3Success over v2Success. */
+    /** Non-null only on the manifest-aware path; selects manifestSuccess over seedEndpointsSuccess. */
     @Nullable
     private final byte[] manifestProofBytes;
-
-    public VerifyConfigCall(
-            @NonNull final HederaWorldUpdater.Enhancement enhancement,
-            @NonNull final SystemContractGasCalculator gasCalculator,
-            @NonNull final byte[] stateProofBytes,
-            @NonNull final TssVerifier tssVerifier) {
-        super(gasCalculator, enhancement, true);
-        this.stateProofBytes = requireNonNull(stateProofBytes);
-        this.tssVerifier = requireNonNull(tssVerifier);
-        this.channelId32 = null;
-        this.manifestProofBytes = null;
-    }
 
     public VerifyConfigCall(
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
@@ -227,34 +214,17 @@ public class VerifyConfigCall extends AbstractCall {
                 signature.length(),
                 shortHex(Bytes.wrap(rootHash)));
 
-        // 4. Return the proven configuration unchanged — initial_trust_anchor is already set
+        // 4. Return the proven configuration fields — initial_trust_anchor is already set
         //    by the source ledger; the CLPR Service uses it directly to seed Channel.trust_anchor.
         log.debug(
                 "verifyConfig EXIT: SUCCESS trustAnchor={} rootHash={}",
                 shortHex(trustAnchorBytes),
                 shortHex(Bytes.wrap(rootHash)));
-        if (channelId32 == null) {
-            return v1Success(parsed);
-        }
-        return manifestProofBytes == null ? v2Success(parsed) : v3Success(parsed);
+        return manifestProofBytes == null ? seedEndpointsSuccess(parsed) : manifestSuccess(parsed);
     }
 
     @NonNull
-    private PricedResult v1Success(@NonNull final ClprLedgerConfiguration parsed) {
-        final var configBytesOut = ClprLedgerConfiguration.PROTOBUF.toBytes(parsed);
-        log.debug("verifyConfig V1 EXIT: SUCCESS configBytes={}", configBytesOut.length());
-        return gasOnly(
-                successResult(
-                        VerifyConfigTranslator.VERIFY_CONFIG
-                                .getOutputs()
-                                .encode(Tuple.singleton(configBytesOut.toByteArray())),
-                        GAS_REQUIREMENT),
-                SUCCESS,
-                true);
-    }
-
-    @NonNull
-    private PricedResult v2Success(@NonNull final ClprLedgerConfiguration parsed) {
+    private PricedResult seedEndpointsSuccess(@NonNull final ClprLedgerConfiguration parsed) {
         final byte[] id32 = requireNonNull(channelId32);
         final byte[] serviceAddressBytes = parsed.serviceAddress().toByteArray();
         final byte[] channelContextBytes = new byte[32 + serviceAddressBytes.length];
@@ -283,10 +253,13 @@ public class VerifyConfigCall extends AbstractCall {
         final var ts = parsed.timestamp();
         final long peerConfigNanos = ts != null ? ts.seconds() * 1_000_000_000L + ts.nanos() : 0L;
 
-        log.debug("verifyConfig V2 EXIT: SUCCESS chainId={} endpoints={}", parsed.chainId(), endpointTuples.length);
+        log.debug(
+                "verifyConfigWithSeedEndpoints EXIT: SUCCESS chainId={} endpoints={}",
+                parsed.chainId(),
+                endpointTuples.length);
         return gasOnly(
                 successResult(
-                        VerifyConfigTranslator.VERIFY_CONFIG_V2
+                        VerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS
                                 .getOutputs()
                                 .encode(Tuple.from(
                                         channelContextBytes,
@@ -303,7 +276,7 @@ public class VerifyConfigCall extends AbstractCall {
     }
 
     @NonNull
-    private PricedResult v3Success(@NonNull final ClprLedgerConfiguration parsed) {
+    private PricedResult manifestSuccess(@NonNull final ClprLedgerConfiguration parsed) {
         final ClprEndpointManifest manifest = verifyManifest(parsed);
         if (manifest == null) {
             return failureResult();
@@ -330,13 +303,13 @@ public class VerifyConfigCall extends AbstractCall {
         final long peerConfigNanos = ts != null ? ts.seconds() * 1_000_000_000L + ts.nanos() : 0L;
 
         log.debug(
-                "verifyConfig V3 EXIT: SUCCESS chainId={} manifestVersion={} manifestEndpoints={}",
+                "verifyConfigWithManifest EXIT: SUCCESS chainId={} manifestVersion={} manifestEndpoints={}",
                 parsed.chainId(),
                 manifest.version(),
                 manifest.endpoints().size());
         return gasOnly(
                 successResult(
-                        VerifyConfigTranslator.VERIFY_CONFIG_V3
+                        VerifyConfigTranslator.VERIFY_CONFIG_WITH_MANIFEST
                                 .getOutputs()
                                 .encode(Tuple.from(
                                         channelContextBytes,
@@ -354,14 +327,14 @@ public class VerifyConfigCall extends AbstractCall {
 
     /**
      * Verifies the endpoint-manifest proof against the same trust anchor as the config proof and
-     * enforces spec §4.8 invariants (version >= 1; service_address matches the config). The V3 path
+     * enforces spec §4.8 invariants (version >= 1; service_address matches the config). The manifest-aware path
      * requires a non-empty proof. Returns {@code null} on any failure (already logged via fail()).
      */
     @Nullable
     private ClprEndpointManifest verifyManifest(@NonNull final ClprLedgerConfiguration parsedConfig) {
         final byte[] proofBytes = requireNonNull(manifestProofBytes);
         if (proofBytes.length == 0) {
-            fail("V3 verifyConfig requires a non-empty endpoint_manifest_proof_bytes");
+            fail("manifest-aware verifyConfig requires a non-empty endpoint_manifest_proof_bytes");
             return null;
         }
         final StateProof proof;

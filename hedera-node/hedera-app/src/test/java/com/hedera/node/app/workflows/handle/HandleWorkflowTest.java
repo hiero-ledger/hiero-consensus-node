@@ -151,7 +151,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -1102,8 +1104,8 @@ class HandleWorkflowTest {
 
         // The iterator was obtained (confirms we reached executeAsManyScheduled)
         verify(scheduleService).executableTxns(any(), any(), any());
-        // But the loop body never entered — no scheduled txn was started
-        verify(stakePeriodManager, never()).setCurrentStakePeriodFor(any());
+        // Only the round-start initialization — no scheduled txn dispatch triggered a second call
+        verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW));
     }
 
     @Test
@@ -1221,5 +1223,24 @@ class HandleWorkflowTest {
                 ledgerIdConsTime.isAfter(afterEvents),
                 "The ledger id publication was assigned " + ledgerIdConsTime + ", which precedes the last transaction "
                         + "handled in the round at " + afterEvents);
+    }
+
+    @Test
+    void stakePeriodInitializedBeforeFeeDistribution() {
+        final var creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
+
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
+
+        subject.handleRound(state, round, txns -> {});
+
+        final InOrder inOrder = Mockito.inOrder(stakePeriodManager, nodeFeeManager);
+        inOrder.verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW));
+        inOrder.verify(nodeFeeManager).distributeFees(any(), any(), any());
     }
 }

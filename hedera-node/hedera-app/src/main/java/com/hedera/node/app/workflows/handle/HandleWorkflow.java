@@ -402,6 +402,7 @@ public class HandleWorkflow {
                 logTssReconcileFailure(e);
             }
         }
+        stakePeriodManager.setCurrentStakePeriodFor(round.getConsensusTimestamp());
         final var lastUsedConsTime = blockHashSigner.isReady()
                 ? (streamMode == RECORDS
                         ? blockRecordManager.lastUsedConsensusTime()

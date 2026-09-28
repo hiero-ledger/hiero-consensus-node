@@ -247,8 +247,8 @@ public class ClprChannelCommitRevealSuite {
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
             overrides = {"clpr.enabled"})
-    @DisplayName("verifyConfig V2: verifier-returned throttles and chainId are stored on channel")
-    final Stream<DynamicTest> verifyConfigV2FieldsStoredOnChannel() {
+    @DisplayName("verifyConfigWithSeedEndpoints: verifier-returned throttles and chainId are stored on channel")
+    final Stream<DynamicTest> verifyConfigWithSeedEndpointsFieldsStoredOnChannel() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
                 overriding("clpr.enabled", "true"),
@@ -269,9 +269,9 @@ public class ClprChannelCommitRevealSuite {
                     assertEquals(
                             "hiero:testing",
                             conn.chainId(),
-                            "chainId from verifyConfig V2 should be stored on channel");
+                            "chainId from verifyConfigWithSeedEndpoints should be stored on channel");
                     final var t = conn.peerThrottles();
-                    assertNotNull(t, "peerThrottles should be stored from verifyConfig V2 return");
+                    assertNotNull(t, "peerThrottles should be stored from verifyConfigWithSeedEndpoints return");
                     assertEquals(
                             100,
                             t.maxMessagesPerBundle(),

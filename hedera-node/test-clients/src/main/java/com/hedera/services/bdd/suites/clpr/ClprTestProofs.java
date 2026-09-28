@@ -4,6 +4,7 @@ package com.hedera.services.bdd.suites.clpr;
 import static com.hedera.hapi.node.state.clpr.ClprChannelStatus.fromProtobufOrdinal;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj;
 
+import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
@@ -29,13 +30,17 @@ import java.util.List;
  * does NOT accept raw config bytes. Tests need to wrap their ledger config in this
  * synthetic state-proof shape before passing it as {@code configProofBytes}.
  *
- * <p>Spec refs: §3.1 (Verifier Contract Interface — {@code verifyConfig(proofBytes) -> bytes}
- * returns the proven {@code ClprLedgerConfiguration}); §5.1.3 (Phase 2 — Reveal: the
+ * <p>Spec refs: §3.1 (Verifier Contract Interface — {@code verifyConfig(bytes,bytes32)}
+ * returns the proven configuration fields in an ABI tuple); §5.1.3 (Phase 2 — Reveal: the
  * {@code completeChannel} handler invokes the verifier over the registrant's
  * {@code config_proof_bytes} and stores the returned config + its {@code initial_trust_anchor}
  * on the new Channel).
  */
 final class ClprTestProofs {
+    /** Config ABI used when endpoint manifests are disabled, shared by all native verifiers. */
+    static final Function VERIFY_CONFIG_WITH_SEED_ENDPOINTS = new Function(
+            "verifyConfig(bytes,bytes32)",
+            "(bytes,string,bytes,uint96,(uint64,uint64,uint64,uint64,uint64),bytes,bytes,(string,uint32,bytes,bytes)[])");
 
     private ClprTestProofs() {}
 
