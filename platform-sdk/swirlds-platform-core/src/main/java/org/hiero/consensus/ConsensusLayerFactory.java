@@ -299,9 +299,7 @@ public class ConsensusLayerFactory {
                 reservedSignedStateResultPromise,
                 fallenBehindMonitor,
                 intakeEventCounter);
-        return new ConsensusLayerFactoryResult(
-                platformCoordinator,
-                consensusLayerBuildingBlocks);
+        return new ConsensusLayerFactoryResult(platformCoordinator, consensusLayerBuildingBlocks);
     }
 
     @NonNull
