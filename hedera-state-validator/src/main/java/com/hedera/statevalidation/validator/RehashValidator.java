@@ -67,7 +67,7 @@ public class RehashValidator implements Validator {
      */
     @Override
     public void validate() {
-        logger.debug("Doing full rehash for the path range: {} - {} in the VirtualMap", firstLeafPath, lastLeafPath);
+        logger.info("Doing full rehash for the path range: {} - {} in the VirtualMap", firstLeafPath, lastLeafPath);
 
         final long startTime = System.currentTimeMillis();
         final RehashTaskExecutor executor = new RehashTaskExecutor(records, firstLeafPath, lastLeafPath);
@@ -84,6 +84,6 @@ public class RehashValidator implements Validator {
                     getName(), String.format("Expected <%s> but was <%s>", originalHash, computedHash));
         }
 
-        logger.debug("It took {} ms to rehash the state", System.currentTimeMillis() - startTime);
+        logger.info("It took {} ms to rehash the state", System.currentTimeMillis() - startTime);
     }
 }
