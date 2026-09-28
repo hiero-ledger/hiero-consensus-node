@@ -130,13 +130,13 @@ class AtomicExchangeRateControlSuite {
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 resetRatesOp,
                 cryptoCreate("randomAccount"),
+                // The inner update is unauthorized, so the whole batch is rejected at ingest.
                 atomicBatch(fileUpdate(EXCHANGE_RATES)
                                 .contents("Should be impossible!")
                                 .payingWith("randomAccount")
-                                .hasKnownStatus(AUTHORIZATION_FAILED)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+                        .hasPrecheckFrom(AUTHORIZATION_FAILED));
     }
 
     @HapiTest

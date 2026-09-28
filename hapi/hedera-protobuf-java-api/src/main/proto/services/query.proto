@@ -57,6 +57,9 @@ import "services/token_get_nft_infos.proto";
 
 import "services/get_account_details.proto";
 
+import "services/clpr_get_ledger_configuration.proto";
+import "services/clpr_get_endpoint_manifest.proto";
+
 /**
  * A query transaction.<br/>
  * This message is serialized to bytes and those bytes are signed by the
@@ -227,5 +230,15 @@ message Query {
          * Get detail metadata for an account.
          */
         GetAccountDetailsQuery accountDetails = 58;
+
+        /**
+         * Get the current CLPR ledger configuration.
+         */
+        com.hedera.hapi.node.clpr.ClprGetLedgerConfigurationQuery clprGetLedgerConfiguration = 59;
+
+        /**
+         * Get the current CLPR endpoint manifest (spec §6.5).
+         */
+        com.hedera.hapi.node.clpr.ClprGetEndpointManifestQuery clprGetEndpointManifest = 60;
     }
 }

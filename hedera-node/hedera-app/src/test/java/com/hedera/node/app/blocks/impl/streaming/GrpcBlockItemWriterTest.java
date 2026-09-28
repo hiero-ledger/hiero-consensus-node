@@ -137,7 +137,7 @@ class GrpcBlockItemWriterTest {
     @Test
     void testFlushPendingBlockWritesPendingArtifacts() throws Exception {
         final var blockNumber = 7L;
-        final var blockState = new BlockState(blockNumber);
+        final var blockState = new BlockState(blockNumber, 2_000L);
         blockState.addItem(BlockItem.newBuilder()
                 .blockHeader(BlockHeader.newBuilder().number(blockNumber).build())
                 .build());
@@ -181,7 +181,7 @@ class GrpcBlockItemWriterTest {
     @Test
     void testFlushIncompleteBlockWritesIssArtifactWithoutClosingBuffer() throws Exception {
         final var blockNumber = 7L;
-        final var blockState = new BlockState(blockNumber);
+        final var blockState = new BlockState(blockNumber, 2_000L);
         blockState.addItem(BlockItem.newBuilder()
                 .blockHeader(BlockHeader.newBuilder().number(blockNumber).build())
                 .build());
@@ -237,7 +237,7 @@ class GrpcBlockItemWriterTest {
     @Test
     void flushIncompleteBlockIsNoOpWhenNoItems() {
         final var blockNumber = 7L;
-        when(blockBufferService.getBlockState(blockNumber)).thenReturn(new BlockState(blockNumber));
+        when(blockBufferService.getBlockState(blockNumber)).thenReturn(new BlockState(blockNumber, 2_000L));
         final var writer =
                 new GrpcBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem, blockBufferService);
         writer.openBlock(blockNumber);

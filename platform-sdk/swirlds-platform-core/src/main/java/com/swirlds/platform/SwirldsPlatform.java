@@ -40,7 +40,7 @@ public class SwirldsPlatform implements Platform {
     /**
      * the current nodes in the network and their information
      */
-    private final Roster currentRoster;
+    private final Roster activeRoster;
 
     /**
      * the object that contains all key pairs and CSPRNG state for this member
@@ -89,10 +89,10 @@ public class SwirldsPlatform implements Platform {
         selfId = inputs.selfId();
 
         notificationEngine = buildingBlocks.notificationEngine();
-        currentRoster = inputs.rosterHistory().getCurrentRoster();
+        activeRoster = inputs.rosterHistory().getActiveRoster();
 
         final Metrics metrics = inputs.metrics();
-        registerRosterMetrics(metrics, currentRoster, selfId);
+        registerRosterMetrics(metrics, activeRoster, selfId);
 
         RuntimeMetrics.setup(metrics);
 
@@ -175,6 +175,6 @@ public class SwirldsPlatform implements Platform {
     @Override
     @NonNull
     public Roster getRoster() {
-        return currentRoster;
+        return activeRoster;
     }
 }

@@ -18,6 +18,17 @@ import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.ReadableAccountNodeRelStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.ReadableRegisteredNodeStoreImpl;
+import com.hedera.node.app.service.clpr.ClprService;
+import com.hedera.node.app.service.clpr.ReadableChannelStore;
+import com.hedera.node.app.service.clpr.ReadableConnectorStore;
+import com.hedera.node.app.service.clpr.ReadableEndpointManifestStore;
+import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
+import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
+import com.hedera.node.app.service.clpr.impl.ReadableChannelStoreImpl;
+import com.hedera.node.app.service.clpr.impl.ReadableConnectorStoreImpl;
+import com.hedera.node.app.service.clpr.impl.ReadableEndpointManifestStoreImpl;
+import com.hedera.node.app.service.clpr.impl.ReadableLedgerConfigurationStoreImpl;
+import com.hedera.node.app.service.clpr.impl.ReadableMessageQueueStoreImpl;
 import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.ReadableTopicStoreImpl;
@@ -162,6 +173,26 @@ public class ReadableStoreFactoryImpl implements ReadableStoreFactory {
         newMap.put(
                 ReadableHistoryStore.class,
                 new StoreEntry(HistoryService.NAME, (states, entityCounters) -> new ReadableHistoryStoreImpl(states)));
+        // CLPR service
+        newMap.put(
+                ReadableChannelStore.class,
+                new StoreEntry(ClprService.NAME, (states, entityCounters) -> new ReadableChannelStoreImpl(states)));
+        newMap.put(
+                ReadableLedgerConfigurationStore.class,
+                new StoreEntry(
+                        ClprService.NAME,
+                        (states, entityCounters) -> new ReadableLedgerConfigurationStoreImpl(states)));
+        newMap.put(
+                ReadableEndpointManifestStore.class,
+                new StoreEntry(
+                        ClprService.NAME, (states, entityCounters) -> new ReadableEndpointManifestStoreImpl(states)));
+        newMap.put(
+                ReadableMessageQueueStore.class,
+                new StoreEntry(
+                        ClprService.NAME, (states, entityCounters) -> new ReadableMessageQueueStoreImpl(states)));
+        newMap.put(
+                ReadableConnectorStore.class,
+                new StoreEntry(ClprService.NAME, (states, entityCounters) -> new ReadableConnectorStoreImpl(states)));
         return Collections.unmodifiableMap(newMap);
     }
 

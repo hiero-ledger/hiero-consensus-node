@@ -70,17 +70,17 @@ public interface ReadableRosterStore {
     RosterHistory getRosterHistory();
 
     /**
-     * Get the current roster hash.
-     * @return The current roster hash.
+     * Get the active roster hash.
+     * @return The active roster hash.
      */
     @Nullable
-    Bytes getCurrentRosterHash();
+    Bytes getActiveRosterHash();
 
     /**
-     * Get the previous roster hash, if present. If the current roster is the genesis
+     * Get the previous roster hash, if present. If the active roster is the genesis
      * roster, returns {@code null}.
      *
-     * @return the previous roster hash, or {@code null} if the current roster is the genesis roster.
+     * @return the previous roster hash, or {@code null} if the active roster is the genesis roster.
      */
     @Nullable
     Bytes getPreviousRosterHash();

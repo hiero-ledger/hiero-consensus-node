@@ -128,6 +128,17 @@ public interface EmbeddedHedera {
     Response send(@NonNull Query query, @NonNull AccountID nodeAccountId, final boolean asNodeOperator);
 
     /**
+     * Sends a query given as already-serialized bytes to the embedded node, bypassing the {@link Query} builder.
+     * This lets tests exercise wire encodings the builder cannot produce (for example a non-repeated field that
+     * appears more than once), which is otherwise impossible because the normal send path re-serializes a
+     * {@link Query} object and therefore always emits a canonical encoding.
+     *
+     * @param serializedQuery the raw, already-serialized query bytes to submit
+     * @return the response to the query
+     */
+    Response sendQueryRaw(@NonNull byte[] serializedQuery);
+
+    /**
      * Submits a transaction to the embedded node.
      * @param transaction the transaction to submit
      * @param nodeAccountId the account ID of the node to submit the transaction to

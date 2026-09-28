@@ -33,19 +33,19 @@ public final class RosterServiceStateMock {
     private RosterServiceStateMock() {}
 
     /**
-     * A helper version of the setup() method that configures the currentRoster only
+     * A helper version of the setup() method that configures the activeRoster only
      * which becomes active at round zero. See the doc for the complete setup()
      * method below for more information.
      *
      * @param stateMock a mock of the State interface
-     * @param currentRoster a Roster to be active since round zero
+     * @param activeRoster a Roster to be active since round zero
      */
-    public static void setup(final State stateMock, final Roster currentRoster) {
-        setup(stateMock, currentRoster, 0, null);
+    public static void setup(final State stateMock, final Roster activeRoster) {
+        setup(stateMock, activeRoster, 0, null);
     }
 
     /**
-     * Configures the provided State mock with the currentRoster starting at the given round,
+     * Configures the provided State mock with the activeRoster starting at the given round,
      * and optionally with the previousRoster (if not null) starting at round zero.
      * <p>
      * This method properly configures the RosterService states to provide proper RosterHistory
@@ -54,21 +54,21 @@ public final class RosterServiceStateMock {
      * <p>
      * If the previousRoster is not null, then the given round number must be greater than zero
      * because it's assumed that the previousRoster is active since the round zero,
-     * and the current roster must have a round number greater than that.
+     * and the active roster must have a round number greater than that.
      * <p>
      * To support tests that verify the behavior at genesis when no roster history exists yet,
-     * the currentRoster may also be null. Normally, the previousRoster would also be null
+     * the activeRoster may also be null. Normally, the previousRoster would also be null
      * in this case (although the method won't prevent one from specifying a non-null value),
      * which would normally result in an empty roster history.
      *
      * @param stateMock a mock of the State interface
-     * @param currentRoster a Roster to be currently active, may be null
-     * @param round a round number since which the currentRoster is active
+     * @param activeRoster a Roster to be currently active, may be null
+     * @param round a round number since which the activeRoster is active
      * @param previousRoster an optional Roster to be the previousRoster, active since round zero
      */
     public static void setup(
             @NonNull final State stateMock,
-            @Nullable final Roster currentRoster,
+            @Nullable final Roster activeRoster,
             final long round,
             @Nullable final Roster previousRoster) {
         final ReadableStates readableStates = mock(ReadableStates.class);
@@ -79,10 +79,10 @@ public final class RosterServiceStateMock {
 
         List<RoundRosterPair> roundRosterPairs = new ArrayList<>();
 
-        if (currentRoster != null) {
-            final Bytes rosterHash = RosterUtils.hash(currentRoster).getBytes();
+        if (activeRoster != null) {
+            final Bytes rosterHash = RosterUtils.hash(activeRoster).getBytes();
             final ProtoBytes value = new ProtoBytes(rosterHash);
-            when(rosterMap.get(eq(value))).thenReturn(currentRoster);
+            when(rosterMap.get(eq(value))).thenReturn(activeRoster);
             when(rosterMap.contains(eq(value))).thenReturn(true);
             roundRosterPairs.add(new RoundRosterPair(round, rosterHash));
         }
@@ -90,7 +90,7 @@ public final class RosterServiceStateMock {
         if (previousRoster != null) {
             if (round <= 0L) {
                 throw new IllegalArgumentException(
-                        "With a non-null previousRoster, the round number for the currentRoster must be greater than zero: previousRoster="
+                        "With a non-null previousRoster, the round number for the activeRoster must be greater than zero: previousRoster="
                                 + Roster.JSON.toJSON(previousRoster));
             }
             final Bytes previousRosterHash = RosterUtils.hash(previousRoster).getBytes();

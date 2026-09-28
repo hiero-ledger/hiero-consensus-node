@@ -33,8 +33,6 @@ import java.time.Duration;
  *                                           a self event, we must know about the event for at least this amount of time
  *                                           before the event is eligible to be sent. This is to help to reduce
  *                                           duplicate rate in when broadcast is enabled
- * @param syncKeepalivePeriod                send a keepalive message every this many milliseconds when reading events
- *                                           during a sync
  * @param maxSyncTime                        the maximum amount of time to spend syncing with a peer, syncs that take
  *                                           longer than this will be aborted
  * @param maxSyncEventCount                  the maximum number of events to send in a sync, or 0 for no limit
@@ -87,7 +85,6 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "3s") Duration nonAncestorFilterThreshold,
         @ConfigProperty(defaultValue = "250ms") Duration ancestorFilterThreshold,
         @ConfigProperty(defaultValue = "1s") Duration selfFilterThreshold,
-        @ConfigProperty(defaultValue = "500ms") Duration syncKeepalivePeriod,
         @ConfigProperty(defaultValue = "1m") Duration maxSyncTime,
         @ConfigProperty(defaultValue = "5000") int maxSyncEventCount,
         @ConfigProperty(defaultValue = "1s") Duration unhealthyGracePeriod,

@@ -190,7 +190,7 @@ public class ConsensusRound implements Round {
     /**
      * @return the consensus roster for this round
      */
-    public RosterWrapper getRosterWrapper() {
+    public RosterWrapper getConsensusRosterWrapper() {
         return consensusRoster;
     }
 

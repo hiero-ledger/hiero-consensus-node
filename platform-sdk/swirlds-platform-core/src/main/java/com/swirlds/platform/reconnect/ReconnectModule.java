@@ -25,7 +25,7 @@ public interface ReconnectModule {
      *
      * @param configuration the configuration for this module
      * @param time the time source
-     * @param currentRoster the current roster of the network
+     * @param activeRoster the active roster of the network
      * @param buildingBlocks the building blocks for the consensus layer
      * @param platform the platform to use for performing platform operations
      * @param stateLifecycleManager the manager for the lifecycle of the platform state
@@ -35,7 +35,7 @@ public interface ReconnectModule {
     void initialize(
             @NonNull Configuration configuration,
             @NonNull Time time,
-            @NonNull Roster currentRoster,
+            @NonNull Roster activeRoster,
             @NonNull ConsensusLayerBuildingBlocks buildingBlocks,
             @NonNull Platform platform,
             @NonNull StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,

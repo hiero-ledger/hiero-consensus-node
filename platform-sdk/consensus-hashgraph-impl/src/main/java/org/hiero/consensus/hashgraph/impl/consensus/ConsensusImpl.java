@@ -591,7 +591,7 @@ public class ConsensusImpl implements Consensus {
         long yesWeight = 0; // total weight of all members voting yes
         long noWeight = 0; // total weight of all members voting yes
         for (final EventImpl w : stronglySeen) {
-            final long weight = roster.getRosterEntry(w.getCreatorId()).weight();
+            final long weight = roster.weight(w.getCreatorId());
             if (w.getVote(candidateWitness)) {
                 yesWeight += weight;
             } else {
@@ -663,7 +663,7 @@ public class ConsensusImpl implements Consensus {
         // getRosterIndex() can throw an exception if the creator is not in the roster
         // this should never happen since we don't create elections for events not in the roster,
         // we instantly declare them not famous
-        final int votedOnIndex = roster.getIndex(votedOn.getCreatorId());
+        final int votedOnIndex = roster.index(votedOn.getCreatorId());
         // first round of an election. Vote TRUE for self-ancestors of those you firstSee. Don't
         // decide.
         EventImpl w = firstSee(voting, votedOnIndex);
@@ -774,7 +774,7 @@ public class ConsensusImpl implements Consensus {
      */
     private void checkJudges(@NonNull final List<EventImpl> judges, final long decidedRoundNumber) {
         final long judgeWeights = judges.stream()
-                .mapToLong(event -> roster.getRosterEntry(event.getCreatorId()).weight())
+                .mapToLong(event -> roster.weight(event.getCreatorId()))
                 .sum();
         consensusMetrics.judgeWeights(judgeWeights);
         if (judges.isEmpty()) {
@@ -977,7 +977,7 @@ public class ConsensusImpl implements Consensus {
         x.initLastSee(roster.size());
 
         for (int mm = 0; mm < roster.size(); mm++) {
-            if (roster.getIndex(x.getCreatorId()) == mm) {
+            if (roster.isIdAtIndex(x.getCreatorId(), mm)) {
                 // mm created x, so x is considered to see itself
                 x.setLastSee(mm, x);
                 continue;
@@ -1033,7 +1033,7 @@ public class ConsensusImpl implements Consensus {
         if (notRelevantForConsensus(x)) {
             return null;
         }
-        if (m == m2 && roster.getIndex(x.getCreatorId()) == m2) {
+        if (m == m2 && roster.isIdAtIndex(x.getCreatorId(), m2)) {
             return firstSelfWitnessS(selfParent(x));
         }
         return firstSee(lastSee(x, m2), m);
@@ -1089,7 +1089,7 @@ public class ConsensusImpl implements Consensus {
                 long weight = 0;
                 for (int m3 = 0; m3 < roster.size(); m3++) {
                     if (seeThru(x, mm, m3) == st) { // only count intermediates that see the canonical witness
-                        weight += roster.rosterEntries().get(m3).weight();
+                        weight += roster.weightAtIndex(m3);
                     }
                 }
                 if (Threshold.SUPER_MAJORITY.isSatisfiedBy(
@@ -1209,7 +1209,7 @@ public class ConsensusImpl implements Consensus {
         int numStronglySeen = 0;
         for (int m = 0; m < numMembers; m++) {
             if (timedStronglySeeP(x, m) != null) {
-                weight += roster.rosterEntries().get(m).weight();
+                weight += roster.weightAtIndex(m);
                 numStronglySeen++;
             }
         }

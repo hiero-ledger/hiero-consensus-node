@@ -88,7 +88,7 @@ public class HashgraphPicture extends JPanel {
             g.setFont(HASHGRAPH_PICTURE_FONT);
             final FontMetrics fm = g.getFontMetrics();
             final RosterWrapper roster = hashgraphSource.getRoster();
-            final int numMem = roster.rosterEntries().size();
+            final int numMem = roster.size();
 
             List<EventImpl> events;
             if (options.displayLatestEvents()) {
@@ -105,8 +105,8 @@ public class HashgraphPicture extends JPanel {
                 return;
             }
             events = events.stream()
-                    .filter(e -> roster.getIndex(e.getCreatorId()) != -1)
-                    .filter(e -> roster.getIndex(e.getCreatorId()) < numMem)
+                    .filter(e -> roster.index(e.getCreatorId()) != -1)
+                    .filter(e -> roster.index(e.getCreatorId()) < numMem)
                     .toList();
 
             pictureMetadata = new PictureMetadata(
@@ -198,8 +198,7 @@ public class HashgraphPicture extends JPanel {
         final RosterWrapper roster = hashgraphSource.getRoster();
         for (final EventImpl parent : event.getAllParents()) {
             final NodeId id = parent.getCreatorId();
-            if ((roster.getIndex(id) == -1
-                    || roster.getIndex(id) >= roster.rosterEntries().size())) {
+            if ((roster.index(id) == -1 || roster.index(id) >= roster.size())) {
                 // if the creator of the other parent has been removed,
                 // treat it as if there is no other parent
                 continue;

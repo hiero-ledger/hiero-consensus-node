@@ -97,7 +97,8 @@ ranges are accurate at last review and may shift with refactors.
   exchanging events; the allow-list is explicit in
   `STATUSES_THAT_PERMIT_SYNC`. The statuses *not* in the allow-list
   and why each blocks sync:
-  - `STARTUP` — the system is initializing and not yet ready to sync.
+  - `STARTING_UP` — the system is initializing and not yet ready to
+    sync.
   - `REPLAYING_EVENTS` — the node is replaying events from local PCES
     to catch up to where it left off, and is not yet ready to accept
     new events.
@@ -119,10 +120,11 @@ ranges are accurate at last review and may shift with refactors.
   catalog, the response is graded rather than binary.
 - Code anchor: multiple mechanisms in
   [`consensus-gossip-impl`](../../../../consensus-gossip-impl) —
-  `PermitProvider.acquire()` (called from
-  `RpcPeerProtocol.shouldSwitchToRpc()`),
-  `PermitProvider.isHealthy()`, the `RpcOverloadMonitor` output-queue
-  and ping-latency checks, and the `ignoreIncomingEvents` flag.
+  [`SyncPermitProvider.java#acquire`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/permits/SyncPermitProvider.java#acquire)
+  (called from `RpcPeerProtocol.shouldSwitchToRpc()`),
+  [`SyncPermitProvider.java#isHealthy`](../../../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/permits/SyncPermitProvider.java#isHealthy),
+  the `RpcOverloadMonitor` output-queue and ping-latency checks, and
+  the `ignoreIncomingEvents` flag.
 - Rationale: gossiping faster than the node can process events grows
   queues without making progress; throttling lets the local pipeline
   drain. Full treatment of each mechanism, the signals that feed it,

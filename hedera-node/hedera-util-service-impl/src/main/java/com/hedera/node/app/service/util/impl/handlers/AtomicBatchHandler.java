@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_TRANSACTION_IN_BL
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_BATCH_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -104,7 +105,9 @@ public class AtomicBatchHandler implements TransactionHandler {
         }
 
         Set<TransactionID> txIds = new HashSet<>();
-        for (final var innerTxBytes : innerTxs) {
+        int evmTransactionIndex = -1;
+        for (int i = 0; i < innerTxs.size(); i++) {
+            final var innerTxBytes = innerTxs.get(i);
             final TransactionBody txBody;
             // use the checked version to throw PreCheckException if we cant parse the transaction
             txBody = innerTxnCache.computeIfAbsent(innerTxBytes);
@@ -118,7 +121,14 @@ public class AtomicBatchHandler implements TransactionHandler {
             if (!txBody.hasNodeAccountID() || !txBody.nodeAccountIDOrThrow().equals(ATOMIC_BATCH_NODE_ACCOUNT_ID)) {
                 throw new PreCheckException(INVALID_NODE_ACCOUNT_ID);
             }
+
+            if (CONTRACT_OP_BODIES.contains(txBody.data().kind())) {
+                validateTruePreCheck(evmTransactionIndex == -1, INVALID_TRANSACTION_BODY);
+                evmTransactionIndex = i;
+            }
         }
+        validateTruePreCheck(
+                evmTransactionIndex == -1 || evmTransactionIndex == innerTxs.size() - 1, INVALID_TRANSACTION_BODY);
     }
 
     @Override
@@ -196,7 +206,21 @@ public class AtomicBatchHandler implements TransactionHandler {
                         });
             }
 
-            final var streamBuilder = context.dispatch(dispatchOptions);
+            final ReplayableFeeStreamBuilder streamBuilder;
+            try {
+                streamBuilder = context.dispatch(dispatchOptions);
+            } catch (final HandleException e) {
+                /* A HandleException can escape context.dispatch() itself (instead of being reported as a
+                non-SUCCESS stream-builder status) when it is thrown eagerly during inner-dispatch setup -
+                most notably MAX_CHILD_RECORDS_EXCEEDED, thrown while allocating this inner's base record
+                builder before the inner is ever handled. The inner that threw was never charged, but the
+                batch is about to be rolled back, so we must still replay the recorded side effects (fees
+                and Ethereum-specific effects) of all previously processed inners. We rethrow with the
+                original status (so the batch's reported result is unchanged) but now carrying an onRollback
+                that replays the accumulated rollback queue. HandleException must not chain a cause, so we
+                construct a fresh exception copying the status. */
+                throw new HandleException(e.getStatus(), replaying(rollbackQueue));
+            }
 
             /* Let's collect the recorded fees and add a replay action to the rollback queue. */
             final var recordedCharges = List.copyOf(recordedFeeCharging.charges());
@@ -211,12 +235,21 @@ public class AtomicBatchHandler implements TransactionHandler {
                 /* Finally, if any transaction within the batch fails: throw HandleException and,
                 within its onRollback handler, iterate the rollback queue and replay all collected side effects
                 of previously executed transactions (and the one that has just failed). */
-                throw new HandleException(
-                        INNER_TRANSACTION_FAILED,
-                        (feeChargingContext, dispatch) ->
-                                rollbackQueue.forEach(onRollback -> onRollback.replay(feeChargingContext, dispatch)));
+                throw new HandleException(INNER_TRANSACTION_FAILED, replaying(rollbackQueue));
             }
         }
+    }
+
+    /**
+     * Builds an {@link HandleException.OnRollback} that replays every side effect accumulated in the given
+     * rollback queue (the recorded fees and Ethereum-specific effects of all previously processed inners).
+     *
+     * @param rollbackQueue the accumulated rollback actions to replay
+     * @return an {@link HandleException.OnRollback} that replays the entire queue
+     */
+    private static HandleException.OnRollback replaying(@NonNull final List<HandleException.OnRollback> rollbackQueue) {
+        return (feeChargingContext, dispatch) ->
+                rollbackQueue.forEach(onRollback -> onRollback.replay(feeChargingContext, dispatch));
     }
 
     /**

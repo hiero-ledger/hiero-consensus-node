@@ -131,7 +131,7 @@ public class ConsensusEngineContractTest {
         eventEmitter
                 .getGraphGenerator()
                 .setOtherParentAffinity(OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix(
-                        roster.rosterEntries().size(), shunnedNodeIndex));
+                        roster.size(), shunnedNodeIndex));
         final List<PlatformEvent> generatedEvents = eventEmitter.emitEvents(NUMBER_OF_EVENTS_PER_TEST);
 
         // start from genesis, validate the output
@@ -168,16 +168,14 @@ public class ConsensusEngineContractTest {
     private static RosterWrapper allWeightToOneNode(@NonNull final RosterWrapper originalRoster) {
         final List<RosterEntry> modifiedEntries = new ArrayList<>();
         modifiedEntries.add(originalRoster
-                .rosterEntries()
-                .getFirst()
+                .rosterEntryAtIndex(0)
                 .toPbj()
                 .copyBuilder()
                 .weight(1)
                 .build());
-        for (int i = 1; i < originalRoster.rosterEntries().size(); i++) {
+        for (int i = 1; i < originalRoster.size(); i++) {
             modifiedEntries.add(originalRoster
-                    .rosterEntries()
-                    .get(i)
+                    .rosterEntryAtIndex(i)
                     .toPbj()
                     .copyBuilder()
                     .weight(0)

@@ -72,31 +72,31 @@ class ReadableRosterStoreImplTest {
     @Test
     void testCreateRosterHistory() {
         final Random random = new Random();
-        final Roster currentRoster = RosterFactory.randomRoster(random, 4);
+        final Roster activeRoster = RosterFactory.randomRoster(random, 4);
         final Roster previousRoster = RosterFactory.randomRoster(random, 3);
 
-        setup(currentRoster, 16L, previousRoster);
+        setup(activeRoster, 16L, previousRoster);
 
         final RosterHistory rosterHistory = subject.getRosterHistory();
         assertEquals(previousRoster, rosterHistory.getPreviousRoster());
-        assertEquals(currentRoster, rosterHistory.getCurrentRoster());
+        assertEquals(activeRoster, rosterHistory.getActiveRoster());
     }
 
     @Test
     void testCreateRosterHistoryVerifyRound() {
         final Random random = RandomUtils.getRandomPrintSeed();
-        final Roster currentRoster = RosterFactory.randomRoster(random, 4);
+        final Roster activeRoster = RosterFactory.randomRoster(random, 4);
         final Roster previousRoster = RosterFactory.randomRoster(random, 3);
-        setup(currentRoster, 16L, previousRoster);
+        setup(activeRoster, 16L, previousRoster);
 
         final RosterHistory rosterHistory = subject.getRosterHistory();
-        assertEquals(currentRoster, rosterHistory.getCurrentRoster());
+        assertEquals(activeRoster, rosterHistory.getActiveRoster());
         assertEquals(previousRoster, rosterHistory.getPreviousRoster());
 
-        assertEquals(currentRoster, rosterHistory.getRosterForRound(16));
-        assertEquals(currentRoster, rosterHistory.getRosterForRound(18));
-        assertEquals(currentRoster, rosterHistory.getRosterForRound(100));
-        assertEquals(currentRoster, rosterHistory.getRosterForRound(Integer.MAX_VALUE));
+        assertEquals(activeRoster, rosterHistory.getRosterForRound(16));
+        assertEquals(activeRoster, rosterHistory.getRosterForRound(18));
+        assertEquals(activeRoster, rosterHistory.getRosterForRound(100));
+        assertEquals(activeRoster, rosterHistory.getRosterForRound(Integer.MAX_VALUE));
         assertEquals(previousRoster, rosterHistory.getRosterForRound(15));
         assertEquals(previousRoster, rosterHistory.getRosterForRound(0));
         assertNull(rosterHistory.getRosterForRound(-1));
@@ -107,16 +107,16 @@ class ReadableRosterStoreImplTest {
         assertThrows(NullPointerException.class, () -> subject.getRosterHistory());
     }
 
-    private void setup(@NonNull final Roster currentRoster, final long round, @NonNull final Roster previousRoster) {
-        final Bytes currentRosterHash = RosterUtils.hash(currentRoster).getBytes();
+    private void setup(@NonNull final Roster activeRoster, final long round, @NonNull final Roster previousRoster) {
+        final Bytes activeRosterHash = RosterUtils.hash(activeRoster).getBytes();
         final Bytes previousRosterHash = RosterUtils.hash(previousRoster).getBytes();
 
-        rosterMap.put(new ProtoBytes(currentRosterHash), currentRoster);
+        rosterMap.put(new ProtoBytes(activeRosterHash), activeRoster);
         rosterMap.put(new ProtoBytes(previousRosterHash), previousRoster);
 
         final List<RoundRosterPair> roundRosterPairs = List.of(
                 RoundRosterPair.newBuilder()
-                        .activeRosterHash(currentRosterHash)
+                        .activeRosterHash(activeRosterHash)
                         .roundNumber(round)
                         .build(),
                 RoundRosterPair.newBuilder()

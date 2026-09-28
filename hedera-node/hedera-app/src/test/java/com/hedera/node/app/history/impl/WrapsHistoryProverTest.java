@@ -191,6 +191,48 @@ class WrapsHistoryProverTest {
     }
 
     @Test
+    void genesisMissingSelectedR2IsRecoverableOnlyAfterGracePeriod() {
+        final var lastMessageTime = EPOCH.plusSeconds(2);
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore));
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH.plusSeconds(1)),
+                writableHistoryStore));
+        final var graceEndCaptor = ArgumentCaptor.forClass(Instant.class);
+        verify(writableHistoryStore).advanceWrapsSigningPhase(eq(CONSTRUCTION_ID), eq(R2), graceEndCaptor.capture());
+        final var graceEnd = graceEndCaptor.getValue();
+        assertEquals(EPOCH.plusSeconds(1).plus(GRACE_PERIOD), graceEnd);
+        final var construction = constructionWithPhase(R2, graceEnd);
+
+        // Both R1 participants are required in R2; the other participant's R2 never arrives.
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, lastMessageTime),
+                writableHistoryStore));
+        assertSame(
+                HistoryProver.Outcome.InProgress.INSTANCE,
+                subject.advance(
+                        lastMessageTime, construction, TARGET_METADATA, targetProofKeys, tssConfig, null, true));
+        assertSame(
+                HistoryProver.Outcome.InProgress.INSTANCE,
+                subject.advance(graceEnd, construction, TARGET_METADATA, targetProofKeys, tssConfig, null, true));
+
+        final var outcome = subject.advance(
+                graceEnd.plusNanos(1), construction, TARGET_METADATA, targetProofKeys, tssConfig, null, true);
+
+        final var failure = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
+        assertEquals(
+                "Still missing messages from R1 nodes [2] after end of grace period for phase R2", failure.reason());
+        assertTrue(WrapsHistoryProver.isRecoverableFailure(failure.reason()));
+        verify(writableHistoryStore, never()).advanceWrapsSigningPhase(eq(CONSTRUCTION_ID), eq(R3), any());
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
     void advanceInitializesWrapsMessageAndPublishesR1() {
         subject = new WrapsHistoryProver(
                 SELF_ID,
@@ -637,6 +679,68 @@ class WrapsHistoryProverTest {
         assertEquals(UNCOMPRESSED, proof.uncompressedWrapsProof());
         final var chainOfTrust = proof.chainOfTrustProofOrThrow();
         assertTrue(chainOfTrust.hasWrapsProof());
+    }
+
+    @Test
+    void aggregatePhaseGroundsAGenesisProofWhenTheConstructionHasTheSameRosterAsSourceAndTarget() {
+        final var sourceProof = HistoryProof.newBuilder()
+                .uncompressedWrapsProof(UNCOMPRESSED)
+                .chainOfTrustProof(
+                        ChainOfTrustProof.newBuilder().wrapsProof(COMPRESSED).build())
+                .build();
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                sourceProof,
+                weights,
+                proofKeys,
+                delayer,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any(), any()))
+                .willReturn(AGG_SIG.toByteArray());
+        given(historyLibrary.verifyAggregateSignature(any(), any(), any(), any(), any()))
+                .willReturn(true);
+        given(tssConfig.wrapsEnabled()).willReturn(true);
+        given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+
+        replaySigningRounds();
+
+        // A fresh genesis proof for the current roster is built by a construction with that roster on both sides
+        final var construction = constructionWithPhase(AGGREGATE, null)
+                .copyBuilder()
+                .sourceRosterHash(Bytes.wrap("SAME"))
+                .targetRosterHash(Bytes.wrap("SAME"))
+                .build();
+        final var outcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        // Even with a proof it could fold onto, the construction takes the genesis path and grounds an
+        // aggregate signature proof first
+        verify(historyLibrary, never()).constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any());
+        final var captor = ArgumentCaptor.forClass(HistoryProof.class);
+        verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
+        assertTrue(captor.getValue().chainOfTrustProofOrThrow().hasAggregatedNodeSignatures());
+    }
+
+    private void replaySigningRounds() {
+        setField("entropy", new byte[32]);
+        for (final var phaseAndMessage :
+                List.of(Map.entry(R1, R1_MESSAGE), Map.entry(R2, R2_MESSAGE), Map.entry(R3, R3_MESSAGE))) {
+            for (final long nodeId : List.of(SELF_ID, OTHER_NODE_ID)) {
+                subject.replayWrapsSigningMessage(
+                        CONSTRUCTION_ID,
+                        new WrapsMessagePublication(
+                                nodeId, phaseAndMessage.getValue(), phaseAndMessage.getKey(), EPOCH));
+            }
+        }
     }
 
     @Test

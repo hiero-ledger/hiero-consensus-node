@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_UPDATE;
@@ -132,6 +133,12 @@ public class DispatchProcessor {
         requireNonNull(dispatch);
         final var validation = validator.validateFeeChargingScenario(dispatch);
         if (!validation.creatorDidDueDiligence()) {
+            if (isClprSubmitBundle(dispatch)) {
+                logger.warn(
+                        "[CLPR-DISPATCH] creator due diligence failed; charging creator txId={} status={}",
+                        dispatch.txnInfo().transactionID(),
+                        validation.errorStatusOrThrow());
+            }
             chargeCreator(dispatch, validation);
         } else {
             final var fees = chargePayer(dispatch, validation, false);
@@ -176,18 +183,40 @@ public class DispatchProcessor {
             handleSystemUpdates(dispatch);
             success = true;
         } catch (HandleException e) {
+            if (isClprSubmitBundle(dispatch)) {
+                logger.warn(
+                        "[CLPR-DISPATCH] HandleException txId={} status={} message={}",
+                        dispatch.txnInfo().transactionID(),
+                        e.getStatus(),
+                        e.getMessage());
+            }
             final var feeCharging = dispatch.feeChargingOrElse(appFeeCharging);
             feeCharging.rollback();
             rollback(e.getStatus(), dispatch.stack(), dispatch.streamBuilder(), dispatch.feeAccumulator());
             chargePayer(dispatch, validation, false);
             e.maybeReplay(feeCharging.customized(dispatch), dispatch.handleContext());
         } catch (ThrottleException e) {
+            if (isClprSubmitBundle(dispatch)) {
+                logger.warn(
+                        "[CLPR-DISPATCH] throttled txId={} status={} message={}",
+                        dispatch.txnInfo().transactionID(),
+                        e.getStatus(),
+                        e.getMessage());
+            }
             workflowMetrics.incrementThrottled(functionality);
             rollbackAndRechargeFee(dispatch, validation, e.getStatus());
             if (functionality == ETHEREUM_TRANSACTION) {
                 ethereumTransactionHandler.handleThrottled(dispatch.handleContext());
             }
         } catch (Exception e) {
+            if (isClprSubmitBundle(dispatch)) {
+                logger.error(
+                        "[CLPR-DISPATCH] unexpected exception txId={} category={} payer={}",
+                        dispatch.txnInfo().transactionID(),
+                        dispatch.txnCategory(),
+                        dispatch.payerId(),
+                        e);
+            }
             logger.error("{} - exception thrown while handling dispatch", ALERT_MESSAGE, e);
             rollbackAndRechargeFee(dispatch, validation, FAIL_INVALID);
         }
@@ -247,6 +276,14 @@ public class DispatchProcessor {
      */
     private void chargeCreator(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
         dispatch.streamBuilder().status(validation.errorStatusOrThrow());
+        if (isClprSubmitBundle(dispatch)) {
+            logger.warn(
+                    "[CLPR-DISPATCH] charge creator txId={} creator={} networkFee={} status={}",
+                    dispatch.txnInfo().transactionID(),
+                    dispatch.creatorInfo().accountId(),
+                    dispatch.fees().networkFee(),
+                    validation.errorStatusOrThrow());
+        }
         // If the transaction is a batch inner transaction, we don't charge the creator
         if (dispatch.category() == BATCH_INNER) {
             return;
@@ -316,19 +353,47 @@ public class DispatchProcessor {
      */
     private boolean alreadyFailed(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
         if (validation.maybeErrorStatus() != null) {
+            if (isClprSubmitBundle(dispatch)) {
+                logger.warn(
+                        "[CLPR-DISPATCH] skipping handler due to validation error txId={} status={}",
+                        dispatch.txnInfo().transactionID(),
+                        validation.errorStatusOrThrow());
+            }
             dispatch.streamBuilder().status(validation.errorStatusOrThrow());
             return true;
         }
         final var authorizationFailure = maybeAuthorizationFailure(dispatch);
         if (authorizationFailure != null) {
+            if (isClprSubmitBundle(dispatch)) {
+                logger.warn(
+                        "[CLPR-DISPATCH] skipping handler due to authorization failure txId={} status={} "
+                                + "category={} payer={}",
+                        dispatch.txnInfo().transactionID(),
+                        authorizationFailure,
+                        dispatch.txnCategory(),
+                        dispatch.payerId());
+            }
             dispatch.streamBuilder().status(authorizationFailure);
             return true;
         }
         if (failsSignatureVerification(dispatch)) {
+            if (isClprSubmitBundle(dispatch)) {
+                logger.warn(
+                        "[CLPR-DISPATCH] skipping handler due to signature verification failure txId={} "
+                                + "requiredKeys={} hollowAccounts={}",
+                        dispatch.txnInfo().transactionID(),
+                        dispatch.requiredKeys().size(),
+                        dispatch.hollowAccounts().size());
+            }
             dispatch.streamBuilder().status(INVALID_SIGNATURE);
             return true;
         }
         return false;
+    }
+
+    private static boolean isClprSubmitBundle(@NonNull final Dispatch dispatch) {
+        final var txnInfo = dispatch.txnInfo();
+        return txnInfo != null && txnInfo.functionality() == CLPR_SUBMIT_BUNDLE;
     }
 
     /**

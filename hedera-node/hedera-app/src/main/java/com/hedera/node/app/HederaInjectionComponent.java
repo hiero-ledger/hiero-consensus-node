@@ -30,6 +30,7 @@ import com.hedera.node.app.quiescence.TxPipelineTracker;
 import com.hedera.node.app.records.BlockRecordInjectionModule;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
+import com.hedera.node.app.service.clpr.impl.ClprServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
@@ -47,6 +48,7 @@ import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.spi.throttle.ScheduleThrottle;
+import com.hedera.node.app.state.BlockProvenStateAccessor;
 import com.hedera.node.app.state.HederaStateInjectionModule;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
@@ -54,6 +56,7 @@ import com.hedera.node.app.throttle.ThrottleServiceModule;
 import com.hedera.node.app.workflows.FacilityInitModule;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.WorkflowsInjectionModule;
+import com.hedera.node.app.workflows.clpr.ClprRuntime;
 import com.hedera.node.app.workflows.handle.HandleWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.ingest.SubmissionManager;
@@ -158,6 +161,10 @@ public interface HederaInjectionComponent {
 
     SubmissionManager submissionManager();
 
+    ClprRuntime clprRuntime();
+
+    com.hedera.node.app.workflows.clpr.ClprSyncWorkflow clprSyncWorkflow();
+
     AsyncFatalIssListener fatalIssListener();
 
     CurrentPlatformStatus currentPlatformStatus();
@@ -170,6 +177,9 @@ public interface HederaInjectionComponent {
     interface Builder {
         @BindsInstance
         Builder tokenServiceImpl(TokenServiceImpl tokenService);
+
+        @BindsInstance
+        Builder clprServiceImpl(ClprServiceImpl clprService);
 
         @BindsInstance
         Builder consensusServiceImpl(ConsensusServiceImpl consensusService);
@@ -264,6 +274,9 @@ public interface HederaInjectionComponent {
         @BindsInstance
         Builder wrappedRecordBlockHashMigration(
                 com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration);
+
+        @BindsInstance
+        Builder blockProvenStateAccessor(@Nullable BlockProvenStateAccessor blockProvenStateAccessor);
 
         @BindsInstance
         Builder transactionOffsetNanos(@Named("transactionOffsetNanos") int transactionOffsetNanos);
