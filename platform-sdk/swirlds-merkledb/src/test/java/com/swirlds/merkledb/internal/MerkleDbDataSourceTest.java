@@ -44,6 +44,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -679,6 +680,21 @@ class MerkleDbDataSourceTest extends AbstractMerkelDbTest {
             snapshotDataSource2.close();
             deleteDirectoryAndContents(snapshotDbPath2);
         }
+    }
+
+    @Test
+    void testDigestTypeNameInMetadata() throws Exception {
+        final String label = "testDigestTypeNameInMetadata";
+        final Path snapshotPath = fileSystemManager.resolveNewTemp("snapshot-testDigestTypeNameInMetadata");
+        createAndApplyDataSource(label, 100, dataSource -> {
+            takeSnapshot(dataSource, snapshotPath);
+            final MerkleDbDataSource restored = restoreDataSource(snapshotPath, label, false);
+            try {
+                assertEquals(Cryptography.DEFAULT_DIGEST_TYPE, restored.getLoadedHashDigestType());
+            } finally {
+                restored.close();
+            }
+        });
     }
 
     @Test

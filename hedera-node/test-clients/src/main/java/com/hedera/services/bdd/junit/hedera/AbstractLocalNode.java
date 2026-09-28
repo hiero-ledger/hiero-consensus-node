@@ -41,7 +41,7 @@ public abstract class AbstractLocalNode<T extends AbstractLocalNode<T>> extends 
     @Override
     public @NonNull T initWorkingDir(@NonNull final Network network) {
         requireNonNull(network);
-        recreateWorkingDir(requireNonNull(metadata.workingDir()), network, metadata.nodeId());
+        recreateWorkingDir(requireNonNull(metadata.workingDir()), network, metadata.nodeId(), metadata.networkName());
         workingDirInitialized = true;
         return self();
     }

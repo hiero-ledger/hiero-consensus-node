@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+
+/**
+ * Remove a Connector from the CLPR Service.
+ *
+ * Deregisters a Connector and returns any locked stake to the specified
+ * stake_recipient account. Requires the connector's admin_key to sign.
+ *
+ * Authority: Connector admin_key must sign.
+ */
+message ClprDeregisterConnectorTransactionBody {
+    /**
+     * The 32-byte Channel ID the Connector is registered on.
+     */
+    bytes channel_id = 1;
+
+    /**
+     * The 32-byte Connector ID: keccak256(channelId || pubKey || salt).
+     */
+    bytes connector_id = 2;
+
+    /**
+     * Account to receive the returned locked_stake.
+     * Must be explicitly specified and must sign the transaction.
+     */
+    proto.AccountID stake_recipient = 3;
+}

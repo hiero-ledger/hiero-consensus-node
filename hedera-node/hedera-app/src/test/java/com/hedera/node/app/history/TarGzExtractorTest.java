@@ -393,6 +393,56 @@ class TarGzExtractorTest {
         assertArrayEquals(content, Files.readAllBytes(tempDir.resolve("file.txt")));
     }
 
+    @Test
+    void rejectsMalformedOctalSize() throws IOException {
+        // '9' is not an octal digit; must surface as IOException, not NumberFormatException
+        final var archive = writeTarGz(createTarGz(rawSizeHeader("bad.txt", "9999999", (byte) '0')));
+        final var e = assertThrows(IOException.class, () -> TarGzExtractor.extract(archive, tempDir));
+        assertTrue(e.getMessage().contains("octal size"), e.getMessage());
+    }
+
+    @Test
+    void rejectsNegativeOctalSizeAndDoesNotDesynchronizeFraming() throws IOException {
+        // A negative size once desynchronized the 512-byte framing, extracting the planted b.txt header
+        final byte[] headerA = rawSizeHeader("a.txt", "-1000", (byte) '0');
+        final byte[] plantedB = entry("b.txt", "PLANTED".getBytes(StandardCharsets.UTF_8));
+        final var archive = writeTarGz(createTarGz(headerA, plantedB));
+
+        final var e = assertThrows(IOException.class, () -> TarGzExtractor.extract(archive, tempDir));
+        assertTrue(e.getMessage().contains("out of range"), e.getMessage());
+        assertFalse(Files.exists(tempDir.resolve("a.txt")));
+        assertFalse(Files.exists(tempDir.resolve("b.txt")));
+    }
+
+    @Test
+    void rejectsBase256SizeThatOverflowsLong() throws IOException {
+        // Non-zero base-256 bytes above the low 8 must be rejected, not silently wrapped
+        final var archive = writeTarGz(
+                createTarGz(base256Header("a.txt", "OK".getBytes(StandardCharsets.UTF_8), (byte) 0x80, (byte) 0x01)));
+        final var e = assertThrows(IOException.class, () -> TarGzExtractor.extract(archive, tempDir));
+        assertTrue(e.getMessage().contains("overflows"), e.getMessage());
+    }
+
+    @Test
+    void rejectsBase256SizeWithValueBitsInMarkerByte() throws IOException {
+        // The marker byte's low 7 bits are value bits 64-70; they must also be rejected
+        final var archive = writeTarGz(
+                createTarGz(base256Header("a.txt", "OK".getBytes(StandardCharsets.UTF_8), (byte) 0x81, (byte) 0x00)));
+        final var e = assertThrows(IOException.class, () -> TarGzExtractor.extract(archive, tempDir));
+        assertTrue(e.getMessage().contains("overflows"), e.getMessage());
+    }
+
+    @Test
+    void rejectsOctalSizeExceedingMaxEntryBytes() throws IOException {
+        // 5 GiB exceeds MAX_ENTRY_BYTES (4 GiB)
+        final byte[] header = buildEntry("big.txt", new byte[0], (byte) '0', "");
+        writeOctal(header, 124, 12, 5L * 1024L * 1024L * 1024L);
+        recomputeChecksum(header);
+        final var archive = writeTarGz(createTarGz(header));
+        final var e = assertThrows(IOException.class, () -> TarGzExtractor.extract(archive, tempDir));
+        assertTrue(e.getMessage().contains("out of range"), e.getMessage());
+    }
+
     private static final int BLOCK_SIZE = 512;
 
     private Path writeTarGz(final byte[] tarGzBytes) throws IOException {
@@ -592,6 +642,32 @@ class TarGzExtractorTest {
         final byte[] result = buildEntry(name, content, (byte) '0', "");
         final byte[] prefixBytes = prefix.getBytes(StandardCharsets.US_ASCII);
         System.arraycopy(prefixBytes, 0, result, 345, Math.min(prefixBytes.length, 155));
+        recomputeChecksum(result);
+        return result;
+    }
+
+    /** Builds a 512-byte header whose size field holds the raw ASCII {@code sizeField} (not validated). */
+    private static byte[] rawSizeHeader(final String name, final String sizeField, final byte typeFlag) {
+        final byte[] header = buildEntry(name, new byte[0], typeFlag, "");
+        Arrays.fill(header, 124, 136, (byte) 0);
+        final byte[] sizeBytes = sizeField.getBytes(StandardCharsets.US_ASCII);
+        System.arraycopy(sizeBytes, 0, header, 124, Math.min(sizeBytes.length, 11));
+        recomputeChecksum(header);
+        return header;
+    }
+
+    /** Builds an entry using GNU base-256 size with the given marker byte and byte above the low 64 bits. */
+    private static byte[] base256Header(
+            final String name, final byte[] content, final byte markerByte, final byte highByte) {
+        final byte[] result = buildEntry(name, content, (byte) '0', "");
+        Arrays.fill(result, 124, 136, (byte) 0);
+        result[124] = markerByte;
+        result[125] = highByte;
+        long size = content.length;
+        for (int i = 135; i >= 128; i--) {
+            result[i] = (byte) (size & 0xFF);
+            size >>= 8;
+        }
         recomputeChecksum(result);
         return result;
     }

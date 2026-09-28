@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.junit.jupiter.api.AfterAll;
@@ -212,6 +213,11 @@ public class CloseFlushTest extends AbstractFileManagerAwareTest {
                 @Override
                 public int getHashChunkHeight() {
                     return delegate.getHashChunkHeight();
+                }
+
+                @Override
+                public DigestType getLoadedHashDigestType() {
+                    return delegate.getLoadedHashDigestType();
                 }
 
                 @Override

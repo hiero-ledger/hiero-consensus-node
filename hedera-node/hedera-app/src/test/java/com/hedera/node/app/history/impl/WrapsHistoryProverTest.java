@@ -682,6 +682,68 @@ class WrapsHistoryProverTest {
     }
 
     @Test
+    void aggregatePhaseGroundsAGenesisProofWhenTheConstructionHasTheSameRosterAsSourceAndTarget() {
+        final var sourceProof = HistoryProof.newBuilder()
+                .uncompressedWrapsProof(UNCOMPRESSED)
+                .chainOfTrustProof(
+                        ChainOfTrustProof.newBuilder().wrapsProof(COMPRESSED).build())
+                .build();
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                sourceProof,
+                weights,
+                proofKeys,
+                delayer,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any(), any()))
+                .willReturn(AGG_SIG.toByteArray());
+        given(historyLibrary.verifyAggregateSignature(any(), any(), any(), any(), any()))
+                .willReturn(true);
+        given(tssConfig.wrapsEnabled()).willReturn(true);
+        given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+
+        replaySigningRounds();
+
+        // A fresh genesis proof for the current roster is built by a construction with that roster on both sides
+        final var construction = constructionWithPhase(AGGREGATE, null)
+                .copyBuilder()
+                .sourceRosterHash(Bytes.wrap("SAME"))
+                .targetRosterHash(Bytes.wrap("SAME"))
+                .build();
+        final var outcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        // Even with a proof it could fold onto, the construction takes the genesis path and grounds an
+        // aggregate signature proof first
+        verify(historyLibrary, never()).constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any());
+        final var captor = ArgumentCaptor.forClass(HistoryProof.class);
+        verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
+        assertTrue(captor.getValue().chainOfTrustProofOrThrow().hasAggregatedNodeSignatures());
+    }
+
+    private void replaySigningRounds() {
+        setField("entropy", new byte[32]);
+        for (final var phaseAndMessage :
+                List.of(Map.entry(R1, R1_MESSAGE), Map.entry(R2, R2_MESSAGE), Map.entry(R3, R3_MESSAGE))) {
+            for (final long nodeId : List.of(SELF_ID, OTHER_NODE_ID)) {
+                subject.replayWrapsSigningMessage(
+                        CONSTRUCTION_ID,
+                        new WrapsMessagePublication(
+                                nodeId, phaseAndMessage.getValue(), phaseAndMessage.getKey(), EPOCH));
+            }
+        }
+    }
+
+    @Test
     void r2PhaseRequiresR1ParticipationAndAdvancesToR3() {
         subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore);

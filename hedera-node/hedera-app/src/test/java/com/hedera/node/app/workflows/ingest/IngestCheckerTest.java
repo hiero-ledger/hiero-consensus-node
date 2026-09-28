@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
 import static com.hedera.hapi.node.base.HederaFunctionality.UNCHECKED_SUBMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -39,6 +40,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -64,6 +66,7 @@ import com.hedera.node.app.signature.SignatureVerificationFuture;
 import com.hedera.node.app.signature.SignatureVerifier;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.signatures.SignatureVerification;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
@@ -88,6 +91,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
+import org.apache.logging.log4j.LogManager;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
@@ -434,6 +438,37 @@ class IngestCheckerTest extends AppTestBase {
                             state, serializedCryptoAddLiveHashTx, configuration, new IngestChecker.Result()))
                     .isInstanceOf(PreCheckException.class)
                     .hasFieldOrPropertyWithValue("responseCode", NOT_SUPPORTED);
+        }
+
+        @ParameterizedTest
+        @EnumSource(
+                value = HederaFunctionality.class,
+                mode = EnumSource.Mode.MATCH_ALL,
+                names = {"CLPR_.*", "^(?!CLPR_GET_).*$"})
+        @DisplayName("Every disabled CLPR transaction, including internal endpoint publication, is rejected at ingest")
+        void disabledClprTransactionLogsErrorAndIsRejected(final HederaFunctionality function)
+                throws PreCheckException {
+            final var clprTransactionInfo = new TransactionInfo(
+                    signedTx, txBody, MOCK_SIGNATURE_MAP, signedTx.bodyBytes(), function, serializedTx);
+            when(transactionChecker.parseAndCheck(serializedTx)).thenReturn(clprTransactionInfo);
+            final var disabledClprConfig = new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("clpr.enabled", false)
+                            .getOrCreateConfig(),
+                    1L);
+            final var logCaptor = new LogCaptor(LogManager.getLogger(IngestChecker.class));
+
+            try {
+                assertThatThrownBy(() -> subject.runAllChecks(
+                                state, serializedTx, disabledClprConfig, new IngestChecker.Result()))
+                        .isInstanceOf(PreCheckException.class)
+                        .has(responseCode(CLPR_NOT_ENABLED));
+                assertThat(logCaptor.errorLogs())
+                        .anyMatch(message -> message.contains("Cannot submit CLPR transaction " + function)
+                                && message.contains("clpr.enabled is false"));
+            } finally {
+                logCaptor.stopCapture();
+            }
         }
 
         @Test

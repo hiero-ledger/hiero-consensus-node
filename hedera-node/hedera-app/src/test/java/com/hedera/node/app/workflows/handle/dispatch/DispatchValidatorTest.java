@@ -10,6 +10,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_SIGNATURE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_DURATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INTERNAL_SYSTEM_TRANSACTION;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.DuplicateStatus.DUPLICATE;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.DuplicateStatus.NO_DUPLICATE;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.OfferedFeeCheck.CHECK_OFFERED_FEE;
@@ -30,7 +31,9 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -69,6 +72,8 @@ import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -270,6 +275,52 @@ class DispatchValidatorTest {
         final var report = genesisBootedNode.validateFeeChargingScenario(dispatch);
 
         assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INVALID_PAYER_ACCOUNT_ID), report);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void gossipedSystemAdminPayerRejectedRegardlessOfBootType(final boolean genesisBooted) {
+        final var liveValidator = new DispatchValidator(
+                recordCache,
+                transactionChecker,
+                new AppFeeCharging(solvencyPreCheck),
+                genesisBooted ? new AtomicBoolean(true) : null,
+                new LiveNodeControlledPayerGuard());
+        givenCreatorInfo();
+        givenNodeDispatch();
+        given(dispatch.payerId())
+                .willReturn(AccountID.newBuilder().accountNum(50).build());
+        given(dispatch.config()).willReturn(HederaTestConfigBuilder.createConfig());
+        final var handleContext = mock(HandleContext.class);
+        given(dispatch.handleContext()).willReturn(handleContext);
+        given(handleContext.dispatchMetadata()).willReturn(HandleContext.DispatchMetadata.EMPTY_METADATA);
+
+        final var report = liveValidator.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newCreatorError(CREATOR_ACCOUNT_ID, INVALID_PAYER_ACCOUNT_ID), report);
+        verifyNoInteractions(solvencyPreCheck, keyVerifier, recordCache, transactionChecker);
+    }
+
+    @Test
+    void trustedInternalSystemAdminPayerAllowedOnLiveNode() throws PreCheckException {
+        givenCreatorInfo();
+        givenNodeDispatch();
+        givenNonDuplicate();
+        givenSolvencyCheckSetup();
+        given(dispatch.preHandleResult()).willReturn(SUCCESSFUL_PREHANDLE);
+        final var adminId = AccountID.newBuilder().accountNum(50).build();
+        final var payerAccount = givenPayer(adminId, payer -> payer.tinybarBalance(1L));
+        given(dispatch.config()).willReturn(HederaTestConfigBuilder.createConfig());
+        final var handleContext = mock(HandleContext.class);
+        given(dispatch.handleContext()).willReturn(handleContext);
+        given(handleContext.dispatchMetadata())
+                .willReturn(new HandleContext.DispatchMetadata(INTERNAL_SYSTEM_TRANSACTION, true));
+        doCallRealMethod().when(dispatch).feeChargingOrElse(any());
+
+        final var report = subject.validateFeeChargingScenario(dispatch);
+
+        assertEquals(newSuccess(CREATOR_ACCOUNT_ID, payerAccount), report);
+        verifyNoInteractions(keyVerifier);
     }
 
     @Test
