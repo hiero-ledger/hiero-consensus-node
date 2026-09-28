@@ -136,38 +136,7 @@ defaults:
         value: "118g"
       - name: MALLOC_ARENA_MAX
         value: "4"
-minio-server:
-  tenant:
-    pools:
-      - servers: 1
-        name: pool-1
-        volumesPerServer: 1
-        size: 500Gi
-        storageClassName: local-path
-        nodeSelector:
-          solo.hashgraph.io/role: "auxiliary-services"
-          solo.hashgraph.io/owner: "%NETWORK_OWNER%"
-          solo.hashgraph.io/network-id: "%NETWORK_ID%"
-        tolerations:
-          - key: "solo.hashgraph.io/role"
-            operator: "Equal"
-            value: "auxiliary-services"
-            effect: "NoSchedule"
-          - key: "solo.hashgraph.io/owner"
-            operator: "Equal"
-            value: "%NETWORK_OWNER%"
-            effect: "NoSchedule"
-          - key: "solo.hashgraph.io/network-id"
-            operator: "Equal"
-            value: "%NETWORK_ID%"
-            effect: "NoSchedule"
-        resources:
-          requests:
-            cpu: 0
-            memory: 0
-          limits:
-            cpu: 0
-            memory: 0
+
 deployment:
   podAnnotations: {}
   podLabels: {}
@@ -224,10 +193,3 @@ envoyDeployment:
       operator: "Equal"
       value: "%NETWORK_ID%"
       effect: "NoSchedule"
-cheetah:
-  image:
-    tag: "0.4.5" # https://github.com/hashgraph/solo-cheetah/pkgs/container/solo-cheetah%2Fcheetah
-  maxProcessors: 10 # max number of concurrent processors for each pipeline
-  # whether cheetah should stop the pipelines if any error occurs; if false, it will continue with the expectation that the
-  # error may get fixed in the next run
-  stopOnError: false

@@ -79,10 +79,15 @@ data model, helpers, and metrics consumed by the modules above.
 
 Structural-transitional modules —
 [`consensus-event-stream`](../../../consensus-event-stream),
+[`consensus-iss-detection`](../../../consensus-iss-detection),
 [`consensus-platformstate`](../../../consensus-platformstate),
+[`consensus-reconnect`](../../../consensus-reconnect),
+[`consensus-reconnect-impl`](../../../consensus-reconnect-impl),
 [`consensus-roster`](../../../consensus-roster),
-[`consensus-state`](../../../consensus-state) — carry event streaming
-and state-adjacent structures on the Consensus side until they move to
+[`consensus-state`](../../../consensus-state),
+[`consensus-transaction-handling`](../../../consensus-transaction-handling)
+— carry event streaming, state-adjacent structures, transaction
+handling, and reconnect on the Consensus side until they move to
 Execution or are retired. The topic files cite them where relevant.
 
 GUI, otter, and sloth modules (`consensus-gui`,

@@ -38,7 +38,7 @@ import javax.tools.ToolProvider;
  */
 public final class JavaParsing {
 
-    /** The declaration flavor of a type, used to scope interface method-set checks. */
+    /** The declaration flavor of a type. */
     public enum Kind {
         /** A {@code class} declaration. */
         CLASS,
@@ -181,21 +181,6 @@ public final class JavaParsing {
          */
         public List<MethodSig> overloads(final String name) {
             return methods.stream().filter(m -> m.name().equals(name)).toList();
-        }
-
-        /**
-         * The distinct names of all declared methods.
-         *
-         * @return the method names in first-seen order.
-         */
-        public List<String> methodNames() {
-            final List<String> names = new ArrayList<>();
-            for (final MethodSig m : methods) {
-                if (!names.contains(m.name())) {
-                    names.add(m.name());
-                }
-            }
-            return names;
         }
 
         /**

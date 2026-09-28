@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.consensus;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
+import java.util.List;
 import org.hiero.base.utility.test.fixtures.io.ResourceLoader;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.TestIntake;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.pces.impl.test.fixtures.PcesFileIteratorFactory;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -35,8 +36,7 @@ public class CoinRoundTest {
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
         final Path dir = ResourceLoader.getFile(resources + "events");
-        final TestIntake intake =
-                new TestIntake(configuration, Roster.newBuilder().build());
+        final TestIntake intake = new TestIntake(configuration, RosterWrapperFactory.createRosterWrapper(List.of()));
         try (final IOIterator<PlatformEvent> eventIterator = PcesFileIteratorFactory.createIterator(dir)) {
             while (eventIterator.hasNext()) {
                 final PlatformEvent event = eventIterator.next();

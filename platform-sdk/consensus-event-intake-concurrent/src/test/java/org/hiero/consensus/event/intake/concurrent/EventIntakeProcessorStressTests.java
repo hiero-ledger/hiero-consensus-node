@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.intake.concurrent;
 
+import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.createRosterWrapper;
+import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperHistoryFactory.createRosterWrapperHistory;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -9,17 +11,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.metrics.api.Metrics;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
 import java.security.cert.CertificateEncodingException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -33,10 +33,10 @@ import org.hiero.consensus.event.validation.EventFieldValidator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
-import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,7 +57,7 @@ class EventIntakeProcessorStressTests {
     private Metrics metrics;
     private FakeTime time;
     private IntakeEventCounter intakeEventCounter;
-    private RosterHistory rosterHistory;
+    private RosterWrapperHistory rosterHistory;
     private EventHasher eventHasher;
     final Randotron random = Randotron.create();
 
@@ -73,7 +73,7 @@ class EventIntakeProcessorStressTests {
                     10,
                     Bytes.wrap(PreGeneratedX509Certs.getSigCert(nodeId.id()).getEncoded()),
                     List.of());
-        } catch (CertificateEncodingException e) {
+        } catch (final CertificateEncodingException e) {
             throw new RuntimeException(e);
         }
     }
@@ -87,10 +87,9 @@ class EventIntakeProcessorStressTests {
         eventHasher = new DefaultEventHasher();
 
         final RosterEntry rosterEntry = generateMockRosterEntry(NODE_ID);
-        final Roster roster = new Roster(List.of(rosterEntry));
-        final Bytes hash = RosterUtils.hash(roster).getBytes();
+        final RosterWrapper roster = createRosterWrapper(rosterEntry);
 
-        rosterHistory = new RosterHistory(List.of(new RoundRosterPair(ROSTER_ROUND, hash)), Map.of(hash, roster));
+        rosterHistory = createRosterWrapperHistory(ROSTER_ROUND, roster);
     }
 
     private ConcurrentEventIntakeProcessor createProcessor() {
@@ -256,10 +255,8 @@ class EventIntakeProcessorStressTests {
         final long newRosterRound = ROSTER_ROUND + 10;
         final NodeId otherNodeId = NodeId.of(88);
         final RosterEntry otherEntry = generateMockRosterEntry(otherNodeId);
-        final Roster otherRoster = new Roster(List.of(otherEntry));
-        final Bytes otherHash = RosterUtils.hash(otherRoster).getBytes();
-        final RosterHistory otherRosterHistory = new RosterHistory(
-                List.of(new RoundRosterPair(newRosterRound, otherHash)), Map.of(otherHash, otherRoster));
+        final RosterWrapper otherRoster = createRosterWrapper(otherEntry);
+        final RosterWrapperHistory otherRosterHistory = createRosterWrapperHistory(newRosterRound, otherRoster);
 
         // Phase 1: warm up verifier caches on all threads with the initial roster
         final ConcurrentTesting warmup = new ConcurrentTesting();
@@ -375,12 +372,11 @@ class EventIntakeProcessorStressTests {
 
         // Build alternate roster histories to toggle between
         final RosterEntry entry = generateMockRosterEntry(NODE_ID);
-        final Roster roster = new Roster(List.of(entry));
-        final Bytes hash = RosterUtils.hash(roster).getBytes();
-        final List<RosterHistory> histories = new ArrayList<>();
+        final RosterWrapper roster = createRosterWrapper(entry);
+        final List<RosterWrapperHistory> histories = new ArrayList<>();
         for (int i = 0; i < 5; i++) {
             // All valid — same roster, just different RosterHistory instances to trigger cache invalidation
-            histories.add(new RosterHistory(List.of(new RoundRosterPair(ROSTER_ROUND, hash)), Map.of(hash, roster)));
+            histories.add(createRosterWrapperHistory(ROSTER_ROUND, roster));
         }
 
         final ConcurrentTesting testing = new ConcurrentTesting();
@@ -440,7 +436,7 @@ class EventIntakeProcessorStressTests {
                     private int entryCount = 0;
 
                     @Override
-                    public boolean verify(final Bytes data, final Bytes signature) {
+                    public boolean verify(@NonNull final Bytes data, @NonNull final Bytes signature) {
                         entryCount++;
                         final int snapshot = entryCount;
                         // Yield to increase the chance of interleaving

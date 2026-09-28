@@ -176,7 +176,7 @@ public class TransferExecutor extends BaseTokenHandler {
         final var topLevelPayer = context.payer();
         transferContext.validateHbarAllowances();
         // Replace all aliases in the transaction body with its account ids; use in all further steps
-        final var replacedOp = ensureAndReplaceAliasesInOp(txn, transferContext, validator);
+        final var replacedOp = ensureAndReplaceAliasesInOp(txn, transferContext);
         List<CryptoTransferTransactionBody> txns = List.of(replacedOp);
         if (!skipCustomFee) {
             txns = new CustomFeeAssessmentStep(replacedOp).assessCustomFees(transferContext);
@@ -257,6 +257,18 @@ public class TransferExecutor extends BaseTokenHandler {
             }
         }
 
+        externalizeTransferContext(transferContext, recordBuilder);
+    }
+
+    /**
+     * Externalizes the record data accumulated while processing a transfer.
+     *
+     * @param transferContext the transfer context containing accumulated record data
+     * @param recordBuilder the record builder to update
+     */
+    protected void externalizeTransferContext(
+            @NonNull final TransferContextImpl transferContext,
+            @NonNull final CryptoTransferStreamBuilder recordBuilder) {
         if (!transferContext.getAutomaticAssociations().isEmpty()) {
             transferContext.getAutomaticAssociations().forEach(recordBuilder::addAutomaticTokenAssociation);
         }
@@ -352,6 +364,7 @@ public class TransferExecutor extends BaseTokenHandler {
     protected void executeAirdropCryptoTransfer(
             @NonNull final HandleContext context,
             @NonNull final List<TokenTransferList> tokenTransferList,
+            @NonNull final TransferContextImpl transferContext,
             @NonNull final CryptoTransferStreamBuilder recordBuilder) {
         final var isHighVolume = context.body().highVolume();
         var cryptoTransferBody = CryptoTransferTransactionBody.newBuilder()
@@ -362,8 +375,6 @@ public class TransferExecutor extends BaseTokenHandler {
                 .cryptoTransfer(cryptoTransferBody)
                 .highVolume(isHighVolume)
                 .build();
-
-        final var transferContext = new TransferContextImpl(context, cryptoTransferBody, true, isHighVolume);
 
         // We should skip custom fee steps here, because they must be already prepaid
         executeCryptoTransferWithoutCustomFee(syntheticCryptoTransferTxn, transferContext, context, recordBuilder);
@@ -429,14 +440,11 @@ public class TransferExecutor extends BaseTokenHandler {
      *
      * @param txn the given transaction body
      * @param transferContext the given transfer context
-     * @param validator crypto transfer validator
      * @return the replaced transaction body with all aliases replaced with its account ids
      * @throws HandleException if any error occurs during the process
      */
-    private CryptoTransferTransactionBody ensureAndReplaceAliasesInOp(
-            @NonNull final TransactionBody txn,
-            @NonNull final TransferContextImpl transferContext,
-            @NonNull final CryptoTransferValidator validator)
+    protected CryptoTransferTransactionBody ensureAndReplaceAliasesInOp(
+            @NonNull final TransactionBody txn, @NonNull final TransferContextImpl transferContext)
             throws HandleException {
         final var op = txn.cryptoTransferOrThrow();
 

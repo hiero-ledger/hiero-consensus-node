@@ -54,6 +54,12 @@ import "services/state/token/nft.proto";
 import "services/state/token/staking_node_info.proto";
 import "services/state/token/token.proto";
 import "services/state/token/token_relation.proto";
+import "services/state/clpr/clpr_channel.proto";
+import "services/state/clpr/clpr_endpoint_manifest.proto";
+import "services/state/clpr/clpr_endpoint_manifest_construction.proto";
+import "services/state/clpr/clpr_ledger_configuration.proto";
+import "services/state/clpr/clpr_message.proto";
+import "services/state/clpr/clpr_connector.proto";
 import "services/state/tss/tss_encryption_keys.proto";
 import "services/state/tss/tss_message_map_key.proto";
 import "services/state/tss/tss_vote_map_key.proto";
@@ -279,6 +285,40 @@ message StateKey {
      * A state identifier for registered nodes.
      */
     proto.EntityNumber AddressBookService_I_REGISTERED_NODES = 56;
+
+    /**
+     * A state identifier for CLPR channels.
+     */
+    proto.ProtoBytes ClprService_I_CHANNELS = 60;
+
+    /**
+     * A state identifier for CLPR pending ownership commitments.
+     */
+    proto.ProtoBytes ClprService_I_PENDING_COMMITMENTS = 61;
+
+    /**
+     * A state identifier for the CLPR message queue.
+     * Key is ClprMessageKey (channel_id + message_id).
+     */
+    com.hedera.hapi.node.state.clpr.ClprMessageKey ClprService_I_MESSAGE_QUEUE = 62;
+
+    /**
+     * A state identifier for CLPR connectors.
+     * Key is ClprConnectorKey (channel_id + connector_id).
+     */
+    com.hedera.hapi.node.state.clpr.ClprConnectorKey ClprService_I_CONNECTORS = 63;
+
+    /**
+     * A state identifier for CLPR pending connector commitments.
+     * Key is the commitment hash bytes.
+     */
+    proto.ProtoBytes ClprService_I_PENDING_CONNECTOR_COMMITMENTS = 64;
+
+    /**
+     * A state identifier for CLPR per-endpoint submission throttle snapshots.
+     * Key is the endpoint AccountID; value is its leaky-bucket usage snapshot.
+     */
+    proto.AccountID ClprService_I_SUBMISSION_THROTTLES = 65;
 
     // Queue states
     /**
@@ -644,6 +684,57 @@ message StateValue {
     proto.ProtoBytes HistoryService_I_WRAPS_PROVING_KEY_HASH = 58;
 
     /**
+     * A state identifier for the CLPR ledger configuration. Singleton state.
+     */
+    com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration ClprService_I_LEDGER_CONFIGURATION = 59;
+
+    /**
+     * A state identifier for CLPR channels.
+     */
+    com.hedera.hapi.node.state.clpr.ClprChannel ClprService_I_CHANNELS = 60;
+
+    /**
+     * A state identifier for CLPR pending ownership commitments.
+     * Value is ProtoBytes (the commitment hash itself, acting as a set).
+     */
+    proto.ProtoBytes ClprService_I_PENDING_COMMITMENTS = 61;
+
+    /**
+     * A state identifier for the CLPR message queue.
+     * Value is ClprMessageValue (payload + running_hash_after_processing).
+     */
+    com.hedera.hapi.node.state.clpr.ClprMessageValue ClprService_I_MESSAGE_QUEUE = 62;
+
+    /**
+     * On-ledger state for a CLPR Connector.
+     * Value is ClprConnector keyed by ClprConnectorKey (channel_id + connector_id).
+     */
+    com.hedera.hapi.node.state.clpr.ClprConnector ClprService_I_CONNECTORS = 63;
+
+    /**
+     * CLPR pending connector commitment value (mirrors key — acts as a set).
+     */
+    proto.ProtoBytes ClprService_I_PENDING_CONNECTOR_COMMITMENTS = 64;
+
+    /**
+     * Per-endpoint CLPR submission throttle snapshot — the leaky-bucket usage
+     * for one endpoint, keyed by its AccountID. Used to enforce
+     * max_bundles_per_sec on inbound bundle submissions.
+     */
+    proto.ThrottleUsageSnapshot ClprService_I_SUBMISSION_THROTTLES = 65;
+
+    /**
+     * A state identifier for the CLPR endpoint manifest. Singleton state.
+     */
+    com.hedera.hapi.node.state.clpr.ClprEndpointManifest ClprService_I_ENDPOINT_MANIFEST = 66;
+
+    /**
+     * A state identifier for the CLPR endpoint manifest construction. Singleton state,
+     * present only while a construction is gathering publications.
+     */
+    com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction ClprService_I_ENDPOINT_MANIFEST_CONSTRUCTION = 67;
+
+    /**
      * Metadata of the round receipts queue.
      */
     proto.TransactionReceiptEntries RecordCache_I_TRANSACTION_RECEIPTS = 126;
@@ -841,6 +932,23 @@ enum SingletonType {
    * A state identifier for the expected WRAPS proving key hash. Singleton state.
    */
   HistoryService_I_WRAPS_PROVING_KEY_HASH = 58;
+
+  /**
+   * A state identifier for the CLPR ledger configuration. Singleton state.
+   */
+  ClprService_I_LEDGER_CONFIGURATION = 59;
+
+  /**
+   * A state identifier for the CLPR endpoint manifest. Singleton state.
+   */
+  ClprService_I_ENDPOINT_MANIFEST = 66;
+
+  /**
+   * A state identifier for the CLPR endpoint manifest construction — the in-progress
+   * gathering singleton that opens on a changed self-publication or a roster composition
+   * change, and is deleted on close. Singleton state.
+   */
+  ClprService_I_ENDPOINT_MANIFEST_CONSTRUCTION = 67;
 
   // Queue metadata
 

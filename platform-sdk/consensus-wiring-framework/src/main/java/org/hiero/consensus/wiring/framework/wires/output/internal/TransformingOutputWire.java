@@ -76,7 +76,7 @@ public class TransformingOutputWire<IN, OUT> extends ForwardingOutputWire<IN, OU
                 final OUT transformed = transform.apply(data);
                 if (transformed == null) {
                     // Do not forward null values.
-                    return;
+                    continue;
                 }
                 destination.accept(transformed);
             } catch (final Exception e) {

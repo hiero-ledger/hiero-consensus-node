@@ -13,6 +13,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
@@ -201,6 +202,22 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
      * @throws IllegalStateException if the stream is closed
      */
     void writeItem(@NonNull Function<Timestamp, BlockItem> itemSpec);
+
+    /**
+     * Atomically writes all block items produced by a savepoint stack, unless the block-size circuit breaker has opened.
+     * Regardless of whether the items are written, advances the logical last-used consensus time to the supplied value.
+     *
+     * @param items the block items produced by a savepoint stack
+     * @param lastUsedConsensusTime the last consensus time assigned to the stack's output
+     */
+    void writeSavepointItems(@NonNull List<BlockItem> items, @NonNull Instant lastUsedConsensusTime);
+
+    /**
+     * Returns whether savepoint-stack block output is suppressed for the current block.
+     *
+     * @return whether savepoint-stack block output is suppressed
+     */
+    boolean isSavepointOutputSuppressed();
 
     /**
      * Signals that the platform has reached a catastrophic failure (e.g. following an ISS). Sets a flag that

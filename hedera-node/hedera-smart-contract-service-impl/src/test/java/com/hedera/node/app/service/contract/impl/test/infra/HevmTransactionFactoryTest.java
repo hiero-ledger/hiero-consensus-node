@@ -25,6 +25,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SERIALIZATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.WRONG_CHAIN_ID;
 import static com.hedera.node.app.hapi.utils.ethereum.EthTxData.WEIBARS_IN_A_TINYBAR;
+import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS;
+import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
+import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_SERVICE_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.AN_ED25519_KEY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_DELETED_CONTRACT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.BASE_COST_CHARGING_RESULT;
@@ -97,6 +100,7 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
+import com.hedera.node.app.spi.workflows.ClprDispatchMetadata;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -108,6 +112,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 import org.hiero.base.utility.CommonUtils;
+import org.hyperledger.besu.datatypes.Address;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -150,6 +155,11 @@ class HevmTransactionFactoryTest {
     private HederaEvmContext context;
 
     private static final long TOP_LEVEL_TINYBAR_GAS_PRICE = 100L;
+    private static final AccountID CLPR_SENDER_ID = CLPR_SERVICE_ACCOUNT_ID;
+    private static final Bytes CLPR_SENDER_ADDRESS = CLPR_EVM_ADDRESS_BYTES;
+    private static final Address CLPR_BESU_SENDER_ADDRESS = Address.fromHexString(CLPR_EVM_ADDRESS);
+    private static final ClprDispatchMetadata CLPR_DISPATCH_METADATA =
+            new ClprDispatchMetadata(CLPR_SENDER_ID, CLPR_SENDER_ADDRESS);
 
     private static final ContractsConfig CONFIG_THROTTLE_BY_GAS = HederaTestConfigBuilder.create()
             .withValue("contracts.maxGasPerSec", 15_000_000L)
@@ -249,6 +259,19 @@ class HevmTransactionFactoryTest {
     }
 
     @Test
+    void fromHapiCallExceptionUsesClprDispatchMetadataWhenSet() {
+        final var transaction = getManufacturedClprCallException(
+                b -> b.contractID(CALLED_CONTRACT_ID).gas(30_000L));
+
+        assertEquals(CLPR_SENDER_ID, transaction.senderId());
+        assertEquals(CLPR_BESU_SENDER_ADDRESS, transaction.senderAddress());
+        assertTrue(transaction.isClprDispatch());
+        assertNull(transaction.relayerId());
+        assertEquals(Bytes.EMPTY, transaction.payload());
+        assertEquals(30_000L, transaction.gasLimit());
+    }
+
+    @Test
     void fromHapiCallThrowsOnDeletedContractIfFeatureFlagNotEnabled() {
         given(accountStore.getContractById(CALLED_CONTRACT_ID)).willReturn(A_DELETED_CONTRACT);
         assertCallFailsWith(CONTRACT_DELETED, b -> b.amount(123L)
@@ -301,6 +324,23 @@ class HevmTransactionFactoryTest {
         assertFalse(transaction.hasOfferedGasPrice());
         assertFalse(transaction.hasMaxGasAllowance());
         assertNull(transaction.hapiCreation());
+    }
+
+    @Test
+    void fromHapiCallUsesClprDispatchMetadataWhenSet() {
+        given(gasCalculator.transactionGasRequirements(anyInt(), anyInt(), anyBoolean(), any(), any()))
+                .willReturn(BASE_COST_CHARGING_RESULT);
+        final var transaction = getManufacturedClprCall(b -> b.amount(123L)
+                .functionParameters(CALL_DATA)
+                .contractID(CALLED_CONTRACT_ID)
+                .gas(CONFIG_THROTTLE_BY_GAS.maxGasPerSec()));
+
+        assertEquals(CLPR_SENDER_ID, transaction.senderId());
+        assertEquals(CLPR_BESU_SENDER_ADDRESS, transaction.senderAddress());
+        assertTrue(transaction.isClprDispatch());
+        assertEquals(CALLED_CONTRACT_ID, transaction.contractId());
+        assertNull(transaction.relayerId());
+        assertEquals(CALL_DATA, transaction.payload());
     }
 
     @Test
@@ -844,6 +884,17 @@ class HevmTransactionFactoryTest {
                 SENDER_ID);
     }
 
+    private HederaEvmTransaction getManufacturedClprCall(
+            @NonNull final Consumer<ContractCallTransactionBody.Builder> spec) {
+        return subject.fromHapiTransaction(
+                TransactionBody.newBuilder()
+                        .transactionID(TransactionID.newBuilder().accountID(SENDER_ID))
+                        .contractCall(callWith(spec))
+                        .build(),
+                SENDER_ID,
+                CLPR_DISPATCH_METADATA);
+    }
+
     private HederaEvmTransaction getManufacturedCallException(
             @NonNull final Consumer<ContractCallTransactionBody.Builder> spec) {
         return subject.fromContractTxException(
@@ -852,6 +903,27 @@ class HevmTransactionFactoryTest {
                         .contractCall(callWith(spec))
                         .build(),
                 new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID));
+    }
+
+    private HederaEvmTransaction getManufacturedClprCallException(
+            @NonNull final Consumer<ContractCallTransactionBody.Builder> spec) {
+        return subject.fromContractTxException(
+                TransactionBody.newBuilder()
+                        .transactionID(TransactionID.newBuilder())
+                        .contractCall(callWith(spec))
+                        .build(),
+                new HandleException(ResponseCodeEnum.INVALID_CONTRACT_ID),
+                CLPR_DISPATCH_METADATA);
+    }
+
+    private HederaEvmTransaction getManufacturedRelayedCallException(
+            @NonNull final Consumer<EthereumTransactionBody.Builder> spec) {
+        return subject.fromContractTxException(
+                TransactionBody.newBuilder()
+                        .transactionID(TransactionID.newBuilder().accountID(RELAYER_ID))
+                        .ethereumTransaction(ethTxWith(spec))
+                        .build(),
+                new HandleException(ResponseCodeEnum.TRANSACTION_OVERSIZE));
     }
 
     private ContractCreateTransactionBody createWith(final Consumer<ContractCreateTransactionBody.Builder> spec) {

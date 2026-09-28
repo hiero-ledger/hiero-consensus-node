@@ -1,0 +1,46 @@
+# log-importer - one-shot historical import with explicit, caller-supplied
+# labels, independent of the always-on `alloy` service in docker-compose.yml
+# and its LOGS_DIR/LOG_LABELS. Split into its own file, on purpose: Compose
+# interpolates every service's config unconditionally, profile or not, so
+# if this lived in docker-compose.yml, ${IMPORT_LOGS_DIR} would need a
+# defaults.env entry just to keep a plain `make up` from failing on an
+# invalid volume spec - even though a specific import is a one-off action,
+# not a stack-wide setting. As its own file, only ever merged in by
+# ./scripts/import-logs.sh (and the selftest, see test/test.mk), Compose
+# never sees this service - and never needs IMPORT_* to be set - unless one
+# of those explicitly includes it. Same pattern as
+# test/docker-compose.test.yml: an overlay loaded only by the thing that
+# needs it, never by `make up`.
+#
+# profiles: ["import"] stays as defense-in-depth even though this file
+# itself is now the primary gate (e.g. against `docker compose -f
+# docker-compose.yml -f docker-compose.import.yml up -d` starting it
+# unintentionally as part of a default "up everything" set).
+#
+# Reuses ALLOY_CONFIG and the live LOG_TIMESTAMP_REGEX/FORMAT/LOCATION
+# unchanged, so a historical import is parsed exactly like the live tailer
+# would parse it - see README, "Configure logs ingestion" -> "Historical",
+# for why this runs a second Alloy instead of pushing to Loki directly. No
+# alloy-data-equivalent volume: every invocation tails IMPORT_LOGS_DIR from
+# byte zero (config.alloy's tail_from_end defaults to false), which is
+# correct for a one-shot import and leaves nothing behind to clean up.
+services:
+  log-importer:
+    profiles: ["import"]
+    image: grafana/alloy:v1.19.2
+    entrypoint: ["/bin/sh", "/log-import-entrypoint.sh"]
+    environment:
+      LOG_INCLUDE: ${IMPORT_LOG_INCLUDE}
+      LOG_LABELS: ${IMPORT_LOG_LABELS}
+      LOG_TIMESTAMP_REGEX: ${LOG_TIMESTAMP_REGEX}
+      LOG_TIMESTAMP_FORMAT: ${LOG_TIMESTAMP_FORMAT}
+      LOG_TIMESTAMP_LOCATION: ${LOG_TIMESTAMP_LOCATION}
+      IMPORT_WAIT_SECONDS: ${IMPORT_WAIT_SECONDS}
+    volumes:
+      - ${ALLOY_CONFIG}:/etc/alloy/config.alloy:ro
+      - ${IMPORT_LOGS_DIR}:/logs:ro
+      - ./services/logs/log-import-entrypoint.sh:/log-import-entrypoint.sh:ro
+    depends_on:
+      - loki
+    networks:
+      - observability

@@ -85,7 +85,7 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
-          node-version: "22"
+          node-version: "24"
 
       #  Checkout the json-rpc-relay repository
       - name: Checkout JSON-RPC Relay

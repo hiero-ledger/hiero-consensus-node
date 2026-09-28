@@ -34,7 +34,6 @@ module org.hiero.consensus.hashgraph.impl {
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
     requires org.hiero.base.concurrent;
-    requires org.hiero.consensus.roster;
     requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j;
     requires static com.github.spotbugs.annotations;

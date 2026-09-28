@@ -2,6 +2,10 @@
 package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
+import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
@@ -16,6 +20,7 @@ import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Collections.emptyIterator;
 import static java.util.Collections.emptyList;
 import static org.hiero.consensus.platformstate.PlatformStateService.NAME;
+import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -32,6 +37,7 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.withSettings;
 
@@ -50,9 +56,13 @@ import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.roster.RosterState;
+import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
@@ -95,6 +105,7 @@ import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
+import com.hedera.node.app.workflows.clpr.ClprEndpointManifestReconciler;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
 import com.hedera.node.app.workflows.handle.record.MigrationRootHashSubmissions;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
@@ -123,6 +134,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.hiero.base.crypto.Hash;
@@ -139,7 +151,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -230,6 +244,11 @@ class HandleWorkflowTest {
     private StakeInfoHelper stakeInfoHelper;
 
     @Mock
+    private ClprEndpointManifestReconciler clprEndpointManifestReconciler;
+
+    private final AtomicInteger clprEndpointManifestReconcilerProviderCalls = new AtomicInteger();
+
+    @Mock
     private ParentTxnFactory parentTxnFactory;
 
     @Mock
@@ -281,6 +300,7 @@ class HandleWorkflowTest {
 
     @BeforeEach
     void setUp() {
+        clprEndpointManifestReconcilerProviderCalls.set(0);
         final ReadableStates readableStates = mock(ReadableStates.class);
         final ReadableSingletonState singletonState = mock(ReadableSingletonState.class);
         lenient()
@@ -380,6 +400,24 @@ class HandleWorkflowTest {
         assertEquals(123L, method.invoke(subject));
         verify(blockStreamManager).blockNo();
         verify(blockRecordManager, never()).blockNo();
+    }
+
+    @Test
+    void disabledClprDoesNotInstantiateEndpointManifestReconciler() throws Exception {
+        givenSubjectWith(
+                RECORDS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("clpr.enabled", "false", "clpr.endpointManifestEnabled", "true"));
+
+        for (final var methodName : List.of("reconcileClprEndpointManifest", "pruneClprEndpointManifestOnUpgrade")) {
+            final var method =
+                    HandleWorkflow.class.getDeclaredMethod(methodName, com.swirlds.state.State.class, Instant.class);
+            method.setAccessible(true);
+            method.invoke(subject, state, NOW);
+        }
+
+        assertEquals(0, clprEndpointManifestReconcilerProviderCalls.get());
     }
 
     @Test
@@ -724,6 +762,10 @@ class HandleWorkflowTest {
                 hollowAccountCompletions,
                 systemTransactions,
                 stakeInfoHelper,
+                () -> {
+                    clprEndpointManifestReconcilerProviderCalls.incrementAndGet();
+                    return clprEndpointManifestReconciler;
+                },
                 recordCache,
                 exchangeRateManager,
                 stakePeriodManager,
@@ -788,6 +830,89 @@ class HandleWorkflowTest {
         subject.handleRound(state, round, txn -> {});
 
         verify(blockBufferService).ensureNewBlocksPermitted();
+    }
+
+    @Test
+    void historyRecoveryClockAdvancesOnEmptyRoundsUntilSignerIsReady() {
+        givenTssEnabledEmptyRounds();
+        given(blockHashSigner.isReady()).willReturn(false);
+        given(blockStreamManager.lastUsedConsensusTime()).willReturn(NOW);
+
+        // A missing genesis WRAPS message must not freeze recovery time before its 10-second deadline.
+        final var firstRoundTime = NOW.plusSeconds(1);
+        final var afterGracePeriod = NOW.plusSeconds(11);
+        given(round.getConsensusTimestamp()).willReturn(firstRoundTime);
+        subject.handleRound(state, round, txn -> {});
+        given(round.getConsensusTimestamp()).willReturn(afterGracePeriod);
+        subject.handleRound(state, round, txn -> {});
+
+        // After readiness, history must retain the block-based clock even when subsequent rounds are empty.
+        final var readyBlockTime = NOW.plusSeconds(12);
+        given(blockHashSigner.isReady()).willReturn(true);
+        given(blockStreamManager.lastUsedConsensusTime()).willReturn(readyBlockTime);
+        given(round.getConsensusTimestamp()).willReturn(NOW.plusSeconds(13));
+        subject.handleRound(state, round, txn -> {});
+        given(round.getConsensusTimestamp()).willReturn(NOW.plusSeconds(23));
+        subject.handleRound(state, round, txn -> {});
+
+        final var reconciliationTimes = ArgumentCaptor.forClass(Instant.class);
+        verify(historyService, times(4))
+                .reconcile(any(), any(), any(), reconciliationTimes.capture(), any(), eq(true), any(), eq(false));
+        assertEquals(
+                List.of(firstRoundTime, afterGracePeriod, readyBlockTime, readyBlockTime),
+                reconciliationTimes.getAllValues());
+    }
+
+    private void givenTssEnabledEmptyRounds() {
+        final var rosterStates = mock(ReadableStates.class);
+        final ReadableSingletonState<RosterState> rosterState = mock(ReadableSingletonState.class);
+        given(state.getReadableStates(RosterService.NAME)).willReturn(rosterStates);
+        given(rosterStates.<RosterState>getSingleton(ROSTER_STATE_STATE_ID)).willReturn(rosterState);
+        given(rosterState.get())
+                .willReturn(RosterState.newBuilder()
+                        .roundRosterPairs(new RoundRosterPair(0, Bytes.wrap("genesis-roster")))
+                        .build());
+
+        final var entityStates =
+                mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
+        given(state.getWritableStates(EntityIdService.NAME)).willReturn(entityStates);
+        final var hintsStates = mock(WritableStates.class);
+        final WritableSingletonState<HintsConstruction> hintsConstruction = mock(WritableSingletonState.class);
+        given(state.getWritableStates(HintsService.NAME)).willReturn(hintsStates);
+        lenient()
+                .when(hintsStates.<HintsConstruction>getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID))
+                .thenReturn(hintsConstruction);
+        given(hintsConstruction.get()).willReturn(HintsConstruction.DEFAULT);
+        final var historyStates = mock(WritableStates.class);
+        given(state.getWritableStates(HistoryService.NAME)).willReturn(historyStates);
+        lenient()
+                .when(historyStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID))
+                .thenReturn(mock(WritableSingletonState.class));
+        final WritableSingletonState<HistoryProofConstruction> proofConstruction = mock(WritableSingletonState.class);
+        lenient()
+                .when(historyStates.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID))
+                .thenReturn(proofConstruction);
+        lenient()
+                .when(historyStates.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID))
+                .thenReturn(proofConstruction);
+        lenient().when(proofConstruction.get()).thenReturn(HistoryProofConstruction.DEFAULT);
+
+        given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
+        given(event.getCreatorId()).willReturn(NodeId.of(0));
+        given(event.getEventCore()).willReturn(EventCore.DEFAULT);
+        given(event.allParentsIterator()).willAnswer(ignore -> emptyIterator());
+        given(event.consensusTransactionIterator()).willAnswer(ignore -> emptyIterator());
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(networkInfo.nodeInfo(0)).willReturn(mock(NodeInfo.class));
+        given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
+        given(scheduleService.executableTxns(any(), any(), any())).willReturn(mock(ExecutableTxnIterator.class));
+        given(state.getWritableStates(ScheduleService.NAME)).willReturn(mock(WritableStates.class));
+
+        givenSubjectWith(
+                BLOCKS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true"));
     }
 
     @Test
@@ -979,8 +1104,8 @@ class HandleWorkflowTest {
 
         // The iterator was obtained (confirms we reached executeAsManyScheduled)
         verify(scheduleService).executableTxns(any(), any(), any());
-        // But the loop body never entered — no scheduled txn was started
-        verify(stakePeriodManager, never()).setCurrentStakePeriodFor(any());
+        // Only the round-start initialization — no scheduled txn dispatch triggered a second call
+        verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW));
     }
 
     @Test
@@ -1098,5 +1223,24 @@ class HandleWorkflowTest {
                 ledgerIdConsTime.isAfter(afterEvents),
                 "The ledger id publication was assigned " + ledgerIdConsTime + ", which precedes the last transaction "
                         + "handled in the round at " + afterEvents);
+    }
+
+    @Test
+    void stakePeriodInitializedBeforeFeeDistribution() {
+        final var creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
+
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
+
+        subject.handleRound(state, round, txns -> {});
+
+        final InOrder inOrder = Mockito.inOrder(stakePeriodManager, nodeFeeManager);
+        inOrder.verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW));
+        inOrder.verify(nodeFeeManager).distributeFees(any(), any(), any());
     }
 }

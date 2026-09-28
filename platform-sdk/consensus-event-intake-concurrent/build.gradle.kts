@@ -7,6 +7,7 @@ plugins {
 description = "Concurrent Consensus Event Intake Implementation"
 
 testModuleInfo {
+    requires("com.hedera.node.hapi")
     requires("com.swirlds.base.test.fixtures")
     requires("org.hiero.base.concurrent.test.fixtures")
     requires("org.hiero.consensus.fakes")
