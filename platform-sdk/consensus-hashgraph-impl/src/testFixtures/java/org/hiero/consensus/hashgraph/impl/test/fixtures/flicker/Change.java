@@ -15,6 +15,16 @@ import org.hiero.base.crypto.Hash;
  * A change records a value <i>as it stood at emission</i>. Nothing here can be read back off the event afterwards —
  * {@code ConsensusImpl#recalculateAndVote} clears and recomputes every non-terminal event on each decided round — so
  * whatever an assertion needs has to be copied in when the change fires.
+ * <p>
+ * <b>Records are self-contained, deliberately, and some fields are redundant as a result.</b>
+ * {@link MetadataCleared#wasWitness()} can be derived by scanning back for the most recent {@link WitnessFound} since
+ * that event's last clear; {@link RoundCreatedSet#from()} is just the previous {@link RoundCreatedSet#to()} for the
+ * same event. Both are carried anyway.
+ * <p>
+ * The reason is that there are two kinds of sink. {@link ConsensusTraceLog} accumulates, so it could scan backwards —
+ * but the Falcon-side filter the design calls for evaluates each change and discards it, keeping no history at all. A
+ * predicate that has to work against both can only read what the record in front of it carries. So do not remove a
+ * field on the grounds that the log makes it recoverable: it is recoverable in one sink and not the other.
  */
 public sealed interface Change {
 
@@ -45,4 +55,56 @@ public sealed interface Change {
      */
     record WitnessFound(
             long seq, @NonNull Hash event, @NonNull String name, long roundCreated) implements Change {}
+
+    /**
+     * An event's {@code roundCreated} was set.
+     * <p>
+     * Both the previous and the new value are carried. Beyond the self-containment rule above, the transition is the
+     * thing properties are actually about: "a roster change promoted a non-judge" is a statement about an event's
+     * round moving, and carrying {@code from} makes it a one-line predicate instead of a search.
+     * <p>
+     * This is the highest-volume record even so. {@code recalculateAndVote} clears and recomputes the round of every
+     * non-terminal event on each decided round, so each decision produces two of these per surviving event. A write
+     * that does not change the value emits nothing — otherwise {@code ConsensusImpl#addEvent}'s unconditional reset to
+     * {@code ROUND_UNDEFINED} would add an empty record per add — but an assertion about one event's round history
+     * still has to be scoped to a window rather than run over the whole log.
+     *
+     * @param seq   position in the global order of changes
+     * @param event the content hash of the event
+     * @param name  the name the test gave the event
+     * @param from  the round the event was at before the call
+     * @param to    the round it was set to
+     */
+    record RoundCreatedSet(
+            long seq, @NonNull Hash event, @NonNull String name, long from, long to) implements Change {}
+
+    /**
+     * An event's consensus metadata was about to be wiped by {@code clearMetadata}.
+     * <p>
+     * Emitted <i>before</i> the call, because it carries values that are about to be lost. That is the opposite of
+     * {@link WitnessFound}, and the difference is not stylistic: a change reporting a value being established can read
+     * it afterwards, a change reporting one being destroyed cannot.
+     * <p>
+     * The absence of this record is as meaningful as its presence. {@code recalculateAndVote} exempts a judge of the
+     * just-decided round whose parents are all at {@code ROUND_NEGATIVE_INFINITY}, and an exempted judge emits nothing
+     * — correctly, since nothing was destroyed. That absence is the signature the SCN-001 carve-out is diagnosed by.
+     * <p>
+     * Note what cannot be captured: {@code clearJudgeFlags} sets {@code isJudge} with a direct field write rather than
+     * through a setter, so judge-ness being cleared is invisible to the recorder. Infer it from this record.
+     *
+     * @param seq          position in the global order of changes
+     * @param event        the content hash of the event
+     * @param name         the name the test gave the event
+     * @param roundCreated the round the event was at, before the wipe
+     * @param wasWitness   whether it was a witness, before the wipe
+     * @param wasJudge     whether it was a judge, before the wipe
+     */
+    record MetadataCleared(
+            long seq,
+            @NonNull Hash event,
+            @NonNull String name,
+            long roundCreated,
+            boolean wasWitness,
+            boolean wasJudge)
+            implements Change {}
 }

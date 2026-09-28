@@ -5,6 +5,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.Change.MetadataCleared;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.Change.RoundCreatedSet;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.Change.WitnessFound;
 import org.hiero.consensus.model.event.PlatformEvent;
 
@@ -23,12 +25,16 @@ import org.hiero.consensus.model.event.PlatformEvent;
  *         methods — which virtual dispatch intercepts.</li>
  * </ul>
  * <p>
- * Only {@code setWitness} is overridden. The rest of the curated set is added when a test needs it; each one has to
- * decide for itself whether to emit before or after {@code super}, which is not a uniform choice. Here, after is
- * correct and load-bearing: {@code calculateAndVote} calls {@code round(event)} — which assigns {@code roundCreated} —
- * before it calls {@code setWitness(true)}, so the round is already right when the override fires. A destructive
- * mutator such as {@code clearMetadata} would have to emit <i>before</i> {@code super}, because it carries values that
- * are about to be lost.
+ * Each override decides for itself whether to emit before or after {@code super}, and the choice is not uniform:
+ * <ul>
+ *     <li>{@code setWitness} and {@code setRoundCreated} emit <b>after</b>. They report a value being established,
+ *         which can still be read once the call has returned.</li>
+ *     <li>{@code clearMetadata} emits <b>before</b>. It reports values being destroyed, so reading them afterwards
+ *         would report the wipe rather than what was wiped.</li>
+ * </ul>
+ * {@code setWitness}'s choice is also load-bearing for a second reason: {@code calculateAndVote} calls
+ * {@code round(event)} — which assigns {@code roundCreated} — before it calls {@code setWitness(true)}, so the round
+ * is already correct when the override fires.
  */
 public class RecordingEventImpl extends EventImpl {
 
@@ -72,5 +78,41 @@ public class RecordingEventImpl extends EventImpl {
             final long roundCreated = getRoundCreated();
             sink.accept(seq -> new WitnessFound(seq, getBaseHash(), name, roundCreated));
         }
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Emits after {@code super}, carrying the transition rather than the resulting state: a property about a roster
+     * change is a statement about an event's round moving, not about where it ended up.
+     * <p>
+     * A write that does not change the value emits nothing. {@code ConsensusImpl#addEvent} sets the round to
+     * {@code ROUND_UNDEFINED} on every add, and for a freshly linked event it is already undefined, so without this
+     * the log carries one empty {@code undef -> undef} record per event added. Dropping them here rather than in each
+     * assertion keeps the noise out of the record that every future query has to filter.
+     */
+    @Override
+    public void setRoundCreated(final long roundCreated) {
+        final long from = getRoundCreated();
+        super.setRoundCreated(roundCreated);
+        if (from != roundCreated) {
+            sink.accept(seq -> new RoundCreatedSet(seq, getBaseHash(), name, from, roundCreated));
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Emits <b>before</b> {@code super}, carrying the values that are about to be lost. Note that the nested
+     * {@code setWitness(false)} inside {@code clearJudgeFlags} emits nothing of its own, so a wipe appears in the log
+     * as exactly one record rather than as a cascade.
+     */
+    @Override
+    public void clearMetadata() {
+        final long roundCreated = getRoundCreated();
+        final boolean wasWitness = isWitness();
+        final boolean wasJudge = isJudge();
+        sink.accept(seq -> new MetadataCleared(seq, getBaseHash(), name, roundCreated, wasWitness, wasJudge));
+        super.clearMetadata();
     }
 }

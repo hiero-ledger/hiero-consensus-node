@@ -9,7 +9,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.Change.MetadataCleared;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.Change.RoundCreatedSet;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.Change.WitnessFound;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 
 /**
  * An accumulating record of what the consensus algorithm did, in the order it did it.
@@ -85,10 +88,37 @@ public class ConsensusTraceLog implements ChangeSink {
 
     @NonNull
     private static String renderOne(@NonNull final Change change) {
-        if (change instanceof WitnessFound witnessFound) {
-            return "%4d  witness  %-4s round=%d"
-                    .formatted(witnessFound.seq(), witnessFound.name(), witnessFound.roundCreated());
+        return switch (change) {
+            case RoundCreatedSet roundCreatedSet ->
+                "%4d  round    %-4s %s -> %s"
+                        .formatted(
+                                roundCreatedSet.seq(),
+                                roundCreatedSet.name(),
+                                round(roundCreatedSet.from()),
+                                round(roundCreatedSet.to()));
+            case MetadataCleared metadataCleared ->
+                "%4d  cleared  %-4s round=%s%s%s"
+                        .formatted(
+                                metadataCleared.seq(),
+                                metadataCleared.name(),
+                                round(metadataCleared.roundCreated()),
+                                metadataCleared.wasWitness() ? " wasWitness" : "",
+                                metadataCleared.wasJudge() ? " wasJudge" : "");
+            case WitnessFound witnessFound ->
+                "%4d  witness  %-4s round=%d"
+                        .formatted(witnessFound.seq(), witnessFound.name(), witnessFound.roundCreated());
+        };
+    }
+
+    /** Render the sentinel rounds by name; the raw values are large negative numbers that obscure the log. */
+    @NonNull
+    private static String round(final long round) {
+        if (round == ConsensusConstants.ROUND_NEGATIVE_INFINITY) {
+            return "-inf";
         }
-        return "%4d  %s".formatted(change.seq(), change);
+        if (round == ConsensusConstants.ROUND_UNDEFINED) {
+            return "undef";
+        }
+        return String.valueOf(round);
     }
 }
