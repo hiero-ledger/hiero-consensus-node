@@ -16,7 +16,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_NEW_VALID_SIGNATURES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SOME_SIGNATURES_WERE_INVALID;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import java.util.stream.Stream;
@@ -81,7 +80,9 @@ public class ScheduleSignatoryScopeTest {
         return hapiTest(
                 newKeyNamed("senderKey"),
                 newKeyNamed("receiverKey"),
+                newKeyNamed("triggerKey"),
                 cryptoCreate("sender").key("senderKey").balance(ONE_HBAR),
+                cryptoCreate("trigger").key("triggerKey").balance(ONE_HBAR),
                 // The receiver's own signature is required for the transfer, so the schedule needs both keys
                 cryptoCreate("receiver").key("receiverKey").balance(0L).receiverSigRequired(true),
                 scheduleCreate("sked", cryptoTransfer(tinyBarsFromTo("sender", "receiver", 1L)))
@@ -93,10 +94,9 @@ public class ScheduleSignatoryScopeTest {
                         .has(accountDetailsWith().balance(0L)),
                 // The receiver now adopts the sender's key, signed by both its current key and the new one
                 cryptoUpdate("receiver").key("senderKey"),
-                // Re-evaluation: the recorded key now satisfies the receiver's requirement as well
-                scheduleSign("sked")
-                        .alsoSigningWith("senderKey")
-                        .hasKnownStatusFrom(SUCCESS, NO_NEW_VALID_SIGNATURES, SOME_SIGNATURES_WERE_INVALID),
+                // Re-evaluate using only an unrelated key, so no fresh signature from senderKey is supplied:
+                // the transfer can only execute if the key recorded at creation now satisfies the receiver too
+                scheduleSign("sked").signedBy("triggerKey").payingWith("trigger"),
                 getAccountDetails("receiver")
                         .payingWith(GENESIS)
                         .has(accountDetailsWith().balance(1L)));

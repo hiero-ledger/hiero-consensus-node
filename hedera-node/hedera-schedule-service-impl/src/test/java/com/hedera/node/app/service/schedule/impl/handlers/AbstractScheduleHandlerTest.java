@@ -84,7 +84,7 @@ class AbstractScheduleHandlerTest {
     void recordsOnlySigningConstituentsOfARequiredThresholdKey() {
         final var thresholdKey = Key.newBuilder()
                 .thresholdKey(ThresholdKey.newBuilder()
-                        .threshold(2)
+                        .threshold(3)
                         .keys(KeyList.newBuilder().keys(ED25519_KEY, ECDSA_KEY, OTHER_ED25519_KEY)))
                 .build();
         // Two of the three constituents signed; only those two are recorded, even though the threshold is unmet
