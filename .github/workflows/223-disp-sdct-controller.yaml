@@ -400,8 +400,8 @@ jobs:
     runs-on: hl-cn-sdct-lin-sm
     needs:
       - canonical-test
-    # Only the full SDCT test (sdct) is tagged; mini and custom runs report in the summary and artifact only
-    if: ${{ !cancelled() && (inputs.test-name || 'sdct') == 'sdct' &&
+    # Runs for every test and reports the tag result; only the full SDCT test (sdct) creates and pushes the tag
+    if: ${{ !cancelled() &&
       (needs.canonical-test.outputs.verdict == 'pass' || needs.canonical-test.outputs.verdict == 'fail') &&
       needs.canonical-test.outputs.build-number != '' }}
     steps:
@@ -416,6 +416,7 @@ jobs:
 
       - name: Import GPG Key
         id: gpg_importer
+        if: ${{ (inputs.test-name || 'sdct') == 'sdct' }}
         uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
         with:
           git_commit_gpgsign: true
@@ -429,6 +430,7 @@ jobs:
           VERDICT: ${{ needs.canonical-test.outputs.verdict }}
           BUILD_NUM: ${{ needs.canonical-test.outputs.build-number }}
           COMMIT: ${{ needs.canonical-test.outputs.commit }}
+          SDCT_TEST: ${{ inputs.test-name || 'sdct' }}
         run: |
           if [[ "${VERDICT}" == "pass" ]]; then
             TAG_NAME="sdct-pass-${BUILD_NUM}"
@@ -438,13 +440,22 @@ jobs:
             MSG="Single Day Canonical Test FAILED for build-${BUILD_NUM}"
           fi
 
-          git tag --annotate "${TAG_NAME}" --message "${MSG}" "${COMMIT}"
-          git push origin "refs/tags/${TAG_NAME}"
+          # Only the full SDCT test (sdct) is tagged; mini and custom runs only report the tag result
+          if [[ "${SDCT_TEST}" == "sdct" ]]; then
+            git tag --annotate "${TAG_NAME}" --message "${MSG}" "${COMMIT}"
+            git push origin "refs/tags/${TAG_NAME}"
+            TAG_STATUS="pushed"
+          else
+            TAG_STATUS="not pushed (test-name: ${SDCT_TEST})"
+          fi
 
-          echo "### SDCT Result - Tag Information" >> "${GITHUB_STEP_SUMMARY}"
-          echo "SDCT Tag: ${TAG_NAME}" >> "${GITHUB_STEP_SUMMARY}"
+          {
+            echo "### SDCT Result - Tag Information"
+            echo "- **SDCT Test**: \`${SDCT_TEST}\`"
+            echo "- **SDCT Tag**: \`${TAG_NAME}\` ${TAG_STATUS}"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
-          # TODO: push the SDCT result to Chewie once Chewie supports result reporting
+          # TODO: push the SDCT result to Chewie
 
   report-failure:
     name: Report SDCT execution failure
