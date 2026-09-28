@@ -100,8 +100,8 @@ public class WrapsHandoffsTest implements LifecycleTest {
      * the network must have nothing else in flight for the fresh genesis proof to be the only construction.
      */
     @HapiTest
-    // Its own network, pinned pre-cutover from genesis. Mock signatures keep block proofs free of a
-    // chain of trust, so the block node never expects one and the fresh genesis proof is not a downgrade.
+    // Its own network, pinned pre-cutover from genesis, WRB topology: the block node receives only RSA-signed
+    // wrapped record blocks, so the mock block signatures this feature needs never reach it.
     @HapiBlockNode(
             networkSize = 3,
             blockNodeConfigs = {@HapiBlockNode.BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
@@ -114,6 +114,12 @@ public class WrapsHandoffsTest implements LifecycleTest {
                             "blockStream.enableCutover",
                             "false",
                             "tss.forceMockSignatures",
+                            "true",
+                            "blockStream.streamMode",
+                            "BOTH",
+                            "blockStream.writerMode",
+                            "FILE_AND_GRPC",
+                            "blockStream.streamWrappedRecordBlocks",
                             "true"
                         }),
                 @HapiBlockNode.SubProcessNodeConfig(
@@ -124,6 +130,12 @@ public class WrapsHandoffsTest implements LifecycleTest {
                             "blockStream.enableCutover",
                             "false",
                             "tss.forceMockSignatures",
+                            "true",
+                            "blockStream.streamMode",
+                            "BOTH",
+                            "blockStream.writerMode",
+                            "FILE_AND_GRPC",
+                            "blockStream.streamWrappedRecordBlocks",
                             "true"
                         }),
                 @HapiBlockNode.SubProcessNodeConfig(
@@ -134,6 +146,12 @@ public class WrapsHandoffsTest implements LifecycleTest {
                             "blockStream.enableCutover",
                             "false",
                             "tss.forceMockSignatures",
+                            "true",
+                            "blockStream.streamMode",
+                            "BOTH",
+                            "blockStream.writerMode",
+                            "FILE_AND_GRPC",
+                            "blockStream.streamWrappedRecordBlocks",
                             "true"
                         })
             })
