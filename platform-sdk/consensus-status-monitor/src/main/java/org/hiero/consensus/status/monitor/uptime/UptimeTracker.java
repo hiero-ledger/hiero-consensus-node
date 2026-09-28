@@ -16,7 +16,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 import org.hiero.base.CompareTo;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -104,10 +103,8 @@ public class UptimeTracker {
      * @param roster     the active roster
      */
     private void addAndRemoveNodes(@NonNull final UptimeData uptimeData, @NonNull final RosterWrapper roster) {
-        final Set<NodeId> rosterNodes =
-                roster.rosterEntries().stream().map(RosterEntryWrapper::nodeId).collect(Collectors.toSet());
         final Set<NodeId> trackedNodes = uptimeData.getTrackedNodes();
-        for (final NodeId nodeId : rosterNodes) {
+        for (final NodeId nodeId : roster.nodeIds()) {
             if (!trackedNodes.contains(nodeId)) {
                 // node was added
                 uptimeMetrics.addMetricsForNode(nodeId);
@@ -115,7 +112,7 @@ public class UptimeTracker {
             }
         }
         for (final NodeId nodeId : trackedNodes) {
-            if (!rosterNodes.contains(nodeId)) {
+            if (!roster.contains(nodeId)) {
                 // node was removed
                 uptimeMetrics.removeMetricsForNode(nodeId);
                 uptimeData.removeNode(nodeId);
@@ -183,8 +180,8 @@ public class UptimeTracker {
             @NonNull final Map<NodeId, ConsensusEvent> lastEventsInRoundByCreator,
             final long roundNum) {
 
-        for (final RosterEntryWrapper rosterEntry : roster.rosterEntries()) {
-            final ConsensusEvent lastEvent = lastEventsInRoundByCreator.get(rosterEntry.nodeId());
+        for (final NodeId nodeId : roster.nodeIds()) {
+            final ConsensusEvent lastEvent = lastEventsInRoundByCreator.get(nodeId);
             if (lastEvent != null) {
                 uptimeData.recordLastEvent(lastEvent, roundNum);
             }
