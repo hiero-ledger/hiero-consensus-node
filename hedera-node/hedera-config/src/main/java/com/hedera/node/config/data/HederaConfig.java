@@ -14,6 +14,9 @@ import java.time.Duration;
  * @param maxTransactionBytesPerEvent  the maximum number of bytes that a single event may contain, not including the
  *                                     event headers. if a single transaction exceeds this limit, then the event will
  *                                     contain the single transaction only
+ * @param pendingTransactionsPersistenceEnabled whether user transactions still in the pool at a freeze are saved and
+ *                                              resubmitted after the restart
+ * @param pendingTransactionsDirectory          where those transactions are saved
  */
 @ConfigData("hedera")
 public record HederaConfig(
@@ -81,4 +84,12 @@ public record HederaConfig(
         Duration nowFrozenWriteTimeout,
 
         @ConfigProperty(value = "transaction.maximumPermissibleUnhealthySeconds", defaultValue = "1") @NodeProperty
-        long maximumPermissibleUnhealthySeconds) {}
+        long maximumPermissibleUnhealthySeconds,
+
+        @ConfigProperty(value = "transaction.pendingTransactionsPersistenceEnabled", defaultValue = "false")
+        @NodeProperty
+        boolean pendingTransactionsPersistenceEnabled,
+
+        @ConfigProperty(value = "transaction.pendingTransactionsDirectory", defaultValue = "data/pendingTransactions")
+        @NodeProperty
+        String pendingTransactionsDirectory) {}

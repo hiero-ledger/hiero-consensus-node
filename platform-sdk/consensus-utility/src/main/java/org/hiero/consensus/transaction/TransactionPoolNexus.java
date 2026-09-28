@@ -9,6 +9,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.InstantSource;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -49,6 +50,11 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      * The number of buffered signature transactions waiting to be put into events.
      */
     private int bufferedSignatureTransactionCount = 0;
+
+    /**
+     * Whether application transactions were drained; once set, new application transactions are rejected.
+     */
+    private boolean applicationTransactionsDrained = false;
 
     /**
      * The maximum number of bytes of transactions that can be put in an event.
@@ -127,7 +133,7 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      * @return true if the transaction passed all validity checks and was accepted by the consumer
      */
     public synchronized boolean submitApplicationTransaction(@NonNull final Bytes appTransaction) {
-        if (!healthy || platformStatus != PlatformStatus.ACTIVE) {
+        if (!healthy || platformStatus != PlatformStatus.ACTIVE || applicationTransactionsDrained) {
             return false;
         }
 
@@ -270,6 +276,23 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      */
     public synchronized boolean hasBufferedSignatureTransactions() {
         return bufferedSignatureTransactionCount > 0;
+    }
+
+    /**
+     * Removes all buffered application transactions and rejects new ones from now on. Priority transactions are kept,
+     * so {@link #getTransactionsForEvent()} returns only priority transactions afterwards.
+     *
+     * @return the removed application transactions, oldest first
+     */
+    @NonNull
+    public synchronized List<Bytes> drainApplicationTransactions() {
+        applicationTransactionsDrained = true;
+        final List<Bytes> drained = new ArrayList<>(bufferedTransactions.size());
+        for (final TimestampedTransaction transaction : bufferedTransactions) {
+            drained.add(transaction.transaction());
+        }
+        bufferedTransactions.clear();
+        return drained;
     }
 
     /**
