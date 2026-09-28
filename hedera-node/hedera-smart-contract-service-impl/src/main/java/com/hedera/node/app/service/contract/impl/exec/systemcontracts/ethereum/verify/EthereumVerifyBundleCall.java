@@ -170,7 +170,7 @@ public class EthereumVerifyBundleCall extends AbstractCall {
     @Nullable
     private ClprBundleContent parseBundleContent(@NonNull final VerifiedBundle verified) {
         try {
-            return ClprBundleContent.PROTOBUF.parse(
+            return ClprBundleContent.PROTOBUF.parseStrict(
                     Bytes.wrap(verified.bundleContentBytes()).toReadableSequentialData());
         } catch (final Exception e) {
             log.warn("[EthereumVerifier] verifyBundle: inner bytes are not a valid ClprBundleContent", e);
