@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_REVERT_EXECUTE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
@@ -12,6 +13,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.Ful
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractNativeSystemContract.FUNCTION_SELECTOR_LENGTH;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.tuweniEncodedRc;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.callTypeOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
@@ -215,6 +217,22 @@ class HtsSystemContractTest {
         when(hederaConfig.transactionMaxBytes()).thenReturn(TRANSACTION_MAX_BYTES);
         given(attempt.asExecutableCall()).willThrow(new HandleException(CONTRACT_REVERT_EXECUTED));
         final var expected = revertResult(CONTRACT_REVERT_EXECUTED, frame.getRemainingGas());
+        final var result = subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame);
+        assertSamePrecompileResult(expected, result);
+    }
+
+    @Test
+    void unknownSelectorSucceedsWithNotSupportedResponseCode() {
+        givenValidCallAttempt();
+        frameUtils
+                .when(() -> callTypeOf(frame, EntityType.TOKEN))
+                .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
+        frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
+        frameUtils.when(() -> hederaConfigOf(frame)).thenReturn(hederaConfig);
+        when(hederaConfig.transactionMaxBytes()).thenReturn(TRANSACTION_MAX_BYTES);
+        given(attempt.asExecutableCall()).willReturn(null);
+
+        final var expected = successResult(tuweniEncodedRc(NOT_SUPPORTED), 0);
         final var result = subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame);
         assertSamePrecompileResult(expected, result);
     }

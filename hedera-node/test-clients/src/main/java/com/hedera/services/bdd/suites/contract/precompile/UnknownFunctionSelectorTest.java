@@ -3,6 +3,9 @@ package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
+import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -12,8 +15,9 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.mirrorAddrWith;
+import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -24,10 +28,8 @@ import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hederahashgraph.api.proto.java.ScheduleID;
-import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.apache.tuweni.bytes.Bytes32;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -67,19 +69,18 @@ public class UnknownFunctionSelectorTest {
                                 .hasKnownStatus(SUCCESS)
                                 .gas(1_000_000)
                                 .via("txn"))),
-                withOpContext((spec, opLog) -> {
-                    final var txn = getTxnRecord("txn");
-                    allRunFor(spec, txn);
-
-                    final var res = Bytes32.wrap(Arrays.copyOfRange(
-                            txn.getResponseRecord()
-                                    .getContractCallResult()
-                                    .getContractCallResult()
-                                    .toByteArray(),
-                            32,
-                            64));
-                    assertEquals(Bytes32.ZERO, res);
-                }));
+                getTxnRecord("txn")
+                        .hasPriority(recordWith()
+                                .contractCallResult(resultWith()
+                                        .resultViaFunctionName(
+                                                "callScheduleServiceWithFakeSelector",
+                                                contract.name(),
+                                                isLiteralResult(new Object[] {
+                                                    htsPrecompileResult()
+                                                            .withStatus(NOT_SUPPORTED)
+                                                            .getBytes()
+                                                            .toArray()
+                                                })))));
     }
 
     @HapiTest
@@ -95,19 +96,18 @@ public class UnknownFunctionSelectorTest {
                                 .hasKnownStatus(SUCCESS)
                                 .gas(1_000_000)
                                 .via("txn"))),
-                withOpContext((spec, opLog) -> {
-                    final var txn = getTxnRecord("txn");
-                    allRunFor(spec, txn);
-
-                    final var res = Bytes32.wrap(Arrays.copyOfRange(
-                            txn.getResponseRecord()
-                                    .getContractCallResult()
-                                    .getContractCallResult()
-                                    .toByteArray(),
-                            32,
-                            64));
-                    assertEquals(Bytes32.ZERO, res);
-                }));
+                getTxnRecord("txn")
+                        .hasPriority(recordWith()
+                                .contractCallResult(resultWith()
+                                        .resultViaFunctionName(
+                                                "callTokenServiceWithFakeSelector",
+                                                contract.name(),
+                                                isLiteralResult(new Object[] {
+                                                    htsPrecompileResult()
+                                                            .withStatus(NOT_SUPPORTED)
+                                                            .getBytes()
+                                                            .toArray()
+                                                })))));
     }
 
     @HapiTest
@@ -123,18 +123,17 @@ public class UnknownFunctionSelectorTest {
                                 .hasKnownStatus(SUCCESS)
                                 .gas(1_000_000)
                                 .via("txn"))),
-                withOpContext((spec, opLog) -> {
-                    final var txn = getTxnRecord("txn");
-                    allRunFor(spec, txn);
-
-                    final var res = Bytes32.wrap(Arrays.copyOfRange(
-                            txn.getResponseRecord()
-                                    .getContractCallResult()
-                                    .getContractCallResult()
-                                    .toByteArray(),
-                            32,
-                            64));
-                    assertEquals(Bytes32.ZERO, res);
-                }));
+                getTxnRecord("txn")
+                        .hasPriority(recordWith()
+                                .contractCallResult(resultWith()
+                                        .resultViaFunctionName(
+                                                "callAccountServiceWithFakeSelector",
+                                                contract.name(),
+                                                isLiteralResult(new Object[] {
+                                                    htsPrecompileResult()
+                                                            .withStatus(NOT_SUPPORTED)
+                                                            .getBytes()
+                                                            .toArray()
+                                                })))));
     }
 }

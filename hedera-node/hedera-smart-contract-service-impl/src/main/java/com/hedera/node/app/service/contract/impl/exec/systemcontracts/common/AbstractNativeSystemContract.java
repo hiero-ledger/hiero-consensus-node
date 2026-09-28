@@ -4,10 +4,12 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.common;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.revertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.tuweniEncodedRc;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CallType.UNQUALIFIED_DELEGATE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
@@ -60,6 +62,11 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
      * Function selector byte length
      */
     public static final int FUNCTION_SELECTOR_LENGTH = 4;
+
+    /**
+     * Output of the successful result returned when the function selector matches no method of the system contract
+     */
+    private static final Bytes UNKNOWN_SELECTOR_OUTPUT = tuweniEncodedRc(NOT_SUPPORTED);
 
     private static final long CLPR_VERIFIER_SYSTEM_CONTRACT_NUM = 0x16eL;
     private static final long BESU_QBFT_VERIFIER_SYSTEM_CONTRACT_NUM = 0x16fL;
@@ -127,7 +134,7 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
             // check if the calldata size of the call to
             call = attempt.asExecutableCall();
             if (call == null) {
-                return successResult(Bytes.EMPTY, 0);
+                return successResult(UNKNOWN_SELECTOR_OUTPUT, 0);
             }
             if (logClprVerifier) {
                 log.debug(
