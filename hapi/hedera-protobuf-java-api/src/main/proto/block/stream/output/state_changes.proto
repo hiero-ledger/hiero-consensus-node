@@ -541,11 +541,6 @@ enum StateIdentifier {
     STATE_ID_CLPR_PENDING_CONNECTOR_COMMITMENTS = 64;
 
     /**
-     * A state identifier for CLPR per-endpoint submission throttles. Key/value state.
-     */
-    STATE_ID_CLPR_SUBMISSION_THROTTLES = 65;
-
-    /**
      * A state identifier for the CLPR endpoint manifest. Singleton state.
      */
     STATE_ID_CLPR_ENDPOINT_MANIFEST = 66;
