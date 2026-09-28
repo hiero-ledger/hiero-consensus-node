@@ -27,12 +27,11 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.DEFAULT_UPGRADE_FILE_ID;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileHashAt;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 
-import com.hedera.services.bdd.HapiBlockNode;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
-import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNode.ReassignPorts;
 import com.hedera.services.bdd.junit.support.validators.block.StateChangesValidator;
@@ -100,64 +99,13 @@ public class WrapsHandoffsTest implements LifecycleTest {
      * the network must have nothing else in flight for the fresh genesis proof to be the only construction.
      */
     @HapiTest
-    // Its own network, pinned pre-cutover from genesis, WRB topology: the block node receives only RSA-signed
-    // wrapped record blocks, so the mock block signatures this feature needs never reach it.
-    @HapiBlockNode(
-            networkSize = 3,
-            blockNodeConfigs = {@HapiBlockNode.BlockNodeConfig(nodeId = 0, mode = BlockNodeMode.REAL)},
-            subProcessNodeConfigs = {
-                @HapiBlockNode.SubProcessNodeConfig(
-                        nodeId = 0,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.enableCutover",
-                            "false",
-                            "tss.forceMockSignatures",
-                            "true",
-                            "blockStream.streamMode",
-                            "BOTH",
-                            "blockStream.writerMode",
-                            "FILE_AND_GRPC",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "true"
-                        }),
-                @HapiBlockNode.SubProcessNodeConfig(
-                        nodeId = 1,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.enableCutover",
-                            "false",
-                            "tss.forceMockSignatures",
-                            "true",
-                            "blockStream.streamMode",
-                            "BOTH",
-                            "blockStream.writerMode",
-                            "FILE_AND_GRPC",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "true"
-                        }),
-                @HapiBlockNode.SubProcessNodeConfig(
-                        nodeId = 2,
-                        blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.enableCutover",
-                            "false",
-                            "tss.forceMockSignatures",
-                            "true",
-                            "blockStream.streamMode",
-                            "BOTH",
-                            "blockStream.writerMode",
-                            "FILE_AND_GRPC",
-                            "blockStream.streamWrappedRecordBlocks",
-                            "true"
-                        })
-            })
     @Order(0)
     final Stream<DynamicTest> upgradeRequestingFreshGenesisWrapsProofGroundsOne() {
         return hapiTest(sourcingContextual(spec -> {
+            // Never requested once the cutover is enabled; see ProofControllers.freshGenesisRequested()
+            assumeFalse(
+                    spec.startupProperties().getBoolean("blockStream.enableCutover"),
+                    "A fresh genesis WRAPS proof is not requested once the cutover is enabled");
             if (!hasWrapsArtifactsPath()) {
                 return noOp();
             }
