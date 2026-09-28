@@ -20,6 +20,7 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.node.config.data.ClprConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -138,6 +139,11 @@ public class V0770ClprSchema extends Schema<SemanticVersion> {
      * {@link com.hedera.node.app.service.clpr.impl.ClprServiceImpl#doGenesisSetup} so the empty
      * genesis hash is externalized before these writes. On an upgrade that introduces CLPR, the
      * migration framework captures and streams these writes with the other migration state changes.
+     *
+     * <p>Both singletons are initialized even when {@code clpr.enabled} is false. CLPR handlers need
+     * them as soon as the flag is set, and since the flag is a network property that a later file
+     * update can change, no migration would run then to initialize them. The writes are
+     * deterministic and only touch CLPR's own states.
      */
     @Override
     public void migrate(@NonNull final MigrationContext<SemanticVersion> ctx) {
@@ -169,7 +175,9 @@ public class V0770ClprSchema extends Schema<SemanticVersion> {
                     .maxMessagesPerBundle(1_000)
                     .maxQueueDepth(10_000)
                     .maxMessagePayloadBytes(65_536) // 64 KB per message
-                    .maxGasPerMessage(DEFAULT_MAX_GAS_PER_MESSAGE)
+                    .maxGasPerMessage(Math.min(
+                            DEFAULT_MAX_GAS_PER_MESSAGE,
+                            configuration.getConfigData(ContractsConfig.class).maxGasPerTransaction()))
                     .build();
             // Use seconds=1 as the initialization sentinel so timestamp is non-zero and
             // distinguishable from the proto default. The first admin update replaces it with

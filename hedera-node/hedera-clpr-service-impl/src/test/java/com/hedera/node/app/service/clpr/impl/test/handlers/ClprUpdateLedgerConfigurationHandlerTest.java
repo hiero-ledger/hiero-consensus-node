@@ -417,7 +417,7 @@ class ClprUpdateLedgerConfigurationHandlerTest {
         return ClprThrottles.newBuilder()
                 .maxMessagesPerBundle(100)
                 .maxMessagePayloadBytes(65536)
-                .maxGasPerMessage(1_000_000L)
+                .maxGasPerMessage(150_000L)
                 .maxQueueDepth(1000)
                 .maxSyncBytes(1_048_576L);
     }
