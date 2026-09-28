@@ -41,7 +41,6 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerFactory;
-import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -53,11 +52,8 @@ import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.state.SignedStateFileReader;
 import org.hiero.consensus.state.SignedStateFileWriter;
-import org.hiero.consensus.state.nexus.SignedStateNexus;
 import org.hiero.consensus.state.saved.DeserializedSignedState;
-import org.hiero.consensus.state.saved.StateDumpRequest;
 import org.hiero.consensus.state.signed.ReservedSignedState;
-import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.snapshot.StateToDiskReason;
 
 /**
@@ -244,8 +240,7 @@ public final class ReplayPcesWorkflow {
             // relying on the periodic-save mechanism (which may never fire within a single hourly bucket) and the
             // filesystem scan (which can race the async snapshot manager). Must be soldered before the model starts.
             final AtomicReference<ReservedSignedState> capturedFinalState = new AtomicReference<>();
-            blocks
-                    .stateModule()
+            blocks.stateModule()
                     .hashedStateOutputWire()
                     .solderTo("replayFinalStateCapture", "hashed state", (ReservedSignedState rs) -> {
                         final long round = rs.get().getRound();
@@ -365,7 +360,6 @@ public final class ReplayPcesWorkflow {
             throw e;
         }
     }
-
 
     /**
      * Copies the PCES files into the database directory the platform will scan
@@ -497,5 +491,4 @@ public final class ReplayPcesWorkflow {
             throw new UncheckedIOException("Failed scanning block output for finalization under " + blockStreamsDir, e);
         }
     }
-
 }

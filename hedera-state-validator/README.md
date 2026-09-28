@@ -1,7 +1,7 @@
 # Hedera State Validator
 
 The **Hedera State Validator** is a comprehensive tool for working with the persisted state of Hedera nodes, providing capabilities to validate state integrity, introspect state contents, export state data,
-compact state files, and apply block streams to advance state.
+compact state files, apply block streams to advance state, reconstruct and replay PCES streams, and diagnose differences between an original and a re-minted block stream.
 
 ### GCP Support
 
@@ -709,3 +709,157 @@ java -jar ./validator-<version>.jar replay-pces \
   verify equivalence.
 - If the replay ever encounters FREEZE transaction, it will be halted by the platform, and if the FREEZE round is not
   the same as the target round, the replay will fail.
+
+## Comparing Output Records (`output-record-compare`)
+
+[OutputRecordCompareCommand](src/main/java/com/hedera/statevalidation/OutputRecordCompareCommand.java) compares two block streams transaction by transaction — typically the original production blocks and the blocks re-minted by `replay-pces` — and reports where they diverge.
+
+For each transaction it compares the full `TransactionResult`, the `TransactionOutput`s, and the net state changes of the round per state. This catches differences that a status or gas comparison misses, such as a different consensus timestamp or different state changes with the same `SUCCESS` status. Transactions are matched by their position in the round, so repeated synthetic transaction IDs (e.g. `10@0.0`) cannot be mismatched.
+
+The command does not load a state.
+
+### Usage
+
+```shell
+java -jar ./validator-<version>.jar output-record-compare \
+  --original=<original-block-dir> \
+  --reminted=<reminted-block-dir> \
+  [--from-round=<round>] [--to-round=<round>] [--all] \
+  [--round=<round> [--dump-tx=<txId>]] \
+  [--ignore-states=<service>[,<service>...]] \
+  [--threads=<n>] [--window=<n>]
+```
+
+### Options
+
+- `--original` - Directory with the original (production) block files (required).
+- `--reminted` - Directory with the re-minted block files (required). For `replay-pces` output, point it at the node's block directory (the one ending in `block-<nodeAccount>/`, e.g. `block-0.0.3/`).
+- `--from-round` - Range mode: lowest round to compare. Default = start of the block range.
+- `--to-round` - Range mode: highest round to compare. Default = end of the block range.
+- `--all` - Range mode: report every divergent block instead of stopping at the first one.
+- `--round` - Single-round mode: report every divergent transaction in this round. Cannot be combined with `--from-round`, `--to-round` or `--all`.
+- `--dump-tx` - With `--round`: print the original and re-minted values for this transaction ID.
+- `--ignore-states` - Comma-separated services whose state changes are not compared. Use `BlockStreamService,PlatformStateService,BlockRecordService` to skip the running-hash and block-hash fields, which are expected to differ after replay.
+- `--threads` - Worker threads for range mode. Default = number of available processors.
+- `--window` - Number of blocks compared per parallel batch in range mode. Default = `threads × 8`.
+
+### Modes
+
+- **Range (default):** compares only the blocks present in both directories, in ascending order, and stops at the first block that contains a divergent transaction. That transaction is the earliest divergence; everything after it is usually a consequence of it.
+- **Range with `--all`:** keeps scanning and prints one line per divergent block (the first divergent transaction in each).
+- **Single round (`--round`):** lists every divergent transaction in that round. Add `--dump-tx` to see the differing values.
+
+### Output
+
+Range mode prints progress and then either the earliest divergence or a clean result:
+
+```
+Scanning blocks [106484401, 106493184], rounds [260911703, 260933615], threads=32, window=256, ignoreStates=[...]
+... 256 blocks clean (through block 106484656)
+...
+No output-record divergence found across 8784 blocks.
+```
+
+For each divergent transaction, `diff=` shows what differs (`RESULT`, `OUTPUT`, `STATE`) and `states=` lists the affected states by name, e.g. `TokenService.ACCOUNTS`.
+
+### Examples
+
+Find the first divergence across a replayed range:
+
+```shell
+java -jar ./validator-<version>.jar output-record-compare \
+  --original=./state-validator-blocks-260911703-to-260933615-rna26-s1/ \
+  --reminted=<reminted-block-dir> \
+  --from-round=260911703 --to-round=260933615 \
+  --ignore-states=BlockStreamService,PlatformStateService,BlockRecordService \
+  --threads=32
+```
+
+List every divergent block:
+
+```shell
+java -jar ./validator-<version>.jar output-record-compare \
+  --original=<original-block-dir> --reminted=<reminted-block-dir> --all \
+  --ignore-states=BlockStreamService,PlatformStateService,BlockRecordService
+```
+
+Inspect one round and dump a transaction:
+
+```shell
+java -jar ./validator-<version>.jar output-record-compare \
+  --original=<original-block-dir> --reminted=<reminted-block-dir> \
+  --round=256533930 --dump-tx=33@1785749400.871996395
+```
+
+### Notes
+
+- Only block numbers present in both directories are compared, so the re-minted directory may be a subset of the original one.
+- `--dump-tx` looks transactions up by ID. When an ID is ambiguous (synthetic IDs such as `10@0.0`), use `tx-dump --pos` instead.
+- The exit code is `0` whether or not a divergence is found; read the output to tell the two apart.
+
+## Inspecting Block Transactions (`tx-dump`)
+
+[TxDumpCommand](src/main/java/com/hedera/statevalidation/TxDumpCommand.java) prints the block-stream content of a round: a summary of all its transactions, or the full content of one transaction. Run it against both the original and the re-minted blocks and compare the output to find the exact field that differs.
+
+The command does not load a state.
+
+### Usage
+
+```shell
+java -jar ./validator-<version>.jar tx-dump \
+  --blocks=<block-file-or-dir> \
+  --round=<round> \
+  [--tx=<txId> | --pos=<position>]
+```
+
+### Options
+
+- `--blocks` - A block file, or a directory of block files (required). For a directory, the block containing `--round` is located automatically.
+- `--round` - Round to inspect (required).
+- `--tx` - Print every transaction in the round with this ID. Synthetic IDs can match more than one transaction; each match is labelled with its position.
+- `--pos` - Print the transaction at this 0-based position in the round. Cannot be combined with `--tx`.
+  Without `--tx` or `--pos`, the command prints a summary of the round.
+
+### Output
+
+Summary mode prints one line per transaction:
+
+```
+Round 260911704 — 9 transaction(s) in 000000000000000000000000000106484401.blk.gz
+
+  pos=  0  txId=50@1788652800.974893106.n1            status=SUCCESS    outputs=0  stateChanges=36
+  pos=  1  txId=50@1788652800.974893108.n2            status=SUCCESS    outputs=0  stateChanges=20
+  ...
+```
+
+With `--tx` or `--pos`, it prints the transaction body, the transaction result, any transaction outputs, and every state change with its state name.
+
+### Examples
+
+Summary of a round:
+
+```shell
+java -jar ./validator-<version>.jar tx-dump --blocks=./state-validator-blocks-260911703-to-260933615-rna26-s1/ --round=260911704
+```
+
+Compare one transaction between the original and the re-minted blocks:
+
+```shell
+java -jar ./validator-<version>.jar tx-dump --blocks=<original-block-dir> --round=260911704 --pos=0 > orig_pos0.txt
+java -jar ./validator-<version>.jar tx-dump --blocks=<reminted-block-dir> --round=260911704 --pos=0 > reminted_pos0.txt
+diff orig_pos0.txt reminted_pos0.txt
+```
+
+### Notes
+
+- Prefer `--pos` over `--tx`: positions are unique within a round, transaction IDs are not always.
+- Comparing the two summaries first shows quickly whether both runs have the same transactions, in the same order, with the same timestamps.
+
+## Investigating a Replay Divergence
+
+When the state diff after `replay-pces` contains more than the expected hash fields:
+
+1. Run `output-record-compare` over the replayed range with `--ignore-states=BlockStreamService,PlatformStateService,BlockRecordService` to find the earliest divergent transaction.
+2. Run `tx-dump` in summary mode for that round against both block directories to check that the transactions, their order, and their timestamps match.
+3. Run `tx-dump --pos=<n>` for the divergent transaction against both directories and `diff` the output to find the exact field.
+4. Use `introspect` on the origin state to check the inputs that field depends on.

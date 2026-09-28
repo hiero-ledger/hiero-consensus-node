@@ -82,6 +82,7 @@ public final class PlatformBuilder {
      * False if this builder has not yet been used to build a platform (or platform component builder), true if it has.
      */
     private boolean used;
+
     private ConsensusLayerFactory factory;
 
     /**
