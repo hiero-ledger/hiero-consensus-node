@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
@@ -37,6 +38,16 @@ public class ConsensusLinker {
     private final LinkerLogsAndMetrics logsAndMetrics;
 
     /**
+     * Creates the {@link EventImpl} instances this linker hands to the algorithm.
+     * <p>
+     * Defaults to {@link EventImpl#EventImpl(PlatformEvent, List)}. Tests supply a factory returning an
+     * {@link EventImpl} subclass in order to observe the intermediate state the algorithm computes on a linked event,
+     * which is otherwise unreachable — it is recalculated on every decided round and so does not survive the call that
+     * produced it.
+     */
+    private final BiFunction<PlatformEvent, List<EventImpl>, EventImpl> eventFactory;
+
+    /**
      * A sequence map from event descriptor to event.
      * <p>
      * The window of this map is shifted when the minimum non-ancient threshold is changed, so that only non-ancient
@@ -63,7 +74,20 @@ public class ConsensusLinker {
      * @param logsAndMetrics logs and collects metrics in case of linking issues
      */
     public ConsensusLinker(@NonNull final LinkerLogsAndMetrics logsAndMetrics) {
-        this.logsAndMetrics = logsAndMetrics;
+        this(logsAndMetrics, EventImpl::new);
+    }
+
+    /**
+     * Constructor
+     *
+     * @param logsAndMetrics logs and collects metrics in case of linking issues
+     * @param eventFactory   creates the {@link EventImpl} instances handed to the algorithm
+     */
+    public ConsensusLinker(
+            @NonNull final LinkerLogsAndMetrics logsAndMetrics,
+            @NonNull final BiFunction<PlatformEvent, List<EventImpl>, EventImpl> eventFactory) {
+        this.logsAndMetrics = Objects.requireNonNull(logsAndMetrics);
+        this.eventFactory = Objects.requireNonNull(eventFactory);
         this.eventWindow = EventWindow.getGenesisEventWindow();
         this.parentDescriptorMap =
                 new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, EventDescriptorWrapper::birthRound);
@@ -86,7 +110,7 @@ public class ConsensusLinker {
                 .map(ed -> getParentToLink(event, ed))
                 .filter(Objects::nonNull)
                 .toList();
-        final EventImpl linkedEvent = new EventImpl(event, parents);
+        final EventImpl linkedEvent = eventFactory.apply(event, parents);
         logsAndMetrics.eventLinked();
 
         final EventDescriptorWrapper eventDescriptorWrapper = event.getDescriptor();

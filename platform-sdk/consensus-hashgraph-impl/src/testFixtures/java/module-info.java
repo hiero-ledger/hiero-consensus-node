@@ -31,6 +31,11 @@ open module org.hiero.consensus.hashgraph.impl.test.fixtures {
     exports org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter;
     exports org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator;
     exports org.hiero.consensus.hashgraph.impl.test.fixtures.event.source;
+    // The Flicker harness exposes EventImpl, so this export must stay qualified: an unqualified one fails the
+    // [exports] lint under -Werror, and the only way to satisfy that lint would be to require the impl module
+    // transitively - which is what modularization rule 4 forbids test fixtures from doing.
+    exports org.hiero.consensus.hashgraph.impl.test.fixtures.flicker to
+            org.hiero.consensus.hashgraph.impl;
     exports org.hiero.consensus.hashgraph.impl.test.fixtures.graph;
     exports org.hiero.consensus.hashgraph.impl.test.fixtures.graph.internal to
             org.hiero.consensus.hashgraph.impl;
