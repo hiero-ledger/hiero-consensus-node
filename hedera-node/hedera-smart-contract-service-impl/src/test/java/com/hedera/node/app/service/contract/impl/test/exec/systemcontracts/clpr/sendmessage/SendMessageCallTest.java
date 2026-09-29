@@ -8,7 +8,6 @@ import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADD
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
@@ -42,6 +41,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEVM;
 import com.hedera.node.app.service.contract.impl.hevm.HederaOperationsRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.OpsDurationSchedule;
+import com.hedera.node.app.service.contract.impl.infra.ContractCodeCache;
 import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.TestHelpers;
@@ -51,9 +51,11 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.math.BigInteger;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import org.apache.tuweni.bytes.Bytes32;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.Code;
@@ -140,6 +142,17 @@ class SendMessageCallTest extends CallTestBase {
     }
 
     private void givenParentFrame(final long gas, final Address address, final Code code) {
+        givenParentFrame(gas, address, code, Map.of());
+    }
+
+    private void givenParentFrame(
+            final long gas, final Address address, final Code code, final Map<String, Object> extraContext) {
+        final var contextVariables = new HashMap<String, Object>(extraContext);
+        contextVariables.put(FrameUtils.CONFIG_CONTEXT_VARIABLE, TestHelpers.DEFAULT_CONFIG);
+        contextVariables.put(
+                FrameUtils.OPS_DURATION_COUNTER,
+                OpsDurationCounter.withSchedule(
+                        OpsDurationSchedule.fromConfig(TestHelpers.DEFAULT_OPS_DURATION_CONFIG)));
         frame = MessageFrame.builder()
                 .type(MessageFrame.Type.MESSAGE_CALL)
                 .worldUpdater(updater)
@@ -156,12 +169,7 @@ class SendMessageCallTest extends CallTestBase {
                 .blockValues(mock(BlockValues.class))
                 .blockHashLookup((_, _) -> null)
                 .miningBeneficiary(Address.ZERO)
-                .contextVariables(Map.of(
-                        FrameUtils.CONFIG_CONTEXT_VARIABLE,
-                        TestHelpers.DEFAULT_CONFIG,
-                        FrameUtils.OPS_DURATION_COUNTER,
-                        OpsDurationCounter.withSchedule(
-                                OpsDurationSchedule.fromConfig(TestHelpers.DEFAULT_OPS_DURATION_CONFIG))))
+                .contextVariables(contextVariables)
                 .completer(_ -> {})
                 .build();
     }
@@ -268,7 +276,7 @@ class SendMessageCallTest extends CallTestBase {
     }
 
     @Test
-    void suspendsOnSameStackAndReturnsUnusedGasBeforeContinuing() {
+    void suspendsOnSameStackWithoutChargingAuthorizationGas() {
         givenConnectorLookup(connectorWithContract());
         givenParentFrame(200_000L);
         givenAuthorizationContract();
@@ -293,9 +301,8 @@ class SendMessageCallTest extends CallTestBase {
                 .isEqualTo(SendMessageCall.encodeAuthorizeOutboundMessage(
                         CHANNEL_ID, TARGET_APP, SENDER_ADDRESS.getBytes().toArray(), MESSAGE_DATA));
         assertThat(child.getRemainingGas()).isEqualTo(50_000L);
-        assertThat(frame.getRemainingGas()).isEqualTo(150_000L);
+        assertThat(frame.getRemainingGas()).isEqualTo(200_000L);
         verifyNoInteractions(continuation, clprApi);
-        verify(nativeOperations, never()).dispatchReadonlyContractCall(any(), any(), any(), anyLong(), any());
 
         frame.getMessageFrameStack().removeFirst();
         child.decrementRemainingGas(12_345L);
@@ -303,8 +310,30 @@ class SendMessageCallTest extends CallTestBase {
         child.notifyCompletion();
 
         assertThat(frame.getState()).isEqualTo(MessageFrame.State.CODE_EXECUTING);
-        assertThat(frame.getRemainingGas()).isEqualTo(187_655L);
+        assertThat(frame.getRemainingGas()).isEqualTo(200_000L);
         verify(continuation).run();
+    }
+
+    @Test
+    void authorizationSharesSendingTransactionContext() {
+        givenConnectorLookup(connectorWithContract());
+        givenParentFrame(
+                200_000L,
+                Address.fromHexString("0x16e"),
+                Code.EMPTY_CODE,
+                Map.of(FrameUtils.HOOK_OWNER_ADDRESS, SENDER_ADDRESS));
+        givenAuthorizationContract();
+        final var slot = Bytes32.fromHexString("0x01");
+        final var value = Bytes32.fromHexString("0x2a");
+        frame.setTransientStorageValue(contract.getAddress(), slot, value);
+
+        assertThat(createSubject().scheduleChildFrame(frame, () -> {})).isTrue();
+
+        final var child = frame.getMessageFrameStack().getFirst();
+        assertThat(child.getOriginatorAddress()).isEqualTo(SENDER_ADDRESS);
+        assertThat(child.isAddressWarm(SENDER_ADDRESS)).isTrue();
+        assertThat(child.getTransientStorageValue(contract.getAddress(), slot)).isEqualTo(value);
+        assertThat(FrameUtils.isHookExecution(child)).isTrue();
     }
 
     @ParameterizedTest
@@ -429,15 +458,15 @@ class SendMessageCallTest extends CallTestBase {
     }
 
     @Test
-    void capsChildGasAndReservesSystemContractCharge() {
+    void authorizesOnFixedBudgetWhenOnlySystemContractChargeRemains() {
         givenConnectorLookup(connectorWithContract());
-        givenParentFrame(110_000L);
+        givenParentFrame(100_000L);
         givenAuthorizationContract();
 
         assertThat(createSubject().scheduleChildFrame(frame, () -> {})).isTrue();
 
-        assertThat(frame.getMessageFrameStack().getFirst().getRemainingGas()).isEqualTo(9_844L);
-        assertThat(frame.getRemainingGas()).isEqualTo(100_156L);
+        assertThat(frame.getMessageFrameStack().getFirst().getRemainingGas()).isEqualTo(50_000L);
+        assertThat(frame.getRemainingGas()).isEqualTo(100_000L);
     }
 
     @Test
@@ -457,6 +486,8 @@ class SendMessageCallTest extends CallTestBase {
         given(frame.getDepth()).willReturn(1024);
 
         assertThat(createSubject().scheduleChildFrame(frame, () -> {})).isFalse();
+        // The depth guard alone must reject the frame, before any gas check
+        verify(frame, never()).getRemainingGas();
         verifyNoInteractions(updater, clprApi);
     }
 
@@ -523,6 +554,7 @@ class SendMessageCallTest extends CallTestBase {
         return new SendMessageCall(
                 mockEnhancement(),
                 gasCalculator,
+                new ContractCodeCache(),
                 SENDER_ID,
                 SENDER_ADDRESS,
                 CHANNEL_ID,

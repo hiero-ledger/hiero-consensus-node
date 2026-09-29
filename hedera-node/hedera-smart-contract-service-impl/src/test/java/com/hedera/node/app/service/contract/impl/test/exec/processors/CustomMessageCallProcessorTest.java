@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.processors;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.streams.CallOperationType.OP_STATICCALL;
 import static com.hedera.hapi.streams.ContractActionType.PRECOMPILE;
 import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
@@ -26,6 +27,7 @@ import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
+import com.hedera.node.app.service.contract.impl.exec.failure.HandleExceptionHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
@@ -217,10 +219,12 @@ class CustomMessageCallProcessorTest {
     void disabledClprStillExecutesItsEnablementGuard(final String hexAddress) {
         final var address = Address.fromHexString(hexAddress);
         final var clprContract = mock(AbstractClprSystemContract.class);
+        // A full selector, so only the enablement guard (not input validation) can halt the call
+        final var input = Bytes.fromHexString("0x12345678");
         subject = new CustomMessageCallProcessor(
                 evm, featureFlags, registry, addressChecks, Map.of(address, clprContract), contractMetrics);
         givenCallWithCode(address);
-        given(frame.getInputData()).willReturn(INPUT_DATA);
+        given(frame.getInputData()).willReturn(input);
         given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
         given(frame.getValue()).willReturn(Wei.ZERO);
         given(frame.getMessageFrameStack()).willReturn(stack);
@@ -232,8 +236,9 @@ class CustomMessageCallProcessorTest {
 
         subject.start(frame, operationTracer);
 
-        verify(clprContract).computeFully(any(), eq(INPUT_DATA), eq(frame), any());
+        verify(clprContract).computeFully(any(), eq(input), eq(frame), any());
         verify(frame).setState(MessageFrame.State.EXCEPTIONAL_HALT);
+        verify(frame).setExceptionalHaltReason(Optional.of(new HandleExceptionHaltReason(CLPR_NOT_ENABLED)));
         verify(operationTracer).tracePrecompileResult(frame, SYSTEM);
     }
 
@@ -278,6 +283,7 @@ class CustomMessageCallProcessorTest {
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(stack.getLast()).willReturn(frame);
         given(stack.peekFirst()).willReturn(child);
+        given(child.isStatic()).willReturn(true);
         given(frame.hasContextVariable(ACTION_SIDECARS_VARIABLE)).willReturn(true);
         doAnswer(invocation -> {
                     completion.set(invocation.getArgument(3));

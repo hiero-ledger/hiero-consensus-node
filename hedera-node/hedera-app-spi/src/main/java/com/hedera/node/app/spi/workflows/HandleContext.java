@@ -184,12 +184,6 @@ public interface HandleContext {
              */
             EXPLICIT_WRITE_TRACING,
             /**
-             * Signals that the dispatched contract call must execute in a static EVM frame. State-modifying
-             * opcodes (SSTORE, LOG*, CREATE*, SELFDESTRUCT, value-bearing CALL) halt with ILLEGAL_STATE_CHANGE.
-             * Used by system-contract sub-calls that must not mutate state.
-             */
-            STATIC_CALL,
-            /**
              * Batch inner transaction bytes. Used to pre-handle inner transaction while dispatching them.
              */
             INNER_TRANSACTION_BYTES,

@@ -313,6 +313,32 @@ class FrameRunnerTest {
     }
 
     @Test
+    void propagatedFailureDoesNotHaltNextFrameThatAlreadyCompleted() {
+        givenBaseFailureWith(NON_SYSTEM_LONG_ZERO_ADDRESS);
+        given(frame.getExceptionalHaltReason()).willReturn(Optional.of(INSUFFICIENT_CHILD_RECORDS));
+        // E.g. a system contract that suspended for the halted frame and already absorbed its failure
+        given(childFrame.getState()).willReturn(MessageFrame.State.REVERT);
+        given(entityIdFactory.newContractId(numberOfLongZero(NON_SYSTEM_LONG_ZERO_ADDRESS)))
+                .willReturn(ContractID.newBuilder()
+                        .evmAddress(Bytes.wrap(
+                                NON_SYSTEM_LONG_ZERO_ADDRESS.getBytes().toArray()))
+                        .build());
+
+        subject.runToCompletion(
+                GAS_LIMIT,
+                SENDER_ID,
+                frame,
+                tracer,
+                messageCallProcessor,
+                contractCreationProcessor,
+                CHARGING_RESULT,
+                null);
+
+        Mockito.verify(childFrame, Mockito.never()).setState(MessageFrame.State.EXCEPTIONAL_HALT);
+        Mockito.verify(tracer, Mockito.never()).traceNotExecuting(childFrame);
+    }
+
+    @Test
     void handleExceptionEscapingExecutionResolvesAsHaltOfWholeRunPreservingStatus() {
         final var inOrder = Mockito.inOrder(frame, childFrame, tracer, messageCallProcessor, contractCreationProcessor);
         final var status = ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;

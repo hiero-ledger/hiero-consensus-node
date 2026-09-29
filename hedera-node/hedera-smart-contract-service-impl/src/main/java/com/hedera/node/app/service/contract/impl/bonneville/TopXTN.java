@@ -57,7 +57,7 @@ public class TopXTN {
 
         // Pull out some common flags
         // A suspended system contract may enter Bonneville through a child message frame.
-        MessageFrame initialFrame = frame.getMessageFrameStack().getLast();
+        MessageFrame initialFrame = FrameUtils.initialFrameOf(frame);
         _config     = initialFrame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE);
         _hookOwner  = initialFrame.getContextVariable(FrameUtils.HOOK_OWNER_ADDRESS);
         _hasSideCar = initialFrame.hasContextVariable(FrameUtils.ACTION_SIDECARS_VARIABLE);

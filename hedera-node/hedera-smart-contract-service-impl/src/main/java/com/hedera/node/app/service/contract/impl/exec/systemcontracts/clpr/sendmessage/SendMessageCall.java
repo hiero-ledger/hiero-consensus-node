@@ -21,6 +21,7 @@ import com.hedera.node.app.service.clpr.ReadableConnectorStore;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
+import com.hedera.node.app.service.contract.impl.infra.ContractCodeCache;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -32,7 +33,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -58,6 +58,7 @@ public class SendMessageCall extends AbstractCall {
                 4);
     }
 
+    private final ContractCodeCache codeCache;
     private final AccountID senderId;
     private final Address senderAddress;
     private final byte[] channelId;
@@ -69,6 +70,7 @@ public class SendMessageCall extends AbstractCall {
     public SendMessageCall(
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
             @NonNull final SystemContractGasCalculator gasCalculator,
+            @NonNull final ContractCodeCache codeCache,
             @NonNull final AccountID senderId,
             @NonNull final Address senderAddress,
             @NonNull final byte[] channelId,
@@ -76,6 +78,7 @@ public class SendMessageCall extends AbstractCall {
             @NonNull final byte[] targetApplication,
             @NonNull final byte[] messageData) {
         super(gasCalculator, enhancement, false);
+        this.codeCache = requireNonNull(codeCache);
         this.senderId = requireNonNull(senderId);
         this.senderAddress = requireNonNull(senderAddress);
         this.channelId = requireNonNull(channelId);
@@ -89,6 +92,13 @@ public class SendMessageCall extends AbstractCall {
         return false;
     }
 
+    /**
+     * Schedules the connector's {@code authorizeOutboundMessage} as a static child frame on the sending transaction's
+     * own frame stack, with the CLPR system contract as {@code msg.sender} and a fixed gas budget that (as with the
+     * earlier child dispatch) is not charged to the caller. Because the child shares the sending transaction's context,
+     * the connector observes its {@code tx.origin}, transient storage, and warm addresses; and when the sender is an EVM
+     * hook, the hook's restrictions (e.g. no {@code DELEGATECALL} or {@code CALLCODE}) also apply to the connector.
+     */
     @Override
     public boolean scheduleChildFrame(@NonNull final MessageFrame frame, @NonNull final Runnable continuation) {
         requireNonNull(continuation);
@@ -98,31 +108,28 @@ public class SendMessageCall extends AbstractCall {
         if (connector == null || !connector.hasConnectorContract() || frame.getDepth() >= MAX_STACK_DEPTH) {
             return false;
         }
-        // Reserve the system contract charge and forward at most the authorization limit, subject to EIP-150.
-        final var availableGas = frame.getRemainingGas() - GAS_REQUIREMENT;
-        if (availableGas <= 0) {
+        // Without gas for the system contract charge the call halts with INSUFFICIENT_GAS, so skip authorization
+        if (frame.getRemainingGas() < GAS_REQUIREMENT) {
             return false;
         }
-        final var childGas = Math.min(AUTHORIZE_OUTBOUND_MESSAGE_GAS_LIMIT, availableGas - availableGas / 64);
         final var contract = proxyUpdaterFor(frame).getHederaAccount(connector.connectorContractOrThrow());
         if (contract == null) {
             return false;
         }
         final var callData = encodeAuthorizeOutboundMessage(
                 channelId, targetApplication, senderAddress.getBytes().toArray(), messageData);
-        frame.decrementRemainingGas(childGas);
         // As with CREATE, build() pushes a child using the parent's world updater and message-frame stack.
         MessageFrame.builder()
                 .parentMessageFrame(frame)
                 .type(MessageFrame.Type.MESSAGE_CALL)
-                .initialGas(childGas)
+                .initialGas(AUTHORIZE_OUTBOUND_MESSAGE_GAS_LIMIT)
                 .address(contract.getAddress())
                 .contract(contract.getAddress())
                 .inputData(org.apache.tuweni.bytes.Bytes.wrap(callData))
                 .sender(pbjToBesuAddress(CLPR_EVM_ADDRESS_BYTES))
                 .value(Wei.ZERO)
                 .apparentValue(Wei.ZERO)
-                .code(new Code(contract.getCode()))
+                .code(codeCache.getCodeFromTuweni(contract.getCode()))
                 .isStatic(true)
                 .completer(child -> completeAuthorization(frame, child, continuation))
                 .build();
@@ -134,7 +141,6 @@ public class SendMessageCall extends AbstractCall {
             @NonNull final MessageFrame frame,
             @NonNull final MessageFrame child,
             @NonNull final Runnable continuation) {
-        frame.incrementRemainingGas(child.getRemainingGas());
         authorized = child.getState() == MessageFrame.State.COMPLETED_SUCCESS
                 && decodeBoolResult(tuweniToPbjBytes(child.getOutputData()));
         frame.setState(MessageFrame.State.CODE_EXECUTING);

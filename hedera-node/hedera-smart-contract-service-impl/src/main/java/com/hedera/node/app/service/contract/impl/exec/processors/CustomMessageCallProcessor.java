@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.processors;
 
+import static com.hedera.hapi.streams.CallOperationType.OP_CALL;
+import static com.hedera.hapi.streams.CallOperationType.OP_CREATE;
 import static com.hedera.hapi.streams.CallOperationType.OP_STATICCALL;
 import static com.hedera.hapi.streams.ContractActionType.PRECOMPILE;
 import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
@@ -16,6 +18,7 @@ import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_
 import static org.hyperledger.besu.evm.frame.MessageFrame.State.EXCEPTIONAL_HALT;
 
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.streams.CallOperationType;
 import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
@@ -273,9 +276,16 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
                 frame,
                 result -> completeSystemContract(context, systemContract, result));
         if (frame.getState() == MessageFrame.State.CODE_SUSPENDED && hasActionSidecarsEnabled(frame)) {
-            ((ActionSidecarContentTracer) context.tracer)
-                    .traceSuspended(frame, frame.getMessageFrameStack().peekFirst(), OP_STATICCALL);
+            final var child = frame.getMessageFrameStack().peekFirst();
+            ((ActionSidecarContentTracer) context.tracer).traceSuspended(frame, child, callOperationTypeOf(child));
         }
+    }
+
+    private static CallOperationType callOperationTypeOf(@NonNull final MessageFrame child) {
+        if (child.getType() == MessageFrame.Type.CONTRACT_CREATION) {
+            return OP_CREATE;
+        }
+        return child.isStatic() ? OP_STATICCALL : OP_CALL;
     }
 
     private void completeSystemContract(

@@ -15,8 +15,10 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.as
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asNumberedContractId;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 import static java.util.Objects.requireNonNull;
+import static org.hyperledger.besu.evm.frame.MessageFrame.State.COMPLETED_FAILED;
 import static org.hyperledger.besu.evm.frame.MessageFrame.State.COMPLETED_SUCCESS;
 import static org.hyperledger.besu.evm.frame.MessageFrame.State.EXCEPTIONAL_HALT;
+import static org.hyperledger.besu.evm.frame.MessageFrame.State.REVERT;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -197,7 +199,9 @@ public class FrameRunner {
         // signature; since mono-service did that check as part of the CALL operation itself.
         final var maybeFailureToPropagate = getAndClearPropagatedCallFailure(frame);
         if (maybeFailureToPropagate != HevmPropagatedCallFailure.NONE) {
-            maybeNext(frame).ifPresent(f -> {
+            // A system contract suspended on this frame completes from its completer, absorbing the failure (e.g.
+            // as a CLPR authorization failure); so only halt a next frame that is still running
+            maybeNext(frame).filter(f -> !hasCompleted(f)).ifPresent(f -> {
                 f.setState(EXCEPTIONAL_HALT);
                 f.setExceptionalHaltReason(maybeFailureToPropagate.exceptionalHaltReason());
                 // Finalize the CONTRACT_ACTION for the propagated halt frame as well
@@ -232,6 +236,11 @@ public class FrameRunner {
         final var minimumGasUsed = gasLimit - gasLimit * maxRefundPercentOfGasLimit / 100;
 
         return Math.max(gasUsedAfterRefund, minimumGasUsed);
+    }
+
+    private static boolean hasCompleted(@NonNull final MessageFrame frame) {
+        final var state = frame.getState();
+        return state == COMPLETED_SUCCESS || state == COMPLETED_FAILED || state == REVERT || state == EXCEPTIONAL_HALT;
     }
 
     // potentially other cases could be handled here if necessary

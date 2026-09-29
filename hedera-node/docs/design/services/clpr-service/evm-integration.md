@@ -22,10 +22,10 @@ contract.
 
 Translators are bound in `ClprTranslatorsModule` (Dagger `@Named("ClprTranslators")`):
 
-|                    Translator                    |                                                                                                                           EVM Solidity-style signature                                                                                                                           |          Backed by           |
-|--------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------|
-| `SendMessageTranslator` (in `clpr/sendmessage/`) | `sendMessage(bytes32 channelId, bytes connectorId, bytes targetApplication, bytes messageData) → uint64 messageId` (note: `connectorId` is the 32-byte derived ID per spec §2.2; the ABI uses `bytes` rather than `bytes32` — see [drift-from-spec.md §2.6](drift-from-spec.md)) | `ClprServiceApi.sendMessage` |
-| `GetChannelTranslator` (in `clpr/getchannel/`)   | `getChannel(bytes32 channelId) → (...)`                                                                                                                                                                                                                                          | `ReadableChannelStore`       |
+|                    Translator                    |                                                                         EVM Solidity-style signature                                                                         |          Backed by           |
+|--------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------|
+| `SendMessageTranslator` (in `clpr/sendmessage/`) | `sendMessage(bytes32 channelId, bytes32 connectorId, bytes targetApplication, bytes messageData) → uint64 messageId` (`connectorId` is the 32-byte derived ID per spec §2.2) | `ClprServiceApi.sendMessage` |
+| `GetChannelTranslator` (in `clpr/getchannel/`)   | `getChannel(bytes32 channelId) → (...)`                                                                                                                                      | `ReadableChannelStore`       |
 
 Read-only `getChannel` is a static call. `sendMessage` mutates state — see flow below.
 
@@ -39,12 +39,11 @@ selects the translator.
 
 `SendMessageCall` (in `…clpr/sendmessage/`):
 
-1. **Connector authorization — KNOWN GAP.** The spec (§3.2 / §4.3 step 3) requires a
-   per-message sub-call to `IClprConnectorAuth.authorizeMessage` on the connector's
-   contract. **Hiero does not currently make this call** — `SendMessageCall.execute`
-   (lines 64-88) only verifies that the connector contract exists, deferring per-message
-   auth to a future ticket. See [drift-from-spec.md §2.3](drift-from-spec.md) (interop
-   blocker).
+1. **Connector authorization.** Per the spec (§3.2 / §4.3 step 3), `SendMessageCall.scheduleChildFrame`
+   calls the connector contract's `authorizeOutboundMessage(bytes32,bytes,bytes,bytes)` as a static child
+   frame on the sending transaction's own frame stack, with `0x16e` as `msg.sender` and a fixed 50,000 gas
+   budget not charged to the caller. The system contract frame suspends until the child completes; a revert,
+   halt, or `false` result fails the call with `CLPR_AUTHORIZATION_FAILED`.
 2. **Dispatch into native code:** invokes `ClprServiceApi.sendMessage(channelId,
    connectorId, targetApplication, sender, messageData)`. The `sender` parameter is the
    originating EVM address — it is **stamped server-side** from the EVM frame's

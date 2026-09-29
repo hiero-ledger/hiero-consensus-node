@@ -42,7 +42,6 @@ import com.hedera.node.config.data.JumboTransactionsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -87,12 +86,16 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
         this.contractMetrics = requireNonNull(contractMetrics);
     }
 
+    /**
+     * Computes the result synchronously; since the caller cannot resume a suspended frame, calls made this way never
+     * schedule child frames (so, e.g., a CLPR {@code sendMessage} fails closed without its authorization).
+     */
     @Override
     public FullResult computeFully(
             @NonNull final ContractID contractID, @NonNull final Bytes input, @NonNull final MessageFrame frame) {
-        final var result = new AtomicReference<FullResult>();
-        computeFully(contractID, input, frame, result::set);
-        return requireNonNull(result.get(), "Child-frame calls require a completion callback");
+        final var completion = new SynchronousCompletion();
+        computeFully(contractID, input, frame, completion);
+        return requireNonNull(completion.result);
     }
 
     @Override
@@ -130,6 +133,7 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
         }
         final Call call;
         AbstractCallAttempt<?> attempt = null;
+        FullResult earlyResult = null;
         try {
             // Input boundary size validation.
             // With "input <= transactionMaxBytes()" we ensure nobody can send a huge input for parsing or execution,
@@ -146,35 +150,34 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
             // check if the calldata size of the call to
             call = attempt.asExecutableCall();
             if (call == null) {
-                completion.accept(successResult(Bytes.EMPTY, 0));
-                return;
-            }
-            if (logClprVerifier) {
-                log.debug(
-                        "[CLPR-VERIFY-NATIVE] translator MATCH name={} contractID={} selector={} method={} "
-                                + "sender={} allowsStatic={} frameStatic={}",
-                        getName(),
-                        contractID,
-                        selectorOf(input),
-                        call.getSystemContractMethod(),
-                        attempt.senderId(),
-                        call.allowsStaticFrame(),
-                        frame.isStatic());
-            }
-            if (frame.isStatic() && !call.allowsStaticFrame()) {
-                // FUTURE - we should really set an explicit halt reason here; instead we just halt the frame
-                // without setting a halt reason to simulate mono-service for differential testing
+                earlyResult = successResult(Bytes.EMPTY, 0);
+            } else {
                 if (logClprVerifier) {
-                    log.warn(
-                            "[CLPR-VERIFY-NATIVE] compute HALT name={} contractID={} selector={} "
-                                    + "reason=STATIC_FRAME_NOT_ALLOWED method={}",
+                    log.debug(
+                            "[CLPR-VERIFY-NATIVE] translator MATCH name={} contractID={} selector={} method={} "
+                                    + "sender={} allowsStatic={} frameStatic={}",
                             getName(),
                             contractID,
                             selectorOf(input),
-                            call.getSystemContractMethod());
+                            call.getSystemContractMethod(),
+                            attempt.senderId(),
+                            call.allowsStaticFrame(),
+                            frame.isStatic());
                 }
-                completion.accept(haltResult(contractsConfigOf(frame).precompileHtsDefaultGasCost()));
-                return;
+                if (frame.isStatic() && !call.allowsStaticFrame()) {
+                    // FUTURE - we should really set an explicit halt reason here; instead we just halt the frame
+                    // without setting a halt reason to simulate mono-service for differential testing
+                    if (logClprVerifier) {
+                        log.warn(
+                                "[CLPR-VERIFY-NATIVE] compute HALT name={} contractID={} selector={} "
+                                        + "reason=STATIC_FRAME_NOT_ALLOWED method={}",
+                                getName(),
+                                contractID,
+                                selectorOf(input),
+                                call.getSystemContractMethod());
+                    }
+                    earlyResult = haltResult(contractsConfigOf(frame).precompileHtsDefaultGasCost());
+                }
             }
         } catch (final HandleException exception) {
             if (logClprVerifier) {
@@ -207,9 +210,33 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
             completion.accept(haltResult(INVALID_OPERATION, frame.getRemainingGas()));
             return;
         }
-        final var result = resultOfExecuting(attempt, call, input, frame, contractID, completion);
+        // Complete outside the try, so a failing completion is never completed again by its catch blocks
+        if (earlyResult != null) {
+            completion.accept(earlyResult);
+            return;
+        }
+        final var result = resultOfExecuting(
+                attempt,
+                call,
+                input,
+                frame,
+                contractID,
+                completion instanceof SynchronousCompletion ? null : completion);
         if (result != null) {
             completion.accept(result);
+        }
+    }
+
+    /**
+     * Collects the result of a synchronous {@link #computeFully(ContractID, Bytes, MessageFrame)}.
+     */
+    private static final class SynchronousCompletion implements Consumer<FullResult> {
+        @Nullable
+        private FullResult result;
+
+        @Override
+        public void accept(@NonNull final FullResult result) {
+            this.result = requireNonNull(result);
         }
     }
 

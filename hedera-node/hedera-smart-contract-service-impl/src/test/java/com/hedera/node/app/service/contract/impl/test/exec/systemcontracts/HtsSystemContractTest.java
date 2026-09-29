@@ -142,6 +142,8 @@ class HtsSystemContractTest {
         given(attempt.senderId()).willReturn(SENDER_ID);
 
         assertSame(pricedResult.fullResult(), subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame));
+        // A synchronous caller cannot resume a suspended frame, so it never lets a call schedule a child frame
+        verify(call, never()).scheduleChildFrame(any(), any());
     }
 
     @Test
