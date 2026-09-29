@@ -57,11 +57,6 @@ public record ClprConfig(
         // When false, CLPR does not reject inbound requests or remove outbound candidates
         // due to local shunning or open circuit-breaker state.
         @ConfigProperty(defaultValue = "false") boolean syncPeerExclusionEnabled,
-        // --- Streaming sync (two-phase request/response) ---
-        // When true, uses streaming GRPC to synchronize with a peer ledger. When false,
-        // regular unary calls are performed. Client-side only: the server serves both RPCs models either way.
-        // Read on every cycle, so it can be flipped at runtime.
-        @ConfigProperty(defaultValue = "false") boolean streamingSyncEnabled,
         // --- Peer endpoint discovery (CLPR-7.2) ---
         // Period (seconds) between outbound discoverEndpoints calls. Set to 0 to disable.
         @ConfigProperty(defaultValue = "300") int discoveryIntervalSeconds,

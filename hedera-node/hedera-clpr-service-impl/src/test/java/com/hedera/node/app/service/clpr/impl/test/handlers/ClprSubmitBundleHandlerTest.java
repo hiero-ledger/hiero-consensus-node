@@ -536,6 +536,30 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @Test
+    @DisplayName(
+            "given a pure-ACK bundle ending at our received id, when the sender's ack lags it, then it is accepted")
+    void givenPureAckBundleEndingAtOurReceivedId_whenSendersAckLags_thenAccepted() {
+        // We hold messages 1..5 and our outbound slot 1 is a reply. The sender has seen none of our acks, but its
+        // pure-ACK bundle ends at its queue tip (next_message_id 6), so there is no replayed prefix to trim.
+        putChannel(ClprChannelStatus.ACTIVE, 2, 0, 5, INTERMEDIATE_HASH);
+        putOutboundSlot(1, replyPayload(9));
+        final var metadata = bundleEndingAt(6, INTERMEDIATE_HASH, List.of())
+                .metadataOrThrow()
+                .copyBuilder()
+                .receivedMessageId(1)
+                .build();
+        setupHandleContext(
+                bundleTxn(ClprBundleContent.newBuilder().metadata(metadata).build()), true);
+
+        subject.handle(handleContext);
+
+        final var updated = channelStore.getChannel(CHANNEL_ID);
+        assertThat(updated.ackedMessageId()).isEqualTo(1L);
+        assertThat(updated.receivedMessageId()).isEqualTo(5L);
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
+    }
+
+    @Test
     @DisplayName("duplicate bundle — second submission is a no-op, channel state unchanged")
     void duplicateBundleIsNoOp() {
         putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
@@ -1334,6 +1358,46 @@ class ClprSubmitBundleHandlerTest {
         for (long id = 1; id <= 4; id++) {
             assertThat(messageQueueStore.getMessage(CHANNEL_ID, id)).isNull();
         }
+    }
+
+    @Test
+    @DisplayName(
+            "given a bundle claiming the ack of a data message it carries no reply for, then it is rejected as no progress")
+    void givenBundleClaimingAckOfUnansweredDataMessage_thenRejectedAsNoProgressWithoutPenalty() {
+        // The peer reports it received our data message 1 but ships neither its reply nor anything else, so the ack
+        // cannot move and the bundle is rejected. The peer may legitimately be deferring that reply, so the
+        // submitting endpoint pays only the transaction fee, never the misbehavior penalty.
+        putOutboundDataMessage(1);
+        putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of()), true);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_NO_PROGRESS))
+                .satisfies(e -> ((HandleException) e).maybeReplay(feeChargingContext, handleContext));
+        verify(feeChargingContext, never()).charge(any(), any(), any());
+        assertThat(channelStore.getChannel(CHANNEL_ID).ackedMessageId()).isZero();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNotNull();
+    }
+
+    @Test
+    @DisplayName("given a reply for the wrong data message after a matching one, then the channel is PAUSED and"
+            + " nothing is acked")
+    void givenReplyForWrongDataMessageAfterMatchingOne_thenChannelIsPausedAndNothingIsAcked() {
+        for (long id = 1; id <= 3; id++) {
+            putOutboundDataMessage(id);
+        }
+        putChannel(ClprChannelStatus.ACTIVE, 4, 0, ZERO_HASH);
+        setupHandleContext(
+                buildBundle(ClprChannelStatus.ACTIVE, 0, 3, ZERO_HASH, List.of(replyPayload(1), replyPayload(3))),
+                true);
+
+        subject.handle(handleContext);
+
+        final var updated = channelStore.getChannel(CHANNEL_ID);
+        assertThat(updated.status()).isEqualTo(ClprChannelStatus.PAUSED);
+        assertThat(updated.ackedMessageId()).isZero();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNotNull();
     }
 
     @Test
@@ -2913,6 +2977,16 @@ class ClprSubmitBundleHandlerTest {
                 messageId,
                 ClprMessageValue.newBuilder()
                         .payload(dataPayload())
+                        .runningHashAfterProcessing(ZERO_HASH)
+                        .build());
+    }
+
+    private void putOutboundSlot(final long messageId, @NonNull final ClprMessagePayload payload) {
+        messageQueueStore.put(
+                CHANNEL_ID,
+                messageId,
+                ClprMessageValue.newBuilder()
+                        .payload(payload)
                         .runningHashAfterProcessing(ZERO_HASH)
                         .build());
     }

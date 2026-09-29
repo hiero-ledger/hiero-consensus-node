@@ -311,14 +311,17 @@ class VerifyBundleCallTest {
         }
 
         @Test
-        @DisplayName("given a pure-ACK bundle, then nextMessageId is acked + 1")
-        void givenPureAckBundle_thenNextMessageIdIsAckedPlusOne() {
+        @DisplayName("given a pure-ACK bundle whose sender's ack lags its queue, then nextMessageId is the channel's")
+        void givenPureAckBundleWithLaggingAck_thenNextMessageIdIsTheChannels() {
+            // The receiver already holds messages 1..5, but the sender has only seen our ack of 1 and 2. A pure-ACK
+            // bundle must end at the sender's queue tip: acked + 1 would make the receiver read 3..5 as a replayed
+            // prefix the bundle does not carry, and reject it.
             stubManifestFlag();
             final var channel = CHANNEL.copyBuilder().ackedMessageId(2).build();
 
             final var metadata = executeWithStubbedPaths(channelLeaf(channel));
 
-            assertThat(nextMessageIdOf(metadata)).isEqualTo(3L);
+            assertThat(nextMessageIdOf(metadata)).isEqualTo(channel.nextMessageId());
         }
 
         @Test
@@ -345,7 +348,7 @@ class VerifyBundleCallTest {
             }
             assertThat(channel).as("captured proof carries a channel leaf").isNotNull();
             final long expectedNextMessageId =
-                    messageIds.isEmpty() ? channel.ackedMessageId() + 1 : messageIds.getLast() + 1;
+                    messageIds.isEmpty() ? channel.nextMessageId() : messageIds.getLast() + 1;
             stubManifestFlag();
 
             final var result = new VerifyBundleCall(

@@ -40,8 +40,6 @@ final class GrpcServiceBuilderTest {
     private final QueryWorkflow queryWorkflow = (requestBuffer, responseBuffer) -> {};
     private final IngestWorkflow ingestWorkflow = (requestBuffer, responseBuffer) -> {};
     private final ClprSyncWorkflow clprSyncWorkflow = new ClprSyncWorkflow() {
-        @Override
-        public void handleSync(Bytes req, BufferedData res) {}
 
         @Override
         public void handleDiscovery(Bytes req, BufferedData res) {}
@@ -154,17 +152,6 @@ final class GrpcServiceBuilderTest {
     void singleQuery() {
         final var sd = builder.query("qA").build(metrics, configProvider);
         assertNotNull(sd.getMethod(SERVICE_NAME + "/qA"));
-    }
-
-    /**
-     * A {@link GrpcServiceBuilder} may define CLPR sync methods which will be created on the
-     * {@link io.grpc.ServerServiceDefinition}.
-     */
-    @Test
-    @DisplayName("The built ServiceDescriptor includes a method with the name of the defined clprSync")
-    void singleClprSync() {
-        final var sd = builder.clprSync("syncA").build(metrics, configProvider);
-        assertNotNull(sd.getMethod(SERVICE_NAME + "/syncA"));
     }
 
     /**

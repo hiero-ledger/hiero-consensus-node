@@ -71,9 +71,9 @@ import org.apache.logging.log4j.Logger;
  * Handles {@link com.hedera.hapi.node.base.HederaFunctionality#CLPR_SUBMIT_BUNDLE} transactions.
  *
  * <p>Processes a bundle of cross-ledger messages from a peer ledger. The bundle contains
- * a proof (verified by the Channel's verifier contract) that attests to the peer's queue state and the messages
- * included. After verification, the handler updates acknowledgements, processes each message by type, and maintains
- * running hash integrity.
+ * a proof (verified by the Channel's verifier contract) that attests to the peer's
+ * queue state and the messages included. After verification, the handler updates
+ * acknowledgements, processes each message by type, and maintains running hash integrity.
  */
 @Singleton
 public class ClprSubmitBundleHandler extends AbstractClprHandler {
@@ -87,9 +87,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
      */
     private static final byte[] ON_CLPR_MESSAGE_SELECTOR = new byte[] {0x2a, (byte) 0xb0, 0x08, 0x09};
 
-    /**
-     * Function selector for onClprResponse(bytes32,uint64,uint8,bytes) = 0x3b74550e
-     */
+    /** Function selector for onClprResponse(bytes32,uint64,uint8,bytes) = 0x3b74550e */
     private static final byte[] ON_CLPR_RESPONSE_SELECTOR = new byte[] {0x3b, 0x74, 0x55, 0x0e};
 
     private static final DispatchMetadata CLPR_DISPATCH_METADATA = new DispatchMetadata(
@@ -321,22 +319,19 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // empty-anchor bundle with a stale id mismatch as progress.
         final boolean hasTrustAnchorAdvancement =
                 newTrustAnchor.length() > 0 && !newTrustAnchorId.equals(priorTrustAnchorId);
-        final boolean hasAckProgress = metadata.receivedMessageId() > channel.ackedMessageId();
+        // Only a claim here: the ack advances only as far as the bundle carries replies, so Step 8 re-checks this
+        // criterion against the ack it actually computes.
+        final boolean claimsAckProgress = metadata.receivedMessageId() > channel.ackedMessageId();
         final boolean hasStateTransition = isStateTransitionProgress(metadata.status(), channel.status());
         // Criterion 5 (endpoint-manifest advancement) per spec §4.2 Step 1a and ADR
         // "Endpoint Manifest Advancement as a Bundle Progress Criterion". Reuses the Step 1b
         // guard (flag ON + non-null + strictly advancing version) computed against the
         // pre-bundle version — a bundle that only advances the manifest is still valid.
         final boolean hasManifestAdvancement = shouldUpdateManifest;
+        final boolean hasProgressOtherThanAck =
+                hasNewMessages || hasTrustAnchorAdvancement || hasStateTransition || hasManifestAdvancement;
         validateTrueOrPenalize(
-                hasNewMessages
-                        || hasTrustAnchorAdvancement
-                        || hasAckProgress
-                        || hasStateTransition
-                        || hasManifestAdvancement,
-                CLPR_NO_PROGRESS,
-                nodeAccountId,
-                penaltyAmount);
+                hasProgressOtherThanAck || claimsAckProgress, CLPR_NO_PROGRESS, nodeAccountId, penaltyAmount);
         log.debug("[ClprSubmitBundle] check passed: makes progress");
 
         validateTrueOrPenalize(
@@ -364,11 +359,10 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         }
 
         // --- Step 5: Replay defense (idempotent) ---
-        // The bundle covers peer's outbound message IDs [lastIdBeforeBundle+1 .. metadata.nextMessageId-1];
-        // The sender may start the range below this ledger channel.receivedMessageId + 1 — due to its lagging
-        // view of our ack, or from a received_message_id we
-        // reported before another bundle landed — so the bundle's leading
-        // messages may be replays we have already processed. We tolerate that: validate the bundle
+        // The bundle covers peer's outbound message IDs [lastIdBeforeBundle+1 .. metadata.nextMessageId-1].
+        // The sender may start below our channel.receivedMessageId + 1, either because its view of our ack lags
+        // or because it used a received_message_id we reported before another bundle landed, so the bundle's
+        // leading messages may be replays we have already processed. We tolerate that: validate the bundle
         // structurally, skip the replayed prefix, and process only the new tail. This is what makes
         // re-delivery idempotent — without it, a strict equality check would deadlock both sides
         // (each rejects the other's bundle because of the unavoidable replay overlap, neither side's
@@ -525,22 +519,33 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 peerReceivedMessageId,
                 newMessages.size());
         final var remainingMessages = newMessages.listIterator();
-        final var replyScan =
-                scanReplies(messageQueueStore, channelId, oldAckedMessageId, peerReceivedMessageId, remainingMessages);
-        if (replyScan.orderingViolated()) {
-            log.warn(
-                    "[ClprSubmitBundle] step8 reply out of order conn={} newMessageIndex={} currentStatus={}",
-                    channelId,
-                    remainingMessages.previousIndex(),
-                    currentStatus);
-            if (currentStatus == ClprChannelStatus.ACTIVE) {
-                channelStore.put(
-                        channel.copyBuilder().status(ClprChannelStatus.PAUSED).build());
-                context.tryToCharge(nodeAccountId, penaltyAmount);
+        final long newAckedMessageId;
+        switch (scanReplies(
+                messageQueueStore, channelId, oldAckedMessageId, peerReceivedMessageId, remainingMessages)) {
+            case ReplyScan.AckedThrough(final long lastAckedMessageId) -> newAckedMessageId = lastAckedMessageId;
+            case ReplyScan.OrderingViolated(final long expectedMessageId, final long repliedMessageId) -> {
+                log.warn(
+                        "[ClprSubmitBundle] step8 reply out of order conn={} expectedMsgId={} repliedMsgId={} "
+                                + "newMessageIndex={} currentStatus={}",
+                        channelId,
+                        expectedMessageId,
+                        repliedMessageId,
+                        remainingMessages.previousIndex(),
+                        currentStatus);
+                if (currentStatus == ClprChannelStatus.ACTIVE) {
+                    channelStore.put(channel.copyBuilder()
+                            .status(ClprChannelStatus.PAUSED)
+                            .build());
+                    context.tryToCharge(nodeAccountId, penaltyAmount);
+                }
+                return;
             }
-            return;
         }
-        final var newAckedMessageId = replyScan.lastAckedMessageId();
+        // A bundle whose only progress was its claimed ack, but whose ack cannot move because it carries no reply
+        // for the next Data message, changes nothing, so it is rejected. It still meets spec §2.1.2 Condition 4 —
+        // the peer may legitimately defer its reply (§5 Application Delivery) — so the submitting endpoint pays
+        // only the transaction fee, not the misbehavior penalty.
+        validateTrue(hasProgressOtherThanAck || newAckedMessageId > oldAckedMessageId, CLPR_NO_PROGRESS);
         if (newAckedMessageId < peerReceivedMessageId) {
             log.debug(
                     "[ClprSubmitBundle] step8 bundle carries no reply for outboundMsgId={} conn={}; "
@@ -1307,15 +1312,27 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     }
 
     /**
-     * Outcome of {@link #scanReplies}: whether the bundle's replies break the ordering, and the last of our outbound
-     * messages the bundle acknowledges.
-     *
-     * @param orderingViolated   whether a reply named a message other than the oldest unanswered Data message (spec
-     *                           §4.5)
-     * @param lastAckedMessageId the highest outbound message id this bundle acknowledges; it stops just before the
-     *                           first Data message the bundle carries no reply for
+     * Outcome of {@link #scanReplies}: either the bundle acknowledges our outbound messages through some id, or one of
+     * its replies breaks the ordering, in which case it acknowledges nothing.
      */
-    private record ReplyScan(boolean orderingViolated, long lastAckedMessageId) {}
+    private sealed interface ReplyScan {
+
+        /**
+         * The replies are in order.
+         *
+         * @param lastAckedMessageId the highest outbound message id this bundle acknowledges; it stops just before the
+         *                           first Data message the bundle carries no reply for
+         */
+        record AckedThrough(long lastAckedMessageId) implements ReplyScan {}
+
+        /**
+         * A reply named a message other than the oldest unanswered Data message (spec §4.5).
+         *
+         * @param expectedMessageId the oldest unanswered Data message, which the reply had to name
+         * @param repliedMessageId  the message the reply named instead
+         */
+        record OrderingViolated(long expectedMessageId, long repliedMessageId) implements ReplyScan {}
+    }
 
     /**
      * Matches the bundle's replies, in order, against our outbound messages the peer has received,
@@ -1345,13 +1362,13 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             }
             final var reply = nextReply(remainingMessages);
             if (reply == null) {
-                return new ReplyScan(false, id - 1);
+                return new ReplyScan.AckedThrough(id - 1);
             }
             if (reply.messageId() != id) {
-                return new ReplyScan(true, oldAckedMessageId);
+                return new ReplyScan.OrderingViolated(id, reply.messageId());
             }
         }
-        return new ReplyScan(false, peerReceivedMessageId);
+        return new ReplyScan.AckedThrough(peerReceivedMessageId);
     }
 
     /**
@@ -1545,10 +1562,10 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     }
 
     /**
-     * Validate an inbound {@link ClprLedgerConfiguration} carried by a peer {@code ConfigUpdate} before it is allowed
-     * to mutate any peer-config state on the Channel. Fails the bundle with
-     * {@link ResponseCodeEnum#CLPR_BUNDLE_VERIFICATION_FAILED} and slashes the submitting endpoint by
-     * {@code penaltyAmount} on any of:
+     * Validate an inbound {@link ClprLedgerConfiguration} carried by a peer {@code ConfigUpdate}
+     * before it is allowed to mutate any peer-config state on the Channel. Fails the bundle
+     * with {@link ResponseCodeEnum#CLPR_BUNDLE_VERIFICATION_FAILED} and slashes the submitting
+     * endpoint by {@code penaltyAmount} on any of:
      *
      * <ul>
      *   <li>Spec §1.1 — {@code peerConfig.protocolVersion()} does not match {@code ledgerConfig}.</li>
@@ -1641,8 +1658,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     }
 
     /**
-     * Returns {@code true} if the peer's reported status relative to the local channel status represents a
-     * state-transition that constitutes meaningful progress.
+     * Returns {@code true} if the peer's reported status relative to the local channel status
+     * represents a state-transition that constitutes meaningful progress.
      *
      * @param peerStatus  the peer-reported {@link ClprChannelStatus} from the bundle metadata
      * @param localStatus the locally-stored {@link ClprChannelStatus} for this channel
@@ -1666,18 +1683,18 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     }
 
     /**
-     * Outbound message-queue accumulator backed by the {@link WritableChannelStore} as the source of truth for
-     * {@code nextMessageId} and {@code sentRunningHash}. Each {@link #enqueue} reads the latest channel, writes the
-     * message to the queue, and persists the advanced counter and running hash back to the channel store atomically
-     * with the message write.
+     * Outbound message-queue accumulator backed by the {@link WritableChannelStore} as the
+     * source of truth for {@code nextMessageId} and {@code sentRunningHash}. Each {@link #enqueue}
+     * reads the latest channel, writes the message to the queue, and persists the advanced
+     * counter and running hash back to the channel store atomically with the message write.
      *
      * <p>This keeps the channel store in sync with every enqueue, so a subsequent nested
-     * {@code context.dispatch(...)} (which may invoke the CLPR precompile via {@link ClprServiceApiImpl#sendMessage}
-     * and read {@code nextMessageId} directly from the store) never collides with a slot we just enqueued — and vice
-     * versa: precompile-side advances are observed automatically on the next enqueue.
+     * {@code context.dispatch(...)} (which may invoke the CLPR precompile via
+     * {@link ClprServiceApiImpl#sendMessage} and read {@code nextMessageId} directly from the
+     * store) never collides with a slot we just enqueued — and vice versa: precompile-side
+     * advances are observed automatically on the next enqueue.
      */
     private static final class OutboundQueue {
-
         private final WritableMessageQueueStore msgStore;
         private final WritableChannelStore connStore;
         private final Bytes channelId;
@@ -1691,9 +1708,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             this.channelId = channelId;
         }
 
-        /**
-         * Enqueues an arbitrary payload and advances the channel's nextMessageId/sentRunningHash.
-         */
+        /** Enqueues an arbitrary payload and advances the channel's nextMessageId/sentRunningHash. */
         void enqueue(@NonNull final ClprMessagePayload payload) {
             final var conn = requireNonNull(connStore.getChannel(channelId));
             final var prevHash = conn.sentRunningHash();
@@ -1722,9 +1737,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     assignedId + 1);
         }
 
-        /**
-         * Builds and enqueues a reply for the given inbound message.
-         */
+        /** Builds and enqueues a reply for the given inbound message. */
         void enqueueReply(
                 final long inboundMessageId, @NonNull final ClprMessageReplyStatus status, @NonNull final Bytes data) {
             log.debug(

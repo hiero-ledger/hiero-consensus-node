@@ -255,12 +255,14 @@ public class VerifyBundleCall extends AbstractCall {
         // unchanged — never EMPTY, since the channel's hash starts at 32 zero-bytes
         // and accumulates from there. Using EMPTY would break the receiver-side step 6
         // (running-hash) invariant.
-        // A pure-ACK bundle has no message key to read, so it keeps acked_message_id + 1: its
-        // bundle_first_id then never exceeds the receiver's received_message_id + 1.
+        // A pure-ACK bundle has no message key to read, so it ends at the proven channel's next_message_id,
+        // matching the sent_running_hash above: it claims the receiver already holds the whole queue. Not
+        // acked_message_id + 1: when the receiver's received_message_id runs ahead of the sender's ack, the
+        // receiver would take the messages in between as a replayed prefix this bundle does not carry, and reject it.
         final var metadata = ClprQueueMetadata.newBuilder()
                 .nextMessageId(
                         messageKeys.isEmpty()
-                                ? channel.ackedMessageId() + 1
+                                ? channel.nextMessageId()
                                 : messageKeys.getLast().messageId() + 1)
                 .sentRunningHash(
                         provenMessages.isEmpty()
@@ -384,7 +386,7 @@ public class VerifyBundleCall extends AbstractCall {
      * Manifest-aware success return for a manifest-only recovery bundle (spec §8.1.4): the endpoint manifest with
      * an empty message set and no trust-anchor rotation. The metadata is signalled absent via a zero
      * {@code nextMessageId} sentinel — a normal bundle's {@code nextMessageId} is always {@code >= 1}
-     * (one past its last message id, or {@code ackedMessageId + 1} for a pure-ACK bundle) — so {@link com.hedera.node.app.service.clpr.impl.verifier.EvmClprVerifier}
+     * (one past its last message id, or the channel's {@code nextMessageId} for a pure-ACK bundle) — so {@link com.hedera.node.app.service.clpr.impl.verifier.EvmClprVerifier}
      * decodes it to a {@code null} metadata and {@code ClprSubmitBundleHandler} takes its
      * state-update-only path (applying the already-extracted manifest).
      */
