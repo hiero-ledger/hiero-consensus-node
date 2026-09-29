@@ -42,6 +42,7 @@ import org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcPeerProtocol;
 import org.hiero.consensus.gossip.impl.test.fixtures.sync.ConnectionFactory;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
@@ -169,12 +170,12 @@ public class RpcPeerProtocolTests {
         startExecutor();
 
         final Randotron randotron = Randotron.create();
-        final Roster roster = RosterWrapperFactory.randomRoster(randotron, ROSTER_SIZE);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(randotron, ROSTER_SIZE);
         final Configuration configuration = defaultConfig();
         final NoOpMetrics metrics = new NoOpMetrics();
 
-        final RosterEntry selfEntry = roster.rosterEntries().get(0);
-        final NodeId selfId = NodeId.of(selfEntry.nodeId());
+        final RosterEntryWrapper selfEntry = roster.rosterEntries().get(0);
+        final NodeId selfId = selfEntry.nodeId();
         final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
         final NodeId otherPeer = peers.get(0).nodeId();
 
@@ -313,7 +314,7 @@ public class RpcPeerProtocolTests {
         startExecutor();
 
         final Randotron randotron = Randotron.create();
-        final Roster roster = RosterWrapperFactory.randomRoster(randotron, ROSTER_SIZE);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(randotron, ROSTER_SIZE);
         final NoOpMetrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
 
@@ -322,7 +323,7 @@ public class RpcPeerProtocolTests {
         final AtomicLong syncCount = new AtomicLong();
 
         for (int i = 0; i < ROSTER_SIZE; i++) {
-            final NodeId selfId = NodeId.of(roster.rosterEntries().get(i).nodeId());
+            final NodeId selfId = roster.rosterEntries().get(i).nodeId();
             final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
             final NodeId otherPeer = peers.get(0).nodeId();
 
