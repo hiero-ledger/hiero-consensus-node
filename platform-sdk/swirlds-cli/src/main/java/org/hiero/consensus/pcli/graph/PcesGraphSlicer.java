@@ -27,6 +27,7 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.main.model.NodeId;
+import org.hiero.consensus.main.model.Transaction;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
@@ -233,7 +234,7 @@ public class PcesGraphSlicer {
                 .toList();
 
         final List<Bytes> transactions = event.getTransactions().stream()
-                .map(TransactionWrapper::getApplicationTransaction)
+                .map(Transaction::getApplicationTransaction)
                 .toList();
 
         final var unsignedEvent = new UnsignedEvent(

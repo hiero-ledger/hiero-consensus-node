@@ -26,9 +26,4 @@ public class TestPeerProtocolFactory implements PeerProtocolFactory {
         peerProtocols.add(tpp);
         return tpp;
     }
-
-    @Override
-    public void updatePlatformStatus(@NonNull PlatformStatus status) {
-        // no-op, we don't care
-    }
 }

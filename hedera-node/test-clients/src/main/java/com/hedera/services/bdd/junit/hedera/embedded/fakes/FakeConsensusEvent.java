@@ -7,10 +7,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.main.model.ConsensusEvent;
 import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.main.model.ConsensusTransaction;
+import org.hiero.consensus.main.model.Transaction;
 
 public class FakeConsensusEvent extends FakeEvent implements ConsensusEvent {
     private final long consensusOrder;
@@ -28,8 +30,9 @@ public class FakeConsensusEvent extends FakeEvent implements ConsensusEvent {
     }
 
     @Override
-    public @NonNull Iterator<ConsensusTransaction> consensusTransactionIterator() {
-        return Collections.singleton((ConsensusTransaction) transaction).iterator();
+    @NonNull
+    public List<ConsensusTransaction> getTransactions() {
+        return List.of(transaction);
     }
 
     @NonNull

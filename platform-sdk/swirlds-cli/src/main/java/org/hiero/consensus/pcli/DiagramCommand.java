@@ -183,26 +183,26 @@ public final class DiagramCommand extends AbstractCommand {
         final ComponentWiring<AppNotifier, Void> notifierWiring =
                 new ComponentWiring<>(model, AppNotifier.class, DIRECT_THREADSAFE_CONFIGURATION);
 
-        final ConsensusLayerAdapterBuildingBlocks buildingBlocks = new ConsensusLayerAdapterBuildingBlocks(
-                model,
-                configuration,
-                consensusLayerLifecycleManager,
-                issDetectionModule,
-                transactionHandlingModule,
-                stateManagementModule,
-                runningEventHashOverrideWiring,
-                initialEventWindowDispatcher,
-                notifierWiring,
-                NotificationEngine.buildEngine(getStaticThreadManager()),
-                statusMonitorModule,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null);
-
-        ConsensusLayerWiring.wire(inputs, buildingBlocks);
+//        final ConsensusLayerAdapterBuildingBlocks buildingBlocks = new ConsensusLayerAdapterBuildingBlocks(
+//                model,
+//                configuration,
+//                consensusLayerLifecycleManager,
+//                issDetectionModule,
+//                transactionHandlingModule,
+//                stateManagementModule,
+//                runningEventHashOverrideWiring,
+//                initialEventWindowDispatcher,
+//                notifierWiring,
+//                NotificationEngine.buildEngine(getStaticThreadManager()),
+//                statusMonitorModule,
+//                null,
+//                null,
+//                null,
+//                null,
+//                null,
+//                null);
+//
+//        ConsensusLayerWiring.wire(inputs, buildingBlocks);
 
         final String diagramString =
                 model.generateWiringDiagram(parseGroups(), parseSubstitutions(), parseManualLinks(), !lessMystery);

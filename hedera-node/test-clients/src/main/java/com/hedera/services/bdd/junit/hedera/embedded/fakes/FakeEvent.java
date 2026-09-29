@@ -12,6 +12,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.main.model.Event;
 import org.hiero.consensus.main.model.NodeId;
@@ -70,8 +71,9 @@ public class FakeEvent implements Event {
     }
 
     @Override
-    public Iterator<Transaction> transactionIterator() {
-        return Collections.singleton((Transaction) transaction).iterator();
+    @NonNull
+    public List<? extends Transaction> getTransactions() {
+        return List.of(transaction);
     }
 
     @Override
@@ -100,6 +102,21 @@ public class FakeEvent implements Event {
     @Override
     public Bytes getSignature() {
         return FAKE_SHA_384_SIGNATURE;
+    }
+
+    @Override
+    public boolean isPcesEvent() {
+        return false;
+    }
+
+    @Override
+    public void awaitPrehandleCompletion() {
+
+    }
+
+    @Override
+    public void signalPrehandleCompletion() {
+
     }
 
     @NonNull

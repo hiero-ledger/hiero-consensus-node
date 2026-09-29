@@ -285,7 +285,8 @@ public class HandleWorkflow {
         logStartRound(round);
         blockBufferService.ensureNewBlocksPermitted();
         cacheWarmer.warm(state, round);
-        final var firstEvent = round.iterator().next();
+        final var iter = round.getConsensusEvents().iterator();
+        final var firstEvent = iter.next();
         if (streamMode != RECORDS) {
             blockStreamManager.startRound(round, state);
             blockStreamManager.writeItem(BlockItem.newBuilder()
@@ -297,7 +298,7 @@ public class HandleWorkflow {
             eventHeaderAlreadyWritten = true;
             if (!migrationStateChanges.isEmpty()) {
                 final var startupConsTime = systemTransactions.firstReservedSystemTimeFor(
-                        round.iterator().next().getConsensusTimestamp());
+                        iter.next().getConsensusTimestamp());
                 migrationStateChanges.forEach(builder -> blockStreamManager.writeItem(BlockItem.newBuilder()
                         .stateChanges(builder.consensusTimestamp(asTimestamp(startupConsTime))
                                 .build())
@@ -340,7 +341,7 @@ public class HandleWorkflow {
             try {
                 final var now = streamMode == RECORDS
                         ? round.getConsensusTimestamp()
-                        : round.iterator().next().getConsensusTimestamp();
+                        : iter.next().getConsensusTimestamp();
                 dispatchedTransplantUpdates =
                         systemTransactions.dispatchTransplantUpdates(state, now, round.getRoundNum());
                 transactionsDispatched |= dispatchedTransplantUpdates;
@@ -450,7 +451,7 @@ public class HandleWorkflow {
             final int receiptEntriesBatchSize,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         boolean transactionsDispatched = false;
-        final var iter = round.iterator();
+        final var iter = round.getConsensusEvents().iterator();
         while (iter.hasNext()) {
             final var event = iter.next();
             if (streamMode != RECORDS && !eventHeaderAlreadyWritten) {
@@ -471,7 +472,7 @@ public class HandleWorkflow {
                 }
             };
             logStartEvent(event, creator);
-            for (final var it = event.consensusTransactionIterator(); it.hasNext(); ) {
+            for (final var it = event.getTransactions().iterator(); it.hasNext(); ) {
                 final var platformTxn = it.next();
                 try {
                     transactionsDispatched |= handlePlatformTransaction(

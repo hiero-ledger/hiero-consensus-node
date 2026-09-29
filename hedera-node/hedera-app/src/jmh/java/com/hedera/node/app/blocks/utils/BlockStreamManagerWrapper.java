@@ -7,6 +7,7 @@ import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
@@ -45,6 +46,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.crypto.RunningHash;
 import org.hiero.consensus.main.model.ConsensusEvent;
 import org.hiero.consensus.main.model.Round;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
@@ -178,11 +180,6 @@ public class BlockStreamManagerWrapper {
         }
 
         @Override
-        public @NonNull Iterator<ConsensusEvent> iterator() {
-            return Collections.emptyIterator();
-        }
-
-        @Override
         public long getRoundNum() {
             return roundNum;
         }
@@ -193,8 +190,9 @@ public class BlockStreamManagerWrapper {
         }
 
         @Override
-        public int getEventCount() {
-            return 0;
+        @NonNull
+        public List<ConsensusEvent> getConsensusEvents() {
+            return List.of();
         }
 
         @Override
@@ -205,6 +203,28 @@ public class BlockStreamManagerWrapper {
         @Override
         public @NonNull Instant getConsensusTimestamp() {
             return consensusTimestamp;
+        }
+
+        @Override
+        @NonNull
+        public ConsensusSnapshot getConsensusSnapshot() {
+            return ConsensusSnapshot.DEFAULT;
+        }
+
+        @Override
+        public boolean isPcesRound() {
+            return false;
+        }
+
+        @Override
+        public Instant getReachedConsTimestamp() {
+            return consensusTimestamp;
+        }
+
+        @Override
+        @NonNull
+        public RunningHash getLastEventRunningHash() {
+            return new RunningHash();
         }
     }
 

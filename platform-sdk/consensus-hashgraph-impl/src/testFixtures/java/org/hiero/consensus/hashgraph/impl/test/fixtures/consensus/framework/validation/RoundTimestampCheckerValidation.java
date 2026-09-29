@@ -23,7 +23,7 @@ public enum RoundTimestampCheckerValidation implements ConsensusRoundConsistency
     @Override
     public void validate(@NonNull final List<ConsensusRound> rounds) {
         for (final ConsensusRound round : rounds) {
-            for (int i = 1; i < round.getEventCount(); i++) {
+            for (int i = 1; i < round.getConsensusEvents().size(); i++) {
 
                 final PlatformEvent previousEvent = round.getPlatformEvents().get(i - 1);
                 final PlatformEvent currentEvent = round.getPlatformEvents().get(i);

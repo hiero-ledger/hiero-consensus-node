@@ -37,6 +37,7 @@ import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.status.StatusMonitorModule;
 
 /**
  * A test implementation of {@link GossipModule} that uses a {@link SimulatedGossip} instance to simulate gossip behavior in tests.
@@ -67,6 +68,7 @@ public class TurtleGossipModule implements GossipModule {
             @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
+            @NonNull final StatusMonitorModule statusMonitorModule,
             @NonNull final Map<String, Object> additionalParameters) {
         if (gossipWiring != null) {
             throw new IllegalStateException("Gossip module has already been initialized");

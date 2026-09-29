@@ -8,6 +8,7 @@ import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.O
 import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -22,6 +23,7 @@ import java.util.stream.IntStream;
 import java.util.stream.StreamSupport;
 import org.assertj.core.api.Assertions;
 import org.hiero.base.utility.Threshold;
+import org.hiero.consensus.freeze.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusTestOrchestrator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.ConsensusTestNode;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.ConsensusTestUtils;
@@ -613,7 +615,7 @@ public final class ConsensusTestDefinitions {
         orchestrator.forEachNode(node -> preConsensusEventCountBeforeFreeze.put(
                 node, node.getOutput().getPreConsensusEvents().size()));
         // freeze all the nodes
-        orchestrator.forEachNode(node -> node.getIntake().setFreezeCheck(i -> true));
+        orchestrator.forEachNode(node -> node.getIntake().setFreezeCheck(new FreezePeriodChecker(Instant.MIN)));
         // generate the rest of the events
         orchestrator.generateEvents(0.5);
         // validate that exactly 1 round reached consensus (the freeze round) and that its equal on all nodes

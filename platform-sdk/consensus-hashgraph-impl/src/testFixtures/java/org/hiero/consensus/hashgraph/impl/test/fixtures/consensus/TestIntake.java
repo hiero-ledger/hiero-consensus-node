@@ -34,6 +34,7 @@ import org.hiero.consensus.freeze.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.ConsensusEngine;
 import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
+import org.hiero.consensus.hashgraph.impl.ConsensusResult;
 import org.hiero.consensus.hashgraph.impl.DefaultConsensusEngine;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
@@ -57,7 +58,7 @@ public class TestIntake {
     private final Queue<Throwable> componentExceptions = new LinkedList<>();
     private final DeterministicWiringModel model;
     private final int roundsNonAncient;
-    private final AtomicReference<FreezePeriodChecker> freezeCheckHolder = new AtomicReference<>(i -> false);
+    private final AtomicReference<FreezePeriodChecker> freezeCheckHolder = new AtomicReference<>(new FreezePeriodChecker(null));
     private final FakeTime time = new FakeTime(Duration.of(1, ChronoUnit.SECONDS));
 
     /**
@@ -113,7 +114,7 @@ public class TestIntake {
         orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, scheduler("orphanBuffer"));
         orphanBufferWiring.bind(orphanBuffer);
 
-        final var localFreezeCheck = new FreezePeriodChecker() {
+        final var localFreezeCheck = new FreezePeriodChecker(Instant.MIN) {
             @Override
             public boolean isInFreezePeriod(@NonNull final Instant timestamp) {
                 return freezeCheckHolder.get().isInFreezePeriod(timestamp);
@@ -133,8 +134,9 @@ public class TestIntake {
 
         final OutputWire<ConsensusRound> consensusRoundOutputWire = consensusEngineWiring
                 .getOutputWire()
-                .buildTransformer("getConsRounds", "consensusEngineOutput", ConsensusEngineOutput::consensusRounds)
-                .buildSplitter("consensusRoundsSplitter", "consensusRounds");
+                .buildTransformer("getConsRounds", "consensusEngineOutput", ConsensusEngineOutput::consensusResult)
+                .<ConsensusResult>buildSplitter("consensusResultsSplitter", "consensusResults")
+                .buildTransformer("getConsensusRound", "consensusResult", ConsensusResult::consensusRound);
         consensusRoundOutputWire
                 .buildTransformer("EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow)
                 .solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow), INJECT);

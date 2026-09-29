@@ -1700,7 +1700,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     private static Instant firstConsensusTimestampOf(final Round round) {
-        for (final ConsensusEvent consensusEvent : round) {
+        for (final ConsensusEvent consensusEvent : round.getConsensusEvents()) {
             final var eventTimestamp = consensusEvent.getConsensusTimestamp();
             if (eventTimestamp != null && eventTimestamp.isAfter(Instant.EPOCH)) {
                 return eventTimestamp;

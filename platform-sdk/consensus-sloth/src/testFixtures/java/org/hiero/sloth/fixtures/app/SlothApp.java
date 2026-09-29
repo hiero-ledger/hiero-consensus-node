@@ -130,11 +130,11 @@ public class SlothApp implements ConsensusStateEventHandler {
         for (final SlothService service : allServices) {
             service.preHandleEvent(event);
         }
-        final Iterator<Transaction> transactionIterator = event.transactionIterator();
-        while (transactionIterator.hasNext()) {
+
+        for (final Transaction originalTransaction : event.getTransactions()) {
             try {
                 final SlothTransaction transaction = SlothTransaction.parseFrom(
-                        transactionIterator.next().getApplicationTransaction().toInputStream());
+                        originalTransaction.getApplicationTransaction().toInputStream());
                 for (final SlothService service : allServices) {
                     service.preHandleTransaction(event, transaction, callback);
                 }
@@ -159,13 +159,11 @@ public class SlothApp implements ConsensusStateEventHandler {
             service.onRoundStart(state.getWritableStates(service.name()), round);
         }
 
-        for (final ConsensusEvent consensusEvent : round) {
+        for (final ConsensusEvent consensusEvent : round.getConsensusEvents()) {
             for (final SlothService service : allServices) {
                 service.onEventStart(state.getWritableStates(service.name()), consensusEvent);
             }
-            final Iterator<ConsensusTransaction> transactionIterator = consensusEvent.consensusTransactionIterator();
-            while (transactionIterator.hasNext()) {
-                final ConsensusTransaction consensusTransaction = transactionIterator.next();
+            for (final ConsensusTransaction consensusTransaction : consensusEvent.getTransactions()) {
                 try {
                     final SlothTransaction transaction = SlothTransaction.parseFrom(
                             consensusTransaction.getApplicationTransaction().toInputStream());

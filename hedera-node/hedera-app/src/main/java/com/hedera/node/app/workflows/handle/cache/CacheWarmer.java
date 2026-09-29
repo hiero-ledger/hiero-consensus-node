@@ -60,8 +60,8 @@ public class CacheWarmer {
         executor.execute(() -> {
             final ReadableStoreFactory storeFactory = new ReadableStoreFactoryImpl(state);
             final ReadableAccountStore accountStore = storeFactory.readableStore(ReadableAccountStore.class);
-            for (final ConsensusEvent event : round) {
-                event.forEachTransaction(platformTransaction -> executor.execute(() -> {
+            for (final ConsensusEvent event : round.getConsensusEvents()) {
+                event.getTransactions().forEach(platformTransaction -> executor.execute(() -> {
                     final TransactionBody txBody = extractTransactionBody(platformTransaction);
                     if (txBody != null) {
                         final AccountID payerID = txBody.transactionIDOrElse(TransactionID.DEFAULT)

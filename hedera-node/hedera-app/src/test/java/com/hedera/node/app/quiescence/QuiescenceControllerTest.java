@@ -22,6 +22,7 @@ import com.swirlds.base.test.fixtures.time.FakeTime;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
@@ -189,7 +190,7 @@ class QuiescenceControllerTest {
     private Event createEvent(final TransactionBody... txns) {
         final Event event = Mockito.mock(Event.class);
         final List<Transaction> transactions = createTransactions(txns);
-        Mockito.when(event.transactionIterator()).thenReturn(transactions.iterator());
+        Mockito.doReturn(transactions).when(event).getTransactions();
         return event;
     }
 

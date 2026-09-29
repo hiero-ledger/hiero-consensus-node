@@ -238,17 +238,15 @@ class HandleWorkflowTest {
         final var missingCreatorId = NodeId.of(2L);
         final var eventFromPresentCreator = mock(ConsensusEvent.class);
         final var eventFromMissingCreator = mock(ConsensusEvent.class);
-        given(round.iterator())
-                .willReturn(List.of(eventFromMissingCreator, eventFromPresentCreator)
-                        .iterator())
-                .willReturn(List.of(eventFromMissingCreator, eventFromPresentCreator)
-                        .iterator());
+        given(round.getConsensusEvents())
+                .willReturn(List.of(eventFromMissingCreator, eventFromPresentCreator))
+                .willReturn(List.of(eventFromMissingCreator, eventFromPresentCreator));
         given(eventFromPresentCreator.getCreatorId()).willReturn(presentCreatorId);
         given(eventFromMissingCreator.getCreatorId()).willReturn(missingCreatorId);
         given(networkInfo.nodeInfo(presentCreatorId.id())).willReturn(mock(NodeInfo.class));
         given(networkInfo.nodeInfo(missingCreatorId.id())).willReturn(null);
-        given(eventFromPresentCreator.consensusTransactionIterator()).willReturn(emptyIterator());
-        given(eventFromMissingCreator.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(eventFromPresentCreator.getTransactions()).willReturn(List.of());
+        given(eventFromMissingCreator.getTransactions()).willReturn(List.of());
         given(round.getConsensusTimestamp()).willReturn(Instant.ofEpochSecond(12345L));
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
         given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
@@ -257,8 +255,8 @@ class HandleWorkflowTest {
 
         subject.handleRound(state, round, txns -> {});
 
-        verify(eventFromPresentCreator).consensusTransactionIterator();
-        verify(eventFromMissingCreator).consensusTransactionIterator();
+        verify(eventFromPresentCreator).getTransactions();
+        verify(eventFromMissingCreator).getTransactions();
         verify(recordCache).resetRoundReceipts();
         verify(recordCache)
                 .commitReceipts(any(), any(), same(immediateStateChangeListener), same(blockStreamManager), any());
@@ -266,9 +264,9 @@ class HandleWorkflowTest {
 
     @Test
     void writesEachMigrationStateChangeWithBlockTimestamp() {
-        given(round.iterator())
-                .willReturn(List.of(event).iterator())
-                .willReturn(List.of(event).iterator());
+        given(round.getConsensusEvents())
+                .willReturn(List.of(event))
+                .willReturn(List.of(event));
         given(event.allParentsIterator()).willReturn(List.of(wrapper).iterator());
         given(event.getConsensusTimestamp()).willReturn(NOW);
         given(systemTransactions.firstReservedSystemTimeFor(any())).willReturn(NOW);
@@ -321,14 +319,14 @@ class HandleWorkflowTest {
         given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
 
         // Set up the round
-        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willReturn(List.of(event));
 
         // Setup node info for event creator
         NodeId creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator())
-                .willReturn(List.<ConsensusTransaction>of().iterator());
+        given(event.getTransactions())
+                .willReturn(List.of());
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -375,10 +373,10 @@ class HandleWorkflowTest {
         NodeId creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(List.of());
 
         // Set up the round
-        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willReturn(List.of(event));
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -432,10 +430,10 @@ class HandleWorkflowTest {
         NodeId creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(List.of());
 
         // Set up the round
-        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willReturn(List.of(event));
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -498,10 +496,10 @@ class HandleWorkflowTest {
         NodeId creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(List.of());
 
         // Set up the round
-        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willReturn(List.of(event));
 
         // Create subject with BLOCKS mode
         givenSubjectWith(StreamMode.BLOCKS, BlockStreamWriterMode.FILE, List.of());
@@ -636,8 +634,8 @@ class HandleWorkflowTest {
                 .willReturn(List.<EventDescriptorWrapper>of().iterator());
         given(blockStreamManager.lastIntervalProcessTime()).willReturn(NOW);
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
-        given(round.iterator()).willAnswer(invocationOnMock -> List.of(event).iterator());
+        given(event.getTransactions()).willReturn(List.of());
+        given(round.getConsensusEvents()).willReturn(List.of(event));
 
         // Create subject with streamToBlockNodes enabled
         givenSubjectWith(BOTH, BlockStreamWriterMode.FILE_AND_GRPC, emptyList());
@@ -720,14 +718,14 @@ class HandleWorkflowTest {
     void freezeRoundSkipsWrappedHashWritesInBlocksMode() {
         final var freezeEvent = mock(ConsensusEvent.class);
         final var creatorId = NodeId.of(0);
-        given(round.iterator()).willAnswer(ignore -> List.of(freezeEvent).iterator());
+        given(round.getConsensusEvents()).willReturn(List.of(freezeEvent));
         given(freezeEvent.getCreatorId()).willReturn(creatorId);
         given(freezeEvent.getConsensusTimestamp()).willReturn(NOW);
         given(freezeEvent.getHash()).willReturn(CryptoRandomUtils.randomHash());
         given(freezeEvent.allParentsIterator())
                 .willReturn(List.<EventDescriptorWrapper>of().iterator());
         given(freezeEvent.getEventCore()).willReturn(EventCore.DEFAULT);
-        given(freezeEvent.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(freezeEvent.getTransactions()).willReturn(List.of());
         givenFreezeRoundPlatformState();
         givenSubjectWith(
                 BLOCKS,
@@ -758,9 +756,9 @@ class HandleWorkflowTest {
     void scheduledTxnNextTimeUsesTxnOffsetNanos() {
         final var creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(List.of());
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willReturn(List.of(event));
 
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
         // EPOCH causes executionStart to be set to consensusNow, keeping the window simple
@@ -810,9 +808,9 @@ class HandleWorkflowTest {
     void lastUsableTimePreventsScheduledDispatchWhenOffsetTooLarge() {
         final var creatorId = NodeId.of(0);
         given(event.getCreatorId()).willReturn(creatorId);
-        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(event.getTransactions()).willReturn(List.of());
         given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
-        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(round.getConsensusEvents()).willReturn(List.of(event));
 
         given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
         given(blockRecordManager.lastIntervalProcessTime()).willReturn(Instant.EPOCH);

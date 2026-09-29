@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 import org.hiero.base.Clearable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
+import org.hiero.consensus.hashgraph.impl.ConsensusResult;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -49,14 +50,15 @@ public class ConsensusOutput implements Clearable {
      * @param output the output of the consensus engine
      */
     void consensusEngineOutput(@NonNull final ConsensusEngineOutput output) {
-        output.consensusRounds().forEach(this::consensusRound);
+        output.consensusResult().forEach(this::consensusResult);
         preConsensusEvents.addAll(output.preConsensusEvents());
-        staleEvents.addAll(output.staleEvents());
     }
 
-    public void consensusRound(@NonNull final ConsensusRound consensusRound) {
+    private void consensusResult(@NonNull final ConsensusResult consensusResult) {
+        final ConsensusRound consensusRound = consensusResult.consensusRound();
         consensusRounds.add(consensusRound);
         eventWindow = consensusRound.getEventWindow();
+        staleEvents.addAll(consensusResult.staleEvents());
     }
 
     /**

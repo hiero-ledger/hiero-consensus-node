@@ -8,10 +8,12 @@ import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
+import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import org.hiero.base.concurrent.ExecutorFactory;
+import org.hiero.consensus.freeze.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig_;
 import org.hiero.consensus.hashgraph.impl.DefaultHashgraphModule;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.GeneratorEventGraphSource;
@@ -42,6 +44,8 @@ import org.openjdk.jmh.annotations.Warmup;
 public class HashgraphModuleBenchmark {
     private static final long SEED = 0;
     private static final int NUMBER_OF_EVENTS = 100000;
+
+    private static final FreezePeriodChecker NO_FREEZE = new FreezePeriodChecker(null);
 
     @Param({"4", "10"})
     public int numNodes;
@@ -98,7 +102,7 @@ public class HashgraphModuleBenchmark {
                 time,
                 generator.getRoster(),
                 NodeId.of(generator.getRoster().rosterEntries().getFirst().nodeId()),
-                i -> false,
+                NO_FREEZE,
                 null,
                 0L);
         hashgraphModule.eventInputWire();

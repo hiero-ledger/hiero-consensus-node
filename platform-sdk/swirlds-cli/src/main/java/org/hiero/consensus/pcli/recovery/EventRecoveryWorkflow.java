@@ -281,7 +281,7 @@ public final class EventRecoveryWorkflow {
             logger.info(
                     STARTUP.getMarker(),
                     "Applying {} events from round {}",
-                    round.getEventCount(),
+                    round.getConsensusEvents().size(),
                     round.getRoundNum());
 
             signedState = handleNextRound(consensusStateEventHandler, platformContext, stateLifecycleManager, round);
@@ -383,7 +383,7 @@ public final class EventRecoveryWorkflow {
         final RunningHashCalculatorForStream<CesEvent> hashCalculator = new RunningHashCalculatorForStream<>();
         hashCalculator.setRunningHash(previousRunningHash);
 
-        for (final ConsensusEvent event : round) {
+        for (final ConsensusEvent event : round.getConsensusEvents()) {
             hashCalculator.addObject((CesEvent) event);
         }
 
@@ -404,17 +404,10 @@ public final class EventRecoveryWorkflow {
     }
 
     static ConsensusEvent getLastEvent(final Round round) {
-        final Iterator<ConsensusEvent> iterator = round.iterator();
-
-        while (iterator.hasNext()) {
-            final ConsensusEvent event = iterator.next();
-
-            if (!iterator.hasNext()) {
-                return event;
-            }
+        if (round.getConsensusEvents().isEmpty()) {
+            throw new IllegalStateException("round has no events");
         }
-
-        throw new IllegalStateException("round has no events");
+        return round.getConsensusEvents().getLast();
     }
 
     /**
@@ -432,7 +425,7 @@ public final class EventRecoveryWorkflow {
 
         mutableState.throwIfImmutable();
 
-        for (final ConsensusEvent event : round) {
+        for (final ConsensusEvent event : round.getConsensusEvents()) {
             consensusStateEventHandler.onPreHandle(event, immutableState, NO_OP_CONSUMER);
         }
 

@@ -9,6 +9,8 @@ import com.swirlds.base.utility.Pair;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncInputStreamImpl;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncOutputStreamImpl;
 import org.hiero.consensus.main.model.reconnect.Connection;
 import org.hiero.consensus.main.model.reconnect.ProtocolRunnable;
 import org.hiero.consensus.gossip.impl.test.fixtures.sync.ConnectionFactory;
@@ -29,10 +31,10 @@ class VersionHandshakeTests {
 
     private static void clearWriteFlush(@NonNull final Connection connection, @Nullable final SemanticVersion version)
             throws IOException {
-        if (connection.getDis().available() > 0) {
-            connection.getDis().readPbjRecord(SemanticVersion.PROTOBUF);
+        if (connection.getDis().asInputStream().available() > 0) {
+            ((SyncInputStreamImpl)connection.getDis()).readPbjRecord(SemanticVersion.PROTOBUF);
         }
-        connection.getDos().writePbjRecord(version, SemanticVersion.PROTOBUF);
+        ((SyncOutputStreamImpl)connection.getDos()).writePbjRecord(version, SemanticVersion.PROTOBUF);
         connection.getDos().flush();
     }
 

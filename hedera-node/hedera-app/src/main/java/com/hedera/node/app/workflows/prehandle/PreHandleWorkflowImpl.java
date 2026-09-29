@@ -122,7 +122,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
     public void preHandle(
             @NonNull final ReadableStoreFactory readableStoreFactory,
             @Nullable final NodeInfo creatorInfo,
-            @NonNull final Stream<Transaction> transactions,
+            @NonNull final Stream<? extends Transaction> transactions,
             @NonNull final ShortCircuitCallback shortCircuitCallback) {
         requireNonNull(readableStoreFactory);
         requireNonNull(transactions);

@@ -29,10 +29,10 @@ public enum RoundInternalEqualityValidation implements ConsensusRoundComparisonV
                 .withFailMessage(String.format(
                         "round diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber))
                 .isEqualTo(round2.getRoundNum());
-        assertThat(round1.getEventCount())
+        assertThat(round1.getConsensusEvents().size())
                 .withFailMessage(String.format(
                         "event number diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber))
-                .isEqualTo(round2.getEventCount());
+                .isEqualTo(round2.getConsensusEvents().size());
         assertThat(round1.getSnapshot())
                 .withFailMessage(String.format(
                         "snapshot diff at rounds with numbers %d and %d", firstRoundNumber, secondRoundNumber))
