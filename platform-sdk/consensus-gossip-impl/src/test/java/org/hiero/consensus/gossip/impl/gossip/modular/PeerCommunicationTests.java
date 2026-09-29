@@ -58,6 +58,7 @@ public class PeerCommunicationTests {
         configurationBuilder.withValue("socket.timeoutServerAcceptConnect", "100");
         configurationBuilder.withValue("socket.timeoutSyncClientSocket", "100");
         configurationBuilder.withValue("socket.timeoutSyncClientConnect", "100");
+        configurationBuilder.withValue("crypto.keystorePassword", "password");
 
         this.configuration = configurationBuilder.build();
 
