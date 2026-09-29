@@ -133,6 +133,33 @@ public class MiscCryptoUtils {
     }
 
     /**
+     * Given a 64-byte decompressed ECDSA(secp256k1) public key, returns the compressed key as a
+     * 33-byte array whose first byte is the parity of the y coordinate and the following 32 bytes
+     * are the x-coordinate of the key.
+     *
+     * @param decompressedKey a decompressed ECDSA(secp256k1) public key
+     * @return the compressed public key bytes
+     * @throws IllegalArgumentException if the decompressed key is not parsable
+     */
+    public static byte[] compressSecp256k1(final byte[] decompressedKey) {
+        final ThreadLocalCache cache = CACHE.get();
+        System.arraycopy(decompressedKey, 0, cache.uncompressedPublicKeyInput, 1, ECDSA_UNCOMPRESSED_KEY_SIZE);
+        final int keyParseResult = LIBSECP256K1.secp256k1EcPubkeyParse(
+                cache.pubKeySeg, cache.uncompressedPublicKeyInputSeg, cache.uncompressedPublicKeyInput.length);
+        if (keyParseResult != 1) throw new IllegalArgumentException("Failed to parse public key");
+
+        final byte[] compressedKey = new byte[33];
+        final long[] compressedKeyLength = {compressedKey.length};
+        final int keySerializeResult = LIBSECP256K1.secp256k1EcPubkeySerialize(
+                MemorySegment.ofArray(compressedKey),
+                MemorySegment.ofArray(compressedKeyLength),
+                cache.pubKeySeg,
+                Libsecp256k1.SECP256K1_EC_COMPRESSED);
+        if (keySerializeResult != 1) throw new IllegalArgumentException("Failed to serialize public key");
+        return compressedKey;
+    }
+
+    /**
      * Given a 64-byte decompressed ECDSA(secp256k1) public key, returns the evm address
      * derived from the last 20 bytes of the keccak256 hash of the public key.
      *

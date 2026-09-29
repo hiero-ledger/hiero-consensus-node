@@ -20,6 +20,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -177,7 +178,9 @@ public class HapiUtils {
             HederaFunctionality.TOKEN_GET_NFT_INFOS,
             HederaFunctionality.TOKEN_GET_ACCOUNT_NFT_INFOS,
             HederaFunctionality.NETWORK_GET_EXECUTION_TIME,
-            HederaFunctionality.GET_ACCOUNT_DETAILS);
+            HederaFunctionality.GET_ACCOUNT_DETAILS,
+            HederaFunctionality.CLPR_GET_LEDGER_CONFIGURATION,
+            HederaFunctionality.CLPR_GET_ENDPOINT_MANIFEST);
 
     public static HederaFunctionality functionOf(final TransactionBody txn) throws UnknownHederaFunctionality {
         return switch (txn.data().kind()) {
@@ -250,6 +253,16 @@ public class HapiUtils {
             case REGISTERED_NODE_UPDATE -> HederaFunctionality.REGISTERED_NODE_UPDATE;
             case REGISTERED_NODE_DELETE -> HederaFunctionality.REGISTERED_NODE_DELETE;
             case MIGRATION_ROOT_HASH_VOTE -> HederaFunctionality.MIGRATION_ROOT_HASH_VOTE;
+            case CLPR_UPDATE_LEDGER_CONFIGURATION -> HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION;
+            case CLPR_REGISTER_CHANNEL -> HederaFunctionality.CLPR_REGISTER_CHANNEL;
+            case CLPR_CLOSE_CHANNEL -> HederaFunctionality.CLPR_CLOSE_CHANNEL;
+            case CLPR_COMPLETE_CHANNEL -> HederaFunctionality.CLPR_COMPLETE_CHANNEL;
+            case CLPR_SUBMIT_BUNDLE -> HederaFunctionality.CLPR_SUBMIT_BUNDLE;
+            case CLPR_REDACT_MESSAGE -> HederaFunctionality.CLPR_REDACT_MESSAGE;
+            case CLPR_REGISTER_CONNECTOR -> HederaFunctionality.CLPR_REGISTER_CONNECTOR;
+            case CLPR_COMPLETE_CONNECTOR -> HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
+            case CLPR_DEREGISTER_CONNECTOR -> HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
+            case CLPR_ENDPOINT_PUBLICATION -> HederaFunctionality.CLPR_ENDPOINT_PUBLICATION;
             case UNSET -> throw new UnknownHederaFunctionality();
         };
     }
@@ -281,6 +294,8 @@ public class HapiUtils {
             case TRANSACTION_GET_RECEIPT -> HederaFunctionality.TRANSACTION_GET_RECEIPT;
             case TRANSACTION_GET_RECORD -> HederaFunctionality.TRANSACTION_GET_RECORD;
             case TRANSACTION_GET_FAST_RECORD -> HederaFunctionality.TRANSACTION_GET_FAST_RECORD;
+            case CLPR_GET_LEDGER_CONFIGURATION -> HederaFunctionality.CLPR_GET_LEDGER_CONFIGURATION;
+            case CLPR_GET_ENDPOINT_MANIFEST -> HederaFunctionality.CLPR_GET_ENDPOINT_MANIFEST;
             case UNSET -> throw new UnknownHederaFunctionality();
         };
     }
@@ -389,15 +404,16 @@ public class HapiUtils {
      */
     public static String asReadableIp(@NonNull final Bytes ipV4Addr) {
         requireNonNull(ipV4Addr);
-        return "%d.%d.%d.%d"
-                .formatted(
-                        // Java expands a byte into an int, and the "sign bit" of the byte gets extended,
-                        // making it possibly a negative integer for values > 0x7F. So we AND 0xFF
-                        // to get rid of the extended "sign bits" to keep this an actual, positive byte.
-                        ipV4Addr.getByte(0) & 0xFF,
-                        ipV4Addr.getByte(1) & 0xFF,
-                        ipV4Addr.getByte(2) & 0xFF,
-                        ipV4Addr.getByte(3) & 0xFF);
+        return String.format(
+                Locale.ROOT,
+                "%d.%d.%d.%d",
+                // Java expands a byte into an int, and the "sign bit" of the byte gets extended,
+                // making it possibly a negative integer for values > 0x7F. So we AND 0xFF
+                // to get rid of the extended "sign bits" to keep this an actual, positive byte.
+                ipV4Addr.getByte(0) & 0xFF,
+                ipV4Addr.getByte(1) & 0xFF,
+                ipV4Addr.getByte(2) & 0xFF,
+                ipV4Addr.getByte(3) & 0xFF);
     }
 
     /**
@@ -406,7 +422,8 @@ public class HapiUtils {
      * @return string representation
      */
     public static String asAccountString(@NonNull final AccountID accountID) {
-        return String.format("%d.%d.%d", accountID.shardNum(), accountID.realmNum(), accountID.accountNum());
+        return String.format(
+                Locale.ROOT, "%d.%d.%d", accountID.shardNum(), accountID.realmNum(), accountID.accountNum());
     }
 
     /**

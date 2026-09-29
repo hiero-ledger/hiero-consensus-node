@@ -111,6 +111,17 @@ public class SimulatedGossip implements Gossip, EventReceiver {
         return selfId;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Nothing consumes a peer's event window yet. The network delivers them so that the machinery is in place, but
+     * this node has nowhere to route them until fallen-behind detection is wired up.
+     */
+    @Override
+    public boolean receiveEventWindow(@NonNull final NodeId sender, @NonNull final EventWindow eventWindow) {
+        return deterministicWiringModel.isRunning();
+    }
+
     private void forwardEvent(@NonNull final PlatformEvent event) {
         if (intakeEventCounter != null) {
             intakeEventCounter.eventEnteredIntakePipeline(event.getSenderId());
