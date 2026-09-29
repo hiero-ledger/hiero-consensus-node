@@ -2,29 +2,26 @@
 package com.hedera.statevalidation.blockstream.tools;
 
 import com.hedera.hapi.block.stream.Block;
-import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChange;
-import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.transaction.SignedTransaction;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.statevalidation.blockstream.tools.BlockRoundExtractor.RoundContent;
+import com.hedera.statevalidation.blockstream.tools.BlockRoundExtractor.TxRecord;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.stream.Stream;
 
 /// Finds the FIRST transaction in a round whose full OUTPUT RECORD diverges between two block dirs
 /// (original vs re-minted) - comparing TransactionResult, TransactionOutput(s), and StateChanges, not just
@@ -46,6 +43,11 @@ import java.util.stream.Stream;
 ///        [--ignore-states a,b,c] [--threads N] [--window N]
 ///
 public final class OutputRecordCompare {
+
+    /** Final value recorded for a map key that was deleted in the round. */
+    private enum Marker {
+        DELETED
+    }
 
     public static void main(final String[] args) throws Exception {
         Path originalDir = null;
@@ -74,8 +76,9 @@ public final class OutputRecordCompare {
             }
         }
         if (originalDir == null || remintedDir == null) {
-            System.err.println("Required: --original <dir> --reminted <dir> "
-                    + "(--round N | --from-round N --to-round N) [--ignore-states a,b,c] [--threads N] [--window N]");
+            System.err.println(
+                    "Required: --original <dir> --reminted <dir> "
+                            + "(--round N | [--from-round N] [--to-round N]) [--ignore-states a,b,c] [--threads N] [--window N]");
             System.exit(2);
         }
         if (threads < 1) {
@@ -85,17 +88,15 @@ public final class OutputRecordCompare {
             window = threads * 8;
         }
 
-        // Single-round mode (backwards compatible): report ALL divergent transactions in that one round.
         if (round != Long.MIN_VALUE) {
             singleRound(originalDir, remintedDir, round, ignoreServices, dumpTx);
             return;
         }
 
-        // Range mode: scan blocks in ascending parallel windows; stop at the first block containing any
-        // divergent output record and report the earliest divergent transaction in it. Because windows are
-        // strictly ascending and all earlier blocks are confirmed clean, that is the global earliest divergence.
-        final Map<Long, Path> original = indexByBlockNumber(originalDir);
-        final Map<Long, Path> reminted = indexByBlockNumber(remintedDir);
+        // Range mode: scan blocks in ascending parallel windows and stop at the first block with a divergence.
+        // All earlier blocks are confirmed clean, so that is the earliest divergence overall.
+        final Map<Long, Path> original = BlockRoundExtractor.indexByBlockNumber(originalDir);
+        final Map<Long, Path> reminted = BlockRoundExtractor.indexByBlockNumber(remintedDir);
         final long lo = Math.max(minKey(original), minKey(reminted));
         final long hi = Math.min(maxKey(original), maxKey(reminted));
         final Set<String> ignore = ignoreServices;
@@ -138,7 +139,6 @@ public final class OutputRecordCompare {
                     if (d == null) {
                         blocksClean++;
                     } else if (all) {
-                        // Report every divergent block; keep scanning.
                         divergentBlocks++;
                         System.out.printf(
                                 "DIVERGENT block %d, round %d: txId=%s diff=%s states=%s%n",
@@ -174,13 +174,12 @@ public final class OutputRecordCompare {
         }
     }
 
-    /** Divergence descriptor for a block (the earliest divergent transaction within it). */
+    /** The earliest divergence found in a block. */
     private record BlockDivergence(long blockNum, long round, String txId, String kinds, String states) {}
 
     /**
-     * Returns the earliest divergent transaction across all rounds in this block (within [fromRound, toRound]),
-     * or null if the block's output records fully match. Rounds are walked in order; the first divergent
-     * transaction found is the earliest in the block.
+     * Returns the earliest divergence in this block within [fromRound, toRound], or {@code null} if the block
+     * matches. Rounds are taken from both blocks, so a round present on only one side is reported.
      */
     private static BlockDivergence firstDivergenceInBlock(
             final long blockNum,
@@ -188,72 +187,49 @@ public final class OutputRecordCompare {
             final Path rPath,
             final long fromRound,
             final long toRound,
-            final Set<String> ignore)
-            throws IOException {
+            final Set<String> ignore) {
         final Block oBlock = BlockStreamAccess.blockFrom(oPath);
         final Block rBlock = BlockStreamAccess.blockFrom(rPath);
 
-        // Determine which rounds this block carries (from the original), in order, within the window.
-        final List<Long> rounds = new ArrayList<>();
-        for (final BlockItem item : oBlock.items()) {
-            if (item.hasRoundHeader()) {
-                final long rd = item.roundHeader().roundNumber();
-                if (rd >= fromRound && rd <= toRound) {
-                    rounds.add(rd);
-                }
-            }
-        }
+        final TreeSet<Long> rounds = new TreeSet<>(BlockRoundExtractor.roundsIn(oBlock, fromRound, toRound));
+        rounds.addAll(BlockRoundExtractor.roundsIn(rBlock, fromRound, toRound));
+
         for (final long rd : rounds) {
-            final List<TxRecord> oTx = extractRound(oBlock, rd);
-            final List<TxRecord> rTx = extractRound(rBlock, rd);
+            final RoundContent o = BlockRoundExtractor.extract(oBlock, rd);
+            final RoundContent r = BlockRoundExtractor.extract(rBlock, rd);
 
-            // (a) STATE: compare at ROUND level, not per-transaction. State-change grouping into StateChanges
-            // items is a serialization detail and their textual attachment to a transaction is unreliable, so
-            // aggregate ALL of the round's state changes by stateId and compare the sets. This avoids both the
-            // synthetic-txId collision and the per-tx attribution ambiguity.
-            final List<StateChange> oAll = new ArrayList<>();
-            for (final TxRecord t : oTx) {
-                oAll.addAll(t.stateChanges);
+            if (!o.present() || !r.present()) {
+                return new BlockDivergence(
+                        blockNum,
+                        rd,
+                        "round " + rd,
+                        "[ROUND(only in " + (o.present() ? "original" : "reminted") + ")]",
+                        "");
             }
-            final List<StateChange> rAll = new ArrayList<>();
-            for (final TxRecord t : rTx) {
-                rAll.addAll(t.stateChanges);
-            }
-            final Set<String> changedStates = differingStateServices(oAll, rAll, ignore);
 
-            // (b) RESULT/OUTPUT: compare by POSITION (i-th original vs i-th reminted). Round ordering is
-            // identical between the two sides for matched rounds, so position is the correct pairing and is
-            // immune to synthetic-txId collisions.
-            String firstResultOutputDivTx = null;
+            // State: compared at round level over every state change in the round, including those before the
+            // first transaction. How changes are grouped into items is a serialization detail.
+            final Set<String> changedStates = differingStateServices(o.allStateChanges(), r.allStateChanges(), ignore);
+
+            // Result/output: compared by position.
+            final List<TxRecord> oTx = o.transactions();
+            final List<TxRecord> rTx = r.transactions();
+            String firstTx = null;
             String firstKinds = null;
             final int n = Math.min(oTx.size(), rTx.size());
             for (int i = 0; i < n; i++) {
-                final TxRecord o = oTx.get(i);
-                final TxRecord r = rTx.get(i);
-                final boolean idDiff = !Objects.equals(o.txId, r.txId);
-                final boolean resultDiff = !Objects.equals(o.result, r.result);
-                final boolean outputDiff = !Objects.equals(o.outputs, r.outputs);
-                if (idDiff || resultDiff || outputDiff) {
-                    final var kinds = new ArrayList<String>();
-                    if (idDiff) {
-                        kinds.add("TXID(" + o.txId + " vs " + r.txId + ")");
-                    }
-                    if (resultDiff) {
-                        kinds.add("RESULT");
-                    }
-                    if (outputDiff) {
-                        kinds.add("OUTPUT");
-                    }
-                    firstResultOutputDivTx = o.txId + " @pos" + i;
+                final List<String> kinds = transactionDiffKinds(oTx.get(i), rTx.get(i));
+                if (!kinds.isEmpty()) {
+                    firstTx = oTx.get(i).label() + " @pos" + i;
                     firstKinds = kinds.toString();
                     break;
                 }
             }
             final boolean countDiff = oTx.size() != rTx.size();
 
-            if (firstResultOutputDivTx != null || !changedStates.isEmpty() || countDiff) {
-                final var kinds = new ArrayList<String>();
-                if (firstResultOutputDivTx != null) {
+            if (firstTx != null || !changedStates.isEmpty() || countDiff) {
+                final List<String> kinds = new ArrayList<>();
+                if (firstKinds != null) {
                     kinds.add(firstKinds);
                 }
                 if (!changedStates.isEmpty()) {
@@ -262,9 +238,7 @@ public final class OutputRecordCompare {
                 if (countDiff) {
                     kinds.add("TXCOUNT(" + oTx.size() + " vs " + rTx.size() + ")");
                 }
-                final String label = firstResultOutputDivTx != null
-                        ? firstResultOutputDivTx
-                        : ("round " + rd + " (state/count only)");
+                final String label = firstTx != null ? firstTx : ("round " + rd + " (state/count only)");
                 return new BlockDivergence(
                         blockNum, rd, label, kinds.toString(), changedStates.isEmpty() ? "" : changedStates.toString());
             }
@@ -272,15 +246,22 @@ public final class OutputRecordCompare {
         return null;
     }
 
-    private static long minKey(final Map<Long, Path> m) {
-        return m.keySet().stream().mapToLong(Long::longValue).min().orElse(Long.MAX_VALUE);
+    /** TXID / RESULT / OUTPUT differences between two transactions at the same position. */
+    private static List<String> transactionDiffKinds(final TxRecord o, final TxRecord r) {
+        final List<String> kinds = new ArrayList<>();
+        if (!Objects.equals(o.txId(), r.txId())) {
+            kinds.add("TXID(" + o.txId() + " vs " + r.txId() + ")");
+        }
+        if (!Objects.equals(o.result(), r.result())) {
+            kinds.add("RESULT");
+        }
+        if (!Objects.equals(o.outputs(), r.outputs())) {
+            kinds.add("OUTPUT");
+        }
+        return kinds;
     }
 
-    private static long maxKey(final Map<Long, Path> m) {
-        return m.keySet().stream().mapToLong(Long::longValue).max().orElse(Long.MIN_VALUE);
-    }
-
-    /** Original single-round behaviour: report every divergent transaction in one round. */
+    /** Reports every divergent transaction in one round, matching transactions by position. */
     private static void singleRound(
             final Path originalDir,
             final Path remintedDir,
@@ -288,8 +269,8 @@ public final class OutputRecordCompare {
             final Set<String> ignoreServices,
             final String dumpTx)
             throws IOException {
-        final Path oFile = findBlockContainingRound(originalDir, round);
-        final Path rFile = findBlockContainingRound(remintedDir, round);
+        final Path oFile = BlockRoundExtractor.findBlockContainingRound(originalDir, round);
+        final Path rFile = BlockRoundExtractor.findBlockContainingRound(remintedDir, round);
         if (oFile == null || rFile == null) {
             System.err.printf("Round %d not found in %s%n", round, oFile == null ? "original" : "reminted");
             System.exit(1);
@@ -298,94 +279,101 @@ public final class OutputRecordCompare {
                 "Round %d  original=%s  reminted=%s  ignoreStates=%s%n%n",
                 round, oFile.getFileName(), rFile.getFileName(), ignoreServices);
 
-        final List<TxRecord> oTx = extractRound(BlockStreamAccess.blockFrom(oFile), round);
-        final List<TxRecord> rTx = extractRound(BlockStreamAccess.blockFrom(rFile), round);
-
-        final Map<String, TxRecord> rById = new LinkedHashMap<>();
-        for (final TxRecord t : rTx) {
-            rById.putIfAbsent(t.txId, t);
-        }
+        final RoundContent o = BlockRoundExtractor.extract(BlockStreamAccess.blockFrom(oFile), round);
+        final RoundContent r = BlockRoundExtractor.extract(BlockStreamAccess.blockFrom(rFile), round);
+        final List<TxRecord> oTx = o.transactions();
+        final List<TxRecord> rTx = r.transactions();
 
         System.out.printf("Transactions in round: original=%d, reminted=%d%n%n", oTx.size(), rTx.size());
 
         int firstDivergentPos = -1;
         int divergentCount = 0;
-        for (int i = 0; i < oTx.size(); i++) {
-            final TxRecord o = oTx.get(i);
-            final TxRecord r = rById.get(o.txId);
-            if (r == null) {
-                report(i, o.txId, "MISSING in reminted", "", "", "");
-                if (firstDivergentPos < 0) {
-                    firstDivergentPos = i;
+        final int n = Math.max(oTx.size(), rTx.size());
+        for (int i = 0; i < n; i++) {
+            final TxRecord ot = i < oTx.size() ? oTx.get(i) : null;
+            final TxRecord rt = i < rTx.size() ? rTx.get(i) : null;
+            final List<String> kinds;
+            String states = "";
+            final String label;
+            if (ot == null) {
+                kinds = List.of("EXTRA in reminted");
+                label = rt.label();
+            } else if (rt == null) {
+                kinds = List.of("MISSING in reminted");
+                label = ot.label();
+            } else {
+                kinds = new ArrayList<>(transactionDiffKinds(ot, rt));
+                final Set<String> changedStates =
+                        differingStateServices(ot.stateChanges(), rt.stateChanges(), ignoreServices);
+                if (!changedStates.isEmpty()) {
+                    kinds.add("STATE");
+                    states = changedStates.toString();
                 }
-                divergentCount++;
+                label = ot.label();
+            }
+            if (kinds.isEmpty()) {
                 continue;
             }
-            final boolean resultDiff = !Objects.equals(o.result, r.result);
-            final boolean outputDiff = !Objects.equals(o.outputs, r.outputs);
-            final Set<String> changedStates = differingStateServices(o.stateChanges, r.stateChanges, ignoreServices);
-            final boolean stateDiff = !changedStates.isEmpty();
-
-            if (resultDiff || outputDiff || stateDiff) {
-                if (firstDivergentPos < 0) {
-                    firstDivergentPos = i;
-                }
-                divergentCount++;
-                report(
-                        i,
-                        o.txId,
-                        resultDiff ? "RESULT" : "",
-                        outputDiff ? "OUTPUT" : "",
-                        stateDiff ? "STATE" : "",
-                        stateDiff ? changedStates.toString() : "");
-                if (dumpTx != null && dumpTx.equals(o.txId)) {
-                    dumpDifferences(o, r, ignoreServices);
-                }
+            if (firstDivergentPos < 0) {
+                firstDivergentPos = i;
             }
+            divergentCount++;
+            System.out.printf("  pos=%d  txId=%-30s  diff=%s  %s%n", i, label, kinds, states);
+            if (dumpTx != null && ot != null && rt != null && dumpTx.equals(ot.txId())) {
+                dumpDifferences(ot, rt, ignoreServices);
+            }
+        }
+
+        // Round-level state: every state change in the round, including those before the first transaction.
+        final Set<String> roundStates =
+                differingStateServices(o.allStateChanges(), r.allStateChanges(), ignoreServices);
+        System.out.println();
+        System.out.println("Round-level state: " + (roundStates.isEmpty() ? "match" : "differs in " + roundStates));
+        if (!o.unattributedStateChanges().isEmpty()
+                || !r.unattributedStateChanges().isEmpty()) {
+            System.out.printf(
+                    "State changes before the first transaction: original=%d, reminted=%d%n",
+                    o.unattributedStateChanges().size(),
+                    r.unattributedStateChanges().size());
         }
 
         System.out.println();
         System.out.println("==== SUMMARY ====");
-        if (firstDivergentPos < 0) {
+        if (firstDivergentPos < 0 && roundStates.isEmpty()) {
             System.out.println("No output-record divergence in this round (result/output/state all match, "
                     + "modulo ignored states).");
+        } else if (firstDivergentPos < 0) {
+            System.out.println("Transactions match, but the round-level state differs in " + roundStates);
         } else {
-            final TxRecord first = oTx.get(firstDivergentPos);
-            System.out.printf("FIRST divergent transaction: pos=%d txId=%s%n", firstDivergentPos, first.txId);
-            System.out.printf("Total divergent transactions in round: %d of %d%n", divergentCount, oTx.size());
-            System.out.println();
-            System.out.println("If the first divergence is STATE-only (result+output identical) on a contract "
-                    + "storage state, it is a state-change-only divergence - invisible to status/gasUsed "
-                    + "comparison - and is the true seed of the running-hash divergence.");
+            final TxRecord first =
+                    firstDivergentPos < oTx.size() ? oTx.get(firstDivergentPos) : rTx.get(firstDivergentPos);
+            System.out.printf("FIRST divergent transaction: pos=%d txId=%s%n", firstDivergentPos, first.label());
+            System.out.printf("Total divergent transactions in round: %d of %d%n", divergentCount, n);
         }
     }
 
-    /**
-     * Prints the actual differing values for one transaction: result, outputs, and per-stateId state changes
-     * (original vs reminted), so the concrete difference (node ids, amounts) is visible. Uses PBJ toString().
-     */
+    /** Prints the differing values of one transaction: result, outputs and state changes per state. */
     private static void dumpDifferences(final TxRecord o, final TxRecord r, final Set<String> ignoreServices) {
         System.out.println();
-        System.out.printf("==== VALUE DUMP for txId=%s ====%n", o.txId);
-        if (!Objects.equals(o.result, r.result)) {
+        System.out.printf("==== VALUE DUMP for txId=%s ====%n", o.label());
+        if (!Objects.equals(o.result(), r.result())) {
             System.out.println("-- RESULT --");
-            System.out.println("  original: " + o.result);
-            System.out.println("  reminted: " + r.result);
+            System.out.println("  original: " + o.result());
+            System.out.println("  reminted: " + r.result());
         }
-        if (!Objects.equals(o.outputs, r.outputs)) {
+        if (!Objects.equals(o.outputs(), r.outputs())) {
             System.out.println("-- OUTPUT --");
-            System.out.println("  original: " + o.outputs);
-            System.out.println("  reminted: " + r.outputs);
+            System.out.println("  original: " + o.outputs());
+            System.out.println("  reminted: " + r.outputs());
         }
-        final Map<Integer, List<StateChange>> aById = groupByState(o.stateChanges);
-        final Map<Integer, List<StateChange>> bById = groupByState(r.stateChanges);
-        final Set<Integer> allIds = new java.util.TreeSet<>();
+        final Map<Integer, List<StateChange>> aById = groupByState(o.stateChanges());
+        final Map<Integer, List<StateChange>> bById = groupByState(r.stateChanges());
+        final Set<Integer> allIds = new TreeSet<>();
         allIds.addAll(aById.keySet());
         allIds.addAll(bById.keySet());
         for (final int id : allIds) {
             final String stateName = safeStateName(id);
-            final String service = serviceOf(stateName);
-            if (ignoreServices.stream().anyMatch(service::startsWith)) {
+            if (isIgnored(stateName, ignoreServices)) {
                 continue;
             }
             final List<StateChange> aList = aById.getOrDefault(id, List.of());
@@ -395,56 +383,30 @@ public final class OutputRecordCompare {
             }
             System.out.printf("-- STATE %s (id=%d) --%n", stateName, id);
             System.out.println("  original:");
-            for (final StateChange sc : aList) {
-                System.out.println("    " + sc);
-            }
+            aList.forEach(sc -> System.out.println("    " + sc));
             System.out.println("  reminted:");
-            for (final StateChange sc : bList) {
-                System.out.println("    " + sc);
-            }
+            bList.forEach(sc -> System.out.println("    " + sc));
         }
         System.out.println("==== END VALUE DUMP ====");
         System.out.println();
     }
 
-    private static void report(
-            final int pos, final String txId, final String a, final String b, final String c, final String states) {
-        final var kinds = new ArrayList<String>();
-        if (!a.isEmpty()) {
-            kinds.add(a);
-        }
-        if (!b.isEmpty()) {
-            kinds.add(b);
-        }
-        if (!c.isEmpty()) {
-            kinds.add(c);
-        }
-        System.out.printf("  pos=%d  txId=%-30s  diff=%s  %s%n", pos, txId, kinds, states);
-    }
-
-    private record TxRecord(String txId, Object result, List<Object> outputs, List<StateChange> stateChanges) {}
-
     /**
-     * Returns the set of service names whose NET state effect differs between the two change lists.
-     * To avoid false positives from serialization/grouping differences, this compares the NET effect per
-     * stateId rather than the raw ordered change lists:
-     *   - singleton: the LAST singleton value written wins (final value).
-     *   - map: the net map of key -> last update value (deletes remove keys).
-     *   - queue/other: falls back to comparing the ordered change list.
-     * A service is reported only if its net effect actually differs (and it is not ignored).
+     * Names of the states whose net effect differs between the two change lists, excluding ignored services.
+     * Net effect per state: last value for singletons, final key/value (or deletion) per key for maps, ordered
+     * list of operations otherwise.
      */
     private static Set<String> differingStateServices(
             final List<StateChange> a, final List<StateChange> b, final Set<String> ignoreServices) {
         final Map<Integer, Object> aNet = netEffectByState(a);
         final Map<Integer, Object> bNet = netEffectByState(b);
-        final Set<Integer> allIds = new java.util.HashSet<>();
+        final Set<Integer> allIds = new HashSet<>();
         allIds.addAll(aNet.keySet());
         allIds.addAll(bNet.keySet());
-        final Set<String> differing = new java.util.TreeSet<>();
+        final Set<String> differing = new TreeSet<>();
         for (final int id : allIds) {
             final String stateName = safeStateName(id);
-            final String service = serviceOf(stateName);
-            if (ignoreServices.stream().anyMatch(service::startsWith)) {
+            if (isIgnored(stateName, ignoreServices)) {
                 continue;
             }
             if (!Objects.equals(aNet.get(id), bNet.get(id))) {
@@ -455,10 +417,13 @@ public final class OutputRecordCompare {
     }
 
     /**
-     * Computes the net end-state effect per stateId from a list of state changes:
-     *   - singleton -> the last singleton value (the SingletonUpdateChange's newValue).
-     *   - map       -> a Map of net key->value (MAP_UPDATE puts, MAP_DELETE removes).
-     *   - otherwise -> the ordered list of change operations (queue pushes/pops, etc.).
+     * Net end-of-round effect per state:
+     * <ul>
+     *   <li>singleton: the last value written;</li>
+     *   <li>map: the final value per key, where a deletion is kept as {@link Marker#DELETED} so that a key deleted
+     *       on only one side is still detected;</li>
+     *   <li>anything else (queues): the ordered list of operations.</li>
+     * </ul>
      */
     private static Map<Integer, Object> netEffectByState(final List<StateChange> changes) {
         final Map<Integer, Object> singletonFinal = new TreeMap<>();
@@ -471,19 +436,19 @@ public final class OutputRecordCompare {
                     singletonFinal.put(id, sc.singletonUpdateOrThrow().newValue());
                 case MAP_UPDATE -> {
                     final var mu = sc.mapUpdateOrThrow();
-                    mapNet.computeIfAbsent(id, k -> new java.util.HashMap<>()).put(mu.keyOrThrow(), mu.valueOrThrow());
+                    mapNet.computeIfAbsent(id, k -> new HashMap<>()).put(mu.keyOrThrow(), mu.valueOrThrow());
                 }
                 case MAP_DELETE ->
-                    mapNet.computeIfAbsent(id, k -> new java.util.HashMap<>())
-                            .remove(sc.mapDeleteOrThrow().keyOrThrow());
+                    mapNet.computeIfAbsent(id, k -> new HashMap<>())
+                            .put(sc.mapDeleteOrThrow().keyOrThrow(), Marker.DELETED);
                 default ->
                     otherOrdered.computeIfAbsent(id, k -> new ArrayList<>()).add(sc.changeOperation());
             }
         }
         final Map<Integer, Object> out = new TreeMap<>();
-        singletonFinal.forEach(out::put);
-        mapNet.forEach(out::put);
-        otherOrdered.forEach((id, list) -> out.merge(id, list, (x, y) -> list));
+        out.putAll(singletonFinal);
+        out.putAll(mapNet);
+        out.putAll(otherOrdered);
         return out;
     }
 
@@ -493,6 +458,11 @@ public final class OutputRecordCompare {
             m.computeIfAbsent(sc.stateId(), k -> new ArrayList<>()).add(sc);
         }
         return m;
+    }
+
+    private static boolean isIgnored(final String stateName, final Set<String> ignoreServices) {
+        final String service = serviceOf(stateName);
+        return ignoreServices.stream().anyMatch(service::startsWith);
     }
 
     private static String safeStateName(final int stateId) {
@@ -508,133 +478,12 @@ public final class OutputRecordCompare {
         return dot == -1 ? stateName : stateName.substring(0, dot);
     }
 
-    /**
-     * Walks the block, and within the target round groups items into per-transaction records: the
-     * SIGNED_TRANSACTION starts a tx; the following TRANSACTION_RESULT, TRANSACTION_OUTPUT(s) and the
-     * STATE_CHANGES emitted for it are attributed to it until the next SIGNED_TRANSACTION or ROUND_HEADER.
-     */
-    private static List<TxRecord> extractRound(final Block block, final long round) {
-        final List<TxRecord> out = new ArrayList<>();
-        long current = -1;
-        boolean inRound = false;
-
-        String txId = null;
-        Object result = null;
-        List<Object> outputs = new ArrayList<>();
-        List<StateChange> stateChanges = new ArrayList<>();
-        boolean have = false;
-
-        for (final BlockItem item : block.items()) {
-            if (item.hasRoundHeader()) {
-                if (have && inRound) {
-                    out.add(new TxRecord(txId, result, outputs, stateChanges));
-                }
-                have = false;
-                txId = null;
-                result = null;
-                outputs = new ArrayList<>();
-                stateChanges = new ArrayList<>();
-                current = item.roundHeader().roundNumber();
-                inRound = current == round;
-                continue;
-            }
-            if (!inRound) {
-                continue;
-            }
-            switch (item.item().kind()) {
-                case SIGNED_TRANSACTION -> {
-                    if (have) {
-                        out.add(new TxRecord(txId, result, outputs, stateChanges));
-                    }
-                    txId = txIdString(item.item().as());
-                    result = null;
-                    outputs = new ArrayList<>();
-                    stateChanges = new ArrayList<>();
-                    have = true;
-                }
-                case TRANSACTION_RESULT -> {
-                    if (have) {
-                        result = item.transactionResult();
-                    }
-                }
-                case TRANSACTION_OUTPUT -> {
-                    if (have && item.transactionOutput() != null) {
-                        outputs.add(item.transactionOutput());
-                    }
-                }
-                case STATE_CHANGES -> {
-                    if (have) {
-                        stateChanges.addAll(item.stateChangesOrThrow().stateChanges());
-                    }
-                }
-                default -> {
-                    /* ignore event headers, trace, proofs, headers */
-                }
-            }
-        }
-        if (have && inRound) {
-            out.add(new TxRecord(txId, result, outputs, stateChanges));
-        }
-        return out;
+    private static long minKey(final Map<Long, Path> m) {
+        return m.keySet().stream().mapToLong(Long::longValue).min().orElse(Long.MAX_VALUE);
     }
 
-    private static String txIdString(final Bytes transactionBytes) {
-        try {
-            final SignedTransaction st = SignedTransaction.PROTOBUF.parse(transactionBytes.toReadableSequentialData());
-            final TransactionBody body =
-                    TransactionBody.PROTOBUF.parse(st.bodyBytes().toReadableSequentialData());
-            final TransactionID id = body.transactionID();
-            if (id == null) {
-                return "<no-id>";
-            }
-            final var acct = id.accountID();
-            final long num = acct == null ? -1 : acct.accountNumOrElse(-1L);
-            final var start = id.transactionValidStart();
-            final long sec = start == null ? -1 : start.seconds();
-            final int nanos = start == null ? -1 : start.nanos();
-            return num + "@" + sec + "." + nanos + (id.nonce() != 0 ? ".n" + id.nonce() : "")
-                    + (id.scheduled() ? ".sched" : "");
-        } catch (final Exception e) {
-            return "<unparseable>";
-        }
-    }
-
-    private static Path findBlockContainingRound(final Path dir, final long round) throws IOException {
-        final Map<Long, Path> byNum = new TreeMap<>();
-        try (final Stream<Path> s = Files.walk(dir)) {
-            s.filter(p -> !Files.isDirectory(p))
-                    .filter(p -> BlockStreamAccess.isBlockFile(p, false))
-                    .forEach(p -> {
-                        final long n = BlockStreamAccess.extractBlockNumber(p);
-                        if (n != -1) {
-                            byNum.put(n, p);
-                        }
-                    });
-        }
-        for (final Path p : byNum.values()) {
-            final Block b = BlockStreamAccess.blockFrom(p);
-            for (final BlockItem item : b.items()) {
-                if (item.hasRoundHeader() && item.roundHeader().roundNumber() == round) {
-                    return p;
-                }
-            }
-        }
-        return null;
-    }
-
-    private static Map<Long, Path> indexByBlockNumber(final Path dir) throws IOException {
-        final Map<Long, Path> map = new TreeMap<>();
-        try (final Stream<Path> s = Files.walk(dir)) {
-            s.filter(p -> !Files.isDirectory(p))
-                    .filter(p -> BlockStreamAccess.isBlockFile(p, false))
-                    .forEach(p -> {
-                        final long n = BlockStreamAccess.extractBlockNumber(p);
-                        if (n != -1) {
-                            map.put(n, p);
-                        }
-                    });
-        }
-        return map;
+    private static long maxKey(final Map<Long, Path> m) {
+        return m.keySet().stream().mapToLong(Long::longValue).max().orElse(Long.MIN_VALUE);
     }
 
     private OutputRecordCompare() {}
