@@ -75,25 +75,21 @@ message BlockStreamInfo {
      * This is REQUIRED to implement the EVM `BLOCKHASH` opcode.
      * <p>
      * ### Field Length
-     * Each hash value SHALL be the trailing 256 bits of a SHA2-384 hash.<br/>
+     * Each hash value SHALL be the trailing 265 bits of a SHA2-384 hash.<br/>
      * The length of this field SHALL be an integer multiple of 32 bytes.<br/>
      * This field SHALL be at least 32 bytes.<br/>
-     * The maximum length of this field SHALL be 8192 bytes.<br/>
-     * After the cutover to block streams, and after each pre-cutover hash has
-     * fallen out of the byte array, each hash value SHALL be the trailing
-     * 256 bits of a SHA2-256 hash. The field length and maximum length SHALL
-     * remain the same (32 bytes).
+     * The maximum length of this field SHALL be 8192 bytes.
      */
     bytes trailing_block_hashes = 4;
 
     /**
-     * A SHA2-256 hash value.<br/>
+     * A SHA2-384 hash value.<br/>
      * This is the final hash of the "input" subtree for this block.
      */
     bytes input_tree_root_hash = 5;
 
     /**
-     * A SHA2-256 hash value.<br/>
+     * A SHA2-384 hash value.<br/>
      * This is the hash of consensus state at the _start_ of this block.
      */
     bytes start_of_block_state_hash = 6;
@@ -107,7 +103,7 @@ message BlockStreamInfo {
     uint64 num_preceding_state_changes_items = 7;
 
     /**
-     * A concatenation of SHA2-256 hash values.<br/>
+     * A concatenation of SHA2-384 hash values.<br/>
      * This is the "rightmost" values of the "output" subtree.
      * <p>
      * The subtree containing these hashes SHALL be constructed from all "output"
@@ -155,19 +151,19 @@ message BlockStreamInfo {
     proto.Timestamp last_handle_time = 13;
 
     /**
-     * A SHA2-256 hash value.<br/>
+     * A SHA2-384 hash value.<br/>
      * This is the final hash of the "consensus headers" subtree for this block.
      */
     bytes consensus_header_root_hash = 14;
 
     /**
-     * A SHA2-256 hash value.<br/>
+     * A SHA2-384 hash value.<br/>
        * This is the final hash of the "output" subtree for this block.
      */
     bytes output_item_root_hash = 15;
 
     /**
-     * A SHA2-256 hash value.<br/>
+     * A SHA2-384 hash value.<br/>
      * This is the final hash of the "trace data" subtree for this block.
      */
     bytes trace_data_root_hash = 16;

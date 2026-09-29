@@ -4,8 +4,6 @@ package org.hiero.consensus.gossip.impl.sync;
 import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
@@ -33,8 +31,9 @@ import org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcPeerProtocol;
 import org.hiero.consensus.gossip.impl.test.fixtures.sync.ConnectionFactory;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.Test;
 
@@ -56,7 +55,7 @@ public class RpcPeerProtocolTests {
         final ParallelExecutor executor = new CachedPoolParallelExecutor(getStaticThreadManager(), "a name");
         executor.start();
 
-        final Roster roster = RosterFactory.randomRoster(randotron, 2);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(randotron, 2);
 
         final NoOpMetrics metrics = new NoOpMetrics();
 
@@ -71,12 +70,11 @@ public class RpcPeerProtocolTests {
 
         for (int i = 0; i < 2; i++) {
 
-            final RosterEntry selfEntry = roster.rosterEntries().get(i);
-            final NodeId selfId = NodeId.of(selfEntry.nodeId());
+            final NodeId selfId = roster.nodeIdAtIndex(i);
 
             final List<PeerInfo> peers = Utilities.createPeerInfoList(roster, selfId);
             // other peer will be the only one in list of other peers
-            final NodeId otherPeer = peers.get(0).nodeId();
+            final NodeId otherPeer = peers.getFirst().nodeId();
 
             final RpcPeerProtocol peerProtocol = new RpcPeerProtocol(
                     selfId,

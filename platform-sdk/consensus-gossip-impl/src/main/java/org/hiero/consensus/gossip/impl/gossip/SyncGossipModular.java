@@ -4,8 +4,6 @@ package org.hiero.consensus.gossip.impl.gossip;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -36,9 +34,10 @@ import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
-import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
 import org.hiero.consensus.wiring.framework.wires.input.BindableInputWire;
 import org.hiero.consensus.wiring.framework.wires.input.NoInput;
@@ -83,15 +82,15 @@ public class SyncGossipModular implements Gossip {
             @NonNull final Time time,
             @NonNull final ThreadManager threadManager,
             @NonNull final KeysAndCerts ownKeysAndCerts,
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final NodeId selfId,
             @NonNull final SemanticVersion appVersion,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final Protocol reconnectProtocol) {
 
-        final RosterEntry selfEntry = RosterUtils.getRosterEntry(roster, selfId.id());
-        final X509Certificate selfCert = RosterUtils.fetchGossipCaCertificate(selfEntry);
+        final RosterEntryWrapper selfEntry = roster.rosterEntry(selfId);
+        final X509Certificate selfCert = selfEntry.gossipCaCertificate();
         final List<PeerInfo> peers;
         if (!CryptoUtils.checkCertificate(selfCert)) {
             // Do not make peer connections if the self node does not have a valid signing certificate in the roster.

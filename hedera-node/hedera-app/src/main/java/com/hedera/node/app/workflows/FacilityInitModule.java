@@ -250,7 +250,7 @@ public interface FacilityInitModule {
                         feeManager.updateSimpleFees(schema.genesisSimpleFeesSchedules(bootstrapConfig));
                 if (simpleFeesUpdateStatus != SUCCESS) {
                     throw new IllegalStateException(
-                            "Genesis simple fee schedules did not parse: " + simpleFeesUpdateStatus);
+                            "Genesis simple fee schedules were rejected: " + simpleFeesUpdateStatus);
                 }
                 throttleServiceManager.init(state, schema.genesisThrottleDefinitions(bootstrapConfig), true);
             }
@@ -295,7 +295,8 @@ public interface FacilityInitModule {
             simpleFeesContents = simpleFeesFile.contents();
         }
 
-        final var simpleStatus = feeManager.updateSimpleFees(simpleFeesContents);
+        // The schedule in state may predate calculators added by this version; it is refreshed after the upgrade
+        final var simpleStatus = feeManager.updateSimpleFees(simpleFeesContents, false);
         if (simpleStatus != SUCCESS) {
             throw new IllegalStateException("State file " + simpleFeesFileNum
                     + " did not contain parseable simple fee schedules: " + simpleStatus);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.throttle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL_LOCAL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
@@ -581,7 +582,10 @@ public class ThrottleAccumulator {
         // exemption
         // but this is only possible for the case of triggered transactions which is not yet implemented (see
         // MonoMultiplierSources.java)
-        final boolean isPayerThrottleExempt = throttleExempt(txnInfo.payerID(), configuration);
+        // Node-generated bundles must consume the dedicated CLPR capacity even though
+        // their node-account payers are otherwise exempt from throttling.
+        final boolean isPayerThrottleExempt =
+                function != CLPR_SUBMIT_BUNDLE && throttleExempt(txnInfo.payerID(), configuration);
         if (isPayerThrottleExempt) {
             return false;
         }
