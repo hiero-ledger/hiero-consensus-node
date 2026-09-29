@@ -169,8 +169,7 @@ public class ConsensusLayerFactory {
         modulesConfig = configuration.getConfigData(ModulesConfig.class);
         metrics = inputs.metrics();
         time = inputs.time();
-        rosterHistory = RosterWrapperHistory.of(
-                inputs.rosterHistory().history(), inputs.rosterHistory().rosters());
+        rosterHistory = RosterWrapperHistory.of(inputs.rosterInputs());
         keysAndCerts = inputs.keysAndCerts();
         selfId = inputs.selfId();
         recycleBin = inputs.recycleBin();
@@ -250,6 +249,7 @@ public class ConsensusLayerFactory {
         return new ConsensusLayerBuildingBlocks(
                 wiringModel,
                 configuration,
+                rosterHistory,
                 eventCreatorModule,
                 eventIntakeModule,
                 pcesModule,

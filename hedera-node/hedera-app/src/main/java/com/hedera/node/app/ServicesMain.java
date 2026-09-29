@@ -79,8 +79,9 @@ import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterInputs;
 import org.hiero.consensus.roster.ReadableRosterStore;
-import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
@@ -208,15 +209,15 @@ public class ServicesMain {
                 "Initial state hash: {}",
                 reservedState.hash() != null ? reservedState.hash().toHex() : "<null>");
 
-        final RosterHistory rosterHistory;
+        final RosterInputs rosterInputs;
         final List<RosterEntry> rosterEntries;
         if (isGenesis) {
             final var genesisRoster = hedera.genesisRosterOrThrow();
-            rosterHistory = RosterHistory.fromGenesis(genesisRoster);
+            rosterInputs = RosterUtils.rosterInputsFromGenesis(genesisRoster);
             rosterEntries = genesisRoster.rosterEntries();
         } else {
             final var rosterStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableRosterStore.class);
-            rosterHistory = rosterStore.getRosterHistory();
+            rosterInputs = rosterStore.getRosterInputs();
             rosterEntries = requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
         }
         final var keysAndCerts = initNodeSecurity(platformConfig, selfId, rosterEntries);
@@ -251,7 +252,7 @@ public class ServicesMain {
                         platformConfig,
                         platformContext.getMetrics(),
                         platformContext.getTime(),
-                        rosterHistory,
+                        rosterInputs,
                         keysAndCerts,
                         selfId,
                         platformContext.getRecycleBin(),

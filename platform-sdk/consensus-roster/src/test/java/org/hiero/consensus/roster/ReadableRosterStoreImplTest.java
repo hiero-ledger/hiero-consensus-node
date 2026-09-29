@@ -5,25 +5,18 @@ import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
 import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterState;
-import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.MapReadableKVState;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Random;
-import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -67,65 +60,5 @@ class ReadableRosterStoreImplTest {
                 .willReturn(
                         RosterState.newBuilder().candidateRosterHash(fakeHash).build());
         assertEquals(fakeHash, subject.getCandidateRosterHash());
-    }
-
-    @Test
-    void testCreateRosterHistory() {
-        final Random random = new Random();
-        final Roster activeRoster = RosterFactory.randomRoster(random, 4);
-        final Roster previousRoster = RosterFactory.randomRoster(random, 3);
-
-        setup(activeRoster, 16L, previousRoster);
-
-        final RosterHistory rosterHistory = subject.getRosterHistory();
-        assertEquals(previousRoster, rosterHistory.getPreviousRoster());
-        assertEquals(activeRoster, rosterHistory.getActiveRoster());
-    }
-
-    @Test
-    void testCreateRosterHistoryVerifyRound() {
-        final Random random = RandomUtils.getRandomPrintSeed();
-        final Roster activeRoster = RosterFactory.randomRoster(random, 4);
-        final Roster previousRoster = RosterFactory.randomRoster(random, 3);
-        setup(activeRoster, 16L, previousRoster);
-
-        final RosterHistory rosterHistory = subject.getRosterHistory();
-        assertEquals(activeRoster, rosterHistory.getActiveRoster());
-        assertEquals(previousRoster, rosterHistory.getPreviousRoster());
-
-        assertEquals(activeRoster, rosterHistory.getRosterForRound(16));
-        assertEquals(activeRoster, rosterHistory.getRosterForRound(18));
-        assertEquals(activeRoster, rosterHistory.getRosterForRound(100));
-        assertEquals(activeRoster, rosterHistory.getRosterForRound(Integer.MAX_VALUE));
-        assertEquals(previousRoster, rosterHistory.getRosterForRound(15));
-        assertEquals(previousRoster, rosterHistory.getRosterForRound(0));
-        assertNull(rosterHistory.getRosterForRound(-1));
-    }
-
-    @Test
-    void testCreateRosterHistoryNoRosters() {
-        assertThrows(NullPointerException.class, () -> subject.getRosterHistory());
-    }
-
-    private void setup(@NonNull final Roster activeRoster, final long round, @NonNull final Roster previousRoster) {
-        final Bytes activeRosterHash = RosterUtils.hash(activeRoster).getBytes();
-        final Bytes previousRosterHash = RosterUtils.hash(previousRoster).getBytes();
-
-        rosterMap.put(new ProtoBytes(activeRosterHash), activeRoster);
-        rosterMap.put(new ProtoBytes(previousRosterHash), previousRoster);
-
-        final List<RoundRosterPair> roundRosterPairs = List.of(
-                RoundRosterPair.newBuilder()
-                        .activeRosterHash(activeRosterHash)
-                        .roundNumber(round)
-                        .build(),
-                RoundRosterPair.newBuilder()
-                        .activeRosterHash(previousRosterHash)
-                        .roundNumber(0L)
-                        .build());
-        given(rosterState.get())
-                .willReturn(RosterState.newBuilder()
-                        .roundRosterPairs(roundRosterPairs)
-                        .build());
     }
 }

@@ -33,8 +33,8 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterInputs;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
-import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 
@@ -64,7 +64,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     protected final Time time;
 
     /** The roster history provided by the application to use at startup. */
-    protected final RosterHistory rosterHistory;
+    protected final RosterInputs rosterInputs;
 
     /** The unique identifier of this node within the network. */
     protected final NodeId selfId;
@@ -120,7 +120,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
      * @param configuration The configuration settings for the platform.
      * @param metrics The metrics system for monitoring and reporting platform performance.
      * @param time The time source for the platform, used for timestamping events and transactions.
-     * @param rosterHistory The roster history provided by the application to use at startup.
+     * @param rosterInputs The roster inputs provided by the application to use at startup.
      * @param keysAndCerts The cryptographic keys and certificates for the node, used for signing and verifying messages.
      * @param selfId The unique identifier of the node within the network.
      * @param recycleBin The recycle bin, which stores deleted files before they are permanently deleted.
@@ -138,7 +138,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final RosterHistory rosterHistory,
+            @NonNull final RosterInputs rosterInputs,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final NodeId selfId,
             @NonNull final RecycleBin recycleBin,
@@ -158,7 +158,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         this.configuration = requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
         this.time = requireNonNull(time);
-        this.rosterHistory = requireNonNull(rosterHistory);
+        this.rosterInputs = requireNonNull(rosterInputs);
         this.selfId = requireNonNull(selfId);
         this.keysAndCerts = requireNonNull(keysAndCerts);
         this.fileSystemManager = requireNonNull(fileSystemManager);
@@ -173,7 +173,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         this.consensusEventStreamName = requireNonNull(consensusEventStreamName);
         this.transactionOffsetNanos = transactionOffsetNanos;
 
-        logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", rosterHistory);
+        logger.info(STARTUP.getMarker(), "Starting with roster inputs:\n{}", rosterInputs);
     }
 
     /**
@@ -266,7 +266,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
                 configuration,
                 metrics,
                 time,
-                rosterHistory,
+                rosterInputs,
                 keysAndCerts,
                 selfId,
                 recycleBin,

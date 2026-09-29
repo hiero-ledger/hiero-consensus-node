@@ -19,7 +19,7 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.model.roster.RosterInputs;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
 
@@ -27,7 +27,7 @@ public record ConsensusLayerInputs(
         @NonNull Configuration configuration,
         @NonNull Metrics metrics,
         @NonNull Time time,
-        @NonNull RosterHistory rosterHistory,
+        @NonNull RosterInputs rosterInputs,
         @NonNull KeysAndCerts keysAndCerts,
         @NonNull NodeId selfId,
         @NonNull RecycleBin recycleBin,

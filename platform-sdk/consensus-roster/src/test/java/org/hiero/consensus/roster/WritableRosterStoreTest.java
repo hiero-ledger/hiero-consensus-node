@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Objects;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.hiero.consensus.model.roster.RosterInputs;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -273,10 +274,6 @@ class WritableRosterStoreTest {
                 readableRosterStore.getActiveRoster(),
                 roster3,
                 "Returned active roster should be the same as the one set");
-
-        final RosterHistory rosterHistory = readableRosterStore.getRosterHistory();
-        assertEquals(roster3, rosterHistory.getActiveRoster());
-        assertEquals(roster2, rosterHistory.getPreviousRoster());
     }
 
     @Test
@@ -293,9 +290,8 @@ class WritableRosterStoreTest {
         // the same, it will not set the roster
         writableRosterStore.putActiveRoster(roster, 2);
 
-        final RosterHistory rosterHistory = readableRosterStore.getRosterHistory();
-        assertEquals(roster, rosterHistory.getActiveRoster());
-        assertEquals(roster, rosterHistory.getPreviousRoster());
+        final RosterInputs rosterInputs = readableRosterStore.getRosterInputs();
+        assertEquals(1, rosterInputs.history().size());
     }
 
     @Test

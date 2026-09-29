@@ -13,11 +13,11 @@ import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
+import org.hiero.consensus.model.roster.RosterInputs;
 
 /**
  * Provides read-only methods for interacting with the underlying data storage mechanisms for
@@ -118,14 +118,17 @@ public class ReadableRosterStoreImpl implements ReadableRosterStore {
      */
     @NonNull
     @Override
-    public RosterHistory getRosterHistory() {
-        final List<RoundRosterPair> roundRosterPairs =
-                requireNonNull(rosterState.get()).roundRosterPairs();
-        final Map<Bytes, Roster> mappedRosterMap = roundRosterPairs.stream()
-                .collect(Collectors.toMap(
-                        RoundRosterPair::activeRosterHash,
-                        pair -> Objects.requireNonNull(get(pair.activeRosterHash()))));
-        return new RosterHistory(roundRosterPairs, mappedRosterMap);
+    public RosterInputs getRosterInputs() {
+        final RosterState rosterState = requireNonNull(this.rosterState.get());
+        final List<RoundRosterPair> history = rosterState.roundRosterPairs();
+        final Bytes candidateRosterHash = rosterState.candidateRosterHash();
+        final Map<Bytes, Roster> rosterMap = new HashMap<>(history.size() + 1);
+        history.forEach(pair -> rosterMap.put(pair.activeRosterHash(), requireNonNull(get(pair.activeRosterHash()))));
+        if (candidateRosterHash.length() > 0) {
+            rosterMap.put(candidateRosterHash, requireNonNull(get(candidateRosterHash)));
+        }
+
+        return new RosterInputs(history, rosterMap, candidateRosterHash);
     }
 
     /**

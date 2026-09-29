@@ -2,11 +2,8 @@
 package org.hiero.consensus.model.roster;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RoundRosterPair;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A {@code RosterWrapperHistory} is a utility class that allows for efficient lookup of the appropriate {@link RosterWrapper} for a given round number.
@@ -63,17 +60,15 @@ public class RosterWrapperHistory {
     }
 
     /**
-     * Creates a {@code RosterWrapperHistory} from a list of {@link RoundRosterPair} history and a map of roster hashes to {@link Roster} objects.
+     * Creates a {@code RosterWrapperHistory} from a {@link RosterInputs} instance.
      *
-     * @param history the list of {@link RoundRosterPair} history
-     * @param rosterMap the map of roster hashes to {@link Roster} objects
+     * @param rosterInputs the {@link RosterInputs} instance
      * @return a new {@code RosterWrapperHistory} instance
      */
-    public static RosterWrapperHistory of(
-            @NonNull final List<RoundRosterPair> history, @NonNull final Map<Bytes, Roster> rosterMap) {
-        final List<Entry> entries = history.stream()
+    public static RosterWrapperHistory of(@NonNull final RosterInputs rosterInputs) {
+        final List<Entry> entries = rosterInputs.history().stream()
                 .map(pair -> {
-                    final Roster roster = rosterMap.get(pair.activeRosterHash());
+                    final Roster roster = rosterInputs.rosters().get(pair.activeRosterHash());
                     return new Entry(pair.roundNumber(), RosterWrapper.of(roster));
                 })
                 .toList();

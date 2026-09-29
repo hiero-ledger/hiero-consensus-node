@@ -46,8 +46,9 @@ class RosterWrapperHistoryTest {
         final List<RoundRosterPair> pairs =
                 List.of(new RoundRosterPair(ROUND_1, hash1), new RoundRosterPair(ROUND_2, hash2));
         final Map<Bytes, Roster> rosterMap = Map.of(hash1, ROSTER_1.toPbj(), hash2, ROSTER_2.toPbj());
+        final RosterInputs rosterInputs = new RosterInputs(pairs, rosterMap, Bytes.EMPTY);
 
-        final RosterWrapperHistory rosterHistory = RosterWrapperHistory.of(pairs, rosterMap);
+        final RosterWrapperHistory rosterHistory = RosterWrapperHistory.of(rosterInputs);
 
         assertRosterHistory(rosterHistory);
     }
