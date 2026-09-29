@@ -397,7 +397,7 @@ jobs:
 
   tag-sdct-result:
     name: Tag SDCT Result
-    runs-on: hl-cn-sdct-lin-sm
+    runs-on: hl-cn-sdct-lin
     needs:
       - canonical-test
     # Runs for every test and reports the tag result; only the full SDCT test (sdct) creates and pushes the tag
@@ -459,7 +459,7 @@ jobs:
 
   report-failure:
     name: Report SDCT execution failure
-    runs-on: hl-cn-sdct-lin-sm
+    runs-on: hl-cn-sdct-lin
     needs:
       - canonical-test
       - tag-sdct-result
