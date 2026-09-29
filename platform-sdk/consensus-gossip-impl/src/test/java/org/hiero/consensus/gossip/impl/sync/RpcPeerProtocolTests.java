@@ -4,8 +4,6 @@ package org.hiero.consensus.gossip.impl.sync;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
@@ -44,8 +42,9 @@ import org.hiero.consensus.gossip.impl.network.protocol.rpc.RpcPeerProtocol;
 import org.hiero.consensus.gossip.impl.test.fixtures.sync.ConnectionFactory;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -170,7 +169,7 @@ public class RpcPeerProtocolTests {
         startExecutor();
 
         final Randotron randotron = Randotron.create();
-        final Roster roster = RosterFactory.randomRoster(randotron, ROSTER_SIZE);
+        final Roster roster = RosterWrapperFactory.randomRoster(randotron, ROSTER_SIZE);
         final Configuration configuration = defaultConfig();
         final NoOpMetrics metrics = new NoOpMetrics();
 
@@ -314,7 +313,7 @@ public class RpcPeerProtocolTests {
         startExecutor();
 
         final Randotron randotron = Randotron.create();
-        final Roster roster = RosterFactory.randomRoster(randotron, ROSTER_SIZE);
+        final Roster roster = RosterWrapperFactory.randomRoster(randotron, ROSTER_SIZE);
         final NoOpMetrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
 

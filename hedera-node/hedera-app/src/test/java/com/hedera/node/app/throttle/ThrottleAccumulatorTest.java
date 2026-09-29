@@ -71,7 +71,9 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.ThrottleBucket;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
+import com.hedera.hapi.node.transaction.ThrottleGroup;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ScaleFactor;
@@ -225,6 +227,43 @@ public class ThrottleAccumulatorTest {
         lenient().when(configuration.getConfigData(FeesConfig.class)).thenReturn(feesConfig);
         lenient().when(configuration.getConfigData(NetworkAdminConfig.class)).thenReturn(networkAdminConfig);
         lenient().when(networkAdminConfig.highVolumeThrottlesEnabled()).thenReturn(true);
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = ThrottleAccumulator.ThrottleType.class,
+            names = {"FRONTEND_THROTTLE", "BACKEND_THROTTLE"})
+    void nodePayersCannotBypassClprBundleCapacity(final ThrottleAccumulator.ThrottleType throttleType) {
+        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new ThrottleAccumulator(
+                () -> 1,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        final var function = com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
+        subject.rebuildFor(ThrottleDefinitions.newBuilder()
+                .throttleBuckets(ThrottleBucket.newBuilder()
+                        .name("ClprBundles")
+                        .burstPeriodMs(1000)
+                        .throttleGroups(ThrottleGroup.newBuilder()
+                                .milliOpsPerSec(1000)
+                                .operations(function)
+                                .build())
+                        .build())
+                .build());
+        given(transactionInfo.functionality()).willReturn(function);
+        given(transactionInfo.txBody()).willReturn(TransactionBody.DEFAULT);
+        lenient()
+                .when(transactionInfo.payerID())
+                .thenReturn(AccountID.newBuilder().accountNum(3).build());
+
+        assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false));
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false));
+        assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusSeconds(1), state, null, false));
     }
 
     @Test
