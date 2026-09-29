@@ -716,17 +716,10 @@ public class HapiSpecSetup {
 
     /**
      * Returns the set of response codes that should be always be enforced on ingest. When
-     * {@link HapiTxnOp#hasPrecheck(ResponseCodeEnum)} is given a response code <i>not</i> in
-     * this set, it will automatically accept {@code OK} in its place, but switch the expected
-     * consensus status to that response code.
-     *
-     * <p>That is, for a non-streamlined status like {@link ResponseCodeEnum#INVALID_ACCOUNT_AMOUNTS},
-     * {@code hasPrecheck(INVALID_ACCOUNT_AMOUNTS)} is equivalent to,
-     * <pre>{@code
-     *     cryptoTransfer(...)
-     *         .hasPrecheckFrom(OK, INVALID_ACCOUNT_AMOUNTS)
-     *         .hasKnownStatus(INVALID_ACCOUNT_AMOUNTS)
-     * }</pre>
+     * {@link HapiTxnOp#hasPrecheck(ResponseCodeEnum)} is given a response code in this set,
+     * the precheck must be exactly that response code; {@code OK} is not accepted in its place.
+     * A test expecting such a code to be returned only at consensus should use
+     * {@link HapiTxnOp#hasKnownStatus(ResponseCodeEnum)} instead.
      *
      * @return the set of response codes that should be always be enforced on ingest
      */

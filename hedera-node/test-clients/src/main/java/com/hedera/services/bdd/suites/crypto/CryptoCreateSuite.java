@@ -235,12 +235,12 @@ public class CryptoCreateSuite {
                         .balance(ONE_HUNDRED_HBARS)
                         .declinedReward(false)
                         .stakedAccountId("0")
-                        .hasPrecheck(INVALID_STAKING_ID),
+                        .hasKnownStatus(INVALID_STAKING_ID),
                 cryptoCreate("invalidStakedNode")
                         .balance(ONE_HUNDRED_HBARS)
                         .declinedReward(false)
                         .stakedNodeId(-1L)
-                        .hasPrecheck(INVALID_STAKING_ID));
+                        .hasKnownStatus(INVALID_STAKING_ID));
     }
 
     @HapiTest
@@ -293,8 +293,8 @@ public class CryptoCreateSuite {
     @HapiTest
     final Stream<DynamicTest> syntaxChecksAreAsExpected() {
         return hapiTest(
-                cryptoCreate("broken").autoRenewSecs(1L).hasPrecheck(AUTORENEW_DURATION_NOT_IN_RANGE),
-                cryptoCreate("alsoBroken").entityMemo(ZERO_BYTE_MEMO).hasPrecheck(INVALID_ZERO_BYTE_IN_STRING));
+                cryptoCreate("broken").autoRenewSecs(1L).hasKnownStatus(AUTORENEW_DURATION_NOT_IN_RANGE),
+                cryptoCreate("alsoBroken").entityMemo(ZERO_BYTE_MEMO).hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING));
     }
 
     @HapiTest
@@ -351,7 +351,7 @@ public class CryptoCreateSuite {
                 .keyShape(shape)
                 .balance(initialBalance)
                 .logged()
-                .hasPrecheck(INVALID_ADMIN_KEY));
+                .hasKnownStatus(INVALID_ADMIN_KEY));
     }
 
     // One of element in nested key list is not valid
@@ -365,7 +365,7 @@ public class CryptoCreateSuite {
                 .keyShape(shape)
                 .balance(initialBalance)
                 .logged()
-                .hasPrecheck(INVALID_ADMIN_KEY));
+                .hasKnownStatus(INVALID_ADMIN_KEY));
     }
 
     // One of element in threshold key is not valid
@@ -408,19 +408,19 @@ public class CryptoCreateSuite {
                         .keyShape(thresholdShape)
                         .balance(initialBalance)
                         .logged()
-                        .hasPrecheck(INVALID_ADMIN_KEY),
+                        .hasKnownStatus(INVALID_ADMIN_KEY),
                 cryptoCreate("badThresholdKeyAccount2")
                         .key("regKey1")
                         .balance(initialBalance)
                         .logged()
                         .signedBy(GENESIS)
-                        .hasPrecheck(INVALID_ADMIN_KEY),
+                        .hasKnownStatus(INVALID_ADMIN_KEY),
                 cryptoCreate("badThresholdKeyAccount3")
                         .key("regKey2")
                         .balance(initialBalance)
                         .logged()
                         .signedBy(GENESIS)
-                        .hasPrecheck(INVALID_ADMIN_KEY));
+                        .hasKnownStatus(INVALID_ADMIN_KEY));
     }
 
     @HapiTest
@@ -441,12 +441,12 @@ public class CryptoCreateSuite {
                         .keyShape(shape0)
                         .balance(initialBalance)
                         .logged()
-                        .hasPrecheck(INVALID_ADMIN_KEY),
+                        .hasKnownStatus(INVALID_ADMIN_KEY),
                 cryptoCreate(NO_KEYS)
                         .keyShape(shape4)
                         .balance(initialBalance)
                         .logged()
-                        .hasPrecheck(INVALID_ADMIN_KEY));
+                        .hasKnownStatus(INVALID_ADMIN_KEY));
     }
 
     @HapiTest
@@ -461,12 +461,12 @@ public class CryptoCreateSuite {
                         .keyShape(thresholdShape0)
                         .balance(initialBalance)
                         .logged()
-                        .hasPrecheck(INVALID_ADMIN_KEY),
+                        .hasKnownStatus(INVALID_ADMIN_KEY),
                 cryptoCreate("badThresholdKeyAccount2")
                         .keyShape(thresholdShape4)
                         .balance(initialBalance)
                         .logged()
-                        .hasPrecheck(INVALID_ADMIN_KEY));
+                        .hasKnownStatus(INVALID_ADMIN_KEY));
     }
 
     @HapiTest
@@ -485,7 +485,7 @@ public class CryptoCreateSuite {
                         .balance(initialBalance)
                         .signedBy(GENESIS)
                         .logged()
-                        .hasPrecheck(INVALID_ADMIN_KEY),
+                        .hasKnownStatus(INVALID_ADMIN_KEY),
                 cryptoCreate(EMPTY_KEY_STRING)
                         .key(EMPTY_KEY_STRING)
                         .balance(initialBalance)
@@ -581,7 +581,7 @@ public class CryptoCreateSuite {
                     .key(ED_25519_KEY)
                     .alias(ed25519Key.toByteString())
                     .balance(1000 * ONE_HBAR)
-                    .hasPrecheck(INVALID_ALIAS_KEY);
+                    .hasKnownStatus(INVALID_ALIAS_KEY);
 
             allRunFor(spec, op);
         }));
@@ -600,7 +600,7 @@ public class CryptoCreateSuite {
                     .key(SECP_256K1_SOURCE_KEY)
                     .alias(ecdsaKey.toByteString())
                     .balance(100 * ONE_HBAR)
-                    .hasPrecheck(INVALID_ALIAS_KEY);
+                    .hasKnownStatus(INVALID_ALIAS_KEY);
             final var op2 =
                     cryptoCreate(ANOTHER_ACCOUNT).key(SECP_256K1_SOURCE_KEY).balance(100 * ONE_HBAR);
             final var op3 = cryptoCreate(ACCOUNT)
@@ -632,7 +632,7 @@ public class CryptoCreateSuite {
                                     .key(ED_KEY)
                                     .alias(ecdsaKey.toByteString())
                                     .balance(100 * ONE_HBAR)
-                                    .hasPrecheck(INVALID_ALIAS_KEY);
+                                    .hasKnownStatus(INVALID_ALIAS_KEY);
                     allRunFor(spec, op);
                 }));
     }
@@ -662,14 +662,14 @@ public class CryptoCreateSuite {
                             .balance(100 * ONE_HBAR)
                             .signedBy(GENESIS, SECP_256K1_SOURCE_KEY)
                             .sigMapPrefixes(uniqueWithFullPrefixesFor(SECP_256K1_SOURCE_KEY))
-                            .hasPrecheck(ALIAS_ALREADY_ASSIGNED);
+                            .hasKnownStatus(ALIAS_ALREADY_ASSIGNED);
                     final var op3 = cryptoCreate(ACCOUNT)
                             .key(edKey)
                             .alias(evmAddressBytes)
                             .balance(100 * ONE_HBAR)
                             .signedBy(GENESIS, SECP_256K1_SOURCE_KEY)
                             .sigMapPrefixes(uniqueWithFullPrefixesFor(SECP_256K1_SOURCE_KEY))
-                            .hasPrecheck(ALIAS_ALREADY_ASSIGNED);
+                            .hasKnownStatus(ALIAS_ALREADY_ASSIGNED);
                     allRunFor(spec, op, op2, op3);
                     var hapiGetAccountInfo = getAccountInfo(ACCOUNT)
                             .has(accountWith()
@@ -733,7 +733,7 @@ public class CryptoCreateSuite {
                                     .key(SECP_256K1_SOURCE_KEY)
                                     .alias(edKey.toByteString())
                                     .balance(100 * ONE_HBAR)
-                                    .hasPrecheck(INVALID_ALIAS_KEY);
+                                    .hasKnownStatus(INVALID_ALIAS_KEY);
                     allRunFor(spec, op);
                 }));
     }
@@ -984,7 +984,7 @@ public class CryptoCreateSuite {
                     .key(SECP_256K1_SOURCE_KEY)
                     .alias(evmAddressBytes)
                     .balance(100 * ONE_HBAR)
-                    .hasPrecheck(ALIAS_ALREADY_ASSIGNED);
+                    .hasKnownStatus(ALIAS_ALREADY_ASSIGNED);
 
             allRunFor(spec, op, op2, op3, op4, op5, op6);
             var hapiGetAccountInfo = getAliasedAccountInfo(evmAddressBytes)

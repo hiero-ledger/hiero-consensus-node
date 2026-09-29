@@ -81,7 +81,7 @@ public class NodeUpdateTest {
     @HapiTest
     @DisplayName("cannot update a missing nodeid")
     final Stream<DynamicTest> updateMissingNodeFail() {
-        return hapiTest(nodeUpdate("100").hasPrecheck(INVALID_NODE_ID));
+        return hapiTest(nodeUpdate("100").hasKnownStatus(INVALID_NODE_ID));
     }
 
     @HapiTest
@@ -95,7 +95,7 @@ public class NodeUpdateTest {
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 nodeDelete("testNode"),
-                nodeUpdate("testNode").hasPrecheck(INVALID_NODE_ID));
+                nodeUpdate("testNode").hasKnownStatus(INVALID_NODE_ID));
     }
 
     @HapiTest
@@ -138,7 +138,7 @@ public class NodeUpdateTest {
                 nodeCreate("testNode", nodeAccount)
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                nodeUpdate("testNode").accountId("0.0.100").hasPrecheck(UPDATE_NODE_ACCOUNT_NOT_ALLOWED));
+                nodeUpdate("testNode").accountId("0.0.100").hasKnownStatus(UPDATE_NODE_ACCOUNT_NOT_ALLOWED));
     }
 
     @HapiTest
@@ -345,7 +345,7 @@ public class NodeUpdateTest {
                 nodeUpdate("ntb")
                         .payingWith("payer")
                         .accountId("0.0.1000")
-                        .hasPrecheck(INVALID_SIGNATURE)
+                        .hasKnownStatus(INVALID_SIGNATURE)
                         .fee(ONE_HBAR)
                         .via("updateNode"));
     }
@@ -475,7 +475,7 @@ public class NodeUpdateTest {
                 nodeCreate("testNode", nodeAccount)
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                nodeUpdate("testNode").signedBy(ADDRESS_BOOK_CONTROL).hasPrecheck(INVALID_SIGNATURE));
+                nodeUpdate("testNode").signedBy(ADDRESS_BOOK_CONTROL).hasKnownStatus(INVALID_SIGNATURE));
     }
 
     @HapiTest

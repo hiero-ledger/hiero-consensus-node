@@ -522,7 +522,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .signingWith("unrelatedKey")
                             .payingWith(RELAYER)
                             .gasLimit(1_000_000L)
-                            .hasPrecheck(INVALID_ACCOUNT_ID));
+                            .hasKnownStatus(INVALID_ACCOUNT_ID));
         }
 
         @HapiTest

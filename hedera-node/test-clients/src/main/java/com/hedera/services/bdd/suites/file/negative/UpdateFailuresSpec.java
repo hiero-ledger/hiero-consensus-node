@@ -63,12 +63,12 @@ public class UpdateFailuresSpec {
         // this test is to verify that the system files cannot be updated without privileged account
         return hapiTest(
                 cryptoCreate(CIVILIAN),
-                fileUpdate(ADDRESS_BOOK).payingWith(CIVILIAN).hasPrecheckFrom(AUTHORIZATION_FAILED),
-                fileUpdate(NODE_DETAILS).payingWith(CIVILIAN).hasPrecheckFrom(AUTHORIZATION_FAILED),
-                fileUpdate(API_PERMISSIONS).payingWith(CIVILIAN).hasPrecheckFrom(AUTHORIZATION_FAILED),
-                fileUpdate(APP_PROPERTIES).payingWith(CIVILIAN).hasPrecheckFrom(AUTHORIZATION_FAILED),
-                fileUpdate(SIMPLE_FEE_SCHEDULE).payingWith(CIVILIAN).hasPrecheckFrom(AUTHORIZATION_FAILED),
-                fileUpdate(EXCHANGE_RATES).payingWith(CIVILIAN).hasPrecheckFrom(AUTHORIZATION_FAILED));
+                fileUpdate(ADDRESS_BOOK).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED),
+                fileUpdate(NODE_DETAILS).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED),
+                fileUpdate(API_PERMISSIONS).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED),
+                fileUpdate(APP_PROPERTIES).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED),
+                fileUpdate(SIMPLE_FEE_SCHEDULE).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED),
+                fileUpdate(EXCHANGE_RATES).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED));
     }
 
     @HapiTest
@@ -77,7 +77,7 @@ public class UpdateFailuresSpec {
         // files is still a privileged target: an unprivileged payer is rejected at ingest.
         return hapiTest(
                 cryptoCreate(CIVILIAN),
-                fileUpdate("0.0.3").payingWith(CIVILIAN).signedBy(CIVILIAN).hasPrecheckFrom(AUTHORIZATION_FAILED));
+                fileUpdate("0.0.3").payingWith(CIVILIAN).signedBy(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED));
     }
 
     @HapiTest
@@ -105,7 +105,7 @@ public class UpdateFailuresSpec {
         long now = Instant.now().getEpochSecond();
         return hapiTest(
                 fileCreate("file"),
-                fileUpdate("file").fee(A_LOT).extendingExpiryBy(-now).hasPrecheck(AUTORENEW_DURATION_NOT_IN_RANGE));
+                fileUpdate("file").fee(A_LOT).extendingExpiryBy(-now).hasKnownStatus(AUTORENEW_DURATION_NOT_IN_RANGE));
     }
 
     @HapiTest

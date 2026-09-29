@@ -80,7 +80,7 @@ public class FileCreateSuite {
     final Stream<DynamicTest> createFailsWithExcessiveLifetime() {
         return hapiTest(doWithStartupConfig("entities.maxLifetime", value -> fileCreate("test")
                 .lifetime(Long.parseLong(value) + 12_345L)
-                .hasPrecheck(AUTORENEW_DURATION_NOT_IN_RANGE)));
+                .hasKnownStatus(AUTORENEW_DURATION_NOT_IN_RANGE)));
     }
 
     @HapiTest
@@ -142,7 +142,7 @@ public class FileCreateSuite {
         System.out.println(now.getEpochSecond());
 
         return hapiTest(
-                fileCreate("notHere").lifetime(-60L).hasPrecheck(ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE));
+                fileCreate("notHere").lifetime(-60L).hasKnownStatus(ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE));
     }
 
     @HapiTest

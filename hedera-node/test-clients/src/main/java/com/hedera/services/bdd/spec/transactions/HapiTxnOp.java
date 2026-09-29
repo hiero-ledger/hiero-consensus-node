@@ -326,7 +326,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                 } else {
                     permissibleStatuses = Optional.of(EnumSet.copyOf(List.of(INVALID_ALIAS_KEY, INVALID_SIGNATURE)));
                 }
-                permissiblePrechecks = Optional.of(EnumSet.of(OK, expectedIngestStatus));
+                permissiblePrechecks = Optional.of(EnumSet.of(expectedIngestStatus));
             }
             if (permissiblePrechecks.isPresent()) {
                 if (permissiblePrechecks.get().contains(actualPrecheck)) {

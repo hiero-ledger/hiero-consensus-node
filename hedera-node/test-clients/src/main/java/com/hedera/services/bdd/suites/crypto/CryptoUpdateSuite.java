@@ -318,7 +318,7 @@ public class CryptoUpdateSuite {
                         .key(secondKey)
                         .signedBy(firstKey)
                         .payingWith(GENESIS)
-                        .hasPrecheck(INVALID_SIGNATURE));
+                        .hasKnownStatus(INVALID_SIGNATURE));
     }
 
     @HapiTest
@@ -327,7 +327,7 @@ public class CryptoUpdateSuite {
         String secondMemo = "Second";
         return hapiTest(
                 cryptoCreate(TARGET_ACCOUNT).balance(0L).entityMemo(firstMemo),
-                cryptoUpdate(TARGET_ACCOUNT).entityMemo(ZERO_BYTE_MEMO).hasPrecheck(INVALID_ZERO_BYTE_IN_STRING),
+                cryptoUpdate(TARGET_ACCOUNT).entityMemo(ZERO_BYTE_MEMO).hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING),
                 cryptoUpdate(TARGET_ACCOUNT).entityMemo(secondMemo),
                 getAccountDetails(TARGET_ACCOUNT)
                         .payingWith(GENESIS)
@@ -428,7 +428,7 @@ public class CryptoUpdateSuite {
                 newKeyNamed(ORIG_KEY).shape(KeyShape.SIMPLE),
                 newKeyNamed(UPD_KEY).shape(updKeySigs),
                 cryptoCreate(TEST_ACCOUNT).key(ORIG_KEY),
-                cryptoUpdate(TEST_ACCOUNT).key(UPD_KEY).hasPrecheck(INVALID_ADMIN_KEY));
+                cryptoUpdate(TEST_ACCOUNT).key(UPD_KEY).hasKnownStatus(INVALID_ADMIN_KEY));
     }
 
     @HapiTest

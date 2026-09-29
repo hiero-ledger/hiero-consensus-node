@@ -524,13 +524,13 @@ public class CryptoApproveAllowanceSuite {
                         .addDelegatedNftAllowance(
                                 OWNER, NON_FUNGIBLE_TOKEN, delegatingSpender, newSpender, false, List.of(2L))
                         .signedBy(DEFAULT_PAYER, newSpender)
-                        .hasPrecheck(DELEGATING_SPENDER_DOES_NOT_HAVE_APPROVE_FOR_ALL),
+                        .hasKnownStatus(DELEGATING_SPENDER_DOES_NOT_HAVE_APPROVE_FOR_ALL),
                 cryptoApproveAllowance()
                         .payingWith(DEFAULT_PAYER)
                         .addDelegatedNftAllowance(
                                 OWNER, NON_FUNGIBLE_TOKEN, newSpender, delegatingSpender, true, List.of())
                         .signedBy(DEFAULT_PAYER, OWNER)
-                        .hasPrecheck(DELEGATING_SPENDER_CANNOT_GRANT_APPROVE_FOR_ALL),
+                        .hasKnownStatus(DELEGATING_SPENDER_CANNOT_GRANT_APPROVE_FOR_ALL),
                 getTokenNftInfo(NON_FUNGIBLE_TOKEN, 2L).hasSpenderID(newSpender),
                 getTokenNftInfo(NON_FUNGIBLE_TOKEN, 1L).hasSpenderID(delegatingSpender),
                 cryptoApproveAllowance()
@@ -756,14 +756,14 @@ public class CryptoApproveAllowanceSuite {
                 cryptoApproveAllowance()
                         .addNftAllowance(TOKEN_TREASURY, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(4L))
                         .signedBy(TOKEN_TREASURY, DEFAULT_PAYER)
-                        .hasPrecheck(INVALID_TOKEN_NFT_SERIAL_NUMBER),
+                        .hasKnownStatus(INVALID_TOKEN_NFT_SERIAL_NUMBER),
                 cryptoApproveAllowance()
                         .addNftAllowance(TOKEN_TREASURY, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L, 3L))
                         .signedBy(TOKEN_TREASURY, DEFAULT_PAYER),
                 cryptoDeleteAllowance()
                         .addNftDeleteAllowance(TOKEN_TREASURY, NON_FUNGIBLE_TOKEN, List.of(4L))
                         .signedBy(TOKEN_TREASURY, DEFAULT_PAYER)
-                        .hasPrecheck(INVALID_TOKEN_NFT_SERIAL_NUMBER),
+                        .hasKnownStatus(INVALID_TOKEN_NFT_SERIAL_NUMBER),
                 getAccountDetails(TOKEN_TREASURY).payingWith(GENESIS),
                 cryptoTransfer(movingUniqueWithAllowance(NON_FUNGIBLE_TOKEN, 1L)
                                 .between(TOKEN_TREASURY, OTHER_RECEIVER))
@@ -815,20 +815,20 @@ public class CryptoApproveAllowanceSuite {
                         .addCryptoAllowance(OWNER, SPENDER, 100L)
                         .signedBy(PAYER, OWNER)
                         .blankMemo()
-                        .hasPrecheck(INVALID_ALLOWANCE_OWNER_ID),
+                        .hasKnownStatus(INVALID_ALLOWANCE_OWNER_ID),
                 cryptoApproveAllowance()
                         .payingWith(PAYER)
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
                         .signedBy(PAYER, OWNER)
                         .blankMemo()
-                        .hasPrecheck(INVALID_ALLOWANCE_OWNER_ID),
+                        .hasKnownStatus(INVALID_ALLOWANCE_OWNER_ID),
                 cryptoApproveAllowance()
                         .payingWith(PAYER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
                         .signedBy(PAYER, OWNER)
                         .via(BASE_APPROVE_TXN)
                         .blankMemo()
-                        .hasPrecheck(INVALID_ALLOWANCE_OWNER_ID),
+                        .hasKnownStatus(INVALID_ALLOWANCE_OWNER_ID),
                 getAccountDetails(OWNER).has(accountDetailsWith().deleted(true)).payingWith(GENESIS));
     }
 
@@ -1172,7 +1172,7 @@ public class CryptoApproveAllowanceSuite {
                         .payingWith(OWNER)
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 5000L)
                         .fee(ONE_HUNDRED_HBARS)
-                        .hasPrecheck(AMOUNT_EXCEEDS_TOKEN_MAX_SUPPLY));
+                        .hasKnownStatus(AMOUNT_EXCEEDS_TOKEN_MAX_SUPPLY));
     }
 
     @HapiTest
@@ -1202,12 +1202,12 @@ public class CryptoApproveAllowanceSuite {
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1000L))
                         .fee(ONE_HUNDRED_HBARS)
-                        .hasPrecheck(INVALID_TOKEN_NFT_SERIAL_NUMBER),
+                        .hasKnownStatus(INVALID_TOKEN_NFT_SERIAL_NUMBER),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(-1000L))
                         .fee(ONE_HUNDRED_HBARS)
-                        .hasPrecheck(INVALID_TOKEN_NFT_SERIAL_NUMBER),
+                        .hasKnownStatus(INVALID_TOKEN_NFT_SERIAL_NUMBER),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(3L))
@@ -1255,12 +1255,12 @@ public class CryptoApproveAllowanceSuite {
                         .payingWith(OWNER)
                         .addTokenAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, 100L)
                         .fee(ONE_HUNDRED_HBARS)
-                        .hasPrecheck(NFT_IN_FUNGIBLE_TOKEN_ALLOWANCES),
+                        .hasKnownStatus(NFT_IN_FUNGIBLE_TOKEN_ALLOWANCES),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
                         .fee(ONE_HUNDRED_HBARS)
-                        .hasPrecheck(FUNGIBLE_TOKEN_IN_NFT_ALLOWANCES));
+                        .hasKnownStatus(FUNGIBLE_TOKEN_IN_NFT_ALLOWANCES));
     }
 
     @HapiTest
@@ -1303,12 +1303,12 @@ public class CryptoApproveAllowanceSuite {
                         .payingWith(OWNER)
                         .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, SPENDER, 100L)
                         .fee(ONE_HUNDRED_HBARS)
-                        .hasPrecheck(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
+                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
                 cryptoApproveAllowance()
                         .payingWith(OWNER)
                         .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, SPENDER, false, List.of(1L))
                         .fee(ONE_HUNDRED_HBARS)
-                        .hasPrecheck(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
+                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
                 getAccountDetails(OWNER)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()

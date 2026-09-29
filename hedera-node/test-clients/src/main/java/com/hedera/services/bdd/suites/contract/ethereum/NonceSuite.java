@@ -98,7 +98,7 @@ public class NonceSuite {
                         .hasRetryPrecheckFrom(BUSY)
                         .nonce(0)
                         .gasLimit(ENOUGH_GAS_LIMIT)
-                        .hasPrecheck(INVALID_ACCOUNT_ID),
+                        .hasKnownStatus(INVALID_ACCOUNT_ID),
                 getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).hasCostAnswerPrecheck(INVALID_ACCOUNT_ID));
     }
 
@@ -135,7 +135,7 @@ public class NonceSuite {
                         .nonce(0)
                         .maxGasAllowance(-1L)
                         .gasLimit(ENOUGH_GAS_LIMIT)
-                        .hasPrecheck(NEGATIVE_ALLOWANCE_AMOUNT),
+                        .hasKnownStatus(NEGATIVE_ALLOWANCE_AMOUNT),
                 getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(0L)));
     }
 

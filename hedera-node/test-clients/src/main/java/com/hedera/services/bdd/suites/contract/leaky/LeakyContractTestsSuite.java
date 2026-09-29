@@ -519,8 +519,8 @@ public class LeakyContractTestsSuite {
                 overriding("contracts.maxGasPerSec", "100"),
                 contractCall(SIMPLE_UPDATE_CONTRACT, "set", BigInteger.valueOf(5), BigInteger.valueOf(42))
                         .gas(23_000L)
-                        .hasPrecheck(MAX_GAS_LIMIT_EXCEEDED),
-                contractCreate(EMPTY_CONSTRUCTOR_CONTRACT).gas(1_000_000L).hasPrecheck(MAX_GAS_LIMIT_EXCEEDED));
+                        .hasKnownStatus(MAX_GAS_LIMIT_EXCEEDED),
+                contractCreate(EMPTY_CONSTRUCTOR_CONTRACT).gas(1_000_000L).hasKnownStatus(MAX_GAS_LIMIT_EXCEEDED));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
@@ -1430,7 +1430,7 @@ public class LeakyContractTestsSuite {
                                 .nonce(0)
                                 .gasPrice(0L)
                                 .gasLimit(1_000_000L)
-                                .hasPrecheck(INVALID_CONTRACT_ID))));
+                                .hasKnownStatus(INVALID_CONTRACT_ID))));
     }
 
     @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
