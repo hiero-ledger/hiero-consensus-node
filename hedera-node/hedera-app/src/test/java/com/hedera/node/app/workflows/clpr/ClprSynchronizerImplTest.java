@@ -499,7 +499,7 @@ class ClprSynchronizerImplTest {
             assertThat(lowRep.rawScore()).isCloseTo(0.1, offset(0.0001));
 
             final var peers = List.of("high", "mid", "low");
-            final int trials = 1_000;
+            final int trials = 10_000;
             int highCount = 0;
             int midCount = 0;
             int lowCount = 0;
