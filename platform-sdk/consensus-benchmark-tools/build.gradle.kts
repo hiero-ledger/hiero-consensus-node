@@ -12,4 +12,6 @@ testModuleInfo {
     requires("org.junit.jupiter.params")
 }
 
-jmhModuleInfo {}
+jmhModuleInfo {
+    requires("org.hiero.consensus.benchmark.tools")
+}
