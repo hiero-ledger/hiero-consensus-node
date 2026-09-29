@@ -95,7 +95,7 @@ modules, other modules are expected to depend on them; the implementation stays 
 - `consensus-reconnect-impl` — reconnect implementation; moves with `consensus-reconnect`.
 
 **Tooling modules** — not part of the runtime module graph; have relaxed dependency rules:
-- `consensus-gui`, `consensus-network-simulation`, `consensus-otter-docker-app`, `consensus-otter-tests`, `consensus-sloth`
+- `consensus-benchmark-tools`, `consensus-gui`, `consensus-network-simulation`, `consensus-otter-docker-app`, `consensus-otter-tests`, `consensus-sloth`
 
 **Fake modules** — implementations for tools and tests only, never for production code: no-op
 implementations, deliberately insecure cryptographic entities, and the like. May depend on any

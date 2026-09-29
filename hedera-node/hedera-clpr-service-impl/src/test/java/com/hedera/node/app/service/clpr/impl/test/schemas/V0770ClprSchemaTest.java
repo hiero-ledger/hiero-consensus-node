@@ -80,7 +80,11 @@ class V0770ClprSchemaTest {
 
         subject.migrate(migrationContext);
 
-        verify(configurationState).put(org.mockito.ArgumentMatchers.any(ClprLedgerConfiguration.class));
+        verify(configurationState).put(org.mockito.ArgumentMatchers.assertArg(ledgerConfig -> {
+            final var throttles = ledgerConfig.throttlesOrThrow();
+            assertThat(throttles.maxMessagesPerBundle()).isEqualTo(1000);
+            assertThat(throttles.maxGasPerMessage()).isEqualTo(15_000_000L);
+        }));
         verify(manifestState).put(org.mockito.ArgumentMatchers.any(ClprEndpointManifest.class));
     }
 

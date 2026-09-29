@@ -10,6 +10,7 @@ import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.
 import static com.hedera.node.app.spi.key.KeyVerifier.NO_AUTHORIZING_KEYS;
 import static com.hedera.node.app.spi.workflows.ComputeDispatchFeesAsTopLevel.YES;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.UsePresetTxnId.NO;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.ATTRIBUTED_BATCH_INNER_ID;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.PRE_HANDLE_FAILURE;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
@@ -212,6 +213,11 @@ public class ChildDispatchFactory {
                 stack, options.reversingBehavior(), options.category(), options.signedTxCustomizer(), streamMode);
         final var streamBuilder =
                 initializedForChild(childStack.getBaseBuilder(StreamBuilder.class), requireNonNull(childTxnInfo));
+        // A dispatch made after the batch inner that caused it has already unwound cannot have its owner inferred
+        // from the stack, so the caller names that owner explicitly here
+        options.dispatchMetadata()
+                .getMetadata(ATTRIBUTED_BATCH_INNER_ID, TransactionID.class)
+                .ifPresent(ownerId -> childStack.trackBatchInnerId(streamBuilder, ownerId));
         return newChildDispatch(
                 streamBuilder,
                 childTxnInfo,

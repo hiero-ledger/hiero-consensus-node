@@ -193,7 +193,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         branchReporterWiring.getInputWire(BranchReporter::clear);
 
         // Create and bind components
-        final RosterWrapper currentRoster = rosterHistory.activeRoster();
+        final RosterWrapper activeRoster = rosterHistory.activeRoster();
         final EventHasher eventHasher = new DefaultEventHasher();
         eventHasherWiring.bind(eventHasher);
         final InternalEventValidator internalEventValidator = new DefaultInternalEventValidator(
@@ -206,9 +206,9 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         eventSignatureValidatorWiring.bind(eventSignatureValidator);
         final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
         orphanBufferWiring.bind(orphanBuffer);
-        final BranchDetector branchDetector = new DefaultBranchDetector(currentRoster);
+        final BranchDetector branchDetector = new DefaultBranchDetector(activeRoster);
         branchDetectorWiring.bind(branchDetector);
-        final BranchReporter branchReporter = new DefaultBranchReporter(metrics, time, currentRoster);
+        final BranchReporter branchReporter = new DefaultBranchReporter(metrics, time, activeRoster);
         branchReporterWiring.bind(branchReporter);
     }
 
