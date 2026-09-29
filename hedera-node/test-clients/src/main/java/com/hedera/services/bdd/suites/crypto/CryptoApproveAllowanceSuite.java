@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
+import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
@@ -8,6 +9,8 @@ import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.ContractLogAsserts.logWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
+import static com.hedera.services.bdd.spec.keys.KeyShape.ED25519;
+import static com.hedera.services.bdd.spec.keys.KeyShape.SECP256K1;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -37,6 +40,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoApproveAllowance.MISSING_OWNER;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.allowanceTinyBarsFromTo;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFee;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
@@ -65,6 +69,7 @@ import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSu
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.TRANSFER_FROM;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.TRANSFER_SIGNATURE;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.TRANSFER_SIG_NAME;
+import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
 import static com.hedera.services.bdd.suites.crypto.CryptoCreateSuite.ACCOUNT;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_APPROVE_ALLOWANCE_FEE;
 import static com.hedera.services.bdd.suites.token.TokenAssociationSpecs.MULTI_KEY;
@@ -96,14 +101,18 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hedera.services.bdd.spec.utilops.mod.BodyMutation;
+import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.NftTransfer;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenTransferList;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -407,6 +416,94 @@ public class CryptoApproveAllowanceSuite {
                                 .cryptoAllowancesCount(0)
                                 .tokenAllowancesCount(0)
                                 .nftApprovedForAllAllowancesCount(0)));
+    }
+
+    /**
+     * Allowances granted to a spender's account number are removed by a revocation that names the spender by its
+     * legacy key alias - the serialized ED25519 key its account was auto-created from.
+     */
+    @HapiTest
+    final Stream<DynamicTest> revokingAllowancesBySpenderKeyAliasRemovesThem() {
+        final var spenderKey = "spenderEd25519Key";
+        return hapiTest(
+                newKeyNamed(SUPPLY_KEY),
+                newKeyNamed(spenderKey).shape(ED25519),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(RECEIVER).balance(0L),
+                cryptoCreate(TOKEN_TREASURY),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(1000L)
+                        .treasury(TOKEN_TREASURY),
+                tokenCreate(NON_FUNGIBLE_TOKEN)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0L)
+                        .supplyKey(SUPPLY_KEY)
+                        .treasury(TOKEN_TREASURY),
+                tokenAssociate(OWNER, FUNGIBLE_TOKEN, NON_FUNGIBLE_TOKEN),
+                // Auto-creation gives the spender its key alias; the spec then also knows it by account number
+                cryptoTransfer(tinyBarsFromAccountToAlias(OWNER, spenderKey, 10 * ONE_HBAR)),
+                withOpContext((spec, opLog) -> updateSpecFor(spec, spenderKey)),
+                cryptoApproveAllowance()
+                        .payingWith(OWNER)
+                        .addCryptoAllowance(OWNER, spenderKey, 10 * ONE_HBAR)
+                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, spenderKey, 100L)
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, spenderKey, true, List.of()),
+                getAccountDetails(OWNER)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith()
+                                .cryptoAllowancesCount(1)
+                                .tokenAllowancesCount(1)
+                                .nftApprovedForAllAllowancesCount(1)),
+                cryptoApproveAllowance()
+                        .payingWith(OWNER)
+                        .addCryptoAllowance(OWNER, spenderKey, 0L)
+                        .addTokenAllowance(OWNER, FUNGIBLE_TOKEN, spenderKey, 0L)
+                        .addNftAllowance(OWNER, NON_FUNGIBLE_TOKEN, spenderKey, false, List.of())
+                        .withBodyMutation(namingSpenderByAlias(
+                                spec -> spec.registry().getKey(spenderKey).toByteString())),
+                getAccountDetails(OWNER)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith()
+                                .cryptoAllowancesCount(0)
+                                .tokenAllowancesCount(0)
+                                .nftApprovedForAllAllowancesCount(0)),
+                cryptoTransfer(allowanceTinyBarsFromTo(OWNER, RECEIVER, ONE_HBAR))
+                        .payingWith(spenderKey)
+                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE));
+    }
+
+    /**
+     * An HBAR allowance granted to a spender's account number is removed by a revocation that names the spender by
+     * the EVM address of its ECDSA key.
+     */
+    @HapiTest
+    final Stream<DynamicTest> revokingHbarAllowanceBySpenderEvmAddressRemovesIt() {
+        final var spenderKey = "spenderEcdsaKey";
+        return hapiTest(
+                newKeyNamed(spenderKey).shape(SECP256K1),
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(RECEIVER).balance(0L),
+                cryptoTransfer(tinyBarsFromAccountToAlias(OWNER, spenderKey, 10 * ONE_HBAR)),
+                withOpContext((spec, opLog) -> updateSpecFor(spec, spenderKey)),
+                cryptoApproveAllowance().payingWith(OWNER).addCryptoAllowance(OWNER, spenderKey, 10 * ONE_HBAR),
+                getAccountDetails(OWNER)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith().cryptoAllowancesCount(1)),
+                cryptoApproveAllowance()
+                        .payingWith(OWNER)
+                        .addCryptoAllowance(OWNER, spenderKey, 0L)
+                        .withBodyMutation(namingSpenderByAlias(
+                                spec -> ByteString.copyFrom(recoverAddressFromPubKey(spec.registry()
+                                        .getKey(spenderKey)
+                                        .getECDSASecp256K1()
+                                        .toByteArray())))),
+                getAccountDetails(OWNER)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith().cryptoAllowancesCount(0)),
+                cryptoTransfer(allowanceTinyBarsFromTo(OWNER, RECEIVER, ONE_HBAR))
+                        .payingWith(spenderKey)
+                        .hasKnownStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE));
     }
 
     @HapiTest
@@ -1961,5 +2058,18 @@ public class CryptoApproveAllowanceSuite {
                 // Confirm NFT #1 physically moved
                 getAccountBalance(NEW_TREASURY).hasTokenBalance(NFT_TOKEN, 1),
                 getAccountBalance(RECEIVER).hasTokenBalance(NFT_TOKEN, 1));
+    }
+
+    /** Names the spender of every allowance in the transaction by an alias, which the DSL cannot express. */
+    private static BodyMutation namingSpenderByAlias(final Function<HapiSpec, ByteString> alias) {
+        return (builder, spec) -> {
+            final var spender =
+                    AccountID.newBuilder().setAlias(alias.apply(spec)).build();
+            final var op = builder.getCryptoApproveAllowanceBuilder();
+            op.getCryptoAllowancesBuilderList().forEach(allowance -> allowance.setSpender(spender));
+            op.getTokenAllowancesBuilderList().forEach(allowance -> allowance.setSpender(spender));
+            op.getNftAllowancesBuilderList().forEach(allowance -> allowance.setSpender(spender));
+            return builder;
+        };
     }
 }
