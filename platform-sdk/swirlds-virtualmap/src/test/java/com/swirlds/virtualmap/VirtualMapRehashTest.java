@@ -76,7 +76,7 @@ class VirtualMapRehashTest extends VirtualTestBase {
         // Prepare data in a data source with a wrong hash
         VirtualLeafBytes<TestValue> leaf1 = appleLeaf(1);
         Hash correctHash = hash(leaf1);
-        byte[] wrongHashBytes = new byte[48];
+        byte[] wrongHashBytes = new byte[Cryptography.DEFAULT_DIGEST_TYPE.digestLength()];
         wrongHashBytes[0] = 1; // Just to make it non-zero
         Hash wrongHash = new Hash(wrongHashBytes, Cryptography.DEFAULT_DIGEST_TYPE);
 
@@ -109,7 +109,7 @@ class VirtualMapRehashTest extends VirtualTestBase {
     void testRehashTimeout() throws IOException {
         // Prepare data in a data source with a wrong hash
         VirtualLeafBytes<TestValue> leaf1 = appleLeaf(1);
-        byte[] wrongHashBytes = new byte[48];
+        byte[] wrongHashBytes = new byte[Cryptography.DEFAULT_DIGEST_TYPE.digestLength()];
         wrongHashBytes[0] = 1;
         Hash wrongHash = new Hash(wrongHashBytes, Cryptography.DEFAULT_DIGEST_TYPE);
 

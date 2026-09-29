@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Message;
 
 public final class MessageDigestPool {
@@ -34,7 +35,7 @@ public final class MessageDigestPool {
         this.messages = new ArrayList<>(poolSize);
         this.readPosition = new AtomicInteger(0);
         this.random = new Random();
-        this.digest = MessageDigest.getInstance("SHA-384");
+        this.digest = MessageDigest.getInstance(Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
 
         init();
     }

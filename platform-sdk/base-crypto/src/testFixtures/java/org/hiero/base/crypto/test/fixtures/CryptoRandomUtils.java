@@ -6,7 +6,7 @@ import static org.hiero.base.utility.test.fixtures.RandomUtils.randomByteArray;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Random;
-import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
@@ -33,16 +33,18 @@ public class CryptoRandomUtils {
      * @return a random hash
      */
     public static @NonNull Hash randomHash(@NonNull final Random random) {
-        return new Hash(randomByteArray(random, DigestType.SHA_384.digestLength()), DigestType.SHA_384);
+        return new Hash(
+                randomByteArray(random, Cryptography.DEFAULT_DIGEST_TYPE.digestLength()),
+                Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
     /**
-     * Generates Bytes with random data that is the same length as a SHA-384 hash
+     * Generates Bytes with random data that is the same length as a hash of the default digest type
      * @param random the random object to use
      * @return random Bytes
      */
     public static Bytes randomHashBytes(@NonNull final Random random) {
-        return Bytes.wrap(randomByteArray(random, DigestType.SHA_384.digestLength()));
+        return Bytes.wrap(randomByteArray(random, Cryptography.DEFAULT_DIGEST_TYPE.digestLength()));
     }
 
     /**
