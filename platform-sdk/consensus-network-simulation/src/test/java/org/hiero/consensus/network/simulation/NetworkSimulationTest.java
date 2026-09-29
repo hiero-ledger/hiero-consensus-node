@@ -38,7 +38,7 @@ public class NetworkSimulationTest {
     }
 
     @Test
-    // @Disabled("This test has no assertions, its only goal to speed up certain testing")
+    @Disabled("This test has no assertions, its only goal to speed up certain testing")
     void mainnetMopComparison() {
         final int numNodes = 32;
 
