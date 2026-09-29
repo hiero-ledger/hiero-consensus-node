@@ -168,7 +168,14 @@ finish() {
   } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
 
   case "${VERDICT}" in
-    pass)  log "✅ SDCT passed" "$GREEN"; exit 0 ;;
+    pass)
+      if [[ -n "${REASON}" ]]; then
+        log "⚠️  SDCT passed with warning: ${REASON}" "$YELLOW"
+      else
+        log "✅ SDCT passed" "$GREEN"
+      fi
+      exit 0
+      ;;
     fail)  log "❌ SDCT failed: ${REASON}" "$RED"; exit 1 ;;
     *)     log "❌ SDCT infrastructure failure: ${REASON}" "$RED"; exit 1 ;;
   esac
@@ -216,6 +223,7 @@ last_growth=$(date +%s)
 offset=0
 errors=0
 fail_seen_at=""
+pass_seen=false
 verified=false
 building="true"
 forced=""
@@ -252,6 +260,7 @@ while :; do
       REASON=${REASON:-"test driver reported FAIL"}
       log "❌ Fail-fast marker seen: ${REASON}" "$RED"
     fi
+    grep -q -E 'SDCT-STATUS: PASS' "${chunk}" && pass_seen=true
   else
     poll_ok=false
   fi
@@ -294,7 +303,13 @@ if [[ -s "${SDCT_OUT_DIR}/sdct-result.json" ]]; then
   fi
 fi
 
-if [[ -n "${forced}" ]]; then
+if [[ "${pass_seen}" == "true" && -z "${fail_seen_at}" ]]; then
+  # The test passed; a Jenkins failure after the PASS marker (post-test processing) is only a warning
+  VERDICT="pass"
+  if [[ -n "${forced}" || "${JENKINS_RESULT}" != "SUCCESS" ]]; then
+    REASON="Jenkins result ${JENKINS_RESULT:-unknown} after SDCT-STATUS: PASS${REASON:+: ${REASON}}"
+  fi
+elif [[ -n "${forced}" ]]; then
   VERDICT=${forced}
 elif [[ "${JSON_RESULT}" == "ERROR" ]]; then
   # The test driver or pipeline classified the failure as infrastructure/setup
