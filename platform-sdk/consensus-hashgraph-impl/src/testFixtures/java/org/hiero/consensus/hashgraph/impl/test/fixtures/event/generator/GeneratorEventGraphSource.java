@@ -136,7 +136,7 @@ public class GeneratorEventGraphSource implements EventGraphSource {
                 .toList();
         final int coin = random.nextInt(0, roster.size() + 1);
         final UnsignedEvent unsignedEvent = new UnsignedEvent(
-                roster.rosterEntry(eventCreator).nodeId(), parents, birthRound, getNextTimestamp(), transactions, coin);
+                roster.nodeIdAtIndex(eventCreator), parents, birthRound, getNextTimestamp(), transactions, coin);
         hasher.hashUnsignedEvent(unsignedEvent);
 
         final PlatformEvent platformEvent =

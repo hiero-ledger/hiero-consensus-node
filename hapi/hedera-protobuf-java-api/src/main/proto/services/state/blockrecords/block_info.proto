@@ -78,12 +78,7 @@ message BlockInfo {
      * preceding blocks; for instance, shortly after network genesis the network
      * will not have processed 256 blocks yet.
      * <p>
-     * After cutover to block streams, and all pre-cutover hashes fall out of the
-     * byte array, this value SHALL be the SHA256 32 byte hashes of the previous
-     * 256 blocks, collected in a single byte array.<br/>
-     * Likewise, the first 32 bytes SHALL be the oldest block in the list.<br/>
-     * The last 32 bytes SHALL be the newest block, which is the last fully
-     * completed immutable block.
+     * This MAY change significantly for Block Stream (HIP TBD).
      */
     bytes block_hashes = 3;
 
