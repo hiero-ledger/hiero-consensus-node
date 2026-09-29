@@ -27,7 +27,6 @@ testModuleInfo {
     requires("com.swirlds.logging.test.fixtures")
     requires("com.swirlds.merkledb.test.fixtures")
     requires("com.swirlds.virtualmap.test.fixtures")
-    requires("org.hiero.base.crypto")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.model")
     requires("org.hiero.consensus.utility")
