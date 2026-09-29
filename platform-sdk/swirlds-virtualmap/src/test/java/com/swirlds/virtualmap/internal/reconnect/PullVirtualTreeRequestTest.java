@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.virtualmap.MerklePathUtils;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,7 @@ class PullVirtualTreeRequestTest {
         assertNotNull(deserialized);
         assertEquals(original.path(), deserialized.path());
         assertNotNull(deserialized.hash());
+        assertEquals(Cryptography.DEFAULT_DIGEST_TYPE, deserialized.hash().getDigestType());
         assertArrayEquals(original.hash().copyToByteArray(), deserialized.hash().copyToByteArray());
     }
 
@@ -48,6 +50,7 @@ class PullVirtualTreeRequestTest {
         assertNotNull(deserialized);
         assertEquals(MerklePathUtils.ROOT_PATH, deserialized.path());
         assertNotNull(deserialized.hash());
+        assertEquals(Cryptography.DEFAULT_DIGEST_TYPE, deserialized.hash().getDigestType());
     }
 
     @Test
@@ -87,7 +90,7 @@ class PullVirtualTreeRequestTest {
         final PullVirtualTreeRequest withHash = new PullVirtualTreeRequest(1, randomHash());
         final PullVirtualTreeRequest noHash = new PullVirtualTreeRequest(MerklePathUtils.INVALID_PATH, null);
 
-        // With hash should include tag + varint length + 48 bytes of SHA-384 digest
+        // With hash should include tag + varint length + the default digest's bytes
         assertTrue(withHash.getSizeInBytes() > noHash.getSizeInBytes());
     }
 
