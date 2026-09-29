@@ -87,6 +87,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
     private byte[] explicitTo = null;
     private Integer chainId = CHAIN_ID;
     private boolean wrongRecId;
+    private boolean malformedSignature = false;
     private boolean isJumboTxn = false;
     private byte[] signedBytes = null;
     private final List<AuthorizationListItem> authorizationListItems = new ArrayList<>();
@@ -110,6 +111,17 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
 
     public HapiEthereumCall withWrongParityRecId() {
         wrongRecId = true;
+        return this;
+    }
+
+    /**
+     * Zeroes out the {@code s} value of the signature after signing, so signature recovery fails the
+     * {@link com.hedera.node.app.hapi.utils.ethereum.EthTxSigs} bounds check and the transaction is
+     * rejected with {@code INVALID_ETHEREUM_TRANSACTION} at consensus pre-handle — but only after any
+     * file-referenced callData has been fully hydrated. For tests that exercise the pre-handle-failure path.
+     */
+    public HapiEthereumCall withMalformedSignature() {
+        malformedSignature = true;
         return this;
     }
 
@@ -429,6 +441,12 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
 
         byte[] privateKeyByteArray = getEcdsaPrivateKeyFromSpec(spec, privateKeyRef);
         var signedEthTxData = Signing.signMessage(ethTxData, privateKeyByteArray, wrongRecId);
+        if (malformedSignature) {
+            // Zeroed s -> fails EthTxSigs.checkInBounds at signature recovery in pre-handle, yielding
+            // INVALID_ETHEREUM_TRANSACTION *after* any file-referenced callData has been fully hydrated.
+            // replaceCallData below preserves r/s, so this composes with createCallDataFile().
+            signedEthTxData = signedEthTxData.replaceS(new byte[32]);
+        }
         spec.registry().saveBytes(ETH_HASH_KEY, ByteString.copyFrom((signedEthTxData.getEthereumHash())));
 
         if (createCallDataFile || (!isJumboTxn && callData.length > MAX_CALL_DATA_SIZE)) {
