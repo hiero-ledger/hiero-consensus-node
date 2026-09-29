@@ -19,6 +19,7 @@ import java.util.Random;
 import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -105,6 +106,17 @@ public class FalconNode extends AbstractNode implements Node, TimeTickReceiver, 
             return true;
         }
         return false;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Nothing consumes a peer's event window yet. The network delivers them so that the machinery is in place, but
+     * this node has nowhere to route them until fallen-behind detection is wired up.
+     */
+    @Override
+    public boolean receiveEventWindow(@NonNull final NodeId sender, @NonNull final EventWindow eventWindow) {
+        return wiring != null;
     }
 
     /**
