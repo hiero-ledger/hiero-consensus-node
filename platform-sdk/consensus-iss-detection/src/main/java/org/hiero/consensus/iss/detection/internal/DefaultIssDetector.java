@@ -53,7 +53,7 @@ public class DefaultIssDetector implements IssDetector {
     private long previousRound = -1;
 
     /**
-     * The current roster.
+     * The active roster.
      */
     private final Roster roster;
 
@@ -99,7 +99,7 @@ public class DefaultIssDetector implements IssDetector {
      * @param time                         the time provider
      * @param configuration                the configuration
      * @param metrics                      the metrics
-     * @param roster                       the current roster
+     * @param roster                       the active roster
      * @param ignorePreconsensusSignatures If true, ignore signatures from the preconsensus event stream, otherwise
      *                                     validate them like normal.
      */

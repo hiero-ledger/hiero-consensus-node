@@ -5,6 +5,7 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.components.QueryInjectionComponent;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.service.clpr.impl.handlers.ClprHandlers;
 import com.hedera.node.app.service.consensus.impl.handlers.ConsensusHandlers;
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
 import com.hedera.node.app.service.file.impl.handlers.FileHandlers;
@@ -114,7 +115,8 @@ public interface QueryWorkflowInjectionModule {
             @NonNull final NetworkAdminHandlers networkHandlers,
             @NonNull final Supplier<ContractHandlers> contractHandlers,
             @NonNull final ScheduleHandlers scheduleHandlers,
-            @NonNull final TokenHandlers tokenHandlers) {
+            @NonNull final TokenHandlers tokenHandlers,
+            @NonNull final ClprHandlers clprHandlers) {
         return new QueryHandlers(
                 consensusHandlers.consensusGetTopicInfoHandler(),
                 contractHandlers.get().contractGetBySolidityIDHandler(),
@@ -140,7 +142,9 @@ public interface QueryWorkflowInjectionModule {
                 tokenHandlers.tokenGetInfoHandler(),
                 tokenHandlers.tokenGetAccountNftInfosHandler(),
                 tokenHandlers.tokenGetNftInfoHandler(),
-                tokenHandlers.tokenGetNftInfosHandler());
+                tokenHandlers.tokenGetNftInfosHandler(),
+                clprHandlers.clprGetLedgerConfigurationHandler(),
+                clprHandlers.clprGetEndpointManifestHandler());
     }
 
     @Provides

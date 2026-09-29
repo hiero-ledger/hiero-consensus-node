@@ -186,9 +186,12 @@ public interface TransactionModule {
             @NonNull final HederaOperations hederaOperations,
             @NonNull final HederaEvmBlocks hederaEvmBlocks,
             @NonNull final PendingCreationMetadataRef pendingCreationMetadataRef) {
+        final boolean isStaticCall = context.dispatchMetadata()
+                        .getMetadataIfPresent(HandleContext.DispatchMetadata.Type.STATIC_CALL, Boolean.class)
+                == Boolean.TRUE;
         return new HederaEvmContext(
                 hederaOperations.gasPriceInTinybars(),
-                false,
+                isStaticCall,
                 shouldChargeSimpleFees(context, functionality),
                 hederaEvmBlocks,
                 tinybarValues,

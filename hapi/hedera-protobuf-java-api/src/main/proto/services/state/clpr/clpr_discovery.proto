@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/state/clpr/clpr_ledger_configuration.proto";
+
+/**
+ * Request message for the discoverEndpoints RPC.
+ * Sent by an endpoint to a peer to learn about other endpoints
+ * serving the same Channel.
+ */
+message ClprDiscoverEndpointsRequest {
+    /**
+     * 32-byte Channel ID for which endpoints are requested.
+     */
+    bytes channel_id = 1;
+}
+
+/**
+ * Response message for the discoverEndpoints RPC.
+ * Contains the responding endpoint's known peer list for the
+ * requested Channel.
+ */
+message ClprDiscoverEndpointsResponse {
+    /**
+     * Known endpoints for the requested Channel.
+     */
+    repeated ClprEndpoint endpoints = 1;
+}
