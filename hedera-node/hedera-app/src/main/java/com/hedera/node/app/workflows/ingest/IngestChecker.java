@@ -529,7 +529,7 @@ public final class IngestChecker {
             }
         }
         if (!clprConfig.enabled() && CLPR_TRANSACTIONS.contains(function)) {
-            logger.error("Cannot submit CLPR transaction {} because clpr.enabled is false", function);
+            logger.debug("Cannot submit CLPR transaction {} because clpr.enabled is false", function);
             throw new PreCheckException(CLPR_NOT_ENABLED);
         }
     }
