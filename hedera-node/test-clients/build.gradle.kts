@@ -539,8 +539,7 @@ fun TaskContainer.registerHapiTest(
                     if (ciTagExpression.isBlank()) defaultTags
                     // The embedded CLPR task runs only its own suites; we deliberately do not
                     // append (or run) STREAM_VALIDATION / LOG_VALIDATION for CLPR.
-                    else if (ciTagExpression.contains("EMBEDDED&CLPR"))
-                        "(${ciTagExpression})"
+                    else if (ciTagExpression.contains("EMBEDDED&CLPR")) "(${ciTagExpression})"
                     // We don't want to run stream or log validation for ISS or BLOCK_NODE cases
                     else if (
                         ciDefaultTagsWithoutStreamAndLogValidation != null &&
