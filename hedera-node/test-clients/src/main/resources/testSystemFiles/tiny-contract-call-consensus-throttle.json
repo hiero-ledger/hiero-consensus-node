@@ -33,7 +33,7 @@
         {
           "opsPerSec": 1000000,
           "operations": [
-            "TransactionGetReceipt", "TransactionGetRecord", "CryptoGetAccountBalance", "CryptoGetInfo",
+            "TransactionGetReceipt", "TransactionGetRecord", "CryptoGetInfo",
             "ContractGetInfo", "ContractGetBytecode", "ContractCallLocal", "GetVersionInfo", "TokenGetInfo",
             "TokenGetNftInfo", "FileGetInfo", "FileGetContents"
           ]

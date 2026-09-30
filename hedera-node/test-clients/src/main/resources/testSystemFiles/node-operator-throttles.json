@@ -181,7 +181,6 @@
           "opsPerSec": 0,
           "milliOpsPerSec": 1000000000,
           "operations": [
-            "CryptoGetAccountBalance",
             "TransactionGetReceipt"
           ]
         }

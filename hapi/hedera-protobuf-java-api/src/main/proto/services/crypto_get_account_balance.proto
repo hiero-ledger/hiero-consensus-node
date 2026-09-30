@@ -28,6 +28,8 @@ import "services/response_header.proto";
 /**
  * Query to read the HBAR balance of an account or contract.
  *
+ * Deprecated. Obtain account balances from a mirror node instead.
+ *
  * This query SHALL return _only_ the HBAR balance for an account
  * or smart contract. Early releases of the network would return all
  * fungible/common token balances, but HIP-367 made it infeasible to
@@ -35,6 +37,8 @@ import "services/response_header.proto";
  * beyond the current HBAR balance.
  */
 message CryptoGetAccountBalanceQuery {
+    option deprecated = true;
+
     /**
      * Standard information sent with every query operation.<br/>
      * This includes the signed payment and what kind of response is requested
@@ -64,11 +68,15 @@ message CryptoGetAccountBalanceQuery {
 /**
  * Response to a CryptoGetAccountBalanceQuery.<br/>
  *
+ * Deprecated. Obtain account balances from a mirror node instead.
+ *
  * This response SHALL contain only the information needed to
  * identify the query request and the actual HBAR balance of the
  * identified account or contract.
  */
 message CryptoGetAccountBalanceResponse {
+    option deprecated = true;
+
     /**
      * The standard response information for queries.<br/>
      * This includes the values requested in the `QueryHeader`
