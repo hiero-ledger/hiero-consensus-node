@@ -6,13 +6,13 @@ import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.reducedFromSnapshot;
-import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.unchangedFromSnapshot;
 import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
 import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.UNIQUE_PREFIXES;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromToWithInvalidAmounts;
@@ -27,6 +27,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 
@@ -183,8 +184,8 @@ public class GovernanceTransactionsPostIngestTests {
     }
 
     @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
-    @DisplayName("A batch inner drained by an earlier inner fails INSUFFICIENT_PAYER_BALANCE without charging the node")
-    public Stream<DynamicTest> batchInnerDrainedByEarlierInnerDoesNotChargeNode() {
+    @DisplayName("A batch inner drained by an earlier inner fails INSUFFICIENT_PAYER_BALANCE and charges the node")
+    public Stream<DynamicTest> batchInnerDrainedByEarlierInnerChargesNode() {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HBAR),
                 cryptoCreate(RECEIVER).balance(0L),
@@ -205,9 +206,33 @@ public class GovernanceTransactionsPostIngestTests {
                         .setNode(SUBMITTING_NODE_ACCOUNT_ID)
                         .payingWith(GENESIS)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                // The shortfall is state-dependent (PAYER was solvent at submission, drained mid-batch), so the node
-                // is NOT charged -- unlike an ingest-decidable failure. See #26615.
-                getAccountBalance(SUBMITTING_NODE_ACCOUNT_ID).hasTinyBars(unchangedFromSnapshot("nodePre")));
+                // A payer that cannot cover its network fee at handle is a node due-diligence failure, for an inner
+                // just as for a top-level transaction, so the node is charged. See #26615.
+                getAccountBalance(SUBMITTING_NODE_ACCOUNT_ID).hasTinyBars(reducedFromSnapshot("nodePre")));
+    }
+
+    @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)
+    @DisplayName("A batch inner paid by a deleted account fails PAYER_ACCOUNT_DELETED and charges the node")
+    public Stream<DynamicTest> batchInnerWithDeletedPayerChargesNode() {
+        final var deletedPayer = "deletedPayer";
+        return hapiTest(
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(RECEIVER),
+                cryptoCreate(deletedPayer).balance(ONE_HBAR),
+                cryptoDelete(deletedPayer).transfer(RECEIVER),
+                cryptoTransfer(tinyBarsFromTo(GENESIS, SUBMITTING_NODE_ACCOUNT_ID, ONE_HBAR)),
+                balanceSnapshot("nodePre", SUBMITTING_NODE_ACCOUNT_ID),
+                // An honest node rejects an inner whose payer is already deleted at ingest; submitting it anyway must
+                // cost the node, or a node could get such inners handled for free by wrapping them in a batch.
+                atomicBatch(cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, 1))
+                                .payingWith(deletedPayer)
+                                .signedBy(deletedPayer, PAYER)
+                                .batchKey(PAYER)
+                                .hasKnownStatus(PAYER_ACCOUNT_DELETED))
+                        .setNode(SUBMITTING_NODE_ACCOUNT_ID)
+                        .payingWith(PAYER)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                getAccountBalance(SUBMITTING_NODE_ACCOUNT_ID).hasTinyBars(reducedFromSnapshot("nodePre")));
     }
 
     @EmbeddedHapiTest(MUST_SKIP_INGEST)

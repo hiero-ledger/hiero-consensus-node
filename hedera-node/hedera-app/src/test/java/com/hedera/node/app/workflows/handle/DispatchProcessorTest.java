@@ -13,12 +13,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.ENTITY_NOT_ALLOWED_TO_DELETE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
@@ -48,6 +45,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
@@ -187,10 +185,13 @@ class DispatchProcessorTest {
     @Mock
     private Details hollowAccountCompletionsDetails;
 
+    private AppFeeCharging appFeeCharging;
+
     private DispatchProcessor subject;
 
     @BeforeEach
     void setUp() {
+        appFeeCharging = new AppFeeCharging(solvencyPreCheck);
         subject = new DispatchProcessor(
                 authorizer,
                 dispatchValidator,
@@ -203,7 +204,7 @@ class DispatchProcessorTest {
                 ethereumTransactionHandler,
                 networkInfo,
                 opWorkflowMetrics,
-                new AppFeeCharging(solvencyPreCheck));
+                appFeeCharging);
         given(dispatch.stack()).willReturn(stack);
         given(dispatch.streamBuilder()).willReturn(recordBuilder);
     }
@@ -227,15 +228,24 @@ class DispatchProcessorTest {
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
     }
 
-    @Test
-    void batchInnerIngestDecidableDueDiligenceChargesCreator() {
+    @ParameterizedTest
+    @EnumSource(
+            value = ResponseCodeEnum.class,
+            names = {
+                "INVALID_ACCOUNT_AMOUNTS",
+                "PAYER_ACCOUNT_NOT_FOUND",
+                "PAYER_ACCOUNT_DELETED",
+                "INSUFFICIENT_PAYER_BALANCE"
+            })
+    void batchInnerDueDiligenceFailureChargesCreator(final ResponseCodeEnum dueDiligenceFailure) {
         final var feeCharging = mock(FeeCharging.class);
         final var chargeContext = mock(FeeCharging.Context.class);
         given(dispatch.fees()).willReturn(FEES);
-        given(dispatch.feeChargingOrElse(any())).willReturn(feeCharging);
+        // Only the processor's own default strategy may be offered as the fallback for the batch's custom one
+        given(dispatch.feeChargingOrElse(appFeeCharging)).willReturn(feeCharging);
         given(feeCharging.customized(dispatch)).willReturn(chargeContext);
         given(dispatchValidator.validateFeeChargingScenario(dispatch))
-                .willReturn(newCreatorError(CREATOR_ACCOUNT_ID, INVALID_ACCOUNT_AMOUNTS));
+                .willReturn(newCreatorError(CREATOR_ACCOUNT_ID, dueDiligenceFailure));
         final var creatorInfo = mock(NodeInfo.class);
         given(dispatch.creatorInfo()).willReturn(creatorInfo);
         given(creatorInfo.accountId()).willReturn(CREATOR_ACCOUNT_ID);
@@ -243,39 +253,13 @@ class DispatchProcessorTest {
 
         subject.processDispatch(dispatch);
 
-        // Ingest-decidable inner due-diligence failure -> the node is charged its network fee, routed through the
-        // recorded fee-charging context so the charge survives the batch's rollback-and-replay (#26615).
+        // Ingest re-runs every check on each inner, so an inner due-diligence failure is charged to the node, as a
+        // top-level one would be -- including payer existence and network-fee solvency. The charge goes through the
+        // recorded fee-charging context (not the fee accumulator) so it survives the batch's rollback-and-replay.
+        verify(dispatch).feeChargingOrElse(appFeeCharging);
         verify(chargeContext).charge(CREATOR_ACCOUNT_ID, new Fees(0, FEES.networkFee(), 0), null);
-        verify(recordBuilder).status(INVALID_ACCOUNT_AMOUNTS);
-        assertFinished(IsRootStack.NO);
-    }
-
-    @Test
-    void batchInnerStateDependentDueDiligenceDoesNotChargeCreator() {
-        given(dispatchValidator.validateFeeChargingScenario(dispatch))
-                .willReturn(newCreatorError(CREATOR_ACCOUNT_ID, PAYER_ACCOUNT_DELETED));
-        given(dispatch.category()).willReturn(BATCH_INNER);
-
-        subject.processDispatch(dispatch);
-
-        // State-dependent inner failure the node could not foresee -> the node is NOT charged (#26615).
         verify(feeAccumulator, never()).chargeFee(any(), anyLong(), any());
-        verify(recordBuilder).status(PAYER_ACCOUNT_DELETED);
-        assertFinished(IsRootStack.NO);
-    }
-
-    @Test
-    void batchInnerInsufficientPayerBalanceDoesNotChargeCreator() {
-        given(dispatchValidator.validateFeeChargingScenario(dispatch))
-                .willReturn(newCreatorError(CREATOR_ACCOUNT_ID, INSUFFICIENT_PAYER_BALANCE));
-        given(dispatch.category()).willReturn(BATCH_INNER);
-
-        subject.processDispatch(dispatch);
-
-        // A balance shortfall is state-dependent (the payer can be drained after ingest, even by an earlier inner
-        // in the same batch), so the node is NOT charged. See #26615.
-        verify(feeAccumulator, never()).chargeFee(any(), anyLong(), any());
-        verify(recordBuilder).status(INSUFFICIENT_PAYER_BALANCE);
+        verify(recordBuilder).status(dueDiligenceFailure);
         assertFinished(IsRootStack.NO);
     }
 
