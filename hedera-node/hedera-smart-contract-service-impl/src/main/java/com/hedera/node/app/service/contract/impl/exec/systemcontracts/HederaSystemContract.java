@@ -31,6 +31,7 @@ public interface HederaSystemContract extends PrecompiledContract {
             @NonNull ContractID contractID, @NonNull Bytes input, @NonNull MessageFrame messageFrame) {
         return new FullResult(computePrecompile(input, messageFrame), gasRequirement(input), null);
     }
+
     /**
      * Computes a result, possibly suspending the frame until a child message finishes.
      * The completion receives the final result exactly once.
@@ -41,5 +42,16 @@ public interface HederaSystemContract extends PrecompiledContract {
             @NonNull MessageFrame messageFrame,
             @NonNull Consumer<FullResult> completion) {
         completion.accept(computeFully(contractID, input, messageFrame));
+    }
+
+    /**
+     * Returns whether this system contract is disabled in the given frame. The EVM treats the address of a
+     * disabled system contract exactly as if no system contract were registered there.
+     *
+     * @param messageFrame the message frame
+     * @return whether this system contract is disabled
+     */
+    default boolean isDisabled(@NonNull MessageFrame messageFrame) {
+        return false;
     }
 }

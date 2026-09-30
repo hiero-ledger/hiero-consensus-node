@@ -161,7 +161,7 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
 
         final ClprBundleContent parsedContent;
         try {
-            parsedContent = ClprBundleContent.PROTOBUF.parse(
+            parsedContent = ClprBundleContent.PROTOBUF.parseStrict(
                     Bytes.wrap(bundleContentBytes).toReadableSequentialData());
             requireNonNull(parsedContent);
         } catch (final Exception e) {
@@ -207,7 +207,7 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
             final boolean manifestEnabled) {
         final ClprBundleContent outContent;
         try {
-            outContent = ClprBundleContent.PROTOBUF.parse(
+            outContent = ClprBundleContent.PROTOBUF.parseStrict(
                     Bytes.wrap(finalBundleContentBytes).toReadableSequentialData());
         } catch (final Exception e) {
             log.warn("verifyBundle (QBFT): failed to parse final bundle content", e);
@@ -231,7 +231,7 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
             ClprEndpointManifest manifest = ClprEndpointManifest.DEFAULT;
             if (newEndpointManifestBytes.length > 0) {
                 try {
-                    manifest = ClprEndpointManifest.PROTOBUF.parse(
+                    manifest = ClprEndpointManifest.PROTOBUF.parseStrict(
                             Bytes.wrap(newEndpointManifestBytes).toReadableSequentialData());
                 } catch (final Exception e) {
                     log.warn(
@@ -273,7 +273,7 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
     private PricedResult manifestOnlySuccess(@NonNull final byte[] newEndpointManifestBytes) {
         final ClprEndpointManifest manifest;
         try {
-            manifest = ClprEndpointManifest.PROTOBUF.parse(
+            manifest = ClprEndpointManifest.PROTOBUF.parseStrict(
                     Bytes.wrap(newEndpointManifestBytes).toReadableSequentialData());
         } catch (final Exception e) {
             log.warn("verifyBundle (QBFT): manifest-only recovery bytes are not a ClprEndpointManifest", e);

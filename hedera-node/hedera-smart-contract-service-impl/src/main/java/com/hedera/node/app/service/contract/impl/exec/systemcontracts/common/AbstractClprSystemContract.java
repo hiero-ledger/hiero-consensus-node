@@ -20,8 +20,10 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 /**
  * Base class for every CLPR-related native system contract.
  *
- * <p>The master {@code clpr.enabled} check lives here so the CLPR router and every peer-ledger
- * verifier halt consistently while CLPR is disabled.
+ * <p>The master {@code clpr.enabled} check lives here. While CLPR is disabled, the CLPR router and every
+ * peer-ledger verifier report themselves as {@link #isDisabled(MessageFrame) disabled}, so the EVM treats
+ * their addresses exactly as it did before these contracts existed. The check in
+ * {@link #computeFully(ContractID, Bytes, MessageFrame, Consumer)} is a defensive fallback for direct invocations.
  */
 public abstract class AbstractClprSystemContract extends AbstractNativeSystemContract {
 
@@ -34,6 +36,12 @@ public abstract class AbstractClprSystemContract extends AbstractNativeSystemCon
     }
 
     @Override
+    public boolean isDisabled(@NonNull final MessageFrame frame) {
+        requireNonNull(frame);
+        return !FrameUtils.configOf(frame).getConfigData(ClprConfig.class).enabled();
+    }
+
+    @Override
     public void computeFully(
             @NonNull final ContractID contractID,
             @NonNull final Bytes input,
@@ -41,7 +49,7 @@ public abstract class AbstractClprSystemContract extends AbstractNativeSystemCon
             @NonNull final Consumer<FullResult> completion) {
         requireNonNull(input);
         requireNonNull(frame);
-        if (!FrameUtils.configOf(frame).getConfigData(ClprConfig.class).enabled()) {
+        if (isDisabled(frame)) {
             completion.accept(haltResult(new HandleExceptionHaltReason(CLPR_NOT_ENABLED), frame.getRemainingGas()));
             return;
         }

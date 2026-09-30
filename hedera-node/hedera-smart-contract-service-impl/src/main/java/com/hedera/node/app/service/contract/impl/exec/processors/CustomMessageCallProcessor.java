@@ -222,7 +222,9 @@ public class CustomMessageCallProcessor extends PublicMessageCallProcessor {
     }
 
     private boolean isSystemContractCall(@NonNull final CustomMessageCallContext context) {
-        return systemContracts.containsKey(context.executableCodeAddress);
+        // A disabled system contract's address is handled as if no system contract were registered there
+        final var systemContract = systemContracts.get(context.executableCodeAddress);
+        return systemContract != null && !systemContract.isDisabled(context.frame);
     }
 
     private void handleSystemContractCall(

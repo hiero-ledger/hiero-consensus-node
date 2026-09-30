@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.processors;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.streams.CallOperationType.OP_STATICCALL;
 import static com.hedera.hapi.streams.ContractActionType.PRECOMPILE;
 import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
@@ -27,11 +26,11 @@ import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
-import com.hedera.node.app.service.contract.impl.exec.failure.HandleExceptionHaltReason;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractClprSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
@@ -216,30 +215,26 @@ class CustomMessageCallProcessorTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"0x16e", "0x16f", "0x170", "0x171"})
-    void disabledClprStillExecutesItsEnablementGuard(final String hexAddress) {
+    void disabledClprIsHandledLikeANonExtantSystemAccount(final String hexAddress) {
         final var address = Address.fromHexString(hexAddress);
         final var clprContract = mock(AbstractClprSystemContract.class);
-        // A full selector, so only the enablement guard (not input validation) can halt the call
-        final var input = Bytes.fromHexString("0x12345678");
         subject = new CustomMessageCallProcessor(
                 evm, featureFlags, registry, addressChecks, Map.of(address, clprContract), contractMetrics);
         givenCallWithCode(address);
-        given(frame.getInputData()).willReturn(input);
         given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
+        given(addressChecks.isSystemAccount(address)).willReturn(true);
         given(frame.getValue()).willReturn(Wei.ZERO);
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(stack.getLast()).willReturn(frame);
-        given(frame.getContextVariable(OPS_DURATION_COUNTER))
-                .willReturn(OpsDurationCounter.withSchedule(OPS_DURATION_TEST_SCHEDULE));
-        given(contractMetrics.opsDurationMetrics()).willReturn(mock(OpsDurationMetrics.class));
-        doCallRealMethod().when(clprContract).computeFully(any(), any(), any(), any());
+        doCallRealMethod().when(clprContract).isDisabled(frame);
 
         subject.start(frame, operationTracer);
 
-        verify(clprContract).computeFully(any(), eq(input), eq(frame), any());
-        verify(frame).setState(MessageFrame.State.EXCEPTIONAL_HALT);
-        verify(frame).setExceptionalHaltReason(Optional.of(new HandleExceptionHaltReason(CLPR_NOT_ENABLED)));
-        verify(operationTracer).tracePrecompileResult(frame, SYSTEM);
+        verify(clprContract, never()).computeFully(any(), any(), any(), any());
+        verify(frame).setOutputData(NOOP_OUTPUT_DATA);
+        verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
+        verify(frame).setExceptionalHaltReason(Optional.empty());
+        verify(operationTracer).tracePrecompileResult(frame, PRECOMPILE);
     }
 
     @Test
@@ -249,6 +244,11 @@ class CustomMessageCallProcessorTest {
         subject = new CustomMessageCallProcessor(
                 evm, featureFlags, registry, addressChecks, Map.of(address, clprContract), contractMetrics);
         givenCallWithCode(address);
+        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE))
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("clpr.enabled", true)
+                        .getOrCreateConfig());
+        doCallRealMethod().when(clprContract).isDisabled(frame);
         given(frame.getValue()).willReturn(Wei.ZERO);
         given(frame.getInputData()).willReturn(INPUT_DATA);
         given(frame.getMessageFrameStack()).willReturn(stack);
@@ -310,6 +310,32 @@ class CustomMessageCallProcessorTest {
         verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
         verify(operationTracer).tracePrecompileResult(frame, SYSTEM);
         Assertions.assertEquals(GAS_REQUIREMENT, counter.opsDurationUnitsConsumed());
+    }
+
+    @Test
+    void callsToDisabledSystemContractsAreHandledLikeCallsToNonExtantSystemAccounts() {
+        final var disabledSystemContract = mock(HederaSystemContract.class);
+        subject = new CustomMessageCallProcessor(
+                evm,
+                featureFlags,
+                registry,
+                addressChecks,
+                Map.of(NON_EVM_PRECOMPILE_SYSTEM_ADDRESS, disabledSystemContract),
+                contractMetrics);
+        givenCallWithCode(NON_EVM_PRECOMPILE_SYSTEM_ADDRESS);
+        given(disabledSystemContract.isDisabled(frame)).willReturn(true);
+        given(addressChecks.isSystemAccount(NON_EVM_PRECOMPILE_SYSTEM_ADDRESS)).willReturn(true);
+        when(frame.getValue()).thenReturn(Wei.ZERO);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
+
+        subject.start(frame, operationTracer);
+
+        verify(disabledSystemContract, never()).computeFully(any(), any(), any(), any());
+        verify(frame).setOutputData(NOOP_OUTPUT_DATA);
+        verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
+        verify(frame).setExceptionalHaltReason(Optional.empty());
+        verify(operationTracer).tracePrecompileResult(frame, PRECOMPILE);
     }
 
     @Test

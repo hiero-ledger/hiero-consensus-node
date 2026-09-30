@@ -216,7 +216,7 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
             final var responseBytes = ClientCalls.blockingUnaryCall(
                     channel, SYNC_METHOD_DESCRIPTOR, callOptions, requestBytes.toByteArray());
 
-            return ClprSyncPayload.PROTOBUF.parse(Bytes.wrap(responseBytes));
+            return ClprSyncPayload.PROTOBUF.parseStrict(Bytes.wrap(responseBytes));
         } catch (final Exception e) {
             throw new ClprSyncException("Sync call failed: " + e.getMessage(), e);
         }
@@ -239,7 +239,7 @@ class ClprEndpointClientImpl implements ClprEndpointClient {
             final var responseBytes = ClientCalls.blockingUnaryCall(
                     channel, DISCOVER_METHOD_DESCRIPTOR, callOptions, requestBytes.toByteArray());
 
-            final var response = ClprDiscoverEndpointsResponse.PROTOBUF.parse(Bytes.wrap(responseBytes));
+            final var response = ClprDiscoverEndpointsResponse.PROTOBUF.parseStrict(Bytes.wrap(responseBytes));
             return response.endpoints();
         } catch (final Exception e) {
             throw new ClprDiscoveryException("discoverEndpoints call failed: " + e.getMessage(), e);
