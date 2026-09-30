@@ -15,3 +15,7 @@ blockNode.extendedNodeCoolDownSeconds=1
 blockNode.connectionStallThresholdMillis=5000
 
 staking.periodMins=360
+
+tss.forceMockSignatures=false
+
+blockStream.maxBlockSizeBytes=314572800
