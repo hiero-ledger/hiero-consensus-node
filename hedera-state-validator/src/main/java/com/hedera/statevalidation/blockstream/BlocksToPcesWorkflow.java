@@ -8,7 +8,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
-import com.hedera.statevalidation.blockstream.BlockStreamEventBuilder.DigestTypeSignal;
+import com.hedera.statevalidation.blockstream.EventCutoverDetector.BlockEvidence;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.context.PlatformContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -18,7 +18,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
@@ -32,8 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.crypto.Cryptography;
-import org.hiero.base.crypto.DigestType;
+import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.pces.impl.common.CommonPcesWriter;
@@ -60,9 +58,7 @@ import org.hiero.consensus.pces.impl.common.PcesFileTracker;
  * <p>Block-level parallelism is valid because each block's reconstruction is self-contained:
  * in-block parent references resolve within the block, and cross-block parents use
  * {@code EventDescriptor}s carried directly in the stream — no block depends on another block's
- * reconstructed events. The one piece of cross-block state, the event digest type in effect at the
- * start of each block (see {@link BlockStreamEventBuilder}), is resolved in stream order before
- * reconstruction starts, during the same pass that computes the blocks' round spans.
+ * reconstructed events.
  *
  * <p>A semaphore bounds the number of in-flight (submitted but not yet written) blocks, so memory
  * stays bounded regardless of the extraction-window size.
@@ -116,21 +112,17 @@ public final class BlocksToPcesWorkflow {
     /** Max number of in-flight (submitted but not yet written) blocks — bounds memory. */
     private static final int MAX_IN_FLIGHT_BLOCKS = 512;
 
-    /** One reconstruction builder per worker thread; never shared across threads. */
-    private static final ThreadLocal<BlockStreamEventBuilder> BUILDERS =
-            ThreadLocal.withInitial(BlockStreamEventBuilder::new);
-
     /** Identity sentinel marking the end of the ordered Future stream. */
     private static final Future<List<PlatformEvent>> POISON =
             java.util.concurrent.CompletableFuture.completedFuture(List.of());
 
     /**
-     * A block file selected for reconstruction.
+     * The block files selected for reconstruction.
      *
-     * @param path the block file
-     * @param initialDigestType the event digest type in effect at the start of the block
+     * @param files the selected block files, sorted ascending by block number
+     * @param eventCutoverMinBirthRound the detected event cutover minimum birth round
      */
-    private record BlockFile(@NonNull Path path, @NonNull DigestType initialDigestType) {}
+    private record BlockSelection(@NonNull List<Path> files, long eventCutoverMinBirthRound) {}
 
     private BlocksToPcesWorkflow() {}
 
@@ -168,11 +160,27 @@ public final class BlocksToPcesWorkflow {
         if (allFiles.isEmpty()) {
             throw new IllegalArgumentException("No block files found in " + blockStreamDirectory);
         }
-        final List<BlockFile> orderedFiles = filterByRoundWindow(allFiles, leftRound, targetRound);
+        final BlockSelection selection = filterByRoundWindow(allFiles, leftRound, targetRound);
+        final List<Path> orderedFiles = selection.files();
         if (orderedFiles.isEmpty()) {
             throw new IllegalArgumentException("No block files fall within round window [" + leftRound + ", "
                     + targetRound + "] in " + blockStreamDirectory);
         }
+
+        final long eventCutoverMinBirthRound = selection.eventCutoverMinBirthRound();
+        if (eventCutoverMinBirthRound == EventCutoverDetector.NO_CUTOVER) {
+            log.info(CONSOLE, "No event hash cutover detected: all events are hashed with SHA-384");
+        } else {
+            log.info(
+                    CONSOLE,
+                    "Event hash cutover detected: events with birth round >= {} are hashed with SHA-256",
+                    eventCutoverMinBirthRound);
+        }
+        // Used by the platform to construct event hashes from raw bytes
+        EventHashFactory.initialize(eventCutoverMinBirthRound);
+        // One reconstruction builder per worker thread; never shared across threads.
+        final ThreadLocal<BlockStreamEventBuilder> builders =
+                ThreadLocal.withInitial(() -> new BlockStreamEventBuilder(eventCutoverMinBirthRound));
 
         final int workers = Math.max(1, PARALLELISM);
         log.info(
@@ -200,7 +208,8 @@ public final class BlocksToPcesWorkflow {
         final AtomicReference<Throwable> readError = new AtomicReference<>();
 
         final Thread reader = new Thread(
-                () -> readAndSubmit(orderedFiles, pool, ordered, inFlight, readError), "blocks-to-pces-reader");
+                () -> readAndSubmit(orderedFiles, builders, pool, ordered, inFlight, readError),
+                "blocks-to-pces-reader");
         reader.setDaemon(true);
         reader.start();
 
@@ -239,20 +248,20 @@ public final class BlocksToPcesWorkflow {
      * how far the reader runs ahead of the consumer.
      */
     private static void readAndSubmit(
-            @NonNull final List<BlockFile> orderedFiles,
+            @NonNull final List<Path> orderedFiles,
+            @NonNull final ThreadLocal<BlockStreamEventBuilder> builders,
             @NonNull final ExecutorService pool,
             @NonNull final BlockingQueue<Future<List<PlatformEvent>>> ordered,
             @NonNull final Semaphore inFlight,
             @NonNull final AtomicReference<Throwable> readError) {
         try {
-            for (final BlockFile file : orderedFiles) {
+            for (final Path file : orderedFiles) {
                 inFlight.acquire(); // backpressure: block if too many blocks are in flight
 
                 final Callable<List<PlatformEvent>> task = () -> {
-                    // decode happens here, in the worker
-                    final Block block = BlockStreamAccess.blockFrom(file.path());
+                    final Block block = BlockStreamAccess.blockFrom(file); // decode happens here, in the worker
                     final List<PlatformEvent> events = new ArrayList<>();
-                    BUILDERS.get().processBlock(block, file.initialDigestType(), events::add);
+                    builders.get().processBlock(block, events::add);
                     return events;
                 };
                 ordered.put(pool.submit(task));
@@ -412,14 +421,13 @@ public final class BlocksToPcesWorkflow {
      * block guarantees the deciding events are present and the target block closes. Blocks beyond the
      * target block need not themselves close — they only supply the deciding events.
      *
-     * <p>The same pass also resolves the event digest type in effect at the start of each selected block
-     * (see {@link #resolveInitialDigestTypes}).
+     * <p>The same pass also detects the event hash cutover (see {@link EventCutoverDetector}).
      */
-    private static List<BlockFile> filterByRoundWindow(
+    private static BlockSelection filterByRoundWindow(
             @NonNull final List<Path> orderedFiles, final long leftRound, final long targetRound) {
         final int n = orderedFiles.size();
         final long[][] spans = new long[n][];
-        final DigestTypeSignal[] digestTypeSignals = new DigestTypeSignal[n];
+        final BlockEvidence[] cutoverEvidence = new BlockEvidence[n];
         final ExecutorService pool = Executors.newFixedThreadPool(PARALLELISM);
         try {
             final List<Future<?>> futures = new ArrayList<>(n);
@@ -428,7 +436,7 @@ public final class BlocksToPcesWorkflow {
                 futures.add(pool.submit(() -> {
                     final Block block = BlockStreamAccess.blockFrom(orderedFiles.get(idx));
                     spans[idx] = roundSpan(block, -1);
-                    digestTypeSignals[idx] = BlockStreamEventBuilder.digestTypeSignal(block);
+                    cutoverEvidence[idx] = EventCutoverDetector.scan(block);
                 }));
             }
             for (final Future<?> f : futures) {
@@ -449,9 +457,8 @@ public final class BlocksToPcesWorkflow {
         // margin, replay can finalize a round short of the target (the target never reaches consensus for lack
         // of voters).
         final long selectionCeiling = targetRound + DECISION_MARGIN_ROUNDS;
-        final DigestType[] initialDigestTypes = resolveInitialDigestTypes(orderedFiles, digestTypeSignals);
-        final List<BlockFile> selected = new ArrayList<>();
-        int firstSelectedIndex = -1;
+        final List<Path> selected = new ArrayList<>();
+        final List<BlockEvidence> selectedCutoverEvidence = new ArrayList<>();
         long maxSelectedRound = -1;
         for (int i = 0; i < n; i++) {
             final long minRound = spans[i][0];
@@ -460,10 +467,8 @@ public final class BlocksToPcesWorkflow {
                 continue;
             }
             if (maxRound >= leftRound && minRound <= selectionCeiling) {
-                selected.add(new BlockFile(orderedFiles.get(i), initialDigestTypes[i]));
-                if (firstSelectedIndex == -1) {
-                    firstSelectedIndex = i;
-                }
+                selected.add(orderedFiles.get(i));
+                selectedCutoverEvidence.add(cutoverEvidence[i]);
                 if (maxRound > maxSelectedRound) {
                     maxSelectedRound = maxRound;
                 }
@@ -481,7 +486,7 @@ public final class BlocksToPcesWorkflow {
                             + "requested rounds.",
                     leftRound, targetRound));
         }
-        final long firstSelectedMinRound = spans[firstSelectedIndex][0];
+        final long firstSelectedMinRound = spans[orderedFiles.indexOf(selected.get(0))][0];
         if (firstSelectedMinRound > leftRound) {
             throw new IllegalArgumentException(String.format(
                     "Block stream does not reach back far enough: the earliest available block starts at round %d, "
@@ -502,46 +507,8 @@ public final class BlocksToPcesWorkflow {
                             + "--target-round.",
                     targetRound, maxSelectedRound, targetRound));
         }
-        return selected;
-    }
-
-    /**
-     * Resolves, in stream order, the event digest type in effect at the start of each block: the last digest type
-     * revealed by any earlier block. Blocks preceding the first block that reveals a digest type use the first
-     * digest type revealed in the stream; if no block reveals one, {@link Cryptography#DEFAULT_DIGEST_TYPE} is used.
-     *
-     * @param orderedFiles block files sorted ascending by block number, for logging
-     * @param digestTypeSignals per-block digest type signals, index-aligned with {@code orderedFiles}; {@code null}
-     *     entries for blocks that reveal no digest type
-     * @return the initial digest type per block, index-aligned with {@code orderedFiles}
-     */
-    private static DigestType[] resolveInitialDigestTypes(
-            @NonNull final List<Path> orderedFiles, @NonNull final DigestTypeSignal[] digestTypeSignals) {
-        DigestType current = Arrays.stream(digestTypeSignals)
-                .filter(Objects::nonNull)
-                .findFirst()
-                .map(DigestTypeSignal::first)
-                .orElse(Cryptography.DEFAULT_DIGEST_TYPE);
-        log.info(CONSOLE, "Event digest type at the start of the block stream: {}", current);
-
-        final DigestType[] initialDigestTypes = new DigestType[digestTypeSignals.length];
-        for (int i = 0; i < digestTypeSignals.length; i++) {
-            initialDigestTypes[i] = current;
-            final DigestTypeSignal signal = digestTypeSignals[i];
-            if (signal == null) {
-                continue;
-            }
-            if (signal.first() != current || signal.last() != current) {
-                log.info(
-                        CONSOLE,
-                        "Event digest type changes from {} to {} in block file {}",
-                        current,
-                        signal.last(),
-                        orderedFiles.get(i));
-            }
-            current = signal.last();
-        }
-        return initialDigestTypes;
+        return new BlockSelection(
+                selected, EventCutoverDetector.resolve(Arrays.asList(cutoverEvidence), selectedCutoverEvidence));
     }
 
     /**
