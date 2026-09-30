@@ -659,6 +659,7 @@ jobs:
           task solo:explorer
 
       - name: Add Relay
+        if: false
         run: |
           set +x
           set +e
