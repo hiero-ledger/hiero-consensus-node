@@ -101,7 +101,7 @@ public class UpdateFailuresSpec {
     }
 
     @HapiTest
-    final Stream<DynamicTest> precheckRejectsPrematureExpiry() {
+    final Stream<DynamicTest> rejectsPrematureExpiry() {
         long now = Instant.now().getEpochSecond();
         return hapiTest(
                 fileCreate("file"),

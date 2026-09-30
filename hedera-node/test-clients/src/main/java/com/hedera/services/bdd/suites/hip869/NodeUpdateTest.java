@@ -329,7 +329,7 @@ public class NodeUpdateTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> failsAtIngestForUnAuthorizedTxns() throws CertificateEncodingException {
+    final Stream<DynamicTest> failsAtHandleForUnauthorizedTxns() throws CertificateEncodingException {
         final String description = "His vorpal blade went snicker-snack!";
         final var nodeAccount = "nodeAccount";
         return hapiTest(

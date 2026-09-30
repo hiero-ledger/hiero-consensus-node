@@ -85,7 +85,7 @@ public class NonceSuite {
     private static final String TX = "tx";
 
     @HapiTest
-    final Stream<DynamicTest> nonceNotUpdatedWhenSignerDoesExistPrecheckFailed() {
+    final Stream<DynamicTest> nonceNotUpdatedWhenSignerDoesExistHandlerCheckFailed() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
@@ -121,7 +121,7 @@ public class NonceSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> nonceNotUpdatedWhenNegativeMaxGasAllowancePrecheckFailed() {
+    final Stream<DynamicTest> nonceNotUpdatedWhenNegativeMaxGasAllowanceHandlerCheckFailed() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),

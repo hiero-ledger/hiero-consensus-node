@@ -137,7 +137,7 @@ public class FileCreateSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> precheckRejectsBadEffectiveAutoRenewPeriod() {
+    final Stream<DynamicTest> rejectsBadEffectiveAutoRenewPeriod() {
         var now = Instant.now();
         System.out.println(now.getEpochSecond());
 

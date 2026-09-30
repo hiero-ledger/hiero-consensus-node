@@ -511,7 +511,7 @@ public class LeakyContractTestsSuite {
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
             overrides = {"contracts.maxGasPerSec"})
-    final Stream<DynamicTest> gasLimitOverMaxGasLimitFailsPrecheck() {
+    final Stream<DynamicTest> gasLimitOverMaxGasLimitFails() {
         return hapiTest(
                 uploadInitCode(SIMPLE_UPDATE_CONTRACT),
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),

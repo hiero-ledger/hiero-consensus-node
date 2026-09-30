@@ -314,16 +314,11 @@ public class CryptoCreateSuite {
         KeyShape shape = listOf(0);
         long initialBalance = 10_000L;
 
-        return hapiTest(
-                cryptoCreate(NO_KEYS)
-                        .keyShape(shape)
-                        .balance(initialBalance)
-                        .logged()
-                        .hasPrecheck(KEY_REQUIRED)
-                // In modular code this error is thrown in handle, but it is fixed using dynamic property
-                // spec.streamlinedIngestChecks
-                // to accommodate error codes moved from Ingest to handle
-                );
+        return hapiTest(cryptoCreate(NO_KEYS)
+                .keyShape(shape)
+                .balance(initialBalance)
+                .logged()
+                .hasPrecheck(KEY_REQUIRED));
     }
 
     @HapiTest
@@ -491,11 +486,7 @@ public class CryptoCreateSuite {
                         .balance(initialBalance)
                         .signedBy(GENESIS)
                         .logged()
-                        .hasPrecheck(BAD_ENCODING)
-                // In modular code this error is thrown in handle, but it is fixed using dynamic property
-                // spec.streamlinedIngestChecks
-                // to accommodate error codes moved from Ingest to handle
-                );
+                        .hasPrecheck(BAD_ENCODING));
     }
 
     @HapiTest
