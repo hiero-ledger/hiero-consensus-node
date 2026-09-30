@@ -28,6 +28,7 @@ import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
@@ -197,6 +198,32 @@ class CustomMessageCallProcessorTest {
         verify(frame).setOutputData(NOOP_OUTPUT_DATA);
         verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
         verify(frame).setExceptionalHaltReason(Optional.empty());
+    }
+
+    @Test
+    void callsToDisabledSystemContractsAreHandledLikeCallsToNonExtantSystemAccounts() {
+        final var disabledSystemContract = mock(HederaSystemContract.class);
+        subject = new CustomMessageCallProcessor(
+                evm,
+                featureFlags,
+                registry,
+                addressChecks,
+                Map.of(NON_EVM_PRECOMPILE_SYSTEM_ADDRESS, disabledSystemContract),
+                contractMetrics);
+        givenCallWithCode(NON_EVM_PRECOMPILE_SYSTEM_ADDRESS);
+        given(disabledSystemContract.isDisabled(frame)).willReturn(true);
+        given(addressChecks.isSystemAccount(NON_EVM_PRECOMPILE_SYSTEM_ADDRESS)).willReturn(true);
+        when(frame.getValue()).thenReturn(Wei.ZERO);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
+
+        subject.start(frame, operationTracer);
+
+        verify(disabledSystemContract, never()).computeFully(any(), any(), any());
+        verify(frame).setOutputData(NOOP_OUTPUT_DATA);
+        verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
+        verify(frame).setExceptionalHaltReason(Optional.empty());
+        verify(operationTracer).tracePrecompileResult(frame, PRECOMPILE);
     }
 
     @Test

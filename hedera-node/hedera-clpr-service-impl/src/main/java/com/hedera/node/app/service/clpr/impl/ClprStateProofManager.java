@@ -5,6 +5,11 @@ import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.CHAN
 import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.MESSAGE_QUEUE_STATE_ID;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MESSAGE_QUEUE_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.MerklePath;
@@ -181,7 +186,7 @@ public class ClprStateProofManager {
             final var raw = binaryState.getSingleton(ENDPOINT_MANIFEST_STATE_ID);
             final var manifest = (raw == null)
                     ? ClprEndpointManifest.DEFAULT
-                    : ClprEndpointManifest.PROTOBUF.parse(raw.toReadableSequentialData());
+                    : ClprEndpointManifest.PROTOBUF.parseStrict(raw.toReadableSequentialData());
             return new ManifestWithProof(proof, manifest);
         });
     }
@@ -412,7 +417,7 @@ public class ClprStateProofManager {
             return proofBytes;
         }
         try {
-            final var stateProof = StateProof.PROTOBUF.parse(proofBytes.toReadableSequentialData());
+            final var stateProof = StateProof.PROTOBUF.parseStrict(proofBytes.toReadableSequentialData());
             if (!stateProof.hasSignedBlockProof()) {
                 log.warn(
                         "buildBundleStateProof (sender): proof has no signedBlockProof for channel {}; refusing",

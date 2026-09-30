@@ -66,6 +66,7 @@ import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.impl.WritableEndpointManifestConstructionStore;
 import com.hedera.node.app.service.clpr.impl.WritableEndpointManifestStore;
+import com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
@@ -625,6 +626,11 @@ public class HandleWorkflow {
         if (type == POST_UPGRADE_TRANSACTION) {
             logger.info("Doing post-upgrade setup @ {}", consensusNow);
             systemTransactions.doPostUpgradeSetup(consensusNow, state);
+            try {
+                initializeMissingClprSingletons(state);
+            } catch (Exception e) {
+                logger.error("Failed to initialize CLPR singletons on upgrade", e);
+            }
             // Node add/delete is adopted at the upgrade boundary. Self-publication handles cert/port/IP
             // and added nodes (they re-publish on restart), but a removed node cannot self-report — so
             // rebuild/prune the CLPR endpoint manifest against the new roster here.
@@ -1307,6 +1313,21 @@ public class HandleWorkflow {
             @NonNull WritableEndpointManifestStore manifestStore,
             @NonNull WritableEndpointManifestConstructionStore constructionStore,
             @NonNull ClprConfig clprConfig) {}
+
+    /**
+     * Initializes any CLPR singletons missing from the given state, streaming the resulting changes. Genesis
+     * setup initializes them for new networks; this covers networks upgrading from a version without them. It
+     * runs at handle time so that network properties such as {@code clpr.chainId} are already in effect.
+     *
+     * @param state the state to initialize the singletons in
+     */
+    private void initializeMissingClprSingletons(@NonNull final State state) {
+        final var clprWritableStates = state.getWritableStates(ClprService.NAME);
+        doStreamingAllChanges(
+                clprWritableStates,
+                null,
+                () -> V0780ClprSchema.initializeSingletons(clprWritableStates, configProvider.getConfiguration()));
+    }
 
     /**
      * At the upgrade boundary (where node add/delete is adopted), open a CLPR endpoint-manifest

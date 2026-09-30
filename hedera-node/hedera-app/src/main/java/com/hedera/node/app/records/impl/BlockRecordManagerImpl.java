@@ -977,7 +977,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         requireNonNull(serializedRosterSignatures);
         final RosterSignatures rosterSignatures;
         try {
-            rosterSignatures = RosterSignatures.PROTOBUF.parse(serializedRosterSignatures);
+            rosterSignatures = RosterSignatures.PROTOBUF.parseStrict(serializedRosterSignatures);
         } catch (final ParseException e) {
             throw new CompletionException("Unable to parse RSA signature list for WRB block #" + blockNumber, e);
         }
