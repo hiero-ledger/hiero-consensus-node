@@ -176,7 +176,7 @@ public class MerkleDbTestUtils {
                 new byte[] {(byte) (value >>> 24), (byte) (value >>> 16), (byte) (value >>> 8), (byte) value};
         final byte[] digest = new byte[Cryptography.DEFAULT_DIGEST_TYPE.digestLength()];
         for (int i = 0; i < digest.length / Long.BYTES; i++) {
-            System.arraycopy(hardCoded, 0, digest, i * 6 + 4, 4);
+            System.arraycopy(hardCoded, 0, digest, i * (digest.length / Long.BYTES) + 4, 4);
         }
         return new Hash(digest, Cryptography.DEFAULT_DIGEST_TYPE);
     }
