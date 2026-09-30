@@ -59,6 +59,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -153,6 +154,52 @@ class FinalizeRecordHandlerTest extends CryptoTokenHandlerTestBase {
         assertThatThrownBy(() -> subject.finalizeStakingRecord(
                         context,
                         HederaFunctionality.CRYPTO_DELETE,
+                        TransactionBody.DEFAULT,
+                        Collections.emptySet(),
+                        emptyMap()))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(FAIL_INVALID));
+    }
+
+    @Test
+    void handleHbarNetTransferAmountIsNotZeroWhileCreatingSystemEntities() {
+        subject = new FinalizeRecordHandler(
+                stakingRewardsHandler, configProvider, entityIdFactory, new AtomicBoolean(false));
+        setupTestStores(List.of(ACCOUNT_1212), List.of(), List.of(), List.of());
+        // Creating ACCOUNT_3434 with a balance simulates genesis minting hbar into a system account
+        writableAccountStore.put(ACCOUNT_3434);
+        context = mockContext();
+        given(context.configuration()).willReturn(configuration);
+
+        subject.finalizeStakingRecord(
+                context,
+                HederaFunctionality.CRYPTO_CREATE,
+                TransactionBody.DEFAULT,
+                Collections.emptySet(),
+                emptyMap());
+
+        BDDMockito.verify(recordBuilder)
+                .transferList(TransferList.newBuilder()
+                        .accountAmounts(AccountAmount.newBuilder()
+                                .accountID(ACCOUNT_3434_ID)
+                                .amount(ACCOUNT_3434.tinybarBalance())
+                                .build())
+                        .build());
+    }
+
+    @Test
+    void handleHbarNetTransferAmountIsNotZeroAfterSystemEntitiesCreated() {
+        subject = new FinalizeRecordHandler(
+                stakingRewardsHandler, configProvider, entityIdFactory, new AtomicBoolean(true));
+        setupTestStores(List.of(ACCOUNT_1212), null, null, null);
+        writableAccountStore.put(ACCOUNT_3434);
+        context = mockContext();
+        given(context.configuration()).willReturn(configuration);
+        given(context.userTransactionRecordBuilder(StreamBuilder.class)).willReturn(mock(StreamBuilder.class));
+
+        assertThatThrownBy(() -> subject.finalizeStakingRecord(
+                        context,
+                        HederaFunctionality.CRYPTO_CREATE,
                         TransactionBody.DEFAULT,
                         Collections.emptySet(),
                         emptyMap()))

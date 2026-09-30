@@ -46,6 +46,8 @@ import java.util.concurrent.Executor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -370,6 +372,24 @@ class ProofControllerImplTest {
         verify(submissions, never()).submitProofKeyPublication(any());
     }
 
+    @ParameterizedTest(name = "isActive={0}")
+    @ValueSource(booleans = {false, true})
+    void setsAssemblyTimeRegardlessOfNodeActiveStatus(final boolean isActive) {
+        // With every target node's proof key present (none expected here) assembly starts now, so the
+        // assembly-time write uses the consensus timestamp regardless of ACTIVE status. This branch returns
+        // right after that write and never reaches the publish step in either state, so the never-publish
+        // check below is incidental — the ACTIVE-gating of proof-key publication itself is proven by
+        // advanceConstructionPublishesKeyWhenMetadataMissingAndActive / ...DoesNotPublishKeyWhenInactive.
+        given(weights.numTargetNodesInSource()).willReturn(0);
+        given(writableHistoryStore.setAssemblyTime(CONSTRUCTION_ID, Instant.EPOCH.plusSeconds(1)))
+                .willReturn(construction);
+
+        subject.advanceConstruction(Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, isActive, tssConfig);
+
+        verify(writableHistoryStore).setAssemblyTime(CONSTRUCTION_ID, Instant.EPOCH.plusSeconds(1));
+        verify(submissions, never()).submitProofKeyPublication(any());
+    }
+
     @Test
     void advanceConstructionDelegatesToProverWhenAssemblyStartedAndInactive() {
         construction = HistoryProofConstruction.newBuilder()
@@ -522,6 +542,88 @@ class ProofControllerImplTest {
 
         verify(writableHistoryStore).getLedgerId();
         verify(prover).advance(eq(now), eq(construction), eq(METADATA), any(), eq(tssConfig), any(), eq(true));
+        verify(writableHistoryStore).failForReason(CONSTRUCTION_ID, reason);
+    }
+
+    @ParameterizedTest(name = "isActive={0}")
+    @ValueSource(booleans = {false, true})
+    void finishesProofRegardlessOfNodeActiveStatus(final boolean isActive) {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .assemblyStartTime(asTimestamp(Instant.EPOCH))
+                .build();
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+
+        final var proof = aValidProof();
+        given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any(), anyBoolean()))
+                .willReturn(new HistoryProver.Outcome.Completed(proof));
+        given(writableHistoryStore.completeProof(CONSTRUCTION_ID, proof)).willReturn(construction);
+
+        final var now = Instant.EPOCH.plusSeconds(1);
+        subject.advanceConstruction(now, METADATA, writableHistoryStore, isActive, tssConfig);
+
+        // The Completed-outcome commit write happens regardless of ACTIVE status; isActive only rides
+        // into prover.advance as the can-submit flag.
+        verify(prover).advance(eq(now), eq(construction), eq(METADATA), any(), eq(tssConfig), any(), eq(isActive));
+        verify(writableHistoryStore).completeProof(CONSTRUCTION_ID, proof);
+        // The handoff to the history service is part of the same ungated path
+        verify(writableHistoryStore).getLedgerId();
+        verify(historyService).onFinished(eq(writableHistoryStore), eq(construction), any());
+    }
+
+    @ParameterizedTest(name = "isActive={0}")
+    @ValueSource(booleans = {false, true})
+    void failsConstructionRegardlessOfNodeActiveStatus(final boolean isActive) {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .assemblyStartTime(asTimestamp(Instant.EPOCH))
+                .build();
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG);
+
+        final var reason = "test-failure";
+        given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any(), anyBoolean()))
+                .willReturn(new HistoryProver.Outcome.Failed(reason));
+        given(writableHistoryStore.failForReason(CONSTRUCTION_ID, reason)).willReturn(construction);
+
+        final var now = Instant.EPOCH.plusSeconds(1);
+        subject.advanceConstruction(now, METADATA, writableHistoryStore, isActive, tssConfig);
+
+        // The Failed-outcome commit write happens regardless of ACTIVE status.
+        verify(prover).advance(eq(now), eq(construction), eq(METADATA), any(), eq(tssConfig), any(), eq(isActive));
         verify(writableHistoryStore).failForReason(CONSTRUCTION_ID, reason);
     }
 
