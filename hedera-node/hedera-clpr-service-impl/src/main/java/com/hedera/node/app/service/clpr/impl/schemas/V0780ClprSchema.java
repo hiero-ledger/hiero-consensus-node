@@ -23,7 +23,6 @@ import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.spi.WritableStates;
@@ -33,7 +32,7 @@ import java.util.Set;
 /**
  * Genesis schema for the CLPR service.
  */
-public class V0770ClprSchema extends Schema<SemanticVersion> {
+public class V0780ClprSchema extends Schema<SemanticVersion> {
 
     /** Channels state ID */
     public static final int CHANNELS_STATE_ID = StateKey.KeyOneOfType.CLPRSERVICE_I_CHANNELS.protoOrdinal();
@@ -88,7 +87,7 @@ public class V0770ClprSchema extends Schema<SemanticVersion> {
     public static final String ENDPOINT_MANIFEST_CONSTRUCTION_KEY = "ENDPOINT_MANIFEST_CONSTRUCTION";
 
     private static final SemanticVersion VERSION =
-            SemanticVersion.newBuilder().major(0).minor(77).patch(0).build();
+            SemanticVersion.newBuilder().major(0).minor(78).patch(0).build();
 
     /** EVM address of the Hiero CLPR service contract: 0x000000000000000000000000000000000000016e */
     public static final Bytes CLPR_SERVICE_ADDRESS = CLPR_EVM_ADDRESS_BYTES;
@@ -99,7 +98,7 @@ public class V0770ClprSchema extends Schema<SemanticVersion> {
     /**
      * Constructor for this schema.
      */
-    public V0770ClprSchema() {
+    public V0780ClprSchema() {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
@@ -133,28 +132,19 @@ public class V0770ClprSchema extends Schema<SemanticVersion> {
     }
 
     /**
-     * Initializes CLPR singleton state during a non-genesis migration.
+     * Initializes any missing CLPR singleton values without overwriting existing ledger state.
      *
-     * <p>Genesis initialization is deliberately deferred to
-     * {@link com.hedera.node.app.service.clpr.impl.ClprServiceImpl#doGenesisSetup} so the empty
-     * genesis hash is externalized before these writes. On an upgrade that introduces CLPR, the
-     * migration framework captures and streams these writes with the other migration state changes.
+     * <p>This schema does not initialize the singletons during migration. For a new network,
+     * {@link com.hedera.node.app.service.clpr.impl.ClprServiceImpl#doGenesisSetup} initializes them, so the
+     * empty genesis hash is externalized before these writes. For a network upgrading from a version without
+     * them, the handle workflow initializes them during post-upgrade setup. Both run at handle time, when
+     * network properties such as {@code clpr.chainId} are in effect; a migration only sees node-local
+     * configuration, and would not run at all when upgrading from a state at or after this schema's version.
      *
      * <p>Both singletons are initialized even when {@code clpr.enabled} is false. CLPR handlers need
      * them as soon as the flag is set, and since the flag is a network property that a later file
-     * update can change, no migration would run then to initialize them. The writes are
+     * update can change, no setup would run then to initialize them. The writes are
      * deterministic and only touch CLPR's own states.
-     */
-    @Override
-    public void migrate(@NonNull final MigrationContext<SemanticVersion> ctx) {
-        requireNonNull(ctx);
-        if (!ctx.isGenesis()) {
-            initializeSingletons(ctx.newStates(), ctx.appConfig());
-        }
-    }
-
-    /**
-     * Initializes any missing CLPR singleton values without overwriting existing ledger state.
      *
      * @param writableStates the CLPR writable states
      * @param configuration the active application configuration
