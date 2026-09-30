@@ -4,7 +4,6 @@ package com.hedera.statevalidation.blockstream;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.MAX_PBJ_RECORD_SIZE;
 import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.base.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
@@ -22,7 +21,6 @@ import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -33,13 +31,14 @@ import java.util.function.Consumer;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.HashingOutputStream;
+import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * Reconstructs events from the block stream in a streaming fashion.
  *
- * <p>Events are reconstructed one block at a time via {@link #processBlock(Block, DigestType, Consumer)}.
+ * <p>Events are reconstructed one block at a time via {@link #processBlock(Block, Consumer)}.
  * Each completed event is immediately delivered to the consumer, so the caller can write it to
  * PCES, validate it, or otherwise handle it without accumulating all events in memory. Only the
  * current block's events are held in memory (for in-block parent index resolution); cross-block
@@ -57,23 +56,19 @@ import org.hiero.consensus.model.event.PlatformEvent;
  * event hash, which is computed only over {@code EventCore}, parent descriptors, and the
  * (double-hashed) event transactions.
  *
- * <p>The block stream does not record which digest type the events were hashed with, and it may
- * change in the middle of the stream. The digest type is inferred from the length of the parent
- * hashes carried by cross-block ({@code EVENT_DESCRIPTOR}) parent references: once an event reveals
- * a digest type, it is used for that event and all subsequent events until another event reveals a
- * different one. Events with no cross-block parents keep the current digest type. The digest type in
- * effect at the start of a block is supplied by the caller (see {@link #digestTypeSignal(Block)}).
+ * <p>The digest type of an event is determined by its birth round, following the same rule as the
+ * platform's {@link EventHashFactory}: events with a birth round lower than the event cutover minimum
+ * birth round are hashed with SHA-384, all others with SHA-256. Since a child references its parents by
+ * their original hashes, a post-cutover event may reference pre-cutover parents by SHA-384 hashes. The
+ * cutover is supplied by the caller, e.g. detected from the block stream by {@link EventCutoverDetector}.
  */
 public class BlockStreamEventBuilder {
 
     /**
-     * The digest types revealed by the cross-block parent references of a block's events.
-     *
-     * @param first the digest type revealed by the first event with cross-block parents
-     * @param last the digest type revealed by the last event with cross-block parents
+     * The lowest birth round of events hashed with the post-cutover digest type, or {@code Long.MAX_VALUE}
+     * if there is no cutover.
      */
-    public record DigestTypeSignal(
-            @NonNull DigestType first, @NonNull DigestType last) {}
+    private final long eventCutoverMinBirthRound;
 
     /** Track events by index within the current block, for in-block parent lookups. */
     private final Map<Integer, PlatformEvent> eventIndexToEvent = new HashMap<>();
@@ -87,8 +82,19 @@ public class BlockStreamEventBuilder {
     /** The index of the current event within the current block. */
     private int eventIndexWithinBlock = 0;
 
-    /** The digest type used to hash the current event. */
-    private DigestType digestType = DEFAULT_DIGEST_TYPE;
+    /**
+     * Creates a new builder.
+     *
+     * @param eventCutoverMinBirthRound the lowest birth round of events hashed with the post-cutover
+     *     digest type, or {@code Long.MAX_VALUE} if there is no cutover
+     */
+    public BlockStreamEventBuilder(final long eventCutoverMinBirthRound) {
+        if (eventCutoverMinBirthRound < 0) {
+            throw new IllegalArgumentException(
+                    "eventCutoverMinBirthRound must not be negative: " + eventCutoverMinBirthRound);
+        }
+        this.eventCutoverMinBirthRound = eventCutoverMinBirthRound;
+    }
 
     /**
      * Processes a single block, reconstructing events from its items and delivering each completed
@@ -96,19 +102,13 @@ public class BlockStreamEventBuilder {
      * method returns, the block and its events can be garbage-collected.
      *
      * @param block the block to process
-     * @param initialDigestType the digest type in effect at the start of the block, i.e. the last
-     *     digest type revealed by earlier blocks in the stream
      * @param eventConsumer receives each reconstructed {@link PlatformEvent} as it is completed
      */
-    public void processBlock(
-            @NonNull final Block block,
-            @NonNull final DigestType initialDigestType,
-            @NonNull final Consumer<PlatformEvent> eventConsumer) {
+    public void processBlock(@NonNull final Block block, @NonNull final Consumer<PlatformEvent> eventConsumer) {
         requireNonNull(block);
-        requireNonNull(initialDigestType);
         requireNonNull(eventConsumer);
 
-        startOfBlock(initialDigestType);
+        startOfBlock();
 
         for (final BlockItem item : block.items()) {
             final var itemKind = item.item().kind();
@@ -162,74 +162,20 @@ public class BlockStreamEventBuilder {
     }
 
     /**
-     * Scans a block for the digest types revealed by its events' cross-block parent references.
-     * Allows a caller that processes blocks out of order to determine, in stream order, the digest
-     * type in effect at the start of each block.
+     * Returns the digest type an event was hashed with, based on its birth round. Mirrors
+     * {@link EventHashFactory#hash(Bytes, long)}.
      *
-     * @param block the block to scan
-     * @return the first and last revealed digest types, or {@code null} if no event in the block has
-     *     a cross-block parent
+     * @param birthRound the event's birth round
+     * @return the digest type of the event's hash
      */
-    @Nullable
-    public static DigestTypeSignal digestTypeSignal(@NonNull final Block block) {
-        DigestType first = null;
-        DigestType last = null;
-        for (final BlockItem item : block.items()) {
-            if (item.hasEventHeader()) {
-                final DigestType revealed =
-                        revealedDigestType(item.eventHeaderOrThrow().parents());
-                if (revealed != null) {
-                    first = first == null ? revealed : first;
-                    last = revealed;
-                }
-            }
-        }
-        return first == null ? null : new DigestTypeSignal(first, last);
-    }
-
-    /**
-     * Returns the digest type revealed by the cross-block parent references of a single event, i.e.
-     * the digest type whose output length matches the parent hashes.
-     *
-     * @param parentReferences the parent references of the event
-     * @return the revealed digest type, or {@code null} if the event has no cross-block parents
-     * @throws IllegalStateException if a parent hash length matches no known digest type, or the
-     *     parent hashes have different lengths
-     */
-    @Nullable
-    private static DigestType revealedDigestType(@NonNull final List<ParentEventReference> parentReferences) {
-        DigestType revealed = null;
-        for (final ParentEventReference parentRef : parentReferences) {
-            if (parentRef.parent().kind() != ParentEventReference.ParentOneOfType.EVENT_DESCRIPTOR) {
-                continue;
-            }
-            final EventDescriptor parentDescriptor = parentRef.parent().as();
-            final DigestType parentDigestType = digestTypeOf(parentDescriptor.hash());
-            if (revealed != null && revealed != parentDigestType) {
-                throw new IllegalStateException("Event references parents hashed with different digest types: "
-                        + revealed + " and " + parentDigestType);
-            }
-            revealed = parentDigestType;
-        }
-        return revealed;
-    }
-
     @NonNull
-    private static DigestType digestTypeOf(@NonNull final Bytes hash) {
-        final long length = hash.length();
-        for (final DigestType type : DigestType.values()) {
-            if (type.digestLength() == length) {
-                return type;
-            }
-        }
-        throw new IllegalStateException(
-                "Parent event hash length " + length + " bytes does not match any known digest type");
+    public DigestType digestTypeFor(final long birthRound) {
+        return birthRound < eventCutoverMinBirthRound ? DigestType.SHA_384 : DigestType.SHA_256;
     }
 
     // ---- Internal block-processing methods ----
 
-    private void startOfBlock(@NonNull final DigestType initialDigestType) {
-        digestType = initialDigestType;
+    private void startOfBlock() {
         eventIndexWithinBlock = 0;
         currentTransactions.clear();
         eventIndexToEvent.clear();
@@ -287,12 +233,8 @@ public class BlockStreamEventBuilder {
         final List<EventDescriptor> resolvedParents =
                 resolveParentReferences(eventHeader.parents(), eventIndexToEvent, eventCore);
 
-        // Switch to the digest type revealed by this event's cross-block parents, if any
-        final DigestType revealedDigestType = revealedDigestType(eventHeader.parents());
-        if (revealedDigestType != null) {
-            digestType = revealedDigestType;
-        }
-        final Hash eventHash = hashEvent(eventCore, resolvedParents, transactions, digestType);
+        final Hash eventHash =
+                hashEvent(eventCore, resolvedParents, transactions, digestTypeFor(eventCore.birthRound()));
 
         final GossipEvent gossipEvent = GossipEvent.newBuilder()
                 .eventCore(eventCore)
