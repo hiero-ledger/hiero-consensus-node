@@ -4,7 +4,6 @@ import org.hiero.consensus.event.intake.impl.DefaultEventIntakeModule;
 
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.event.intake.impl {
-    requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
@@ -12,7 +11,6 @@ module org.hiero.consensus.event.intake.impl {
     requires transitive org.hiero.consensus.event.intake;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
-    requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.utility;
     requires transitive org.hiero.consensus.wiring.framework;
     requires com.hedera.pbj.runtime;

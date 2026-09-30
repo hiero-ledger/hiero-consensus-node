@@ -103,6 +103,7 @@ public class RemoteNetwork extends AbstractGrpcNetwork implements HederaNetwork 
     private static NodeMetadata metadataFor(final int nodeId, @NonNull final NodeConnectInfo connectInfo) {
         return new NodeMetadata(
                 nodeId,
+                REMOTE_NETWORK_NAME,
                 "node" + nodeId,
                 AccountID.newBuilder()
                         .shardNum(connectInfo.getAccount().getShardNum())

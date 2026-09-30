@@ -50,6 +50,7 @@ import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.state.SavedStateController;
@@ -157,7 +158,7 @@ class ReconnectControllerTest {
         reconnectCoordinator = mock(ReconnectCoordinator.class);
 
         // Create real FallenBehindMonitor (needs to be created before setting up coordinator mock)
-        fallenBehindMonitor = new FallenBehindMonitor(roster, selfId, 0.5);
+        fallenBehindMonitor = new FallenBehindMonitor(RosterWrapper.of(roster), selfId, 0.5);
 
         // Configure platformCoordinator.pauseGossip() to call fallenBehindMonitor.notifySyncProtocolPaused()
         doAnswer(inv -> {

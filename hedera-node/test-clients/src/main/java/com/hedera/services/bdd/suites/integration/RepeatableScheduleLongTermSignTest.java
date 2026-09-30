@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
@@ -12,6 +13,7 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -180,6 +182,55 @@ public class RepeatableScheduleLongTermSignTest {
                         .hasRecordedScheduledTxn(),
                 triggerSchedule(schedule, scheduleLifetime),
                 getAccountBalance(receiver).hasTinyBars(1L)));
+    }
+
+    /**
+     * Complements {@link #reductionInSigningReqsAllowsTxnToGoThrough()}: when the signing requirements grow
+     * between signing and expiry, the signatories already recorded on the schedule are re-evaluated against
+     * the account's current key and are no longer sufficient, so the schedule expires without executing.
+     * This is what {@code Schedule.signatories} means by "SHALL execute only if, at the time of execution,
+     * this list contains sufficient public keys to satisfy the full requirements for signature".
+     */
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> growthInSigningReqsLeavesRecordedSignatoriesInsufficientAtExpiry() {
+        var senderShape = threshOf(2, threshOf(1, 3), threshOf(1, 3), threshOf(2, 3));
+        var firstNested = senderShape.signedWith(sigs(sigs(OFF, OFF, ON), sigs(OFF, OFF, OFF), sigs(OFF, OFF, OFF)));
+        var secondNested = senderShape.signedWith(sigs(sigs(OFF, OFF, OFF), sigs(ON, OFF, OFF), sigs(OFF, OFF, OFF)));
+        String sender = "X";
+        String receiver = "Y";
+        String schedule = "Z";
+        String senderKey = "sKey";
+
+        return hapiTest(flattened(
+                newKeyNamed(senderKey).shape(senderShape),
+                keyFromMutation(NEW_SENDER_KEY, senderKey).changing(this::raiseTopLevelThresholdSigningReq),
+                cryptoCreate(sender).key(senderKey).via(SENDER_TXN),
+                cryptoCreate(receiver).balance(0L),
+                // Two of the three top-level constituents are activated, which satisfies the 2-of-3 key in force
+                scheduleCreate(schedule, cryptoTransfer(tinyBarsFromTo(sender, receiver, 1)))
+                        .payingWith(DEFAULT_PAYER)
+                        .waitForExpiry()
+                        .withRelativeExpiry(SENDER_TXN, 7)
+                        .recordingScheduledTxn()
+                        .alsoSigningWith(sender)
+                        .sigControl(ControlForKey.forKey(senderKey, firstNested)),
+                scheduleSign(schedule).alsoSigningWith(senderKey).sigControl(forKey(senderKey, secondNested)),
+                getAccountDetails(receiver)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith().balance(0L)),
+                // Now the sender requires all three, so what was recorded no longer satisfies the requirement
+                cryptoUpdate(sender).key(NEW_SENDER_KEY),
+                getScheduleInfo(schedule)
+                        .hasScheduleId(schedule)
+                        .hasWaitForExpiry()
+                        .isNotExecuted()
+                        .isNotDeleted()
+                        .hasRelativeExpiry(SENDER_TXN, 7)
+                        .hasRecordedScheduledTxn(),
+                triggerSchedule(schedule, 8),
+                getAccountDetails(receiver)
+                        .payingWith(GENESIS)
+                        .has(accountDetailsWith().balance(0L))));
     }
 
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
@@ -568,6 +619,12 @@ public class RepeatableScheduleLongTermSignTest {
                         .hasRecordedScheduledTxn(),
                 triggerSchedule(DEFERRED_FALL),
                 getAccountBalance(SENDER).hasTinyBars(666L)));
+    }
+
+    private Key raiseTopLevelThresholdSigningReq(Key source) {
+        return source.toBuilder()
+                .setThresholdKey(source.getThresholdKey().toBuilder().setThreshold(3))
+                .build();
     }
 
     private Key lowerThirdNestedThresholdSigningReq(Key source) {

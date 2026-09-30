@@ -1,0 +1,138 @@
+/**
+ * # CLPR Service API
+ * GRPC service definitions for the Cross Ledger Protocol (CLPR) Service.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package proto;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.service.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.clpr">>> This comment is special code for setting PBJ Compiler java package
+
+import "services/query.proto";
+import "services/response.proto";
+import "services/transaction_response.proto";
+import "services/transaction.proto";
+
+/**
+ * The CLPR Service manages cross-ledger channels and messaging between
+ * independent ledger networks using the Cross Ledger Protocol.
+ */
+service ClprService {
+    /**
+     * Register a new cross-ledger channel (Phase 1: Commit).
+     * <p>
+     * Reserves a channel by committing an ownership hash.
+     * Permissionless - any payer can register.<br/>
+     * The request body MUST be a
+     * [ClprRegisterChannelTransactionBody](#com.hedera.hapi.node.clpr.ClprRegisterChannelTransactionBody)
+     */
+    rpc registerChannel (Transaction) returns (TransactionResponse);
+
+    /**
+     * Complete a pending channel commitment (Phase 2: Reveal).
+     * <p>
+     * Reveals the preimage and proves key ownership to activate the channel.<br/>
+     * The request body MUST be a
+     * [ClprCompleteChannelTransactionBody](#com.hedera.hapi.node.clpr.ClprCompleteChannelTransactionBody)
+     */
+    rpc completeChannel (Transaction) returns (TransactionResponse);
+
+    /**
+     * Close a cross-ledger channel.
+     * <p>
+     * Initiates graceful closure of a CLPR channel.
+     * Requires the CLPR admin key.<br/>
+     * The request body MUST be a
+     * [ClprCloseChannelTransactionBody](#com.hedera.hapi.node.clpr.ClprCloseChannelTransactionBody)
+     */
+    rpc closeChannel (Transaction) returns (TransactionResponse);
+
+    /**
+     * Submit a bundle of cross-ledger messages.
+     * <p>
+     * Submits a bundle of messages received during a sync from a peer ledger.<br/>
+     * The request body MUST be a
+     * [ClprSubmitBundleTransactionBody](#com.hedera.hapi.node.clpr.ClprSubmitBundleTransactionBody)
+     */
+    rpc submitBundle (Transaction) returns (TransactionResponse);
+
+    /**
+     * Redact a message from the outbound queue.
+     * <p>
+     * Removes the payload of a message before it has been delivered.
+     * Requires the CLPR admin key.<br/>
+     * The request body MUST be a
+     * [ClprRedactMessageTransactionBody](#com.hedera.hapi.node.clpr.ClprRedactMessageTransactionBody)
+     */
+    rpc redactMessage (Transaction) returns (TransactionResponse);
+
+    /**
+     * Register a Connector commitment on the CLPR Service (Phase 1: Commit).
+     * <p>
+     * Permissionless and idempotent. Stores a commitment hash on-ledger
+     * so the reveal phase can verify key ownership.<br/>
+     * The request body MUST be a
+     * [ClprRegisterConnectorTransactionBody](#com.hedera.hapi.node.clpr.ClprRegisterConnectorTransactionBody)
+     */
+    rpc registerConnector (Transaction) returns (TransactionResponse);
+
+    /**
+     * Deregister a connector from the CLPR Service.
+     * <p>
+     * Removes a connector and returns any locked stake.<br/>
+     * The request body MUST be a
+     * [ClprDeregisterConnectorTransactionBody](#com.hedera.hapi.node.clpr.ClprDeregisterConnectorTransactionBody)
+     */
+    rpc deregisterConnector (Transaction) returns (TransactionResponse);
+
+    /**
+     * Complete a connector commitment (Phase 2: Reveal).
+     * <p>
+     * Reveals the preimage and proves key ownership to register the connector.<br/>
+     * The request body MUST be a
+     * [ClprCompleteConnectorTransactionBody](#com.hedera.hapi.node.clpr.ClprCompleteConnectorTransactionBody)
+     */
+    rpc completeConnector (Transaction) returns (TransactionResponse);
+
+    /**
+     * Update the ledger configuration for CLPR.
+     * <p>
+     * Updates the local CLPR ledger configuration.
+     * Requires the CLPR admin key.<br/>
+     * The request body MUST be a
+     * [ClprUpdateLedgerConfigurationTransactionBody](#com.hedera.hapi.node.clpr.ClprUpdateLedgerConfigurationTransactionBody)
+     */
+    rpc updateLedgerConfiguration (Transaction) returns (TransactionResponse);
+
+    /**
+     * Retrieve the current CLPR ledger configuration.
+     * <p>
+     * The request body MUST be a
+     * [ClprGetLedgerConfigurationQuery](#com.hedera.hapi.node.clpr.ClprGetLedgerConfigurationQuery)<br/>
+     * The response body SHALL be a
+     * [ClprGetLedgerConfigurationResponse](#com.hedera.hapi.node.clpr.ClprGetLedgerConfigurationResponse)
+     */
+    rpc getLedgerConfiguration (Query) returns (Response);
+
+    /**
+     * Retrieve the current CLPR endpoint manifest (spec §6.5).
+     * <p>
+     * Public read (no admin authorization). The response carries the manifest singleton and
+     * a StateProof suitable as {@code endpoint_manifest_proof_bytes} for a peer's
+     * {@code ClprCompleteChannel} (spec PR #332).<br/>
+     * The request body MUST be a
+     * [ClprGetEndpointManifestQuery](#com.hedera.hapi.node.clpr.ClprGetEndpointManifestQuery)<br/>
+     * The response body SHALL be a
+     * [ClprGetEndpointManifestResponse](#com.hedera.hapi.node.clpr.ClprGetEndpointManifestResponse)
+     */
+    rpc getEndpointManifest (Query) returns (Response);
+}

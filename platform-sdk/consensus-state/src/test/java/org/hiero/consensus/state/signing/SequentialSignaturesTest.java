@@ -61,7 +61,6 @@ public class SequentialSignaturesTest extends AbstractStateSignatureCollectorTes
     @Test
     @DisplayName("Sequential Signatures Test")
     void sequentialSignaturesTest() throws InterruptedException {
-        this.roundsToKeepAfterSigning = 4;
         final StateSignatureCollectorTester manager = new StateSignatureCollectorBuilder(buildStateConfig())
                 .stateLacksSignaturesConsumer(stateLacksSignaturesConsumer())
                 .stateHasEnoughSignaturesConsumer(stateHasEnoughSignaturesConsumer())
@@ -119,7 +118,7 @@ public class SequentialSignaturesTest extends AbstractStateSignatureCollectorTes
         }
 
         // Check reservation counts.
-        validateReservationCounts(round -> round < signedStates.size() - roundsToKeepAfterSigning - 1);
+        validateReservationCounts(round -> round < signedStates.size() - roundsToKeepForSigning);
 
         // We don't expect any further callbacks. But wait a little while longer in case there is something unexpected.
         SECONDS.sleep(1);

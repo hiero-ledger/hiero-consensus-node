@@ -275,7 +275,7 @@ class WritableRosterStoreTest {
                 "Returned active roster should be the same as the one set");
 
         final RosterHistory rosterHistory = readableRosterStore.getRosterHistory();
-        assertEquals(roster3, rosterHistory.getCurrentRoster());
+        assertEquals(roster3, rosterHistory.getActiveRoster());
         assertEquals(roster2, rosterHistory.getPreviousRoster());
     }
 
@@ -287,14 +287,14 @@ class WritableRosterStoreTest {
         writableRosterStore.putActiveRoster(roster, 1);
         assertNull(readableRosterStore.getPreviousRosterHash());
         assertEquals(roster, readableRosterStore.getActiveRoster());
-        final Bytes rosterHash = readableRosterStore.getCurrentRosterHash();
+        final Bytes rosterHash = readableRosterStore.getActiveRosterHash();
 
         // Now set the same roster as active, but for the next round. Given that the active roster AND this roster are
         // the same, it will not set the roster
         writableRosterStore.putActiveRoster(roster, 2);
 
         final RosterHistory rosterHistory = readableRosterStore.getRosterHistory();
-        assertEquals(roster, rosterHistory.getCurrentRoster());
+        assertEquals(roster, rosterHistory.getActiveRoster());
         assertEquals(roster, rosterHistory.getPreviousRoster());
     }
 

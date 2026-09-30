@@ -61,12 +61,14 @@ import java.io.IOException;
 import java.time.InstantSource;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.Supplier;
 import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-/** Implementation of {@link QueryWorkflow} */
+/**
+ * Implementation of {@link QueryWorkflow}
+ */
 public final class QueryWorkflowImpl implements QueryWorkflow {
 
     private static final Logger logger = LogManager.getLogger(QueryWorkflowImpl.class);
@@ -76,7 +78,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
     private static final List<HederaFunctionality> RESTRICTED_FUNCTIONALITIES =
             List.of(NETWORK_GET_EXECUTION_TIME, GET_ACCOUNT_DETAILS);
 
-    private final Function<ResponseType, AutoCloseableWrapper<State>> stateAccessor;
+    private final Supplier<AutoCloseableWrapper<State>> stateAccessor;
     private final SubmissionManager submissionManager;
     private final QueryChecker queryChecker;
     private final IngestChecker ingestChecker;
@@ -100,8 +102,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
     /**
      * Constructor of {@code QueryWorkflowImpl}
      *
-     * @param stateAccessor a {@link Function} that returns the latest immutable or latest signed state depending on the
-     * {@link ResponseType}
+     * @param stateAccessor a {@link Supplier} that returns the current working state
      * @param submissionManager the {@link SubmissionManager} to submit transactions to the platform
      * @param queryChecker the {@link QueryChecker} with specific checks of an ingest-workflow
      * @param ingestChecker the {@link IngestChecker} to handle the crypto transfer
@@ -113,14 +114,14 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
      * @param exchangeRateManager the {@link ExchangeRateManager} to get the {@link ExchangeRateInfo}
      * @param feeManager the {@link FeeManager} to calculate the fees
      * @param synchronizedThrottleAccumulator the {@link SynchronizedThrottleAccumulator} that checks transaction should be throttled
-     * @param instantSource the {@link InstantSource} to get the current time
-     * @param workflowMetrics the {@link OpWorkflowMetrics} to update the metrics
-     * @param shouldCharge If the workflow should charge for handling queries.
+     * @param instantSource                   the {@link InstantSource} to get the current time
+     * @param workflowMetrics                 the {@link OpWorkflowMetrics} to update the metrics
+     * @param shouldCharge                    If the workflow should charge for handling queries.
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     @Inject
     public QueryWorkflowImpl(
-            @NonNull final Function<ResponseType, AutoCloseableWrapper<State>> stateAccessor,
+            @NonNull final Supplier<AutoCloseableWrapper<State>> stateAccessor,
             @NonNull final SubmissionManager submissionManager,
             @NonNull final QueryChecker queryChecker,
             @NonNull final IngestChecker ingestChecker,
@@ -178,7 +179,9 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             final ResponseType responseType = queryHeader.responseType();
             logger.debug("Started answering a {} query of type {}", function, responseType);
 
-            try (final var wrappedState = stateAccessor.apply(responseType)) {
+            // The accessor hands back the working state, which the handle thread mutates concurrently; a query
+            // therefore has no snapshot and may observe a round partially applied (see docs/design/app/states.md)
+            try (final var wrappedState = stateAccessor.get()) {
                 // 2. Do some general pre-checks
                 final var paymentRequired = handler.requiresNodePayment(responseType);
                 if (paymentRequired) {
@@ -193,8 +196,12 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                 final var state = wrappedState.get();
                 final var storeFactory = new ReadableStoreFactoryImpl(state);
                 final QueryContext context;
-                TransactionBody txBody;
+                TransactionBody txBody = null;
                 AccountID payerID = null;
+                // Payment submission is deferred until the node has validated the query and passed the query
+                // throttle (steps 4 and 5), so a query that is rejected or throttled is never charged.
+                Bytes deferredPayment = null;
+                IngestChecker.Result paidCheckerResult = null;
                 if (shouldCharge && paymentRequired) {
                     final var configuration = configProvider.getConfiguration();
                     final Bytes paymentBytes;
@@ -205,6 +212,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     }
 
                     final var checkerResult = new IngestChecker.Result();
+                    paidCheckerResult = checkerResult;
                     try {
                         // 3.i Ingest checks
                         ingestChecker.runAllChecks(state, paymentBytes, configuration, checkerResult);
@@ -268,8 +276,9 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                     queryFees,
                                     cryptoTransferTxnFee);
 
-                            // 3.vi Submit payment to platform with priority=false vs network consensus and TSS txs
-                            submissionManager.submit(txBody, txInfo.serializedSignedTxOrThrow(), false);
+                            // 3.vi Capture the payment; it is submitted below only after the query is validated
+                            // and passes the throttle check, i.e. once the node has committed to answering it.
+                            deferredPayment = txInfo.serializedSignedTxOrThrow();
                         }
                     } catch (Exception e) {
                         checkerResult.throttleUsages().forEach(ThrottleUsage::reclaimCapacity);
@@ -290,15 +299,36 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             null);
                 }
 
-                // 4. Check validity of query
-                handler.validate(context);
+                // Validate and throttle-check before submitting the payment, so a query that is rejected or
+                // throttled is never charged. If either step fails -- or the submission itself does -- reclaim the
+                // throttle capacity the payment consumed at ingest, since no payment transaction reaches consensus.
+                // The payment is submitted once the node has committed to answering, i.e. before the response is
+                // generated: a failure after this point leaves the payer charged for work the node did attempt,
+                // which is why response generation sits outside this block.
+                try {
+                    // 4. Check validity of query
+                    handler.validate(context);
 
-                // 5. Check query throttles
-                if (shouldCharge && synchronizedThrottleAccumulator.shouldThrottle(function, query, state, payerID)) {
-                    workflowMetrics.incrementThrottled(function);
-                    throw new PreCheckException(BUSY);
+                    // 5. Check query throttles
+                    if (shouldCharge
+                            && synchronizedThrottleAccumulator.shouldThrottle(function, query, state, payerID)) {
+                        workflowMetrics.incrementThrottled(function);
+                        throw new PreCheckException(BUSY);
+                    }
+
+                    // 3.vi Submit payment to platform with priority=false vs network consensus and TSS txs, now
+                    //      that the query has been validated and has passed throttling.
+                    if (deferredPayment != null) {
+                        submissionManager.submit(txBody, deferredPayment, false);
+                    }
+                } catch (Exception e) {
+                    if (paidCheckerResult != null) {
+                        paidCheckerResult.throttleUsages().forEach(ThrottleUsage::reclaimCapacity);
+                    }
+                    throw e;
                 }
 
+                // 6. Generate the response
                 if (handler.needsAnswerOnlyCost(responseType)) {
                     // 6.i Estimate costs
                     final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
