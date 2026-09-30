@@ -42,9 +42,19 @@ public class ClprHieroToHieroMtlsSuite extends HieroToHieroBase {
             value = {
                 @MultiNetworkHapiTest.Network(
                         name = "ledgerA_mtls",
+                        // Dedicated base clear of the shared pool and of ledgerA_manifest's
+                        // [32000,32012) reservation (the fixtures were both captured at 32000).
+                        // The ledgerA_mtls fixture is regenerated at this base via the cold path.
+                        firstGrpcPort = 39400,
                         enableClprMtls = true,
                         firstMtlsPort = MTLS_PORT_A),
-                @MultiNetworkHapiTest.Network(name = "ledgerB_mtls", enableClprMtls = true, firstMtlsPort = MTLS_PORT_B)
+                @MultiNetworkHapiTest.Network(
+                        name = "ledgerB_mtls",
+                        // Dedicated base adjacent to ledgerA_mtls (39400), clear of all other
+                        // reservations. Fixture regenerated at this base via the cold path.
+                        firstGrpcPort = 40400,
+                        enableClprMtls = true,
+                        firstMtlsPort = MTLS_PORT_B)
             })
     @DisplayName("mTLS one-way: message from ledger A crosses to ledger B over the dedicated mTLS listener")
     Stream<DynamicTest> mtlsOneWayDelivery(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {

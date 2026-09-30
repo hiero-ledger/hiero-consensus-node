@@ -128,8 +128,26 @@ public class ProcessUtils {
      * @return a map of environment variable overrides
      */
     public static Map<String, String> prCheckOverrides() {
-        return Optional.ofNullable(System.getProperty("hapi.spec.test.overrides"))
-                .map(testOverrides -> Arrays.stream(testOverrides.split(","))
+        return parseOverrides("hapi.spec.test.overrides");
+    }
+
+    /**
+     * Returns the overridable per-task default node properties specified by the
+     * {@code hapi.spec.test.defaultOverrides} system property (build.gradle.kts {@code prCheckDefaultOverrides}).
+     * Unlike {@link #prCheckOverrides()} (applied as environment variables, config ordinal 300), these are
+     * written into the node's {@code application.properties} (ordinal 100) so a spec can still override them
+     * with {@code overriding(...)} / {@code @ConfigOverride} (network-properties override, ordinal 101).
+     *
+     * @return a map of default node-property overrides
+     */
+    public static Map<String, String> prCheckDefaultOverrides() {
+        return parseOverrides("hapi.spec.test.defaultOverrides");
+    }
+
+    private static Map<String, String> parseOverrides(@NonNull final String systemProperty) {
+        return Optional.ofNullable(System.getProperty(systemProperty))
+                .map(overrides -> Arrays.stream(overrides.split(","))
+                        .filter(override -> !override.isBlank())
                         .map(override -> override.split("="))
                         // Last-wins on duplicate keys so later overrides supersede earlier ones instead of throwing.
                         .collect(Collectors.toMap(parts -> parts[0], parts -> parts[1], (first, last) -> last)))

@@ -219,7 +219,27 @@ val prCheckPropOverrides =
         "hapiTestAtomicBatch" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
-        "hapiTestClpr" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        "hapiTestClpr" to
+            "tss.forceMockSignatures=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        "hapiTestClprEmbedded" to "tss.forceMockSignatures=true",
+        "hapiTestClprMultinetwork" to
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false",
+    )
+
+// Overridable per-task DEFAULTS. Unlike prCheckPropOverrides (delivered as node environment
+// variables at
+// config ordinal 300, which no spec can override), these are written into each node's
+// application.properties
+// (ordinal 100) — on by default, but a spec can still override them with overriding(...) /
+// @ConfigOverride
+// (network-properties override, ordinal 101). Used to enable CLPR by default for the CLPR tasks
+// while
+// letting the few negative suites disable it per-spec.
+val prCheckDefaultOverrides =
+    mapOf(
+        "hapiTestClpr" to "clpr.enabled=true",
+        "hapiTestClprEmbedded" to "clpr.enabled=true",
+        "hapiTestClprMultinetwork" to "clpr.enabled=true",
     )
 // hapiTestRestart reconnects the same node repeatedly; the 10m production throttle would starve it.
 val prCheckPlatformOverrides =
@@ -285,6 +305,19 @@ tasks.registerHapiTest(
 registerTestSubprocess("testSubprocess", "") // standard tasks for local dev without tag filter
 
 registerTestSubprocessConcurrent("testSubprocessConcurrent", "")
+
+// Gather overrides into a single comma‐separated list
+val testOverrides =
+    gradle.startParameter.taskNames
+        .mapNotNull { prCheckPropOverrides[it] }
+        .joinToString(separator = ",")
+
+// Overridable per-task defaults (see prCheckDefaultOverrides) — applied via application.properties,
+// not env.
+val defaultOverrides =
+    gradle.startParameter.taskNames
+        .mapNotNull { prCheckDefaultOverrides[it] }
+        .joinToString(separator = ",")
 
 prCheckTags.forEach { (taskName, ciTagExpression) ->
     if (
@@ -457,6 +490,10 @@ fun TaskContainer.registerHapiTest(
         if (prCheckPlatformOverrides.containsKey(name)) {
             systemProperty("hapi.spec.platform.overrides", prCheckPlatformOverrides.getValue(name))
         }
+        if (testOverrides.isNotBlank()) {
+            systemProperty("hapi.spec.test.overrides", testOverrides)
+            systemProperty("hapi.spec.test.defaultOverrides", defaultOverrides)
+        }
         if (prCheckPrepareUpgradeOffsets.containsKey(name)) {
             systemProperty(
                 "hapi.spec.prepareUpgradeOffsets",
@@ -500,7 +537,9 @@ fun TaskContainer.registerHapiTest(
             } else {
                 includeTags(
                     if (ciTagExpression.isBlank()) defaultTags
-                    else if (name == "testEmbedded" && ciTagExpression.contains("CLPR"))
+                    // The embedded CLPR task runs only its own suites; we deliberately do not
+                    // append (or run) STREAM_VALIDATION / LOG_VALIDATION for CLPR.
+                    else if (ciTagExpression.contains("EMBEDDED&CLPR"))
                         "(${ciTagExpression})"
                     // We don't want to run stream or log validation for ISS or BLOCK_NODE cases
                     else if (
