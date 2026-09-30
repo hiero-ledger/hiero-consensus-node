@@ -133,19 +133,25 @@ public final class OutputRecordCompare {
                     futures.add(pool.submit((Callable<BlockDivergence>)
                             () -> firstDivergenceInBlock(blockNum, oPath, rPath, fr, tr, ignore)));
                 }
+                // Futures are in ascending block order, so the first divergent one is the earliest.
                 BlockDivergence earliest = null;
                 for (final Future<BlockDivergence> f : futures) {
                     final BlockDivergence d = f.get();
                     if (d == null) {
                         blocksClean++;
-                    } else if (all) {
+                        continue;
+                    }
+                    if (all) {
                         divergentBlocks++;
                         System.out.printf(
                                 "DIVERGENT block %d, round %d: txId=%s diff=%s states=%s%n",
                                 d.blockNum, d.round, d.txId, d.kinds, d.states);
-                    } else if (earliest == null || d.blockNum < earliest.blockNum) {
-                        earliest = d;
+                        continue;
                     }
+                    earliest = d;
+                    // Stop here: blocks after the divergence must not be counted as clean before it. The remaining
+                    // tasks are cancelled by pool.shutdownNow() in the finally block.
+                    break;
                 }
                 if (!all && earliest != null) {
                     System.out.println();
@@ -154,7 +160,7 @@ public final class OutputRecordCompare {
                             earliest.blockNum, earliest.round);
                     System.out.printf(
                             "  txId=%s  diff=%s  states=%s%n", earliest.txId, earliest.kinds, earliest.states);
-                    System.out.printf("Blocks confirmed clean before it: at least %d%n", blocksClean);
+                    System.out.printf("Blocks clean before it: %d%n", blocksClean);
                     return;
                 }
                 if (!all) {

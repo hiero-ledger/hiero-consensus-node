@@ -27,7 +27,9 @@ import java.util.stream.Stream;
  *
  * <p>Grouping rules:
  * <ul>
- *   <li>A {@code SIGNED_TRANSACTION} starts a new transaction record.</li>
+ *   <li>A {@code SIGNED_TRANSACTION} starts a new transaction record. Only a top-level transaction (nonce 0, not
+ *       scheduled) starts a new parent context; a synthetic transaction inside a batch (e.g. an auto-created
+ *       account) keeps the batch context, so later inner results are still labelled correctly.</li>
  *   <li>The first {@code TRANSACTION_RESULT} after it belongs to that record. Every further
  *       {@code TRANSACTION_RESULT} without a new {@code SIGNED_TRANSACTION} starts a new record of its own. This
  *       is how inner transactions of an atomic batch appear; they are labelled with the inner transaction's ID,
@@ -124,12 +126,21 @@ public final class BlockRoundExtractor {
                     }
                     final TransactionBody body = parseBody(item.item().as());
                     final String txId = txIdString(body);
-                    current = new Builder(txId, "", body);
-                    parentTxId = txId;
-                    batchInner = body != null && body.hasAtomicBatch()
-                            ? body.atomicBatchOrThrow().transactions()
-                            : List.of();
-                    innerIndex = 0;
+                    if (parentTxId == null || isTopLevel(body)) {
+                        // New top-level transaction: starts a new (possibly batch) context.
+                        current = new Builder(txId, "", body);
+                        parentTxId = txId;
+                        batchInner = body != null && body.hasAtomicBatch()
+                                ? body.atomicBatchOrThrow().transactions()
+                                : List.of();
+                        innerIndex = 0;
+                    } else {
+                        // Synthetic transaction (child, preceding or scheduled) within the current parent, e.g. an
+                        // account auto-created by an inner transfer. Keep the batch context so the inner results
+                        // that follow still get their IDs and bodies.
+                        current = new Builder(
+                                txId, batchInner.isEmpty() ? "" : "synthetic, inside batch " + parentTxId, body);
+                    }
                 }
                 case TRANSACTION_RESULT -> {
                     final TransactionResult result = item.transactionResult();
@@ -196,6 +207,19 @@ public final class BlockRoundExtractor {
         } catch (final Exception e) {
             return null;
         }
+    }
+
+    /**
+     * Whether the transaction is top-level, i.e. came from an event: nonce 0 and not scheduled. Child, preceding and
+     * scheduled transactions are synthetic. Same rule as {@code BlockStreamEventBuilder.isTransactionInEvent}.
+     * An unparseable body is treated as top-level.
+     */
+    static boolean isTopLevel(final TransactionBody body) {
+        if (body == null || body.transactionID() == null) {
+            return true;
+        }
+        final TransactionID id = body.transactionID();
+        return id.nonce() == 0 && !id.scheduled();
     }
 
     /** Formats a transaction ID as {@code account@seconds.nanos[.nN][.sched]}. */
