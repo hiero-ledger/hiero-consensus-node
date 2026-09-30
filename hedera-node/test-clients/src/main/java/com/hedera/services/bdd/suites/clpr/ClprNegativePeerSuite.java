@@ -3,7 +3,7 @@ package com.hedera.services.bdd.suites.clpr;
 
 import static com.hedera.hapi.node.state.clpr.ClprChannelStatus.ACTIVE;
 import static com.hedera.hapi.node.state.clpr.ClprChannelStatus.PAUSED;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.CHANNELS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
