@@ -26,6 +26,7 @@ import org.hiero.consensus.gossip.impl.network.NetworkUtils;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.roster.RosterWithKeys;
 import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
@@ -59,13 +60,13 @@ class TlsFactoryTest extends ConnectivityTestBase {
     void setUp() throws Throwable {
         // create addressBook, keysAndCerts
         final RosterWithKeys rosterAndCerts = genRosterLoadKeys(2);
-        final Roster roster = rosterAndCerts.roster().toPbj();
+        final RosterWrapper roster = rosterAndCerts.roster();
         final Map<NodeId, KeysAndCerts> keysAndCerts = rosterAndCerts.privateKeys();
         assertTrue(roster.rosterEntries().size() > 1, "Roster must contain at least 2 nodes");
 
         // choose 2 nodes to test connections
-        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId());
-        final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
+        final NodeId nodeA = roster.nodeIdAtIndex(0);
+        final NodeId nodeB = roster.nodeIdAtIndex(1);
 
         peersA = Utilities.createPeerInfoList(roster, nodeA);
         final List<PeerInfo> peersB = Utilities.createPeerInfoList(roster, nodeB);
@@ -88,7 +89,7 @@ class TlsFactoryTest extends ConnectivityTestBase {
         final RosterWithKeys updatedRosterAndCerts = genRosterLoadKeys(6);
         final List<RosterEntry> updatedEntries =
                 updatedRosterAndCerts.roster().toPbj().rosterEntries();
-        final Roster updatedRoster = Roster.newBuilder()
+        final Roster updatedPbjRoster = Roster.newBuilder()
                 .rosterEntries(updatedEntries.stream()
                         .map(entry -> {
                             if (entry.nodeId() == nodeA.id()) {
@@ -105,13 +106,14 @@ class TlsFactoryTest extends ConnectivityTestBase {
                         })
                         .toList())
                 .build();
+        final RosterWrapper updatedRoster = RosterWrapper.of(updatedPbjRoster);
         final Map<NodeId, KeysAndCerts> updatedKeysAndCerts = updatedRosterAndCerts.privateKeys();
         assertTrue(updatedRoster.rosterEntries().size() > 1, "Roster must contain at least 2 nodes");
 
         peersA = Utilities.createPeerInfoList(updatedRoster, nodeA); // Peers of A as in updated addressBook
 
         // pick a node for the 3rd connection C.
-        final NodeId nodeC = NodeId.of(updatedRoster.rosterEntries().get(4).nodeId());
+        final NodeId nodeC = updatedRoster.nodeIdAtIndex(4);
         final List<PeerInfo> peersC = Utilities.createPeerInfoList(updatedRoster, nodeC);
         socketFactoryC =
                 NetworkUtils.createSocketFactory(nodeC, peersC, updatedKeysAndCerts.get(nodeC), TLS_NO_IP_TOS_CONFIG);

@@ -117,7 +117,7 @@ public class TipsetWeightCalculator {
         this.roster = requireNonNull(roster);
 
         totalWeight = roster.totalWeight();
-        selfWeight = roster.getRosterEntry(selfId).weight();
+        selfWeight = roster.weight(selfId);
         maximumPossibleAdvancementWeight = totalWeight - selfWeight;
         maxSnapshotHistorySize =
                 configuration.getConfigData(EventCreationConfig.class).tipsetSnapshotHistorySize();

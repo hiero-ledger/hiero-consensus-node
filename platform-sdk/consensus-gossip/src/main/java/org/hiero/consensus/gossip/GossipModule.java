@@ -2,7 +2,6 @@
 package org.hiero.consensus.gossip;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -21,6 +20,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -59,7 +59,7 @@ public interface GossipModule {
             @NonNull Metrics metrics,
             @NonNull Time time,
             @NonNull KeysAndCerts keysAndCerts,
-            @NonNull Roster activeRoster,
+            @NonNull RosterWrapper activeRoster,
             @NonNull NodeId selfId,
             @NonNull SemanticVersion appVersion,
             @NonNull IntakeEventCounter intakeEventCounter,
