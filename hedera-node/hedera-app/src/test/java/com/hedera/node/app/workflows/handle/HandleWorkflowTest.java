@@ -8,6 +8,8 @@ import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_ST
 import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
@@ -53,6 +55,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.file.File;
@@ -82,6 +86,7 @@ import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.file.FileService;
@@ -913,6 +918,28 @@ class HandleWorkflowTest {
                 BlockStreamWriterMode.FILE,
                 emptyList(),
                 Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void initializesMissingClprSingletonsOnUpgrade() throws Exception {
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
+        final var clprStates = mock(WritableStates.class);
+        final WritableSingletonState<ClprLedgerConfiguration> ledgerConfiguration = mock(WritableSingletonState.class);
+        final WritableSingletonState<ClprEndpointManifest> manifest = mock(WritableSingletonState.class);
+        given(state.getWritableStates(ClprService.NAME)).willReturn(clprStates);
+        given(clprStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                .willReturn(ledgerConfiguration);
+        given(clprStates.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
+                .willReturn(manifest);
+
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "initializeMissingClprSingletons", com.swirlds.state.State.class);
+        method.setAccessible(true);
+        method.invoke(subject, state);
+
+        verify(ledgerConfiguration).put(any(ClprLedgerConfiguration.class));
+        verify(manifest).put(any(ClprEndpointManifest.class));
     }
 
     @Test

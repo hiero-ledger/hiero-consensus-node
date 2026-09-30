@@ -125,7 +125,7 @@ public class SeiVerifyBundleCall extends AbstractCall {
 
         final ClprBundleContent content;
         try {
-            content = ClprBundleContent.PROTOBUF.parse(
+            content = ClprBundleContent.PROTOBUF.parseStrict(
                     Bytes.wrap(verified.bundleContentBytes()).toReadableSequentialData());
         } catch (final Exception e) {
             log.warn("verifyBundle (Sei): inner bytes are not a valid ClprBundleContent: {}", e.getMessage());
@@ -230,7 +230,7 @@ public class SeiVerifyBundleCall extends AbstractCall {
             final byte[] manifestBytes = verified.newEndpointManifestBytes();
             if (manifestBytes.length > 0) {
                 try {
-                    manifest = ClprEndpointManifest.PROTOBUF.parse(
+                    manifest = ClprEndpointManifest.PROTOBUF.parseStrict(
                             Bytes.wrap(manifestBytes).toReadableSequentialData());
                 } catch (final Exception e) {
                     // The verifier already strict-parsed this preimage; a re-parse failure is a defect, not

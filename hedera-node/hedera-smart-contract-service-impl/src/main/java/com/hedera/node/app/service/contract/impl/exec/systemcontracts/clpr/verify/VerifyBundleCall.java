@@ -86,7 +86,7 @@ public class VerifyBundleCall extends AbstractCall {
 
         final StateProof proof;
         try {
-            proof = StateProof.PROTOBUF.parse(Bytes.wrap(bundlePayload).toReadableSequentialData());
+            proof = StateProof.PROTOBUF.parseStrict(Bytes.wrap(bundlePayload).toReadableSequentialData());
         } catch (final Exception e) {
             log.error("verifyBundle: failed to parse StateProof for trustAnchor {}", trustAnchorBytes, e);
             return fail();
@@ -161,12 +161,12 @@ public class VerifyBundleCall extends AbstractCall {
                 if (svTag == ClprProofExtraction.SV_CHANNEL_TAG) {
                     final var inner = ClprProofExtraction.unwrapStateValueField(valueBytes);
                     if (inner != null) {
-                        channel = ClprChannel.PROTOBUF.parse(inner.toReadableSequentialData());
+                        channel = ClprChannel.PROTOBUF.parseStrict(inner.toReadableSequentialData());
                     }
                 } else if (svTag == ClprProofExtraction.SV_MESSAGE_TAG) {
                     final var inner = ClprProofExtraction.unwrapStateValueField(valueBytes);
                     if (inner != null) {
-                        final var msgValue = ClprMessageValue.PROTOBUF.parse(inner.toReadableSequentialData());
+                        final var msgValue = ClprMessageValue.PROTOBUF.parseStrict(inner.toReadableSequentialData());
                         // Preserve the slot for redacted messages (payload cleared by ClprRedactMessage):
                         // the receiver expects to iterate messages by index so it can emit a REDACTED
                         // reply for that slot and advance ackedMessageId. Dropping the slot would
@@ -181,7 +181,8 @@ public class VerifyBundleCall extends AbstractCall {
                     // cached version (spec §4.2 Step 1b, impl in #333).
                     final var inner = ClprProofExtraction.unwrapStateValueField(valueBytes);
                     if (inner != null) {
-                        newEndpointManifest = ClprEndpointManifest.PROTOBUF.parse(inner.toReadableSequentialData());
+                        newEndpointManifest =
+                                ClprEndpointManifest.PROTOBUF.parseStrict(inner.toReadableSequentialData());
                     }
                 }
             } catch (final Exception e) {
