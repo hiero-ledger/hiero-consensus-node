@@ -38,6 +38,48 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
 
+    @Test
+    void preservesOriginalAndStoredIdentityWhenTrackingProvidesAnEqualCopy() {
+        final var backing = new HashMap<ProtoBytes, ProtoBytes>();
+        final var root = new ProtoBytes(com.hedera.pbj.runtime.io.buffer.Bytes.wrap("old"));
+        backing.put(A_KEY, root);
+        final var writable = new MapWritableKVState<>(FRUIT_STATE_ID, FRUIT_STATE_LABEL, backing);
+        final var next = root.copyBuilder()
+                .value(com.hedera.pbj.runtime.io.buffer.Bytes.wrap("new"))
+                .build();
+        final var delivered = new ArrayList<ProtoBytes>();
+        writable.registerListener(new KVChangeListener<>() {
+            @Override
+            public boolean requiresPreviousValue() {
+                return true;
+            }
+
+            @Override
+            public void mapUpdateChange(ProtoBytes key, ProtoBytes value) {
+                fail("Expected provenance callback");
+            }
+
+            @Override
+            public void mapUpdateChange(ProtoBytes key, ProtoBytes prior, ProtoBytes value, ProtoBytes stored) {
+                assertThat(prior).isSameAs(root);
+                assertThat(value).isSameAs(next);
+                assertThat(stored).isSameAs(backing.get(key)).isEqualTo(next).isNotSameAs(next);
+                delivered.add(stored);
+            }
+
+            @Override
+            public void mapDeleteChange(ProtoBytes key) {
+                fail("Unexpected deletion");
+            }
+        });
+        assertThat(next.$copyBuilderOrigin()).isSameAs(root);
+        writable.put(A_KEY, next);
+        writable.commit();
+        assertThat(delivered).hasSize(1);
+        assertThat(writable.get(A_KEY)).isSameAs(delivered.getFirst());
+        assertThat(writable.get(A_KEY).$copyBuilderOrigin()).isNull();
+    }
+
     private static final String NUM_ITERATIONS_ARG = "WritableKVStateBaseTest.DeterministicUpdates.numIterations";
     private WritableKVStateBase<ProtoBytes, ProtoBytes> state;
 
@@ -114,6 +156,35 @@ public class WritableKVStateBaseTest extends ReadableKVStateBaseTest {
         void setUp() {
             state.registerListener(firstListener);
             state.registerListener(secondListener);
+        }
+
+        @Test
+        void capturesOriginalBeforeMutationIncludingUnreadWritesAndSubsequentCommits() {
+            Mockito.when(firstListener.requiresPreviousValue()).thenReturn(true);
+            final var next = toProtoBytes("new value");
+            state.put(A_KEY, BANANA);
+            state.put(A_KEY, next);
+            state.commit();
+            verify(firstListener).mapUpdateChange(A_KEY, APPLE, next);
+            verify(secondListener).mapUpdateChange(A_KEY, next);
+            state.put(A_KEY, BANANA);
+            state.commit();
+            verify(firstListener).mapUpdateChange(A_KEY, next, BANANA);
+            state.remove(A_KEY);
+            state.commit();
+            state.put(A_KEY, APPLE);
+            state.commit();
+            verify(firstListener).mapUpdateChange(A_KEY, null, APPLE);
+        }
+
+        @Test
+        void rollbackDoesNotNotifyOrAdvanceBaseline() {
+            Mockito.when(firstListener.requiresPreviousValue()).thenReturn(true);
+            state.put(A_KEY, BANANA);
+            state.reset();
+            state.put(A_KEY, toProtoBytes("committed"));
+            state.commit();
+            verify(firstListener).mapUpdateChange(A_KEY, APPLE, toProtoBytes("committed"));
         }
 
         @Test

@@ -1,10 +1,43 @@
 // SPDX-License-Identifier: Apache-2.0
-pluginManagement { includeBuild("gradle/besu-native-patch") }
+pluginManagement {
+    includeBuild("gradle/besu-native-patch")
+    repositories {
+        // Temporary compatible PBJ build; only this exact snapshot can resolve locally.
+        mavenLocal {
+            content {
+                includeVersion("com.hedera.pbj", "pbj-compiler", "0.15.10-partial-diff-SNAPSHOT")
+                includeVersion(
+                    "com.hedera.pbj.pbj-compiler",
+                    "com.hedera.pbj.pbj-compiler.gradle.plugin",
+                    "0.15.10-partial-diff-SNAPSHOT",
+                )
+            }
+        }
+        gradlePluginPortal()
+    }
+}
 
 plugins {
     id("org.hiero.gradle.build") version "0.7.11"
-    id("com.hedera.pbj.pbj-compiler") version "0.15.10" apply false
+    id("com.hedera.pbj.pbj-compiler") version "0.15.10-partial-diff-SNAPSHOT" apply false
     id("org.hiero.gradle.feature.besu-native-patch")
+}
+
+// Remove this repository when adopting the released PBJ artifact. Other dependencies use
+// the normal repositories, even if unrelated snapshots exist in Maven local.
+dependencyResolutionManagement {
+    repositories {
+        exclusiveContent {
+            forRepository { mavenLocal() }
+            filter {
+                includeVersionByRegex(
+                    "com\\.hedera\\.pbj",
+                    "pbj-.*",
+                    "0\\.15\\.10-partial-diff-SNAPSHOT",
+                )
+            }
+        }
+    }
 }
 
 javaModules {

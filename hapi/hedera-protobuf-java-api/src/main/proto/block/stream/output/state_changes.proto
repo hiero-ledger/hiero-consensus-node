@@ -651,6 +651,16 @@ message RemovedStateChange {
  * An update to a `Singleton` state.
  */
 message SingletonUpdateChange {
+    /**
+     * Whether new_value is a canonical delta, as defined for
+     * MapUpdateChange.partial. The baseline is the last emitted singleton
+     * value, including across block boundaries. Default false means full replacement.
+     */
+    bool partial = 24;
+
+    /** Sorted, unique top-level fields to reset; valid only when partial is true. */
+    repeated uint32 cleared_fields = 25;
+
     oneof new_value {
         /**
          * A change to the block info singleton.
@@ -864,6 +874,29 @@ message MapUpdateChange {
      * additional list of changed keys.
      */
     bool identical = 3;
+
+    /**
+     * False means a complete replacement. True means a sparse top-level value,
+     * applied against the preceding value for this state and key. Supplied fields
+     * replace entire fields, including messages, bytes and repeated lists. Omitted
+     * fields remain unchanged unless listed in cleared_fields. A prior value is
+     * REQUIRED for partial updates. An empty partial with no clears is a no-op.
+     *
+     * Message presence and selected default-valued oneof members are significant.
+     * Switching a oneof member MUST explicitly clear its previously selected
+     * alternative. Clearing a oneof to unset also names the selected member.
+     * Encoded empty length-delimited fields retain their presence, including empty
+     * messages, optional wrappers, selected strings/bytes and repeated elements.
+     */
+    bool partial = 4;
+
+    /**
+     * Sorted, unique top-level field numbers in the entity value to reset to
+     * default/absent/empty. Valid only for partial updates. A cleared field MUST
+     * NOT also be supplied in value. Clearing an already absent field is valid.
+     * A switch can clear an old oneof alternative and supply a different alternative.
+     */
+    repeated uint32 cleared_fields = 5;
 }
 
 /**

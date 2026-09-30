@@ -120,6 +120,7 @@ public class BlockStreamManagerWrapper {
                 ForkJoinPool.commonPool(),
                 configProvider,
                 NoOpDependencies.createBenchmarkBoundaryStateChangeListener(configProvider),
+                new com.hedera.node.app.blocks.impl.ImmediateStateChangeListener(),
                 new NoOpDependencies.NoOpPlatform(),
                 quiescenceController,
                 NoOpDependencies.createNoOpInitialStateHash(),

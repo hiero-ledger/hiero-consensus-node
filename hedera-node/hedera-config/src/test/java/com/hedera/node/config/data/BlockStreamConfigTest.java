@@ -11,6 +11,32 @@ import org.junit.jupiter.api.Test;
 class BlockStreamConfigTest {
 
     @Test
+    void deltasAreRestrictedToCompleteBlockStreamsAndCanBeDisabled() {
+        for (final var mode : StreamMode.values()) {
+            final var defaults = com.hedera.node.config.testfixtures.HederaTestConfigBuilder.create()
+                    .withValue("blockStream.streamMode", mode.name())
+                    .getOrCreateConfig()
+                    .getConfigData(BlockStreamConfig.class);
+            assertThat(defaults.stateChangeDeltasEnabled()).isEqualTo(mode == StreamMode.BLOCKS);
+            assertThat(defaults.stateChangeDeltaMinSaving()).isEqualTo(64);
+            final var enabled = com.hedera.node.config.testfixtures.HederaTestConfigBuilder.create()
+                    .withValue("blockStream.streamMode", mode.name())
+                    .withValue("blockStream.enableStateChangeDeltas", true)
+                    .withValue("blockStream.stateChangeDeltaMinSaving", 32)
+                    .getOrCreateConfig()
+                    .getConfigData(BlockStreamConfig.class);
+            assertThat(enabled.stateChangeDeltaMinSaving()).isEqualTo(32);
+            assertThat(enabled.stateChangeDeltasEnabled()).isEqualTo(mode == StreamMode.BLOCKS);
+            final var disabled = com.hedera.node.config.testfixtures.HederaTestConfigBuilder.create()
+                    .withValue("blockStream.streamMode", mode.name())
+                    .withValue("blockStream.enableStateChangeDeltas", false)
+                    .getOrCreateConfig()
+                    .getConfigData(BlockStreamConfig.class);
+            assertThat(disabled.stateChangeDeltasEnabled()).isFalse();
+        }
+    }
+
+    @Test
     void streamToBlockNodesFalseWhenFileWriterAndWrbDisabled() {
         assertThat(configWith(BlockStreamWriterMode.FILE, false).streamToBlockNodes())
                 .isFalse();
@@ -54,6 +80,8 @@ class BlockStreamConfigTest {
                 false,
                 streamWrappedRecordBlocks,
                 false,
-                false);
+                false,
+                false,
+                64);
     }
 }

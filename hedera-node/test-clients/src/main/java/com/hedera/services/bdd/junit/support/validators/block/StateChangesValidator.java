@@ -46,6 +46,7 @@ import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
+import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.history.HistoryLibrary;
@@ -366,6 +367,7 @@ public class StateChangesValidator implements BlockStreamValidator {
 
     @Override
     public void validateBlocks(@NonNull final List<Block> blocks) {
+        blocks.forEach(StateChangeDeltas::validateBlockDeltas);
         logger.info("Beginning validation of expected root hash {}", expectedRootHash);
         var previousBlockHash = BlockStreamManager.HASH_OF_ZERO;
         var startOfStateHash = requireNonNull(initializedGenesisStateHash).getBytes();
@@ -379,6 +381,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             logger.info("Read {} preview blocks", previewBlocks.size());
 
             for (final var block : previewBlocks) {
+                StateChangeDeltas.validateBlockDeltas(block);
                 // Apply state changes from preview blocks to build up state
                 long eventNodeId = -1;
                 for (final var item : block.items()) {
@@ -1041,7 +1044,9 @@ public class StateChangesValidator implements BlockStreamValidator {
                 }
                 case SINGLETON_UPDATE -> {
                     final var singletonState = writableStates.getSingleton(stateId);
-                    final var singleton = BlockStreamUtils.singletonPutFor(stateChange.singletonUpdateOrThrow());
+                    final var update = stateChange.singletonUpdateOrThrow();
+                    final var singleton = StateChangeDeltas.applySingleton(
+                            stateId, update.partial() ? singletonState.get() : null, update);
                     singletonState.put(singleton);
                     stateChangesSummary.countSingletonPut(serviceName, stateId);
                     if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()) {
@@ -1052,8 +1057,9 @@ public class StateChangesValidator implements BlockStreamValidator {
                     final var mapState = writableStates.get(stateId);
                     final var key = BlockStreamUtils.mapKeyFor(
                             stateChange.mapUpdateOrThrow().keyOrThrow());
-                    final var value = BlockStreamUtils.mapValueFor(
-                            stateChange.mapUpdateOrThrow().valueOrThrow());
+                    final var update = stateChange.mapUpdateOrThrow();
+                    final var value =
+                            StateChangeDeltas.applyMap(stateId, update.partial() ? mapState.get(key) : null, update);
                     mapState.put(key, value);
                     entityChanges
                             .computeIfAbsent(stateName, k -> new HashSet<>())

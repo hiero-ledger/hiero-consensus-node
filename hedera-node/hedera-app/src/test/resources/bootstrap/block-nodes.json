@@ -3,10 +3,8 @@
     {
       "address": "localhost",
       "streamingPort": 40840,
-      "servicePort": 40841,
-      "priority": 1,
-      "messageSizeSoftLimitBytes": 2097152
-    },
-    { "address": "localhost", "streamingPort": 8081, "servicePort": 8082, "priority": 1 }
+      "servicePort": 40840,
+      "priority": 1
+    }
   ]
 }

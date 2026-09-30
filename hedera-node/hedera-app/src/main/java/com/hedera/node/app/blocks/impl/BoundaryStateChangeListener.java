@@ -30,6 +30,7 @@ import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ContractsConfig;
@@ -42,6 +43,7 @@ import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.StateChangeListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -63,6 +65,48 @@ public class BoundaryStateChangeListener implements StateChangeListener {
      * Maintains insertion order so we externalize changes in the same order they were applied during genesis.
      */
     private final Map<Integer, StateChange> singletonUpdates = new LinkedHashMap<>();
+
+    private final Map<Integer, Object> singletonBaselines = new LinkedHashMap<>();
+    private int deltaMinSaving = StateChangeDeltas.DEFAULT_MIN_SAVING;
+    private boolean deltasEnabled;
+
+    /** Fixes encoding mode for this block. Migration listeners remain disabled. */
+    public void beginBlock(final boolean enableDeltas) {
+        beginBlock(enableDeltas, StateChangeDeltas.DEFAULT_MIN_SAVING);
+    }
+
+    public void beginBlock(final boolean enableDeltas, final int minSaving) {
+        if (minSaving < 0) throw new IllegalArgumentException("Minimum saving must be nonnegative");
+        deltaMinSaving = minSaving;
+        deltasEnabled = enableDeltas;
+        singletonBaselines.clear();
+    }
+
+    @Override
+    public boolean requiresPreviousValue() {
+        return deltasEnabled;
+    }
+
+    @Override
+    public boolean requiresPreviousValue(final int stateId) {
+        return deltasEnabled;
+    }
+
+    @Override
+    public <V> void singletonUpdateChange(final int stateId, @Nullable final V previousValue, @NonNull final V value) {
+        if (deltasEnabled && !singletonUpdates.containsKey(stateId)) {
+            singletonBaselines.put(stateId, previousValue);
+        }
+        singletonUpdateChange(stateId, value);
+    }
+
+    @Override
+    public void singletonDeleteChange(final int stateId) {
+        if (requiresPreviousValue(stateId)) {
+            // Preserve legacy deletion behavior; any later recreation must be full.
+            singletonBaselines.put(stateId, null);
+        }
+    }
 
     @NonNull
     private final StoreMetricsService storeMetricsService;
@@ -111,6 +155,7 @@ public class BoundaryStateChangeListener implements StateChangeListener {
      */
     public void reset() {
         singletonUpdates.clear();
+        singletonBaselines.clear();
     }
 
     /**
@@ -118,9 +163,24 @@ public class BoundaryStateChangeListener implements StateChangeListener {
      * @return the state changes
      */
     public List<StateChange> allStateChanges() {
+        return allStateChanges(true);
+    }
+
+    /** The final block-hash checkpoint must be recoverable from saved state alone. */
+    public List<StateChange> allStateChanges(final boolean allowPartial) {
         final var allStateChanges = new LinkedList<StateChange>();
         for (final var entry : singletonUpdates.entrySet()) {
-            allStateChanges.add(entry.getValue());
+            final var full = entry.getValue();
+            final var update = full.singletonUpdateOrThrow();
+            final var type = StateChangeDeltas.singletonType(
+                    entry.getKey(), update.newValue().kind().protoOrdinal());
+            if (allowPartial && deltasEnabled && type != null) {
+                final var prior = singletonBaselines.get(entry.getKey());
+                final var delta = StateChangeDeltas.encodeSingleton(entry.getKey(), prior, update, deltaMinSaving);
+                allStateChanges.add(full.copyBuilder().singletonUpdate(delta).build());
+            } else {
+                allStateChanges.add(full);
+            }
         }
         return allStateChanges;
     }
@@ -135,7 +195,7 @@ public class BoundaryStateChangeListener implements StateChangeListener {
         requireNonNull(value, "value must not be null");
         final var stateChange = StateChange.newBuilder()
                 .stateId(stateId)
-                .singletonUpdate(new SingletonUpdateChange(singletonUpdateChangeValueFor(value)))
+                .singletonUpdate(new SingletonUpdateChange(false, List.of(), singletonUpdateChangeValueFor(value)))
                 .build();
         singletonUpdates.put(stateId, stateChange);
         if (stateId == ENTITY_COUNTS_STATE_ID) {

@@ -8,9 +8,14 @@ plugins {
 
 description = "Hedera API"
 
+pbj { generateCopyBuilderTracking = true }
+
 // Remove the following line to enable all 'javac' lint checks that we have turned on by default
 // and then fix the reported issues.
 tasks.withType<JavaCompile>().configureEach {
+    // All HAPI messages now include PBJ diff helpers; the default 512 MB compiler heap is
+    // insufficient.
+    options.forkOptions.memoryMaximumSize = "2g"
     options.compilerArgs.add("-Xlint:-exports,-deprecation,-removal")
 }
 
@@ -46,12 +51,13 @@ sourceSets {
 
 testModuleInfo {
     requires("com.hedera.node.hapi")
-    // we depend on the protoc compiled hapi during test as we test our pbj generated code
-    // against it to make sure it is compatible
     requires("com.google.protobuf.util")
+    requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
-    requires("org.assertj.core")
+
+    // against it to make sure it is compatible
+    // we depend on the protoc compiled hapi during test as we test our pbj generated code
 }
 
 tasks.test {

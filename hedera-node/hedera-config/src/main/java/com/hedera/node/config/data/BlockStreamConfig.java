@@ -25,6 +25,8 @@ import java.time.Duration;
  * @param blockFileBufferOuterSizeKb block file writer outer buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
  * @param blockFileBufferInnerSizeKb block file writer inner buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
  * @param blockFileBufferGzipSizeKb block file writer GZIP buffer size (in kilobytes) (see FileBlockItemWriter#openBlock(long) for details)
+ * @param enableStateChangeDeltas coordinated emission of top-level replacements and clears in complete block streams
+ * @param stateChangeDeltaMinSaving minimum omitted entity bytes after partial metadata overhead
  */
 @ConfigData("blockStream")
 public record BlockStreamConfig(
@@ -82,7 +84,24 @@ public record BlockStreamConfig(
 
         // Whether to use SHA-256 instead of SHA-384 for block stream-related hashing
         @ConfigProperty(defaultValue = "false") @NetworkProperty
-        boolean useSha256) {
+        boolean useSha256,
+
+        // Activate only after every consumer supports partial state updates. Preview output may
+        // have gaps, so deltas are restricted to the complete BLOCKS stream.
+        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        boolean enableStateChangeDeltas,
+
+        @ConfigProperty(defaultValue = "64") @NetworkProperty
+        int stateChangeDeltaMinSaving) {
+
+    public BlockStreamConfig {
+        if (stateChangeDeltaMinSaving < 0) throw new IllegalArgumentException("Negative state-change minimum saving");
+    }
+
+    /** Whether this stream can emit canonical partial state updates. */
+    public boolean stateChangeDeltasEnabled() {
+        return enableStateChangeDeltas && streamMode == StreamMode.BLOCKS;
+    }
 
     /**
      * Whether the node should maintain an active stream to block nodes — true when the main

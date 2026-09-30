@@ -190,6 +190,7 @@ public class BinaryStateChangesValidator implements BlockStreamValidator {
 
     private void applyBlocks(@NonNull final List<Block> blocks) {
         for (final var block : blocks) {
+            com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas.validateBlockDeltas(block);
             for (final var item : block.items()) {
                 if (!item.hasStateChanges()) {
                     continue;

@@ -624,7 +624,27 @@ public class VirtualMapStateImpl implements VirtualMapState {
                 @NonNull final WritableSingletonStateBase<V> singletonState,
                 @NonNull final StateChangeListener listener) {
             final var stateId = singletonState.getStateId();
-            singletonState.registerListener(value -> listener.singletonUpdateChange(stateId, value));
+            singletonState.registerListener(new com.swirlds.state.spi.SingletonChangeListener<>() {
+                @Override
+                public boolean requiresPreviousValue() {
+                    return listener.requiresPreviousValue(stateId);
+                }
+
+                @Override
+                public void singletonUpdateChange(@NonNull final V value) {
+                    listener.singletonUpdateChange(stateId, value);
+                }
+
+                @Override
+                public void singletonUpdateChange(@Nullable final V previousValue, @NonNull final V value) {
+                    listener.singletonUpdateChange(stateId, previousValue, value);
+                }
+
+                @Override
+                public void singletonDeleteChange() {
+                    listener.singletonDeleteChange(stateId);
+                }
+            });
         }
 
         private <V> void registerQueueListener(
@@ -646,6 +666,26 @@ public class VirtualMapStateImpl implements VirtualMapState {
         private <K, V> void registerKVListener(WritableKVStateBase<K, V> state, StateChangeListener listener) {
             final var stateId = state.getStateId();
             state.registerListener(new KVChangeListener<>() {
+                @Override
+                public boolean requiresPreviousValue() {
+                    return listener.requiresPreviousValue(stateId);
+                }
+
+                @Override
+                public void mapUpdateChange(
+                        @NonNull final K key, @Nullable final V previousValue, @NonNull final V value) {
+                    listener.mapUpdateChange(stateId, key, previousValue, value);
+                }
+
+                @Override
+                public void mapUpdateChange(
+                        @NonNull final K key,
+                        @Nullable final V previousValue,
+                        @NonNull final V value,
+                        @NonNull final V storedValue) {
+                    listener.mapUpdateChange(stateId, key, previousValue, value, storedValue);
+                }
+
                 @Override
                 public void mapUpdateChange(@NonNull final K key, @NonNull final V value) {
                     listener.mapUpdateChange(stateId, key, value);

@@ -3,6 +3,7 @@ package com.swirlds.state;
 
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Set;
 
 /**
@@ -31,6 +32,35 @@ public interface StateChangeListener {
      * @return the target state types
      */
     Set<StateType> stateTypes();
+
+    /** Whether this listener needs values captured before a commit mutates the backing store. */
+    default boolean requiresPreviousValue() {
+        return false;
+    }
+
+    /** Allows a listener to avoid extra reads for states whose values it does not encode. */
+    default boolean requiresPreviousValue(int stateId) {
+        return requiresPreviousValue();
+    }
+
+    /** Receives a map update and its pre-commit value; null denotes an absent mapping. */
+    default <K, V> void mapUpdateChange(int stateId, @NonNull K key, @Nullable V previousValue, @NonNull V value) {
+        mapUpdateChange(stateId, key, value);
+    }
+
+    /** Preserves producer provenance while identifying the equal, untracked value committed to storage. */
+    default <K, V> void mapUpdateChange(
+            int stateId, @NonNull K key, @Nullable V previousValue, @NonNull V value, @NonNull V storedValue) {
+        mapUpdateChange(stateId, key, previousValue, value);
+    }
+
+    /** Receives a singleton update and its pre-commit value; null denotes an absent singleton. */
+    default <V> void singletonUpdateChange(int stateId, @Nullable V previousValue, @NonNull V value) {
+        singletonUpdateChange(stateId, value);
+    }
+
+    /** Receives a singleton deletion, allowing listeners to invalidate pending baselines. */
+    default void singletonDeleteChange(int stateId) {}
 
     /**
      * Save the state change when an entry is added in to a map.

@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.junit.support.validators.block;
 
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
@@ -10,6 +11,7 @@ import com.swirlds.state.BinaryState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.util.ArrayList;
 
 /**
  * Parses binary protobuf {@link StateChanges} and applies mutations through the {@link BinaryState} API.
@@ -127,8 +129,42 @@ final class BinaryStateChangeParser {
             final int stateId,
             @NonNull final ReadableSequentialData input,
             final long endPosition) {
-        final Bytes rawValue = readOneOfPayload(input, endPosition, "SingletonUpdateChange");
-        binaryState.updateSingleton(stateId, rawValue);
+        Bytes rawValue = null;
+        int valueField = 0;
+        boolean partial = false;
+        boolean unknownMetadata = false;
+        final var clearedFields = new ArrayList<Integer>();
+        while (input.position() < endPosition) {
+            final int tag = input.readVarInt(false);
+            if (tag == 192) {
+                partial = readPartial(input);
+            } else if (tag == 202) {
+                readClearedFields(input, endPosition, clearedFields);
+            } else if (tag == 200) {
+                clearedFields.add(ProtoParserTools.readUint32(input));
+            } else if ((tag & 7) == 2 && StateChangeDeltas.singletonType(stateId, tag >>> 3) != null) {
+                if (rawValue != null) {
+                    throw new IllegalArgumentException("Multiple singleton values");
+                }
+                valueField = tag >>> 3;
+                rawValue = readPayload(input, endPosition);
+            } else {
+                unknownMetadata = true;
+                skipField(input, tag);
+            }
+        }
+        if (partial && unknownMetadata) throw new IllegalArgumentException("Unknown partial singleton metadata");
+        if (rawValue == null || input.position() != endPosition) {
+            throw new IllegalArgumentException("Missing or malformed singleton value");
+        }
+        binaryState.updateSingleton(
+                stateId,
+                StateChangeDeltas.applyBytes(
+                        StateChangeDeltas.singletonType(stateId, valueField),
+                        partial ? binaryState.getSingleton(stateId) : null,
+                        rawValue,
+                        partial,
+                        clearedFields));
     }
 
     private static void processMapUpdateChange(
@@ -138,6 +174,10 @@ final class BinaryStateChangeParser {
             final long endPosition) {
         Bytes rawKey = null;
         Bytes rawValue = null;
+        int valueField = 0;
+        boolean partial = false;
+        boolean unknownMetadata = false;
+        final var clearedFields = new ArrayList<Integer>();
         while (input.position() < endPosition) {
             final int tag = input.readVarInt(false);
             switch (tag) {
@@ -151,17 +191,67 @@ final class BinaryStateChangeParser {
                 // value: field 2, message => (2 << 3) | 2 = 18
                 case 18 -> {
                     final int messageLength = input.readVarInt(false);
-                    if (messageLength > 0) {
-                        rawValue = readOneOfPayload(input, input.position() + messageLength, "MapChangeValue");
+                    if (messageLength <= 0 || messageLength > endPosition - input.position() || rawValue != null) {
+                        throw new IllegalArgumentException("Invalid MapChangeValue");
+                    }
+                    final long valueEnd = input.position() + messageLength;
+                    final int valueTag = input.readVarInt(false);
+                    if ((valueTag & 7) != 2 || (valueTag >>> 3) == 0) {
+                        throw new IllegalArgumentException("Invalid value type");
+                    }
+                    valueField = valueTag >>> 3;
+                    rawValue = readPayload(input, valueEnd);
+                    if (input.position() != valueEnd) {
+                        throw new IllegalArgumentException("Multiple map values");
                     }
                 }
-                default -> skipField(input, tag);
+                case 32 -> partial = readPartial(input);
+                case 42 -> readClearedFields(input, endPosition, clearedFields);
+                case 40 -> clearedFields.add(ProtoParserTools.readUint32(input));
+                case 24 -> readPartial(input); // Independent business-level identical flag
+                default -> {
+                    unknownMetadata = true;
+                    skipField(input, tag);
+                }
             }
         }
-        if (rawKey == null || rawValue == null) {
+        if (partial && unknownMetadata) throw new IllegalArgumentException("Unknown partial map metadata");
+        if (rawKey == null || rawValue == null || input.position() != endPosition) {
             throw new IllegalStateException("MapChangeKey or MapChangeValue missing");
         }
-        binaryState.updateKv(stateId, rawKey, rawValue);
+        binaryState.updateKv(
+                stateId,
+                rawKey,
+                StateChangeDeltas.applyBytes(
+                        StateChangeDeltas.mapType(stateId, valueField),
+                        partial ? binaryState.getKv(stateId, rawKey) : null,
+                        rawValue,
+                        partial,
+                        clearedFields));
+    }
+
+    private static void readClearedFields(
+            final ReadableSequentialData input, final long endPosition, final java.util.List<Integer> cleared) {
+        final var payload = readPayload(input, endPosition).toReadableSequentialData();
+        while (payload.hasRemaining()) {
+            cleared.add(ProtoParserTools.readUint32(payload));
+        }
+    }
+
+    private static boolean readPartial(final ReadableSequentialData input) {
+        final int value = input.readVarInt(false);
+        if (value != 0 && value != 1) {
+            throw new IllegalArgumentException("Invalid partial flag");
+        }
+        return value == 1;
+    }
+
+    private static Bytes readPayload(final ReadableSequentialData input, final long endPosition) {
+        final int length = input.readVarInt(false);
+        if (length < 0 || length > endPosition - input.position() || length > input.remaining()) {
+            throw new IllegalArgumentException("Invalid delimited field length");
+        }
+        return input.readBytes(length);
     }
 
     private static void processMapDeleteChange(

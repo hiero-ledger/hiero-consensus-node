@@ -86,6 +86,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     private static final long BLOCK_NODE_READ_RETRY_MS = 2000L;
 
     private final List<RecordStreamValidator> recordStreamValidators;
+    private final List<BlockStreamValidator.Factory> blockStreamValidatorFactories;
     private final WrappedRecordHashesByRecordFilesValidator wrappedRecordHashesValidator =
             new WrappedRecordHashesByRecordFilesValidator();
 
@@ -139,6 +140,11 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
     }
 
     public StreamValidationOp() {
+        this(BLOCK_STREAM_VALIDATOR_FACTORIES);
+    }
+
+    StreamValidationOp(@NonNull final List<BlockStreamValidator.Factory> blockStreamValidatorFactories) {
+        this.blockStreamValidatorFactories = List.copyOf(blockStreamValidatorFactories);
         this.recordStreamValidators = List.of(
                 new BlockNoValidator(),
                 new TransactionBodyValidator(),
@@ -217,33 +223,9 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                                                     dataRef.set(data);
                                                 },
                                                 () -> Assertions.fail("No record stream data found"));
-                                final var data = requireNonNull(dataRef.get());
-                                final var maybeErrors = BLOCK_STREAM_VALIDATOR_FACTORIES.stream()
-                                        .filter(factory -> factory.appliesTo(spec))
-                                        .flatMap(factory -> {
-                                            final var validator = factory.create(spec);
-                                            // Validators that walk the event chain across the cutover
-                                            // boundary (EventHash + RedactingEventHash) need the archived
-                                            // preview prefix; all others receive only the active
-                                            // (post-cutover) blocks. Validators that need pre-cutover
-                                            // state replay read it from the test's preservedPreviewBlocks
-                                            // snapshot directly.
-                                            final List<Block> input = (validator
-                                                                    instanceof EventHashBlockStreamValidator
-                                                            || validator
-                                                                    instanceof RedactingEventHashBlockStreamValidator)
-                                                    ? blocks.all()
-                                                    : blocks.active();
-                                            return validator.validationErrorsIn(input, data);
-                                        })
-                                        .peek(t -> log.error("Block stream validation error", t))
-                                        .map(Throwable::getMessage)
-                                        .collect(joining(ERROR_PREFIX));
-                                if (!maybeErrors.isBlank()) {
-                                    throw new AssertionError(
-                                            "Block stream validation failed:" + ERROR_PREFIX + maybeErrors);
-                                }
                             }
+                            validateBlockStreams(
+                                    spec, blocks, streamMode == BLOCKS ? null : requireNonNull(dataRef.get()));
                         },
                         () -> Assertions.fail("No block streams found"));
 
@@ -285,6 +267,34 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         }
 
         return false;
+    }
+
+    /** Runs block validation after freeze; record-dependent checks apply only when records exist. */
+    void validateBlockStreams(
+            @NonNull final HapiSpec spec,
+            @NonNull final DiskBlocks blocks,
+            @Nullable final StreamFileAccess.RecordStreamData data) {
+        final var maybeErrors = blockStreamValidatorFactories.stream()
+                .filter(factory -> data != null || !factory.requiresRecordStream())
+                .filter(factory -> factory.appliesTo(spec))
+                .flatMap(factory -> {
+                    final var validator = factory.create(spec);
+                    // Event-chain validators need the archived preview prefix. State replay reads
+                    // its pre-cutover baseline from preservedPreviewBlocks itself.
+                    final List<Block> input = (validator instanceof EventHashBlockStreamValidator
+                                    || validator instanceof RedactingEventHashBlockStreamValidator)
+                            ? blocks.all()
+                            : blocks.active();
+                    return data == null
+                            ? validator.validationErrorsIn(input)
+                            : validator.validationErrorsIn(input, data);
+                })
+                .peek(t -> log.error("Block stream validation error", t))
+                .map(Throwable::getMessage)
+                .collect(joining(ERROR_PREFIX));
+        if (!maybeErrors.isBlank()) {
+            throw new AssertionError("Block stream validation failed:" + ERROR_PREFIX + maybeErrors);
+        }
     }
 
     static Optional<DiskBlocks> readMaybeBlockStreamsFor(@NonNull final HapiSpec spec) {

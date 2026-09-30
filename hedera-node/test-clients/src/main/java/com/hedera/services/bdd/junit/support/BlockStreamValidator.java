@@ -26,6 +26,11 @@ public interface BlockStreamValidator {
     }
 
     interface Factory {
+        /** Whether validation needs record files in addition to blocks. */
+        default boolean requiresRecordStream() {
+            return false;
+        }
+
         /**
          * Returns true if this validator applies to the given {@link HapiSpec}.
          * @param spec the spec
@@ -42,6 +47,16 @@ public interface BlockStreamValidator {
          */
         @NonNull
         BlockStreamValidator create(@NonNull HapiSpec spec);
+    }
+
+    /** Validates blocks without requiring a record stream and reports any validation failure. */
+    default Stream<Throwable> validationErrorsIn(@NonNull final List<Block> blocks) {
+        try {
+            validateBlocks(blocks);
+        } catch (final Throwable t) {
+            return Stream.of(t);
+        }
+        return Stream.empty();
     }
 
     /**

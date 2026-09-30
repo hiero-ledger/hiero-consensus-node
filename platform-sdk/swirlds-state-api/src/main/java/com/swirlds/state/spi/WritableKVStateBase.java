@@ -84,6 +84,7 @@ public abstract class WritableKVStateBase<K, V> extends ReadableKVStateBase<K, V
      * cast and commit unless you own the instance!
      */
     public void commit() {
+        final boolean capturePrevious = listeners.stream().anyMatch(KVChangeListener::requiresPreviousValue);
         for (final var entry : modifications.entrySet()) {
             final var key = entry.getKey();
             final var value = entry.getValue();
@@ -91,8 +92,20 @@ public abstract class WritableKVStateBase<K, V> extends ReadableKVStateBase<K, V
                 removeFromDataSource(key);
                 listeners.forEach(listener -> listener.mapDeleteChange(key));
             } else {
-                putIntoDataSource(key, value);
-                listeners.forEach(listener -> listener.mapUpdateChange(key, value));
+                final var previousValue = capturePrevious ? getOriginalValue(key) : null;
+                final var storedValue = CopyBuilderTracking.untracked(value);
+                putIntoDataSource(key, storedValue);
+                listeners.forEach(listener -> {
+                    if (listener.requiresPreviousValue()) {
+                        if (storedValue == value) {
+                            listener.mapUpdateChange(key, previousValue, value);
+                        } else {
+                            listener.mapUpdateChange(key, previousValue, value, storedValue);
+                        }
+                    } else {
+                        listener.mapUpdateChange(key, value);
+                    }
+                });
             }
         }
         reset();

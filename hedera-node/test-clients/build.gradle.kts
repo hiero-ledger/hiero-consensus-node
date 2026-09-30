@@ -82,7 +82,32 @@ mainModuleInfo {
     runtimeOnly("org.junit.platform.launcher")
 }
 
+testModuleInfo { requires("org.mockito") }
+
 sourceSets { create("rcdiff") }
+
+// The default test task runs HAPI suites from main. Keep focused replay/parser unit tests
+// runnable without launching a network, and include the existing src/test tests.
+listOf("unitTest", "stateChangeDeltaTest").forEach { taskName ->
+    tasks.register<Test>(taskName) {
+        group = "verification"
+        description =
+            "Run ${if (taskName == "unitTest") "unit" else "state delta replay"} tests without starting HAPI suites."
+        val unitSourceSet = sourceSets.test.get()
+        testClassesDirs = unitSourceSet.output.classesDirs
+        classpath = unitSourceSet.runtimeClasspath
+        useJUnitPlatform()
+        if (taskName == "stateChangeDeltaTest") {
+            filter {
+                includeTestsMatching("*BinaryStateChangeParserTest")
+                includeTestsMatching("*StateChangesValidatorTest")
+                includeTestsMatching("*StreamValidationOpTest")
+            }
+        }
+    }
+}
+
+tasks.check { dependsOn("stateChangeDeltaTest") }
 
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-exports") }
 

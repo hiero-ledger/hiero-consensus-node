@@ -29,6 +29,11 @@ public class WrbRecordFileValidator implements BlockStreamValidator {
 
     public static final Factory FACTORY = new Factory() {
         @Override
+        public boolean requiresRecordStream() {
+            return true;
+        }
+
+        @Override
         public @NonNull BlockStreamValidator create(@NonNull final HapiSpec spec) {
             return new WrbRecordFileValidator();
         }

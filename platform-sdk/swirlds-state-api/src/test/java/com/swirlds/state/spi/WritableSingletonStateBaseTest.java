@@ -25,6 +25,54 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 public class WritableSingletonStateBaseTest extends ReadableSingletonStateTest {
 
+    @Test
+    void storesUntrackedValueAndNotifiesWithOriginalTrackedValue() {
+        final var writable = createState();
+        final var root = backingStore.get();
+        final var next = root.copyBuilder()
+                .value(com.hedera.pbj.runtime.io.buffer.Bytes.wrap("updated"))
+                .build();
+        final var delivered = new java.util.ArrayList<ProtoBytes>();
+        writable.registerListener(delivered::add);
+        writable.put(next);
+        writable.commit();
+        assertThat(delivered.getFirst()).isSameAs(next);
+        assertThat(next.$copyBuilderOrigin()).isSameAs(root);
+        assertThat(backingStore.get()).isEqualTo(next).isNotSameAs(next);
+        assertThat(backingStore.get().$copyBuilderOrigin()).isNull();
+    }
+
+    @Test
+    void capturesPriorBeforeWriteAndPreservesLegacyCallback() {
+        final var writable = createState();
+        final var changes = new java.util.ArrayList<java.util.List<ProtoBytes>>();
+        final var legacy = new java.util.ArrayList<ProtoBytes>();
+        writable.registerListener(legacy::add);
+        writable.registerListener(new SingletonChangeListener<>() {
+            @Override
+            public boolean requiresPreviousValue() {
+                return true;
+            }
+
+            @Override
+            public void singletonUpdateChange(final ProtoBytes value) {
+                throw new AssertionError("Expected prior-value callback");
+            }
+
+            @Override
+            public void singletonUpdateChange(final ProtoBytes before, final ProtoBytes after) {
+                assertThat(backingStore.get()).isEqualTo(after);
+                changes.add(java.util.List.of(before, after));
+            }
+        });
+        final var before = backingStore.get();
+        final var after = toProtoBytes("new");
+        writable.put(after);
+        writable.commit();
+        assertThat(changes).containsExactly(java.util.List.of(before, after));
+        assertThat(legacy).containsExactly(after);
+    }
+
     @Override
     protected WritableSingletonStateBase<ProtoBytes> createState() {
         return new FunctionWritableSingletonState<>(

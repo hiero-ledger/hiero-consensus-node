@@ -5,6 +5,7 @@ import static com.swirlds.state.StateChangeListener.StateType.MAP;
 import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.MapChangeKey;
 import com.hedera.hapi.block.stream.output.MapChangeValue;
 import com.hedera.hapi.block.stream.output.MapDeleteChange;
@@ -71,14 +72,18 @@ import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
+import com.hedera.node.app.hapi.utils.blocks.StateChangeDeltas;
 import com.hedera.pbj.runtime.OneOf;
 import com.swirlds.state.StateChangeListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -93,6 +98,100 @@ public class ImmediateStateChangeListener implements StateChangeListener {
     private final List<StateChange> kvStateChanges = new ArrayList<>();
 
     private final List<StateChange> queueStateChanges = new ArrayList<>();
+
+    private record MapEntry(int stateId, MapChangeKey key) {}
+
+    // Reader baselines, not builder origins. Kept until the block ends so reordered savepoint
+    // output can be encoded against the preceding emitted value. Null represents absence.
+    private final Map<MapEntry, Object> emittedValues = new HashMap<>();
+    private final Map<Object, Object> committedValues = new IdentityHashMap<>();
+    private int deltaMinSaving = StateChangeDeltas.DEFAULT_MIN_SAVING;
+    private boolean deltasEnabled;
+
+    /** Starts a block with a fixed network-selected encoding mode. */
+    public void beginBlock(final boolean enableDeltas) {
+        beginBlock(enableDeltas, StateChangeDeltas.DEFAULT_MIN_SAVING);
+    }
+
+    public void beginBlock(final boolean enableDeltas, final int minSaving) {
+        if (minSaving < 0) throw new IllegalArgumentException("Minimum saving must be nonnegative");
+        deltaMinSaving = minSaving;
+        emittedValues.clear();
+        committedValues.clear();
+        deltasEnabled = enableDeltas;
+    }
+
+    @Override
+    public boolean requiresPreviousValue() {
+        return deltasEnabled;
+    }
+
+    @Override
+    public boolean requiresPreviousValue(final int stateId) {
+        return deltasEnabled;
+    }
+
+    @Override
+    public <K, V> void mapUpdateChange(
+            final int stateId, @NonNull final K key, @Nullable final V previousValue, @NonNull final V value) {
+        mapUpdateChange(stateId, key, value);
+        if (deltasEnabled) {
+            final var wrapped = mapChangeValueFor(value);
+            if (StateChangeDeltas.mapType(stateId, wrapped.valueChoice().kind().protoOrdinal()) != null) {
+                final var entry = new MapEntry(stateId, mapChangeKeyFor(key));
+                if (!emittedValues.containsKey(entry)) {
+                    emittedValues.put(entry, previousValue);
+                }
+            }
+        }
+    }
+
+    @Override
+    public <K, V> void mapUpdateChange(
+            final int stateId,
+            @NonNull final K key,
+            @Nullable final V previousValue,
+            @NonNull final V value,
+            @NonNull final V storedValue) {
+        mapUpdateChange(stateId, key, previousValue, value);
+        if (deltasEnabled && value != storedValue) committedValues.put(value, storedValue);
+    }
+
+    /**
+     * Encodes a full item in final stream order, before measuring or hashing it. Handlers and
+     * trace construction continue to see full values. Unsupported/missing baselines stay full.
+     */
+    public BlockItem encodeForStream(@NonNull final BlockItem item) {
+        if (!deltasEnabled || !item.hasStateChanges()) {
+            return item;
+        }
+        final var changes = item.stateChangesOrThrow();
+        final var encoded = new ArrayList<StateChange>(changes.stateChanges().size());
+        for (final var change : changes.stateChanges()) {
+            if (change.hasMapUpdate()) {
+                final var full = change.mapUpdateOrThrow();
+                final var choice = full.valueOrThrow().valueChoice();
+                final var type = StateChangeDeltas.mapType(
+                        change.stateId(), choice.kind().protoOrdinal());
+                if (type != null) {
+                    final var entry = new MapEntry(change.stateId(), full.keyOrThrow());
+                    final var prior = emittedValues.get(entry);
+                    final var delta = StateChangeDeltas.encodeMap(change.stateId(), prior, full, deltaMinSaving);
+                    final var storedValue = committedValues.remove(choice.value());
+                    emittedValues.put(entry, storedValue == null ? choice.value() : storedValue);
+                    encoded.add(change.copyBuilder().mapUpdate(delta).build());
+                    continue;
+                }
+            } else if (change.hasMapDelete() && requiresPreviousValue(change.stateId())) {
+                emittedValues.put(
+                        new MapEntry(change.stateId(), change.mapDeleteOrThrow().keyOrThrow()), null);
+            }
+            encoded.add(change);
+        }
+        return item.copyBuilder()
+                .stateChanges(changes.copyBuilder().stateChanges(encoded))
+                .build();
+    }
 
     @Nullable
     private Predicate<Object> logicallyIdenticalMapping;
@@ -132,7 +231,11 @@ public class ImmediateStateChangeListener implements StateChangeListener {
         Objects.requireNonNull(value, "value must not be null");
         final boolean identical = logicallyIdenticalMapping != null && logicallyIdenticalMapping.test(key);
 
-        final var change = new MapUpdateChange(mapChangeKeyFor(key), mapChangeValueFor(value), identical);
+        final var change = MapUpdateChange.newBuilder()
+                .key(mapChangeKeyFor(key))
+                .value(mapChangeValueFor(value))
+                .identical(identical)
+                .build();
         final var stateChange =
                 StateChange.newBuilder().stateId(stateId).mapUpdate(change).build();
         kvStateChanges.add(stateChange);

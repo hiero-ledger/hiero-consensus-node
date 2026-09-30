@@ -78,11 +78,22 @@ public abstract class WritableSingletonStateBase<T> extends ReadableSingletonSta
     public void commit() {
         if (isModified()) {
             if (currentValue() != null) {
-                putIntoDataSource(currentValue());
+                final boolean capturePrevious =
+                        listeners.stream().anyMatch(SingletonChangeListener::requiresPreviousValue);
+                final var previousValue = capturePrevious ? readFromDataSource() : null;
+                // Keep the tracked next value for listeners; only the stored instance sheds provenance.
+                putIntoDataSource(CopyBuilderTracking.untracked(currentValue()));
                 //noinspection DataFlowIssue
-                listeners.forEach(l -> l.singletonUpdateChange(currentValue()));
+                listeners.forEach(l -> {
+                    if (l.requiresPreviousValue()) {
+                        l.singletonUpdateChange(previousValue, currentValue());
+                    } else {
+                        l.singletonUpdateChange(currentValue());
+                    }
+                });
             } else {
                 removeFromDataSource();
+                listeners.forEach(SingletonChangeListener::singletonDeleteChange);
             }
         }
         reset();
