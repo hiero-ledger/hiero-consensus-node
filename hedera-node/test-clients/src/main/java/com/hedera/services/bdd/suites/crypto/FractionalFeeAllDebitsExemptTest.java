@@ -3,6 +3,8 @@ package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
@@ -21,24 +23,9 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 /**
- * Exercises the path in {@code CustomFractionalFeeAssessor.assessNonNetOfTransferForDebit}
- * where every account with a debit in the token transfer map is exempt from the fee under
- * assessment, making {@code totalDebits = 0}.
- *
- * <p>Setup: a token with two non-net-of-transfers fractional fees:
- * <ul>
- *   <li>FeeA – collector = collectorA, {@code allCollectorsExempt = false}
- *   <li>FeeB – collector = collectorB, {@code allCollectorsExempt = true}
- * </ul>
- * collectorA is the sole sender (only debit account). When the assessor evaluates FeeB for
- * collectorA:
- * <ul>
- *   <li>FeeA is skipped because {@code sender.equals(collectorA)} (own-collector exemption).
- *   <li>FeeB proceeds but {@code getNonExemptTokenDebits} returns empty — collectorA is exempt
- *       via {@code allCollectorsExempt = true} because collectorA collects FeeA.
- *   <li>{@code totalDebits = 0}, so {@code assessNonNetOfTransferForDebit} is invoked with a
- *       transfer map whose only debit belongs to an exempt account.
- * </ul>
+ * A token with two non-net-of-transfers fractional fees, FeeA (collectorA, {@code allCollectorsExempt = false}) and
+ * FeeB (collectorB, {@code allCollectorsExempt = true}). As the sole sender, collectorA is exempt from FeeA as its
+ * collector and from FeeB as a collector of another fee on the token, so no fractional fee is assessed.
  */
 @Tag(CRYPTO)
 public class FractionalFeeAllDebitsExemptTest {
@@ -48,18 +35,10 @@ public class FractionalFeeAllDebitsExemptTest {
     private static final String COLLECTOR_A = "collectorA";
     private static final String COLLECTOR_B = "collectorB";
     private static final String RECEIVER = "receiver";
+    private static final String XFER = "xfer";
 
-    /**
-     * Submits a CryptoTransfer where the sole debit account (collectorA) is exempt from the
-     * fractional fee being assessed (FeeB), so {@code assessNonNetOfTransferForDebit} receives
-     * {@code totalDebits = 0}.
-     *
-     * <p>The current implementation performs {@code safeFractionMultiply(activeDebit, 0,
-     * effectiveFee)}, which divides by zero. The resulting uncaught {@link ArithmeticException}
-     * surfaces as {@code FAIL_INVALID}.
-     */
     @HapiTest
-    final Stream<DynamicTest> allDebitAccountsExemptFromFractionalFeeInvokesDivideByZeroPath() {
+    final Stream<DynamicTest> collectorSenderExemptFromAllFractionalFees() {
         return hapiTest(
                 cryptoCreate(TREASURY).key(GENESIS),
                 newKeyNamed("keyA"),
@@ -79,16 +58,12 @@ public class FractionalFeeAllDebitsExemptTest {
                 // Fund collectorA via treasury (treasury is skipped by the assessment loop entirely)
                 cryptoTransfer(moving(500L, TOKEN).between(TREASURY, COLLECTOR_A))
                         .signedBy(GENESIS),
-                // collectorA → receiver:
-                //   • FeeA skipped (collectorA is own collector)
-                //   • FeeB: receiver is not exempt → filteredOriginalCredits non-empty
-                //           collectorA is exempt from FeeB via allCollectorsExempt=true
-                //           → getNonExemptTokenDebits returns {} → totalDebits = 0
-                //           → assessNonNetOfTransferForDebit invoked with all-exempt debit map
-                //           → safeFractionMultiply(activeDebit, 0, effectiveFee) → divide-by-zero
                 cryptoTransfer(moving(100L, TOKEN).between(COLLECTOR_A, RECEIVER))
                         .payingWith(COLLECTOR_A)
                         .signedBy(GENESIS, "keyA")
-                        .hasKnownStatus(ResponseCodeEnum.SUCCESS));
+                        .via(XFER)
+                        .hasKnownStatus(ResponseCodeEnum.SUCCESS),
+                getTxnRecord(XFER).hasAssessedCustomFeesSize(0),
+                getAccountBalance(RECEIVER).hasTokenBalance(TOKEN, 100L));
     }
 }
