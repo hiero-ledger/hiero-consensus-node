@@ -99,6 +99,14 @@ public class HintsControllerImpl implements HintsController {
     private CompletableFuture<CRSValidation> finalCrsFuture;
 
     /**
+     * Tracks node IDs for which a CRS verification has been enqueued in the current ceremony round.
+     * Prevents the same node from being queued for verification more than once — whether from
+     * constructor replay after restart or from a live consensus publication — so that accepted
+     * weight cannot be accumulated more than once per contributor per round.
+     */
+    private final Set<Long> queuedContributors = new HashSet<>();
+
+    /**
      * The ongoing construction, updated each time the controller advances the construction in state.
      */
     private HintsConstruction construction;
@@ -129,7 +137,12 @@ public class HintsControllerImpl implements HintsController {
      */
     private record Validation(int partyId, @NonNull Bytes hintsKey, boolean isValid) {}
 
-    public record CRSValidation(@NonNull Bytes crs, long weightContributedSoFar) {}
+    /**
+     * The candidate CRS and the set of node IDs whose contributions were cryptographically accepted.
+     * Weight contributed so far is derived from this set on demand rather than accumulated, so that
+     * unique-contributor accounting is always source-of-truth-correct.
+     */
+    public record CRSValidation(@NonNull Bytes crs, @NonNull Set<Long> acceptedContributors) {}
 
     public HintsControllerImpl(
             final long selfId,
@@ -323,6 +336,10 @@ public class HintsControllerImpl implements HintsController {
             crsPublicationFuture.cancel(true);
         }
         crsPublicationFuture = null;
+        // Atomically discard both persisted and in-memory data from the previous ceremony round.
+        hintsStore.clearCrsPublications(weights.sourceNodeIds());
+        finalCrsFuture = null;
+        queuedContributors.clear();
         final var crsState = hintsStore.getCrsState();
         final var firstNodeId =
                 weights.sourceNodeIds().stream().min(Long::compareTo).orElse(0L);
@@ -342,8 +359,12 @@ public class HintsControllerImpl implements HintsController {
      * @return true if the total weight of the contributions is more than 2/3 total weight of all nodes in the
      */
     private boolean validateWeightOfContributions() {
-        final var contributedWeight =
-                finalCrsFuture == null ? 0L : finalCrsFuture.join().weightContributedSoFar();
+        final var finalValidation = finalCrsFuture == null ? null : finalCrsFuture.join();
+        final var contributedWeight = finalValidation == null
+                ? 0L
+                : finalValidation.acceptedContributors().stream()
+                        .mapToLong(weights::sourceWeightOf)
+                        .sum();
         final var totalWeight = weights.sourceNodeWeights().values().stream()
                 .mapToLong(Long::longValue)
                 .sum();
@@ -389,6 +410,14 @@ public class HintsControllerImpl implements HintsController {
                         final var updatedCrs = library.updateCrs(previousCrs, generateEntropy());
                         if (updatedCrs == null) {
                             log.warn("Library returned null while updating CRS; skipping CRS publication");
+                            return;
+                        }
+                        final var expectedOutputLength = previousCrs.length() + HintsLibrary.PROOF_LENGTH;
+                        if (updatedCrs.length() != expectedOutputLength) {
+                            log.warn(
+                                    "Library returned malformed CRS update (length {} != {}); skipping CRS publication",
+                                    updatedCrs.length(),
+                                    expectedOutputLength);
                             return;
                         }
                         final var newCrs = decodeCrsUpdate(previousCrs.length(), updatedCrs);
@@ -574,7 +603,18 @@ public class HintsControllerImpl implements HintsController {
         requireNonNull(consensusTime);
         requireNonNull(hintsStore);
 
-        verifyCrsUpdate(publication, hintsStore, creatorId);
+        final var initialCrs = hintsStore.getCrsState().crs();
+        if (!HintsLibrary.isValidCrsUpdateFraming(initialCrs, publication.newCrs(), publication.proof())) {
+            log.warn(
+                    "Skipping malformed CRS contribution from node{}: newCrs.length={} (expected {}), proof.length={} (expected {})",
+                    creatorId,
+                    publication.newCrs().length(),
+                    initialCrs.length(),
+                    publication.proof().length(),
+                    HintsLibrary.PROOF_LENGTH);
+        } else {
+            verifyCrsUpdate(publication, hintsStore, creatorId);
+        }
         moveToNextNode(consensusTime, hintsStore);
     }
 
@@ -585,17 +625,35 @@ public class HintsControllerImpl implements HintsController {
             final long creatorId) {
         requireNonNull(publication);
         requireNonNull(hintsStore);
-        final var creatorWeight = weights.sourceWeightOf(creatorId);
+
+        final var initialCrs = hintsStore.getCrsState().crs();
+        if (!HintsLibrary.isValidCrsUpdateFraming(initialCrs, publication.newCrs(), publication.proof())) {
+            log.warn(
+                    "Skipping malformed persisted CRS contribution from node{}: newCrs.length={} (expected {}), proof.length={} (expected {})",
+                    creatorId,
+                    publication.newCrs().length(),
+                    initialCrs.length(),
+                    publication.proof().length(),
+                    HintsLibrary.PROOF_LENGTH);
+            return;
+        }
+
+        // Prevent a node's contribution from being enqueued more than once per ceremony round.
+        // This guards against double-weight across constructor replay and live publications.
+        if (!queuedContributors.add(creatorId)) {
+            log.info("Skipping already-queued CRS contribution from node{}", creatorId);
+            return;
+        }
+
         if (finalCrsFuture == null) {
-            final var initialCrs = hintsStore.getCrsState().crs();
             finalCrsFuture = CompletableFuture.supplyAsync(
                     () -> {
                         final var isValid =
                                 library.verifyCrsUpdate(initialCrs, publication.newCrs(), publication.proof());
                         if (isValid) {
-                            return new CRSValidation(publication.newCrs(), creatorWeight);
+                            return new CRSValidation(publication.newCrs(), Set.of(creatorId));
                         }
-                        return new CRSValidation(initialCrs, 0L);
+                        return new CRSValidation(initialCrs, Set.of());
                     },
                     executor);
         } else {
@@ -604,10 +662,11 @@ public class HintsControllerImpl implements HintsController {
                         final var isValid = library.verifyCrsUpdate(
                                 previousValidation.crs(), publication.newCrs(), publication.proof());
                         if (isValid) {
-                            return new CRSValidation(
-                                    publication.newCrs(), previousValidation.weightContributedSoFar() + creatorWeight);
+                            final var newAccepted = new HashSet<>(previousValidation.acceptedContributors());
+                            newAccepted.add(creatorId);
+                            return new CRSValidation(publication.newCrs(), Set.copyOf(newAccepted));
                         }
-                        return new CRSValidation(previousValidation.crs(), previousValidation.weightContributedSoFar());
+                        return new CRSValidation(previousValidation.crs(), previousValidation.acceptedContributors());
                     },
                     executor);
         }
