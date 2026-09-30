@@ -51,7 +51,7 @@ public final class StateProofVerifier {
      */
     @NonNull
     public static byte[] computeBlockRootHash(@NonNull final StateProof stateProof) {
-        return computeBlockRootHash(stateProof, HashUtils.newMessageDigest());
+        return computeBlockRootHash(stateProof, HashUtils.newMessageDigest(true));
     }
 
     /**
@@ -93,7 +93,7 @@ public final class StateProofVerifier {
      */
     @NonNull
     public static byte[] computeBlockRootHashFromPath(@NonNull final MerklePath path) {
-        return computeBlockRootHashFromPath(path, HashUtils.newMessageDigest());
+        return computeBlockRootHashFromPath(path, HashUtils.newMessageDigest(true));
     }
 
     /**
@@ -140,7 +140,7 @@ public final class StateProofVerifier {
      * @return {@code true} if the path correctly authenticates to {@code expectedBlockRootHash}
      */
     public static boolean verifyPath(@NonNull final MerklePath path, @NonNull final byte[] expectedBlockRootHash) {
-        return verifyPath(path, expectedBlockRootHash, HashUtils.newMessageDigest());
+        return verifyPath(path, expectedBlockRootHash, HashUtils.newMessageDigest(true));
     }
 
     /**

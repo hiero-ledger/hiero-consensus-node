@@ -32,7 +32,7 @@ public final class StateProofBuilder {
      * @return a new builder that hashes with the default SHA-256 digest
      */
     public static StateProofBuilder newBuilder() {
-        return new StateProofBuilder(HashUtils.newMessageDigest());
+        return new StateProofBuilder(HashUtils.newMessageDigest(true));
     }
 
     /**

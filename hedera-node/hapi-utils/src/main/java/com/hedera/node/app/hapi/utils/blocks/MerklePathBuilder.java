@@ -57,7 +57,7 @@ public final class MerklePathBuilder {
      * start hash must be invoked before hash accessors are used.
      */
     public MerklePathBuilder() {
-        this(newMessageDigest());
+        this(newMessageDigest(true));
     }
 
     /**
@@ -81,7 +81,7 @@ public final class MerklePathBuilder {
      */
     @NonNull
     public static MerklePathBuilder fromStateApi(@NonNull final MerkleProof merkleProof) {
-        return fromStateApi(merkleProof, newMessageDigest());
+        return fromStateApi(merkleProof, newMessageDigest(true));
     }
 
     /**

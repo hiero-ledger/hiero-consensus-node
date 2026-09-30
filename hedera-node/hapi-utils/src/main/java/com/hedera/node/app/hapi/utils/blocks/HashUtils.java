@@ -22,17 +22,25 @@ import java.security.NoSuchAlgorithmException;
  */
 public final class HashUtils {
 
-    private static final String HASH_ALGORITHM = "SHA-256";
+    private static final String SHA_256 = "SHA-256";
+    private static final String SHA_384 = "SHA-384";
 
     private HashUtils() {
         throw new UnsupportedOperationException("Utility class");
     }
 
-    static MessageDigest newMessageDigest() {
+    /**
+     * Returns a new {@link MessageDigest} instance.
+     *
+     * @param useSha256 {@code true} for SHA-256 (32-byte output, used for block-root Merkle trees);
+     *                  {@code false} for SHA-384 (48-byte output, legacy algorithm)
+     */
+    static MessageDigest newMessageDigest(final boolean useSha256) {
+        final String algorithm = useSha256 ? SHA_256 : SHA_384;
         try {
-            return MessageDigest.getInstance(HASH_ALGORITHM);
+            return MessageDigest.getInstance(algorithm);
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(HASH_ALGORITHM + " algorithm not found", e);
+            throw new RuntimeException(algorithm + " algorithm not found", e);
         }
     }
 
