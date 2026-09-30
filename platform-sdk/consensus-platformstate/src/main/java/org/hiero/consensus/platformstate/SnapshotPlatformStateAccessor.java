@@ -134,6 +134,11 @@ public class SnapshotPlatformStateAccessor implements PlatformStateAccessor {
         return stateOrThrow().latestFreezeRound();
     }
 
+    @Override
+    public long getEventCutoverMinBirthRound() {
+        return stateOrThrow().eventCutoverMinBirthRound();
+    }
+
     private @NonNull PlatformState stateOrThrow() {
         return requireNonNull(state);
     }
