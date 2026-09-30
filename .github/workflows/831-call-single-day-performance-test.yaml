@@ -367,7 +367,132 @@ jobs:
           export NODE_COPY_CONCURRENT=1
 
           task
-          task_code=${?}
+
+      - name: kubectl wrapper for Solo
+        run: |
+          kubectl=$(which kubectl)
+          cp ${kubectl} ${HOME}/.solo/bin/kubectl
+
+      - name: Add BlockNodes
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+
+          export BLOCK_NODE_VERSION="${{ inputs.bnref }}"
+
+          mv block-node-values.yaml block-node-values.yaml.orig
+
+          #dedicate top-3 nodes for BN
+          NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id}}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get nodes --show-labels | grep "network-id=${NETWORK_ID}," | grep 'consensus-node' | sort -n -k 1 | awk '{print $1}' | head -n 1  | grep -n -E '^' > firstNode.txt
+
+          for i in $(seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }})
+          do
+           #create PVC values.yaml from template
+           for pvc_name in application-state-storage archive-storage logging-storage live-storage plugins-storage
+           do
+             sed -e "s@%NODE_ID%@${i}@g" -e "s@%PVC_NAME%@${pvc_name}@g" "${{ github.workspace }}"/.github/workflows/support/citr/block-node-pvc.yaml > block-node-pvc_${pvc_name}_${i}.yaml
+             echo "kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f block-node-pvc_${pvc_name}_${i}.yaml"
+             sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" create -f block-node-pvc_${pvc_name}_${i}.yaml
+           done
+           sleep 10
+          done
+
+          bnindex=1
+          BNNODE=$(grep "${bnindex}:" firstNode.txt | awk -F : '{print $2}')
+
+          sed -i -e "s@%SOLO_NAMESPACE%@${{ needs.acquire-kubernetes-resources.outputs.namespace }}@g" block-node-values.yaml.orig
+
+          #BN node 1
+          sed -e "s@%NODE_ID%@1@g" -e "s@%BNNODE%@${BNNODE}@g" -e "s@%ANOTHER_BN_1%@block-node-2@g" -e "s@%ANOTHER_BN_2%@block-node-3@g" block-node-values.yaml.orig > block-node-values1.yaml
+          cp block-node-values1.yaml block-node-values.yaml;
+          export BN_MAPPING="node1=1,node2=2,node3=3,node4=3,node5=1,node6=2,node7=2"
+          task solo:block:add
+
+          #BN node 2
+          sed -e "s@%NODE_ID%@2@g" -e "s@%BNNODE%@${BNNODE}@g" -e "s@%ANOTHER_BN_1%@block-node-1@g" -e "s@%ANOTHER_BN_2%@block-node-3@g" block-node-values.yaml.orig > block-node-values2.yaml
+          cp block-node-values2.yaml block-node-values.yaml;
+          export BN_MAPPING="node1=3,node2=1,node3=1,node4=2,node5=3,node6=3,node7=1"
+          task solo:block:add
+
+          #BN node 3
+          sed -e "s@%NODE_ID%@3@g" -e "s@%BNNODE%@${BNNODE}@g" -e "s@%ANOTHER_BN_1%@block-node-1@g" -e "s@%ANOTHER_BN_2%@block-node-2@g" block-node-values.yaml.orig > block-node-values3.yaml
+          cp block-node-values3.yaml block-node-values.yaml;
+          export BN_MAPPING="node1=2,node2=2,node3=3,node4=1,node5=1,node6=1,node7=3"
+          task solo:block:add
+
+          sleep 30
+
+      - name: Deploy CNs
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+          task installCNs
+
+      - name: Generate RSARoster
+        run: |
+          genesisFile=$(find $HOME/.solo -type f -name 'genesis-network.json')
+          bash "${{ github.workspace }}"/.github/workflows/support/citr/genesisNetworkBNRSARoster.sh -i ${genesisFile} -o "${{ github.workspace}}"/solo/rsa-bootstrap-roster.json
+          jq . "${{ github.workspace}}"/solo/rsa-bootstrap-roster.json
+
+      - name: Update BlockNodes
+        run: |
+
+          for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
+          do
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${pod} -- bash -c "jpid=\$(ps -aef | grep -w java | grep -v grep | awk '{print \$2}'); cat /proc/\$jpid/environ | strings | grep -v -E 'JAVA_OPTS|JAVA_TOOL_OPTIONS'> /tmp/env.sh"
+          done
+
+      - name: Update RSA BlockNodes
+        run: |
+
+          for pod in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}'`
+          do
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${pod} -- bash -c "set +e; mkdir -p /opt/hiero/block-node/application-state"
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp "${{ github.workspace}}"/solo/rsa-bootstrap-roster.json \
+              ${pod}:/opt/hiero/block-node/application-state/rsa-bootstrap-roster.json
+          done
+
+      - name: Temp down BlockNodes
+        run: |
+          for pod in $(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}')
+          do
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${pod} -- bash -c "ps -aef | grep java | grep -v grep | awk '{print \$2}' | xargs kill -9"
+          done
+
+      - name: Start BlockNodes
+        run: |
+
+          for pod in $(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep 'block-node' | awk '{print $1}')
+          do
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${pod} -- \
+              bash -c "find /opt/hiero/block-node/data -type f -exec rm -f {} \;" >/dev/null 2>&1
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${pod} -- \
+              bash -c "rm -rf /opt/hiero/block-node/logs/blocknode.log*" >/dev/null 2>&1
+            sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${pod} -- \
+              bash -c ". /tmp/env.sh; export BLOCK_NODE_SERVER_MAX_MESSAGE_SIZE_BYTES=300000000; export JAVA_OPTS='-Xms48G -Xmx52G -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath="/tmp/dump.hprof"'; \
+                       JAVA_TOOL_OPTIONS='-Djava.util.logging.config.file=/opt/hiero/block-node/logs/config/logging.properties -Dmetrics.exporter.openmetrics.http.hostname=0.0.0.0 -Dmetrics.exporter.openmetrics.http.port=16007 -Dmetrics.exporter.openmetrics.http.path=/metrics'; \
+                       nohup bash /opt/hiero/block-node/*/bin/app > /opt/hiero/block-node/logs/log.txt 2>&1 &"
+          done
+
+      - name: Start CNs
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
+          task start
+
+      - name: Solo logs
+        if: ${{ !cancelled() && always() }}
+        env:
+          NAMESPACE_ALIAS: ${{ inputs.test-asset }}
+          CONTEXT: hashgraph.teleport.sh-${{ steps.set-k8s-cluster.outputs.kubernetes-cluster }}
+        run: |
+          set +x
+          set +e
+          cd "${{ github.workspace}}"/solo
           task solo:node:logs
           if [[ ${task_code} -ne 0 ]]
           then
@@ -552,7 +677,7 @@ jobs:
         env:
           INPUT_NLG_ACCOUNTS: ${{ inputs.nlg-accounts }}
         run: |
-          run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
+          run_NLGDparams="-XX:+UseZGC -XX:MaxDirectMemorySize=1G" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
           nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
@@ -698,7 +823,7 @@ jobs:
           INPUT_NLG_ACCOUNTS: ${{ inputs.nlg-accounts }}
           INPUT_NLG_TIME: ${{ inputs.nlg-time }}
         run: |
-          run_NLGDparams="" # e.g. -Dbenchmark.maxtps=8000
+          run_NLGDparams="-XX:+UseZGC -XX:MaxDirectMemorySize=1G" # e.g. -Dbenchmark.maxtps=8000
           run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
 
           nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
@@ -1061,7 +1186,7 @@ jobs:
           fi
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
-          cat "${{ github.workspace }}"/report/client.log | perl -pne '~s/\b([A-Z_]+[\:]\d+)\b/\n$1\n/g' | perl "${{ github.workspace }}"/.github/workflows/support/citr/collectNLG_Errors.pl > "${{ github.workspace }}"/report/client.stats.txt
+          cat "${{ github.workspace }}"/report/client.log | perl -pne '~s/\b([A-Z_]+[\:]\d+)\b/\n$1\n/g; ~s/\b([\w\.]*Exception)\b/\n$1:1\n/g;' | perl "${{ github.workspace }}"/.github/workflows/support/citr/collectNLG_Errors.pl > "${{ github.workspace }}"/report/client.stats.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" "${{ github.workspace }}"/report/
