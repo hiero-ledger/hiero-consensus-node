@@ -4,6 +4,6 @@ module org.hiero.consensus.benchmark.tools {
 
     requires java.management;
     requires jdk.management;
+    requires jmh.core;
     requires static transitive com.github.spotbugs.annotations;
-    requires static jmh.core;
 }
