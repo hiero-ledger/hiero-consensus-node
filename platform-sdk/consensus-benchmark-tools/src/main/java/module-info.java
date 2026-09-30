@@ -2,8 +2,8 @@
 module org.hiero.consensus.benchmark.tools {
     exports org.hiero.consensus.benchmark.tools.histogram;
 
+    requires transitive jmh.core;
     requires java.management;
     requires jdk.management;
-    requires jmh.core;
     requires static transitive com.github.spotbugs.annotations;
 }
