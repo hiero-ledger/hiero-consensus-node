@@ -72,7 +72,8 @@ public class BlockStreamEventBuilder {
      * @param first the digest type revealed by the first event with cross-block parents
      * @param last the digest type revealed by the last event with cross-block parents
      */
-    public record DigestTypeSignal(@NonNull DigestType first, @NonNull DigestType last) {}
+    public record DigestTypeSignal(
+            @NonNull DigestType first, @NonNull DigestType last) {}
 
     /** Track events by index within the current block, for in-block parent lookups. */
     private final Map<Integer, PlatformEvent> eventIndexToEvent = new HashMap<>();
@@ -175,7 +176,8 @@ public class BlockStreamEventBuilder {
         DigestType last = null;
         for (final BlockItem item : block.items()) {
             if (item.hasEventHeader()) {
-                final DigestType revealed = revealedDigestType(item.eventHeaderOrThrow().parents());
+                final DigestType revealed =
+                        revealedDigestType(item.eventHeaderOrThrow().parents());
                 if (revealed != null) {
                     first = first == null ? revealed : first;
                     last = revealed;
