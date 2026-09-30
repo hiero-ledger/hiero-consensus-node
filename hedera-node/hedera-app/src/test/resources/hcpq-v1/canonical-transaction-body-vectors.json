@@ -1,0 +1,306 @@
+{
+  "profile": "HCPQ v1",
+  "description": "Canonical TransactionBody encoding vectors. A node accepts HCPQ-signed bodyBytes only when they are byte-for-byte the canonical encoding of the parsed TransactionBody.",
+  "format_version": 1,
+  "notes": [
+    "body is the SignedTransaction.bodyBytes value in lowercase hexadecimal.",
+    "accept: body is the canonical encoding. body_json is the same TransactionBody in the proto3 JSON mapping, so an SDK can build it and compare bytes. transaction_digest is the HCPQ transaction digest of body under ledger_id.",
+    "reject: a conforming node rejects any transaction carrying an HCPQ signature over body. rejected_by is strict_parse when strict parsing fails (malformed data, unknown fields, invalid UTF-8) and canonical_reencode when body parses but its canonical encoding differs.",
+    "equivalent_to names the accepted test whose TransactionBody the rejected bytes parse to. Those bytes are an alternate encoding of the same value."
+  ],
+  "tests": [
+    {
+      "id": "crypto_transfer",
+      "comment": "Baseline HBAR transfer. sint64 amounts use ZigZag encoding.",
+      "result": "accept",
+      "body": "0a0f0a080880e2cfaa06107b120318e907120218031880c2d72f2202087832046863707172160a140a080a0318e90710c7010a080a0318ea0710c801",
+      "body_json": {
+        "transactionID": {
+          "transactionValidStart": {
+            "seconds": "1700000000",
+            "nanos": 123
+          },
+          "accountID": {
+            "accountNum": "1001"
+          }
+        },
+        "nodeAccountID": {
+          "accountNum": "3"
+        },
+        "transactionFee": "100000000",
+        "transactionValidDuration": {
+          "seconds": "120"
+        },
+        "memo": "hcpq",
+        "cryptoTransfer": {
+          "transfers": {
+            "accountAmounts": [
+              {
+                "accountID": {
+                  "accountNum": "1001"
+                },
+                "amount": "-100"
+              },
+              {
+                "accountID": {
+                  "accountNum": "1002"
+                },
+                "amount": "100"
+              }
+            ]
+          }
+        }
+      },
+      "ledger_id": "00",
+      "transaction_digest": "cb7ea96046162be064a4c92bc84405fcfb38bd128f28f3df8bb82be72646b147"
+    },
+    {
+      "id": "batch_key_field_number_order",
+      "comment": "batch_key (field 73) is declared before contractCall (7) in transaction.proto, but canonical bytes order fields by number, so it follows cryptoTransfer (14).",
+      "result": "accept",
+      "body": "0a0f0a080880e2cfaa06107b120318e907120218031880c2d72f2202087832046863707172160a140a080a0318e90710c7010a080a0318ea0710c801ca042212201111111111111111111111111111111111111111111111111111111111111111",
+      "body_json": {
+        "transactionID": {
+          "transactionValidStart": {
+            "seconds": "1700000000",
+            "nanos": 123
+          },
+          "accountID": {
+            "accountNum": "1001"
+          }
+        },
+        "nodeAccountID": {
+          "accountNum": "3"
+        },
+        "transactionFee": "100000000",
+        "transactionValidDuration": {
+          "seconds": "120"
+        },
+        "memo": "hcpq",
+        "cryptoTransfer": {
+          "transfers": {
+            "accountAmounts": [
+              {
+                "accountID": {
+                  "accountNum": "1001"
+                },
+                "amount": "-100"
+              },
+              {
+                "accountID": {
+                  "accountNum": "1002"
+                },
+                "amount": "100"
+              }
+            ]
+          }
+        },
+        "batchKey": {
+          "ed25519": "ERERERERERERERERERERERERERERERERERERERERERE="
+        }
+      },
+      "ledger_id": "00",
+      "transaction_digest": "d555f3fd66b632f06a41059839bc2529ef179c7bd9021b93f886b325b6c3d1d3"
+    },
+    {
+      "id": "packed_repeated_scalars",
+      "comment": "Repeated int64 serialNumbers are packed.",
+      "result": "accept",
+      "body": "0a0f0a080880e2cfaa06107b120318e907120218031880c2d72f22020878b2020b0a03188d271a040102ac02",
+      "body_json": {
+        "transactionID": {
+          "transactionValidStart": {
+            "seconds": "1700000000",
+            "nanos": 123
+          },
+          "accountID": {
+            "accountNum": "1001"
+          }
+        },
+        "nodeAccountID": {
+          "accountNum": "3"
+        },
+        "transactionFee": "100000000",
+        "transactionValidDuration": {
+          "seconds": "120"
+        },
+        "tokenBurn": {
+          "token": {
+            "tokenNum": "5005"
+          },
+          "serialNumbers": [
+            "1",
+            "2",
+            "300"
+          ]
+        }
+      },
+      "ledger_id": "00",
+      "transaction_digest": "2ad6dc96bd85002e72df5e9eb0fd7bb1fffc3d24b44238561b8b2c3d48ef8401"
+    },
+    {
+      "id": "empty_oneof_message_emitted",
+      "comment": "An empty UtilPrngTransactionBody selected in the data oneof is emitted as a zero-length field; the unset memo is omitted.",
+      "result": "accept",
+      "body": "0a0f0a080880e2cfaa06107b120318e907120218031880c2d72f22020878a20300",
+      "body_json": {
+        "transactionID": {
+          "transactionValidStart": {
+            "seconds": "1700000000",
+            "nanos": 123
+          },
+          "accountID": {
+            "accountNum": "1001"
+          }
+        },
+        "nodeAccountID": {
+          "accountNum": "3"
+        },
+        "transactionFee": "100000000",
+        "transactionValidDuration": {
+          "seconds": "120"
+        },
+        "utilPrng": {}
+      },
+      "ledger_id": "00",
+      "transaction_digest": "9bd1dca7ba720079ed4a27ff297210e1b8d5f18e6521e584b9893f00f28e7bf2"
+    },
+    {
+      "id": "utf8_memo",
+      "comment": "Strings are encoded as their UTF-8 bytes.",
+      "result": "accept",
+      "body": "0a0f0a080880e2cfaa06107b120318e907120218031880c2d72f220208783209c4a763707120e29c9372160a140a080a0318e90710c7010a080a0318ea0710c801",
+      "body_json": {
+        "transactionID": {
+          "transactionValidStart": {
+            "seconds": "1700000000",
+            "nanos": 123
+          },
+          "accountID": {
+            "accountNum": "1001"
+          }
+        },
+        "nodeAccountID": {
+          "accountNum": "3"
+        },
+        "transactionFee": "100000000",
+        "transactionValidDuration": {
+          "seconds": "120"
+        },
+        "memo": "ħcpq ✓",
+        "cryptoTransfer": {
+          "transfers": {
+            "accountAmounts": [
+              {
+                "accountID": {
+                  "accountNum": "1001"
+                },
+                "amount": "-100"
+              },
+              {
+                "accountID": {
+                  "accountNum": "1002"
+                },
+                "amount": "100"
+              }
+            ]
+          }
+        }
+      },
+      "ledger_id": "00",
+      "transaction_digest": "9fbeb000ad00e463af7ea4590a67a46d38782fe7010b3ae79bffd27ce7645d51"
+    },
+    {
+      "id": "explicit_default_string",
+      "comment": "memo = \"\" written explicitly.",
+      "result": "reject",
+      "rejected_by": "canonical_reencode",
+      "equivalent_to": "empty_oneof_message_emitted",
+      "body": "0a0f0a080880e2cfaa06107b120318e907120218031880c2d72f220208783200a20300"
+    },
+    {
+      "id": "explicit_default_nested",
+      "comment": "nodeAccountID.shardNum = 0 written explicitly.",
+      "result": "reject",
+      "rejected_by": "canonical_reencode",
+      "equivalent_to": "crypto_transfer",
+      "body": "0a0f0a080880e2cfaa06107b120318e9071204080018031880c2d72f2202087832046863707172160a140a080a0318e90710c7010a080a0318ea0710c801"
+    },
+    {
+      "id": "field_order_swapped",
+      "comment": "nodeAccountID (2) written before transactionID (1).",
+      "result": "reject",
+      "rejected_by": "canonical_reencode",
+      "equivalent_to": "crypto_transfer",
+      "body": "120218030a0f0a080880e2cfaa06107b120318e9071880c2d72f2202087832046863707172160a140a080a0318e90710c7010a080a0318ea0710c801"
+    },
+    {
+      "id": "declaration_order",
+      "comment": "batch_key written in .proto declaration order, before cryptoTransfer.",
+      "result": "reject",
+      "rejected_by": "canonical_reencode",
+      "equivalent_to": "batch_key_field_number_order",
+      "body": "0a0f0a080880e2cfaa06107b120318e907120218031880c2d72f22020878320468637071ca04221220111111111111111111111111111111111111111111111111111111111111111172160a140a080a0318e90710c7010a080a0318ea0710c801"
+    },
+    {
+      "id": "non_minimal_varint",
+      "comment": "transactionFee varint padded with a redundant continuation byte.",
+      "result": "reject",
+      "rejected_by": "canonical_reencode",
+      "equivalent_to": "crypto_transfer",
+      "body": "0a0f0a080880e2cfaa06107b120318e907120218031880c2d7af002202087832046863707172160a140a080a0318e90710c7010a080a0318ea0710c801"
+    },
+    {
+      "id": "non_minimal_length",
+      "comment": "memo length prefix encoded in two bytes.",
+      "result": "reject",
+      "rejected_by": "canonical_reencode",
+      "equivalent_to": "crypto_transfer",
+      "body": "0a0f0a080880e2cfaa06107b120318e907120218031880c2d72f220208783284006863707172160a140a080a0318e90710c7010a080a0318ea0710c801"
+    },
+    {
+      "id": "duplicate_field",
+      "comment": "memo written twice with the same value.",
+      "result": "reject",
+      "rejected_by": "canonical_reencode",
+      "equivalent_to": "crypto_transfer",
+      "body": "0a0f0a080880e2cfaa06107b120318e907120218031880c2d72f2202087832046863707132046863707172160a140a080a0318e90710c7010a080a0318ea0710c801"
+    },
+    {
+      "id": "unpacked_repeated_scalars",
+      "comment": "serialNumbers written unpacked, one tag per element.",
+      "result": "reject",
+      "rejected_by": "canonical_reencode",
+      "equivalent_to": "packed_repeated_scalars",
+      "body": "0a0f0a080880e2cfaa06107b120318e907120218031880c2d72f22020878b2020c0a03188d271801180218ac02"
+    },
+    {
+      "id": "unknown_field",
+      "comment": "Field 999 is not defined in TransactionBody.",
+      "result": "reject",
+      "rejected_by": "strict_parse",
+      "body": "0a0f0a080880e2cfaa06107b120318e907120218031880c2d72f2202087832046863707172160a140a080a0318e90710c7010a080a0318ea0710c801b83e01"
+    },
+    {
+      "id": "truncated",
+      "comment": "Last byte removed.",
+      "result": "reject",
+      "rejected_by": "strict_parse",
+      "body": "0a0f0a080880e2cfaa06107b120318e907120218031880c2d72f2202087832046863707172160a140a080a0318e90710c7010a080a0318ea0710c8"
+    },
+    {
+      "id": "trailing_zero_byte",
+      "comment": "A zero byte appended after the last field.",
+      "result": "reject",
+      "rejected_by": "strict_parse",
+      "body": "0a0f0a080880e2cfaa06107b120318e907120218031880c2d72f2202087832046863707172160a140a080a0318e90710c7010a080a0318ea0710c80100"
+    },
+    {
+      "id": "invalid_utf8",
+      "comment": "memo contains the byte 0xff, which is never valid UTF-8.",
+      "result": "reject",
+      "rejected_by": "strict_parse",
+      "body": "0a0f0a080880e2cfaa06107b120318e907120218031880c2d72f2202087832046863ff7172160a140a080a0318e90710c7010a080a0318ea0710c801"
+    }
+  ]
+}
