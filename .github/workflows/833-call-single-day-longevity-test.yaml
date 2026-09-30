@@ -644,24 +644,6 @@ jobs:
           export MIRROR_NODE_VERSION="${{ inputs.mirrorref }}"
           task solo:mirror-node
 
-      - name: Add Explorer
-        if: false
-        run: |
-          set +x
-          set +e
-          cd "${{ github.workspace}}"/solo
-          export EXPLORER_VERSION="${{ inputs.explorerref }}"
-          task solo:explorer
-
-      - name: Add Relay
-        if: false
-        run: |
-          set +x
-          set +e
-          cd "${{ github.workspace}}"/solo
-          export RELAY_VERSION="${{ inputs.relayref }}"
-          task solo:relay
-
       - name: Solo logs
         if: ${{ !cancelled() && always() }}
         env:
