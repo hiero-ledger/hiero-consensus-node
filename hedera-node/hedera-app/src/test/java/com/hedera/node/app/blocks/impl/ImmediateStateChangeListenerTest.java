@@ -61,7 +61,7 @@ import com.hedera.hapi.node.state.tss.TssVoteMapKey;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.tss.TssMessageTransactionBody;
 import com.hedera.hapi.services.auxiliary.tss.TssVoteTransactionBody;
-import com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema;
+import com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Set;
@@ -258,13 +258,13 @@ class ImmediateStateChangeListenerTest {
 
                     case CLPR_MESSAGE_KEY ->
                         new MapUpdateScenario<>(
-                                V0770ClprSchema.MESSAGE_QUEUE_STATE_ID,
+                                V0780ClprSchema.MESSAGE_QUEUE_STATE_ID,
                                 ClprMessageKey.DEFAULT,
                                 ClprMessageValue.DEFAULT);
 
                     case CLPR_CONNECTOR_KEY ->
                         new MapUpdateScenario<>(
-                                V0770ClprSchema.CONNECTORS_STATE_ID, ClprConnectorKey.DEFAULT, ClprConnector.DEFAULT);
+                                V0780ClprSchema.CONNECTORS_STATE_ID, ClprConnectorKey.DEFAULT, ClprConnector.DEFAULT);
                 };
         if (scenario != null) {
             assertDoesNotThrow(() -> listener.mapUpdateChange(scenario.stateId, scenario.key, scenario.value));
