@@ -113,10 +113,7 @@ public class InitialStateLoader {
                 logger.error(STARTUP.getMarker(), "Initial state does not have a consensus snapshot. Unable to initialize the consensus node.");
                 throw new IllegalStateException("Initial state does not have a consensus snapshot");
             }
-            final int roundsNonAncient =
-                    inputs.configuration().getConfigData(ConsensusConfig.class).roundsNonAncient();
-            final EventWindow eventWindow = EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient);
-            buildingBlocks.stateModule().initialEventWindowInputWire().inject(eventWindow);
+            buildingBlocks.stateModule().initialConsensusRoundInputWire().inject(consensusSnapshot.round());
 
             buildingBlocks.savedStateController().registerSignedStateFromDisk(signedState);
 

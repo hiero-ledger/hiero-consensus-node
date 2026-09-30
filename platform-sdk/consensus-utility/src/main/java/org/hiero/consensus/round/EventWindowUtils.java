@@ -24,6 +24,9 @@ public final class EventWindowUtils {
      */
     public static @NonNull EventWindow createEventWindow(
             @NonNull final ConsensusSnapshot snapshot, final int roundsNonAncient) {
+        if (snapshot.round() == 0) {
+            return EventWindow.getGenesisEventWindow();
+        }
         final long ancientThreshold = RoundCalculationUtils.getAncientThreshold(roundsNonAncient, snapshot);
         return new EventWindow(
                 snapshot.round(),

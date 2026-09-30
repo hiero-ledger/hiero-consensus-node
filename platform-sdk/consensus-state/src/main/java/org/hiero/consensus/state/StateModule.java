@@ -27,7 +27,6 @@ import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.main.model.Round;
-import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.state.StateSavingResult;
@@ -61,7 +60,7 @@ import org.hiero.consensus.state.utils.SignedStateReserver;
  */
 public class StateModule {
 
-    private final WireTransformer<Round, EventWindow> eventWindowExtractor;
+    private final WireTransformer<Round, Long> roundExtractor;
 
     private final WireTransformer<ReservedSignedState, ReservedSignedState> stateDispatcher;
 
@@ -110,9 +109,8 @@ public class StateModule {
             @NonNull final SavedStateController savedStateController) {
 
         // Set up wiring
-//        this.eventWindowExtractor = new WireTransformer<>(
-//                model, "State_EventWindowExtractor", "consensus round", Round::getEventWindow);
-        this.eventWindowExtractor = null;
+        this.roundExtractor = new WireTransformer<>(
+                model, "State_RoundExtractor", "consensus round", Round::getRoundNum);
         this.stateDispatcher =
                 new WireTransformer<>(model, "ReservedSignedStateDispatcher", "signed state", UnaryOperator.identity());
 
@@ -139,9 +137,9 @@ public class StateModule {
                 new ComponentWiring<>(model, SignedStateSentinel.class, wiringConfig.signedStateSentinel());
 
         // Wire components
-        eventWindowExtractor
+        roundExtractor
                 .getOutputWire()
-                .solderTo(latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::updateEventWindow));
+                .solderTo(latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::updateConsensusRound));
 
         // Eventually mark unhashed state for storage and forward to StateHasher
         savedStateControllerWiring.getOutputWire().solderTo(stateHasherWiring.getInputWire(StateHasher::hashState));
@@ -203,6 +201,7 @@ public class StateModule {
         // Force not soldered wires to be built
         stateSignatureCollectorWiring.getInputWire(StateSignatureCollector::clear);
         stateSnapshotManagerWiring.getInputWire(StateSnapshotManager::dumpStateTask);
+        latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::updatePlatformStatus);
 
         // Create and bind components
         final StateHasher stateHasher = new DefaultStateHasher(metrics);
@@ -299,18 +298,18 @@ public class StateModule {
     @InputWireLabel("consensus round")
     @NonNull
     public InputWire<Round> consensusRoundInputWire() {
-        return eventWindowExtractor.getInputWire();
+        return roundExtractor.getInputWire();
     }
 
     /**
-     * {@link InputWire} for the initial event window.
+     * {@link InputWire} for the initial consensus round received from the {@code Hashgraph} component.
      *
-     * @return the {@link InputWire} for the initial event window
+     * @return the {@link InputWire} for the initial consensus round
      */
-    @InputWireLabel("initial event window")
+    @InputWireLabel("initial consensus round")
     @NonNull
-    public InputWire<EventWindow> initialEventWindowInputWire() {
-        return latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::updateEventWindow);
+    public InputWire<Long> initialConsensusRoundInputWire() {
+        return latestCompleteStateNexusWiring.getInputWire(LatestCompleteStateNexus::updateConsensusRound);
     }
 
     /**

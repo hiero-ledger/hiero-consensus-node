@@ -302,7 +302,7 @@ gates).
 configured with `FutureEventBufferingOption.PENDING_CONSENSUS_ROUND`,
 holds events whose birth round exceeds
 `EventWindow.getPendingConsensusRound()`. `addEvent` returns `null`
-for such events; `updateEventWindow` releases events whose birth round
+for such events; `updateConsensusRound` releases events whose birth round
 has become eligible after the window advanced. The buffer is
 constructed in `DefaultConsensusEngine`'s constructor and exercised
 on every event and every advanced round (`DefaultConsensusEngine.java`

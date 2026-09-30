@@ -275,7 +275,9 @@ public class ConsensusLayerAdapterFactory {
                 secureRandom,
                 additionalProperties
         );
-        return new ConsensusLayerLifecycleManager(consensusLayerInputs);
+        final ConsensusLayerLifecycleManager manager = new ConsensusLayerLifecycleManager(consensusLayerInputs);
+        manager.createConsensusLayer();
+        return manager;
     }
 
     @Nullable
@@ -363,7 +365,7 @@ public class ConsensusLayerAdapterFactory {
                 selfId,
                 buildingBlocks.notificationEngine());
         final PeerProtocolFactory reconnectPeerProtocolFactory = reconnectModule.getReconnectPeerProtocolFactory();
-        buildingBlocks.consensusLayerLifecycleManager().get().setReconnectPeerProtocolFactory(reconnectPeerProtocolFactory);
+        buildingBlocks.consensusLayerLifecycleManager().addListener(consensusLayer -> consensusLayer.setReconnectPeerProtocolFactory(reconnectPeerProtocolFactory));
     }
 
     @NonNull

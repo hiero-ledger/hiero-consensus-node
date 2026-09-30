@@ -9,6 +9,9 @@ import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
@@ -20,9 +23,15 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
  * Responsible for managing the lifecycle of the consensus layer. It creates and recreates the consensus layer as needed
  * and remembers the previously provided inputs.
  */
-public class ConsensusLayerLifecycleManager implements Supplier<ConsensusLayer> {
+public class ConsensusLayerLifecycleManager {
 
+    /** Listeners that are notified when the consensus layer is changed. */
+    private final List<Consumer<ConsensusLayer>> listeners = new CopyOnWriteArrayList<>();
+
+    /** The inputs used to create the current consensus layer. */
     private ConsensusLayerInputs consensusLayerInputs;
+
+    /** The current instance of the consensus layer. */
     private volatile ConsensusLayer consensusLayer;
 
     public ConsensusLayerLifecycleManager(@NonNull final ConsensusLayerInputs consensusLayerInputs) {
@@ -35,6 +44,7 @@ public class ConsensusLayerLifecycleManager implements Supplier<ConsensusLayer> 
     public void createConsensusLayer() {
         final ConsensusLayerFactory consensusLayerFactory = new ConsensusLayerFactory(consensusLayerInputs);
         consensusLayer = consensusLayerFactory.create();
+        listeners.forEach(listener -> listener.accept(consensusLayer));
     }
 
     /**
@@ -57,11 +67,20 @@ public class ConsensusLayerLifecycleManager implements Supplier<ConsensusLayer> 
         createConsensusLayer();
     }
 
+    /**
+     * Adds a listener that will be notified when the consensus layer is changed. The listener will be called with the
+     * new instance of the consensus layer.
+     *
+     * @param listener the listener to add
+     */
+    public void addListener(@NonNull final Consumer<ConsensusLayer> listener) {
+        listeners.add(requireNonNull(listener, "listener must not be null"));
+    }
+
     private ConsensusSnapshot getInitialConsensusSnapshot(@NonNull final ReservedSignedState state) {
         return PlatformStateUtils.consensusSnapshotOf(state.get().getState());
     }
 
-    @Override
     public ConsensusLayer get() {
         return consensusLayer;
     }

@@ -8,8 +8,10 @@ import static java.util.Objects.requireNonNull;
 import com.swirlds.base.time.Time;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.throttle.RateLimitedLogger;
@@ -29,8 +31,7 @@ public class ReconnectProxyProtocol implements PeerProtocol {
 
     private static final Logger logger = LogManager.getLogger();
 
-    @NonNull
-    private final PeerProtocol executionProtocol;
+    private final Supplier<PeerProtocol> executionProtocolFactory;
 
     private final NodeId peerId;
 
@@ -43,16 +44,19 @@ public class ReconnectProxyProtocol implements PeerProtocol {
      */
     private final RateLimitedLogger fallenBehindLogger;
 
+    @Nullable
+    private PeerProtocol executionProtocol;
+
     public ReconnectProxyProtocol(
             @NonNull final Metrics metrics,
             @NonNull final Time time,
             @NonNull final NodeId peerId,
-            @NonNull final PeerProtocol executionProtocol,
+            @NonNull final Supplier<PeerProtocol> executionProtocolFactory,
             @NonNull final FallenBehindMonitor fallenBehindMonitor) {
 
-        this.executionProtocol = requireNonNull(executionProtocol);
         this.peerId = requireNonNull(peerId);
         this.fallenBehindMonitor = requireNonNull(fallenBehindMonitor);
+        this.executionProtocolFactory = requireNonNull(executionProtocolFactory);
         fallenBehindLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
 
         this.reconnectRejectionMetrics = new CountPerSecond(
@@ -65,6 +69,14 @@ public class ReconnectProxyProtocol implements PeerProtocol {
                         .withFormat(FORMAT_10_0));
     }
 
+    @NonNull
+    private PeerProtocol executionProtocol() {
+        if (executionProtocol == null) {
+            executionProtocol = executionProtocolFactory.get();
+        }
+        return executionProtocol;
+    }
+
     @Override
     public boolean shouldInitiate() {
         // if this neighbor has not told me I have fallen behind, I will not reconnect with him
@@ -74,12 +86,12 @@ public class ReconnectProxyProtocol implements PeerProtocol {
         if (!fallenBehindMonitor.isBehindPeer(peerId)) {
             return false;
         }
-        return executionProtocol.shouldInitiate();
+        return executionProtocol().shouldInitiate();
     }
 
     @Override
     public void initiateFailed() {
-        executionProtocol.initiateFailed();
+        executionProtocol().initiateFailed();
     }
 
     @Override
@@ -94,7 +106,7 @@ public class ReconnectProxyProtocol implements PeerProtocol {
             return false;
         }
 
-        if (executionProtocol.shouldAccept()) {
+        if (executionProtocol().shouldAccept()) {
             return true;
         }
 
@@ -104,18 +116,18 @@ public class ReconnectProxyProtocol implements PeerProtocol {
 
     @Override
     public void acceptFailed() {
-        executionProtocol.acceptFailed();
+        executionProtocol().acceptFailed();
     }
 
     @Override
     public boolean acceptOnSimultaneousInitiate() {
-        return executionProtocol.acceptOnSimultaneousInitiate();
+        return executionProtocol().acceptOnSimultaneousInitiate();
     }
 
     @Override
     public void runProtocol(@NonNull final Connection connection)
             throws NetworkProtocolException, IOException, InterruptedException {
-        executionProtocol.runProtocol(connection);
+        executionProtocol().runProtocol(connection);
     }
 
     /**

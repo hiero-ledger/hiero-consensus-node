@@ -93,13 +93,13 @@ public class ConsensusLayerAdapterWiring {
                         "state signatures",
                         inputs.executionLayer()::submitStateSignature);
 
-        state.stateSavingResultOutputWire().buildTransformer("oldestSnapshotTransformer", "savedStateResult",
+        final OutputWire<StateSavingResult> stateSavingResultOutputWire = state.stateSavingResultOutputWire();
+        stateSavingResultOutputWire.buildTransformer("oldestSnapshotTransformer", "savedStateResult",
                         StateSavingResult::oldestRestartableConsensusSnapshot)
-                .solderTo("consensusLayerRef", "oldestRestartableSnapshot",
+                .solderTo("consensusLayerRef_snapshot", "oldestRestartableSnapshot",
                         (snapshot) -> buildingBlocks.consensusLayerLifecycleManager().get().oldestRestartableSnapshot(snapshot));
 
-        final OutputWire<StateSavingResult> stateSavingResultOutputWire = state.stateSavingResultOutputWire();
-        stateSavingResultOutputWire.solderTo("consensusLayerRef", "onFreezeCompleteStatusUpdate",
+        stateSavingResultOutputWire.solderTo("consensusLayerRef_status", "onFreezeCompleteStatusUpdate",
                 (result) -> {
                     if (result.freezeState()) {
                         buildingBlocks.consensusLayerLifecycleManager().get().onStatusUpdate(StatusUpdate.FREEZE_COMPLETE);

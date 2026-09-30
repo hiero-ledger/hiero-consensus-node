@@ -17,10 +17,10 @@ public class ReconnectProxyProtocolFactory implements PeerProtocolFactory {
     private final Metrics metrics;
     @NonNull
     private final Time time;
-    @Nullable
-    private PeerProtocolFactory executionProtocolFactory;
     @NonNull
     private final FallenBehindMonitor fallenBehindMonitor;
+    @Nullable
+    private PeerProtocolFactory executionProtocolFactory;
 
     public ReconnectProxyProtocolFactory(
             @NonNull final Metrics metrics,
@@ -38,12 +38,11 @@ public class ReconnectProxyProtocolFactory implements PeerProtocolFactory {
 
     @Override
     public PeerProtocol createPeerInstance(@NonNull final NodeId peerId) {
-        requireNonNull(executionProtocolFactory, "Not initialized");
         return new ReconnectProxyProtocol(
                 metrics,
                 time,
                 peerId,
-                executionProtocolFactory.createPeerInstance(peerId),
+                () -> executionProtocolFactory.createPeerInstance(peerId),
                 fallenBehindMonitor
         );
     }

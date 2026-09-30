@@ -3,7 +3,6 @@ package org.hiero.consensus.state.nexus;
 
 import com.swirlds.component.framework.component.InputWireLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 
@@ -13,11 +12,11 @@ import org.hiero.consensus.state.signed.ReservedSignedState;
 public interface LatestCompleteStateNexus extends SignedStateNexus {
 
     /**
-     * Update the current event window. May cause the latest complete state to be thrown away if it has been a long
+     * Update the current consensus round. May cause the latest complete state to be thrown away if it has been a long
      * time since a state has been completely signed.
      */
-    @InputWireLabel("event window")
-    void updateEventWindow(@NonNull EventWindow eventWindow);
+    @InputWireLabel("consensus round")
+    void updateConsensusRound(@NonNull Long round);
 
     /**
      * Replace the current state with the given state if the given state is newer than the current state.

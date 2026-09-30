@@ -127,7 +127,9 @@ public class DefaultConsensusEngineBuffer implements ConsensusEngineBuffer {
         final EventWindow eventWindow = EventWindowUtils.createEventWindow(snapshot, roundsNonAncient);
         futureEventBuffer.clear();
         futureEventBuffer.updateEventWindow(eventWindow);
-        consensusEngine.outOfBandSnapshotUpdate(snapshot);
+        if (snapshot.round() != 0) {
+            consensusEngine.outOfBandSnapshotUpdate(snapshot);
+        }
     }
 
     /**

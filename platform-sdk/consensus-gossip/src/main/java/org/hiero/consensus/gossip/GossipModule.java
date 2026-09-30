@@ -27,7 +27,6 @@ import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
-import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.status.StatusMonitorModule;
@@ -114,15 +113,6 @@ public interface GossipModule {
     @InputWireLabel("initial event window")
     @NonNull
     InputWire<EventWindow> initialEventWindowInputWire();
-
-    /**
-     * {@link InputWire} for the platform status received from the {@code StatusStateMachine}.
-     *
-     * @return the {@link InputWire} for the platform status
-     */
-    @InputWireLabel("PlatformStatus")
-    @NonNull
-    InputWire<PlatformStatus> platformStatusInputWire();
 
     /**
      * {@link InputWire} for the health status of the consensus module received from the

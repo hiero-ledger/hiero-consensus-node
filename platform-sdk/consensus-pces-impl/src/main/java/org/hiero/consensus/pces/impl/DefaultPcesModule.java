@@ -158,7 +158,7 @@ public class DefaultPcesModule implements PcesModule {
                 () -> isLessThan(model.getUnhealthyDuration(), replayHealthThreshold));
         consensusRoundDispatcher
                 .getOutputWire()
-                .solderTo("pcesReplayer", "consensusRoundInputWire", pcesReplayer::setLatestConsensusRound);
+                .solderTo("pcesReplayer_latestRound", "consensusRoundInputWire", pcesReplayer::setLatestConsensusRound);
         pcesReplayerWiring.bind(pcesReplayer);
 
         this.pcesCoordinator = new PcesCoordinator(time, initialPcesFiles, pcesReplayerWiring, statusMonitorModule);

@@ -229,7 +229,7 @@ the most recent state matching a different criterion:
   holds the latest signed state that has collected at least the
   signing-weight threshold of signatures. Reconnect teachers serve this
   state to learners. The holder is cleared in two cases:
-  `updateEventWindow` drops the state when it ages past
+  `updateConsensusRound` drops the state when it ages past
   `latestConsensusRound - stateConfig.roundsToKeepForSigning + 1` — i.e.
   when this node has not reached signing quorum on a newer state within
   the window — and `updatePlatformStatus` drops it when status becomes
