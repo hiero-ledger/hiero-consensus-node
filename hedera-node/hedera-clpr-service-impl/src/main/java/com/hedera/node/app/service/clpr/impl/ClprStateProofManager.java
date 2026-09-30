@@ -166,7 +166,7 @@ public class ClprStateProofManager {
             final var raw = binaryState.getSingleton(ENDPOINT_MANIFEST_STATE_ID);
             final var manifest = (raw == null)
                     ? ClprEndpointManifest.DEFAULT
-                    : ClprEndpointManifest.PROTOBUF.parse(raw.toReadableSequentialData());
+                    : ClprEndpointManifest.PROTOBUF.parseStrict(raw.toReadableSequentialData());
             return new ManifestWithProof(proof, manifest);
         });
     }
@@ -396,7 +396,7 @@ public class ClprStateProofManager {
             return proofBytes;
         }
         try {
-            final var stateProof = StateProof.PROTOBUF.parse(proofBytes.toReadableSequentialData());
+            final var stateProof = StateProof.PROTOBUF.parseStrict(proofBytes.toReadableSequentialData());
             if (!stateProof.hasSignedBlockProof()) {
                 log.warn(
                         "buildBundleStateProof (sender): proof has no signedBlockProof for channel {}; refusing",
