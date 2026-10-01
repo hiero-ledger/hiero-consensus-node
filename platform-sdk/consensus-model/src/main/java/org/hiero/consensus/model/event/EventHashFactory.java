@@ -26,10 +26,10 @@ public class EventHashFactory {
     }
 
     /**
-     * Creates a Hash object from raw bytes. The type of hash created depends on the event birth round in the cutover
+     * Creates a Hash object from bytes. The type of hash created depends on the event birth round in the cutover
      * release.
      *
-     * @param bytes           the raw bytes to convert
+     * @param bytes           the bytes to convert
      * @param eventBirthRound the event's birth round
      * @return the constructed hash
      */
@@ -41,5 +41,39 @@ public class EventHashFactory {
         return eventBirthRound < eventCutoverMinBirthRound
                 ? new Hash(bytes, DigestType.SHA_384)
                 : new Hash(bytes, DigestType.SHA_256);
+    }
+
+    /**
+     * Creates a Hash object from raw bytes. The type of hash created depends on the length of the byte array. If the
+     * length does not match a known digest type length, an exception is thrown.
+     *
+     * @param bytes the bytes to convert
+     * @return the constructed has
+     */
+    @NonNull
+    public static Hash hash(@NonNull final byte[] bytes) {
+        final DigestType digestType = DigestType.digestLengthToDigestType(bytes.length);
+        if (digestType == null) {
+            throw new IllegalArgumentException(
+                    String.format("No digest known digest type for length %s", bytes.length));
+        }
+        return new Hash(bytes, digestType);
+    }
+
+    /**
+     * Creates a Hash object from bytes. The type of hash created depends on the length of the byte array. If the length
+     * does not match a known digest type length, an exception is thrown.
+     *
+     * @param bytes the bytes to convert
+     * @return the constructed has
+     */
+    @NonNull
+    public static Hash hash(@NonNull final Bytes bytes) {
+        final DigestType digestType = DigestType.digestLengthToDigestType((int) bytes.length());
+        if (digestType == null) {
+            throw new IllegalArgumentException(
+                    String.format("No digest known digest type for length %s", bytes.length()));
+        }
+        return new Hash(bytes, digestType);
     }
 }

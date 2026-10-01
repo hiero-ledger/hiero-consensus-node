@@ -48,6 +48,7 @@ import java.util.Objects;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.consensus.model.node.NodeId;
@@ -527,7 +528,7 @@ public record SavedStateMetadata(
         }
 
         try {
-            return new Hash(unhex(value));
+            return new Hash(unhex(value), DigestType.SHA_384);
         } catch (final IllegalArgumentException e) {
             logInvalidField(field, value, e);
             return null;
@@ -555,7 +556,7 @@ public record SavedStateMetadata(
         final String value = data.get(field);
 
         try {
-            return new Hash(unhex(value));
+            return new Hash(unhex(value), DigestType.SHA_384);
         } catch (final IllegalArgumentException e) {
             throwInvalidRequiredField(field, value, e);
             return null;

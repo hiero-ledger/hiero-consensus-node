@@ -68,7 +68,7 @@ public class DefaultConsensusEventStream implements ConsensusEventStream {
     /**
      * initialHash loaded from signed state
      */
-    private Hash initialHash = new Hash(new byte[DigestType.SHA_384.digestLength()]);
+    private Hash initialHash = new Hash(new byte[DigestType.SHA_384.digestLength()], DigestType.SHA_384);
     /**
      * When we freeze the platform, the last event to be written to EventStream file is the last event in the freeze
      * round. The freeze round is defined as the first round with a consensus timestamp after the start of the freeze

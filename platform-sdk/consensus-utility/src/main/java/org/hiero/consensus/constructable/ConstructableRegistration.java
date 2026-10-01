@@ -4,6 +4,7 @@ package org.hiero.consensus.constructable;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.SerializablePublicKey;
 import org.hiero.base.io.SerializableLong;
@@ -33,7 +34,7 @@ public final class ConstructableRegistration {
      */
     public static void registerCoreConstructables() throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructable(new ClassConstructorPair(Hash.class, Hash::new));
+        registry.registerConstructable(new ClassConstructorPair(Hash.class, () -> new Hash(DigestType.SHA_384)));
         registry.registerConstructable(
                 new ClassConstructorPair(SerializablePublicKey.class, SerializablePublicKey::new));
         registry.registerConstructable(new ClassConstructorPair(CesEvent.class, CesEvent::new));

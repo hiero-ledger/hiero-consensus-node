@@ -341,7 +341,7 @@ public final class LinkedObjectStreamUtilities {
             // digest endRunningHash
             outputStream.writeSerializable(hashPair.right(), true);
         }
-        return new Hash(md.digest());
+        return new Hash(md.digest(), DigestType.SHA_384);
     }
 
     /**
