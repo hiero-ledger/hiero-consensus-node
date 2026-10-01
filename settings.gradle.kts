@@ -26,6 +26,8 @@ javaModules {
         module("hedera-app") { artifact = "app" }
         module("hedera-app-spi") { artifact = "app-spi" }
         module("hedera-config") { artifact = "config" }
+        module("hedera-clpr-service") { artifact = "app-service-clpr" }
+        module("hedera-clpr-service-impl") { artifact = "app-service-clpr-impl" }
         module("hedera-consensus-service") { artifact = "app-service-consensus" }
         module("hedera-consensus-service-impl") { artifact = "app-service-consensus-impl" }
         module("hedera-file-service") { artifact = "app-service-file" }
@@ -79,6 +81,15 @@ gradle.lifecycle.afterProject {
             module("io.vertx:vertx-core", "io.vertx.core")
             module("io.consensys.tuweni:tuweni-bytes", "tuweni.bytes")
             module("io.consensys.tuweni:tuweni-units", "tuweni.units")
+            module("org.openjdk.jmh:jmh-core", "jmh.core") {
+                exportAllPackages()
+                requireAllDefinedDependencies()
+                requires("java.logging")
+                requires("java.management")
+                requires("jdk.unsupported")
+            }
+            module("net.sf.jopt-simple:jopt-simple", "jopt.simple")
+            module("org.apache.commons:commons-math3", "commons.math3")
         }
     }
 

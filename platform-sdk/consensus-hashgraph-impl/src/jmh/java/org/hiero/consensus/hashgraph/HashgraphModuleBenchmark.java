@@ -96,7 +96,7 @@ public class HashgraphModuleBenchmark {
                 metrics,
                 time,
                 generator.getRoster(),
-                generator.getRoster().rosterEntry(0).nodeId(),
+                generator.getRoster().nodeIdAtIndex(0),
                 i -> false,
                 null,
                 0L);

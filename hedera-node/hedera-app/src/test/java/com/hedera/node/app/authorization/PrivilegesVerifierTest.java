@@ -18,6 +18,9 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ClprCloseChannelTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprRedactMessageTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprUpdateLedgerConfigurationTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ContractUpdateTransactionBody;
@@ -37,13 +40,25 @@ import com.hederahashgraph.api.proto.java.SystemUndeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 // This test may look a little weird without context. The original test in mono is very extensive. To ensure that
 // we don't break anything, I copied the test from mono and hacked it a little to run it with the new code.
 // (It was a good thing. I discovered two bugs...) :)
 class PrivilegesVerifierTest {
+    // System account numbers — must match AccountsConfig defaults.
+    private static final long TREASURY = 2L;
+    private static final long SYSTEM_ADMIN = 50L;
+    private static final long ADDRESS_BOOK_ADMIN = 55L;
+    private static final long EXCHANGE_RATES_ADMIN = 57L;
+    private static final long FREEZE_ADMIN = 58L;
+    private static final long CIVILIAN = 75231L;
+
     private static final AccountID EVM_ACCOUNT_ID = AccountID.newBuilder()
             .setAlias(ByteString.fromHex("abcd1234abcd1234abcd1234abcd1234abcd1234"))
             .build();
@@ -632,6 +647,58 @@ class PrivilegesVerifierTest {
         assertEquals(
                 SystemOpAuthorization.AUTHORIZED,
                 subject.authForTestCase(accessorWithPayer(otherUpdateTxn, account(2))));
+    }
+
+    @ParameterizedTest(name = "{0} with payer {1} -> {2}")
+    @MethodSource("clprAuthorizationCases")
+    void clprOperationsRequireSuperAdmin(HederaFunctionality operation, long payerNum, SystemOpAuthorization expected)
+            throws InvalidProtocolBufferException {
+        final var txn = txnWithPayer(payerNum);
+        switch (operation) {
+            case CLPR_UPDATE_LEDGER_CONFIGURATION ->
+                txn.setClprUpdateLedgerConfiguration(ClprUpdateLedgerConfigurationTransactionBody.getDefaultInstance());
+            case CLPR_CLOSE_CHANNEL -> txn.setClprCloseChannel(ClprCloseChannelTransactionBody.getDefaultInstance());
+            case CLPR_REDACT_MESSAGE -> txn.setClprRedactMessage(ClprRedactMessageTransactionBody.getDefaultInstance());
+            default -> throw new IllegalArgumentException("Unexpected CLPR operation: " + operation);
+        }
+
+        assertEquals(expected, subject.authForTestCase(accessor(txn)));
+    }
+
+    static Stream<Arguments> clprAuthorizationCases() {
+        // CLPR ops require a super user (treasury or systemAdmin). Other privileged
+        // accounts (freeze admin, exchange-rates admin, etc.) and civilians are rejected.
+        return Stream.of(
+                Arguments.of(
+                        HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION,
+                        TREASURY,
+                        SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(
+                        HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION,
+                        SYSTEM_ADMIN,
+                        SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(
+                        HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION,
+                        FREEZE_ADMIN,
+                        SystemOpAuthorization.UNAUTHORIZED),
+                Arguments.of(
+                        HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION,
+                        CIVILIAN,
+                        SystemOpAuthorization.UNAUTHORIZED),
+                Arguments.of(HederaFunctionality.CLPR_CLOSE_CHANNEL, TREASURY, SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(HederaFunctionality.CLPR_CLOSE_CHANNEL, SYSTEM_ADMIN, SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(
+                        HederaFunctionality.CLPR_CLOSE_CHANNEL,
+                        EXCHANGE_RATES_ADMIN,
+                        SystemOpAuthorization.UNAUTHORIZED),
+                Arguments.of(HederaFunctionality.CLPR_CLOSE_CHANNEL, CIVILIAN, SystemOpAuthorization.UNAUTHORIZED),
+                Arguments.of(HederaFunctionality.CLPR_REDACT_MESSAGE, TREASURY, SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(HederaFunctionality.CLPR_REDACT_MESSAGE, SYSTEM_ADMIN, SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(
+                        HederaFunctionality.CLPR_REDACT_MESSAGE,
+                        ADDRESS_BOOK_ADMIN,
+                        SystemOpAuthorization.UNAUTHORIZED),
+                Arguments.of(HederaFunctionality.CLPR_REDACT_MESSAGE, CIVILIAN, SystemOpAuthorization.UNAUTHORIZED));
     }
 
     private TestCase accessor(TransactionBody.Builder transaction) throws InvalidProtocolBufferException {

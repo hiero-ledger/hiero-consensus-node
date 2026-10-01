@@ -293,7 +293,7 @@ class AtomicContractCreateSuite {
                                     placeholderEthTx(), getEcdsaPrivateKeyFromSpec(spec, SECP_256K1_SOURCE_KEY));
                             b.setCallData(systemFileId).setEthereumData(ByteString.copyFrom(signedEthTx.encodeTx()));
                         })
-                        .hasPrecheck(INVALID_FILE_ID));
+                        .hasKnownStatus(INVALID_FILE_ID));
     }
 
     @HapiTest

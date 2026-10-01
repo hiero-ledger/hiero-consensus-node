@@ -3,6 +3,20 @@
     {
       "burstPeriod": 0,
       "burstPeriodMs": 1000,
+      "name": "ClprBundles",
+      "throttleGroups": [
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 10000,
+          "operations": [
+            "ClprSubmitBundle"
+          ]
+        }
+      ]
+    },
+    {
+      "burstPeriod": 0,
+      "burstPeriodMs": 1000,
       "name": "ThroughputLimits",
       "throttleGroups": [
         {
@@ -43,7 +57,17 @@
             "CryptoApproveAllowance",
             "CryptoDeleteAllowance",
             "UtilPrng",
-            "AtomicBatch"
+            "AtomicBatch",
+            "ClprUpdateLedgerConfiguration",
+            "ClprRegisterChannel",
+            "ClprCompleteChannel",
+            "ClprCloseChannel",
+            "ClprRegisterConnector",
+            "ClprDeregisterConnector",
+            "ClprSubmitBundle",
+            "ClprRedactMessage",
+            "ClprGetLedgerConfiguration",
+            "ClprGetEndpointManifest"
           ]
         },
         {

@@ -6,6 +6,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 public enum DigestType {
+    /** 256-bit SHA2 message digest meeting current CNSA standards */
+    SHA_256(0x1c15d3fb, "SHA-256", "SUN", 32),
+
     /** 384-bit SHA2 message digest meeting current CNSA standards */
     SHA_384(0x58ff811b, "SHA-384", "SUN", 48),
 
@@ -57,14 +60,28 @@ public enum DigestType {
      * @return a valid DigestType or null if the provided id is not valid
      */
     public static DigestType valueOf(final int id) {
-        switch (id) {
-            case 0x58ff811b:
-                return SHA_384;
-            case 0x8fc9497e:
-                return SHA_512;
-            default:
-                return null;
-        }
+        return switch (id) {
+            case 0x1c15d3fb -> SHA_256;
+            case 0x58ff811b -> SHA_384;
+            case 0x8fc9497e -> SHA_512;
+            default -> null;
+        };
+    }
+
+    /**
+     * Returns a digest type for a given algorithm name.
+     *
+     * @param algorithmName the algorithm name
+     * @return a valid DigestType or null if the provided algorithm name does not correspond to
+     *      any registered digest type
+     */
+    public static DigestType algorithmNameToDigestType(final String algorithmName) {
+        return switch (algorithmName) {
+            case "SHA-256" -> SHA_256;
+            case "SHA-384" -> SHA_384;
+            case "SHA-512" -> SHA_512;
+            default -> null;
+        };
     }
 
     /**

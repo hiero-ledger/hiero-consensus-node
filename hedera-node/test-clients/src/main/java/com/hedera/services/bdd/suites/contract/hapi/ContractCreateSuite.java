@@ -223,13 +223,13 @@ public class ContractCreateSuite {
                         .adminKey(THRESHOLD)
                         .declinedReward(false)
                         .stakedAccountId("0.0.0")
-                        .hasPrecheck(INVALID_STAKING_ID)
+                        .hasKnownStatus(INVALID_STAKING_ID)
                         .refusingEthConversion(),
                 contractCreate(contract)
                         .adminKey(THRESHOLD)
                         .declinedReward(false)
                         .stakedNodeId(-1L)
-                        .hasPrecheck(INVALID_STAKING_ID)
+                        .hasKnownStatus(INVALID_STAKING_ID)
                         .refusingEthConversion());
     }
 
@@ -299,7 +299,7 @@ public class ContractCreateSuite {
                                     placeholderEthTx(), getEcdsaPrivateKeyFromSpec(spec, SECP_256K1_SOURCE_KEY));
                             b.setCallData(systemFileId).setEthereumData(ByteString.copyFrom(signedEthTx.encodeTx()));
                         })
-                        .hasPrecheck(INVALID_FILE_ID));
+                        .hasKnownStatus(INVALID_FILE_ID));
     }
 
     @HapiTest
@@ -571,10 +571,10 @@ public class ContractCreateSuite {
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
                 contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                         .entityMemo(TxnUtils.nAscii(101))
-                        .hasPrecheck(MEMO_TOO_LONG),
+                        .hasKnownStatus(MEMO_TOO_LONG),
                 contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                         .entityMemo(ZERO_BYTE_MEMO)
-                        .hasPrecheck(INVALID_ZERO_BYTE_IN_STRING));
+                        .hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING));
     }
 
     @HapiTest
