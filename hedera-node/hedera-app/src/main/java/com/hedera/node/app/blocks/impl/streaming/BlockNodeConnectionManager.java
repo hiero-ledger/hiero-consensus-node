@@ -622,13 +622,19 @@ public class BlockNodeConnectionManager {
             while (isConnectionManagerActive.get()) {
                 try {
                     updateConnectionIfNeeded();
+                } catch (final Exception e) {
+                    logger.warn("Error caught in connection monitor loop; continuing", e);
+                }
 
+                // The wait is deliberately outside the block above: if the connectivity check throws, the
+                // loop must still back off rather than spin and flood the log.
+                try {
                     Thread.sleep(bncConfig().connectionMonitorCheckIntervalMillis());
                 } catch (final InterruptedException e) {
                     Thread.currentThread().interrupt();
                     logger.warn("Connection monitor loop was interrupted; continuing", e);
                 } catch (final Exception e) {
-                    logger.warn("Error caught in connection monitor loop; continuing", e);
+                    logger.warn("Error caught while backing off in connection monitor loop; continuing", e);
                 }
             }
         }
