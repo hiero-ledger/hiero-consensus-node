@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CUSTOM_FRACTIONAL_FEE_O
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CUSTOM_ROYALTY_FEE_ONLY_ALLOWED_FOR_NON_FUNGIBLE_UNIQUE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CUSTOM_FEE_COLLECTOR;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID_IN_CUSTOM_FEES;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.ROYALTY_FRACTION_CANNOT_EXCEED_ONE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_FEE_COLLECTOR;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKEN_RELS_STATE_ID;
@@ -604,6 +605,100 @@ class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
                         writableTokenStore,
                         feeWithRoyalty,
                         expiryValidator));
+    }
+
+    @Test
+    @DisplayName("royalty fractions that sum above one fail on token create")
+    void royaltyFractionsSummingAboveOneFailOnTokenCreate() {
+        refreshWritableStores();
+        // 60% + 90%: each fraction is individually valid
+        final var fees = List.of(royaltyWithFraction(6, 10), royaltyWithFraction(9, 10));
+        assertThatThrownBy(() -> subject.validateForCreation(
+                        nonFungibleToken,
+                        readableAccountStore,
+                        readableTokenRelStore,
+                        writableTokenStore,
+                        fees,
+                        expiryValidator))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(ROYALTY_FRACTION_CANNOT_EXCEED_ONE));
+    }
+
+    @Test
+    @DisplayName("royalty fractions that sum above one fail on fee schedule update")
+    void royaltyFractionsSummingAboveOneFailOnFeeScheduleUpdate() {
+        refreshWritableStores();
+        final var fees = List.of(royaltyWithFraction(6, 10), royaltyWithFraction(9, 10));
+        assertThatThrownBy(() -> subject.validateForFeeScheduleUpdate(
+                        nonFungibleToken,
+                        readableAccountStore,
+                        readableTokenRelStore,
+                        writableTokenStore,
+                        fees,
+                        expiryValidator))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(ROYALTY_FRACTION_CANNOT_EXCEED_ONE));
+    }
+
+    @Test
+    @DisplayName("royalty fractions that sum to exactly one are accepted on create and fee schedule update")
+    void royaltyFractionsSummingToExactlyOneSucceed() {
+        refreshWritableStores();
+        final var fees = List.of(royaltyWithFraction(6, 10), royaltyWithFraction(4, 10));
+        assertThatNoException()
+                .isThrownBy(() -> subject.validateForCreation(
+                        nonFungibleToken,
+                        readableAccountStore,
+                        readableTokenRelStore,
+                        writableTokenStore,
+                        fees,
+                        expiryValidator));
+        assertThatNoException()
+                .isThrownBy(() -> subject.validateForFeeScheduleUpdate(
+                        nonFungibleToken,
+                        readableAccountStore,
+                        readableTokenRelStore,
+                        writableTokenStore,
+                        fees,
+                        expiryValidator));
+    }
+
+    @Test
+    @DisplayName("royalty fraction sum is exact even when the denominators overflow long arithmetic")
+    void royaltyFractionSumIsExactForDenominatorsThatOverflowLongArithmetic() {
+        refreshWritableStores();
+        final var max = Long.MAX_VALUE;
+        // each fraction is just under one; the product of their denominators does not fit in a long
+        final var aboveOne = List.of(royaltyWithFraction(max - 1, max), royaltyWithFraction(max - 1, max));
+        assertThatThrownBy(() -> subject.validateForCreation(
+                        nonFungibleToken,
+                        readableAccountStore,
+                        readableTokenRelStore,
+                        writableTokenStore,
+                        aboveOne,
+                        expiryValidator))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(ROYALTY_FRACTION_CANNOT_EXCEED_ONE));
+        // two tiny fractions over the same huge denominators must still be accepted
+        final var tiny = List.of(royaltyWithFraction(1, max), royaltyWithFraction(1, max));
+        assertThatNoException()
+                .isThrownBy(() -> subject.validateForCreation(
+                        nonFungibleToken,
+                        readableAccountStore,
+                        readableTokenRelStore,
+                        writableTokenStore,
+                        tiny,
+                        expiryValidator));
+    }
+
+    private CustomFee royaltyWithFraction(final long numerator, final long denominator) {
+        return withRoyaltyFee(royaltyFee
+                .copyBuilder()
+                .exchangeValueFraction(Fraction.newBuilder()
+                        .numerator(numerator)
+                        .denominator(denominator)
+                        .build())
+                .build());
     }
 
     @Test
