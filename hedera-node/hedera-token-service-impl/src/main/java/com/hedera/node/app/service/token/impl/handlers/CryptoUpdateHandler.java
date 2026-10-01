@@ -207,7 +207,8 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             @NonNull final CryptoUpdateTransactionBody op, @NonNull final Account currentAccount) {
         final var builder = currentAccount.copyBuilder();
         if (op.hasKey()) {
-            /* Note that {@code this.validateSemantics} will have rejected any txn with an invalid key. */
+            // Validated in validateFields() before the account is saved. An empty key list is only
+            // reachable when preHandle waived the new-key signature for a privileged payer.
             builder.key(op.key());
         }
         if (op.hasExpirationTime()) {

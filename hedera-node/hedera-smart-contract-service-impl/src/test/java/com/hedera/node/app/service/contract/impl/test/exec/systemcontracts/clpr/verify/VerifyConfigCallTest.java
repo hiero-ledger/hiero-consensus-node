@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.block.stream.MerklePath;
@@ -22,6 +23,8 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verif
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verify.VerifyConfigTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
+import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -139,6 +142,53 @@ class VerifyConfigCallTest extends CallTestBase {
 
     private static final Bytes SERVICE_ADDR = Bytes.wrap(new byte[20]);
     private static final Bytes TRUST_ANCHOR = Bytes.wrap(new byte[] {1, 2, 3, 4});
+
+    @Test
+    void rejectsUnknownFieldsInConfigProofBeforeVerifyingSignature() {
+        final var proof = Bytes.wrap(configProofBytes(testConfig()))
+                .append(Bytes.fromHex("c03e01"))
+                .toByteArray();
+        final var tss = mock(TssVerifier.class);
+        final var result =
+                new VerifyConfigCall(mockEnhancement(), gasCalculator, proof, new byte[32], tss).execute(frame);
+
+        assertThat(result.responseCode()).isEqualTo(CLPR_VERIFIER_CONFIG_FAILED);
+        assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
+        verifyNoInteractions(tss);
+    }
+
+    @Test
+    void rejectsUnknownFieldsInsideProvenConfig() throws ParseException {
+        // Preserve the unknown field in the fixture so it survives serialization inside the proof's opaque leaf.
+        final var configBytes =
+                ClprLedgerConfiguration.PROTOBUF.toBytes(testConfig()).append(Bytes.fromHex("c03e01"));
+        final var configWithUnknown = ClprLedgerConfiguration.PROTOBUF.parse(
+                configBytes.toReadableSequentialData(), false, true, Codec.DEFAULT_MAX_DEPTH);
+        final var tss = mock(TssVerifier.class);
+        final var result = new VerifyConfigCall(
+                        mockEnhancement(), gasCalculator, configProofBytes(configWithUnknown), new byte[32], tss)
+                .execute(frame);
+
+        assertThat(result.responseCode()).isEqualTo(CLPR_VERIFIER_CONFIG_FAILED);
+        assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
+        verifyNoInteractions(tss);
+    }
+
+    @Test
+    void rejectsUnknownFieldsInManifestProof() {
+        final var manifest = ClprEndpointManifest.newBuilder()
+                .version(2L)
+                .serviceAddress(SERVICE_ADDR)
+                .build();
+        final var proof = Bytes.wrap(manifestProofBytes(manifest))
+                .append(Bytes.fromHex("c03e01"))
+                .toByteArray();
+
+        final var result = invokeWithManifest(configProofBytes(testConfig()), proof, acceptingTss());
+
+        assertThat(result.responseCode()).isEqualTo(CLPR_VERIFIER_CONFIG_FAILED);
+        assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
+    }
 
     @Test
     void returnsConfigTupleWithSeedEndpoints() {
