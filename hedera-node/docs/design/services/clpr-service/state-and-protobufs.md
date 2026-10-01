@@ -33,8 +33,7 @@ Transaction bodies (one body per HAPI tx):
 | `clpr_channel.proto`              | `ClprChannel`, `ClprChannelStatus` enum                                                                                                                                                 |
 | `clpr_connector.proto`            | `ClprConnector`, `ClprConnectorKey` (composite key: `channel_id` + `connector_id`, where `connector_id = keccak256(channel_id ‖ public_key ‖ salt)` per spec §2.2)                      |
 | `clpr_message.proto`              | `ClprMessage`, `ClprMessageKey`, `ClprMessageValue`, `ClprMessagePayload` (oneof), `ClprControlMessage`, `ClprConfigUpdate`, `ClprQueueMetadata`, `ClprSyncPayload`                     |
-| `clpr_ledger_configuration.proto` | `ClprLedgerConfiguration`, `ClprThrottles`                                                                                                                                              |
-| `clpr_discovery.proto`            | `ClprDiscoverEndpointsRequest/Response`, `ClprEndpoint`                                                                                                                                 |
+| `clpr_ledger_configuration.proto` | `ClprLedgerConfiguration`, `ClprThrottles`, `ClprEndpoint`                                                                                                                              |
 | `clpr_bundle_content.proto`       | `ClprBundleContent` (returned by `ClprVerifier.verifyBundle`)                                                                                                                           |
 | `state_proof.proto`               | **Hiero-specific.** `StateProof`, `MerklePath`, `SiblingNode`, `MerkleSiblingHash`. The proof envelope a Hiero-as-source ledger uses; consumed by the verifier on the destination side. |
 
@@ -42,7 +41,7 @@ Transaction bodies (one body per HAPI tx):
 
 Defined alongside state types; the Java SPI is `ClprEndpointServiceDefinition` (not a HAPI
 service, no `Transaction` envelopes — payloads are raw `ClprSyncPayload` bytes). RPCs:
-`sync(ClprSyncPayload → ClprSyncPayload)` and `discoverEndpoints(...)`.
+`sync(ClprSyncPayload → ClprSyncPayload)`.
 
 ## State schema (genesis): `V0650ClprSchema`
 

@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.hapi.node.base.Transaction;
-import com.hedera.hapi.node.state.clpr.ClprDiscoverEndpointsRequest;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition;
 import com.hedera.node.app.services.ServicesRegistry;
@@ -24,8 +23,6 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.RpcMethodDefinition;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -76,9 +73,6 @@ final class NettyGrpcServerManagerTest {
         this.userQueryWorkflow = (req, res) -> {};
         this.operatorQueryWorkflow = (req, res) -> {};
         this.clprSyncWorkflow = new ClprSyncWorkflow() {
-
-            @Override
-            public void handleDiscovery(Bytes req, BufferedData res) {}
 
             @Override
             public ClprStreamingSyncSession openStreamingSync() {
@@ -220,10 +214,6 @@ final class NettyGrpcServerManagerTest {
                 .findFirst()
                 .orElseThrow();
         assertThat(NettyGrpcServerManager.isClprSyncMethod(sync)).isTrue();
-        // discoverEndpoints is CLPR but not sync — it stays on the shared (non-mTLS) ports.
-        assertThat(NettyGrpcServerManager.isClprSyncMethod(new RpcMethodDefinition<>(
-                        "discoverEndpoints", ClprDiscoverEndpointsRequest.class, ClprDiscoverEndpointsRequest.class)))
-                .isFalse();
         assertThat(NettyGrpcServerManager.isClprSyncMethod(
                         new RpcMethodDefinition<>("submit", Transaction.class, Transaction.class)))
                 .isFalse();
@@ -281,10 +271,7 @@ final class NettyGrpcServerManagerTest {
         // The streaming sync must move to the dedicated listener, not be left behind on the shared ports, where
         // peers dialing the advertised ClprEndpoint port would never find it.
         assertThat(syncMethodTypes(subject.clprSyncServices())).containsExactly(MethodType.BIDI_STREAMING);
-        assertThat(fullMethodNames(subject.hapiServices()))
-                .doesNotContain(SYNC_FULL_METHOD_NAME)
-                // discoverEndpoints is CLPR but not sync, so it stays on the shared ports.
-                .contains(ClprEndpointServiceDefinition.SERVICE_NAME + "/discoverEndpoints");
+        assertThat(fullMethodNames(subject.hapiServices())).doesNotContain(SYNC_FULL_METHOD_NAME);
     }
 
     @Test

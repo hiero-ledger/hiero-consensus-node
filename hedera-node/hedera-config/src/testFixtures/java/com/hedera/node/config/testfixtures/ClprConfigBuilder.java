@@ -30,7 +30,6 @@ public final class ClprConfigBuilder {
     private int retryMaxAttempts = 5;
     private int circuitBreakerCooldownSeconds = 120;
     private boolean syncPeerExclusionEnabled = false;
-    private int discoveryIntervalSeconds = 300;
     private int connectorQueueQuotaPct = 50;
     private long verifierGasLimit = 300_000L;
     private boolean verifyProofsAtSender = true;
@@ -152,11 +151,6 @@ public final class ClprConfigBuilder {
         return this;
     }
 
-    public ClprConfigBuilder discoveryIntervalSeconds(final int discoveryIntervalSeconds) {
-        this.discoveryIntervalSeconds = discoveryIntervalSeconds;
-        return this;
-    }
-
     public ClprConfigBuilder connectorQueueQuotaPct(final int connectorQueueQuotaPct) {
         this.connectorQueueQuotaPct = connectorQueueQuotaPct;
         return this;
@@ -249,7 +243,6 @@ public final class ClprConfigBuilder {
                 retryMaxAttempts,
                 circuitBreakerCooldownSeconds,
                 syncPeerExclusionEnabled,
-                discoveryIntervalSeconds,
                 connectorQueueQuotaPct,
                 verifierGasLimit,
                 nodeSubmitBundleMaxFee,

@@ -220,7 +220,7 @@ public class ClprEnabledSuite {
 
     @Tag(ONLY_SUBPROCESS)
     @HapiTest
-    @DisplayName("Every node reaches peer sync, discovery and streaming request validation")
+    @DisplayName("Every node reaches streaming sync request validation and no longer serves discovery")
     final Stream<DynamicTest> peerRpcCallsReachValidation() {
         return hapiTest(withOpContext((spec, opLog) -> {
             for (final var node : spec.targetNetworkOrThrow().nodes()) {
@@ -235,7 +235,8 @@ public class ClprEnabledSuite {
                                     peerMethod("discoverEndpoints", MethodDescriptor.MethodType.UNARY),
                                     CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS),
                                     new byte[0]));
-                    assertInvalidPeerRequest(error.getStatus());
+                    // The legacy discovery RPC was removed in favour of the endpoint manifest.
+                    assertEquals(Status.Code.UNIMPLEMENTED, error.getStatus().getCode());
                     final var status = new CompletableFuture<Status>();
                     final var stream = ClientCalls.asyncBidiStreamingCall(
                             channel.newCall(

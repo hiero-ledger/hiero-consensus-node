@@ -34,7 +34,7 @@ public final class ClprMtlsTrust {
 
     /**
      * Outbound trust manager: accepts the peer server's leaf only if it was signed by {@code pinnedCa}
-     * and is not itself a CA cert. Used by the outbound CLPR sync/discovery client.
+     * and is not itself a CA cert. Used by the outbound CLPR sync client.
      */
     @NonNull
     public static X509ExtendedTrustManager pinnedServerTrustManager(@NonNull final X509Certificate pinnedCa) {

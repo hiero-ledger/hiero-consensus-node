@@ -358,8 +358,8 @@ The verifier bootstraps from a known TSS public key and accepts transitions when
 the currently trusted key but includes a new roster entry, establishing a chain of trust. This allows the
 verifier to track key rotations without any out-of-band communication.
 
-Peer endpoint discovery is handled off-chain via the gossip-based `discoverEndpoints` RPC (see Section 7.2),
-entirely separate from the TSS trust anchor used for proof verification.
+Peer endpoints are learned from the peer ledger's endpoint manifest (see Section 7.2), entirely separate from the
+TSS trust anchor used for proof verification.
 
 ## 4.4 State Freshness
 
@@ -540,24 +540,18 @@ roster change events. Each node's CLPR endpoint identity is derived from:
 The endpoint count from the active roster is used for per-endpoint throttle calculation
 (`max_bundles_per_sec / num_endpoints`).
 
-## 7.2 Peer Endpoint Discovery
+## 7.2 Peer Endpoints
 
-Peer endpoint discovery is handled **off-chain via gossip**. Peer endpoint data is NOT stored in on-ledger state.
+Peer endpoints come from the peer ledger's **endpoint manifest**. There is no endpoint-to-endpoint discovery RPC.
 
-**Seed endpoints.** The peer ledger's `ClprLedgerConfiguration` includes up to 10 seed endpoints. These are obtained
-during channel registration (via `verifyConfig`) and updated when ConfigUpdate control messages arrive. Seed
-endpoints provide initial bootstrap connectivity.
+**Endpoint manifest.** Each ledger publishes a `ClprEndpointManifest` (readable via `getEndpointManifest`) listing
+its endpoints, each with a service endpoint and TLS CA certificate. The peer's manifest is proven and cached on the
+Channel record (`Channel.endpoint_manifest` / `endpoint_manifest_version`):
 
-**Discovery protocol.** When an endpoint needs to discover additional peers, it calls the `discoverEndpoints` RPC
-on any known peer endpoint. The peer responds with its known endpoint list for that Channel. Through iterative
-discovery, endpoints converge on a full view of the peer network.
-
-**Discovery throttling.** Endpoints SHOULD throttle responses to `discoverEndpoints` to protect against abuse.
-A simple rate limit per caller (e.g., 1 request per minute per IP) is sufficient.
-
-**No authentication required for discovery.** The identity of the peer providing discovery information doesn't
-matter — endpoints will validate all actual sync data via proofs. If a malicious peer provides false endpoint
-information, the worst outcome is wasted channel attempts.
+- at `completeChannel`, from the proven manifest returned by `verifyConfig`, truncated to this ledger's
+  `max_peer_endpoints`;
+- mid-life, when a `submitBundle` verifier response carries a `new_endpoint_manifest` whose version strictly
+  advances the stored one.
 
 ## 7.3 Reciprocity-Based Peer Selection
 
@@ -632,11 +626,10 @@ the standard Hiero configuration system. Parameters prefixed with `clpr.` in pro
 
 ## 9.1 Core Parameters
 
-|         Parameter         |   Type    | Default |                              Description                              |
-|---------------------------|-----------|---------|-----------------------------------------------------------------------|
-| `clpr.enabled`            | `boolean` | `false` | Master enable switch. When false, the endpoint module is dormant.     |
-| `clpr.maxBundlesPerSec`   | `int`     | `100`   | Total bundle submission capacity per second. Divided among endpoints. |
-| `clpr.discoveryRateLimit` | `int`     | `1`     | Max `discoverEndpoints` responses per minute per caller.              |
+|        Parameter        |   Type    | Default |                              Description                              |
+|-------------------------|-----------|---------|-----------------------------------------------------------------------|
+| `clpr.enabled`          | `boolean` | `false` | Master enable switch. When false, the endpoint module is dormant.     |
+| `clpr.maxBundlesPerSec` | `int`     | `100`   | Total bundle submission capacity per second. Divided among endpoints. |
 
 ## 9.2 Sync Parameters
 
@@ -760,8 +753,6 @@ No manual intervention is required for partition recovery.
 | `clpr.messages.received`             | Counter | Total messages received via bundles (all Channels).                                 |
 | `clpr.messages.acked`                | Counter | Total messages acknowledged by peers.                                               |
 | `clpr.controlMessages.sent`          | Counter | Total Control Messages enqueued (ConfigUpdate).                                     |
-| `clpr.discovery.requests`            | Counter | Total `discoverEndpoints` requests received.                                        |
-| `clpr.discovery.responses`           | Counter | Total `discoverEndpoints` responses sent.                                           |
 | `clpr.misbehavior.detected`          | Counter | Total locally detected misbehavior events (excess frequency, duplicate submission). |
 
 ## 11.2 Gauges
@@ -844,8 +835,8 @@ Additionally:
   emits the `allCircuitBreakersOpen` health indicator.
 - The sync orchestrator continues periodic probes (circuit breaker half-open state) to detect recovery.
 - No human intervention is required for transient unresponsiveness.
-- For **permanent** unresponsiveness (all peers gone), the recovery path is gossip-based discovery via
-  seed endpoints in the peer's configuration (cross-platform spec §5.4).
+- For **permanent** unresponsiveness (all peers gone), recovery requires the peer ledger to publish an updated
+  endpoint manifest (Section 7.2).
 
 ## 12.5 DUPLICATE_BROADCAST (Dropped)
 

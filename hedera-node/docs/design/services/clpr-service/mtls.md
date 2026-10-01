@@ -46,12 +46,12 @@ bound to `clpr.mtlsPort` and requiring a client certificate. It cannot share the
 port: that port serves ordinary HAPI clients that must not be forced to present a CLPR
 certificate, and a listener's TLS configuration cannot be varied per-service.
 
-|   listener    |          port           |   client auth    |                            serves                            |
-|---------------|-------------------------|------------------|--------------------------------------------------------------|
-| plain         | `grpc.port`             | none             | HAPI + CLPR `discoverEndpoints` (+ `sync` when mTLS **off**) |
-| TLS           | `grpc.tlsPort`          | none             | HAPI                                                         |
-| node-operator | `grpc.nodeOperatorPort` | none (localhost) | queries only                                                 |
-| **CLPR mTLS** | `clpr.mtlsPort`         | **required**     | CLPR `sync` only                                             |
+|   listener    |          port           |   client auth    |       serves       |
+|---------------|-------------------------|------------------|--------------------|
+| plain         | `grpc.port`             | none             | HAPI (CLPR `sync`) |
+| TLS           | `grpc.tlsPort`          | none             | HAPI               |
+| node-operator | `grpc.nodeOperatorPort` | none (localhost) | queries only       |
+| **CLPR mTLS** | `clpr.mtlsPort`         | **required**     | CLPR `sync` only   |
 
 The advertised `ClprEndpoint.service_endpoint.port` must point at `clpr.mtlsPort` so peers
 dial the sync listener. When mTLS is **disabled**, the dedicated listener is not started,
@@ -113,8 +113,7 @@ Only the dedicated CLPR mTLS channels use `BCJSSE`; all other node TLS is unchan
 
 Outbound clients are **not** rebuilt on every sync call. `ClprEndpointClientCache` keeps one
 long-lived `ClprEndpointClient` per peer address, keyed by `host:port` plus the peer's pinned
-CA cert (normalized to `null` in plaintext mode, since the cert is unused there — this lets a
-plaintext sync and a plaintext discovery call to the same peer share one client). This node's
+CA cert (normalized to `null` in plaintext mode, since the cert is unused there). This node's
 own leaf identity is a per-process singleton that never rotates for the life of the process,
 so it isn't part of the cache key.
 
@@ -172,29 +171,12 @@ A node must not try to sync with itself. Beyond the gRPC/TLS ports, `NodeIdentit
 recognises the node's own `clpr.mtlsPort`, so its own advertised CLPR endpoint is never
 selected as a sync target.
 
-## Discovery under mTLS
-
-`sync` and `discoverEndpoints` currently share a single advertised endpoint port. Once that
-port is the mutual-auth sync listener, an ordinary (non-mTLS) discovery call dialed there
-would fail. Discovery is therefore **suppressed while mTLS is enabled** (peers/CAs are
-learned from the Endpoint Manifest, as above).
-
-Discovery is a legacy mechanism superseded by the Endpoint Manifest (see
-[Endpoint Manifest interaction](#endpoint-manifest-interaction)), which is the sole source of
-dial targets. While mTLS is disabled the orchestrator still calls `discoverEndpoints` every
-`clpr.discoveryIntervalSeconds` (a value of 0 or less disables it), but the results are only
-merged into the node-local peer-endpoint cache — dialing reads `Channel.endpoint_manifest`
-alone. Entries merged this way are persisted with that cache, so after a restart with mTLS
-enabled they can contribute CA certs to the inbound trust set until the Channel's next
-manifest update replaces them. Disable discovery on networks that will later enable mTLS.
-
 ## Config summary
 
 ```
 clpr.caCrtPath                = ""     # CA cert (X.509 PEM or DER); empty = mTLS disabled
 clpr.caKeyPath                = ""     # CA key (unencrypted; see encodings below); empty = mTLS disabled
 clpr.mtlsPort                 = 50214  # dedicated mutual-auth listener (per-node)
-clpr.discoveryIntervalSeconds = 300    # legacy discovery loop, mTLS off only; <= 0 disables
 ```
 
 mTLS configuration is independent of the Endpoint Manifest, which is always the source of the

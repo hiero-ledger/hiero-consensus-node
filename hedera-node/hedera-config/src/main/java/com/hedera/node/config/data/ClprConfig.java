@@ -57,9 +57,6 @@ public record ClprConfig(
         // When false, CLPR does not reject inbound requests or remove outbound candidates
         // due to local shunning or open circuit-breaker state.
         @ConfigProperty(defaultValue = "false") boolean syncPeerExclusionEnabled,
-        // --- Peer endpoint discovery (CLPR-7.2) ---
-        // Period (seconds) between outbound discoverEndpoints calls. Set to 0 to disable.
-        @ConfigProperty(defaultValue = "300") int discoveryIntervalSeconds,
         // --- Queue monopolization protection (CLPR-3.5) ---
         @ConfigProperty(defaultValue = "50") @NetworkProperty
         int connectorQueueQuotaPct,

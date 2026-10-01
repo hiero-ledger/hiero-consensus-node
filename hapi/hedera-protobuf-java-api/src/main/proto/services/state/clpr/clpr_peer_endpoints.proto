@@ -44,7 +44,7 @@ message ClprPeerEndpointsEntry {
     /**
      * Peer endpoints (service endpoint + keys) last seeded for this channel. Re-seeded into
      * the runtime peer endpoint cache on startup so a restarted node can initiate syncs to the
-     * peer without waiting for discovery.
+     * peer right away.
      */
     repeated ClprEndpoint endpoints = 2;
 }
