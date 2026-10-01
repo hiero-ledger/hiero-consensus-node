@@ -29,7 +29,7 @@ public abstract class ClprSyncWorkflowInjectionModule {
     abstract ClprRuntime bindClprRuntime(ClprRuntimeFacade clprRuntimeFacade);
 
     @Binds
-    abstract ClprSynchronizer bindClprSynchronizer(ClprSynchronizerImpl clprSynchronizer);
+    abstract ClprSynchronizer bindClprSynchronizer(ClprUnarySynchronizer clprSynchronizer);
 
     @Provides
     @Singleton
