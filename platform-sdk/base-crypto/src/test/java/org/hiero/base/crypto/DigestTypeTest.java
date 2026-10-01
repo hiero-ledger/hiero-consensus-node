@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.crypto;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -38,37 +35,32 @@ class DigestTypeTest {
             final String algorithmName,
             final String provider,
             final int digestLength) {
-        assertEquals(id, digestType.id(), "id must not change, it is used for serialization");
-        assertEquals(algorithmName, digestType.algorithmName());
-        assertEquals(provider, digestType.provider());
-        assertEquals(digestLength, digestType.digestLength());
+        assertThat(digestType.id())
+                .as("id must not change, it is used for serialization")
+                .isEqualTo(id);
+        assertThat(digestType.algorithmName()).isEqualTo(algorithmName);
+        assertThat(digestType.provider()).isEqualTo(provider);
+        assertThat(digestType.digestLength()).isEqualTo(digestLength);
     }
 
     @Test
     void allDigestTypesHaveExpectedCharacteristics() {
         // fails if a digest type is added without updating this test
-        assertEquals(digestTypeCharacteristics().count(), DigestType.values().length);
+        assertThat(digestTypeCharacteristics()
+                        .map(arguments -> (DigestType) arguments.get()[0]))
+                .containsExactlyInAnyOrder(DigestType.values());
     }
 
     @Test
     void idsAreUnique() {
-        assertEquals(
-                DigestType.values().length,
-                Arrays.stream(DigestType.values())
-                        .mapToInt(DigestType::id)
-                        .distinct()
-                        .count());
+        assertThat(Arrays.stream(DigestType.values()).map(DigestType::id)).doesNotHaveDuplicates();
     }
 
     @Test
     void digestLengthsAreUnique() {
         // digestLengthToDigestType() relies on each length mapping to at most one digest type
-        assertEquals(
-                DigestType.values().length,
-                Arrays.stream(DigestType.values())
-                        .mapToInt(DigestType::digestLength)
-                        .distinct()
-                        .count());
+        assertThat(Arrays.stream(DigestType.values()).map(DigestType::digestLength))
+                .doesNotHaveDuplicates();
     }
 
     @Test
@@ -77,43 +69,45 @@ class DigestTypeTest {
                 .mapToInt(DigestType::digestLength)
                 .max()
                 .orElseThrow();
-        assertEquals(largest, DigestType.getMaxLength());
+        assertThat(DigestType.getMaxLength()).isEqualTo(largest);
     }
 
     @ParameterizedTest
     @EnumSource(DigestType.class)
     void valueOfIdRoundTrips(final DigestType digestType) {
-        assertEquals(digestType, DigestType.valueOf(digestType.id()));
+        assertThat(DigestType.valueOf(digestType.id())).isEqualTo(digestType);
     }
 
     @ParameterizedTest
     @ValueSource(ints = {0, -1, 1, Integer.MAX_VALUE, Integer.MIN_VALUE})
     void valueOfUnknownIdReturnsNull(final int id) {
-        assertNull(DigestType.valueOf(id));
+        assertThat(DigestType.valueOf(id)).isNull();
     }
 
     @ParameterizedTest
     @EnumSource(DigestType.class)
     void algorithmNameRoundTrips(final DigestType digestType) {
-        assertEquals(digestType, DigestType.algorithmNameToDigestType(digestType.algorithmName()));
+        assertThat(DigestType.algorithmNameToDigestType(digestType.algorithmName()))
+                .isEqualTo(digestType);
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"", "SHA-1", "MD5", "sha-256", "SHA256", "SHA3-256"})
     void unknownAlgorithmNameReturnsNull(final String algorithmName) {
-        assertNull(DigestType.algorithmNameToDigestType(algorithmName));
+        assertThat(DigestType.algorithmNameToDigestType(algorithmName)).isNull();
     }
 
     @ParameterizedTest
     @EnumSource(DigestType.class)
     void digestLengthRoundTrips(final DigestType digestType) {
-        assertEquals(digestType, DigestType.digestLengthToDigestType(digestType.digestLength()));
+        assertThat(DigestType.digestLengthToDigestType(digestType.digestLength()))
+                .isEqualTo(digestType);
     }
 
     @ParameterizedTest
     @ValueSource(ints = {0, -1, 1, 20, 31, 33, 47, 49, 63, 65, 128})
     void unknownDigestLengthReturnsNull(final int digestLength) {
-        assertNull(DigestType.digestLengthToDigestType(digestLength));
+        assertThat(DigestType.digestLengthToDigestType(digestLength)).isNull();
     }
 
     @ParameterizedTest
@@ -121,15 +115,15 @@ class DigestTypeTest {
     void buildDigestMatchesDigestType(final DigestType digestType) {
         final MessageDigest digest = digestType.buildDigest();
 
-        assertEquals(digestType.algorithmName(), digest.getAlgorithm());
-        assertEquals(digestType.digestLength(), digest.getDigestLength());
-        assertEquals(digestType.digestLength(), digest.digest("data".getBytes(StandardCharsets.UTF_8)).length);
+        assertThat(digest.getAlgorithm()).isEqualTo(digestType.algorithmName());
+        assertThat(digest.getDigestLength()).isEqualTo(digestType.digestLength());
+        assertThat(digest.digest("data".getBytes(StandardCharsets.UTF_8))).hasSize(digestType.digestLength());
     }
 
     @ParameterizedTest
     @EnumSource(DigestType.class)
     void buildDigestReturnsNewInstance(final DigestType digestType) {
-        assertNotSame(digestType.buildDigest(), digestType.buildDigest());
+        assertThat(digestType.buildDigest()).isNotSameAs(digestType.buildDigest());
     }
 
     /**
@@ -152,6 +146,6 @@ class DigestTypeTest {
     @MethodSource("knownAnswers")
     void buildDigestProducesKnownAnswer(final DigestType digestType, final String expectedHex) {
         final byte[] actual = digestType.buildDigest().digest("abc".getBytes(StandardCharsets.UTF_8));
-        assertArrayEquals(HexFormat.of().parseHex(expectedHex), actual);
+        assertThat(actual).isEqualTo(HexFormat.of().parseHex(expectedHex));
     }
 }
