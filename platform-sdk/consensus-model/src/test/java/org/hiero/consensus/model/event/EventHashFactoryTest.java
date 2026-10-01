@@ -30,7 +30,7 @@ class EventHashFactoryTest {
     @AfterEach
     void tearDown() {
         // restore the uninitialized sentinel so tests do not leak static state
-        EventHashFactory.initialize(-1);
+        EventHashFactory.initialize(Long.MAX_VALUE);
     }
 
     @Test

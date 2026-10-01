@@ -26,6 +26,14 @@ import org.hiero.consensus.model.transaction.TransactionWrapper;
  */
 public class PbjStreamHasher implements EventHasher {
 
+    private final MessageDigest sha256EventDigest = DigestType.SHA_256.buildDigest();
+    private final MessageDigest sha384EventDigest = DigestType.SHA_384.buildDigest();
+
+    private final WritableSequentialData sha256EventStream =
+            new WritableStreamingData(new HashingOutputStream(sha256EventDigest));
+    private final WritableSequentialData sha384EventStream =
+            new WritableStreamingData(new HashingOutputStream(sha384EventDigest));
+
     /** The hashing stream for the transactions. */
     private final MessageDigest transactionDigest = DigestType.SHA_384.buildDigest();
 
@@ -69,13 +77,17 @@ public class PbjStreamHasher implements EventHasher {
         boolean success = false;
 
         final DigestType digestType;
+        final MessageDigest eventDigest;
+        final WritableSequentialData eventStream;
         if (EventHashFactory.isBirthRoundPostCutover(eventCore.birthRound())) {
             digestType = DigestType.SHA_256;
+            eventDigest = sha256EventDigest;
+            eventStream = sha256EventStream;
         } else {
             digestType = DigestType.SHA_384;
+            eventDigest = sha384EventDigest;
+            eventStream = sha384EventStream;
         }
-        final MessageDigest eventDigest = digestType.buildDigest();
-        final WritableSequentialData eventStream = new WritableStreamingData(new HashingOutputStream(eventDigest));
 
         try {
             EventCore.PROTOBUF.write(eventCore, eventStream);
@@ -99,7 +111,8 @@ public class PbjStreamHasher implements EventHasher {
         return new Hash(eventDigest.digest(), digestType);
     }
 
-    private void processTransactionHash(final WritableSequentialData eventStream, final TransactionWrapper transaction) {
+    private void processTransactionHash(
+            final WritableSequentialData eventStream, final TransactionWrapper transaction) {
         final byte[] hash = transactionDigest.digest();
         transaction.setHash(Bytes.wrap(hash));
         eventStream.writeBytes(hash);
