@@ -234,7 +234,30 @@ public class ThrottleAccumulatorTest {
             value = ThrottleAccumulator.ThrottleType.class,
             names = {"FRONTEND_THROTTLE", "BACKEND_THROTTLE"})
     void nodePayersCannotBypassClprBundleCapacity(final ThrottleAccumulator.ThrottleType throttleType) {
-        final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
+        givenClprBundleThrottle(throttleType, true);
+
+        assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false));
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false));
+        assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusSeconds(1), state, null, false));
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = ThrottleAccumulator.ThrottleType.class,
+            names = {"FRONTEND_THROTTLE", "BACKEND_THROTTLE"})
+    void nodePayersStayExemptFromClprBundleCapacityWhileClprIsDisabled(
+            final ThrottleAccumulator.ThrottleType throttleType) {
+        givenClprBundleThrottle(throttleType, false);
+
+        assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false));
+        assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false));
+    }
+
+    private void givenClprBundleThrottle(
+            final ThrottleAccumulator.ThrottleType throttleType, final boolean clprEnabled) {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("clpr.enabled", clprEnabled)
+                .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         subject = new ThrottleAccumulator(
                 () -> 1,
@@ -256,14 +279,10 @@ public class ThrottleAccumulatorTest {
                         .build())
                 .build());
         given(transactionInfo.functionality()).willReturn(function);
-        given(transactionInfo.txBody()).willReturn(TransactionBody.DEFAULT);
+        lenient().when(transactionInfo.txBody()).thenReturn(TransactionBody.DEFAULT);
         lenient()
                 .when(transactionInfo.payerID())
                 .thenReturn(AccountID.newBuilder().accountNum(3).build());
-
-        assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false));
-        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false));
-        assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusSeconds(1), state, null, false));
     }
 
     @Test

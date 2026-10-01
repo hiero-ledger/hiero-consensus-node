@@ -81,7 +81,7 @@ public final class ClprSyncWorkflowImpl implements ClprSyncWorkflow {
         // 2. Parse the incoming sync payload
         final ClprSyncPayload request;
         try {
-            request = ClprSyncPayload.PROTOBUF.parse(requestBytes);
+            request = ClprSyncPayload.PROTOBUF.parseStrict(requestBytes);
         } catch (final Exception e) {
             logger.warn("Failed to parse ClprSyncPayload", e);
             throw new StatusRuntimeException(
@@ -194,7 +194,7 @@ public final class ClprSyncWorkflowImpl implements ClprSyncWorkflow {
         // Parse the discovery request
         final ClprDiscoverEndpointsRequest request;
         try {
-            request = ClprDiscoverEndpointsRequest.PROTOBUF.parse(requestBytes);
+            request = ClprDiscoverEndpointsRequest.PROTOBUF.parseStrict(requestBytes);
         } catch (final Exception e) {
             logger.warn("Failed to parse ClprDiscoverEndpointsRequest", e);
             throw new StatusRuntimeException(

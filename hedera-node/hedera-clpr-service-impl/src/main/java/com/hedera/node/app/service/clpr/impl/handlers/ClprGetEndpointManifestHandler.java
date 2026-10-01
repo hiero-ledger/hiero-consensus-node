@@ -126,7 +126,7 @@ public class ClprGetEndpointManifestHandler extends FreeQueryHandler {
             return proofBytes;
         }
         try {
-            final var stateProof = StateProof.PROTOBUF.parse(proofBytes.toReadableSequentialData());
+            final var stateProof = StateProof.PROTOBUF.parseStrict(proofBytes.toReadableSequentialData());
             final byte[] rootHash = StateProofVerifier.computeBlockRootHash(stateProof);
             if (!stateProof.hasSignedBlockProof()) {
                 log.warn("ClprGetEndpointManifest: proof has no signedBlockProof; refusing");

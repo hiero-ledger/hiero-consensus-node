@@ -891,6 +891,25 @@ class ClprChannelManagerTest {
     class DiskRehydrationTests {
 
         @Test
+        void ignoresCacheWithUnknownFields() throws Exception {
+            final var cacheFile = tempDir.resolve("clpr-peer-endpoints.json");
+            final var cached = ClprPeerEndpoints.newBuilder()
+                    .entries(ClprPeerEndpointsEntry.newBuilder()
+                            .channelId(CHANNEL_ID_1)
+                            .endpoints(makeEndpoint("10.0.0.7", 50211))
+                            .build())
+                    .build();
+            final var json = ClprPeerEndpoints.JSON.toJSON(cached);
+            Files.writeString(cacheFile, json.replaceFirst("\\{", "{\"unknownField\":1,"));
+
+            subject.start();
+
+            assertThat(subject.knownChannelsIds()).isEmpty();
+            assertThat(subject.getKnownEndpoints(CHANNEL_ID_1)).isEmpty();
+            verifyNoInteractions(stateAccessor);
+        }
+
+        @Test
         @DisplayName("persists channels + endpoints to disk and rehydrates them on a fresh manager")
         void persistsAndRehydratesAcrossRestart() {
             final var cacheFile = tempDir.resolve("clpr-peer-endpoints.json");

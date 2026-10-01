@@ -16,22 +16,27 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 @Singleton
 public class Version030AddressChecks implements AddressChecks {
     private final int[] systemContractNumbers;
+    private final HederaSystemContract[] systemContracts;
 
     @Inject
     public Version030AddressChecks(@NonNull final Map<Address, HederaSystemContract> systemContracts) {
         systemContractNumbers = new int[systemContracts.size()];
+        this.systemContracts = new HederaSystemContract[systemContracts.size()];
         int i = 0;
-        for (final var address : systemContracts.keySet()) {
+        for (final var entry : systemContracts.entrySet()) {
+            final var address = entry.getKey();
             if (address.getBytes().numberOfLeadingZeroBytes() != 18) {
                 throw new IllegalArgumentException("Precompile address " + address + " is outside system range");
             }
-            systemContractNumbers[i++] = address.getBytes().getInt(16);
+            systemContractNumbers[i] = address.getBytes().getInt(16);
+            this.systemContracts[i++] = entry.getValue();
         }
     }
 
     @Override
     public boolean isPresent(@NonNull final Address address, @NonNull final MessageFrame frame) {
-        return isHederaPrecompile(address) || frame.getWorldUpdater().get(address) != null;
+        return isEnabledHederaPrecompile(address, frame)
+                || frame.getWorldUpdater().get(address) != null;
     }
 
     @Override
@@ -54,6 +59,20 @@ public class Version030AddressChecks implements AddressChecks {
         for (final var precompileNumber : systemContractNumbers) {
             if (precompileNumber == number) {
                 return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isEnabledHederaPrecompile(@NonNull final Address address, @NonNull final MessageFrame frame) {
+        if (address.getBytes().numberOfLeadingZeroBytes() < 18) {
+            return false;
+        }
+        final int number = address.getBytes().getInt(16);
+        for (int i = 0; i < systemContractNumbers.length; i++) {
+            if (systemContractNumbers[i] == number) {
+                // A disabled system contract's address is treated as if no system contract were registered there
+                return !systemContracts[i].isDisabled(frame);
             }
         }
         return false;
