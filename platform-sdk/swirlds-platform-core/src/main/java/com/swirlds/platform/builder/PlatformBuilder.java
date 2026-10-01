@@ -63,7 +63,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     /** The time source for the platform, used for timestamping events and transactions. */
     protected final Time time;
 
-    /** The roster history provided by the application to use at startup. */
+    /** The consensus layer roster inputs provided by the application to use at startup. */
     protected final ConsensusLayerRosterInputs rosterInputs;
 
     /** The unique identifier of this node within the network. */

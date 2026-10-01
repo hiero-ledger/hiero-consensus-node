@@ -9,7 +9,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A record that holds the inputs for a roster, including the history of round-roster pairs and the map of rosters.
+ * A record that holds the consensus layer inputs for all rosters, including the history of
+ * round-roster pairs and the map of rosters.
  *
  * @param history the list of round-roster pairs representing the history of active rosters
  * @param rosters the map of roster hashes to their corresponding rosters

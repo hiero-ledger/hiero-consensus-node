@@ -42,7 +42,7 @@ public final class RosterUtils {
      * @return a {@code ConsensusLayerRosterInputs} for the genesis roster
      */
     public static ConsensusLayerRosterInputs rosterInputsFromGenesis(@NonNull final Roster roster) {
-        final var hash = hash(roster).getBytes();
+        final Bytes hash = hash(roster).getBytes();
         final List<RoundRosterPair> history =
                 List.of(RoundRosterPair.newBuilder().activeRosterHash(hash).build());
         final Map<Bytes, Roster> rosterMap = Map.of(hash, roster);
