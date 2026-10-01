@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.test.fixtures.event;
 
+import static org.hiero.base.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
 import static org.hiero.consensus.model.event.EventConstants.MINIMUM_ROUND_CREATED;
 
 import com.hedera.hapi.platform.event.EventConsensusData;
@@ -18,7 +19,6 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
-import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
@@ -400,12 +400,12 @@ public class TestingEventBuilder {
      */
     public @NonNull TestingEventBuilder setHash(@NonNull final String hexString) {
         final byte[] parsedHex = HexFormat.of().parseHex(hexString.toLowerCase());
-        if (parsedHex.length > DigestType.SHA_384.digestLength()) {
+        if (parsedHex.length > DEFAULT_DIGEST_TYPE.digestLength()) {
             throw new IllegalArgumentException("Hash length is too long");
         }
-        final byte[] hash = new byte[DigestType.SHA_384.digestLength()];
+        final byte[] hash = new byte[DEFAULT_DIGEST_TYPE.digestLength()];
         System.arraycopy(parsedHex, 0, hash, 0, parsedHex.length);
-        this.hash = new Hash(hash);
+        this.hash = new Hash(hash, DEFAULT_DIGEST_TYPE);
         return this;
     }
 

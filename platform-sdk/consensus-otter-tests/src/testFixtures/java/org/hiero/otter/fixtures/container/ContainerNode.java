@@ -43,6 +43,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.event.stream.config.EventConfig;
+import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
@@ -180,6 +181,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
         this.nodeConfiguration =
                 new ContainerNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
+        EventHashFactory.initialize(Long.MAX_VALUE);
         this.random = new SecureRandom();
         this.gcLoggingEnabled = gcLoggingEnabled;
         this.jvmArgs = List.copyOf(requireNonNull(jvmArgs, "jvmArgs must not be null"));

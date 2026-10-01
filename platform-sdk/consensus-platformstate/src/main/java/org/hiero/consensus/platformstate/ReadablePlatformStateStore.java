@@ -13,6 +13,7 @@ import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 
@@ -62,7 +63,7 @@ public class ReadablePlatformStateStore implements PlatformStateAccessor {
     @Nullable
     public Hash getLegacyRunningEventHash() {
         final var hash = stateOrThrow().legacyRunningEventHash();
-        return hash.length() == 0 ? null : new Hash(hash);
+        return hash.length() == 0 ? null : new Hash(hash, DigestType.SHA_384);
     }
 
     /**
