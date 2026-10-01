@@ -359,7 +359,7 @@ public class ClprStreamingSyncSession {
     private ClprStreamingSyncPayload parseAndValidate(@NonNull final Bytes requestBytes) {
         final ClprStreamingSyncPayload message;
         try {
-            message = ClprStreamingSyncPayload.PROTOBUF.parse(requestBytes);
+            message = ClprStreamingSyncPayload.PROTOBUF.parseStrict(requestBytes);
         } catch (final Exception e) {
             logger.warn("{}Failed to parse ClprStreamingSyncPayload", tag, e);
             throw new StatusRuntimeException(
