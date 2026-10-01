@@ -34,6 +34,9 @@ public final class ConstructableRegistration {
      */
     public static void registerCoreConstructables() throws ConstructableRegistryException {
         final ConstructableRegistry registry = ConstructableRegistry.getInstance();
+        // It is correct to use SHA-384 here, because the supplier is only ever used to create hashes read
+        // from the consensus event stream, which will remain using SHA-384. The constructable registry is being
+        // phased out and will soon be removed entirely, so there is no risk of new use cases.
         registry.registerConstructable(new ClassConstructorPair(Hash.class, () -> new Hash(DigestType.SHA_384)));
         registry.registerConstructable(
                 new ClassConstructorPair(SerializablePublicKey.class, SerializablePublicKey::new));

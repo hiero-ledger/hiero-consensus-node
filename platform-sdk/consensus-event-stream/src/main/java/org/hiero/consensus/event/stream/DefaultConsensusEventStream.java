@@ -66,7 +66,7 @@ public class DefaultConsensusEventStream implements ConsensusEventStream {
      */
     private TimestampStreamFileWriter<CesEvent> streamFileWriter;
     /**
-     * initialHash loaded from signed state
+     * initialHash loaded from signed state. The consensus event stream will use SHA-384 until the stream is retired.
      */
     private Hash initialHash = new Hash(new byte[DigestType.SHA_384.digestLength()], DigestType.SHA_384);
     /**

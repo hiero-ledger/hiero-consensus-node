@@ -3,6 +3,7 @@ package org.hiero.consensus.state.saved;
 
 import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static org.hiero.base.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
 import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusSnapshotOf;
@@ -134,11 +135,13 @@ public record SavedStateMetadata(
         final Map<SavedStateMetadataField, String> data = parseStringMap(metadataFile);
         return new SavedStateMetadata(
                 parsePrimitiveLong(data, ROUND),
-                parseNonNullHash(data, HASH),
+                // The state root hash digest type uses this default
+                parseNonNullHash(data, HASH, DEFAULT_DIGEST_TYPE),
                 parseNonNullString(data, HASH_MNEMONIC),
                 parsePrimitiveLong(data, NUMBER_OF_CONSENSUS_EVENTS),
                 parseNonNullInstant(data, CONSENSUS_TIMESTAMP),
-                parseHash(data, LEGACY_RUNNING_EVENT_HASH),
+                // The consensus event stream (legacy) running hash always uses SHA-384
+                parseHash(data, LEGACY_RUNNING_EVENT_HASH, DigestType.SHA_384),
                 parseString(data, LEGACY_RUNNING_EVENT_HASH_MNEMONIC),
                 parsePrimitiveLong(data, MINIMUM_BIRTH_ROUND_NON_ANCIENT),
                 parseNonNullString(data, SOFTWARE_VERSION),
@@ -514,7 +517,9 @@ public record SavedStateMetadata(
      */
     @Nullable
     private static Hash parseHash(
-            @NonNull final Map<SavedStateMetadataField, String> data, @NonNull final SavedStateMetadataField field) {
+            @NonNull final Map<SavedStateMetadataField, String> data,
+            @NonNull final SavedStateMetadataField field,
+            @NonNull final DigestType digestType) {
 
         if (!data.containsKey(field)) {
             logMissingField(field);
@@ -528,7 +533,7 @@ public record SavedStateMetadata(
         }
 
         try {
-            return new Hash(unhex(value), DigestType.SHA_384);
+            return new Hash(unhex(value), digestType);
         } catch (final IllegalArgumentException e) {
             logInvalidField(field, value, e);
             return null;
@@ -545,7 +550,9 @@ public record SavedStateMetadata(
     @SuppressWarnings("SameParameterValue")
     @NonNull
     private static Hash parseNonNullHash(
-            @NonNull final Map<SavedStateMetadataField, String> data, @NonNull final SavedStateMetadataField field)
+            @NonNull final Map<SavedStateMetadataField, String> data,
+            @NonNull final SavedStateMetadataField field,
+            @NonNull final DigestType digestType)
             throws IOException {
 
         if (!data.containsKey(field)) {
@@ -556,7 +563,7 @@ public record SavedStateMetadata(
         final String value = data.get(field);
 
         try {
-            return new Hash(unhex(value), DigestType.SHA_384);
+            return new Hash(unhex(value), digestType);
         } catch (final IllegalArgumentException e) {
             throwInvalidRequiredField(field, value, e);
             return null;

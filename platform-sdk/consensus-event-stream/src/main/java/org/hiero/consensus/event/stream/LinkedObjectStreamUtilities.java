@@ -28,6 +28,8 @@ import org.hiero.consensus.event.stream.internal.StreamFilesIterator;
 /**
  * Utilities methods for: parsing stream files and stream signature files; generating fileName from Instant; calculating
  * period; reading start and end runningHash from a stream file; calculating metaHash and entireHash for a stream file;
+ * <p>
+ * Warning: this class only parses SHA-384 hashes. It will for any use case that attempts to read another type of hash.
  */
 public final class LinkedObjectStreamUtilities {
 
