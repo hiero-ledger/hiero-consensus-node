@@ -12,8 +12,10 @@ rosetta: # not needed for default use case
   enabled: false
 redis:
   enabled: true
-  nodeSelector:
-    chewie-group: aux
+  # Sentinel is on, so the redis pods come from the sentinel StatefulSet, which reads replica.* only.
+  replica:
+    nodeSelector:
+      chewie-group: aux
 #  namespaceOverride: "{{ tpl (.Values.global.namespaceOverride | toString) }}"
 # importer is a component of the hedera mirror node
 # config for subchart hedera-mirror/importer
