@@ -16,7 +16,7 @@ Three files in this repo are the authoritative reference and are kept up to date
 - **[`.github/workflows/docs/citr-test-config.md`](/.github/workflows/docs/citr-test-config.md)** — the suite catalogue (MATS, XTS, SDCT, SDPT, SDLT, MDLT, Shortgevity) and per-suite configuration.
 - **[`.github/workflows/docs/required-chewie-changes.md`](/.github/workflows/docs/required-chewie-changes.md)** — the dispatch contract: every workflow Chewie dispatches (`226`, `227`, `107`, and planned `204`/`205`/`206`), when, with which inputs, what HCN reports back, and the Chewie-side changes this repo depends on.
 
-Verified against `origin/main` at `8d98da626a` (2026-09-30) **plus** the changes on branch `27342-citr-workflows-must-be-triggerable-via-chewie` (Chewie-dispatched 226/227; 103 on Chewie; 302 and 900–904 deprecated). If that branch hasn't merged on your checkout, §6 describes the future, not `main`. Re-verify anything below against current `.github/workflows/` before trusting it — this surface moves fast.
+Verified against `origin/main` at `8d98da626a` (2026-09-30) **plus** the changes on branch `27342-citr-workflows-must-be-triggerable-via-chewie` (Chewie-dispatched 226/227; 103 on Chewie; 302 and 900–904 deprecated; pods scheduled from the Chewie 3.x allocation labels). If that branch hasn't merged on your checkout, §6 describes the future, not `main`. Re-verify anything below against current `.github/workflows/` before trusting it — this surface moves fast.
 
 Note: CITR support scripts live under **`.github/workflows/support/`** (`support/chewie/`, `support/citr/`), not a repo-root `support/` directory. Paths below that say `support/...` are relative to `.github/workflows/`.
 
@@ -78,7 +78,7 @@ then, out of band, keyed only by allocation-id:
 
 ### 103 (Solo Tests Adhoc) — opt-in remote target
 
-`cluster-target` defaults to `kind` (an ephemeral cluster on the runner, no Chewie). `remote` is honored only for `jumpstart`, `wrb-streaming`, `e2e-block-stream-cutover` — that list lives **only** in `get-chewie-jwt`'s `if:`, and every other Chewie job (`861` with `test-type: solo-adhoc`, `862`, `860`, `859`) needs it, so all skip together on Kind runs. The three scenario jobs `need` `acquire-kubernetes-resources` and check results explicitly (a skipped need would otherwise skip them on Kind). On remote, the namespace, Teleport `kubernetes-cluster` (the allocation's `fqdn`), and `KUBE_CONTEXT=hashgraph.teleport.sh-<fqdn>` all come from `859`'s outputs; duration is a fixed 240 min. `release-chewie-allocation` dispatches `225` whenever an allocation id exists, **regardless of result**. Pods still schedule by `Exists` tolerations with no `nodeSelector`, so they can land on any tainted worker, not just the allocated nodes. A comment block above `get-chewie-jwt` documents how to make another scenario remote-capable.
+`cluster-target` defaults to `kind` (an ephemeral cluster on the runner, no Chewie). `remote` is honored only for `jumpstart`, `wrb-streaming`, `e2e-block-stream-cutover` — that list lives **only** in `get-chewie-jwt`'s `if:`, and every other Chewie job (`861` with `test-type: solo-adhoc`, `862`, `860`, `859`) needs it, so all skip together on Kind runs. The three scenario jobs `need` `acquire-kubernetes-resources` and check results explicitly (a skipped need would otherwise skip them on Kind). On remote, the namespace, Teleport `kubernetes-cluster` (the allocation's `fqdn`), and `KUBE_CONTEXT=hashgraph.teleport.sh-<fqdn>` all come from `859`'s outputs; duration is a fixed 240 min. `release-chewie-allocation` dispatches `225` whenever an allocation id exists, **regardless of result**. On remote, each job's `Render Chewie Scheduling` step renders the allocation's groups into `RUNNER_TEMP` copies of the remote values files under `hedera-node/test-clients/scripts/solo/` (consensus on `cn`; haproxy, envoy, MinIO and the jumpstart mirror on `aux`) and points the scripts at them via `REMOTE_CLUSTER_NETWORK_VALUES`/`REMOTE_NETWORK_VALUES_TEMPLATE`/`REMOTE_MIRROR_VALUES_TEMPLATE`. The scenarios' `start_remote_toleration_patcher` (two copies: `remote-cluster-helpers.sh` and inline in `solo-wrb-jumpstart.sh`) pins every other non-consensus workload, block node included, to the `aux` group, and needs `AUX_LABELS`/`AUX_TOLERATIONS` in the environment. The rendered mirror values must stay identical to the patcher's patch, or the patcher rolls the mirror Deployments mid-`solo mirror node add`. A comment block above `get-chewie-jwt` documents how to make another scenario remote-capable.
 
 `835`'s own result reflects only the **kickoff** (smoke passed, production launched). The multi-day verdict arrives via `206`, which per its header comment is meant to be dispatched by Chewie when the run completes; `204` says "short-term user-triggered; longer term Chewie dispatches it." Chewie dispatches `224` once SDPT and SDLT have both passed for the build (judged from its own suite results); `227` does not dispatch it. `204`/`205` resolve cluster/namespace from the allocation by calling `parse-chewie-allocation.sh` directly, not via `863`.
 
@@ -128,7 +128,7 @@ Per-test-type shapes in `support/chewie/<type>-config.json`, read by `861` (vali
 
 `solo-adhoc` (for `103`) is sized for functional runs, not perf; whether Chewie 2.11's matching accepts a request that small was not verified when it was added.
 
-`support/chewie/` holds exactly: `build-compute-request.sh`, `decode-b64-jwt.sh`, `parse-chewie-allocation.sh`, `release-chewie-allocation.sh`, and the four `*-config.json`.
+`support/chewie/` holds exactly: `apply-allocation-scheduling.sh` (§3), `build-compute-request.sh`, `decode-b64-jwt.sh`, `parse-chewie-allocation.sh`, `release-chewie-allocation.sh`, and the four `*-config.json`.
 
 ### Allocation durations actually requested
 
@@ -149,17 +149,19 @@ The request timeout always comes from `default_timeout`. Chewie bounds duration 
 
 `859` accepts 200 or 202 on create, reads `.id` as the allocation id (fatal if missing/`null`), then polls `GET /api/v1/compute/allocation/:id` every 2 s. Only two statuses are branched on: `approved` breaks the loop; `pending` continues until `request-timeout` seconds elapse. **Everything else — `denied`, `cancelled`, `released`, `expired`, `expired_released`, or anything unrecognized — falls through to the same fatal `else`**, even though the comment above it still enumerates only six statuses (no `expired_released`; see `hcn-chewie-context`).
 
-After approval, `859` no longer parses the poll response itself — it calls `support/chewie/parse-chewie-allocation.sh -g <cn> -x <aux> -f outputs`, which re-GETs the allocation (requires HTTP **200** exactly) and emits outputs. `863` is a thin wrapper around the same script, so `859` and `863` emit identical keys: `namespace`, `fqdn`, `cn-/aux-group-name`, `cn-/aux-quantity`, `cn-/aux-tolerations`, `cn-/aux-role`, `network-id`, `owner`, `request-expiration` (plus `allocation-id` from `859`).
+After approval, `859` no longer parses the poll response itself — it calls `support/chewie/parse-chewie-allocation.sh -g <cn> -x <aux> -f outputs`, which re-GETs the allocation (requires HTTP **200** exactly) and emits outputs. `863` is a thin wrapper around the same script, so `859` and `863` emit identical keys: `namespace`, `fqdn`, `cn-/aux-group-name`, `cn-/aux-quantity`, `cn-/aux-tolerations`, `cn-/aux-labels`, `request-expiration` (plus `allocation-id` from `859`). There is no network id, owner or role: Chewie 3.x publishes none of them.
 
 By exact `jq` path in `parse-chewie-allocation.sh`:
 
 - `.status`, `.namespace`, `.cluster_fqdn`, `.expires_at`
-- `.instances[] | select(.group==$g) | .spec.quantity` — still nested under `.spec`
-- `.instances[] | select(.group==$g) | .labels` and `.tolerations` (compact JSON)
-- role from `."solo.hashgraph.io/role" // "unknown"` per group
-- `network-id` / `owner` from `solo.hashgraph.io/network-id` / `solo.hashgraph.io/owner` on the **CN group** when `-g` is given; otherwise the first group that carries them (`// "unknown"`)
+- `(.instances // [])[] | select(.group==$g) | .spec.quantity` — still nested under `.spec`
+- `(.instances // [])[] | select(.group==$g) | .labels` and `.tolerations` (compact JSON, passed through untouched)
+
+When the caller names its groups (`-g`/`-x`), a group that is missing or has no labels is fatal — that covers an unapproved allocation (no `instances`) and one approved before the 3.x upgrade (groups named by operator role). A response without `instances` is otherwise tolerated, so `225` can summarize an already-released allocation.
 
 Without `-g`/`-x` (as `225` calls it), groups are discovered from `.instances[].group` and each group's own name becomes its output-key prefix instead of `cn`/`aux`.
+
+**Pod scheduling.** Every pod spec in the CITR values templates (`support/citr/*.yaml`, 20 specs) and in `103`'s remote values files carries a `chewie-group: cn|aux` placeholder in its `nodeSelector`. `support/chewie/apply-allocation-scheduling.sh <files>` (env `CN_LABELS`/`CN_TOLERATIONS`/`AUX_LABELS`/`AUX_TOLERATIONS`, i.e. the callee outputs) replaces each placeholder with that group's labels, keeps other selector keys (the block node's `kubernetes.io/hostname`), and appends the group's tolerations. It refuses empty labels and any leftover placeholder, and installs mikefarah yq v4 if the runner lacks it. `831`/`833`/`835` call it in their `*-tests-start` jobs with `|| exit 1` (the steps run `set +e`), and pick the block-node host with `kubectl get nodes -l <cn labels>`. An unrendered placeholder matches no node, so it fails closed (Pending). Report paths, `version_run.txt` and step summaries identify a run by allocation id (`832`'s `allocation-id` input).
 
 ## 4. The `.github/chewie.yaml` duality
 
@@ -220,7 +222,7 @@ Every CITR suite reports to Chewie's `POST /api/v1/suites/results` through `864`
 | `204` | `mdlt` | `inputs.build-tag` | each status check: `running` / `passed` / `failed` / `cancelled`, from `monitor-mdlt`'s `state` output (a failed `verify-allocation` counts as `cancelled`) |
 | `206` | `mdlt` | `inputs.build-tag` | the verdict input: `success` → `passed`, `failure` → `failed`, once `verify-build` succeeds — the authoritative MDLT result |
 
-MDLT therefore reports many times per run; Chewie has to take the latest report per build, not count rows. `206` (Chewie-dispatched with the verdict) reports that verdict as `passed`/`failed` once `verify-build` succeeds — its run conclusion is not the verdict (a `failure` verdict still yields a green run), so the explicit report is the authoritative MDLT result. SDCT (`223`) reporting is a separate effort. **The endpoint exists only in Chewie 3.x (≥ v3.3.0); against 2.11 every report 404s and fails the run** — including MATS (`300`) on every push to `main`. So 3.x must be in production (with the scheduling-label migration in `parse-chewie-allocation.sh`) before this branch merges.
+MDLT therefore reports many times per run; Chewie has to take the latest report per build, not count rows. `206` (Chewie-dispatched with the verdict) reports that verdict as `passed`/`failed` once `verify-build` succeeds — its run conclusion is not the verdict (a `failure` verdict still yields a green run), so the explicit report is the authoritative MDLT result. SDCT (`223`) reporting is a separate effort. **The endpoint exists only in Chewie 3.x (≥ v3.3.0); against 2.11 every report 404s and fails the run** — including MATS (`300`) on every push to `main`. So 3.x must be in production before this branch merges — and a release that actually schedules (carrying #817/#825, never `v3.8.0`), deployed in the order in `required-chewie-changes.md` item 9.
 
 Result tags are the integration surface, not workflow outputs: `221`/`201` tag `sdpt-pass-<build>`/`sdpt-fail-<build>`, `222`/`202` tag `sdlt-pass-`/`sdlt-fail-`, `206` tags `mdlt-pass-`/`mdlt-fail-` (build tag regex `build-(.{5})`), GPG-signed via `step-security/ghaction-import-gpg`. MDLT controllers no longer check pass tags — Chewie gates MDLT on SDPT/SDLT results, so nothing in this repo reads the result tags. `223-disp-sdct-controller.yaml` has zero Chewie references — SDCT allocation still runs out of band.
 
@@ -228,7 +230,7 @@ Result tags are the integration surface, not workflow outputs: `221`/`201` tag `
 
 - **Runner labels are per-repository.** Chewie helpers here run on `hl-cn-chewie-lin-sm`. Suite runners include `hl-cn-sdpt-lin-{sm,lg}`, `hl-cn-sdlt-lin-{sm,lg}`, `hl-cn-mdlt-lin-{sm,lg}`, `hl-cn-sdct-lin-sm`, `hl-cn-hapi-lin-{lg,xl}`, `hl-cn-hapi-bn-lin-xl`, `hl-cn-hapi-wraps-lin-lg`, `hl-cn-otter-{fast,full,chaos}-lin`, `hl-cn-default-lin-{ss,sm,md,lg}`, and more. A `runs-on` copied from Chewie's own repo (`swirldslabs-chewie-linux-medium`) won't schedule here, and neither will one copied between workflows without checking.
 - **`jq -r` on a missing key yields the string `"null"`**, so a renamed response field surfaces as a corrupt value downstream, not a failed step (§3).
-- **`863` does not assert `status == approved`.** It emits whatever the GET returns, including a released/expired allocation's stale namespace.
+- **`863` does not check `status == approved` directly.** It fails only because a non-approved allocation has no `instances`, which trips the named-group guard (§3).
 - **`859`/`863` declare the `chewie-token` secret as "The Chewie API key"** — it is actually the double-encoded JWT from `858`, not the identity key.
 - **`decode-b64-jwt.sh` reports errors on stderr with a non-zero exit**, so callers' `[[ "${CHEWIE_JWT}" == Error* ]]` checks never fire; the step fails on the substitution under `bash -e` instead.
 - **The scheduled controllers ignore `default_duration`** (§2 table), despite what `chewie.md` says.
@@ -240,4 +242,4 @@ Result tags are the integration surface, not workflow outputs: `221`/`201` tag `
 
 ## 8. When a workflow change here needs a check on the Chewie side
 
-Load `hcn-chewie-context` before changing: the shape of `build-compute-request.sh`'s output (Chewie's request DTO), anything parsed in `parse-chewie-allocation.sh` (response DTO and status vocabulary), `release-chewie-allocation.sh`'s status-code handling (Chewie's DELETE contract), the JWT exchange in `858`/`860` (auth model), or the `solo.hashgraph.io/*` label/taint keys (node-labeling scheme, mid-migration per Chewie's roadmap).
+Load `hcn-chewie-context` before changing: the shape of `build-compute-request.sh`'s output (Chewie's request DTO), anything parsed in `parse-chewie-allocation.sh` (response DTO and status vocabulary), `release-chewie-allocation.sh`'s status-code handling (Chewie's DELETE contract), the JWT exchange in `858`/`860` (auth model), or anything `apply-allocation-scheduling.sh` renders (Chewie's per-group label/taint scheme).

@@ -214,8 +214,7 @@ Must be in place before this repository's changes are relied on in production:
 3. **Accept suite results — this blocks merging.** Serve `POST /api/v1/suites/results` for `mats`, `xts`, `sdpt`,
    `sdlt` and `mdlt`. The endpoint exists only in Chewie 3.x (v3.3.0 and later). Reporting is required, so against 2.11
    every report returns 404 and **fails the run** — including MATS (`300`) on every push to `main`. Chewie 3.x must be in
-   production before this repository's changes merge, which in turn requires the 3.x scheduling-label migration under
-   [Follow-Ups](#follow-ups-in-this-repository).
+   production before this repository's changes merge, and it must be a release that schedules (item 9).
    - **MATS gates XTS candidacy.** `300` reports MATS for every push to `main` and `release/**`, so candidate selection
      (item 2) can use those reports directly.
    - **MDLT progress arrives as repeated reports.** One MDLT run produces a `running` row at kickoff and one per `204`
@@ -234,16 +233,34 @@ Must be in place before this repository's changes are relied on in production:
    Neither `224` nor `203` checks pass tags any more; Chewie is the gate.
 7. **Dispatch `107` hourly.**
 8. **MDLT follow-up (planned):** dispatch `204`/`205`/`206` for MDLT allocations.
+9. **Scheduling cutover — this blocks merging.** This repository schedules pods from the 3.x allocation response's
+   per-group labels and tolerations (see [Pod scheduling](chewie.md#pod-scheduling)), so it works only against a
+   release that writes those labels and taints onto the allocated machines: one carrying #606, #643, #817 and #825.
+   Never deploy `v3.8.0`, which has #606 and #643 without #817.
+   - **Verify on chewie-testing first.** Before any HCN run against the release, take an approved allocation's
+     `cn-nodes` group from `GET /api/v1/compute/allocation/:id`. A pause pod with that group's `labels` as its
+     `nodeSelector` and its `tolerations` must reach `Running` on one of the group's machines; the same pod without the
+     tolerations must stay `Pending`.
+   - **Clear the legacy `solo-*-nN` namespaces.** #826 removes the guard that kept Chewie from allocating machines those
+     namespaces were using, and Chewie's `NoSchedule` taints do not evict pods already running, so a leftover workload
+     would share hardware with a new allocation. Nothing in this repository deletes them any more (`902` is deprecated
+     with no replacement). Delete them, or confirm they are empty, on both perf clusters before #826 ships.
+   - **Deploy on the same day as this repository's changes**, in the order tracked by swirldslabs/chewie#818:
+     1. Label every machine CITR may use `inventory.citr.hashgraph.io/eligible=true`, then confirm the count Chewie has
+        mirrored.
+     2. Disable any enabled `compute_reservations` row.
+     3. Drain live allocations and pause the CITR controllers. An MDLT allocation lives up to six days, so start the
+        drain that far ahead or release MDLT allocations early through `225`. An allocation approved before the upgrade
+        no longer matches its machines, and this repository's runs now fail at acquisition on one rather than
+        deploying misconfigured.
+     4. Deploy Chewie and this repository's changes.
+     5. Remove the `solo.hashgraph.io/*` taints, then resume the controllers. The taints come off last: a pod that
+        tolerates only Chewie's taints cannot schedule on a machine that still carries an operator taint.
 
 ## Follow-Ups in This Repository
 
 Changes that depend on Chewie reaching a later state:
 
-- **Chewie 3.x scheduling labels — needed before merge.** 3.x allocation responses carry
-  `scheduling.citr.hashgraph.io/allocation-id` and `test.citr.hashgraph.io/role` instead of
-  `solo.hashgraph.io/{role,owner,network-id}`. `support/chewie/parse-chewie-allocation.sh` and the remote Solo values
-  files must be updated before production moves to 3.x, or they will silently read `null`/`unknown`. Because suite
-  reporting requires 3.x (Required Chewie-Side Change 3), this has to land with or before this repository's changes.
 - **MDLT gate on manual dispatch — needs a decision before merge.** `203` and `224` no longer verify that a build passed
   SDPT and SDLT; only Chewie's dispatch of `224` applies that gate. A human dispatching either workflow by hand can now
   start MDLT on a build that failed — or never ran — SDPT/SDLT, tying up a multi-day allocation for an ineligible build.

@@ -120,11 +120,12 @@ jobs:
   #   2. In its job: add `needs: acquire-kubernetes-resources` and copy the `if:` from
   #      solo-jumpstart-wrb (the need is skipped on Kind runs, so results are checked explicitly).
   #      Remote runs use `runs-on: hl-cn-sdlt-lin-lg`, the only runner with Teleport reach.
-  #   3. Copy the remote-only Install KubeCtl / Teleport steps from solo-jumpstart-wrb; the K8S step
-  #      takes `kubernetes-cluster` from the allocation's `fqdn`. Gate Kind setup/teardown on kind.
+  #   3. Copy the remote-only Install KubeCtl / Teleport / Render Chewie Scheduling steps and the
+  #      CN_/AUX_ scheduling env from solo-jumpstart-wrb; the K8S step takes `kubernetes-cluster` from
+  #      the allocation's `fqdn`. Gate Kind setup/teardown on kind.
   #   4. On remote, set SOLO_NAMESPACE from the allocation's `namespace` output and pass the script
   #      CLUSTER_TARGET=remote and KUBE_CONTEXT=hashgraph.teleport.sh-<fqdn>. The script must
-  #      support remote mode (see scripts/solo/remote-cluster-helpers.sh for the node-taint handling).
+  #      support remote mode (see scripts/solo/remote-cluster-helpers.sh for the scheduling handling).
   #   5. Add the job to release-chewie-allocation's `needs` so the allocation is released after it.
   # Allocation size comes from support/chewie/solo-adhoc-config.json.
   get-chewie-jwt:
@@ -206,6 +207,12 @@ jobs:
       # On remote the network lives in the Chewie-allocated namespace; on Kind it is the default
       # "solo". This job-level override also applies to the diagnostics/cleanup steps.
       SOLO_NAMESPACE: ${{ inputs.cluster-target == 'remote' && needs.acquire-kubernetes-resources.outputs.namespace || 'solo' }}
+      # The allocation's scheduling constraints, for the remote values files and toleration patcher;
+      # empty on Kind runs.
+      CN_LABELS: ${{ needs.acquire-kubernetes-resources.outputs.cn-labels }}
+      CN_TOLERATIONS: ${{ needs.acquire-kubernetes-resources.outputs.cn-tolerations }}
+      AUX_LABELS: ${{ needs.acquire-kubernetes-resources.outputs.aux-labels }}
+      AUX_TOLERATIONS: ${{ needs.acquire-kubernetes-resources.outputs.aux-tolerations }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -286,6 +293,25 @@ jobs:
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
           certificate-ttl: 24h
+
+      # Remote-only: render the allocation's scheduling constraints into copies of the scenario's
+      # remote values files, and point the scripts at the copies (each path is env-overridable).
+      - name: Render Chewie Scheduling
+        if: ${{ inputs.cluster-target == 'remote' }}
+        run: |
+          set -eo pipefail
+          SOLO_SCRIPTS="hedera-node/test-clients/scripts/solo"
+          RENDERED="${RUNNER_TEMP}/chewie-scheduling"
+          mkdir -p "${RENDERED}"
+          cp "${SOLO_SCRIPTS}/remote-cluster-network-values.yaml" "${RENDERED}/cluster-network-values.yaml"
+          cp "${SOLO_SCRIPTS}/wrapped-record-block-jumpstart/resources/remote/network-values.yaml" "${RENDERED}/jumpstart-network-values.yaml"
+          cp "${SOLO_SCRIPTS}/wrapped-record-block-jumpstart/resources/remote/mirror-values.yaml" "${RENDERED}/jumpstart-mirror-values.yaml"
+          .github/workflows/support/chewie/apply-allocation-scheduling.sh "${RENDERED}"/*.yaml
+          {
+            echo "REMOTE_CLUSTER_NETWORK_VALUES=${RENDERED}/cluster-network-values.yaml"
+            echo "REMOTE_NETWORK_VALUES_TEMPLATE=${RENDERED}/jumpstart-network-values.yaml"
+            echo "REMOTE_MIRROR_VALUES_TEMPLATE=${RENDERED}/jumpstart-mirror-values.yaml"
+          } >> "${GITHUB_ENV}"
 
       - name: Install Helm v3.14.2
         run: |
@@ -416,6 +442,12 @@ jobs:
     env:
       SOLO_CLUSTER_NAME: "cutover-e2e-testing"
       SOLO_NAMESPACE: ${{ inputs.cluster-target == 'remote' && needs.acquire-kubernetes-resources.outputs.namespace || 'solo' }}
+      # The allocation's scheduling constraints, for the remote values files and toleration patcher;
+      # empty on Kind runs.
+      CN_LABELS: ${{ needs.acquire-kubernetes-resources.outputs.cn-labels }}
+      CN_TOLERATIONS: ${{ needs.acquire-kubernetes-resources.outputs.cn-tolerations }}
+      AUX_LABELS: ${{ needs.acquire-kubernetes-resources.outputs.aux-labels }}
+      AUX_TOLERATIONS: ${{ needs.acquire-kubernetes-resources.outputs.aux-tolerations }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -498,6 +530,25 @@ jobs:
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
           certificate-ttl: 24h
+
+      # Remote-only: render the allocation's scheduling constraints into copies of the scenario's
+      # remote values files, and point the scripts at the copies (each path is env-overridable).
+      - name: Render Chewie Scheduling
+        if: ${{ inputs.cluster-target == 'remote' }}
+        run: |
+          set -eo pipefail
+          SOLO_SCRIPTS="hedera-node/test-clients/scripts/solo"
+          RENDERED="${RUNNER_TEMP}/chewie-scheduling"
+          mkdir -p "${RENDERED}"
+          cp "${SOLO_SCRIPTS}/remote-cluster-network-values.yaml" "${RENDERED}/cluster-network-values.yaml"
+          cp "${SOLO_SCRIPTS}/wrapped-record-block-jumpstart/resources/remote/network-values.yaml" "${RENDERED}/jumpstart-network-values.yaml"
+          cp "${SOLO_SCRIPTS}/wrapped-record-block-jumpstart/resources/remote/mirror-values.yaml" "${RENDERED}/jumpstart-mirror-values.yaml"
+          .github/workflows/support/chewie/apply-allocation-scheduling.sh "${RENDERED}"/*.yaml
+          {
+            echo "REMOTE_CLUSTER_NETWORK_VALUES=${RENDERED}/cluster-network-values.yaml"
+            echo "REMOTE_NETWORK_VALUES_TEMPLATE=${RENDERED}/jumpstart-network-values.yaml"
+            echo "REMOTE_MIRROR_VALUES_TEMPLATE=${RENDERED}/jumpstart-mirror-values.yaml"
+          } >> "${GITHUB_ENV}"
 
       - name: Install Helm v3.14.2
         run: |
@@ -1040,6 +1091,12 @@ jobs:
     timeout-minutes: 120
     env:
       SOLO_NAMESPACE: ${{ inputs.cluster-target == 'remote' && needs.acquire-kubernetes-resources.outputs.namespace || 'solo' }}
+      # The allocation's scheduling constraints, for the remote values files and toleration patcher;
+      # empty on Kind runs.
+      CN_LABELS: ${{ needs.acquire-kubernetes-resources.outputs.cn-labels }}
+      CN_TOLERATIONS: ${{ needs.acquire-kubernetes-resources.outputs.cn-tolerations }}
+      AUX_LABELS: ${{ needs.acquire-kubernetes-resources.outputs.aux-labels }}
+      AUX_TOLERATIONS: ${{ needs.acquire-kubernetes-resources.outputs.aux-tolerations }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -1113,6 +1170,25 @@ jobs:
           token: gh-citr-performance-svcs-bot
           kubernetes-cluster: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
           certificate-ttl: 24h
+
+      # Remote-only: render the allocation's scheduling constraints into copies of the scenario's
+      # remote values files, and point the scripts at the copies (each path is env-overridable).
+      - name: Render Chewie Scheduling
+        if: ${{ inputs.cluster-target == 'remote' }}
+        run: |
+          set -eo pipefail
+          SOLO_SCRIPTS="hedera-node/test-clients/scripts/solo"
+          RENDERED="${RUNNER_TEMP}/chewie-scheduling"
+          mkdir -p "${RENDERED}"
+          cp "${SOLO_SCRIPTS}/remote-cluster-network-values.yaml" "${RENDERED}/cluster-network-values.yaml"
+          cp "${SOLO_SCRIPTS}/wrapped-record-block-jumpstart/resources/remote/network-values.yaml" "${RENDERED}/jumpstart-network-values.yaml"
+          cp "${SOLO_SCRIPTS}/wrapped-record-block-jumpstart/resources/remote/mirror-values.yaml" "${RENDERED}/jumpstart-mirror-values.yaml"
+          .github/workflows/support/chewie/apply-allocation-scheduling.sh "${RENDERED}"/*.yaml
+          {
+            echo "REMOTE_CLUSTER_NETWORK_VALUES=${RENDERED}/cluster-network-values.yaml"
+            echo "REMOTE_NETWORK_VALUES_TEMPLATE=${RENDERED}/jumpstart-network-values.yaml"
+            echo "REMOTE_MIRROR_VALUES_TEMPLATE=${RENDERED}/jumpstart-mirror-values.yaml"
+          } >> "${GITHUB_ENV}"
 
       - name: Install Helm v3.14.2
         run: |
