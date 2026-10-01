@@ -20,7 +20,7 @@ startfreeze=`date +%s`
 #start AsyncProf
 stepname=freeze
 jpid=`ps -aef | grep -w java | grep 'java ' | grep -v grep | tr -s ' ' | cut -d ' ' -f2`
-/tmp/async-profiler/bin/asprof "start" -t -e ${asyncmode} -o ${format} $jpid
+/tmp/async-profiler/bin/asprof "start" -t -e ${asyncmode} -o ${format} -f /tmp/asprof_${asyncmode}_${stepname}.${extension} $jpid
 
 perl -ne 'exit 11 if /Now in FREEZE_COMPLETE/' swirlds.log
 while [ "$?" != "11" ]
@@ -42,21 +42,30 @@ endfreeze=`date +%s`
 #start AsyncProf
 stepname=down
 jpid=`ps -aef | grep -w java | grep 'java ' | grep -v grep | tr -s ' ' | cut -d ' ' -f2`
-startdown=`date +%s`
 
 echo "Started shutdown"
-/package/admin/s6/command/s6-svc -d /run/service/network-node
 
-/tmp/async-profiler/bin/asprof "start" --timeout 5 -t -e ${asyncmode} -o ${format} \
+/tmp/async-profiler/bin/asprof "start" -t -e ${asyncmode} -o ${format} \
 -f /tmp/asprof_${asyncmode}_${stepname}.${extension} $jpid
 #-I '*virtual-*' -I '*StateSnapshotManager*' -I '*TransactionHandler*' \
 #-X '*ForkJoinPool*' -X '*ForkJoinThread*' -X '*epollEventLoopGroup*' -X '*RuntimeWorker*' -X '*ZWorker*' -X '*SyncProtocolWith*' $jpid
+sleep 0.2
+startdown=`date +%s`
+
+/package/admin/s6/command/s6-svc -d /run/service/network-node
 
 ps -aef | /usr/bin/grep -w java | /usr/bin/grep -v grep | /usr/bin/grep -w java >/dev/null
 while [ "$?" == "0" ]
 do
  echo "Still shutting down..."
- sleep 0.1s
+ sleep 0.5s
+ ps -aef | /usr/bin/grep -w java | /usr/bin/grep -v grep | /usr/bin/grep -w java
+ /tmp/async-profiler/bin/asprof "dump" -t -e ${asyncmode} -o ${format} -f /tmp/asprof_${asyncmode}_${stepname}.${extension}.tmp $jpid
+ if [ "$?" == "0" ]
+ then
+  mv /tmp/asprof_${asyncmode}_${stepname}.${extension}.tmp /tmp/asprof_${asyncmode}_${stepname}.${extension}
+  ls -l /tmp/asprof_${asyncmode}_${stepname}.${extension}
+ fi
  ps -aef | /usr/bin/grep -w java | /usr/bin/grep -v grep | /usr/bin/grep -w java >/dev/null
 done
 
@@ -89,7 +98,7 @@ echo "Adding profiling..."
 sleep 5
 stepname=start
 jpid=`ps -aef | grep -w java | grep 'java ' | grep -v grep | tr -s ' ' | cut -d ' ' -f2`
-/tmp/async-profiler/bin/asprof "start" -t -e ${asyncmode} -o ${format} $jpid
+/tmp/async-profiler/bin/asprof "start" -t -e ${asyncmode} -o ${format} -f /tmp/asprof_${asyncmode}_${stepname}.${extension}  $jpid
 
 #cat swirlds.log | /usr/bin/grep -a 'Now in ACTIVE'
 #>/dev/null

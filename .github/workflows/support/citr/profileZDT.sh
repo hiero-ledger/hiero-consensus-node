@@ -15,7 +15,6 @@ done
 
 wait
 
-$k exec ${nlgpod} -c nlg -- bash -c "/usr/bin/env java -Xmx30g -Dorg.slf4j.simpleLogger.defaultLogLevel=debug -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.Freeze"
 echo "Starting ..."
 
 format=$format
@@ -26,6 +25,9 @@ $k exec -t network-node4-0 -- bash -c "TERM=xterm /usr/bin/bash /tmp/profileRest
 $k exec -t network-node5-0 -- bash -c "TERM=xterm /usr/bin/bash /tmp/profileRestart.sh wall       $format > /tmp/profileRestart.log 2>&1" >/dev/null 2>&1 &
 $k exec -t network-node6-0 -- bash -c "TERM=xterm /usr/bin/bash /tmp/profileRestart.sh wall       $format > /tmp/profileRestart.log 2>&1" >/dev/null 2>&1 &
 $k exec -t network-node7-0 -- bash -c "TERM=xterm /usr/bin/bash /tmp/profileRestart.sh wall       $format > /tmp/profileRestart.log 2>&1" >/dev/null 2>&1 &
+
+sleep 0.5
+$k exec ${nlgpod} -c nlg -- bash -c "/usr/bin/env java -Xmx30g -Dorg.slf4j.simpleLogger.defaultLogLevel=debug -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.Freeze"
 
 echo "Waiting ..."
 wait
