@@ -725,10 +725,11 @@ jobs:
 
           cat networks.txt | awk '{print $3}' | perl -ne "~s/\n//g; print \"     - '\$_\\\:50211=0.0.\".(3+\$.-1).\"'\n\"" >> new.yml
 
-          for i in $(seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }})
-          do
-            echo "     - 'block-node-${i}.${{ needs.acquire-kubernetes-resources.outputs.namespace }}.svc.cluster.local\:40840=bn:${i}'" >> new.yml
-          done
+          #Not for 0.77
+          #for i in $(seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }})
+          #do
+          #  echo "     - 'block-node-${i}.${{ needs.acquire-kubernetes-resources.outputs.namespace }}.svc.cluster.local\:40840=bn:${i}'" >> new.yml
+          #done
 
           # echo "     - 'mirror-1-rest.${{ needs.acquire-kubernetes-resources.outputs.namespace }}.svc.cluster.local=mn:1'" >> new.yml
 
