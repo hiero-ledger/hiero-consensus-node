@@ -4,7 +4,7 @@ nlgpod="$2"
 N_of_CNs=$3
 profiling_agent=$4
 async_profiler=$5
-
+format=$6
 echo "Setting..."
 for i in `seq 1 1 ${N_of_CNs}`
 do
@@ -18,7 +18,7 @@ wait
 $k exec ${nlgpod} -c nlg -- bash -c "/usr/bin/env java -Xmx30g -Dorg.slf4j.simpleLogger.defaultLogLevel=debug -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.Freeze"
 echo "Starting ..."
 
-format=flamegraph
+format=$format
 $k exec -t network-node1-0 -- bash -c "TERM=xterm /usr/bin/bash /tmp/profileRestart.sh cpu        $format > /tmp/profileRestart.log 2>&1" >/dev/null 2>&1 &
 $k exec -t network-node2-0 -- bash -c "TERM=xterm /usr/bin/bash /tmp/profileRestart.sh alloc      $format > /tmp/profileRestart.log 2>&1" >/dev/null 2>&1 &
 $k exec -t network-node3-0 -- bash -c "TERM=xterm /usr/bin/bash /tmp/profileRestart.sh nativemem  $format > /tmp/profileRestart.log 2>&1" >/dev/null 2>&1 &
