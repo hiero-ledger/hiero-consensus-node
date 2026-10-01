@@ -98,6 +98,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     private static final FieldDefinition FIELD_DSMETADATA_HASHDIGESTTYPE =
             new FieldDefinition("hashDigestType", FieldType.STRING, false, true, false, 8);
 
+    // TODO remove after full rehash testing
     @Deprecated
     private static final FieldDefinition FIELD_DSMETADATA_HASHESRAMTODISKTHRESHOLD =
             new FieldDefinition("hashesRamToDiskThreshold", FieldType.UINT64, false, true, false, 4);

@@ -435,6 +435,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             return;
         }
 
+        // TODO temporary disabled for full rehash testing
         /*try {
             final boolean digestTypeChanged = Cryptography.DEFAULT_DIGEST_TYPE != dataSource.getLoadedHashDigestType();
             if (!digestTypeChanged) {
