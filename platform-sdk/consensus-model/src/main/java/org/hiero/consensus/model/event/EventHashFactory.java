@@ -42,4 +42,8 @@ public class EventHashFactory {
                 ? new Hash(bytes, DigestType.SHA_384)
                 : new Hash(bytes, DigestType.SHA_256);
     }
+
+    public static boolean isBirthRoundPostCutover(final long birthRound) {
+        return birthRound >= eventCutoverMinBirthRound;
+    }
 }
