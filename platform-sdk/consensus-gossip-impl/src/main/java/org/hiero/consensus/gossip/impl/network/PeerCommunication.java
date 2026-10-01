@@ -272,8 +272,7 @@ public class PeerCommunication implements ConnectionTracker {
                             handshakeProtocols,
                             new NegotiationProtocols(protocolList.stream()
                                     .map(protocol -> protocol.createPeerInstance(otherId))
-                                    .toList()),
-                            time));
+                                    .toList())));
             stc.setThreadNameProvider(new NodeThreadNameProvider()
                     .setOtherNodeId(otherId)
                     .setNodeId(selfId)

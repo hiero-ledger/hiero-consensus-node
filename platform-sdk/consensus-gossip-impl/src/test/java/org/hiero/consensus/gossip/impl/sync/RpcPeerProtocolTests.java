@@ -22,7 +22,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import org.awaitility.Awaitility;
 import org.hiero.base.concurrent.pool.CachedPoolParallelExecutor;
-import org.hiero.base.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
@@ -465,8 +464,7 @@ public class RpcPeerProtocolTests {
 
     private final List<Exception> handledExceptions = new CopyOnWriteArrayList<>();
 
-    private void handleException(
-            @NonNull final Exception e, @NonNull final Connection connection, @NonNull final RateLimiter rateLimiter) {
+    private void handleException(@NonNull final Exception e, @NonNull final Connection connection) {
         handledExceptions.add(e);
         // the handler in production swallows expected network churn; only surface state machine violations
         if (containsStateMachineViolation(e)) {

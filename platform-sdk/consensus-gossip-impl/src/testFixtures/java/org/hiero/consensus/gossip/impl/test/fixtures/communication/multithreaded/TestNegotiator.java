@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.test.fixtures.communication.multithreaded;
 
-import com.swirlds.base.time.Time;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.consensus.gossip.impl.network.Connection;
@@ -29,8 +28,7 @@ class TestNegotiator {
                 connectionManager,
                 100,
                 List.of(c -> handshakeRan.incrementAndGet()),
-                new NegotiationProtocols(List.of(protocol)),
-                Time.getCurrent());
+                new NegotiationProtocols(List.of(protocol)));
         thread = new Thread(this::run);
     }
 
