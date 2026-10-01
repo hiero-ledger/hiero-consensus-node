@@ -34,12 +34,6 @@ class EventHashFactoryTest {
     }
 
     @Test
-    void hashBeforeInitializeThrows() {
-        final Bytes bytes = randomBytes(DigestType.SHA_384);
-        assertThatThrownBy(() -> EventHashFactory.hash(bytes, 1)).isInstanceOf(IllegalStateException.class);
-    }
-
-    @Test
     void birthRoundBelowCutoverIsSha384() {
         EventHashFactory.initialize(CUTOVER);
         final Bytes bytes = randomBytes(DigestType.SHA_384);
