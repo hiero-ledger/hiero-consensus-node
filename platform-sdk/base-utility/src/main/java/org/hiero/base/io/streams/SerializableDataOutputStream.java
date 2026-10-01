@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.io.streams;
 
-import static org.hiero.base.io.streams.SerializableStreamConstants.BOOLEAN_BYTES;
-import static org.hiero.base.io.streams.SerializableStreamConstants.CLASS_ID_BYTES;
 import static org.hiero.base.io.streams.SerializableStreamConstants.NULL_CLASS_ID;
 import static org.hiero.base.io.streams.SerializableStreamConstants.NULL_LIST_ARRAY_LENGTH;
 import static org.hiero.base.io.streams.SerializableStreamConstants.NULL_VERSION;
 import static org.hiero.base.io.streams.SerializableStreamConstants.SERIALIZATION_PROTOCOL_VERSION;
-import static org.hiero.base.io.streams.SerializableStreamConstants.VERSION_BYTES;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
@@ -23,7 +20,6 @@ import java.util.List;
 import org.hiero.base.io.FunctionalSerialize;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.SerializableDet;
-import org.hiero.base.io.SerializableWithKnownLength;
 
 /**
  * A drop-in replacement for {@link DataOutputStream}, which handles SerializableDet classes specially.
@@ -168,73 +164,6 @@ public class SerializableDataOutputStream extends AugmentedDataOutputStream {
         } else {
             writeSerializableList(Arrays.asList(array), writeClassId, allSameClass);
         }
-    }
-
-    /**
-     * Get the serialized byte length an array of {@link SerializableWithKnownLength} objects
-     *
-     * @param array the array to write, can be null
-     * @param writeClassId set to true if the classID should be written. This can be false if the class is known when
-     * de-serializing
-     * @param allSameClass should be set to true if all the objects in the array are the same class
-     * @param <T> the class stored in the array
-     */
-    public static <T extends SerializableWithKnownLength> int getSerializedLength(
-            @Nullable final T[] array, final boolean writeClassId, final boolean allSameClass) {
-        int totalByteLength = Integer.BYTES; // length of array size
-        if (array == null || array.length == 0) {
-            return totalByteLength;
-        }
-
-        totalByteLength += BOOLEAN_BYTES;
-        boolean classIdVersionWritten = false;
-        for (final T t : array) {
-            if (!allSameClass) {
-                totalByteLength += getInstanceSerializedLength(t, true, writeClassId);
-                continue;
-            }
-            if (t == null) {
-                totalByteLength += BOOLEAN_BYTES;
-                continue;
-            }
-            totalByteLength += BOOLEAN_BYTES;
-            if (!classIdVersionWritten) {
-                // this is the first non-null member, so we write the ID and version
-                totalByteLength += VERSION_BYTES;
-                if (writeClassId) {
-                    totalByteLength += CLASS_ID_BYTES;
-                }
-                classIdVersionWritten = true;
-            }
-            // version and class info already written
-            totalByteLength += getInstanceSerializedLength(t, false, false);
-        }
-
-        return totalByteLength;
-    }
-
-    /**
-     * Get the serialized byte length of {@link SerializableWithKnownLength} object
-     *
-     * @param data array to write, should not be null
-     * @param writeVersion set to true if the version will be serialized
-     * @param writeClassId set to true if the classID should be written. This can be false if the class is known when
-     * de-serializing
-     */
-    public static <T extends SerializableWithKnownLength> int getInstanceSerializedLength(
-            @Nullable final T data, final boolean writeVersion, final boolean writeClassId) {
-        if (data == null) {
-            return writeClassId ? CLASS_ID_BYTES : writeVersion ? VERSION_BYTES : 0;
-        }
-        int totalByteLength = 0;
-        if (writeClassId) {
-            totalByteLength += CLASS_ID_BYTES;
-        }
-        if (writeVersion) {
-            totalByteLength += VERSION_BYTES; // version integer
-        }
-        totalByteLength += data.getSerializedLength(); // data its own content serialized length
-        return totalByteLength;
     }
 
     /** This method assumes serializable is not null */

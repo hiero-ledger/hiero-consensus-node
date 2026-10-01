@@ -5,20 +5,14 @@ import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.logging.legacy.LogMarker;
-import java.io.IOException;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.security.spec.EncodedKeySpec;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
-import org.hiero.base.io.SelfSerializable;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
-public class SerializablePublicKey implements SelfSerializable {
-    private static final long CLASS_ID = 0x2554c14f4f61cd9L;
-    private static final int CLASS_VERSION = 2;
+public class SerializablePublicKey {
     private static final int MAX_KEY_LENGTH = 6_144;
     private static final int MAX_ALG_LENGTH = 10;
 
@@ -46,38 +40,6 @@ public class SerializablePublicKey implements SelfSerializable {
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getVersion() {
-        return CLASS_VERSION;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void serialize(SerializableDataOutputStream out) throws IOException {
-        out.writeInt(keyType.getAlgorithmIdentifier());
-        out.writeByteArray(publicKey.getEncoded());
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void deserialize(SerializableDataInputStream in, int version) throws IOException {
-        if (version == 1) {
-            String algorithm = in.readNormalisedString(MAX_ALG_LENGTH);
-            keyType = KeyType.valueOf(algorithm);
-        } else {
-            keyType = KeyType.getKeyType(in.readInt());
-        }
-        byte[] keyBytes = in.readByteArray(MAX_KEY_LENGTH);
-        publicKey = bytesToPublicKey(keyBytes, keyType.getAlgorithmName());
-    }
-
-    /**
      * Converts an encoded public key representation from the given {@code bytes} argument to a {@link PublicKey}
      * instance.
      *
@@ -100,22 +62,6 @@ public class SerializablePublicKey implements SelfSerializable {
     }
 
     /**
-     * A method used to deserialize a public key before if had a version number
-     *
-     * @param in
-     * 		the stream to read from
-     * @param algorithm
-     * 		the algorithm of the key, this was not stored in the stream before
-     * @throws IOException
-     * 		thrown if an IO error happens
-     */
-    public void deserializeVersion0(SerializableDataInputStream in, String algorithm) throws IOException {
-        keyType = KeyType.valueOf(algorithm);
-        byte[] keyBytes = in.readByteArray(MAX_KEY_LENGTH);
-        publicKey = bytesToPublicKey(keyBytes, algorithm);
-    }
-
-    /**
      * {@inheritDoc}
      */
     @Override
@@ -130,14 +76,6 @@ public class SerializablePublicKey implements SelfSerializable {
 
         SerializablePublicKey that = (SerializablePublicKey) o;
         return publicKey.equals(that.publicKey) && keyType == that.keyType;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
     }
 
     /**
