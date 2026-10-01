@@ -50,8 +50,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * Exercises the client side of the streaming sync protocol against a scripted peer: the message ordering of the ADR's
- * sequence, the range the peer's request produces, the loop over several bundles, and how each way an exchange can end
+ * Exercises the client side of the streaming sync protocol against a scripted peer: the message ordering,
+ * the range the peer's request produces, the loop over several bundles, and how each way an exchange can end
  * is scored against the peer.
  */
 @ExtendWith(MockitoExtension.class)

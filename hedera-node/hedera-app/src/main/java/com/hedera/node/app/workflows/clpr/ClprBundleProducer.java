@@ -118,7 +118,7 @@ final class ClprBundleProducer {
      *       ({@code >= next_message_id}), fall back to {@code acked_message_id + 1}. Any lesser over-claim is
      *       indistinguishable from our own stale view of the peer and only harms the over-claiming peer, so it is
      *       deliberately not defended against.
-     *   <li>With no request — the peer never sent one this cycle — fall back to {@code acked_message_id + 1}d.
+     *   <li>With no request — the peer never sent one this cycle — fall back to {@code acked_message_id + 1}.
      * </ul>
      */
     private static long resolveInitialMessageId(
