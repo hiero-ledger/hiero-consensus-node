@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.virtualmap.datasource;
+package com.swirlds.virtualmap.internal.hash;
 
+import com.swirlds.virtualmap.datasource.VirtualDataSource;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;

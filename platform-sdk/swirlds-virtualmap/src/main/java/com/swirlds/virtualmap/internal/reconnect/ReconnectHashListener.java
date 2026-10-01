@@ -3,7 +3,7 @@ package com.swirlds.virtualmap.internal.reconnect;
 
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.virtualmap.datasource.DataSourceHashChunkPreloader;
+import com.swirlds.virtualmap.internal.hash.DataSourceHashChunkPreloader;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.internal.hash.VirtualHashListener;
 import edu.umd.cs.findbugs.annotations.NonNull;
