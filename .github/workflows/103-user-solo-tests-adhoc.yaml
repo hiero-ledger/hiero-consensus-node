@@ -26,13 +26,13 @@ on:
           - "078-to-079-cutover"
           - "e2e-backpressure"
       cluster-target:
-        description: "Where to run. kind = ephemeral cluster on the runner; remote-sdlt-n6 = remote solo-sdlt-n6 via Teleport."
+        description: "Where to run. kind = ephemeral cluster on the runner; remote = Chewie-allocated namespace on the perf cluster via Teleport (jumpstart, wrb-streaming, e2e-block-stream-cutover only)."
         required: true
         type: choice
         default: "kind"
         options:
           - "kind"
-          - "remote-sdlt-n6"
+          - "remote"
       jumpstart-starting-tag:
         description: "[Jumpstart] Consensus-node release tag for the initial network deploy. Blank → v0.74.0."
         required: false
@@ -76,15 +76,10 @@ defaults:
 permissions:
   contents: read
   actions: read
-  id-token: write # required for Teleport OIDC auth when cluster-target == remote-sdlt-n6
+  id-token: write # required for Teleport OIDC auth when cluster-target == remote
 
-# Every remote-sdlt-n6 run (any scenario) shares the solo-sdlt-n6 namespace + solo-sdlt-n6-test
-# deployment, so they must run one-at-a-time: concurrent runs collide (Solo deployment lock contention,
-# and one run's "consensus network destroy" deletes another's solo-remote-config ConfigMap / pods).
-# Kind runs are isolated (ephemeral cluster per run), so they get a unique group and may run in parallel.
-# Note: GitHub keeps only one queued run per group, so dispatch remote runs one at a time.
 concurrency:
-  group: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'solo-adhoc-remote-sdlt-n6' || github.run_id }}
+  group: ${{ github.run_id }}
   cancel-in-progress: false
 
 env:
@@ -115,19 +110,102 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  # cluster-target=kind runs a scenario on an ephemeral Kind cluster on the runner (the default).
+  # cluster-target=remote runs it on the perf cluster in a Chewie-allocated namespace, via Teleport;
+  # only the scenarios listed in get-chewie-jwt's `if:` support it, the rest always use Kind.
+  #
+  # To make a scenario remote-capable:
+  #   1. Add it to the scenario list in get-chewie-jwt's `if:` below — the only place the list lives;
+  #      every other Chewie job is skipped when that one is.
+  #   2. In its job: add `needs: acquire-kubernetes-resources` and copy the `if:` from
+  #      solo-jumpstart-wrb (the need is skipped on Kind runs, so results are checked explicitly).
+  #      Remote runs use `runs-on: hl-cn-sdlt-lin-lg`, the only runner with Teleport reach.
+  #   3. Copy the remote-only Install KubeCtl / Teleport steps from solo-jumpstart-wrb; the K8S step
+  #      takes `kubernetes-cluster` from the allocation's `fqdn`. Gate Kind setup/teardown on kind.
+  #   4. On remote, set SOLO_NAMESPACE from the allocation's `namespace` output and pass the script
+  #      CLUSTER_TARGET=remote and KUBE_CONTEXT=hashgraph.teleport.sh-<fqdn>. The script must
+  #      support remote mode (see scripts/solo/remote-cluster-helpers.sh for the node-taint handling).
+  #   5. Add the job to release-chewie-allocation's `needs` so the allocation is released after it.
+  # Allocation size comes from support/chewie/solo-adhoc-config.json.
+  get-chewie-jwt:
+    name: Get Chewie JWT
+    if: ${{ inputs.cluster-target == 'remote' && contains(fromJSON('["jumpstart","e2e-block-stream-cutover","wrb-streaming"]'), inputs.scenario) }}
+    uses: ./.github/workflows/858-call-get-chewie-jwt.yaml
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
+
+  get-solo-adhoc-config:
+    name: Get Solo Adhoc Test Config
+    needs: get-chewie-jwt
+    uses: ./.github/workflows/861-call-get-test-config.yaml
+    with:
+      test-type: "solo-adhoc"
+      ref: ${{ github.ref }}
+    secrets:
+      checkout-token: ${{ secrets.GITHUB_TOKEN }}
+
+  extract-chewie-props:
+    name: Extract Chewie Properties
+    needs: get-chewie-jwt
+    uses: ./.github/workflows/862-call-get-chewie-properties.yaml
+    with:
+      ref: ${{ github.ref }}
+    secrets:
+      checkout-token: ${{ secrets.GITHUB_TOKEN }}
+
+  validate-chewie-jwt:
+    name: Validate Chewie JWT
+    needs: get-chewie-jwt
+    uses: ./.github/workflows/860-call-validate-chewie-jwt.yaml
+    with:
+      ref: ${{ github.ref }}
+      chewie-expiration: ${{ needs.get-chewie-jwt.outputs.expiration }}
+    secrets:
+      chewie-jwt: ${{ needs.get-chewie-jwt.outputs.jwt }}
+      checkout-token: ${{ secrets.GITHUB_TOKEN }}
+
+  acquire-kubernetes-resources:
+    name: Acquire Kubernetes Resources
+    needs:
+      - get-chewie-jwt
+      - validate-chewie-jwt
+      - get-solo-adhoc-config
+      - extract-chewie-props
+    uses: ./.github/workflows/859-call-create-chewie-request.yaml
+    with:
+      instances-cn-qty: ${{ fromJSON(needs.get-solo-adhoc-config.outputs.cn-qty) }}
+      instances-cn-cpu: ${{ fromJSON(needs.get-solo-adhoc-config.outputs.cn-cpu-request) }}
+      instances-cn-memory-mb: ${{ fromJSON(needs.get-solo-adhoc-config.outputs.cn-mem-request-mb) }}
+      instances-aux-qty: ${{ fromJSON(needs.get-solo-adhoc-config.outputs.aux-qty) }}
+      instances-aux-cpu: ${{ fromJSON(needs.get-solo-adhoc-config.outputs.aux-cpu-request) }}
+      instances-aux-memory-mb: ${{ fromJSON(needs.get-solo-adhoc-config.outputs.aux-mem-request-mb) }}
+      # Covers the longest scenario job timeout (210m); the allocation is released as soon as the run ends.
+      duration-minutes: 240
+      request-timeout: ${{ fromJSON(needs.extract-chewie-props.outputs.request-timeout) }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+      chewie-token: ${{ needs.get-chewie-jwt.outputs.jwt }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
+
   solo-jumpstart-wrb:
     name: "Solo Jumpstart for Wrapped Record Blocks (WRB)"
     needs:
       - extract-jdk-version
       - extract-citr-vars
-    if: ${{ inputs.scenario == 'jumpstart' }}
+      - acquire-kubernetes-resources
+    # acquire-kubernetes-resources is skipped on Kind runs, so status must be checked explicitly.
+    if: ${{ !cancelled() && inputs.scenario == 'jumpstart'
+      && needs.extract-jdk-version.result == 'success'
+      && needs.extract-citr-vars.result == 'success'
+      && (inputs.cluster-target == 'kind' || needs.acquire-kubernetes-resources.result == 'success') }}
     # Kind runs on the relay runner; the remote cluster is only reachable from the SDLT runner (Teleport).
-    runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
+    runs-on: ${{ inputs.cluster-target == 'remote' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
     timeout-minutes: 120
     env:
-      # On the shared remote cluster the network lives in the solo-sdlt-n6 namespace; on Kind it is
-      # the default "solo". This job-level override also applies to the diagnostics/cleanup steps.
-      SOLO_NAMESPACE: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'solo-sdlt-n6' || 'solo' }}
+      # On remote the network lives in the Chewie-allocated namespace; on Kind it is the default
+      # "solo". This job-level override also applies to the diagnostics/cleanup steps.
+      SOLO_NAMESPACE: ${{ inputs.cluster-target == 'remote' && needs.acquire-kubernetes-resources.outputs.namespace || 'solo' }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -179,19 +257,19 @@ jobs:
 
       # Remote-only: Kind normally provides kubectl, so install it explicitly here.
       - name: Install KubeCtl
-        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        if: ${{ inputs.cluster-target == 'remote' }}
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
           version: v1.32.5
 
       - name: Install Teleport Client
-        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        if: ${{ inputs.cluster-target == 'remote' }}
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
           version: 18.4.0
 
       - name: Authorize Teleport SSH Access
-        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        if: ${{ inputs.cluster-target == 'remote' }}
         id: auth-ssh
         uses: teleport-actions/auth@3b365df2b4f64891358392a444ff34929ba0d0b1 # v2.1.2
         with:
@@ -200,13 +278,13 @@ jobs:
           certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access
-        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        if: ${{ inputs.cluster-target == 'remote' }}
         id: auth-k8s
         uses: teleport-actions/auth-k8s@0f46164469ae4fcd4d359d40e06bab17d4be17c9 # v2.0.6
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: k8s.pft.chi.lat.ope.eng.hashgraph.io
+          kubernetes-cluster: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
           certificate-ttl: 24h
 
       - name: Install Helm v3.14.2
@@ -240,12 +318,12 @@ jobs:
           INITIAL_RELEASE_TAG: ${{ inputs.jumpstart-starting-tag || 'v0.74.0' }}
           # Raw input; the run step resolves blank → v0.75.0-rc.5 and the "local" sentinel → local build.
           RAW_UPGRADE_TAG: ${{ inputs.jumpstart-upgrade-tag }}
-          CLUSTER_TARGET: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'remote' || 'kind' }}
-          KUBE_CONTEXT: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hashgraph.teleport.sh-k8s.pft.chi.lat.ope.eng.hashgraph.io' || '' }}
+          CLUSTER_TARGET: ${{ inputs.cluster-target }}
+          KUBE_CONTEXT: ${{ inputs.cluster-target == 'remote' && format('hashgraph.teleport.sh-{0}', needs.acquire-kubernetes-resources.outputs.fqdn) || '' }}
           # Remote MinIO record downloads are slow; the migration-vote comparison already validates the
           # jumpstart, so skip the optional, time-consuming saved-state re-wrap on remote (it re-downloads
           # all records 0..lastBlock and otherwise blows the job timeout). Kind keeps the full check.
-          VERIFY_STATE_BLOCK_INFO: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'false' || 'true' }}
+          VERIFY_STATE_BLOCK_INFO: ${{ inputs.cluster-target == 'remote' && 'false' || 'true' }}
         run: |
           set -eo pipefail
           # Resolve the upgrade target: blank → pinned v0.75.0-rc.5; "local" → local build (empty
@@ -312,8 +390,8 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      # Kind-only: the remote cluster is shared/pre-allocated and must never be deleted; on remote the
-      # script's own KEEP_NETWORK=false cleanup tears down just the consensus network.
+      # Kind-only: on remote the script's own KEEP_NETWORK=false cleanup tears down the consensus
+      # network, and the Chewie allocation is released by release-chewie-allocation.
       - name: Always Destroy Kind Cluster
         if: ${{ always() && inputs.cluster-target == 'kind' }}
         continue-on-error: true
@@ -325,14 +403,19 @@ jobs:
     needs:
       - extract-jdk-version
       - extract-citr-vars
-    if: ${{ inputs.scenario == 'e2e-block-stream-cutover' }}
-    runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
+      - acquire-kubernetes-resources
+    # acquire-kubernetes-resources is skipped on Kind runs, so status must be checked explicitly.
+    if: ${{ !cancelled() && inputs.scenario == 'e2e-block-stream-cutover'
+      && needs.extract-jdk-version.result == 'success'
+      && needs.extract-citr-vars.result == 'success'
+      && (inputs.cluster-target == 'kind' || needs.acquire-kubernetes-resources.result == 'success') }}
+    runs-on: ${{ inputs.cluster-target == 'remote' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
     # 12-step cutover fits in ~150m; the added TCK Step 13 (repo clones, sdk-server, full suite)
     # needs extra headroom, so both the step and job budgets are widened below.
     timeout-minutes: 210
     env:
       SOLO_CLUSTER_NAME: "cutover-e2e-testing"
-      SOLO_NAMESPACE: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'solo-sdlt-n6' || 'solo' }}
+      SOLO_NAMESPACE: ${{ inputs.cluster-target == 'remote' && needs.acquire-kubernetes-resources.outputs.namespace || 'solo' }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -386,19 +469,19 @@ jobs:
 
       # Remote-only: Kind normally provides kubectl, so install it explicitly here.
       - name: Install KubeCtl
-        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        if: ${{ inputs.cluster-target == 'remote' }}
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
           version: v1.32.5
 
       - name: Install Teleport Client
-        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        if: ${{ inputs.cluster-target == 'remote' }}
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
           version: 18.4.0
 
       - name: Authorize Teleport SSH Access
-        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        if: ${{ inputs.cluster-target == 'remote' }}
         id: auth-ssh
         uses: teleport-actions/auth@3b365df2b4f64891358392a444ff34929ba0d0b1 # v2.1.2
         with:
@@ -407,13 +490,13 @@ jobs:
           certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access
-        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        if: ${{ inputs.cluster-target == 'remote' }}
         id: auth-k8s
         uses: teleport-actions/auth-k8s@0f46164469ae4fcd4d359d40e06bab17d4be17c9 # v2.0.6
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: k8s.pft.chi.lat.ope.eng.hashgraph.io
+          kubernetes-cluster: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
           certificate-ttl: 24h
 
       - name: Install Helm v3.14.2
@@ -458,8 +541,8 @@ jobs:
 
       - name: Run E2E Block Stream Cutover Scenario
         env:
-          CLUSTER_TARGET: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'remote' || 'kind' }}
-          KUBE_CONTEXT: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hashgraph.teleport.sh-k8s.pft.chi.lat.ope.eng.hashgraph.io' || '' }}
+          CLUSTER_TARGET: ${{ inputs.cluster-target }}
+          KUBE_CONTEXT: ${{ inputs.cluster-target == 'remote' && format('hashgraph.teleport.sh-{0}', needs.acquire-kubernetes-resources.outputs.fqdn) || '' }}
           UPGRADE_075_VERSION: ${{ inputs.cutover-upgrade-075-version || 'v0.75.0-rc.6' }}
         run: |
           set -eo pipefail
@@ -534,7 +617,7 @@ jobs:
           retention-days: 7
 
       - name: Always Destroy Kind Cluster
-        if: ${{ always() }}
+        if: ${{ always() && inputs.cluster-target == 'kind' }}
         continue-on-error: true
         run: |
           kind delete cluster -n "${SOLO_CLUSTER_NAME}"
@@ -686,9 +769,8 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      # Kind-only: the remote cluster is shared/pre-allocated and must never be deleted.
       - name: Always Destroy Kind Cluster
-        if: ${{ always() && inputs.cluster-target == 'kind' }}
+        if: ${{ always() }}
         continue-on-error: true
         run: |
           kind delete cluster -n "${SOLO_CLUSTER_NAME}"
@@ -835,9 +917,8 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      # Kind-only: the remote cluster is shared/pre-allocated and must never be deleted.
       - name: Always Destroy Kind Cluster
-        if: ${{ always() && inputs.cluster-target == 'kind' }}
+        if: ${{ always() }}
         continue-on-error: true
         run: |
           kind delete cluster -n "${SOLO_CLUSTER_NAME}"
@@ -949,11 +1030,16 @@ jobs:
     needs:
       - extract-jdk-version
       - extract-citr-vars
-    if: ${{ inputs.scenario == 'wrb-streaming' }}
-    runs-on: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
+      - acquire-kubernetes-resources
+    # acquire-kubernetes-resources is skipped on Kind runs, so status must be checked explicitly.
+    if: ${{ !cancelled() && inputs.scenario == 'wrb-streaming'
+      && needs.extract-jdk-version.result == 'success'
+      && needs.extract-citr-vars.result == 'success'
+      && (inputs.cluster-target == 'kind' || needs.acquire-kubernetes-resources.result == 'success') }}
+    runs-on: ${{ inputs.cluster-target == 'remote' && 'hl-cn-sdlt-lin-lg' || 'hl-cn-rpc-relay-lin-lg' }}
     timeout-minutes: 120
     env:
-      SOLO_NAMESPACE: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'solo-sdlt-n6' || 'solo' }}
+      SOLO_NAMESPACE: ${{ inputs.cluster-target == 'remote' && needs.acquire-kubernetes-resources.outputs.namespace || 'solo' }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -998,19 +1084,19 @@ jobs:
 
       # Remote-only: Kind normally provides kubectl, so install it explicitly here.
       - name: Install KubeCtl
-        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        if: ${{ inputs.cluster-target == 'remote' }}
         uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
         with:
           version: v1.32.5
 
       - name: Install Teleport Client
-        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        if: ${{ inputs.cluster-target == 'remote' }}
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
           version: 18.4.0
 
       - name: Authorize Teleport SSH Access
-        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        if: ${{ inputs.cluster-target == 'remote' }}
         id: auth-ssh
         uses: teleport-actions/auth@3b365df2b4f64891358392a444ff34929ba0d0b1 # v2.1.2
         with:
@@ -1019,13 +1105,13 @@ jobs:
           certificate-ttl: 24h
 
       - name: Authorize Teleport K8S Access
-        if: ${{ inputs.cluster-target == 'remote-sdlt-n6' }}
+        if: ${{ inputs.cluster-target == 'remote' }}
         id: auth-k8s
         uses: teleport-actions/auth-k8s@0f46164469ae4fcd4d359d40e06bab17d4be17c9 # v2.0.6
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
-          kubernetes-cluster: k8s.pft.chi.lat.ope.eng.hashgraph.io
+          kubernetes-cluster: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}
           certificate-ttl: 24h
 
       - name: Install Helm v3.14.2
@@ -1068,8 +1154,8 @@ jobs:
 
       - name: Run WRB Streaming to Block Node Scenario
         env:
-          CLUSTER_TARGET: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'remote' || 'kind' }}
-          KUBE_CONTEXT: ${{ inputs.cluster-target == 'remote-sdlt-n6' && 'hashgraph.teleport.sh-k8s.pft.chi.lat.ope.eng.hashgraph.io' || '' }}
+          CLUSTER_TARGET: ${{ inputs.cluster-target }}
+          KUBE_CONTEXT: ${{ inputs.cluster-target == 'remote' && format('hashgraph.teleport.sh-{0}', needs.acquire-kubernetes-resources.outputs.fqdn) || '' }}
         run: |
           set -eo pipefail
           SCRIPT_PATH="hedera-node/test-clients/scripts/solo/wrapped-record-block-jumpstart/solo-wrb-block-node-streaming.sh"
@@ -1131,9 +1217,36 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      # Kind-only: the remote cluster is shared/pre-allocated and must never be deleted.
       - name: Always Destroy Kind Cluster
         if: ${{ always() && inputs.cluster-target == 'kind' }}
         continue-on-error: true
         run: |
           kind delete cluster -n "${SOLO_CLUSTER_NAME}"
+
+  release-chewie-allocation:
+    name: Release Chewie Allocation
+    runs-on: hl-cn-default-lin-sm
+    needs:
+      - acquire-kubernetes-resources
+      - solo-jumpstart-wrb
+      - solo-e2e-block-stream-cutover
+      - solo-wrb-block-node-streaming
+    # Release regardless of the scenario result: KEEP_NETWORK=false has already torn the network down.
+    if: ${{ always() && needs.acquire-kubernetes-resources.outputs.allocation-id != '' }}
+    continue-on-error: true # best-effort early release; Chewie's own reaper/expiry remains the fallback
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: "Trigger 225: [DISP] Release Chewie Allocation"
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/225-disp-release-chewie-allocation.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: main # ensure we are always using the workflow definition from the main branch
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{
+            "chewie-allocation-id": "${{ needs.acquire-kubernetes-resources.outputs.allocation-id }}"
+            }'

@@ -186,45 +186,6 @@ jobs:
       jf-user-name: ${{ vars.JF_USER_NAME }}
       jf-access-token: ${{ secrets.JF_ACCESS_TOKEN }}
 
-  deploy-xts-ci-trigger:
-    name: Trigger XTS CI Flow
-    runs-on: hl-cn-default-lin-sm
-    needs:
-      - release-branch
-    steps:
-      - name: Prepare Runner
-        id: prepare-runner
-        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
-        with:
-          checkout: "true"
-          checkout-ref: "${{ inputs.ref }}"
-          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
-          checkout-fetch-depth: "0"
-
-      - name: Check Prep XTS Job State
-        id: check-xts-job
-        if: ${{ needs.release-branch.result == 'success' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          JOB_ENABLED="true"
-          JOB_STATE=$(gh workflow list --all --json name,state | jq -r '.[]|select(.name=="302: [DISP] CITR Prepare XTS")|.state')
-          [[ "${JOB_STATE}" == "disabled_manually" ]] && JOB_ENABLED="false"
-          echo "enabled=${JOB_ENABLED}" >> "${GITHUB_OUTPUT}"
-
-      - name: "Trigger 302: [DISP] CITR Prepare XTS"
-        if: ${{ needs.release-branch.result == 'success' && steps.check-xts-job.outputs.enabled == 'true' }}
-        uses: step-security/workflow-dispatch@024752877e2bfa07299ee4204cc5f7e7c14ff930 # v1.3.21
-        with:
-          workflow: .github/workflows/302-disp-prepare-extended-test-suite.yaml
-          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
-          ref: main # ensure we are always using the workflow definition from the main branch
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
-          inputs: '{
-            "ref": "${{ inputs.ref }}",
-            "dry-run-enabled": "${{ inputs.dry-run-enabled }}"
-            }'
-
   deploy-integration-ci-trigger:
     name: Trigger Deploy Integration Flow
     runs-on: hl-cn-default-lin-sm
@@ -271,10 +232,9 @@ jobs:
     runs-on: hl-cn-default-lin-sm
     needs:
       - release-branch
-      - deploy-xts-ci-trigger
     if: ${{ (github.event_name == 'push' ||
       (github.event_name == 'workflow_dispatch' && inputs.dry-run-enabled == false)) &&
-      (needs.release-branch.result != 'success' || needs.deploy-xts-ci-trigger.result != 'success') &&
+      needs.release-branch.result != 'success' &&
       !cancelled() }}
     steps:
       - name: Prepare Runner
@@ -343,7 +303,6 @@ jobs:
             echo "------------------------------------"
             echo "Status of each jobs:"
             echo "- Release [Branch]: ${{ needs.release-branch.result }}"
-            echo "- Deploy XTS CI Trigger: ${{ needs.deploy-xts-ci-trigger.result }}"
             echo "------------------------------------"
             echo "Commit information:"
             echo "- Author: ${{ steps.fetch-commit-info.outputs.commit-author }}"
@@ -380,7 +339,6 @@ jobs:
         id: payload
         env:
           RELEASE_BRANCH_RESULT: ${{ needs.release-branch.result }}
-          DEPLOY_XTS_TRIGGER_RESULT: ${{ needs.deploy-xts-ci-trigger.result }}
           COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.fetch-commit-info.outputs.commit-hash }}
           COMMIT_AUTHOR: ${{ steps.fetch-commit-info.outputs.commit-author }}
           SLACK_USER_ID: ${{ steps.find-commit-author-slack.outputs.slack-user-id }}

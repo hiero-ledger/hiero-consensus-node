@@ -224,9 +224,32 @@ jobs:
             "chewie-allocation-id": "${{ needs.acquire-kubernetes-resources.outputs.allocation-id }}"
             }'
 
+  report-sdlt-result:
+    name: Report SDLT Result to Chewie
+    needs:
+      - verify-tag
+      - run-single-day-longevity-test
+    if: ${{ always() && needs.verify-tag.outputs.build-number != '' }}
+    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    with:
+      suite-type: sdlt
+      build-number: ${{ needs.verify-tag.outputs.build-number }}
+      disposition:
+        ${{ needs.run-single-day-longevity-test.result == 'cancelled' && 'cancelled'
+        || needs.run-single-day-longevity-test.outputs.result == 'success' && 'passed'
+        || needs.run-single-day-longevity-test.result == 'skipped' && 'not_run'
+        || 'failed' }}
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
+
+  # Temporary and secondary: Chewie's report (report-sdlt-result) is the source of record. This tag is
+  # kept until Chewie's reporting has run in production for a while; when this job is removed, drop its
+  # TAG_RESULT payload fields, Rootly summary line, and `needs` entries in report-success/failure.
   tag-sdlt-result:
     name: Tag SDLT Result
     runs-on: hl-cn-sdlt-lin-sm
+    continue-on-error: true # optional: Chewie's suite report (864) is the source of record
     needs:
       - run-single-day-longevity-test
       - verify-tag
@@ -318,7 +341,6 @@ jobs:
       - run-single-day-longevity-test
       - get-commit-info
     if: ${{ (needs.verify-tag.result == 'success' &&
-      needs.tag-sdlt-result.result == 'success' &&
       needs.run-single-day-longevity-test.outputs.result == 'success' &&
       needs.get-commit-info.result == 'success') &&
       !cancelled() }}
@@ -368,7 +390,6 @@ jobs:
       - get-commit-info
       - report-success
     if: ${{ (needs.verify-tag.result != 'success' ||
-      needs.tag-sdlt-result.result != 'success' ||
       needs.run-single-day-longevity-test.outputs.result != 'success' ||
       needs.get-commit-info.result != 'success' ||
       needs.report-success.result != 'success') &&
@@ -414,7 +435,6 @@ jobs:
         run: |
           ROOTLY_SERVICE="CITR SDLT"
           if [[ "${{ needs.verify-tag.result }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.tag-sdlt-result.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ needs.get-commit-info.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ needs.report-success.result }}" =~ ^(cancelled|failure)$ ]]; then
             ROOTLY_SERVICE="CI/CD Workflows"

@@ -54,6 +54,25 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       snyk-token: ${{ secrets.SNYK_TOKEN }}
 
+  # Reported as soon as MATS finishes; nothing later in this workflow changes the MATS verdict.
+  report-mats-result:
+    name: Report MATS Result to Chewie
+    needs:
+      - mats-tests
+    if: ${{ always() }}
+    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    with:
+      suite-type: mats
+      commit: ${{ github.sha }}
+      branch: ${{ github.ref_name }}
+      disposition: ${{ needs.mats-tests.result == 'success' && 'passed'
+        || needs.mats-tests.result == 'cancelled' && 'cancelled'
+        || needs.mats-tests.result == 'skipped' && 'not_run'
+        || 'failed' }}
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
+
   deploy-ci-trigger:
     name: Trigger CI Flows
     runs-on: hl-cn-default-lin-sm

@@ -24,10 +24,6 @@
             {
               "type": "mrkdwn",
               "text": {{ printf "*Release [Branch]*: %s" (getenv "RELEASE_BRANCH_RESULT" | required "RELEASE_BRANCH_RESULT must be set") | data.ToJSON }}
-            },
-            {
-              "type": "mrkdwn",
-              "text": {{ printf "*Deploy XTS CI Trigger*: %s" (getenv "DEPLOY_XTS_TRIGGER_RESULT" | required "DEPLOY_XTS_TRIGGER_RESULT must be set") | data.ToJSON }}
             }
           ]
         },

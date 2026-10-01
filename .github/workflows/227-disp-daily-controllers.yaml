@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "227: [DISP] CITR Daily Controllers"
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        required: true
+        description: "Promoted build tag (build-NNNNN); the ref every dispatched controller runs and checks out"
+        type: string
+
+permissions:
+  actions: write
+  contents: write
+  statuses: write
+  id-token: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  deploy-ci-trigger:
+    name: Trigger CI Flows
+    runs-on: hl-cn-default-lin-sm
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      # 221/222 read the build number from github.ref (build-(.{5})), and the dispatch API only
+      # accepts a branch or tag as the ref, so anything but a build tag would fail downstream.
+      - name: Validate Build Tag
+        env:
+          BUILD_TAG: ${{ inputs.ref }}
+        run: |
+          if [[ ! "${BUILD_TAG}" =~ ^build-[0-9]{5}$ ]]; then
+            echo "::error title=Invalid Build Tag::'${BUILD_TAG}' is not a build tag (build-NNNNN)."
+            exit 1
+          fi
+
+      # 221/222 declare no workflow_dispatch inputs; passing any makes the dispatch fail.
+      - name: "Trigger 221: [DISP] CITR SDPT Controller"
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/221-disp-sdpt-controller.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: "Trigger 222: [DISP] CITR SDLT Controller"
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/222-disp-sdlt-controller.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+
+      - name: "Trigger 223: [DISP] CITR SDCT Controller"
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/223-disp-sdct-controller.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: ${{ inputs.ref }}
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{
+            "ref": "${{ inputs.ref }}",
+            "build-tag": "${{ inputs.ref }}"
+            }'

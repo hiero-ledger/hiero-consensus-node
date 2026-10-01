@@ -1,0 +1,158 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "864: [CALL] Report Suite Result"
+
+# Reports one CITR suite execution to Chewie (POST /api/v1/suites/results). Callers map their own
+# job results to a disposition, since each suite defines success differently.
+#
+# Reporting is required: Chewie is the source of record for suite results, so a failed report fails
+# the caller's run. Git result tags are the optional, secondary record. The Chewie token is exchanged
+# inside this job (858's logic), so it is always fresh when the report is sent, even after a long suite.
+
+on:
+  workflow_call:
+    inputs:
+      suite-type:
+        description: "The suite being reported: mats, xts, sdpt, sdlt, sdct, or mdlt"
+        required: true
+        type: string
+      disposition:
+        description: "running, waiting_for_cluster, passed, failed, performance_issue, isolated_issue, cancelled, or not_run"
+        required: true
+        type: string
+      commit:
+        description: "Full 40-character commit SHA (MATS/XTS). One of commit or build-number is required."
+        required: false
+        type: string
+        default: ""
+      build-number:
+        description: "Build tag or number (build-00404, 00404, or 404). One of commit or build-number is required."
+        required: false
+        type: string
+        default: ""
+      branch:
+        description: "Plain branch name (never refs/heads/...). Chewie derives it from the commit when omitted."
+        required: false
+        type: string
+        default: ""
+    secrets:
+      chewie-key:
+        description: "The Chewie repository identity key"
+        required: true
+      chewie-host:
+        description: "The Chewie host, including the scheme"
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  report-suite-result:
+    name: Report ${{ inputs.suite-type }} ${{ inputs.disposition }} to Chewie
+    runs-on: hl-cn-chewie-lin-sm
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Report Suite Result
+        env:
+          HOST: ${{ secrets.chewie-host }}
+          CHEWIE_KEY: ${{ secrets.chewie-key }}
+          GH_TOKEN: ${{ github.token }}
+          SUITE_TYPE: ${{ inputs.suite-type }}
+          DISPOSITION: ${{ inputs.disposition }}
+          COMMIT: ${{ inputs.commit }}
+          BUILD_NUMBER: ${{ inputs.build-number }}
+          BRANCH: ${{ inputs.branch }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+
+          case "${SUITE_TYPE}" in
+            mats | xts | sdpt | sdlt | sdct | mdlt) ;;
+            *) echo "::error title=Invalid Suite Type::'${SUITE_TYPE}' is not a Chewie suite type."; exit 1 ;;
+          esac
+
+          case "${DISPOSITION}" in
+            running | waiting_for_cluster) TERMINAL="false" ;;
+            passed | failed | performance_issue | isolated_issue | cancelled | not_run) TERMINAL="true" ;;
+            *) echo "::error title=Invalid Disposition::'${DISPOSITION}' is not a Chewie disposition."; exit 1 ;;
+          esac
+
+          if [[ -z "${COMMIT}" && -z "${BUILD_NUMBER}" ]]; then
+            echo "::error title=Missing Subject::One of commit or build-number is required."
+            exit 1
+          fi
+          if [[ -n "${COMMIT}" && ! "${COMMIT}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error title=Invalid Commit::'${COMMIT}' is not a full 40-character lowercase SHA."
+            exit 1
+          fi
+          if [[ -n "${BUILD_NUMBER}" ]]; then
+            BUILD_NUMBER="${BUILD_NUMBER#build-}"
+            if [[ ! "${BUILD_NUMBER}" =~ ^[0-9]+$ ]] || (( 10#${BUILD_NUMBER} <= 0 )); then
+              echo "::error title=Invalid Build Number::'${BUILD_NUMBER}' is not a positive build number."
+              exit 1
+            fi
+            # Chewie takes the number, not the tag; drop the zero padding.
+            BUILD_NUMBER="$((10#${BUILD_NUMBER}))"
+          fi
+
+          # Inside a reusable workflow github.run_id is the caller's run, so this is when the suite started.
+          START_TIME="$(curl -sS --fail \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${{ github.api_url }}/repos/${{ github.repository }}/actions/runs/${RUN_ID}/attempts/${RUN_ATTEMPT}" \
+            | jq -r '.run_started_at // empty')"
+          END_TIME=""
+          [[ "${TERMINAL}" == "true" ]] && END_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          # Same exchange as 858: the bare identity key, no "Bearer" prefix, on the token endpoint only.
+          TOKEN_RESPONSE="$(curl -sS --fail -X POST "${HOST}/api/v1/auth/token" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: ${CHEWIE_KEY}")"
+          CHEWIE_JWT="$(jq -r '.token // empty' <<< "${TOKEN_RESPONSE}")"
+          if [[ -z "${CHEWIE_JWT}" ]]; then
+            echo "::error title=Chewie Token::The token exchange returned no token."
+            exit 1
+          fi
+          echo "::add-mask::${CHEWIE_JWT}"
+
+          BODY="$(jq -n \
+            --arg suite_type "${SUITE_TYPE}" \
+            --arg disposition "${DISPOSITION}" \
+            --arg commit "${COMMIT}" \
+            --arg build_number "${BUILD_NUMBER}" \
+            --arg branch "${BRANCH}" \
+            --arg start_time "${START_TIME}" \
+            --arg end_time "${END_TIME}" \
+            --arg run_id "${RUN_ID}" \
+            --arg run_attempt "${RUN_ATTEMPT}" \
+            '{
+              suite_type: $suite_type,
+              disposition: $disposition,
+              commit: $commit,
+              build_number: (if $build_number == "" then "" else ($build_number | tonumber) end),
+              branch: $branch,
+              start_time: $start_time,
+              end_time: $end_time,
+              workflow_run_id: ($run_id | tonumber),
+              run_attempt: ($run_attempt | tonumber)
+            } | with_entries(select(.value != ""))')"
+
+          echo "::group::Request"
+          echo "${BODY}"
+          echo "::endgroup::"
+
+          curl -sS --fail-with-body --retry 3 -X POST "${HOST}/api/v1/suites/results" \
+            -H "Authorization: Bearer ${CHEWIE_JWT}" \
+            -H "Content-Type: application/json" \
+            -d "${BODY}"
+          echo
+          echo "Reported ${SUITE_TYPE} ${DISPOSITION} to Chewie."
