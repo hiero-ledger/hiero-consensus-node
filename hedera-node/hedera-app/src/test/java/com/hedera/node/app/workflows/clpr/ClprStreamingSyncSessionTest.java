@@ -13,6 +13,7 @@ import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.state.clpr.ClprBundleRequest;
 import com.hedera.hapi.node.state.clpr.ClprBundleResponse;
@@ -113,6 +114,18 @@ class ClprStreamingSyncSessionTest {
                     .isInstanceOf(StatusRuntimeException.class)
                     .extracting(e -> ((StatusRuntimeException) e).getStatus().getCode())
                     .isEqualTo(Status.Code.INVALID_ARGUMENT);
+        }
+
+        @Test
+        void rejectsUnknownFieldsBeforeAccessingState() {
+            final var request = bytes(payload(CHANNEL_ID, request(0L), null)).append(Bytes.fromHex("c03e01"));
+
+            assertThatThrownBy(() -> session.onMessage(request))
+                    .isInstanceOf(StatusRuntimeException.class)
+                    .hasMessageContaining("Invalid ClprStreamingSyncPayload")
+                    .extracting(e -> ((StatusRuntimeException) e).getStatus().getCode())
+                    .isEqualTo(Status.Code.INVALID_ARGUMENT);
+            verifyNoInteractions(stateAccessor, bundleSubmitter, stateProofManager);
         }
 
         @Test
