@@ -286,12 +286,12 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      */
     @NonNull
     public synchronized List<Bytes> drainApplicationTransactions() {
-        applicationTransactionsDrained = true;
         final List<Bytes> drained = new ArrayList<>(bufferedTransactions.size());
         for (final TimestampedTransaction transaction : bufferedTransactions) {
             drained.add(transaction.transaction());
         }
         bufferedTransactions.clear();
+        applicationTransactionsDrained = true;
         return drained;
     }
 

@@ -17,6 +17,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -26,8 +27,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Saves pending user transactions in one versioned file. Writes go to a temp file that is synced and then atomically
- * renamed, so a crash never leaves a half-written file.
+ * Saves pending user transactions in one versioned file. Writes go to a temp file that is synced and then renamed,
+ * atomically where the file system supports it, so a crash never leaves a half-written file.
  */
 public final class DiskPendingTransactionsStore implements PendingTransactionsStore {
     private static final Logger logger = LogManager.getLogger(DiskPendingTransactionsStore.class);
@@ -65,7 +66,11 @@ public final class DiskPendingTransactionsStore implements PendingTransactionsSt
             out.flush();
             channel.force(true);
         }
-        Files.move(tmpFile, file, ATOMIC_MOVE, REPLACE_EXISTING);
+        try {
+            Files.move(tmpFile, file, ATOMIC_MOVE, REPLACE_EXISTING);
+        } catch (final AtomicMoveNotSupportedException ignore) {
+            Files.move(tmpFile, file, REPLACE_EXISTING);
+        }
     }
 
     @Override
