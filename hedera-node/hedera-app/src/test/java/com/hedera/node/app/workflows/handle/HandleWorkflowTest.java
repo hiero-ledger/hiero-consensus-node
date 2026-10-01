@@ -8,6 +8,8 @@ import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_ST
 import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
@@ -53,6 +55,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.file.File;
@@ -82,6 +86,7 @@ import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.file.FileService;
@@ -151,7 +156,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -914,6 +921,28 @@ class HandleWorkflowTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void initializesMissingClprSingletonsOnUpgrade() throws Exception {
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
+        final var clprStates = mock(WritableStates.class);
+        final WritableSingletonState<ClprLedgerConfiguration> ledgerConfiguration = mock(WritableSingletonState.class);
+        final WritableSingletonState<ClprEndpointManifest> manifest = mock(WritableSingletonState.class);
+        given(state.getWritableStates(ClprService.NAME)).willReturn(clprStates);
+        given(clprStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                .willReturn(ledgerConfiguration);
+        given(clprStates.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
+                .willReturn(manifest);
+
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "initializeMissingClprSingletons", com.swirlds.state.State.class);
+        method.setAccessible(true);
+        method.invoke(subject, state);
+
+        verify(ledgerConfiguration).put(any(ClprLedgerConfiguration.class));
+        verify(manifest).put(any(ClprEndpointManifest.class));
+    }
+
+    @Test
     void suppressesDuplicateTssReconcileErrorsUntilReset() {
         givenSubjectWith(BOTH, BlockStreamWriterMode.FILE, emptyList());
         final var logCaptor = new LogCaptor(LogManager.getLogger(HandleWorkflow.class));
@@ -1102,8 +1131,8 @@ class HandleWorkflowTest {
 
         // The iterator was obtained (confirms we reached executeAsManyScheduled)
         verify(scheduleService).executableTxns(any(), any(), any());
-        // But the loop body never entered — no scheduled txn was started
-        verify(stakePeriodManager, never()).setCurrentStakePeriodFor(any());
+        // Only the round-start initialization — no scheduled txn dispatch triggered a second call
+        verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW));
     }
 
     @Test
@@ -1221,5 +1250,24 @@ class HandleWorkflowTest {
                 ledgerIdConsTime.isAfter(afterEvents),
                 "The ledger id publication was assigned " + ledgerIdConsTime + ", which precedes the last transaction "
                         + "handled in the round at " + afterEvents);
+    }
+
+    @Test
+    void stakePeriodInitializedBeforeFeeDistribution() {
+        final var creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
+
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
+
+        subject.handleRound(state, round, txns -> {});
+
+        final InOrder inOrder = Mockito.inOrder(stakePeriodManager, nodeFeeManager);
+        inOrder.verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW));
+        inOrder.verify(nodeFeeManager).distributeFees(any(), any(), any());
     }
 }

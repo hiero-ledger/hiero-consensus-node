@@ -3,11 +3,11 @@ package com.hedera.services.bdd.suites.clpr;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.CHANNELS_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.CONNECTORS_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
@@ -37,11 +37,13 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.VERIFY_CONFIG_WITH_SEED_ENDPOINTS;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toBundleProofBytes;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toConfigProofBytes;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static java.util.stream.Collectors.toSet;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -127,10 +129,6 @@ public class ClprDisabledSuite {
             EnumSet.of(HederaFunctionality.ClprEndpointPublication);
     private static final List<String> CLPR_SYSTEM_CONTRACT_NUMS =
             List.of(String.valueOf(0x16eL), String.valueOf(0x16fL), String.valueOf(0x170L), String.valueOf(0x171L));
-    private static final String PROBE_ABI = "{\"name\":\"verifyConfig\","
-            + "\"inputs\":[{\"name\":\"proofBytes\",\"type\":\"bytes\"}],"
-            + "\"outputs\":[{\"name\":\"\",\"type\":\"bytes\"}],"
-            + "\"stateMutability\":\"view\",\"type\":\"function\"}";
 
     @BeforeAll
     static void beforeAll(final TestLifecycle lifecycle) {
@@ -179,16 +177,18 @@ public class ClprDisabledSuite {
     }
 
     @HapiTest
-    @DisplayName("Every native CLPR contract halts with CLPR_NOT_ENABLED when disabled")
-    final Stream<DynamicTest> nativeClprContractsAreRejected() {
-        // A direct call exposes the native halt reason, rather than a wrapper's generic revert.
-        // Enabled execution reaches selector/proof validation and cannot satisfy this assertion.
+    @DisplayName("Every native CLPR contract address behaves as a plain system account when disabled")
+    final Stream<DynamicTest> nativeClprContractsAreInactive() {
+        // While disabled, the EVM treats these addresses exactly as it did before the native contracts
+        // existed, so a direct call succeeds without executing anything. Enabled execution reaches
+        // selector/proof validation and cannot satisfy this assertion.
         return hapiTest(CLPR_SYSTEM_CONTRACT_NUMS.stream()
-                .map(num -> contractCallWithFunctionAbi(num, PROBE_ABI, (Object) new byte[] {1})
+                .map(num -> contractCallWithFunctionAbi(
+                                num, VERIFY_CONFIG_WITH_SEED_ENDPOINTS.toJson(false), new byte[] {1}, new byte[32])
                         .payingWith(GENESIS)
                         .gas(GAS_TO_OFFER)
                         .refusingEthConversion()
-                        .hasKnownStatus(CLPR_NOT_ENABLED))
+                        .hasKnownStatus(SUCCESS))
                 .toArray(SpecOperation[]::new));
     }
 

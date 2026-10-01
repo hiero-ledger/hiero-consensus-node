@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A Roster History object that encapsulates information about the current active roster
+ * A Roster History object that encapsulates information about the active roster
  * and the previous active roster, and their corresponding starting round numbers.
  */
 public record RosterHistory(
@@ -46,17 +46,17 @@ public record RosterHistory(
     }
 
     /**
-     * Returns the current active roster, which is the very first (index == 0) entry in the history list.
-     * @return the current active roster
+     * Returns the active roster, which is the very first (index == 0) entry in the history list.
+     * @return the active roster
      */
     @NonNull
-    public Roster getCurrentRoster() {
+    public Roster getActiveRoster() {
         return rosters.get(history.getFirst().activeRosterHash());
     }
 
     /**
      * Returns the previous roster, which is the second (index == 1) entry in the history list,
-     * or the very first entry equal to the current active roster if the history has a single entry only.
+     * or the very first entry equal to the active roster if the history has a single entry only.
      * @return the previous roster
      */
     @NonNull
@@ -90,7 +90,7 @@ public record RosterHistory(
         final boolean previousExists = history.size() > 1;
 
         final StringBuilder sb = new StringBuilder();
-        sb.append("RosterHistory[ currentRosterRound: ")
+        sb.append("RosterHistory[ activeRosterRound: ")
                 .append(history.getFirst().roundNumber())
                 .append(" ][ ");
         if (previousExists) {
@@ -98,7 +98,7 @@ public record RosterHistory(
         } else {
             sb.append("no previous roster set");
         }
-        sb.append(" ]\nCurrent Roster: ").append(Roster.JSON.toJSON(getCurrentRoster()));
+        sb.append(" ]\nActive Roster: ").append(Roster.JSON.toJSON(getActiveRoster()));
         if (previousExists) {
             sb.append("\nPrevious Roster: ").append(Roster.JSON.toJSON(getPreviousRoster()));
         }

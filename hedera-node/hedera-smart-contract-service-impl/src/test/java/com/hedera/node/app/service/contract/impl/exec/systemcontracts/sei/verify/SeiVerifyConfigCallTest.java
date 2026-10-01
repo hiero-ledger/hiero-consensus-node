@@ -6,12 +6,13 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mockStatic;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.node.app.service.clpr.impl.verifier.ProofException;
 import com.hedera.node.app.service.clpr.impl.verifier.sei.SeiCometBftProofVerifier;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
-import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.math.BigInteger;
 import java.util.Arrays;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.Test;
@@ -25,7 +26,7 @@ class SeiVerifyConfigCallTest extends CallTestBase {
     }
 
     @Test
-    void returnsVerifiedLedgerConfiguration() throws ParseException {
+    void returnsVerifiedLedgerConfiguration() {
         final var config = ClprLedgerConfiguration.newBuilder()
                 .chainId("sei:atlantic-2")
                 .serviceAddress(Bytes.wrap(new byte[20]))
@@ -42,7 +43,19 @@ class SeiVerifyConfigCallTest extends CallTestBase {
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
             assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.COMPLETED_SUCCESS);
-            assertThat(decodedConfig(result.fullResult().output().toArray())).isEqualTo(config);
+            final var decoded = SeiVerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS
+                    .getOutputs()
+                    .decode(result.fullResult().output().toArray());
+            assertThat(decoded).isEqualTo(Tuple.from(new Object[] {
+                new byte[52],
+                config.chainId(),
+                config.serviceAddress().toByteArray(),
+                BigInteger.ZERO,
+                Tuple.of(BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO),
+                config.initialTrustAnchor().toByteArray(),
+                config.initialTrustAnchorId().toByteArray(),
+                new Tuple[0]
+            }));
         }
     }
 
@@ -83,7 +96,7 @@ class SeiVerifyConfigCallTest extends CallTestBase {
     }
 
     @Test
-    void returnsV2HeadlongTupleOnSuccess() {
+    void returnsConfigTupleWithSeedEndpoints() {
         final byte[] channelId32 = new byte[32];
         channelId32[0] = (byte) 0xAB;
         final var config = ClprLedgerConfiguration.newBuilder()
@@ -102,7 +115,7 @@ class SeiVerifyConfigCallTest extends CallTestBase {
                     .execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
-            final var decoded = SeiVerifyConfigTranslator.VERIFY_CONFIG_V2
+            final var decoded = SeiVerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS
                     .getOutputs()
                     .decode(result.fullResult().output().toArray());
             final byte[] channelContext = (byte[]) decoded.get(0);
@@ -111,7 +124,7 @@ class SeiVerifyConfigCallTest extends CallTestBase {
     }
 
     @Test
-    void returnsV3HeadlongTupleWithSeedFallbackManifest() {
+    void returnsConfigTupleWithSeedFallbackManifest() {
         final byte[] channelId32 = new byte[32];
         channelId32[0] = (byte) 0xCD;
         // Sei has no config-path manifest-proof producer, so the 3rd arg drives the seed-fallback (version 1,
@@ -134,7 +147,7 @@ class SeiVerifyConfigCallTest extends CallTestBase {
                     .execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
-            final var decoded = SeiVerifyConfigTranslator.VERIFY_CONFIG_V3
+            final var decoded = SeiVerifyConfigTranslator.VERIFY_CONFIG_WITH_MANIFEST
                     .getOutputs()
                     .decode(result.fullResult().output().toArray());
             assertThat(decoded.size()).isEqualTo(8);
@@ -149,7 +162,7 @@ class SeiVerifyConfigCallTest extends CallTestBase {
     }
 
     @Test
-    void v2FailureStillReverts() {
+    void seedEndpointsFailureStillReverts() {
         final byte[] channelId32 = new byte[32];
 
         try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
@@ -162,13 +175,7 @@ class SeiVerifyConfigCallTest extends CallTestBase {
     }
 
     private SeiVerifyConfigCall subject(final byte[] configPayload) {
-        return new SeiVerifyConfigCall(mockEnhancement(), gasCalculator, configPayload);
-    }
-
-    private static ClprLedgerConfiguration decodedConfig(final byte[] output) throws ParseException {
-        final var tuple = SeiVerifyConfigTranslator.VERIFY_CONFIG.getOutputs().decode(output);
-        return ClprLedgerConfiguration.PROTOBUF.parse(
-                Bytes.wrap((byte[]) tuple.get(0)).toReadableSequentialData());
+        return new SeiVerifyConfigCall(mockEnhancement(), gasCalculator, configPayload, new byte[32]);
     }
 
     private static void assertFailed(

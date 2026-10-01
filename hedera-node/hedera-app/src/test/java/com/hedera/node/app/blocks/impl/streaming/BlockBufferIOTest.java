@@ -17,6 +17,7 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -30,6 +31,8 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class BlockBufferIOTest {
 
@@ -195,6 +198,47 @@ class BlockBufferIOTest {
             assertThat(bufferedItem.itemType())
                     .isEqualTo(sourceItems.get(i).item().kind());
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"c03e01", "0a03c03e01"})
+    void readWritePreservesUnknownFieldsInSignedTransaction(final String signedTxHex) throws Exception {
+        // Field 1000, varint 1, either in SignedTransaction or inside its bodyBytes (field 1).
+        final var signedTxBytes = Bytes.fromHex(signedTxHex);
+        final var item = BlockItem.newBuilder().signedTransaction(signedTxBytes).build();
+        final var serializedItem = BlockItem.PROTOBUF.toBytes(item);
+        final var block = new BlockState(42L, 2_000L);
+        final var header = newBlockHeader(42L);
+        block.addSerializedItem(
+                BlockItem.PROTOBUF.toBytes(header), header.item().kind());
+        block.addSerializedItem(serializedItem, item.item().kind());
+        block.closeBlock();
+
+        bufferIO.write(List.of(block), 42L);
+        final var readBlocks = bufferIO.read();
+        assertThat(readBlocks).hasSize(1);
+        final var reloaded = toBlockState(readBlocks.getFirst());
+
+        assertThat(reloaded.bufferedItem(1).serializedItem()).isEqualTo(serializedItem);
+        // BlockState's strict BlockItem parser must leave the opaque transaction bytes intact, too.
+        assertThat(reloaded.blockItem(1).signedTransactionOrThrow()).isEqualTo(signedTxBytes);
+    }
+
+    @Test
+    void readSkipsBufferedBlockWithUnknownFields() throws IOException {
+        final var block = generateRandomBlock(1);
+        bufferIO.write(List.of(block), 0);
+        final var directory = testDirFile.listFiles()[0];
+        final var file = directory.listFiles()[0].toPath();
+        final var original = Files.readAllBytes(file);
+        final var corrupted = ByteBuffer.allocate(original.length + 3);
+        corrupted.putInt(ByteBuffer.wrap(original).getInt() + 3);
+        corrupted.put(original, Integer.BYTES, original.length - Integer.BYTES);
+        // Valid protobuf field 1000, varint 1, which is not part of BufferedBlock.
+        corrupted.put(Bytes.fromHex("c03e01").toByteArray());
+        Files.write(file, corrupted.array());
+
+        assertThat(bufferIO.read()).isEmpty();
     }
 
     @Test

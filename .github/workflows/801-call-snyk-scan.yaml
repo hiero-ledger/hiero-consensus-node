@@ -104,7 +104,7 @@ jobs:
           ${CG_EXEC} npm install -g snyk-to-html@3.7.7 @wcj/html-to-markdown-cli@2.1.1
 
       - name: Disable Gradle Isolated Projects
-        run: sed -i 's/^org.gradle.unsafe.isolated-projects=.*$/org.gradle.unsafe.isolated-projects=false/' gradle.properties
+        run: sed -i 's/^org.gradle.isolated-projects=.*$/org.gradle.isolated-projects=false/' gradle.properties
 
       - name: Snyk Version
         id: snyk-version

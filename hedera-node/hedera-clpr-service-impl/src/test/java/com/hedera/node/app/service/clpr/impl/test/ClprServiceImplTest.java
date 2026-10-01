@@ -2,8 +2,8 @@
 package com.hedera.node.app.service.clpr.impl.test;
 
 import static com.hedera.node.app.service.clpr.ClprServiceConstants.CLPR_EVM_ADDRESS_BYTES;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
@@ -11,7 +11,7 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.node.app.service.clpr.impl.ClprServiceImpl;
-import com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema;
+import com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -101,7 +101,7 @@ class ClprServiceImplTest {
         verify(configState).put(captor.capture());
         final var seeded = captor.getValue();
 
-        assertThat(seeded.serviceAddress()).isEqualTo(V0770ClprSchema.CLPR_SERVICE_ADDRESS);
+        assertThat(seeded.serviceAddress()).isEqualTo(V0780ClprSchema.CLPR_SERVICE_ADDRESS);
     }
 
     @Test

@@ -57,9 +57,13 @@ import org.slf4j.LoggerFactory;
  * Merkle path walking, state-value decoding) to the CLPR system contract precompile at
  * {@code 0x16e} — see {@code com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verify}.
  *
- * <p>Always calls V2 ABI selectors:
+ * <p>Config verification returns seed endpoints when endpoint manifests are disabled, or an endpoint
+ * manifest when enabled. Bundle verification uses the same selector in both modes, with the flag
+ * selecting whether the return tuple includes a manifest:
  * <pre>
  *   function verifyConfig(bytes calldata proofBytes, bytes32 channelId)
+ *       external returns (...);
+ *   function verifyConfig(bytes calldata proofBytes, bytes32 channelId, bytes calldata manifestProofBytes)
  *       external returns (...);
  *   function verifyBundle(bytes calldata bundlePayload, bytes calldata trustAnchor, bytes calldata channelContext)
  *       external returns (...);
@@ -73,37 +77,37 @@ public class EvmClprVerifier implements ClprVerifier {
     private static final DispatchMetadata CLPR_DISPATCH_METADATA = new DispatchMetadata(
             CLPR_DISPATCH, new ClprDispatchMetadata(CLPR_SERVICE_ACCOUNT_ID, CLPR_EVM_ADDRESS_BYTES));
 
-    // V2 (context) config ABI — mainline: verifyConfig(bytes,bytes32) → config fields + seedEndpoints.
+    // Config with seed endpoints: verifyConfig(bytes,bytes32) → config fields + seedEndpoints.
     // Dispatched when clpr.endpointManifestEnabled=false.
-    private static final byte[] VERIFY_CONFIG_V2_SELECTOR;
-    private static final TupleType<Tuple> VERIFY_CONFIG_V2_RETURN;
-    // V3 (context + manifest) config ABI — SC-189: verifyConfig(bytes,bytes32,bytes) → config fields +
-    // ClprEndpointManifest. Dispatched when clpr.endpointManifestEnabled=true. The V3 return type is
-    // shared with all EVM verifiers — see ClprVerifierAbi.VERIFY_CONFIG_V3_RETURN.
-    private static final byte[] VERIFY_CONFIG_V3_SELECTOR;
+    private static final byte[] VERIFY_CONFIG_WITH_SEED_ENDPOINTS_SELECTOR;
+    private static final TupleType<Tuple> VERIFY_CONFIG_WITH_SEED_ENDPOINTS_RETURN;
+    // Config with manifest: verifyConfig(bytes,bytes32,bytes) → config fields + ClprEndpointManifest.
+    // Dispatched when clpr.endpointManifestEnabled=true. The manifest-aware return type is
+    // shared with all EVM verifiers — see ClprVerifierAbi.VERIFY_CONFIG_WITH_MANIFEST_RETURN.
+    private static final byte[] VERIFY_CONFIG_WITH_MANIFEST_SELECTOR;
     // Bundle ABI — single selector verifyBundle(bytes,bytes,bytes). The return is flag-gated on the
-    // decode side: V2 (4-member, mainline) when endpointManifestEnabled=false, V3 (5-member, with a
-    // trailing newEndpointManifest; version==0 = absent) when true (ClprVerifierAbi.VERIFY_BUNDLE_V3_RETURN).
+    // decode side: four members when endpointManifestEnabled=false, five members with a trailing
+    // newEndpointManifest when true (ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN; version==0 = absent).
     // §4.2 Step 1b.
-    private static final byte[] VERIFY_BUNDLE_V2_SELECTOR;
-    private static final TupleType<Tuple> VERIFY_BUNDLE_V2_RETURN;
+    private static final byte[] VERIFY_BUNDLE_SELECTOR;
+    private static final TupleType<Tuple> VERIFY_BUNDLE_RETURN;
 
     static {
-        VERIFY_CONFIG_V2_SELECTOR = Arrays.copyOf(
+        VERIFY_CONFIG_WITH_SEED_ENDPOINTS_SELECTOR = Arrays.copyOf(
                 MiscCryptoUtils.keccak256DigestOf("verifyConfig(bytes,bytes32)".getBytes(StandardCharsets.UTF_8)), 4);
-        VERIFY_CONFIG_V3_SELECTOR = Arrays.copyOf(
+        VERIFY_CONFIG_WITH_MANIFEST_SELECTOR = Arrays.copyOf(
                 MiscCryptoUtils.keccak256DigestOf("verifyConfig(bytes,bytes32,bytes)".getBytes(StandardCharsets.UTF_8)),
                 4);
-        VERIFY_BUNDLE_V2_SELECTOR = Arrays.copyOf(
+        VERIFY_BUNDLE_SELECTOR = Arrays.copyOf(
                 MiscCryptoUtils.keccak256DigestOf("verifyBundle(bytes,bytes,bytes)".getBytes(StandardCharsets.UTF_8)),
                 4);
-        // V2 return (mainline): (channelContext, chainId, serviceAddress, peerConfigNanos,
+        // Config with seed endpoints: (channelContext, chainId, serviceAddress, peerConfigNanos,
         //   Throttles(uint64 x5), initialTrustAnchor, initialTrustAnchorId, Endpoint[] seedEndpoints)
-        VERIFY_CONFIG_V2_RETURN = TupleType.parse(
+        VERIFY_CONFIG_WITH_SEED_ENDPOINTS_RETURN = TupleType.parse(
                 "(bytes,string,bytes,uint96,(uint64,uint64,uint64,uint64,uint64),bytes,bytes,(string,uint32,bytes,bytes)[])");
-        // Bundle return V2 (mainline): metadata, messagePayloads, newTrustAnchor, newTrustAnchorId.
-        VERIFY_BUNDLE_V2_RETURN = TupleType.parse("((uint64,bytes32,uint64,bytes32,uint8),bytes[],bytes,bytes)");
-        // The V3 config and bundle return types are shared across all EVM verifiers — see ClprVerifierAbi.
+        // Bundle return without a manifest: metadata, messagePayloads, newTrustAnchor, newTrustAnchorId.
+        VERIFY_BUNDLE_RETURN = TupleType.parse("((uint64,bytes32,uint64,bytes32,uint8),bytes[],bytes,bytes)");
+        // The manifest-aware config and bundle return types are shared across all EVM verifiers — see ClprVerifierAbi.
     }
 
     private final ContractID verifierContract;
@@ -127,33 +131,33 @@ public class EvmClprVerifier implements ClprVerifier {
         final boolean manifestEnabled =
                 context.configuration().getConfigData(ClprConfig.class).endpointManifestEnabled();
         return manifestEnabled
-                ? verifyConfigV3(configProofBytes, channelId, endpointManifestProofBytes, context)
-                : verifyConfigV2(configProofBytes, channelId, context);
+                ? verifyConfigWithManifest(configProofBytes, channelId, endpointManifestProofBytes, context)
+                : verifyConfigWithSeedEndpoints(configProofBytes, channelId, context);
     }
 
     /**
-     * Manifest-aware (V3) dispatch: {@code verifyConfig(bytes,bytes32,bytes) → (…, ClprEndpointManifest)}.
+     * Manifest-aware dispatch: {@code verifyConfig(bytes,bytes32,bytes) → (…, ClprEndpointManifest)}.
      * Returns the proven config plus the state-proven peer manifest.
      */
     @NonNull
-    private VerifiedConfig verifyConfigV3(
+    private VerifiedConfig verifyConfigWithManifest(
             @NonNull final Bytes configProofBytes,
             @NonNull final Bytes channelId,
             @NonNull final Bytes endpointManifestProofBytes,
             @NonNull final HandleContext context) {
         log.info(
-                "[EvmClprVerifier] verifyConfig V3 ENTER: verifierContract={} proofBytes={} proofHash={} channelId={} manifestProofBytes={}",
+                "[EvmClprVerifier] verifyConfigWithManifest ENTER: verifierContract={} proofBytes={} proofHash={} channelId={} manifestProofBytes={}",
                 verifierContract,
                 configProofBytes.length(),
                 shortHex(MiscCryptoUtils.keccak256DigestOf(configProofBytes)),
                 shortHex(channelId),
                 endpointManifestProofBytes.length());
-        final var callData = encodeVerifyConfigV3Call(
-                VERIFY_CONFIG_V3_SELECTOR, configProofBytes, channelId, endpointManifestProofBytes);
+        final var callData = encodeVerifyConfigWithManifestCall(
+                VERIFY_CONFIG_WITH_MANIFEST_SELECTOR, configProofBytes, channelId, endpointManifestProofBytes);
         final var rawReturn = dispatchRaw(callData, CLPR_VERIFIER_CONFIG_FAILED, context);
-        final var verified = decodeVerifyConfigV3Return(rawReturn, CLPR_VERIFIER_CONFIG_FAILED);
+        final var verified = decodeVerifyConfigWithManifestReturn(rawReturn, CLPR_VERIFIER_CONFIG_FAILED);
         log.info(
-                "[EvmClprVerifier] verifyConfig V3 EXIT: chainId={} serviceAddress={} manifestVersion={} manifestEndpoints={} trustAnchorBytes={}",
+                "[EvmClprVerifier] verifyConfigWithManifest EXIT: chainId={} serviceAddress={} manifestVersion={} manifestEndpoints={} trustAnchorBytes={}",
                 verified.config().chainId(),
                 shortHex(verified.config().serviceAddress()),
                 verified.manifest().version(),
@@ -163,32 +167,33 @@ public class EvmClprVerifier implements ClprVerifier {
     }
 
     /**
-     * Legacy/context (V2) dispatch: {@code verifyConfig(bytes,bytes32) → (…, Endpoint[] seedEndpoints)}.
-     * The manifest is not part of the V2 wire; a bring-up manifest (version 1, bound to the proven
-     * service address, seeded with the config's endpoints) is synthesized so the returned
+     * Seed-endpoint dispatch: {@code verifyConfig(bytes,bytes32) → (…, Endpoint[] seedEndpoints)}.
+     * This return contains seed endpoints rather than a manifest. A bring-up manifest (version 1, bound
+     * to the proven service address and seeded with the config's endpoints) is synthesized so the returned
      * {@link VerifiedConfig} is well-formed.
      */
     @NonNull
-    private VerifiedConfig verifyConfigV2(
+    private VerifiedConfig verifyConfigWithSeedEndpoints(
             @NonNull final Bytes configProofBytes,
             @NonNull final Bytes channelId,
             @NonNull final HandleContext context) {
         log.info(
-                "[EvmClprVerifier] verifyConfig V2 ENTER: verifierContract={} proofBytes={} proofHash={} channelId={}",
+                "[EvmClprVerifier] verifyConfigWithSeedEndpoints ENTER: verifierContract={} proofBytes={} proofHash={} channelId={}",
                 verifierContract,
                 configProofBytes.length(),
                 shortHex(MiscCryptoUtils.keccak256DigestOf(configProofBytes)),
                 shortHex(channelId));
-        final var callData = encodeVerifyConfigV2Call(VERIFY_CONFIG_V2_SELECTOR, configProofBytes, channelId);
+        final var callData = encodeVerifyConfigWithSeedEndpointsCall(
+                VERIFY_CONFIG_WITH_SEED_ENDPOINTS_SELECTOR, configProofBytes, channelId);
         final var rawReturn = dispatchRaw(callData, CLPR_VERIFIER_CONFIG_FAILED, context);
-        final var config = decodeVerifyConfigV2Return(rawReturn, CLPR_VERIFIER_CONFIG_FAILED);
+        final var config = decodeVerifyConfigWithSeedEndpointsReturn(rawReturn, CLPR_VERIFIER_CONFIG_FAILED);
         final var manifest = ClprEndpointManifest.newBuilder()
                 .version(1L)
                 .serviceAddress(config.serviceAddress())
                 .endpoints(config.endpoints())
                 .build();
         log.info(
-                "[EvmClprVerifier] verifyConfig V2 EXIT: chainId={} serviceAddress={} endpoints={} trustAnchorBytes={}",
+                "[EvmClprVerifier] verifyConfigWithSeedEndpoints EXIT: chainId={} serviceAddress={} endpoints={} trustAnchorBytes={}",
                 config.chainId(),
                 shortHex(config.serviceAddress()),
                 config.endpoints().size(),
@@ -209,21 +214,20 @@ public class EvmClprVerifier implements ClprVerifier {
         requireNonNull(channelContext);
         requireNonNull(context);
         log.debug(
-                "[EvmClprVerifier] verifyBundle V2 ENTER: verifierContract={} bundlePayload={} bytes trustAnchor={} bytes channelContext={} bytes",
+                "[EvmClprVerifier] verifyBundle ENTER: verifierContract={} bundlePayload={} bytes trustAnchor={} bytes channelContext={} bytes",
                 verifierContract,
                 bundlePayload.length(),
                 trustAnchor.length(),
                 channelContext.length());
-        final var callData =
-                encodeThreeBytesCall(VERIFY_BUNDLE_V2_SELECTOR, bundlePayload, trustAnchor, channelContext);
+        final var callData = encodeThreeBytesCall(VERIFY_BUNDLE_SELECTOR, bundlePayload, trustAnchor, channelContext);
         final var rawReturn = dispatchRaw(callData, CLPR_BUNDLE_VERIFICATION_FAILED, context);
         final boolean manifestEnabled =
                 context.configuration().getConfigData(ClprConfig.class).endpointManifestEnabled();
         final var content = manifestEnabled
-                ? decodeVerifyBundleV3Return(rawReturn, CLPR_BUNDLE_VERIFICATION_FAILED)
-                : decodeVerifyBundleV2Return(rawReturn, CLPR_BUNDLE_VERIFICATION_FAILED);
+                ? decodeVerifyBundleWithManifestReturn(rawReturn, CLPR_BUNDLE_VERIFICATION_FAILED)
+                : decodeVerifyBundleReturn(rawReturn, CLPR_BUNDLE_VERIFICATION_FAILED);
         log.debug(
-                "[EvmClprVerifier] verifyBundle V2 EXIT: messages={} newTrustAnchorBytes={} newTrustAnchorId={}",
+                "[EvmClprVerifier] verifyBundle EXIT: messages={} newTrustAnchorBytes={} newTrustAnchorId={}",
                 content.messages().size(),
                 content.newTrustAnchor().length(),
                 shortHex(content.newTrustAnchorId()));
@@ -235,7 +239,7 @@ public class EvmClprVerifier implements ClprVerifier {
      * tail = [proof_length][proof_data_padded].
      */
     @NonNull
-    private static byte[] encodeVerifyConfigV2Call(
+    private static byte[] encodeVerifyConfigWithSeedEndpointsCall(
             @NonNull final byte[] selector, @NonNull final Bytes proofBytes, @NonNull final Bytes channelId) {
         final byte[] proof = proofBytes.toByteArray();
         final byte[] connId32 = new byte[32];
@@ -257,7 +261,7 @@ public class EvmClprVerifier implements ClprVerifier {
      * [offset_to_manifestProof]; tails = [proof_len][proof_padded] then [manifest_len][manifest_padded].
      */
     @NonNull
-    private static byte[] encodeVerifyConfigV3Call(
+    private static byte[] encodeVerifyConfigWithManifestCall(
             @NonNull final byte[] selector,
             @NonNull final Bytes proofBytes,
             @NonNull final Bytes channelId,
@@ -380,14 +384,15 @@ public class EvmClprVerifier implements ClprVerifier {
     }
 
     /**
-     * Decodes the mainline V2 (context) return into a {@link ClprLedgerConfiguration}, endpoints included
-     * (member 7 is {@code Endpoint[] seedEndpoints}, 5-field Throttles).
+     * Decodes the config return into a {@link ClprLedgerConfiguration}, including seed endpoints
+     * (member 7 is {@code Endpoint[] seedEndpoints}, with 5-field Throttles).
      */
     @NonNull
-    private static ClprLedgerConfiguration decodeVerifyConfigV2Return(
+    private static ClprLedgerConfiguration decodeVerifyConfigWithSeedEndpointsReturn(
             @NonNull final Bytes rawEvmBytes, @NonNull final ResponseCodeEnum failureCode) throws HandleException {
         try {
-            final var decoded = VERIFY_CONFIG_V2_RETURN.decode(ByteBuffer.wrap(rawEvmBytes.toByteArray()));
+            final var decoded =
+                    VERIFY_CONFIG_WITH_SEED_ENDPOINTS_RETURN.decode(ByteBuffer.wrap(rawEvmBytes.toByteArray()));
             final String chainId = decoded.get(1);
             final byte[] serviceAddressBytes = decoded.get(2);
             final BigInteger peerConfigNanos96 = decoded.get(3);
@@ -430,7 +435,7 @@ public class EvmClprVerifier implements ClprVerifier {
                     .build();
         } catch (final Exception e) {
             log.warn(
-                    "[EvmClprVerifier] decodeVerifyConfigV2Return failed: rawBytes={} ({})",
+                    "[EvmClprVerifier] decodeVerifyConfigWithSeedEndpointsReturn failed: rawBytes={} ({})",
                     rawEvmBytes.length(),
                     e.getMessage());
             throw new HandleException(failureCode);
@@ -438,15 +443,15 @@ public class EvmClprVerifier implements ClprVerifier {
     }
 
     /**
-     * Decodes the V3 (context + manifest) return into a {@link VerifiedConfig}: config fields (7-field
+     * Decodes the config return with a manifest into a {@link VerifiedConfig}: config fields (7-field
      * Throttles, no endpoints) plus the manifest as the final tuple member.
      */
     @NonNull
-    private static VerifiedConfig decodeVerifyConfigV3Return(
+    private static VerifiedConfig decodeVerifyConfigWithManifestReturn(
             @NonNull final Bytes rawEvmBytes, @NonNull final ResponseCodeEnum failureCode) throws HandleException {
         try {
-            final var decoded =
-                    ClprVerifierAbi.VERIFY_CONFIG_V3_RETURN.decode(ByteBuffer.wrap(rawEvmBytes.toByteArray()));
+            final var decoded = ClprVerifierAbi.VERIFY_CONFIG_WITH_MANIFEST_RETURN.decode(
+                    ByteBuffer.wrap(rawEvmBytes.toByteArray()));
             // index 0: channelContext bytes → IGNORED; Java builds its own from known channelId
             final String chainId = decoded.get(1);
             final byte[] serviceAddressBytes = decoded.get(2);
@@ -488,7 +493,7 @@ public class EvmClprVerifier implements ClprVerifier {
             return new VerifiedConfig(config, manifest);
         } catch (final Exception e) {
             log.warn(
-                    "[EvmClprVerifier] decodeVerifyConfigV2Return failed: rawBytes={} ({})",
+                    "[EvmClprVerifier] decodeVerifyConfigWithManifestReturn failed: rawBytes={} ({})",
                     rawEvmBytes.length(),
                     e.getMessage());
             throw new HandleException(failureCode);
@@ -523,10 +528,10 @@ public class EvmClprVerifier implements ClprVerifier {
     }
 
     @NonNull
-    private static ClprBundleContent decodeVerifyBundleV2Return(
+    private static ClprBundleContent decodeVerifyBundleReturn(
             @NonNull final Bytes rawEvmBytes, @NonNull final ResponseCodeEnum failureCode) throws HandleException {
         try {
-            final var decoded = VERIFY_BUNDLE_V2_RETURN.decode(ByteBuffer.wrap(rawEvmBytes.toByteArray()));
+            final var decoded = VERIFY_BUNDLE_RETURN.decode(ByteBuffer.wrap(rawEvmBytes.toByteArray()));
             final Tuple metaTuple = decoded.get(0);
             final byte[][] messagePayloadArrays = decoded.get(1);
             final byte[] newTrustAnchorBytes = decoded.get(2);
@@ -548,9 +553,9 @@ public class EvmClprVerifier implements ClprVerifier {
                     .messages(messages)
                     .newTrustAnchor(Bytes.wrap(newTrustAnchorBytes))
                     .newTrustAnchorId(Bytes.wrap(newTrustAnchorIdBytes));
-            // Metadata-absent sentinel (nextMessageId == 0): a trust-anchor rotation relayed as a V2 tuple
-            // carries no queue metadata. Leave it unset so the handler takes its state-update-only path —
-            // mirrors decodeVerifyBundleV3Return (§8.1.4).
+            // Metadata-absent sentinel (nextMessageId == 0): a trust-anchor rotation carries no queue metadata.
+            // Leave it unset so the handler takes its state-update-only path —
+            // mirrors decodeVerifyBundleWithManifestReturn (§8.1.4).
             if (!ClprVerifierAbi.isMetadataAbsent(metaTuple)) {
                 builder.metadata(ClprQueueMetadata.newBuilder()
                         .nextMessageId(nextMessageId)
@@ -563,7 +568,7 @@ public class EvmClprVerifier implements ClprVerifier {
             return builder.build();
         } catch (final Exception e) {
             log.warn(
-                    "[EvmClprVerifier] decodeVerifyBundleV2Return failed: rawBytes={} ({})",
+                    "[EvmClprVerifier] decodeVerifyBundleReturn failed: rawBytes={} ({})",
                     rawEvmBytes.length(),
                     e.getMessage());
             throw new HandleException(failureCode);
@@ -571,16 +576,16 @@ public class EvmClprVerifier implements ClprVerifier {
     }
 
     /**
-     * Decodes the V3 (manifest-aware) bundle return: the V2 members plus a trailing
+     * Decodes the manifest-aware bundle return: the bundle fields plus a trailing
      * {@code newEndpointManifest} (§4.2 Step 1b). A {@code version == 0} manifest is "absent" and
      * left off the returned content so the handler's version-advance check treats it as no update.
      */
     @NonNull
-    private static ClprBundleContent decodeVerifyBundleV3Return(
+    private static ClprBundleContent decodeVerifyBundleWithManifestReturn(
             @NonNull final Bytes rawEvmBytes, @NonNull final ResponseCodeEnum failureCode) throws HandleException {
         try {
-            final var decoded =
-                    ClprVerifierAbi.VERIFY_BUNDLE_V3_RETURN.decode(ByteBuffer.wrap(rawEvmBytes.toByteArray()));
+            final var decoded = ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN.decode(
+                    ByteBuffer.wrap(rawEvmBytes.toByteArray()));
             final Tuple metaTuple = decoded.get(0);
             final byte[][] messagePayloadArrays = decoded.get(1);
             final byte[] newTrustAnchorBytes = decoded.get(2);
@@ -624,7 +629,7 @@ public class EvmClprVerifier implements ClprVerifier {
             return builder.build();
         } catch (final Exception e) {
             log.warn(
-                    "[EvmClprVerifier] decodeVerifyBundleV3Return failed: rawBytes={} ({})",
+                    "[EvmClprVerifier] decodeVerifyBundleWithManifestReturn failed: rawBytes={} ({})",
                     rawEvmBytes.length(),
                     e.getMessage());
             throw new HandleException(failureCode);

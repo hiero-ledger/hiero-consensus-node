@@ -17,7 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Translates {@code verifyConfig(bytes stateProofBytes) returns (bytes)} calls for the Besu QBFT
+ * Translates {@code verifyConfig} calls with seed endpoints or an endpoint manifest for the Besu QBFT
  * verifier system contract. The trust anchor is read from the {@code initial_trust_anchor} field
  * inside the proven {@link com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration} — same shape
  * as the Hiero TSS {@code VerifyConfigTranslator} so a single user-deployed verifier contract can
@@ -27,20 +27,14 @@ import org.apache.logging.log4j.Logger;
 public class BesuQBFTVerifyConfigTranslator extends AbstractCallTranslator<BesuQBFTVerifierCallAttempt> {
     private static final Logger log = LogManager.getLogger(BesuQBFTVerifyConfigTranslator.class);
 
-    /** ABI index of the sole call argument. */
-    static final int STATE_PROOF_INDEX = 0;
-
-    public static final SystemContractMethod VERIFY_CONFIG =
-            SystemContractMethod.declare("verifyConfig(bytes)", "(bytes)").withCategories(Category.BESU_QBFT);
-
-    public static final SystemContractMethod VERIFY_CONFIG_V2 = SystemContractMethod.declare(
+    public static final SystemContractMethod VERIFY_CONFIG_WITH_SEED_ENDPOINTS = SystemContractMethod.declare(
                     "verifyConfig(bytes,bytes32)",
                     "(bytes,string,bytes,uint96,(uint64,uint64,uint64,uint64,uint64),bytes,bytes,(string,uint32,bytes,bytes)[])")
             .withCategories(Category.BESU_QBFT);
 
-    // V3 (context + manifest) — SC-189: verifyConfig(bytes,bytes32,bytes) → config fields + ClprEndpointManifest.
-    public static final SystemContractMethod VERIFY_CONFIG_V3 = SystemContractMethod.declare(
-                    "verifyConfig(bytes,bytes32,bytes)", ClprVerifierAbi.VERIFY_CONFIG_V3_OUTPUTS)
+    // Endpoint manifest with channel context: verifyConfig(bytes,bytes32,bytes) → config fields + ClprEndpointManifest.
+    public static final SystemContractMethod VERIFY_CONFIG_WITH_MANIFEST = SystemContractMethod.declare(
+                    "verifyConfig(bytes,bytes32,bytes)", ClprVerifierAbi.VERIFY_CONFIG_WITH_MANIFEST_OUTPUTS)
             .withCategories(Category.BESU_QBFT);
 
     @Inject
@@ -48,22 +42,21 @@ public class BesuQBFTVerifyConfigTranslator extends AbstractCallTranslator<BesuQ
             @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
             @NonNull final ContractMetrics contractMetrics) {
         super(SystemContractMethod.SystemContract.BESU_QBFT_VERIFIER, systemContractMethodRegistry, contractMetrics);
-        registerMethods(VERIFY_CONFIG, VERIFY_CONFIG_V2, VERIFY_CONFIG_V3);
+        registerMethods(VERIFY_CONFIG_WITH_SEED_ENDPOINTS, VERIFY_CONFIG_WITH_MANIFEST);
     }
 
     @Override
     @NonNull
     public Optional<SystemContractMethod> identifyMethod(@NonNull final BesuQBFTVerifierCallAttempt attempt) {
-        return attempt.isMethod(VERIFY_CONFIG_V3)
-                .or(() -> attempt.isMethod(VERIFY_CONFIG_V2))
-                .or(() -> attempt.isMethod(VERIFY_CONFIG));
+        return attempt.isMethod(VERIFY_CONFIG_WITH_MANIFEST)
+                .or(() -> attempt.isMethod(VERIFY_CONFIG_WITH_SEED_ENDPOINTS));
     }
 
     @Override
     public Call callFrom(@NonNull final BesuQBFTVerifierCallAttempt attempt) {
-        if (attempt.isMethod(VERIFY_CONFIG_V3).isPresent()) {
+        if (attempt.isMethod(VERIFY_CONFIG_WITH_MANIFEST).isPresent()) {
             try {
-                final var call = VERIFY_CONFIG_V3.decodeCall(attempt.inputBytes());
+                final var call = VERIFY_CONFIG_WITH_MANIFEST.decodeCall(attempt.inputBytes());
                 return new BesuQBFTVerifyConfigCall(
                         attempt.enhancement(),
                         attempt.systemContractGasCalculator(),
@@ -72,34 +65,20 @@ public class BesuQBFTVerifyConfigTranslator extends AbstractCallTranslator<BesuQ
                         (byte[]) call.get(2));
             } catch (final RuntimeException e) {
                 log.warn(
-                        "BesuQBFTVerifyConfigTranslator failed to decode verifyConfig V3 calldata: input={} bytes ({})",
-                        attempt.inputBytes().length,
-                        e.getMessage());
-                throw e;
-            }
-        }
-        if (attempt.isMethod(VERIFY_CONFIG_V2).isPresent()) {
-            try {
-                final var call = VERIFY_CONFIG_V2.decodeCall(attempt.inputBytes());
-                return new BesuQBFTVerifyConfigCall(
-                        attempt.enhancement(), attempt.systemContractGasCalculator(), (byte[]) call.get(0), (byte[])
-                                call.get(1));
-            } catch (final RuntimeException e) {
-                log.warn(
-                        "BesuQBFTVerifyConfigTranslator failed to decode verifyConfig V2 calldata: input={} bytes ({})",
+                        "BesuQBFTVerifyConfigTranslator failed to decode verifyConfigWithManifest calldata: input={} bytes ({})",
                         attempt.inputBytes().length,
                         e.getMessage());
                 throw e;
             }
         }
         try {
-            final var call = VERIFY_CONFIG.decodeCall(attempt.inputBytes());
-            final var stateProofBytes = (byte[]) call.get(STATE_PROOF_INDEX);
+            final var call = VERIFY_CONFIG_WITH_SEED_ENDPOINTS.decodeCall(attempt.inputBytes());
             return new BesuQBFTVerifyConfigCall(
-                    attempt.enhancement(), attempt.systemContractGasCalculator(), stateProofBytes);
+                    attempt.enhancement(), attempt.systemContractGasCalculator(), (byte[]) call.get(0), (byte[])
+                            call.get(1));
         } catch (final RuntimeException e) {
             log.warn(
-                    "BesuQBFTVerifyConfigTranslator failed to decode verifyConfig calldata: input={} bytes ({})",
+                    "BesuQBFTVerifyConfigTranslator failed to decode verifyConfigWithSeedEndpoints calldata: input={} bytes ({})",
                     attempt.inputBytes().length,
                     e.getMessage());
             throw e;

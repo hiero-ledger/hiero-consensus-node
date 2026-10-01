@@ -355,7 +355,7 @@ public class ClprChannelManager implements ClprChannelLifecycle {
                 return ClprPeerEndpoints.DEFAULT;
             }
             try (final var fin = Files.newInputStream(peerEndpointsPath)) {
-                return ClprPeerEndpoints.JSON.parse(new ReadableStreamingData(fin));
+                return ClprPeerEndpoints.JSON.parseStrict(new ReadableStreamingData(fin));
             }
         } catch (final Exception e) {
             logger.error("Failed to read CLPR channel cache from {}", peerEndpointsPath, e);

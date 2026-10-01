@@ -228,11 +228,17 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             outcome.addCreateDetailsTo(streamBuilder, context, entityIdFactory);
             operationStreamBuilder = streamBuilder;
         }
+        // Only an inner transaction of a batch is given a rollback consumer; when it is, the handler also takes this
+        // transaction's id, so the side effects it replays are filed under this inner and are externalized exactly
+        // once, by the batch's own replay pass
+        final var batchRollbackConsumer =
+                context.dispatchMetadata().getMetadata(BATCH_ROLLBACK_CALLBACK_CONSUMER, Consumer.class);
         final var rollbackHandler = new EthereumTransactionRollbackHandler(
-                outcome, component.hederaOperations().gasChargingEvents(), component.rootProxyWorldUpdater());
-        context.dispatchMetadata()
-                .getMetadata(BATCH_ROLLBACK_CALLBACK_CONSUMER, Consumer.class)
-                .ifPresent(consumer -> consumer.accept(rollbackHandler));
+                outcome,
+                component.hederaOperations().gasChargingEvents(),
+                component.rootProxyWorldUpdater(),
+                batchRollbackConsumer.isPresent() ? context.body().transactionIDOrThrow() : null);
+        batchRollbackConsumer.ifPresent(consumer -> consumer.accept(rollbackHandler));
         throwIfUnsuccessfulCall(outcome, rollbackHandler, operationStreamBuilder, context);
     }
 

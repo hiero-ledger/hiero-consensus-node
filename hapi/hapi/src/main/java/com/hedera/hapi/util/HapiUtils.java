@@ -20,6 +20,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -182,7 +183,19 @@ public class HapiUtils {
             HederaFunctionality.CLPR_GET_ENDPOINT_MANIFEST);
 
     public static HederaFunctionality functionOf(final TransactionBody txn) throws UnknownHederaFunctionality {
-        return switch (txn.data().kind()) {
+        return functionOf(txn.data().kind());
+    }
+
+    /**
+     * Returns the {@link HederaFunctionality} for the given transaction body kind.
+     *
+     * @param kind the transaction body kind
+     * @return the functionality
+     * @throws UnknownHederaFunctionality if the kind is {@code UNSET}
+     */
+    public static HederaFunctionality functionOf(final TransactionBody.DataOneOfType kind)
+            throws UnknownHederaFunctionality {
+        return switch (kind) {
             case ATOMIC_BATCH -> HederaFunctionality.ATOMIC_BATCH;
             case CONSENSUS_CREATE_TOPIC -> HederaFunctionality.CONSENSUS_CREATE_TOPIC;
             case CONSENSUS_UPDATE_TOPIC -> HederaFunctionality.CONSENSUS_UPDATE_TOPIC;
@@ -267,7 +280,18 @@ public class HapiUtils {
     }
 
     public static HederaFunctionality functionOf(final Query txn) throws UnknownHederaFunctionality {
-        return switch (txn.query().kind()) {
+        return functionOf(txn.query().kind());
+    }
+
+    /**
+     * Returns the {@link HederaFunctionality} for the given query kind.
+     *
+     * @param kind the query kind
+     * @return the functionality
+     * @throws UnknownHederaFunctionality if the kind is {@code UNSET}
+     */
+    public static HederaFunctionality functionOf(final Query.QueryOneOfType kind) throws UnknownHederaFunctionality {
+        return switch (kind) {
             case TOKEN_GET_ACCOUNT_NFT_INFOS -> HederaFunctionality.TOKEN_GET_ACCOUNT_NFT_INFOS;
             case TOKEN_GET_NFT_INFOS -> HederaFunctionality.TOKEN_GET_NFT_INFOS;
             case ACCOUNT_DETAILS -> HederaFunctionality.GET_ACCOUNT_DETAILS;
@@ -403,15 +427,16 @@ public class HapiUtils {
      */
     public static String asReadableIp(@NonNull final Bytes ipV4Addr) {
         requireNonNull(ipV4Addr);
-        return "%d.%d.%d.%d"
-                .formatted(
-                        // Java expands a byte into an int, and the "sign bit" of the byte gets extended,
-                        // making it possibly a negative integer for values > 0x7F. So we AND 0xFF
-                        // to get rid of the extended "sign bits" to keep this an actual, positive byte.
-                        ipV4Addr.getByte(0) & 0xFF,
-                        ipV4Addr.getByte(1) & 0xFF,
-                        ipV4Addr.getByte(2) & 0xFF,
-                        ipV4Addr.getByte(3) & 0xFF);
+        return String.format(
+                Locale.ROOT,
+                "%d.%d.%d.%d",
+                // Java expands a byte into an int, and the "sign bit" of the byte gets extended,
+                // making it possibly a negative integer for values > 0x7F. So we AND 0xFF
+                // to get rid of the extended "sign bits" to keep this an actual, positive byte.
+                ipV4Addr.getByte(0) & 0xFF,
+                ipV4Addr.getByte(1) & 0xFF,
+                ipV4Addr.getByte(2) & 0xFF,
+                ipV4Addr.getByte(3) & 0xFF);
     }
 
     /**
@@ -420,7 +445,8 @@ public class HapiUtils {
      * @return string representation
      */
     public static String asAccountString(@NonNull final AccountID accountID) {
-        return String.format("%d.%d.%d", accountID.shardNum(), accountID.realmNum(), accountID.accountNum());
+        return String.format(
+                Locale.ROOT, "%d.%d.%d", accountID.shardNum(), accountID.realmNum(), accountID.accountNum());
     }
 
     /**

@@ -16,7 +16,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Translates {@code verifyBundle(bytes bundlePayload, bytes trustAnchor) returns (bytes)} calls
+ * Translates {@code verifyBundle(bytes bundlePayload, bytes trustAnchor, bytes channelContext)} calls
  * for the Sei verifier system contract.
  */
 @Singleton
@@ -28,10 +28,7 @@ public class SeiVerifyBundleTranslator extends AbstractCallTranslator<SeiVerifie
 
     static final int TRUST_ANCHOR_INDEX = 1;
 
-    public static final SystemContractMethod VERIFY_BUNDLE =
-            SystemContractMethod.declare("verifyBundle(bytes,bytes)", "(bytes)").withCategories(Category.SEI);
-
-    public static final SystemContractMethod VERIFY_BUNDLE_V2 = SystemContractMethod.declare(
+    public static final SystemContractMethod VERIFY_BUNDLE = SystemContractMethod.declare(
                     "verifyBundle(bytes,bytes,bytes)", "((uint64,bytes32,uint64,bytes32,uint8),bytes[],bytes,bytes)")
             .withCategories(Category.SEI);
 
@@ -40,41 +37,22 @@ public class SeiVerifyBundleTranslator extends AbstractCallTranslator<SeiVerifie
             @NonNull final SystemContractMethodRegistry systemContractMethodRegistry,
             @NonNull final ContractMetrics contractMetrics) {
         super(SystemContractMethod.SystemContract.SEI_VERIFIER, systemContractMethodRegistry, contractMetrics);
-        registerMethods(VERIFY_BUNDLE, VERIFY_BUNDLE_V2);
+        registerMethods(VERIFY_BUNDLE);
     }
 
     @Override
     @NonNull
     public Optional<SystemContractMethod> identifyMethod(@NonNull final SeiVerifierCallAttempt attempt) {
-        return attempt.isMethod(VERIFY_BUNDLE_V2).or(() -> attempt.isMethod(VERIFY_BUNDLE));
+        return attempt.isMethod(VERIFY_BUNDLE);
     }
 
     @Override
     public Call callFrom(@NonNull final SeiVerifierCallAttempt attempt) {
-        if (attempt.isMethod(VERIFY_BUNDLE_V2).isPresent()) {
-            try {
-                final var call = VERIFY_BUNDLE_V2.decodeCall(attempt.inputBytes());
-                final var bundlePayload = (byte[]) call.get(BUNDLE_PAYLOAD_INDEX);
-                final var trustAnchor = (byte[]) call.get(TRUST_ANCHOR_INDEX);
-                final var channelContext = (byte[]) call.get(2);
-                return new SeiVerifyBundleCall(
-                        attempt.enhancement(),
-                        attempt.systemContractGasCalculator(),
-                        bundlePayload,
-                        trustAnchor,
-                        channelContext);
-            } catch (final RuntimeException e) {
-                log.warn(
-                        "SeiVerifyBundleTranslator failed to decode verifyBundle V2 calldata: input={} bytes ({})",
-                        attempt.inputBytes().length,
-                        e.getMessage());
-                throw e;
-            }
-        }
         try {
             final var call = VERIFY_BUNDLE.decodeCall(attempt.inputBytes());
             final var bundlePayload = (byte[]) call.get(BUNDLE_PAYLOAD_INDEX);
             final var trustAnchor = (byte[]) call.get(TRUST_ANCHOR_INDEX);
+            final var channelContext = (byte[]) call.get(2);
             return new SeiVerifyBundleCall(
                     attempt.enhancement(), attempt.systemContractGasCalculator(), bundlePayload, trustAnchor);
         } catch (final RuntimeException e) {
