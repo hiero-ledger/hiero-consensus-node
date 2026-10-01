@@ -26,13 +26,6 @@ import org.hiero.consensus.model.transaction.TransactionWrapper;
  */
 public class PbjStreamHasher implements EventHasher {
 
-    /** The hashing stream for the event. */
-    private final MessageDigest preCutoverEventDigest = DigestType.SHA_384.buildDigest();
-    private final MessageDigest postCutoverEventDigest = DigestType.SHA_256.buildDigest();
-
-    final WritableSequentialData preCutoverEventStream = new WritableStreamingData(new HashingOutputStream(preCutoverEventDigest));
-    final WritableSequentialData postCutoverEventStream = new WritableStreamingData(new HashingOutputStream(postCutoverEventDigest));
-
     /** The hashing stream for the transactions. */
     private final MessageDigest transactionDigest = DigestType.SHA_384.buildDigest();
 
@@ -75,12 +68,13 @@ public class PbjStreamHasher implements EventHasher {
             @NonNull final List<TransactionWrapper> transactions) {
         boolean success = false;
 
-        final MessageDigest eventDigest;
+        final DigestType digestType;
         if (EventHashFactory.isBirthRoundPostCutover(eventCore.birthRound())) {
-            eventDigest = DigestType.SHA_256.buildDigest();
+            digestType = DigestType.SHA_256;
         } else {
-            eventDigest = DigestType.SHA_384.buildDigest();
+            digestType = DigestType.SHA_384;
         }
+        final MessageDigest eventDigest = digestType.buildDigest();
         final WritableSequentialData eventStream = new WritableStreamingData(new HashingOutputStream(eventDigest));
 
         try {
@@ -102,7 +96,7 @@ public class PbjStreamHasher implements EventHasher {
             }
         }
 
-        return new Hash(eventDigest.digest(), DigestType.SHA_384);
+        return new Hash(eventDigest.digest(), digestType);
     }
 
     private void processTransactionHash(final WritableSequentialData eventStream, final TransactionWrapper transaction) {

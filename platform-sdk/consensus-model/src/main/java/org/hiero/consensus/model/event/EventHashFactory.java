@@ -43,6 +43,12 @@ public class EventHashFactory {
                 : new Hash(bytes, DigestType.SHA_256);
     }
 
+    /**
+     * Determines if a birth round is prior to or after the event cutover.
+     *
+     * @param birthRound the birth round to check
+     * @return true if the birth round is post cutover
+     */
     public static boolean isBirthRoundPostCutover(final long birthRound) {
         return birthRound >= eventCutoverMinBirthRound;
     }
