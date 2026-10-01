@@ -65,8 +65,7 @@ import org.openjdk.jmh.results.ScalarResult;
  *
  * <h2>Running it</h2>
  *
- * <p>Pass the profiler to JMH with {@code -prof}. The Gradle tasks {@code jmhRun} and {@code jmhSmoke} add it for the
- * modules that configure it in {@code benchmarkRuns}. For example:
+ * <p>Pass the profiler to JMH with {@code -prof}, for example:
  *
  * <pre>
  * java -jar consensus-hashgraph-impl-*-jmh-merged.jar ConsensusImplBenchmark \
@@ -86,9 +85,6 @@ import org.openjdk.jmh.results.ScalarResult;
  * the percentiles are those of all their calls, and {@code alloc.norm} is their total allocation divided by their total
  * number of calls.
  */
-// The module requires JMH statically, without 'transitive': only JMH benchmarks use this class, and they depend on JMH
-// themselves.
-@SuppressWarnings("exports")
 public final class LatencyProfiler implements InternalProfiler {
 
     /** A percentile to report, with its label and value. */
