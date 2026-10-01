@@ -114,18 +114,13 @@ message TokenID {
  */
 enum BlockHashAlgorithm {
     /**
-     * A SHA2 algorithm SHA-256 hash.
+     * A SHA2 algorithm SHA-384 hash.
      * <p>
      * This is the default value, if a field of this enumerated type is
      * not set, then this is the value that will be decoded when the
      * serialized message is read.
      */
-    SHA2_256 = 0;
-
-    /**
-     * A SHA2 algorithm SHA-384 hash.
-     */
-    SHA2_384 = 1;
+    SHA2_384 = 0;
 }
 
 /**

@@ -270,7 +270,7 @@ public class CryptoDeleteAllowanceSuite {
                         .signedBy("payer", owner)
                         .via("baseDeleteTxn")
                         .blankMemo()
-                        .hasPrecheck(INVALID_ALLOWANCE_OWNER_ID),
+                        .hasKnownStatus(INVALID_ALLOWANCE_OWNER_ID),
                 getAccountDetails(owner)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith().deleted(true)));
@@ -489,11 +489,11 @@ public class CryptoDeleteAllowanceSuite {
                 cryptoDeleteAllowance()
                         .payingWith(owner)
                         .addNftDeleteAllowance(owner, nft, List.of(1L, 2L, 3L, 3L, 3L))
-                        .hasPrecheck(MAX_ALLOWANCES_EXCEEDED),
+                        .hasKnownStatus(MAX_ALLOWANCES_EXCEEDED),
                 cryptoDeleteAllowance()
                         .payingWith(owner)
                         .addNftDeleteAllowance(owner, nft, List.of(1L, 1L, 1L, 1L, 1L))
-                        .hasPrecheck(MAX_ALLOWANCES_EXCEEDED),
+                        .hasKnownStatus(MAX_ALLOWANCES_EXCEEDED),
                 cryptoDeleteAllowance()
                         .payingWith(owner)
                         .addNftDeleteAllowance(owner, nft, List.of(1L))
@@ -501,7 +501,7 @@ public class CryptoDeleteAllowanceSuite {
                         .addNftDeleteAllowance(owner, nft, List.of(3L))
                         .addNftDeleteAllowance(owner, nft, List.of(1L))
                         .addNftDeleteAllowance(owner, nft, List.of(1L))
-                        .hasPrecheck(MAX_ALLOWANCES_EXCEEDED));
+                        .hasKnownStatus(MAX_ALLOWANCES_EXCEEDED));
     }
 
     @HapiTest
@@ -535,11 +535,11 @@ public class CryptoDeleteAllowanceSuite {
                 cryptoDeleteAllowance()
                         .payingWith(owner)
                         .addNftDeleteAllowance(owner, nft, List.of(-1L))
-                        .hasPrecheck(INVALID_TOKEN_NFT_SERIAL_NUMBER),
+                        .hasKnownStatus(INVALID_TOKEN_NFT_SERIAL_NUMBER),
                 cryptoDeleteAllowance()
                         .payingWith(owner)
                         .addNftDeleteAllowance(owner, nft, List.of(1000L))
-                        .hasPrecheck(INVALID_TOKEN_NFT_SERIAL_NUMBER),
+                        .hasKnownStatus(INVALID_TOKEN_NFT_SERIAL_NUMBER),
                 cryptoDeleteAllowance()
                         .payingWith(owner)
                         .addNftDeleteAllowance(owner, nft, List.of(3L))
@@ -573,7 +573,7 @@ public class CryptoDeleteAllowanceSuite {
                 cryptoDeleteAllowance()
                         .payingWith(owner)
                         .addNftDeleteAllowance(owner, token, List.of(1L))
-                        .hasPrecheck(FUNGIBLE_TOKEN_IN_NFT_ALLOWANCES));
+                        .hasKnownStatus(FUNGIBLE_TOKEN_IN_NFT_ALLOWANCES));
     }
 
     @HapiTest
@@ -620,7 +620,7 @@ public class CryptoDeleteAllowanceSuite {
                 cryptoDeleteAllowance()
                         .payingWith(owner)
                         .addNftDeleteAllowance(owner, nft, List.of(1L))
-                        .hasPrecheck(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
+                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
                 getAccountDetails(owner)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()

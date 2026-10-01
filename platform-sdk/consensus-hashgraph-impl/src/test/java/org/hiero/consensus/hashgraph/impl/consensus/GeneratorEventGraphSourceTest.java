@@ -125,7 +125,7 @@ class GeneratorEventGraphSourceTest {
 
         final RosterWrapper roster = generator.getRoster();
         for (int i = 0; i < numNodes; i++) {
-            final NodeId nodeId = roster.rosterEntry(i).nodeId();
+            final NodeId nodeId = roster.nodeIdAtIndex(i);
             assertTrue(creators.contains(nodeId), "node " + nodeId + " should have created at least one event");
         }
     }
@@ -318,7 +318,7 @@ class GeneratorEventGraphSourceTest {
         final List<PlatformEvent> events = generator.nextEvents(50);
 
         assertEquals(50, events.size());
-        final NodeId expectedCreator = generator.getRoster().rosterEntry(0).nodeId();
+        final NodeId expectedCreator = generator.getRoster().nodeIdAtIndex(0);
 
         for (final PlatformEvent event : events) {
             assertEquals(expectedCreator, event.getCreatorId(), "all events should be from the single node");
