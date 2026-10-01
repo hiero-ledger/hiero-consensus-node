@@ -13,6 +13,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class EventHashFactoryTest {
@@ -30,12 +31,6 @@ class EventHashFactoryTest {
     void tearDown() {
         // restore the uninitialized sentinel so tests do not leak static state
         EventHashFactory.initialize(-1);
-    }
-
-    @Test
-    void hashBeforeInitializeThrows() {
-        final Bytes bytes = randomBytes(DigestType.SHA_384);
-        assertThatThrownBy(() -> EventHashFactory.hash(bytes, 1)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
@@ -105,6 +100,58 @@ class EventHashFactoryTest {
         assertThat(EventHashFactory.hash(randomBytes(DigestType.SHA_384), CUTOVER)
                         .getDigestType())
                 .isEqualTo(DigestType.SHA_384);
+    }
+
+    @ParameterizedTest
+    @EnumSource(DigestType.class)
+    void hashFromBytesUsesDigestTypeMatchingLength(final DigestType digestType) {
+        final Bytes bytes = randomBytes(digestType);
+
+        final Hash hash = EventHashFactory.hash(bytes);
+
+        assertThat(hash.getDigestType()).isEqualTo(digestType);
+        assertThat(hash.getBytes()).isEqualTo(bytes);
+    }
+
+    @ParameterizedTest
+    @EnumSource(DigestType.class)
+    void hashFromByteArrayUsesDigestTypeMatchingLength(final DigestType digestType) {
+        final Bytes bytes = randomBytes(digestType);
+
+        final Hash hash = EventHashFactory.hash(bytes.toByteArray());
+
+        assertThat(hash.getDigestType()).isEqualTo(digestType);
+        assertThat(hash.getBytes()).isEqualTo(bytes);
+    }
+
+    @Test
+    void hashFromLengthDoesNotRequireInitialization() {
+        // the length based methods do not depend on the cutover, so they work while the factory is uninitialized
+        final Bytes bytes = randomBytes(DigestType.SHA_256);
+
+        assertThat(EventHashFactory.hash(bytes).getDigestType()).isEqualTo(DigestType.SHA_256);
+        assertThat(EventHashFactory.hash(bytes.toByteArray()).getDigestType()).isEqualTo(DigestType.SHA_256);
+    }
+
+    @Test
+    void hashFromLengthIgnoresCutover() {
+        // the digest type is chosen by length only, even for lengths that disagree with the cutover
+        EventHashFactory.initialize(CUTOVER);
+
+        assertThat(EventHashFactory.hash(randomBytes(DigestType.SHA_384)).getDigestType())
+                .isEqualTo(DigestType.SHA_384);
+        assertThat(EventHashFactory.hash(randomBytes(DigestType.SHA_256)).getDigestType())
+                .isEqualTo(DigestType.SHA_256);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 31, 33, 47, 49, 63, 65, 128})
+    void hashFromBytesWithUnknownLengthRejected(final int length) {
+        final byte[] bytes = new byte[length];
+        random.nextBytes(bytes);
+
+        assertThatThrownBy(() -> EventHashFactory.hash(Bytes.wrap(bytes))).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> EventHashFactory.hash(bytes)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @NonNull

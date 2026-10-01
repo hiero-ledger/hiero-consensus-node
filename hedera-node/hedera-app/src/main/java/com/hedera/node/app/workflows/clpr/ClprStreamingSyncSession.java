@@ -13,7 +13,6 @@ import com.hedera.hapi.node.state.clpr.ClprSyncPayload;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
 import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
-import com.hedera.node.app.service.clpr.impl.ClprStateProofManager.BundleProof;
 import com.hedera.node.app.service.clpr.impl.ReadableEndpointManifestStoreImpl;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -64,11 +63,11 @@ import org.apache.logging.log4j.Logger;
  * reply is this side's own terminal message and is what lets the peer stop. Returning to {@code WAITING_PEER} silently
  * would leave both sides blocked in {@code read()} until the deadline expires.
  *
- * <p><b>The loop carries as many bundles as this side has.</b> {@code WAITING_PEER} asks
- * {@link #nextBundlePayload} on every turn, and each bundle continues where the previous one stopped, so the machine
- * needs no changes to drain a backlog across one stream. What it will actually send today is pinned to
- * {@link #MAX_BUNDLE_EXCHANGES} = 1 by a receiver-side limitation, not by anything structural here. It is possible
- * to fine-tune this for performance reasons, in case we want to send more bundles in one cycle.
+ * <p><b>The loop carries as many bundles as this side has.</b> {@code WAITING_PEER} asks its
+ * {@link ClprBundleProducer} on every turn, and each bundle continues where the previous one stopped, so the
+ * machine needs no changes to drain a backlog across one stream. What it will actually send today is pinned to
+ * {@link ClprBundleProducer#MAX_BUNDLE_EXCHANGES} = 1 by a receiver-side limitation, not by anything structural
+ * here. It is possible to fine-tune this for performance reasons, in case we want to send more bundles in one cycle.
  *
  * <p>Not thread-safe. gRPC serializes the callbacks for a single call, so one stream is driven by one thread at a
  * time and the state below needs no synchronization.
@@ -77,18 +76,7 @@ public class ClprStreamingSyncSession {
     private static final Logger logger = LogManager.getLogger(ClprStreamingSyncSession.class);
 
     /**
-     * How many bundles this side will send in one cycle. The loop below handles any N; this is what pins it.
-     *
-     * <p><b>Must stay 1 until the receiving verifier can locate a bundle's range.</b> The receiver reconstructs
-     * message IDs positionally from {@code metadata.next_message_id - messages.length}, and the verifier synthesizes
-     * that metadata as {@code acked_message_id + 1 + n} — so every bundle is read as starting at
-     * {@code acked_message_id + 1} regardless of what it contains. A second bundle in the same cycle would be
-     * mis-attributed on arrival rather than delivered.
-     */
-    static final int MAX_BUNDLE_EXCHANGES = 1;
-
-    /**
-     * Hard stop on inbound messages answered, independent of {@link #MAX_BUNDLE_EXCHANGES}.
+     * Hard stop on inbound messages answered, independent of {@link ClprBundleProducer#MAX_BUNDLE_EXCHANGES}.
      *
      * <p>Both sides answer every non-terminal message, so a peer that simply never sends its terminal message keeps
      * the stream alive until the call deadline expires. The peer chooses how many messages to write, so without a cap
@@ -122,18 +110,11 @@ public class ClprStreamingSyncSession {
     @Nullable
     private ClprBundleRequest peerRequest;
 
-    /** Bundles this side has sent so far, against {@link #MAX_BUNDLE_EXCHANGES}. */
-    private int bundlesSent;
-
     /**
-     * Where the next bundle's message range starts. Resolved once from the peer's request
-     * ({@link #rangeStartFor}), then advanced past each bundle the builder actually packs.
-     * {@code -1} until the first bundle is built.
+     * Yields this side's bundles for the cycle; created once the peer's opening message fixes its request.
      */
-    private long nextRangeStart = -1;
-
-    /** Set once the builder reports it has nothing further to pack, so later turns stop asking. */
-    private boolean outboundQueueEmpty;
+    @Nullable
+    private ClprBundleProducer producer;
 
     /** Inbound messages answered so far, against {@link #MAX_INBOUND_MESSAGES}. */
     private int inboundMessageCount;
@@ -203,10 +184,12 @@ public class ClprStreamingSyncSession {
         };
     }
 
-    /** Where the next bundle in this cycle would start; exposed so tests can assert the cursor advances. */
+    /**
+     * Where the next bundle in this cycle would start; exposed so tests can assert it advances past each bundle.
+     */
     @VisibleForTesting
     long nextRangeStart() {
-        return nextRangeStart;
+        return producer == null ? -1 : producer.nextStartingMessageId();
     }
 
     /** Whether the exchange is over, so the transport may close the stream. */
@@ -279,7 +262,7 @@ public class ClprStreamingSyncSession {
         final var channelId = requireNonNull(this.channelId);
         final var builder = ClprStreamingSyncPayload.newBuilder().channelId(channelId);
         // replies with an empty bundle if there is nothing to offer or max bundle limit reached.
-        if (!includeOwnRequest && !hasBundleToOffer()) {
+        if (!includeOwnRequest && producer != null && !producer.hasBundleToOffer()) {
             return builder.build();
         }
 
@@ -293,8 +276,11 @@ public class ClprStreamingSyncSession {
                         .currentTrustAnchorId(channel.trustAnchorId())
                         .currentEndpointManifestVersion(channel.endpointManifestVersion())
                         .build());
+                this.producer = openProducer(channel);
             }
-            final var bundlePayload = nextBundlePayload(localState, channel, channelId);
+            final var producer = requireNonNull(this.producer);
+            final var bundlePayload =
+                    producer.hasBundleToOffer() ? producer.next(isPeerManifestStale(localState, channel)) : null;
             if (bundlePayload != null) {
                 builder.bundleResponse(ClprBundleResponse.newBuilder()
                         .bundlePayload(bundlePayload)
@@ -305,46 +291,24 @@ public class ClprStreamingSyncSession {
     }
 
     /**
-     * Whether it is still worth asking {@link #nextBundlePayload} for another bundle — i.e., this side is under its
-     * per-cycle bundle limit and the builder has not yet reported an empty outbound queue. Cheap enough to check
-     * before opening state, which is why a terminal reply costs no state read.
+     * Opens this side's bundle producer for the cycle, logging the range decisions it reports.
      */
-    private boolean hasBundleToOffer() {
-        return bundlesSent < MAX_BUNDLE_EXCHANGES && !outboundQueueEmpty;
-    }
-
-    /**
-     * This side's next progress-bearing bundle, or {@code null} when there is none left this cycle.
-     *
-     * <p>Each bundle continues where the previous one stopped: {@link #nextRangeStart} is resolved once from the
-     * peer's request and then advanced past whatever the builder actually packed. It has to come from the builder
-     * rather than be computed here — the range stops early at the end of the queue and is trimmed further to fit
-     * {@code max_sync_bytes}, so the count is only known after the fact.
-     *
-     * <p>Three things end the sequence: {@link #MAX_BUNDLE_EXCHANGES}, the builder returning {@code null} (no signed
-     * block snapshot yet, or nothing progress-bearing to send), and a bundle that carries no messages — a pure-ACK,
-     * which consumes nothing from the queue, so asking again would rebuild the identical bundle forever.
-     */
-    @Nullable
-    private Bytes nextBundlePayload(
-            @NonNull final State localState, @NonNull final ClprChannel channel, @NonNull final Bytes channelId) {
-        if (!hasBundleToOffer()) {
-            return null;
+    @NonNull
+    private ClprBundleProducer openProducer(@NonNull final ClprChannel channel) {
+        final var producer = new ClprBundleProducer(stateProofManager, channel, peerRequest, true);
+        if (producer.peerClosed()) {
+            logger.debug("{}[CLPR-STREAM-INBOUND] peer reports CLOSED; skipping bundle channel={}", tag, channelId);
+        } else if (producer.overClaimFallback()) {
+            logger.warn(
+                    "{}[CLPR-STREAM-INBOUND] peer received_message_id higher than local next_message_id channel={} "
+                            + "requestedMessageId={} nextMsgId={}; falling back to ackedMessageId+1={}",
+                    tag,
+                    channelId,
+                    requireNonNull(peerRequest).currentReceivedMessageId(),
+                    channel.nextMessageId(),
+                    producer.nextStartingMessageId());
         }
-        if (nextRangeStart < 0) {
-            nextRangeStart = rangeStartFor(channel);
-        }
-        final BundleProof bundleProof = buildBundle(localState, channel, channelId, nextRangeStart);
-        if (bundleProof == null) {
-            outboundQueueEmpty = true;
-            return null;
-        }
-        bundlesSent++;
-        nextRangeStart = bundleProof.lastMessageId() + 1;
-        if (bundleProof.messageCount() == 0) {
-            outboundQueueEmpty = true;
-        }
-        return bundleProof.payload();
+        return producer;
     }
 
     private static boolean isTerminal(@NonNull final ClprStreamingSyncPayload message) {
@@ -421,7 +385,7 @@ public class ClprStreamingSyncSession {
                         this.channelId,
                         payload.bundlePayload().length());
             }
-        } catch (final Exception e) {
+        } catch (final RuntimeException e) {
             // Not reported to the peer: failing the call would also discard this side's own bundle and its ACK of
             // what the peer sent. The peer learns of the failure anyway — our current_received_message_id does not
             // advance, so its next cycle resends the same range.
@@ -447,28 +411,6 @@ public class ClprStreamingSyncSession {
         return channel;
     }
 
-    /**
-     * Builds one bundle starting at {@code firstMessageId}. Returns {@code null} when there is nothing
-     * progress-bearing to send — the peer is {@code CLOSED}, or no signed block snapshot is available yet.
-     */
-    @Nullable
-    private ClprStateProofManager.BundleProof buildBundle(
-            @NonNull final State localState,
-            @NonNull final ClprChannel channel,
-            @NonNull final Bytes channelId,
-            final long firstMessageId) {
-        // Progress Criterion 4: a CLOSED peer rejects everything, so building a bundle for it is pure waste.
-        if (peerRequest != null && peerRequest.currentStatus() == ClprChannelStatus.CLOSED) {
-            logger.debug("{}[CLPR-STREAM-INBOUND] peer reports CLOSED; skipping bundle channel={}", tag, channelId);
-            return null;
-        }
-
-        final boolean isManifestStale = isPeerManifestStale(localState, channel);
-
-        return stateProofManager.buildBundleProof(
-                channelId, firstMessageId, channel.peerThrottlesOrThrow(), true, isManifestStale);
-    }
-
     private boolean isPeerManifestStale(State localState, ClprChannel channel) {
         final long localManifestVersion = new ReadableEndpointManifestStoreImpl(
                         localState.getReadableStates(ClprService.NAME))
@@ -477,41 +419,5 @@ public class ClprStreamingSyncSession {
         final long peerManifestVersion =
                 peerRequest != null ? peerRequest.currentEndpointManifestVersion() : channel.endpointManifestVersion();
         return peerManifestVersion < localManifestVersion;
-    }
-
-    /**
-     * Resolves the first outbound message ID to include, which is the whole point of the two-phase exchange.
-     *
-     * <ul>
-     *   <li>With a request in hand, start at the peer's live {@code current_received_message_id + 1}.
-     *   <li><b>Over-claim guard</b>: if the peer claims to have received a message we never sent
-     *       ({@code >= next_message_id}), fall back to {@code acked_message_id + 1}. Any lesser over-claim is
-     *       indistinguishable from our own stale view of the peer and only harms the over-claiming peer, so it is
-     *       deliberately not defended against.
-     *   <li>With no request — the peer never sent one this cycle — fall back to {@code acked_message_id + 1}, i.e.
-     *       exactly what the unary responder does.
-     * </ul>
-     *
-     * <p>Note this must not be clamped up to {@code acked_message_id + 1} when the peer under-claims: the peer's
-     * replay defense rejects any bundle starting beyond its {@code received_message_id + 1} (the no-gap constraint of
-     * spec §4.2 Step 3), while a bundle that starts early is trimmed harmlessly.
-     */
-    private long rangeStartFor(@NonNull final ClprChannel channel) {
-        // if a peerRequest was never provided, fall back to acked_message_id + 1 (best effort).
-        if (peerRequest == null) {
-            return channel.ackedMessageId() + 1;
-        }
-        final long requestedMessageId = peerRequest.currentReceivedMessageId();
-        if (requestedMessageId >= channel.nextMessageId()) {
-            logger.warn(
-                    "{}[CLPR-STREAM-INBOUND] peer received_message_id higher than local next_message_id channel={} requestedMessageId={} nextMsgId={}; falling back to ackedMessageId+1={}",
-                    tag,
-                    channelId,
-                    requestedMessageId,
-                    channel.nextMessageId(),
-                    channel.ackedMessageId() + 1);
-            return channel.ackedMessageId() + 1;
-        }
-        return requestedMessageId + 1;
     }
 }

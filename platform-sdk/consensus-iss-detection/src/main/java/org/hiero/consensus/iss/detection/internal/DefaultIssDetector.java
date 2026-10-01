@@ -23,6 +23,7 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.throttle.RateLimiter;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
@@ -352,8 +353,8 @@ public class DefaultIssDetector implements IssDetector {
             return null;
         }
 
-        final boolean decided =
-                roundValidator.reportHashFromNetwork(signerId, node.weight(), new Hash(signaturePayload.hash()));
+        final boolean decided = roundValidator.reportHashFromNetwork(
+                signerId, node.weight(), new Hash(signaturePayload.hash(), Cryptography.DEFAULT_DIGEST_TYPE));
         if (decided) {
             return checkValidity(roundValidator);
         }
