@@ -419,8 +419,16 @@ class SystemTransactionsTest {
     }
 
     @Test
-    void genesisSetupCreatesClprStakingAccountWhileClprIsDisabled() {
-        final var systemContext = doGenesisSetup();
+    @SuppressWarnings("unchecked")
+    void genesisSetupSkipsClprStakingAccountWhileClprIsDisabled() {
+        final var systemContext = doGenesisSetup(false);
+
+        verify(systemContext, never()).dispatchCreation(any(Consumer.class), eq(CLPR_STAKING_ACCOUNT_NUM));
+    }
+
+    @Test
+    void genesisSetupCreatesClprStakingAccountWhenClprIsEnabled() {
+        final var systemContext = doGenesisSetup(true);
 
         final var body = capturedClprStakingAccountCreation(systemContext);
         assertEquals("CLPR staking account creation record", body.memo());
@@ -429,10 +437,19 @@ class SystemTransactionsTest {
     }
 
     @Test
-    void postUpgradeCreatesMissingClprStakingAccountWhileClprIsDisabled() {
+    @SuppressWarnings("unchecked")
+    void postUpgradeSkipsClprStakingAccountWhileClprIsDisabled() {
+        final var systemContext = doPostUpgradeSetupWithMockContext(false);
+
+        verify(systemContext, never()).dispatchCreation(any(Consumer.class), eq(CLPR_STAKING_ACCOUNT_NUM));
+        verify(state, never()).getReadableStates(TokenService.NAME);
+    }
+
+    @Test
+    void postUpgradeCreatesMissingClprStakingAccountWhenClprIsEnabled() {
         givenAccountsState();
 
-        final var systemContext = doPostUpgradeSetupWithMockContext();
+        final var systemContext = doPostUpgradeSetupWithMockContext(true);
 
         final var body = capturedClprStakingAccountCreation(systemContext);
         assertEquals("CLPR staking account creation record", body.memo());
@@ -445,7 +462,7 @@ class SystemTransactionsTest {
     void postUpgradeDoesNotRecreateExistingClprStakingAccount() {
         given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
 
-        final var systemContext = doPostUpgradeSetupWithMockContext();
+        final var systemContext = doPostUpgradeSetupWithMockContext(true);
 
         verify(systemContext, never()).dispatchCreation(any(Consumer.class), eq(CLPR_STAKING_ACCOUNT_NUM));
     }
@@ -586,7 +603,6 @@ class SystemTransactionsTest {
         // Mock fileService.fileSchema() to return a mock schema
         final var fileSchema = mock(V0490FileSchema.class);
         given(fileService.fileSchema()).willReturn(fileSchema);
-        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
 
         // Recreate subject with updated config
         subject = new SystemTransactions(
@@ -641,7 +657,6 @@ class SystemTransactionsTest {
         given(state.getReadableStates(FileService.NAME)).willReturn(readableStates);
         given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
         given(filesState.get(any())).willReturn(File.DEFAULT);
-        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
         // Recreate subject with updated config
         subject = new SystemTransactions(
                 initTrigger,
@@ -795,10 +810,11 @@ class SystemTransactionsTest {
     }
 
     @SuppressWarnings("unchecked")
-    private SystemContext doPostUpgradeSetupWithMockContext() {
+    private SystemContext doPostUpgradeSetupWithMockContext(final boolean clprEnabled) {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("nodes.enableDAB", "false")
+                .withValue("clpr.enabled", clprEnabled)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         final var selfNodeInfo = mock(NodeInfo.class);
@@ -819,9 +835,10 @@ class SystemTransactionsTest {
         return systemContext;
     }
 
-    private SystemContext doGenesisSetup() {
+    private SystemContext doGenesisSetup(final boolean clprEnabled) {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("clpr.enabled", clprEnabled)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         given(startupNetworks.genesisNetworkOrThrow(any())).willThrow(new IllegalStateException("No genesis network"));

@@ -117,7 +117,7 @@ public final class ClprStreamingSyncCall implements AutoCloseable {
                 peerClosed = true;
                 return null;
             }
-            final var payload = ClprStreamingSyncPayload.PROTOBUF.parse(Bytes.wrap(bytes));
+            final var payload = ClprStreamingSyncPayload.PROTOBUF.parseStrict(Bytes.wrap(bytes));
             final int seq = ++readsCount;
             if (LOG.isDebugEnabled()) {
                 LOG.debug(

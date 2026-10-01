@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.assertions;
 
 import com.swirlds.logging.legacy.LogMarker;
+import com.swirlds.logging.legacy.payload.AbstractLogPayload;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.apache.logging.log4j.Level;
@@ -115,6 +116,38 @@ public class MultipleNodeLogResultsAssert extends AbstractAssert<MultipleNodeLog
             OtterAssertions.assertThat(result).hasMessageContaining(searchString);
         }
 
+        return this;
+    }
+
+    /**
+     * Verifies that every node in these results has at least one message carrying a payload of the specified type.
+     *
+     * @param payloadType the payload class to look for
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeLogResultsAssert allNodesHaveMessageWithPayload(
+            @NonNull final Class<? extends AbstractLogPayload> payloadType) {
+        isNotNull();
+        for (final SingleNodeLogResult result : actual.results()) {
+            OtterAssertions.assertThat(result).hasMessageWithPayload(payloadType);
+        }
+        return this;
+    }
+
+    /**
+     * Verifies that no node in these results has a message carrying a payload of the specified type.
+     *
+     * @param payloadType the payload class that must be absent
+     * @return this assertion object for method chaining
+     */
+    @NonNull
+    public MultipleNodeLogResultsAssert haveNoMessagesWithPayload(
+            @NonNull final Class<? extends AbstractLogPayload> payloadType) {
+        isNotNull();
+        for (final SingleNodeLogResult result : actual.results()) {
+            OtterAssertions.assertThat(result).hasNoMessageWithPayload(payloadType);
+        }
         return this;
     }
 }

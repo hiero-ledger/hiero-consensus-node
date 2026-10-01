@@ -2,6 +2,7 @@
 package com.hedera.node.app.hapi.utils.sysfiles.validation;
 
 import static com.hedera.node.app.hapi.utils.sysfiles.validation.ExpectedCustomThrottles.ACTIVE_OPS;
+import static com.hedera.node.app.hapi.utils.sysfiles.validation.ExpectedCustomThrottles.CLPR_OPS;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCloseChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCompleteChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprDeregisterConnector;
@@ -69,6 +70,7 @@ import static com.hederahashgraph.api.proto.java.HederaFunctionality.UtilPrng;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
 class ExpectedCustomThrottlesTest {
@@ -143,5 +145,11 @@ class ExpectedCustomThrottlesTest {
         assertTrue(ACTIVE_OPS.contains(ClprRedactMessage), "Missing ClprRedactMessage!");
         assertTrue(ACTIVE_OPS.contains(ClprRegisterConnector), "Missing ClprRegisterConnector!");
         assertTrue(ACTIVE_OPS.contains(ClprDeregisterConnector), "Missing ClprDeregisterConnector!");
+    }
+
+    @Test
+    void clprOpsAreTheActiveClprOps() {
+        assertEquals(
+                ACTIVE_OPS.stream().filter(op -> op.name().startsWith("Clpr")).collect(Collectors.toSet()), CLPR_OPS);
     }
 }

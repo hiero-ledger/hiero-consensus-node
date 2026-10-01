@@ -90,6 +90,8 @@ import org.hiero.base.crypto.HashingOutputStream;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
@@ -1960,8 +1962,10 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         verify(writer, never()).flushPendingBlock(any(PendingProof.class));
     }
 
-    @Test
-    void leavesWrappedRecordBlockPendingWhenRsaProofCannotBeParsed() {
+    @ParameterizedTest
+    // A malformed varint and a valid encoding of unknown field 1000, respectively.
+    @ValueSource(strings = {"ff", "c03e01"})
+    void leavesWrappedRecordBlockPendingWhenRsaProofCannotBeParsed(final String invalidProofHex) {
         final var app = appBuilder()
                 .withService(new BlockRecordService())
                 .withService(new PlatformStateService())
@@ -2007,7 +2011,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         mgr.closeCurrentRecordFileIfOpen(state);
 
         final var writer = handedOutWriters.getFirst();
-        signatureListFuture.complete(Bytes.wrap(new byte[] {(byte) 0xff}));
+        signatureListFuture.complete(Bytes.fromHex(invalidProofHex));
 
         verify(writer, timeout(1_000).times(3)).writePbjItemAndBytes(any(), any());
         verify(writer, never()).closeCompleteBlock();
