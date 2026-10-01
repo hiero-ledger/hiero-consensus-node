@@ -48,6 +48,12 @@ import org.openjdk.jmh.infra.Blackhole;
  * percentiles and the allocation per call. The allocation is measured around the calls only, because
  * {@code -prof gc} also counts the copying and linking in the setup.
  *
+ * <p>In latency benchmarks we usually ignore the mean and look at the percentiles. Here the mean matters as much. The
+ * benchmark exists to give an overall impression of how fast the consensus algorithm is: the time to add all events,
+ * divided by the number of events, so that graphs of different sizes are comparable. The mean is exactly this number.
+ * The percentiles show how this cost is distributed. Most calls are cheap and the few that decide a round are
+ * expensive, so the median reflects only the cheap calls.
+ *
  * <p>Each invocation's setup ends with {@code System.gc()}, so usually no garbage collection falls into the measured
  * calls. A pass during which one does is discarded and replaced by the next invocation, so the latency results and
  * {@code latency.mean} exclude garbage collection. JMH's primary score, measured by JMH itself, still includes
