@@ -20,6 +20,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
 import static com.hedera.node.app.spi.authorization.SystemPrivilege.UNNECESSARY;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.DuplicateStatus.NO_DUPLICATE;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.ServiceFeeStatus.UNABLE_TO_PAY_SERVICE_FEE;
@@ -30,6 +31,7 @@ import static com.hedera.node.app.workflows.handle.dispatch.ValidationResult.new
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doCallRealMethod;
@@ -43,6 +45,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
@@ -57,6 +60,7 @@ import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.impl.SignatureVerificationImpl;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -181,10 +185,13 @@ class DispatchProcessorTest {
     @Mock
     private Details hollowAccountCompletionsDetails;
 
+    private AppFeeCharging appFeeCharging;
+
     private DispatchProcessor subject;
 
     @BeforeEach
     void setUp() {
+        appFeeCharging = new AppFeeCharging(solvencyPreCheck);
         subject = new DispatchProcessor(
                 authorizer,
                 dispatchValidator,
@@ -197,7 +204,7 @@ class DispatchProcessorTest {
                 ethereumTransactionHandler,
                 networkInfo,
                 opWorkflowMetrics,
-                new AppFeeCharging(solvencyPreCheck));
+                appFeeCharging);
         given(dispatch.stack()).willReturn(stack);
         given(dispatch.streamBuilder()).willReturn(recordBuilder);
     }
@@ -219,6 +226,41 @@ class DispatchProcessorTest {
         verify(recordBuilder).status(INVALID_PAYER_SIGNATURE);
         assertFinished(IsRootStack.NO);
         verify(opWorkflowMetrics, never()).incrementThrottled(any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = ResponseCodeEnum.class,
+            names = {
+                "INVALID_ACCOUNT_AMOUNTS",
+                "PAYER_ACCOUNT_NOT_FOUND",
+                "PAYER_ACCOUNT_DELETED",
+                "INSUFFICIENT_PAYER_BALANCE"
+            })
+    void batchInnerDueDiligenceFailureChargesCreator(final ResponseCodeEnum dueDiligenceFailure) {
+        final var feeCharging = mock(FeeCharging.class);
+        final var chargeContext = mock(FeeCharging.Context.class);
+        given(dispatch.fees()).willReturn(FEES);
+        // Only the processor's own default strategy may be offered as the fallback for the batch's custom one
+        given(dispatch.feeChargingOrElse(appFeeCharging)).willReturn(feeCharging);
+        given(feeCharging.customized(dispatch)).willReturn(chargeContext);
+        given(dispatchValidator.validateFeeChargingScenario(dispatch))
+                .willReturn(newCreatorError(CREATOR_ACCOUNT_ID, dueDiligenceFailure));
+        final var creatorInfo = mock(NodeInfo.class);
+        given(dispatch.creatorInfo()).willReturn(creatorInfo);
+        given(creatorInfo.accountId()).willReturn(CREATOR_ACCOUNT_ID);
+        given(dispatch.category()).willReturn(BATCH_INNER);
+
+        subject.processDispatch(dispatch);
+
+        // Ingest re-runs every check on each inner, so an inner due-diligence failure is charged to the node, as a
+        // top-level one would be -- including payer existence and network-fee solvency. The charge goes through the
+        // recorded fee-charging context (not the fee accumulator) so it survives the batch's rollback-and-replay.
+        verify(dispatch).feeChargingOrElse(appFeeCharging);
+        verify(chargeContext).charge(CREATOR_ACCOUNT_ID, new Fees(0, FEES.networkFee(), 0), null);
+        verify(feeAccumulator, never()).chargeFee(any(), anyLong(), any());
+        verify(recordBuilder).status(dueDiligenceFailure);
+        assertFinished(IsRootStack.NO);
     }
 
     @Test
