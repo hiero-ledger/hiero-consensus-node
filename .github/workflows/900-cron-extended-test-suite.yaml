@@ -128,15 +128,6 @@ jobs:
           echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
           echo "solo-version=${SOLO_VERSION}" >> "${GITHUB_OUTPUT}"
 
-  extract-jdk-version:
-    name: Extract Java Version
-    needs: fetch-xts-candidate
-    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
-    with:
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
-    secrets:
-      github-token: ${{ secrets.GITHUB_TOKEN }}
-
   fetch-xts-candidate:
     name: Fetch XTS Candidate Tag
     runs-on: hl-cn-default-lin-sm
@@ -349,6 +340,15 @@ jobs:
             exit 0
           fi
           echo "::endgroup::" # Set Outputs
+
+  extract-jdk-version:
+    name: Extract Java Version
+    needs: fetch-xts-candidate
+    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    with:
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
 
   state-validator-uberjar:
     name: Build & Publish Hedera State Validator Uber JAR
