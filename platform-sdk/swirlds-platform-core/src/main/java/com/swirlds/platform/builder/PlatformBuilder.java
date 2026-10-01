@@ -33,7 +33,7 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.RosterInputs;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
@@ -64,7 +64,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     protected final Time time;
 
     /** The roster history provided by the application to use at startup. */
-    protected final RosterInputs rosterInputs;
+    protected final ConsensusLayerRosterInputs rosterInputs;
 
     /** The unique identifier of this node within the network. */
     protected final NodeId selfId;
@@ -138,7 +138,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final RosterInputs rosterInputs,
+            @NonNull final ConsensusLayerRosterInputs rosterInputs,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final NodeId selfId,
             @NonNull final RecycleBin recycleBin,

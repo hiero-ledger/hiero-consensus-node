@@ -44,7 +44,7 @@ import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.RosterInputs;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.pces.impl.common.PcesUtilities;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
@@ -159,7 +159,7 @@ public final class ReplayPcesWorkflow {
         // --- Roster + keys (same derivation the platform uses at restart/reconnect) ---
         final ReadableRosterStore rosterStore =
                 new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.SERVICE_NAME));
-        final RosterInputs rosterInputs = rosterStore.getRosterInputs();
+        final ConsensusLayerRosterInputs rosterInputs = rosterStore.getConsensusLayerRosterInputs();
 
         // --- Generate ephemeral keys for this node ---
         final KeysAndCerts keysAndCerts =

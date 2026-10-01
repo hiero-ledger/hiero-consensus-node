@@ -40,7 +40,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-import org.hiero.consensus.model.roster.RosterInputs;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.RosterStateId;
@@ -138,7 +138,7 @@ public class ConsensusNodeManager {
         rosterStore.putActiveRoster(activeRoster, platformStateStore.getRound() + 1);
         SlothStateUtils.commitState(state);
 
-        final RosterInputs rosterInputs = rosterStore.getRosterInputs();
+        final ConsensusLayerRosterInputs rosterInputs = rosterStore.getConsensusLayerRosterInputs();
         executionCallback = new SlothExecutionLayer(new Random(), metrics, time);
 
         final TestPlatformBuilder builder = new TestPlatformBuilder(

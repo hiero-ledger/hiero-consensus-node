@@ -57,7 +57,7 @@ import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.RosterInputs;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.model.roster.RosterWrapperHistory;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pcli.utility.NoOpExecutionLayer;
@@ -155,7 +155,7 @@ public final class DiagramCommand extends AbstractCommand {
         final FileSystemManager fileSystemManager =
                 new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
 
-        final RosterInputs rosterInputs = fakeRosterInputs();
+        final ConsensusLayerRosterInputs rosterInputs = fakeRosterInputs();
 
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();

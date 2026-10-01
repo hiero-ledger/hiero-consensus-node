@@ -50,7 +50,7 @@ import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-import org.hiero.consensus.model.roster.RosterInputs;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
@@ -260,7 +260,7 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
             rosterStore.putActiveRoster(roster(), platformStateStore.getRound() + 1);
             OtterStateUtils.commitState(state);
 
-            final RosterInputs rosterInputs = rosterStore.getRosterInputs();
+            final ConsensusLayerRosterInputs rosterInputs = rosterStore.getConsensusLayerRosterInputs();
             final String eventStreamLoc = Long.toString(selfId.id());
 
             this.executionLayer = new OtterExecutionLayer(new Random(random.nextLong()), metrics, timeManager.time());

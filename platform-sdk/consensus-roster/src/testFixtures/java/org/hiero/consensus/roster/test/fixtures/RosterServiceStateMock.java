@@ -48,9 +48,9 @@ public final class RosterServiceStateMock {
      * Configures the provided State mock with the activeRoster starting at the given round,
      * and optionally with the previousRoster (if not null) starting at round zero.
      * <p>
-     * This method properly configures the RosterService states to provide proper RosterInputs
-     * and have the roster(s) in the RosterMap. It also configures the ConsensusSnapshot mock
-     * in the PlatformState to return the given round number.
+     * This method properly configures the RosterService states to provide proper
+     * {@code ConsensusLayerRosterInputs} and have the roster(s) in the RosterMap. It also
+     * configures the ConsensusSnapshot mock in the PlatformState to return the given round number.
      * <p>
      * If the previousRoster is not null, then the given round number must be greater than zero
      * because it's assumed that the previousRoster is active since the round zero,

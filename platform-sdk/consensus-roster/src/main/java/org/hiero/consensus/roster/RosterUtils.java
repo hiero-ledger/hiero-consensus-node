@@ -24,7 +24,7 @@ import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.RosterInputs;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.roster.internal.PbjRecordHasher;
 
 /**
@@ -36,17 +36,17 @@ public final class RosterUtils {
     private RosterUtils() {}
 
     /**
-     * Construct {@code RosterInputs} for a genesis roster.
+     * Construct {@link ConsensusLayerRosterInputs} for a genesis roster.
      *
      * @param roster the genesis roster
-     * @return a RosterInputs for the genesis roster
+     * @return a {@code ConsensusLayerRosterInputs} for the genesis roster
      */
-    public static RosterInputs rosterInputsFromGenesis(@NonNull final Roster roster) {
+    public static ConsensusLayerRosterInputs rosterInputsFromGenesis(@NonNull final Roster roster) {
         final var hash = hash(roster).getBytes();
-        return new RosterInputs(
-                List.of(RoundRosterPair.newBuilder().activeRosterHash(hash).build()),
-                Map.of(hash, roster),
-                Bytes.EMPTY);
+        final List<RoundRosterPair> history =
+                List.of(RoundRosterPair.newBuilder().activeRosterHash(hash).build());
+        final Map<Bytes, Roster> rosterMap = Map.of(hash, roster);
+        return new ConsensusLayerRosterInputs(history, rosterMap);
     }
 
     /**

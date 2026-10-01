@@ -13,9 +13,6 @@ import java.util.Map;
  *
  * @param history the list of round-roster pairs representing the history of active rosters
  * @param rosters the map of roster hashes to their corresponding rosters
- * @param candidateRosterHash the hash of the candidate roster
  */
-public record RosterInputs(
-        @NonNull List<RoundRosterPair> history,
-        @NonNull Map<Bytes, Roster> rosters,
-        @NonNull Bytes candidateRosterHash) {}
+public record ConsensusLayerRosterInputs(
+        @NonNull List<RoundRosterPair> history, @NonNull Map<Bytes, Roster> rosters) {}

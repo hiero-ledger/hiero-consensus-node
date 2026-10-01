@@ -2,6 +2,7 @@
 package org.hiero.consensus.roster;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toMap;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -13,11 +14,10 @@ import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.hiero.consensus.model.roster.RosterInputs;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 
 /**
  * Provides read-only methods for interacting with the underlying data storage mechanisms for
@@ -118,17 +118,14 @@ public class ReadableRosterStoreImpl implements ReadableRosterStore {
      */
     @NonNull
     @Override
-    public RosterInputs getRosterInputs() {
+    public ConsensusLayerRosterInputs getConsensusLayerRosterInputs() {
         final RosterState rosterState = requireNonNull(this.rosterState.get());
         final List<RoundRosterPair> history = rosterState.roundRosterPairs();
-        final Bytes candidateRosterHash = rosterState.candidateRosterHash();
-        final Map<Bytes, Roster> rosterMap = new HashMap<>(history.size() + 1);
-        history.forEach(pair -> rosterMap.put(pair.activeRosterHash(), requireNonNull(get(pair.activeRosterHash()))));
-        if (candidateRosterHash.length() > 0) {
-            rosterMap.put(candidateRosterHash, requireNonNull(get(candidateRosterHash)));
-        }
+        final Map<Bytes, Roster> rosterMap = history.stream()
+                .collect(
+                        toMap(RoundRosterPair::activeRosterHash, pair -> requireNonNull(get(pair.activeRosterHash()))));
 
-        return new RosterInputs(history, rosterMap, candidateRosterHash);
+        return new ConsensusLayerRosterInputs(history, rosterMap);
     }
 
     /**

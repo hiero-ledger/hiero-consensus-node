@@ -60,12 +60,12 @@ public class RosterWrapperHistory {
     }
 
     /**
-     * Creates a {@code RosterWrapperHistory} from a {@link RosterInputs} instance.
+     * Creates a {@code RosterWrapperHistory} from a {@link ConsensusLayerRosterInputs} instance.
      *
-     * @param rosterInputs the {@link RosterInputs} instance
+     * @param rosterInputs the {@link ConsensusLayerRosterInputs} instance
      * @return a new {@code RosterWrapperHistory} instance
      */
-    public static RosterWrapperHistory of(@NonNull final RosterInputs rosterInputs) {
+    public static RosterWrapperHistory of(@NonNull final ConsensusLayerRosterInputs rosterInputs) {
         final List<Entry> entries = rosterInputs.history().stream()
                 .map(pair -> {
                     final Roster roster = rosterInputs.rosters().get(pair.activeRosterHash());

@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.Objects;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
-import org.hiero.consensus.model.roster.RosterInputs;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -290,7 +290,7 @@ class WritableRosterStoreTest {
         // the same, it will not set the roster
         writableRosterStore.putActiveRoster(roster, 2);
 
-        final RosterInputs rosterInputs = readableRosterStore.getRosterInputs();
+        final ConsensusLayerRosterInputs rosterInputs = readableRosterStore.getConsensusLayerRosterInputs();
         assertEquals(1, rosterInputs.history().size());
     }
 
