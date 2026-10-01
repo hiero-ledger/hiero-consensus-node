@@ -14,6 +14,10 @@ import java.time.Duration;
  * @param asyncStreamIdleTimeout                 The amount of time that an {@code AsyncInputStream} and
  *                                               {@code AsyncOutputStream} will wait before throwing a timeout.
  * @param asyncStreamBufferSize                  The size of the buffers for async input and output streams.
+ *                                               The output stream rounds this value up to the next power of two
+ *                                               (the default 10000 becomes 16384) because its lock-free ring buffer
+ *                                               indexes slots with a bit mask. The default has no strict derivation,
+ *                                               so the larger effective capacity is acceptable.
  * @param asyncOutputStreamFlush                 In order to ensure that data is not languishing in the
  *                                               asyncOutputStream buffer a periodic flush is performed.
  */

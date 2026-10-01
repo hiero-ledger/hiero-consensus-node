@@ -146,6 +146,31 @@ public class HashLeafFlusherTest {
     }
 
     @Test
+    void testStatusReportsPendingDataAndFlushes() throws InterruptedException {
+        final HashLeafFlusher flusher = new HashLeafFlusher(
+                new InMemoryDataSource("testStatusReportsPendingDataAndFlushes"),
+                2,
+                new VirtualMapStatistics("testStatusReportsPendingDataAndFlushes"));
+        flusher.init(1, 4);
+        flusher.updateLeaf(leaf(1, 1, 1));
+        flusher.deleteLeaf(leaf(2, 2, 2));
+        final String pending = flusher.getStatus();
+        assertTrue(pending.contains("pendingLeaves=1"), pending);
+        assertTrue(pending.contains("pendingDeletedLeaves=1"), pending);
+        assertTrue(pending.contains("flushes=0"), pending);
+        // The batch is full, so it's flushed in the flusher thread
+        flusher.updateLeaf(leaf(3, 3, 3));
+        assertEventuallyTrue(
+                () -> flusher.getStatus().contains("flushes=1"),
+                Duration.ofSeconds(10),
+                "The full batch must be flushed");
+        assertTrue(flusher.getStatus().contains("pendingLeaves=0"), flusher.getStatus());
+        flusher.finish();
+        assertTrue(flusher.getStatus().contains("flushes=2"), flusher.getStatus());
+        assertTrue(flusher.awaitTermination(Duration.ofSeconds(10)), "Flusher thread must exit after finish()");
+    }
+
+    @Test
     void testCancelStopsIdleFlusherThread() throws InterruptedException {
         final HashLeafFlusher flusher = new HashLeafFlusher(
                 new InMemoryDataSource("testCancelStopsIdleFlusherThread"),

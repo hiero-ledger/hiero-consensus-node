@@ -16,6 +16,10 @@ import java.time.Duration;
  * @param asyncStreamIdleTimeout                 The amount of time that an {@code AsyncInputStream} and
  *                                               {@code AsyncOutputStream} will wait before throwing a timeout.
  * @param asyncStreamBufferSize                  The size of the buffers for async input and output streams.
+ *                                               The output stream rounds this value up to the next power of two
+ *                                               (the default 10000 becomes 16384) because its lock-free ring buffer
+ *                                               indexes slots with a bit mask. The default has no strict derivation,
+ *                                               so the larger effective capacity is acceptable.
  * @param asyncOutputStreamFlush                 In order to ensure that data is not languishing in the
  *                                               asyncOutputStream buffer a periodic flush is performed.
  * @param flushInterval                          During reconnect, hashes and leaves are periodically flushed to disk
@@ -29,7 +33,16 @@ import java.time.Duration;
  *                                               {@code reconnect.teacher.asyncStreamIdleTimeout} and
  *                                               {@code reconnect.socketTimeout}, otherwise reconnect fails. If zero,
  *                                               all data is flushed in the end of reconnect only, and these threads
- *                                               never block.
+ *                                               never block. Every flush creates a new data file per store, and
+ *                                               reconnect data files are rarely compacted, so a small interval leaves
+ *                                               many small files behind, while a large interval increases heap usage.
+ * @param maxInFlightLeaves                      The maximum number of leaf requests sent to the teacher whose
+ *                                               responses haven't been fed to the hasher yet. Senders stop
+ *                                               requesting leaves while this limit is reached, which bounds the
+ *                                               memory used to buffer leaf responses when hashing is slower than
+ *                                               the network.
+ * @param statusLogInterval                      How often the learner logs the state of its leaf pipeline
+ *                                               (in-flight leaves, hashing buffer, flusher) during reconnect.
  */
 // spotless:off
 @ConfigData("reconnect.learner")
@@ -40,5 +53,7 @@ public record VirtualMapLearnerSyncConfig(
         @ConfigProperty(defaultValue = "60s") Duration asyncStreamIdleTimeout,
         @ConfigProperty(defaultValue = "10000") @Positive int asyncStreamBufferSize,
         @ConfigProperty(defaultValue = "8ms") Duration asyncOutputStreamFlush,
-        @Min(0) @ConfigProperty(defaultValue = "500000") int flushInterval) {}
+        @Min(0) @ConfigProperty(defaultValue = "2000000") int flushInterval,
+        @ConfigProperty(defaultValue = "1000000") @Positive int maxInFlightLeaves,
+        @ConfigProperty(defaultValue = "60s") Duration statusLogInterval) {}
 // spotless:on
