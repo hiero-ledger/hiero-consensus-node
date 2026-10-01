@@ -7,6 +7,8 @@ format=$2
 if [ "$format" == "flamegraph" ]
 then
   extension="html"
+else
+  extension="jfr"
 fi
 
 sysctl kernel.perf_event_paranoid=1; sysctl kernel.kptr_restrict=0
