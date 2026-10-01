@@ -2,8 +2,10 @@
 package org.hiero.base.crypto;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 
 public enum DigestType {
     /** 256-bit SHA2 message digest meeting current CNSA standards */
@@ -59,6 +61,7 @@ public enum DigestType {
      * @param id the unique identifier
      * @return a valid DigestType or null if the provided id is not valid
      */
+    @Nullable
     public static DigestType valueOf(final int id) {
         return switch (id) {
             case 0x1c15d3fb -> SHA_256;
@@ -72,9 +75,10 @@ public enum DigestType {
      * Returns a digest type for a given algorithm name.
      *
      * @param algorithmName the algorithm name
-     * @return a valid DigestType or null if the provided algorithm name does not correspond to
-     *      any registered digest type
+     * @return a valid DigestType or null if the provided algorithm name does not correspond to any registered digest
+     * type
      */
+    @Nullable
     public static DigestType algorithmNameToDigestType(final String algorithmName) {
         return switch (algorithmName) {
             case "SHA-256" -> SHA_256;
@@ -82,6 +86,21 @@ public enum DigestType {
             case "SHA-512" -> SHA_512;
             default -> null;
         };
+    }
+
+    /**
+     * Returns a digest type for a given digest length.
+     *
+     * @param digestLength the digest length
+     * @return a valid DigestType or null if the provided digest length does not correspond to any registered digest
+     * type
+     */
+    @Nullable
+    public static DigestType digestLengthToDigestType(final int digestLength) {
+        return Arrays.stream(DigestType.values())
+                .filter(d -> d.outputLength == digestLength)
+                .findFirst()
+                .orElse(null);
     }
 
     /**
