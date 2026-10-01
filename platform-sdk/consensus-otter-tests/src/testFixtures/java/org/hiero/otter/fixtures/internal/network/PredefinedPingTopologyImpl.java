@@ -15,13 +15,14 @@ import org.hiero.consensus.test.fixtures.io.RealisticPingSamples;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.network.BandwidthLimit;
-import org.hiero.otter.fixtures.network.PredefinedPingTopology;
+import org.hiero.otter.fixtures.network.MeshTopology;
 import org.hiero.otter.fixtures.network.PredefinedPingTopologyConfiguration;
 
 /**
- * An implementation of {@link PredefinedPingTopology}.
+ * An implementation of {@link MeshTopology} which represents specific ping times between various nodes. To be used
+ * with measurements taken from real networks, to best simulate the timings in them.
  */
-public class PredefinedPingTopologyImpl implements PredefinedPingTopology {
+public class PredefinedPingTopologyImpl implements MeshTopology {
 
     private final Function<Integer, List<? extends Node>> nodeFactory;
     private final Supplier<InstrumentedNode> instrumentedNodeFactory;
@@ -39,25 +40,25 @@ public class PredefinedPingTopologyImpl implements PredefinedPingTopology {
             @NonNull final Function<Integer, List<? extends Node>> nodeFactory,
             @NonNull final Supplier<InstrumentedNode> instrumentedNodeFactory) {
         this(
+                nodeFactory,
+                instrumentedNodeFactory,
                 new PredefinedPingTopologyConfiguration(
                         RealisticPingSamples.MAINNET,
                         Percentage.withPercentage(10),
-                        BandwidthLimit.UNLIMITED_BANDWIDTH),
-                nodeFactory,
-                instrumentedNodeFactory);
+                        BandwidthLimit.UNLIMITED_BANDWIDTH));
     }
 
     /**
      * Constructor for the {@link PredefinedPingTopologyImpl} class with a custom configuration.
      *
-     * @param configuration           the mesh topology configuration
      * @param nodeFactory             a function that creates a list of nodes given the count
      * @param instrumentedNodeFactory a supplier that creates an instrumented node
+     * @param configuration           the mesh topology configuration
      */
     public PredefinedPingTopologyImpl(
-            @NonNull final PredefinedPingTopologyConfiguration configuration,
             @NonNull final Function<Integer, List<? extends Node>> nodeFactory,
-            @NonNull final Supplier<InstrumentedNode> instrumentedNodeFactory) {
+            @NonNull final Supplier<InstrumentedNode> instrumentedNodeFactory,
+            @NonNull final PredefinedPingTopologyConfiguration configuration) {
         this.nodeFactory = requireNonNull(nodeFactory);
         this.instrumentedNodeFactory = requireNonNull(instrumentedNodeFactory);
         this.configuration = configuration;

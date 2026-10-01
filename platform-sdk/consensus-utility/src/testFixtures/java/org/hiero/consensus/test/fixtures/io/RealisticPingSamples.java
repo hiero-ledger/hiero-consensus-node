@@ -5,7 +5,9 @@ public class RealisticPingSamples {
 
     /**
      * Ping distances between the nodes in mainnet, as of Spring 2026; exact numbers do not matter, but it is a realistic
-     * data set, which can be used for synthetic benchmarks trying to reflect real world usage
+     * data set, which can be used for synthetic benchmarks trying to reflect real world usage.
+     * Ping from node X to node Y is defined as milliseconds in MAINNET[X][Y]
+     * In most cases MAINNET[a][b] == MAINNET[b][a], but there is no requirement of that being true
      */
     public static final int[][] MAINNET = new int[][] {
         {

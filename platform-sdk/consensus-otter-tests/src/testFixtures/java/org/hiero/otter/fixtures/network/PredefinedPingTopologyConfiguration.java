@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.network;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 import org.assertj.core.data.Percentage;
 
 /**
@@ -12,6 +13,18 @@ import org.assertj.core.data.Percentage;
  * explicitly specified.
  */
 public record PredefinedPingTopologyConfiguration(
-        int[][] pingMatrix,
+        @NonNull int[][] pingMatrix,
         @NonNull Percentage jitter,
-        @NonNull BandwidthLimit bandwidth) implements TopologyConfiguration {}
+        @NonNull BandwidthLimit bandwidth) implements TopologyConfiguration {
+
+    /**
+     * @param pingMatrix list of latencies in milliseconds; latency from node X to node Y is defined in pingMatrix[X][Y]
+     * @param jitter the jitter percentage for connections
+     * @param bandwidth the bandwidth limit for connections
+     */
+    public PredefinedPingTopologyConfiguration {
+        Objects.requireNonNull(pingMatrix, "pingMatrix");
+        Objects.requireNonNull(jitter, "jitter");
+        Objects.requireNonNull(bandwidth, "bandwidth");
+    }
+}

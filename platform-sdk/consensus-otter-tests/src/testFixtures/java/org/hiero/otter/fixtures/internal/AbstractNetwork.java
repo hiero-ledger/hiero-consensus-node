@@ -188,7 +188,7 @@ public abstract class AbstractNetwork implements Network {
             case GeoMeshTopologyConfiguration geoConfig ->
                 new GeoMeshTopologyImpl(geoConfig, random, this::createNodes, this::createInstrumentedNode);
             case PredefinedPingTopologyConfiguration pingConfig ->
-                new PredefinedPingTopologyImpl(pingConfig, this::createNodes, this::createInstrumentedNode);
+                new PredefinedPingTopologyImpl(this::createNodes, this::createInstrumentedNode, pingConfig);
             default ->
                 throw new IllegalArgumentException("Unknown topology configuration type: " + configuration.getClass());
         };
