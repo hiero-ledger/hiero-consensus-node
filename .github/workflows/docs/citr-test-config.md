@@ -109,7 +109,10 @@ catching regressions without being unnecessarily long-running.
 | Block Node Regression Panel               | [821: [CALL] Block Node Regression](/.github/workflows/821-call-block-node-regression.yaml)      | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              | `access-token`<br/>`slack-detailed-report-webhook`                                                                                                                                                                                                       | Fetch XTS Candidate<br/>Compile Code |
 | Solo 0.78 to 0.79 Cutover Panel           | [826: [CALL] Solo 078-079 Cutover](/.github/workflows/826-call-solo-078-to-079-cutover.yaml)     | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              |                                                                                                                                                                                                                                                          | Fetch XTS Candidate<br/>Compile Code |
 
-## SDCT
+## SDCT 
+
+> **Note: Short-stop Design.** The SDCT workflow, Jenkins job contract and test driver described below are a short-stop
+> design that lets the GA workflow run unattended on perf1. The final design will come in the next CITR phase.
 
 ### Purpose
 
@@ -130,23 +133,81 @@ if the E2E SLA is met. It runs on a large, mainnet-like environment.
 - SDCT is triggered by
   the [223: [DISP] CITR SDCT Controller](/.github/workflows/223-disp-sdct-controller.yaml)
   workflow
-  - The workflow is currently being updated with a fast-fail enhancement
+  - The workflow starts the external `SDCT` Jenkins job with
+    [sdct.sh](/.github/workflows/support/scripts/sdct.sh) and follows it until completion with
+    [sdct-wait.sh](/.github/workflows/support/scripts/sdct-wait.sh)
+  - The workflow selects one of the SDCT tests: `sdct` (the full test, default), `mini` (the same flow in about two
+    hours, for debugging and verification) or `custom` (an ad hoc test); each test is a profile of the test driver
+    maintained with the Jenkins job
+  - The result of the full `sdct` test is tagged as `sdct-pass-<build>` or `sdct-fail-<build>`; failures raise a Rootly
+    alert (`CITR SDCT` for test failures, `CI/CD Workflows` for infrastructure and setup failures). `mini` and `custom`
+    results are reported in the workflow summary and artifact only
+  - Slack reporting to the performance-test-reports channel is handled by the Jenkins job
 
-### Included Tests
+### Jenkins SDCT Job Contract
 
-These tests run sequentially with a Mirror node setup to measure E2E latency performance.
+The workflow relies on the following from the `SDCT` Jenkins job and its test driver.
 
-|                       Test                        | TPS |
-|---------------------------------------------------|-----|
-| Idle load                                         | 10  |
-| Crypto Transfer                                   | 200 |
-| Mixed Tx Types                                    | 2K  |
-| Mixed Tx Types with Smartcontract                 | 10K |
-| Crypto Transfer                                   | 10K |
-| HCS                                               | 10K |
-| HTS                                               | 10K |
-| Mixed Tx Types(1/2 HCS and Crypto/HTS rest)       | 10K |
-| Mixed Tx Types(equal weight among HCS/Crypto/HTS) | 10K |
+| #  | Requirement                                                                                                                         |
+|----|-------------------------------------------------------------------------------------------------------------------------------------|
+| J1 | Accept the build parameters `BUILD_TAG`, `BUILD_COMMIT`, `VERSION_SERVICE`, `VERSION_BLOCKNODE`, `VERSION_MIRRORNODE`, `GH_RUN_ID`, `GH_RUN_URL` |
+|    | `BUILD_COMMIT` is the build artifact name used to reset the network; the `VERSION_*` parameters are used for reporting only |
+|    | Accept `SDCT_TEST` (`sdct`, `mini`, `custom`) to select the test, defaulting to `sdct`                                        |
+| J2 | Print the console markers below, with a heartbeat at least every 15 minutes                                                         |
+| J3 | On a fail-fast decision, stop the load, set `currentBuild.result = 'FAILURE'` and finish the build                                  |
+| J4 | Always archive `sdct-result.json` (schema below) in a `post { always { ... } }` block                                               |
+| J5 | Provide a service account token with Job/Read, Job/Build and Job/Cancel on `nightly/sdct`                                           |
+
+Console markers (one per line):
+
+```text
+SDCT-STATUS: RUNNING phase=<setup|test|teardown> test=<i>/<n> name=<name> tps=<tps>
+SDCT-HEARTBEAT: <iso-timestamp>
+SDCT-STATUS: FAIL reason=<text>
+SDCT-STATUS: PASS
+```
+
+`SDCT-STATUS: FAIL` is printed as soon as the driver decides to abort; `SDCT-STATUS: PASS` or `FAIL` is printed once at
+the end of the run.
+
+`sdct-result.json`:
+
+```json
+{
+  "result": "PASS|FAIL|ERROR",
+  "reason": "text, empty on PASS",
+  "tests": [
+    { "name": "Crypto Transfer", "tps": 10000, "p50_ms": 0, "p99_ms": 0, "sla_met": true, "result": "PASS|FAIL" }
+  ],
+  "started": "<iso-timestamp>",
+  "finished": "<iso-timestamp>"
+}
+```
+
+- `FAIL` is a test failure; `ERROR` is an infrastructure or setup failure (e.g. unclean environment, failed deployment).
+- `p50_ms`, `p99_ms` and `sla_met` are `null` until latency collection is available.
+
+Workflow behavior:
+
+- **Queue**: the queue item returned by `buildWithParameters` is polled every minute; the run fails as an
+  infrastructure error if the build has not started after 60 minutes or the queue item is cancelled.
+- **Build**: every 5 minutes the workflow reads the build status and the new console output (`progressiveText`), and
+  echoes the `SDCT-*` markers. The first poll verifies that the build's `GH_RUN_ID` matches the workflow run.
+- **Fail-fast**: after a `SDCT-STATUS: FAIL` marker the workflow waits at most 30 minutes for the build to finish,
+  then reports a failure.
+- **Hang, errors**: no new console output for 60 minutes or 6 consecutive failed polls end the run as an
+  infrastructure error; hung builds are stopped. The workflow has no overall deadline: the test driver bounds the
+  SDCT run time.
+- **Cancel**: cancelling the workflow run stops the Jenkins build, or cancels the queue item if the build has not
+  started yet.
+- **Serialization**: SDCT runs on the single perf1 network, so runs of the workflow are serialized and the Jenkins job
+  does not run concurrent builds.
+- **Verdict**: Jenkins `SUCCESS` with `sdct-result.json` `PASS` (or no file) passes; `FAILURE`, `UNSTABLE`, a `FAIL`
+  marker or a `FAIL` result fails; an `ERROR` result or anything else (e.g. `ABORTED`) is an infrastructure error and
+  is not tagged. Once `SDCT-STATUS: PASS` is printed (and no `FAIL` marker), the run passes: a later Jenkins
+  failure, hang or unreachable build (e.g. in post-test processing) is reported as a warning in the reason only.
+  `sdct-result.json` and the last 5000 console lines are uploaded as the `sdct-results` artifact.
+
 
 ## SDPT
 
