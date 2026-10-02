@@ -4,6 +4,7 @@ package org.hiero.consensus.gossip.impl.network.communication;
 import java.io.IOException;
 import java.util.List;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
+import org.hiero.base.concurrent.throttle.StackTraceDeduplicator;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.ConnectionManager;
 import org.hiero.consensus.gossip.impl.network.NetworkProtocolException;
@@ -22,23 +23,27 @@ public class ProtocolNegotiatorThread implements InterruptableRunnable {
     private final ConnectionManager connectionManager;
     private final List<ProtocolRunnable> handshakeProtocols;
     private final NegotiationProtocols protocols;
+    private final StackTraceDeduplicator socketExceptionDeduplicator;
 
     /**
-     * @param connectionManager  supplies network connections
-     * @param sleepMillis        the number of milliseconds to sleep if a negotiation fails
-     * @param handshakeProtocols the list of protocols to execute when a new connection is established
-     * @param protocols          the protocols to negotiate and run
+     * @param connectionManager           supplies network connections
+     * @param sleepMillis                 the number of milliseconds to sleep if a negotiation fails
+     * @param handshakeProtocols          the list of protocols to execute when a new connection is established
+     * @param protocols                   the protocols to negotiate and run
+     * @param socketExceptionDeduplicator remembers which socket exception stack traces were already logged in full
      */
     public ProtocolNegotiatorThread(
             final ConnectionManager connectionManager,
             final int sleepMillis,
             final List<ProtocolRunnable> handshakeProtocols,
-            final NegotiationProtocols protocols) {
+            final NegotiationProtocols protocols,
+            final StackTraceDeduplicator socketExceptionDeduplicator) {
 
         this.connectionManager = connectionManager;
         this.sleepMillis = sleepMillis;
         this.handshakeProtocols = handshakeProtocols;
         this.protocols = protocols;
+        this.socketExceptionDeduplicator = socketExceptionDeduplicator;
     }
 
     @Override
@@ -55,7 +60,7 @@ public class ProtocolNegotiatorThread implements InterruptableRunnable {
                 negotiator.execute();
             }
         } catch (final RuntimeException | IOException | NetworkProtocolException | NegotiationException e) {
-            NetworkUtils.handleNetworkException(e, currentConn);
+            NetworkUtils.handleNetworkException(e, currentConn, socketExceptionDeduplicator);
         }
     }
 }

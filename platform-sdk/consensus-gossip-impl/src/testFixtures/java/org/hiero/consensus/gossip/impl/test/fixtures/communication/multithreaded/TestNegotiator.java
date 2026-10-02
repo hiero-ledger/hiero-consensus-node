@@ -3,6 +3,7 @@ package org.hiero.consensus.gossip.impl.test.fixtures.communication.multithreade
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.hiero.base.concurrent.throttle.StackTraceDeduplicator;
 import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.ConnectionManager;
 import org.hiero.consensus.gossip.impl.network.communication.NegotiationProtocols;
@@ -28,7 +29,8 @@ class TestNegotiator {
                 connectionManager,
                 100,
                 List.of(c -> handshakeRan.incrementAndGet()),
-                new NegotiationProtocols(List.of(protocol)));
+                new NegotiationProtocols(List.of(protocol)),
+                new StackTraceDeduplicator());
         thread = new Thread(this::run);
     }
 

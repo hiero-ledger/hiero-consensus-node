@@ -24,6 +24,7 @@ import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.base.concurrent.locks.AutoClosableLock;
 import org.hiero.base.concurrent.locks.Locks;
 import org.hiero.base.concurrent.manager.ThreadManager;
+import org.hiero.base.concurrent.throttle.StackTraceDeduplicator;
 import org.hiero.consensus.concurrent.NodeThreadNameProvider;
 import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.SocketConfig;
@@ -58,6 +59,7 @@ public class PeerCommunication implements ConnectionTracker {
     private DynamicConnectionManagers connectionManagers;
     private ThreadManager threadManager;
     private final NodeId selfId;
+    private final StackTraceDeduplicator socketExceptionDeduplicator;
     private List<ProtocolRunnable> handshakeProtocols;
     private List<Protocol> protocolList;
     private PeerConnectionServer connectionServer;
@@ -76,6 +78,7 @@ public class PeerCommunication implements ConnectionTracker {
      * @param peers           the current list of peers
      * @param selfPeer        this node's data
      * @param ownKeysAndCerts private keys and public certificates for this node
+     * @param socketExceptionDeduplicator remembers which socket exception stack traces were already logged in full
      */
     public PeerCommunication(
             @NonNull final Configuration configuration,
@@ -83,7 +86,8 @@ public class PeerCommunication implements ConnectionTracker {
             @NonNull final Time time,
             @NonNull final List<PeerInfo> peers,
             @NonNull final PeerInfo selfPeer,
-            @NonNull final KeysAndCerts ownKeysAndCerts) {
+            @NonNull final KeysAndCerts ownKeysAndCerts,
+            @NonNull final StackTraceDeduplicator socketExceptionDeduplicator) {
 
         this.configuration = requireNonNull(configuration);
         this.time = requireNonNull(time);
@@ -91,6 +95,7 @@ public class PeerCommunication implements ConnectionTracker {
         this.peers = Collections.unmodifiableList(requireNonNull(peers));
         this.selfPeer = requireNonNull(selfPeer);
         this.selfId = selfPeer.nodeId();
+        this.socketExceptionDeduplicator = requireNonNull(socketExceptionDeduplicator);
 
         this.networkMetrics = new NetworkMetrics(metrics, selfPeer.nodeId(), peers);
         metrics.addUpdater(networkMetrics::update);
@@ -272,7 +277,8 @@ public class PeerCommunication implements ConnectionTracker {
                             handshakeProtocols,
                             new NegotiationProtocols(protocolList.stream()
                                     .map(protocol -> protocol.createPeerInstance(otherId))
-                                    .toList())));
+                                    .toList()),
+                            socketExceptionDeduplicator));
             stc.setThreadNameProvider(new NodeThreadNameProvider()
                     .setOtherNodeId(otherId)
                     .setNodeId(selfId)

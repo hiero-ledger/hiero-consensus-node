@@ -29,12 +29,6 @@ import org.hiero.consensus.model.node.NodeId;
 public final class NetworkUtils {
     private static final Logger logger = LogManager.getLogger(NetworkUtils.class);
 
-    /**
-     * Remembers which socket exception stack traces were already logged in full. Shared by all connections, so the same
-     * problem affecting many peers at once is reported in full only once.
-     */
-    private static final StackTraceDeduplicator SOCKET_EXCEPTION_DEDUPLICATOR = new StackTraceDeduplicator();
-
     private NetworkUtils() {}
 
     /**
@@ -62,12 +56,16 @@ public final class NetworkUtils {
      * is logged only the first time a particular stack trace is seen (see {@link StackTraceDeduplicator}); afterwards
      * only a short description of the exception is logged.
      *
-     * @param e          the exception that was thrown
-     * @param connection the connection used when the exception was thrown
+     * @param e                           the exception that was thrown
+     * @param connection                  the connection used when the exception was thrown
+     * @param socketExceptionDeduplicator remembers which socket exception stack traces were already logged in full;
+     *                                    should be shared by all the callers, so the same problem affecting many
+     *                                    connections is reported in full only once
      * @throws InterruptedException if the provided exception is an {@link InterruptedException}, it will be rethrown
      *                              once the connection is closed
      */
-    public static void handleNetworkException(final Exception e, final Connection connection)
+    public static void handleNetworkException(
+            final Exception e, final Connection connection, final StackTraceDeduplicator socketExceptionDeduplicator)
             throws InterruptedException {
         final String description;
         // always disconnect when an exception gets thrown
@@ -84,7 +82,7 @@ public final class NetworkUtils {
         // we use a different marker depending on what the root cause is
         final Marker marker = NetworkUtils.determineExceptionMarker(e);
         if (SOCKET_EXCEPTIONS.getMarker().equals(marker)) {
-            if (SOCKET_EXCEPTION_DEDUPLICATOR.isNew(e)) {
+            if (socketExceptionDeduplicator.isNew(e)) {
                 logger.info(marker, "Connection broken: {}", description, e);
             } else {
                 final String formattedException = NetworkUtils.formatException(e);
