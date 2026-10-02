@@ -35,3 +35,14 @@ jmhModuleInfo {
     requires("org.hiero.consensus.metrics")
     requires("jmh.core")
 }
+
+jmh {
+    // the benchmarks that are tracked; -PjmhTests=<pattern> runs others instead
+    includes.convention(listOf("ConsensusImplBenchmark"))
+    resultFormat = "JSON"
+    // ConsensusImplBenchmark reports its latency through this profiler and fails without it
+    profilers.add("org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler")
+    // without it, JMH exits successfully when a benchmark throws; no effect until the JMH plugin
+    // passes "-foe true", not "-foe 1" (https://github.com/melix/jmh-gradle-plugin/issues/255)
+    failOnError = true
+}
