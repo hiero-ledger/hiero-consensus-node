@@ -18,6 +18,7 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static java.util.Objects.requireNonNull;
 
 import com.google.protobuf.ByteString;
@@ -154,7 +155,7 @@ public class ClprOrchestratorSubmitTest {
     private static ClprLedgerConfiguration buildLedgerConfig() {
         return ClprLedgerConfiguration.newBuilder()
                 .setChainId("hiero:embedded")
-                .setServiceAddress(ByteString.copyFrom(new byte[] {0, 0, 1}))
+                .setServiceAddress(ByteString.copyFrom(CLPR_SERVICE_ADDRESS_20))
                 .addEndpoints(ClprEndpoint.newBuilder()
                         .setServiceEndpoint(ClprServiceEndpoint.newBuilder()
                                 .setIpAddress("127.0.0.1")

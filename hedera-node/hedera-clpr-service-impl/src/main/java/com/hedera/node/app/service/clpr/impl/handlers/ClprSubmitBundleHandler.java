@@ -27,6 +27,7 @@ import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprConfigUpdate;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
 import com.hedera.hapi.node.state.clpr.ClprControlMessage;
+import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprMessagePayload;
 import com.hedera.hapi.node.state.clpr.ClprMessageReply;
@@ -60,6 +61,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -117,6 +119,17 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
     @Override
     protected void doHandle(@NonNull final HandleContext context) throws HandleException {
+        // Step 1b refreshes the node-local peer endpoint cache, and with it the inbound mTLS trust set. That cache is
+        // in-memory, so the full-stack rollback of a later penalizing HandleException would not undo it; the refresh
+        // is therefore applied only once the bundle has been handled without an exception.
+        final var deferredPeerEndpoints = new DeferredPeerEndpoints();
+        handleBundle(context, deferredPeerEndpoints);
+        deferredPeerEndpoints.seedInto(channelLifecycle);
+    }
+
+    private void handleBundle(
+            @NonNull final HandleContext context, @NonNull final DeferredPeerEndpoints deferredPeerEndpoints)
+            throws HandleException {
         final var op = context.body().clprSubmitBundleOrThrow();
         final var nodeAccountId = context.body().transactionIDOrThrow().accountIDOrThrow();
         log.debug(
@@ -226,24 +239,19 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // Spec §4.2 Step 1b: apply new_endpoint_manifest, and Step 1c: install successor
         // trust anchor. Applied together in a single copyBuilder / put so a manifest update
         // and a trust-anchor rotation carried by the same bundle are atomic (they're already
-        // covered by the same verifyBundle call). Persisted immediately after the verifier
-        // returns — before any early-return path (EmptyBundle, maxSyncBytes, etc.) so both
-        // fields are installed even if a later check causes a penalizing rejection.
+        // covered by the same verifyBundle call). Written immediately after the verifier
+        // returns — before any early-return path (EmptyBundle, maxSyncBytes, etc.). A later
+        // penalizing rejection throws, which rolls this write back with the rest of the transaction.
         //
         // Step 1b guard rules (per ADR "Propagating Updates Through Bundle Payloads"):
-        // - Applied only when clpr.endpointManifestEnabled=true (flag-gates the acceptance
-        //   of manifest updates carried by peer verifier contracts on this ledger).
         // - Applied only when newEndpointManifest.version() strictly advances the current
         //   cached version. Absent or stale manifest → silent skip; the bundle is NOT
         //   rejected for this reason alone. Manifest updates are allowed on CLOSING /
         //   DRAINED channels (harmless, keeps the cache current for admin purposes).
         // - Entire manifest replacement; no partial merge.
         final var newEndpointManifest = bundleContent.newEndpointManifest();
-        final boolean endpointManifestEnabled =
-                context.configuration().getConfigData(ClprConfig.class).endpointManifestEnabled();
-        final boolean shouldUpdateManifest = endpointManifestEnabled
-                && newEndpointManifest != null
-                && newEndpointManifest.version() > channel.endpointManifestVersion();
+        final boolean shouldUpdateManifest =
+                newEndpointManifest != null && newEndpointManifest.version() > channel.endpointManifestVersion();
         final boolean shouldUpdateTrustAnchor = newTrustAnchor.length() > 0;
         if (shouldUpdateManifest || shouldUpdateTrustAnchor) {
             var updatedBuilder = channel.copyBuilder();
@@ -275,6 +283,10 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                 updatedBuilder = updatedBuilder
                         .endpointManifest(storedManifest)
                         .endpointManifestVersion(storedManifest.version());
+                // Refresh the orchestrator's node-local peer endpoint cache, so the inbound mTLS trust set
+                // (ClprChannelManager.knownPeerCaCertificatesByIssuer) picks up any new CA certificate —
+                // deferred until the bundle is handled without an exception (see doHandle).
+                deferredPeerEndpoints.set(channelId, truncatedEndpoints);
             }
             if (shouldUpdateTrustAnchor) {
                 log.debug(
@@ -307,6 +319,25 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             return;
         }
 
+        // Spec §4.5: sender's cached view of THIS ledger's endpoint manifest version. Handed to
+        // the runtime sync orchestrator, which compares it against our local
+        // ClprEndpointManifest.version() on the next outbound cycle to decide whether to embed a
+        // proof of our own manifest. Recorded via the lifecycle SPI as a node-local, in-memory
+        // signal — NOT consensus state — so it self-heals from the live metadata stream and needs
+        // no proto/state field.
+        //
+        // Recorded BEFORE the Step 4a NoProgress check, and deliberately kept even if a later check
+        // rejects the bundle: on an idle channel the only bundles carrying this value are no-progress
+        // pure acks, so recording it after the check would leave our manifest looking stale forever
+        // and every sync tick would push another (rejected) manifest-only bundle. See
+        // ClprVerifierAbi.metadataTuple for the value's provenance per verifier family.
+        final long peerEndpointManifestVersion = metadata.endpointManifestVersion();
+        log.debug(
+                "[ClprSubmitBundle] peer-reported cache of our manifest version: conn={} peerVersion={}",
+                channelId,
+                peerEndpointManifestVersion);
+        channelLifecycle.recordPeerObservedManifestVersion(channelId, peerEndpointManifestVersion);
+
         // --- Step 4a: NoProgress check (spec §4.2 Step 1a, §2.1.2) ---
         // Any ONE of the five Bundle Progress Criteria satisfies the check.
         final boolean hasNewMessages = !messages.isEmpty();
@@ -320,7 +351,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         final boolean hasStateTransition = isStateTransitionProgress(metadata.status(), channel.status());
         // Criterion 5 (endpoint-manifest advancement) per spec §4.2 Step 1a and ADR
         // "Endpoint Manifest Advancement as a Bundle Progress Criterion". Reuses the Step 1b
-        // guard (flag ON + non-null + strictly advancing version) computed against the
+        // guard (non-null + strictly advancing version) computed against the
         // pre-bundle version — a bundle that only advances the manifest is still valid.
         final boolean hasManifestAdvancement = shouldUpdateManifest;
         validateTrueOrPenalize(
@@ -484,22 +515,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
         var currentStatus = channel.status(); // Our current channel status
         final var peerStatus = metadata.status(); // Remote peer state (used in step 10 and step 11)
-        // Spec §4.5: sender's cached view of THIS ledger's endpoint manifest version. Handed to
-        // the runtime sync orchestrator, which compares it against our local
-        // ClprEndpointManifest.version() on the next outbound cycle to decide whether to embed a
-        // proof of our own manifest. Recorded via the lifecycle SPI as a node-local, in-memory
-        // signal — NOT consensus state — so it self-heals from the live metadata stream and needs
-        // no proto/state field. Gated by clpr.endpointManifestEnabled: when the feature is disabled
-        // we do not read or forward the peer-reported version, so no manifest-related signal leaks
-        // while the feature is off.
-        if (clprConfig.endpointManifestEnabled()) {
-            final long peerEndpointManifestVersion = metadata.endpointManifestVersion();
-            log.debug(
-                    "[ClprSubmitBundle] peer-reported cache of our manifest version: conn={} peerVersion={}",
-                    channelId,
-                    peerEndpointManifestVersion);
-            channelLifecycle.recordPeerObservedManifestVersion(channelId, peerEndpointManifestVersion);
-        }
 
         // --- Step 8: Read-only outbound queue pre-scan ---
         // Validates that replies in the bundle match our outbound Data messages in order.
@@ -1571,6 +1586,29 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     }
                 }
             });
+        }
+    }
+
+    /**
+     * A Step 1b peer endpoint cache refresh, held until the bundle has been handled without an exception so the
+     * node-local cache only ever mirrors a manifest that is actually committed (see {@link #doHandle}).
+     */
+    private static final class DeferredPeerEndpoints {
+        @Nullable
+        private Bytes channelId;
+
+        @Nullable
+        private List<ClprEndpoint> endpoints;
+
+        void set(@NonNull final Bytes channelId, @NonNull final List<ClprEndpoint> endpoints) {
+            this.channelId = requireNonNull(channelId);
+            this.endpoints = requireNonNull(endpoints);
+        }
+
+        void seedInto(@NonNull final ClprChannelLifecycle channelLifecycle) {
+            if (channelId != null && endpoints != null) {
+                channelLifecycle.seedPeerEndpoints(channelId, endpoints);
+            }
         }
     }
 

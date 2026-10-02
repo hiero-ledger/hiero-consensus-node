@@ -1,16 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.besuqbft.verify;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mockConstruction;
 
+import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.node.state.clpr.ClprBundleContent;
+import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
+import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
 import com.hedera.node.app.service.clpr.impl.verifier.BesuQbftVerifier;
+import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi;
 import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
+import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.math.BigInteger;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.mockito.MockedConstruction;
 
-class BesuQBFTVerifyBundleCallTest {
+class BesuQBFTVerifyBundleCallTest extends CallTestBase {
 
     // A realistic multi-node trust anchor: RLP([encodedValidatorSet, serviceAddr20, codeHash32])
     // encodedValidatorSet = BesuQbftVerifier.encodeValidatorSet([addr20])
@@ -77,5 +88,55 @@ class BesuQBFTVerifyBundleCallTest {
                 ClprBundleContent.PROTOBUF.parse(Bytes.wrap(result).toReadableSequentialData());
         assertThat(reparsed.newTrustAnchor().toByteArray()).isEqualTo(trustAnchorRlp);
         assertThat(reparsed.newTrustAnchorId().toByteArray()).isEqualTo(anchorId);
+    }
+
+    @Test
+    void returnsProvenManifestVersionIgnoringRelayedContent() {
+        // The relayed content claims an inflated endpoint-manifest version (999); the proven queue metadata says 7.
+        // The returned metaTuple must carry the PROVEN value — a relay cannot inflate it to make the peer look
+        // up-to-date and suppress our manifest re-pushes (spec §4.5, liveness).
+        final byte[] sentHash = filled(32, 0x02);
+        final byte[] recvHash = filled(32, 0x03);
+        final byte[] lastHash = filled(32, 0x04);
+        final var relayedContent = ClprBundleContent.newBuilder()
+                .metadata(ClprQueueMetadata.newBuilder()
+                        .nextMessageId(42)
+                        .sentRunningHash(Bytes.wrap(sentHash))
+                        .receivedMessageId(17)
+                        .receivedRunningHash(Bytes.wrap(recvHash))
+                        .status(ClprChannelStatus.ACTIVE)
+                        .endpointManifestVersion(999L)
+                        .build())
+                .build();
+        final var proven = new BesuQbftVerifier.QueueMetadata(
+                42, sentHash, 17, recvHash, ClprChannelStatus.ACTIVE.protoOrdinal(), lastHash, 7L);
+        final var verified = new BesuQbftVerifier.VerifiedBundle(
+                filled(32, 0x01),
+                ClprBundleContent.PROTOBUF.toBytes(relayedContent).toByteArray(),
+                proven,
+                new byte[0],
+                new byte[0],
+                new byte[0]);
+
+        try (final MockedConstruction<BesuQbftVerifier> ignored =
+                mockConstruction(BesuQbftVerifier.class, (mock, ctx) -> given(mock.verifyBundle(any(), any()))
+                        .willReturn(verified))) {
+            final var call = new BesuQBFTVerifyBundleCall(
+                    mockEnhancement(), gasCalculator, new byte[] {1, 2, 3}, buildTrustAnchorRlp());
+            final var result = call.execute(frame);
+
+            assertThat(result.responseCode()).isEqualTo(SUCCESS);
+            final Tuple metaTuple = ClprVerifierAbi.VERIFY_BUNDLE_RETURN
+                    .decode(result.fullResult().output().toArray())
+                    .get(0);
+            assertThat(((BigInteger) metaTuple.get(0)).longValueExact()).isEqualTo(42L); // from relayed content
+            assertThat(((BigInteger) metaTuple.get(5)).longValueExact()).isEqualTo(7L); // from PROVEN metadata
+        }
+    }
+
+    private static byte[] filled(final int length, final int value) {
+        final byte[] bytes = new byte[length];
+        java.util.Arrays.fill(bytes, (byte) value);
+        return bytes;
     }
 }

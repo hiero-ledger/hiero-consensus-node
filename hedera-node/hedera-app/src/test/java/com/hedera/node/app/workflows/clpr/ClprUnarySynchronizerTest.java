@@ -33,8 +33,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -100,16 +98,11 @@ class ClprUnarySynchronizerTest {
                     .thenReturn(new SelectedPeer(PEER_ID, endpoint(PEER_HOST, PEER_PORT)));
         }
 
-        @ParameterizedTest
-        @ValueSource(booleans = {false, true})
-        @DisplayName(
-                "CLPR disabled skips proof generation, networking and bundle submission regardless of manifest flag")
-        void disabledClprSkipsSync(final boolean manifestEnabled) {
+        @Test
+        @DisplayName("CLPR disabled skips proof generation, networking and bundle submission")
+        void disabledClprSkipsSync() {
             given(versionedConfig.getConfigData(ClprConfig.class))
-                    .willReturn(ClprConfigBuilder.newBuilder()
-                            .enabled(false)
-                            .endpointManifestEnabled(manifestEnabled)
-                            .build());
+                    .willReturn(ClprConfigBuilder.newBuilder().enabled(false).build());
 
             subject.synchronize(testChannel(List.of()), List.of(endpoint(PEER_HOST, PEER_PORT)), 0L, 0L);
 

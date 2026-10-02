@@ -88,9 +88,8 @@ public final class ClprUnarySynchronizer implements ClprSynchronizer {
             logger.debug("[CLPR-SYNC-OUTBOUND] skipping ineligible channel conn={} status={}", channelId, status);
             return;
         }
-        // Dial targets come from the caller (ClprChannelManager). This class is agnostic
-        // to whether they were derived from the peer's manifest (flag on) or from
-        // ClprLedgerConfiguration.endpoints (flag off) — that decision belongs to the caller.
+        // Dial targets come from the caller (ClprChannelManager), which reads them from the
+        // channel's cached peer endpoint manifest (spec §4.7).
         final var peerThrottles = channel.peerThrottlesOrThrow();
         final var selected = peerSelector.selectEndpoint(channel, providedEndpoints);
         if (selected == null) {

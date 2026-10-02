@@ -37,7 +37,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.VERIFY_CONFIG_WITH_SEED_ENDPOINTS;
+import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.VERIFY_CONFIG;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toBundleProofBytes;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toConfigProofBytes;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_NOT_ENABLED;
@@ -132,11 +132,7 @@ public class ClprDisabledSuite {
 
     @BeforeAll
     static void beforeAll(final TestLifecycle lifecycle) {
-        lifecycle.overrideInClass(Map.of(
-                "clpr.enabled",
-                System.getProperty("clpr.test.enabled", "false"),
-                "clpr.endpointManifestEnabled",
-                "false"));
+        lifecycle.overrideInClass(Map.of("clpr.enabled", System.getProperty("clpr.test.enabled", "false")));
     }
 
     @HapiTest
@@ -184,7 +180,7 @@ public class ClprDisabledSuite {
         // selector/proof validation and cannot satisfy this assertion.
         return hapiTest(CLPR_SYSTEM_CONTRACT_NUMS.stream()
                 .map(num -> contractCallWithFunctionAbi(
-                                num, VERIFY_CONFIG_WITH_SEED_ENDPOINTS.toJson(false), new byte[] {1}, new byte[32])
+                                num, VERIFY_CONFIG.toJson(false), new byte[] {1}, new byte[32], new byte[0])
                         .payingWith(GENESIS)
                         .gas(GAS_TO_OFFER)
                         .refusingEthConversion()
@@ -271,12 +267,6 @@ public class ClprDisabledSuite {
     @Nested
     @DisplayName("Endpoint manifest lifecycle")
     class ManifestTests {
-        @BeforeAll
-        static void enableManifestLifecycle(final TestLifecycle lifecycle) {
-            // Only the manifest sub-feature changes for this group; the master flag is inherited.
-            lifecycle.overrideInClass(Map.of("clpr.endpointManifestEnabled", "true"));
-        }
-
         @LeakyEmbeddedHapiTest(reason = {MUST_SKIP_INGEST, NEEDS_STATE_ACCESS})
         @DisplayName("The manifest sub-feature cannot admit a publication while CLPR is disabled")
         final Stream<DynamicTest> publicationIsRejectedAtConsensus() {
