@@ -3,7 +3,7 @@ package com.hedera.node.app.records.impl;
 
 import static com.hedera.hapi.streams.schema.SidecarFileSchema.SIDECAR_RECORDS;
 import static com.hedera.node.app.blocks.BlockHashSigner.Request.LIST_OF_PARTIAL_SIGNATURES;
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO_384;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordManagerTestFixtures.NO_OP_BLOCK_HASH_SIGNER;
 import static com.hedera.node.app.records.impl.producers.BlockRecordFormat.TAG_TYPE_BITS;
@@ -246,7 +246,8 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
             verify(diskWriter).appendAsync(captor.capture());
             final var input = captor.getValue();
             assertEquals(0, input.blockNumber());
-            final var entry = WrappedRecordFileBlockHashesCalculator.compute(input);
+            final var entry = WrappedRecordFileBlockHashesCalculator.compute(
+                    input, com.hedera.node.app.hapi.utils.CommonUtils::sha384DigestOrThrow);
 
             // Compute expected consensus_timestamp_hash
             final Bytes expectedConsensusTsHash = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(creationTime));
@@ -920,7 +921,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
                 .get();
         assertEquals(2, blockInfo.wrappedIntermediateBlockRootsLeafCount());
         assertNotEquals(Bytes.EMPTY, blockInfo.previousWrappedRecordBlockRootHash());
-        assertNotEquals(HASH_OF_ZERO, blockInfo.previousWrappedRecordBlockRootHash());
+        assertNotEquals(HASH_OF_ZERO_384, blockInfo.previousWrappedRecordBlockRootHash());
         assertTrue(blockInfo.wrappedIntermediatePreviousBlockRootHashes().size() > 0);
     }
 
@@ -1947,7 +1948,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         assertNotNull(items.get(1).recordFile(), "second item must be a RecordFile");
         final var footer = items.get(2).blockFooterOrThrow();
         assertEquals(Bytes.EMPTY, footer.previousBlockRootHash());
-        assertEquals(HASH_OF_ZERO, footer.startOfBlockStateRootHash());
+        assertEquals(HASH_OF_ZERO_384, footer.startOfBlockStateRootHash());
         final var proof = items.get(3).blockProofOrThrow();
         assertEquals(0L, proof.block());
         assertTrue(proof.hasSignedRecordFileProof());
@@ -2382,7 +2383,7 @@ class BlockRecordManagerImplWrappedRecordFileBlockHashesTest extends AppTestBase
         }
 
         assertNotEquals(Bytes.EMPTY, noRestartRoot);
-        assertNotEquals(HASH_OF_ZERO, noRestartRoot);
+        assertNotEquals(HASH_OF_ZERO_384, noRestartRoot);
         assertEquals(
                 noRestartRoot,
                 restartRoot,

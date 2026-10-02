@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl;
 
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.HASH_SIZE;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static java.util.Objects.requireNonNull;
@@ -11,11 +10,15 @@ import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.MessageDigest;
+import java.util.function.Supplier;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * A {@link BlockRecordInfo} that derives the current block number, timestamp, PRNG seed, and trailing block hashes
@@ -28,6 +31,7 @@ public final class BlockStreamInfoImpl implements BlockRecordInfo {
     private static final int NUM_TRAILING_BLOCKS = 256;
 
     private final BlockStreamInfo blockStreamInfo;
+    private final boolean useSha256;
 
     /**
      * Lazily-computed trailing block hashes extended with the (reconstructed) hash of the last completed block,
@@ -42,26 +46,35 @@ public final class BlockStreamInfoImpl implements BlockRecordInfo {
      * @param state the state
      * @return the created {@code BlockStreamInfoImpl}
      */
-    public static BlockStreamInfoImpl from(@NonNull final State state) {
+    public static BlockStreamInfoImpl from(@NonNull final State state, final boolean useSha256) {
         final var blockStreamInfo = requireNonNull(state.getReadableStates(BlockStreamService.NAME)
                 .<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID)
                 .get());
-        return new BlockStreamInfoImpl(blockStreamInfo);
+        return new BlockStreamInfoImpl(blockStreamInfo, useSha256);
     }
 
     public BlockStreamInfoImpl(@NonNull final BlockStreamInfo blockStreamInfo) {
-        this.blockStreamInfo = requireNonNull(blockStreamInfo);
+        this(blockStreamInfo, false);
     }
+
+    public BlockStreamInfoImpl(@NonNull final BlockStreamInfo blockStreamInfo, final boolean useSha256) {
+        this.blockStreamInfo = requireNonNull(blockStreamInfo);
+        this.useSha256 = useSha256;
+    }
+
+    // Chained SHA-384 over stream items, independent of the block-root Merkle tree's HASH_SIZE (SHA-256-sized);
+    // do not conflate the two. Mirrors BlockStreamManagerImpl.RunningHashManager.RUNNING_HASH_SIZE.
+    private static final int RUNNING_HASH_SIZE = DigestType.SHA_384.digestLength();
 
     /** {@inheritDoc} */
     @Nullable
     @Override
     public Bytes prngSeed() {
         // Mirrors BlockStreamManagerImpl.RunningHashManager: the n-minus-3 running hash is the seed, and is the
-        // leftmost HASH_SIZE bytes of the trailing output hashes once at least four hashes are present.
+        // leftmost RUNNING_HASH_SIZE bytes of the trailing output hashes once at least four hashes are present.
         final var hashes = blockStreamInfo.trailingOutputHashes();
-        final var n = (int) (hashes.length() / HASH_SIZE);
-        return n < 4 ? null : hashes.slice(0, HASH_SIZE);
+        final var n = (int) (hashes.length() / RUNNING_HASH_SIZE);
+        return n < 4 ? null : hashes.slice(0, RUNNING_HASH_SIZE);
     }
 
     /** {@inheritDoc} */
@@ -91,12 +104,15 @@ public final class BlockStreamInfoImpl implements BlockRecordInfo {
         // The last completed block's own hash is not persisted in its own state, so the state-resident trailing
         // hashes only reach blockNumber - 1. Reconstruct it and append so the set covers up to blockNumber, letting
         // queries resolve blockhash(block.number - 1) for the most recent block exactly as BlockRecordInfoImpl does.
-        return BlockImplUtils.blockHashByBlockNumber(extendedBlockHashes(), lastCompleted, blockNo);
+        final int hashSize = useSha256 ? 32 : 48;
+        return BlockImplUtils.blockHashByBlockNumber(extendedBlockHashes(), lastCompleted, blockNo, hashSize);
     }
 
     private Bytes extendedBlockHashes() {
         if (extendedBlockHashes == null) {
-            final var lastBlockHash = BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo);
+            final Supplier<MessageDigest> digestFactory =
+                    useSha256 ? CommonUtils::sha256DigestOrThrow : CommonUtils::sha384DigestOrThrow;
+            final var lastBlockHash = BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo, digestFactory);
             extendedBlockHashes = appendHash(lastBlockHash, blockStreamInfo.trailingBlockHashes(), NUM_TRAILING_BLOCKS);
         }
         return extendedBlockHashes;

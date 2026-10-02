@@ -2,7 +2,7 @@
 package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.hapi.util.HapiUtils.asAccountString;
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO_384;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.BlockRecordService.NAME;
 import static com.hedera.node.app.records.RecordTestData.BLOCK_NUM;
@@ -154,7 +154,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                         BlockInfo.newBuilder()
                                 .lastBlockNumber(-1)
                                 .firstConsTimeOfLastBlock(EPOCH)
-                                .blockHashes(STARTING_RUNNING_HASH_OBJ.hash())
+                                .blockHashes(STARTING_RUNNING_HASH_OBJ.hash().slice(0, HASH_SIZE))
                                 .migrationRecordsStreamed(false)
                                 .firstConsTimeOfCurrentBlock(EPOCH)
                                 .lastUsedConsTime(EPOCH)
@@ -202,7 +202,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                                                             .seconds()
                                                     - 2,
                                             0))
-                                    .blockHashes(STARTING_RUNNING_HASH_OBJ.hash())
+                                    .blockHashes(
+                                            STARTING_RUNNING_HASH_OBJ.hash().slice(0, HASH_SIZE))
                                     .consTimeOfLastHandledTxn(CONSENSUS_TIME)
                                     .migrationRecordsStreamed(true)
                                     .firstConsTimeOfCurrentBlock(FIRST_CONS_TIME_OF_LAST_BLOCK)
@@ -262,7 +263,12 @@ final class BlockRecordManagerTest extends AppTestBase {
                 expectedClosedBlockNo++;
                 final var closedBlockHash = blockRecordManager.getRunningHash();
                 endOfBlockHashes.add(closedBlockHash);
-                assertThat(endOfBlockHashes.get(endOfBlockHashes.size() - 1).toHex())
+                // BlockInfo.blockHashes() stores only the leading HASH_SIZE (32) bytes of each classic
+                // (SHA-384, 48-byte) record-stream running hash; truncate here to match.
+                assertThat(endOfBlockHashes
+                                .get(endOfBlockHashes.size() - 1)
+                                .slice(0, HASH_SIZE)
+                                .toHex())
                         .isEqualTo(blockRecordManager.lastBlockHash().toHex());
             }
             // end the last round
@@ -305,7 +311,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                                                         .seconds()
                                                 - 2,
                                         0))
-                                .blockHashes(STARTING_RUNNING_HASH_OBJ.hash())
+                                .blockHashes(STARTING_RUNNING_HASH_OBJ.hash().slice(0, HASH_SIZE))
                                 .consTimeOfLastHandledTxn(CONSENSUS_TIME)
                                 .migrationRecordsStreamed(true)
                                 .firstConsTimeOfCurrentBlock(FIRST_CONS_TIME_OF_LAST_BLOCK)
@@ -387,15 +393,24 @@ final class BlockRecordManagerTest extends AppTestBase {
                 while (endOfBlockHashes.size() > NUM_BLOCK_HASHES_TO_KEEP) {
                     endOfBlockHashes.remove(0);
                 }
-                assertThat(endOfBlockHashes.get(endOfBlockHashes.size() - 1).toHex())
+                // BlockInfo.blockHashes() stores only the leading HASH_SIZE (32) bytes of each classic (SHA-384,
+                // 48-byte) record-stream running hash, since block hashes migrated to a fixed 32-byte format while
+                // the classic running hash itself remains SHA-384/48 bytes; truncate here to match.
+                assertThat(endOfBlockHashes
+                                .get(endOfBlockHashes.size() - 1)
+                                .slice(0, HASH_SIZE)
+                                .toHex())
                         .isEqualTo(blockRecordManager.lastBlockHash().toHex());
-                assertThat(endOfBlockHashes.get(endOfBlockHashes.size() - 1).toHex())
+                assertThat(endOfBlockHashes
+                                .get(endOfBlockHashes.size() - 1)
+                                .slice(0, HASH_SIZE)
+                                .toHex())
                         .isEqualTo(
                                 blockRecordManager.blockHashByBlockNumber(block).toHex());
                 final int numBlockHashesToCheck = endOfBlockHashes.size();
                 for (int k = 0; k < numBlockHashesToCheck; k++) {
                     final var blockNumToCheck = block - (numBlockHashesToCheck - 1L - k);
-                    assertThat(endOfBlockHashes.get(k).toHex())
+                    assertThat(endOfBlockHashes.get(k).slice(0, HASH_SIZE).toHex())
                             .isEqualTo(blockRecordManager
                                     .blockHashByBlockNumber(blockNumToCheck)
                                     .toHex());
@@ -602,7 +617,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                             BlockInfo.newBuilder()
                                     .lastBlockNumber(-1)
                                     .firstConsTimeOfLastBlock(EPOCH)
-                                    .blockHashes(STARTING_RUNNING_HASH_OBJ.hash())
+                                    .blockHashes(
+                                            STARTING_RUNNING_HASH_OBJ.hash().slice(0, HASH_SIZE))
                                     .migrationRecordsStreamed(false)
                                     .firstConsTimeOfCurrentBlock(EPOCH)
                                     .lastUsedConsTime(EPOCH)
@@ -775,7 +791,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                             BlockInfo.newBuilder()
                                     .lastBlockNumber(-1)
                                     .firstConsTimeOfLastBlock(EPOCH)
-                                    .blockHashes(STARTING_RUNNING_HASH_OBJ.hash())
+                                    .blockHashes(
+                                            STARTING_RUNNING_HASH_OBJ.hash().slice(0, HASH_SIZE))
                                     .migrationRecordsStreamed(false)
                                     .firstConsTimeOfCurrentBlock(EPOCH)
                                     .lastUsedConsTime(EPOCH)
@@ -857,7 +874,8 @@ final class BlockRecordManagerTest extends AppTestBase {
                             BlockInfo.newBuilder()
                                     .lastBlockNumber(-1)
                                     .firstConsTimeOfLastBlock(EPOCH)
-                                    .blockHashes(STARTING_RUNNING_HASH_OBJ.hash())
+                                    .blockHashes(
+                                            STARTING_RUNNING_HASH_OBJ.hash().slice(0, HASH_SIZE))
                                     .migrationRecordsStreamed(false)
                                     .firstConsTimeOfCurrentBlock(EPOCH)
                                     .lastUsedConsTime(EPOCH)
@@ -885,19 +903,22 @@ final class BlockRecordManagerTest extends AppTestBase {
     @Nested
     class ComputeWrappedRecordBlockRootHashTest {
 
-        private static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
+        private static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO_384, HASH_OF_ZERO_384);
 
         /**
-         * The published cross-repo constant for the root of the eight empty reserved branches 9-16. Written
-         * out literally so this manual computation stays independent of the production tree builder.
+         * The root of the eight empty reserved branches 9-16: a perfect 8-leaf subtree where every leaf is
+         * {@link com.hedera.node.app.blocks.BlockStreamManager#HASH_OF_ZERO_384}. Computed (rather than a literal
+         * constant) so this manual computation tracks the active hash algorithm/size without needing to be
+         * recomputed by hand whenever that changes.
          */
-        private static final Bytes RESERVED_HALF = Bytes.fromHex(
-                "cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8");
+        private static final Bytes RESERVED_HALF = BlockImplUtils.hashInternalNode(
+                BlockImplUtils.hashInternalNode(EMPTY_INT_NODE, EMPTY_INT_NODE),
+                BlockImplUtils.hashInternalNode(EMPTY_INT_NODE, EMPTY_INT_NODE));
 
         @Test
         void producesHashOfCorrectSize() {
             final var result = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
-                    HASH_OF_ZERO, HASH_OF_ZERO, entryWithZeroHashes());
+                    HASH_OF_ZERO_384, HASH_OF_ZERO_384, entryWithZeroHashes());
 
             assertThat(result.length()).isEqualTo(HASH_SIZE);
         }
@@ -983,7 +1004,7 @@ final class BlockRecordManagerTest extends AppTestBase {
             // with the consensus timestamp leaf.
             final Bytes branches12 = BlockImplUtils.hashInternalNode(prevBlockHash, allPrevRootHash);
             final Bytes branches34 = EMPTY_INT_NODE;
-            final Bytes branches56 = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, outputHash);
+            final Bytes branches56 = BlockImplUtils.hashInternalNode(HASH_OF_ZERO_384, outputHash);
             final Bytes branches78 = EMPTY_INT_NODE;
 
             final Bytes branches1234 = BlockImplUtils.hashInternalNode(branches12, branches34);
@@ -1007,7 +1028,7 @@ final class BlockRecordManagerTest extends AppTestBase {
             final var entry = entryWith(randomHash(), randomHash());
 
             final var block1Hash =
-                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(HASH_OF_ZERO, allPrevRootHash, entry);
+                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(HASH_OF_ZERO_384, allPrevRootHash, entry);
             final var block2Hash =
                     BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(block1Hash, allPrevRootHash, entry);
 

@@ -27,7 +27,9 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import java.util.List;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.junit.jupiter.api.BeforeEach;
@@ -64,6 +66,12 @@ class MigrationRootHashVoteHandlerTest {
     @Mock
     private BlockRecordManager blockRecordManager;
 
+    @Mock
+    private Configuration configuration;
+
+    @Mock
+    private BlockStreamConfig blockStreamConfig;
+
     private MigrationRootHashVoteHandler subject;
 
     @BeforeEach
@@ -82,7 +90,7 @@ class MigrationRootHashVoteHandlerTest {
         lenient()
                 .when(pureChecksContext.body())
                 .thenReturn(bodyFor(MigrationRootHashVoteTransactionBody.newBuilder()
-                        .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                        .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[32]))
                         .wrappedIntermediateBlockRootsLeafCount(0)
                         .build()));
 
@@ -105,7 +113,7 @@ class MigrationRootHashVoteHandlerTest {
         // leafCount 1 -> bitCount(1) == 1 -> exactly one intermediate hash expected, but it is the wrong length
         given(pureChecksContext.body())
                 .willReturn(bodyFor(MigrationRootHashVoteTransactionBody.newBuilder()
-                        .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                        .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[32]))
                         .wrappedIntermediatePreviousBlockRootHashes(List.of(Bytes.wrap(new byte[47])))
                         .wrappedIntermediateBlockRootsLeafCount(1)
                         .build()));
@@ -118,8 +126,8 @@ class MigrationRootHashVoteHandlerTest {
         // leafCount 0 -> bitCount(0) == 0 expected, but one element is supplied -> structural mismatch
         given(pureChecksContext.body())
                 .willReturn(bodyFor(MigrationRootHashVoteTransactionBody.newBuilder()
-                        .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
-                        .wrappedIntermediatePreviousBlockRootHashes(List.of(Bytes.wrap(new byte[48])))
+                        .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[32]))
+                        .wrappedIntermediatePreviousBlockRootHashes(List.of(Bytes.wrap(new byte[32])))
                         .wrappedIntermediateBlockRootsLeafCount(0)
                         .build()));
 
@@ -132,8 +140,8 @@ class MigrationRootHashVoteHandlerTest {
         // but the leaf count itself is nonsensical (negative as signed / astronomically large as unsigned)
         given(pureChecksContext.body())
                 .willReturn(bodyFor(MigrationRootHashVoteTransactionBody.newBuilder()
-                        .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
-                        .wrappedIntermediatePreviousBlockRootHashes(List.of(Bytes.wrap(new byte[48])))
+                        .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[32]))
+                        .wrappedIntermediatePreviousBlockRootHashes(List.of(Bytes.wrap(new byte[32])))
                         .wrappedIntermediateBlockRootsLeafCount(Long.MIN_VALUE)
                         .build()));
 
@@ -157,9 +165,9 @@ class MigrationRootHashVoteHandlerTest {
         // leafCount 1 -> bitCount(1) == 1 expected, but two elements are supplied -> structural mismatch
         given(pureChecksContext.body())
                 .willReturn(bodyFor(MigrationRootHashVoteTransactionBody.newBuilder()
-                        .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                        .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[32]))
                         .wrappedIntermediatePreviousBlockRootHashes(
-                                List.of(Bytes.wrap(new byte[48]), Bytes.wrap(new byte[48])))
+                                List.of(Bytes.wrap(new byte[32]), Bytes.wrap(new byte[32])))
                         .wrappedIntermediateBlockRootsLeafCount(1)
                         .build()));
 
@@ -172,9 +180,9 @@ class MigrationRootHashVoteHandlerTest {
         lenient()
                 .when(pureChecksContext.body())
                 .thenReturn(bodyFor(MigrationRootHashVoteTransactionBody.newBuilder()
-                        .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                        .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[32]))
                         .wrappedIntermediatePreviousBlockRootHashes(
-                                List.of(Bytes.wrap(new byte[48]), Bytes.wrap(new byte[48])))
+                                List.of(Bytes.wrap(new byte[32]), Bytes.wrap(new byte[32])))
                         .wrappedIntermediateBlockRootsLeafCount(3)
                         .build()));
 
@@ -197,20 +205,23 @@ class MigrationRootHashVoteHandlerTest {
     @Test
     void handleFinalizesWhenTallyExceedsOneThirdThreshold() {
         final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
-                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[32]))
                 .wrappedIntermediateBlockRootsLeafCount(0)
                 .build();
         final var body =
                 TransactionBody.newBuilder().migrationRootHashVote(vote).build();
         final var queuedHashes = MigrationWrappedHashes.newBuilder()
                 .blockNumber(1L)
-                .consensusTimestampHash(Bytes.wrap(new byte[48]))
-                .outputItemsTreeRootHash(Bytes.wrap(new byte[48]))
+                .consensusTimestampHash(Bytes.wrap(new byte[32]))
+                .outputItemsTreeRootHash(Bytes.wrap(new byte[32]))
                 .build();
         final var activeRoster = new Roster(List.of(
                 RosterEntry.newBuilder().nodeId(NODE_ID).weight(20L).build(),
                 RosterEntry.newBuilder().nodeId(1L).weight(10L).build()));
 
+        lenient().when(context.configuration()).thenReturn(configuration);
+        lenient().when(configuration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        lenient().when(blockStreamConfig.useSha256()).thenReturn(true);
         given(context.storeFactory()).willReturn(storeFactory);
         given(context.body()).willReturn(body);
         given(context.creatorInfo()).willReturn(nodeInfo);
@@ -235,7 +246,7 @@ class MigrationRootHashVoteHandlerTest {
     @Test
     void handleIsNoopForDuplicateVote() {
         final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
-                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[32]))
                 .wrappedIntermediateBlockRootsLeafCount(0)
                 .build();
         final var body =
@@ -263,7 +274,7 @@ class MigrationRootHashVoteHandlerTest {
     @Test
     void handleDoesntFinalizeVoteWhenThresholdNotReached() {
         final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
-                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[32]))
                 .wrappedIntermediateBlockRootsLeafCount(0)
                 .build();
         final var body =
@@ -295,7 +306,7 @@ class MigrationRootHashVoteHandlerTest {
     @Test
     void handleIsNoopWhenNoActiveRoster() {
         final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
-                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[32]))
                 .wrappedIntermediateBlockRootsLeafCount(0)
                 .build();
         final var body =
@@ -318,7 +329,7 @@ class MigrationRootHashVoteHandlerTest {
     @Test
     void handleIsNoopWhenActiveRosterHasNoEntries() {
         final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
-                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[32]))
                 .wrappedIntermediateBlockRootsLeafCount(0)
                 .build();
         final var body =
@@ -343,7 +354,7 @@ class MigrationRootHashVoteHandlerTest {
     @Test
     void handleIsNoopWhenNodeWeightIsNonPositive() {
         final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
-                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[32]))
                 .wrappedIntermediateBlockRootsLeafCount(0)
                 .build();
         final var body =
@@ -370,7 +381,7 @@ class MigrationRootHashVoteHandlerTest {
     @Test
     void handleIsNoopWhenTotalWeightIsNonPositive() {
         final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
-                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[32]))
                 .wrappedIntermediateBlockRootsLeafCount(0)
                 .build();
         final var body =
@@ -396,25 +407,28 @@ class MigrationRootHashVoteHandlerTest {
     @Test
     void handleTalliesEquivalentVoteBodiesFromDifferentInstances() {
         final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
-                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[32]))
                 .wrappedIntermediateBlockRootsLeafCount(0)
                 .build();
         final var equivalentVote = MigrationRootHashVoteTransactionBody.newBuilder()
-                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[32]))
                 .wrappedIntermediateBlockRootsLeafCount(0)
                 .build();
         final var body =
                 TransactionBody.newBuilder().migrationRootHashVote(vote).build();
         final var queuedHashes = MigrationWrappedHashes.newBuilder()
                 .blockNumber(1L)
-                .consensusTimestampHash(Bytes.wrap(new byte[48]))
-                .outputItemsTreeRootHash(Bytes.wrap(new byte[48]))
+                .consensusTimestampHash(Bytes.wrap(new byte[32]))
+                .outputItemsTreeRootHash(Bytes.wrap(new byte[32]))
                 .build();
         final var activeRoster = new Roster(List.of(
                 RosterEntry.newBuilder().nodeId(NODE_ID).weight(1L).build(),
                 RosterEntry.newBuilder().nodeId(1L).weight(1L).build(),
                 RosterEntry.newBuilder().nodeId(2L).weight(1L).build()));
 
+        lenient().when(context.configuration()).thenReturn(configuration);
+        lenient().when(configuration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        lenient().when(blockStreamConfig.useSha256()).thenReturn(true);
         given(context.storeFactory()).willReturn(storeFactory);
         given(context.body()).willReturn(body);
         given(context.creatorInfo()).willReturn(nodeInfo);
@@ -444,14 +458,14 @@ class MigrationRootHashVoteHandlerTest {
     @Test
     void handleDoesNotCreditBodilessStoredVoteToTally() {
         final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
-                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[32]))
                 .wrappedIntermediateBlockRootsLeafCount(0)
                 .build();
         final var body = bodyFor(vote);
         final var queuedHashes = MigrationWrappedHashes.newBuilder()
                 .blockNumber(1L)
-                .consensusTimestampHash(Bytes.wrap(new byte[48]))
-                .outputItemsTreeRootHash(Bytes.wrap(new byte[48]))
+                .consensusTimestampHash(Bytes.wrap(new byte[32]))
+                .outputItemsTreeRootHash(Bytes.wrap(new byte[32]))
                 .build();
         // submitter (node 0) + two other weight-1 nodes, total 3; threshold is tally*3 > 3, i.e. tally >= 2
         final var activeRoster = new Roster(List.of(
@@ -489,14 +503,14 @@ class MigrationRootHashVoteHandlerTest {
     @Test
     void handleDoesNotCreditNodeIdlessStoredVoteToTally() {
         final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
-                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[32]))
                 .wrappedIntermediateBlockRootsLeafCount(0)
                 .build();
         final var body = bodyFor(vote);
         final var queuedHashes = MigrationWrappedHashes.newBuilder()
                 .blockNumber(1L)
-                .consensusTimestampHash(Bytes.wrap(new byte[48]))
-                .outputItemsTreeRootHash(Bytes.wrap(new byte[48]))
+                .consensusTimestampHash(Bytes.wrap(new byte[32]))
+                .outputItemsTreeRootHash(Bytes.wrap(new byte[32]))
                 .build();
         // submitter (node 0) + two other weight-1 nodes, total 3; threshold is tally*3 > 3, i.e. tally >= 2
         final var activeRoster = new Roster(List.of(
@@ -534,7 +548,7 @@ class MigrationRootHashVoteHandlerTest {
     @Test
     void handleDoesNotStoreVoteFromZeroWeightNode() {
         final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
-                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[32]))
                 .wrappedIntermediateBlockRootsLeafCount(0)
                 .build();
         final var body = bodyFor(vote);
@@ -573,19 +587,22 @@ class MigrationRootHashVoteHandlerTest {
         // vote that does reach finalization must be ignored gracefully, never crash the handle thread, and
         // never be written into canonical state.
         final var vote = MigrationRootHashVoteTransactionBody.newBuilder()
-                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[48]))
+                .previousWrappedRecordBlockRootHash(Bytes.wrap(new byte[32]))
                 .wrappedIntermediateBlockRootsLeafCount(1)
                 .build();
         final var body = bodyFor(vote);
         final var queuedHashes = MigrationWrappedHashes.newBuilder()
                 .blockNumber(1L)
-                .consensusTimestampHash(Bytes.wrap(new byte[48]))
-                .outputItemsTreeRootHash(Bytes.wrap(new byte[48]))
+                .consensusTimestampHash(Bytes.wrap(new byte[32]))
+                .outputItemsTreeRootHash(Bytes.wrap(new byte[32]))
                 .build();
         // single-node roster, so the lone vote already exceeds the 1/3 threshold and finalization is attempted
         final var activeRoster = new Roster(
                 List.of(RosterEntry.newBuilder().nodeId(NODE_ID).weight(1L).build()));
 
+        lenient().when(context.configuration()).thenReturn(configuration);
+        lenient().when(configuration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
+        lenient().when(blockStreamConfig.useSha256()).thenReturn(true);
         given(context.storeFactory()).willReturn(storeFactory);
         given(context.body()).willReturn(body);
         given(context.creatorInfo()).willReturn(nodeInfo);

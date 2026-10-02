@@ -11,6 +11,7 @@ import com.hedera.hapi.streams.SidecarFile;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils;
 import com.hedera.node.app.records.impl.WrappedRecordFileBlockHashesCalculator;
 import com.hedera.node.app.records.impl.WrappedRecordFileBlockHashesComputationInput;
@@ -151,8 +152,8 @@ public final class RcdFileBlockHashReplay {
                     sidecars,
                     DEFAULT_MAX_SIDECAR_SIZE_BYTES);
 
-            // Compute per-block hashes
-            final var entry = WrappedRecordFileBlockHashesCalculator.compute(input);
+            // Compute per-block hashes (SHA-384 default, matching this file's own hashInternalNode() calls below)
+            final var entry = WrappedRecordFileBlockHashesCalculator.compute(input, CommonUtils::sha384DigestOrThrow);
             entriesByBlock.put(blockNumber, entry);
 
             // Compute block root hash via Merkle tree (independent of production code)
@@ -187,7 +188,7 @@ public final class RcdFileBlockHashReplay {
         // block production: if it did, any error in that implementation would be reproduced here and the
         // replay would agree with production regardless. A wrapped record block populates only branches 1, 2
         // and 6; every other branch, assigned or reserved, is the empty sub-tree hash.
-        final var empty = BlockStreamManager.HASH_OF_ZERO;
+        final var empty = BlockStreamManager.HASH_OF_ZERO_384;
         final var branches12 = hashInternalNode(prevWrappedBlockHash, allPrevBlocksRootHash);
         final var branches34 = hashInternalNode(empty, empty);
         final var branches56 = hashInternalNode(empty, entry.outputItemsTreeRootHash());
@@ -205,7 +206,8 @@ public final class RcdFileBlockHashReplay {
      * Expected value: {@code cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8}.
      */
     private static Bytes emptyReservedHalf() {
-        final var pairOfEmpties = hashInternalNode(BlockStreamManager.HASH_OF_ZERO, BlockStreamManager.HASH_OF_ZERO);
+        final var pairOfEmpties =
+                hashInternalNode(BlockStreamManager.HASH_OF_ZERO_384, BlockStreamManager.HASH_OF_ZERO_384);
         final var fourEmpties = hashInternalNode(pairOfEmpties, pairOfEmpties);
         return hashInternalNode(fourEmpties, fourEmpties);
     }

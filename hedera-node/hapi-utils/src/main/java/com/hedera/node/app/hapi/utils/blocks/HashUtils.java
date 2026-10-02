@@ -18,26 +18,34 @@ import java.security.NoSuchAlgorithmException;
  *   <li>Two-child (internal) nodes: prefixed with 0x02</li>
  * </ul>
  *
- * <p>All hashing uses SHA-384 for security and consistency with the broader Hedera ecosystem.
+ * <p>All hashing uses SHA-256, matching the block root Merkle tree algorithm.
  */
 public final class HashUtils {
 
-    private static final String HASH_ALGORITHM = "SHA-384";
+    private static final String SHA_256 = "SHA-256";
+    private static final String SHA_384 = "SHA-384";
 
     private HashUtils() {
         throw new UnsupportedOperationException("Utility class");
     }
 
-    static MessageDigest newMessageDigest() {
+    /**
+     * Returns a new {@link MessageDigest} instance.
+     *
+     * @param useSha256 {@code true} for SHA-256 (32-byte output, used for block-root Merkle trees);
+     *                  {@code false} for SHA-384 (48-byte output, legacy algorithm)
+     */
+    static MessageDigest newMessageDigest(final boolean useSha256) {
+        final String algorithm = useSha256 ? SHA_256 : SHA_384;
         try {
-            return MessageDigest.getInstance(HASH_ALGORITHM);
+            return MessageDigest.getInstance(algorithm);
         } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(HASH_ALGORITHM + " algorithm not found", e);
+            throw new RuntimeException(algorithm + " algorithm not found", e);
         }
     }
 
     /**
-     * Computes the raw block-tree leaf hash: {@code SHA-384(0x00 || bytes)}.
+     * Computes the raw block-tree leaf hash: {@code SHA-256(0x00 || bytes)}.
      *
      * <p>Use this for block-tree leaves that are NOT represented as standalone {@link com.hedera.hapi.block.stream.MerklePath}
      * leaf fields — for example, the block timestamp used as a sibling in state-proof extension paths.
@@ -58,7 +66,7 @@ public final class HashUtils {
     }
 
     /**
-     * Computes the hash of a VirtualMap state-item leaf: {@code SHA-384(0x00 || stateItemBytes)}.
+     * Computes the hash of a VirtualMap state-item leaf: {@code SHA-256(0x00 || stateItemBytes)}.
      *
      * <p>Matches {@code VirtualLeafBytes.writeToForHashing()} on the current platform, which writes
      * the leaf-prefix byte followed directly by the serialised {@code StateItem} bytes (field 2 = key,
@@ -81,9 +89,9 @@ public final class HashUtils {
     }
 
     /**
-     * Computes SHA-384(0x01 || childHash) — the single-child internal-node hash format.
+     * Computes SHA-256(0x01 || childHash) — the single-child internal-node hash format.
      *
-     * @param digest    a fresh or reset SHA-384 {@link MessageDigest}
+     * @param digest    a fresh or reset SHA-256 {@link MessageDigest}
      * @param childHash the child node's hash bytes
      * @return the resulting hash bytes
      */
@@ -97,9 +105,9 @@ public final class HashUtils {
     }
 
     /**
-     * Computes SHA-384(0x02 || left || right) — the two-child internal-node hash format.
+     * Computes SHA-256(0x02 || left || right) — the two-child internal-node hash format.
      *
-     * @param digest a fresh or reset SHA-384 {@link MessageDigest}
+     * @param digest a fresh or reset SHA-256 {@link MessageDigest}
      * @param left   the left child's hash bytes
      * @param right  the right child's hash bytes
      * @return the resulting hash bytes

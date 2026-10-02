@@ -314,16 +314,19 @@ public class ConversionUtils {
     }
 
     /**
-     * Wraps the first 32 bytes of the given SHA-384 {@link org.hiero.base.crypto.Hash hash} in a Besu {@link Hash}.
+     * Wraps the first 32 bytes of the given block-root {@link org.hiero.base.crypto.Hash hash} in a Besu
+     * {@link Hash}. The block-root hash may be 32 bytes (SHA-256) or 48 bytes (SHA-384) depending on
+     * {@code BlockStreamConfig.useSha256}; the EVM word size is fixed at 32 bytes regardless, so the leading 32 bytes
+     * are used either way.
      *
-     * @param sha384Hash the SHA-384 hash
+     * @param blockRootHash the block-root hash
      * @return the first 32 bytes as a Besu {@link Hash}
      */
     public static org.hyperledger.besu.datatypes.Hash ethHashFrom(
-            @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes sha384Hash) {
-        requireNonNull(sha384Hash);
+            @NonNull final com.hedera.pbj.runtime.io.buffer.Bytes blockRootHash) {
+        requireNonNull(blockRootHash);
         final byte[] prefixBytes = new byte[32];
-        sha384Hash.getBytes(0, prefixBytes, 0, prefixBytes.length);
+        blockRootHash.getBytes(0, prefixBytes, 0, prefixBytes.length);
         return org.hyperledger.besu.datatypes.Hash.wrap(Bytes32.wrap(prefixBytes));
     }
 

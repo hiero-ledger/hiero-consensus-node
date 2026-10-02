@@ -34,6 +34,7 @@ import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.lang.reflect.Field;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -142,7 +143,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
     }
 
     @Test
@@ -181,7 +183,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         assertFalse(subject.isStillInProgress(DEFAULT_TSS_CONFIG));
     }
@@ -209,7 +212,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         assertFalse(subject.isStillInProgress(DEFAULT_TSS_CONFIG));
     }
@@ -237,7 +241,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         subject.advanceConstruction(Instant.EPOCH, METADATA, writableHistoryStore, true, tssConfig);
 
@@ -285,7 +290,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                tssConfig);
+                tssConfig,
+                false);
 
         verify(proverFactory)
                 .create(
@@ -345,7 +351,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                tssConfig);
+                tssConfig,
+                false);
 
         subject.advanceConstruction(Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, tssConfig);
 
@@ -413,7 +420,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
         given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any(), anyBoolean()))
@@ -449,7 +457,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
         given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any(), anyBoolean()))
@@ -487,7 +496,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         final var proof = aValidProof();
 
@@ -528,7 +538,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         final var reason = "test-failure";
 
@@ -568,7 +579,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         final var proof = aValidProof();
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
@@ -611,7 +623,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         final var reason = "test-failure";
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
@@ -650,7 +663,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         final var restarted = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
@@ -696,7 +710,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         final var restarted = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
@@ -744,7 +759,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         final var restarted = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
@@ -786,7 +802,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         subject.advanceConstruction(
                 Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
@@ -818,7 +835,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         subject.advanceConstruction(
                 Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
@@ -881,7 +899,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         final var publication = new ProofKeyPublication(SELF_ID, PROOF_KEY_1, Instant.EPOCH);
 
@@ -941,7 +960,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         final var publication = new WrapsMessagePublication(SELF_ID, Bytes.EMPTY, R1, Instant.EPOCH);
 
@@ -987,7 +1007,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         final var vote = HistoryProofVote.newBuilder().proof(aValidProof()).build();
 
@@ -1011,6 +1032,51 @@ class ProofControllerImplTest {
         verify(writableHistoryStore).addProofVote(eq(SELF_ID), eq(CONSTRUCTION_ID), eq(vote));
         verify(writableHistoryStore).completeProof(eq(CONSTRUCTION_ID), eq(proof));
         verify(historyService).onFinished(eq(writableHistoryStore), any(), any());
+    }
+
+    @Test
+    void storedVoteDedupTagLengthFollowsUseSha256() throws Exception {
+        // The dedup tag for a stored explicit vote is a hash of the proof bytes, so its length is
+        // 48 bytes under SHA-384 (useSha256=false) and 32 bytes under SHA-256 (useSha256=true).
+        assertEquals(48, storedVoteDedupTagLength(false));
+        assertEquals(32, storedVoteDedupTagLength(true));
+    }
+
+    private int storedVoteDedupTagLength(final boolean useSha256) throws Exception {
+        final var proof = aValidProof();
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+        // A high threshold with the default (0) source weight keeps the vote from finishing, so the
+        // stored ExplicitProofVote remains in the in-memory tally for inspection.
+        given(weights.sourceWeightThreshold()).willReturn(5L);
+
+        final var controller = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                machine,
+                keyPublications,
+                wrapsMessagePublications,
+                new TreeMap<>(),
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null,
+                historyProofMetrics,
+                DEFAULT_TSS_CONFIG,
+                useSha256);
+
+        controller.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
+
+        final Field votesField = ProofControllerImpl.class.getDeclaredField("votes");
+        votesField.setAccessible(true);
+        final var votes = (Map<?, ?>) votesField.get(controller);
+        final var explicitVote = votes.get(SELF_ID);
+        final Field tagField = explicitVote.getClass().getDeclaredField("tag");
+        tagField.setAccessible(true);
+        return (int) ((Bytes) tagField.get(explicitVote)).length();
     }
 
     @Test
@@ -1087,7 +1153,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         final var congruentVote =
                 HistoryProofVote.newBuilder().congruentNodeId(OTHER_NODE_ID).build();
@@ -1124,7 +1191,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         reset(writableHistoryStore, prover);
 
@@ -1204,7 +1272,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         final var lowerNodeVote =
                 HistoryProofVote.newBuilder().proof(lowerNodeProof).build();
@@ -1285,7 +1354,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
         final var proof = recursiveProof("compressed", "uncompressed");
         final var vote = HistoryProofVote.newBuilder().proof(proof).build();
         final var ledgerId = Bytes.wrap("ledger");
@@ -1340,7 +1410,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         given(tssConfig.wrapsEnabled()).willReturn(true);
 
@@ -1394,7 +1465,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         given(weights.numTargetNodesInSource()).willReturn(2);
 
@@ -1438,7 +1510,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         // Nodes 0, 1, and 2 must all be counted (weight 30). With a threshold of 35 the proof is not yet complete,
         // but one more congruent vote (node 3) crosses it. Had node 0 or node 1 been dropped during replay, the tally
@@ -1480,7 +1553,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 sourceProof,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         verify(proverFactory)
                 .create(
@@ -1563,7 +1637,8 @@ class ProofControllerImplTest {
                 proverFactory,
                 null,
                 historyProofMetrics,
-                DEFAULT_TSS_CONFIG);
+                DEFAULT_TSS_CONFIG,
+                false);
 
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
         given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any(), anyBoolean()))

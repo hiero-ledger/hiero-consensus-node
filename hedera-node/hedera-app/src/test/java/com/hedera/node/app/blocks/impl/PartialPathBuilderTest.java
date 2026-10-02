@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
@@ -26,7 +27,12 @@ class PartialPathBuilderTest {
         };
 
         final var path = PartialPathBuilder.startingStateToBlockRoot(
-                previousBlockHash, previousBlockRootsHash, startingStateHash, consensusHeaderRootHash, siblingHashes);
+                CommonUtils.sha384DigestOrThrow(),
+                previousBlockHash,
+                previousBlockRootsHash,
+                startingStateHash,
+                consensusHeaderRootHash,
+                siblingHashes);
 
         assertThat(path.hash()).isEqualTo(startingStateHash);
         assertThat(path.nextPathIndex()).isEqualTo(2);

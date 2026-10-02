@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
 class BlockContentsValidatorTest {
 
     private static final Timestamp TIMESTAMP = new Timestamp(1_000_000L, 0);
-    private static final Bytes EMPTY_HASH = Bytes.wrap(new byte[48]);
+    private static final Bytes EMPTY_HASH = Bytes.wrap(new byte[32]);
 
     private static BlockItem headerItem(long blockNumber) {
         return new BlockItem(new OneOf<>(

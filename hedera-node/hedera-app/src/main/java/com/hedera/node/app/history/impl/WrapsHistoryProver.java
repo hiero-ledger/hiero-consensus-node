@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowHashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.history.HistoryLibrary.MISSING_SCHNORR_KEY;
 import static com.hedera.node.app.history.impl.ProofControllers.groundsChainOfTrust;
@@ -77,6 +78,7 @@ public class WrapsHistoryProver implements HistoryProver {
     private final HistoryLibrary historyLibrary;
     private final HistorySubmissions submissions;
     private final WrapsMpcStateMachine machine;
+    private final boolean useSha256;
     private final Object voteLock = new Object();
 
     private final Map<WrapsPhase, SortedMap<Long, WrapsMessagePublication>> phaseMessages =
@@ -246,6 +248,34 @@ public class WrapsHistoryProver implements HistoryProver {
             @NonNull final HistoryLibrary historyLibrary,
             @NonNull final HistorySubmissions submissions,
             @NonNull final WrapsMpcStateMachine machine) {
+        this(
+                selfId,
+                wrapsMessageGracePeriod,
+                schnorrKeyPair,
+                sourceProof,
+                weights,
+                proofKeys,
+                delayer,
+                executor,
+                historyLibrary,
+                submissions,
+                machine,
+                false);
+    }
+
+    public WrapsHistoryProver(
+            final long selfId,
+            @NonNull final Duration wrapsMessageGracePeriod,
+            @NonNull final SchnorrKeyPair schnorrKeyPair,
+            @Nullable final HistoryProof sourceProof,
+            @NonNull final RosterTransitionWeights weights,
+            @NonNull final Map<Long, Bytes> proofKeys,
+            @NonNull final Delayer delayer,
+            @NonNull final Executor executor,
+            @NonNull final HistoryLibrary historyLibrary,
+            @NonNull final HistorySubmissions submissions,
+            @NonNull final WrapsMpcStateMachine machine,
+            final boolean useSha256) {
         this.selfId = selfId;
         this.sourceProof = sourceProof;
         this.wrapsMessageGracePeriod = requireNonNull(wrapsMessageGracePeriod);
@@ -257,6 +287,7 @@ public class WrapsHistoryProver implements HistoryProver {
         this.historyLibrary = requireNonNull(historyLibrary);
         this.submissions = requireNonNull(submissions);
         this.machine = requireNonNull(machine);
+        this.useSha256 = useSha256;
     }
 
     @NonNull
@@ -964,7 +995,8 @@ public class WrapsHistoryProver implements HistoryProver {
         return category == ProofVoteCategory.NOT_RECURSIVE ? ProofKind.NON_RECURSIVE : ProofKind.RECURSIVE;
     }
 
-    private static Bytes hashOf(@NonNull final HistoryProof proof) {
-        return noThrowSha384HashOf(HistoryProof.PROTOBUF.toBytes(proof));
+    private Bytes hashOf(@NonNull final HistoryProof proof) {
+        final var bytes = HistoryProof.PROTOBUF.toBytes(proof).toByteArray();
+        return Bytes.wrap(noThrowHashOf(bytes, useSha256));
     }
 }

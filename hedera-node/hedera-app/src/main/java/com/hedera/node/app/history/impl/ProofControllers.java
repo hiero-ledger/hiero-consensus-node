@@ -17,6 +17,7 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
@@ -38,6 +39,7 @@ public class ProofControllers {
     private final HistorySubmissions submissions;
     private final WrapsMpcStateMachine machine;
     private final Supplier<NodeInfo> selfNodeInfoSupplier;
+    private final Supplier<Configuration> configSupplier;
 
     /**
      * May be null if the node has just started, or if the network has completed the most up-to-date
@@ -55,7 +57,8 @@ public class ProofControllers {
             @NonNull final Supplier<NodeInfo> selfNodeInfoSupplier,
             @NonNull final HistoryService historyService,
             @NonNull final HistoryProofMetrics historyProofMetrics,
-            @NonNull final WrapsMpcStateMachine machine) {
+            @NonNull final WrapsMpcStateMachine machine,
+            @NonNull final Supplier<Configuration> configSupplier) {
         this.executor = requireNonNull(executor);
         this.keyAccessor = requireNonNull(keyAccessor);
         this.historyLibrary = requireNonNull(historyLibrary);
@@ -64,6 +67,7 @@ public class ProofControllers {
         this.historyService = requireNonNull(historyService);
         this.historyProofMetrics = requireNonNull(historyProofMetrics);
         this.machine = requireNonNull(machine);
+        this.configSupplier = requireNonNull(configSupplier);
     }
 
     /**
@@ -164,8 +168,21 @@ public class ProofControllers {
             final var selfId = selfNodeInfoSupplier.get().nodeId();
             final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
             final var sourceProof = activeProofConstruction.targetProof();
+            final boolean useSha256 =
+                    configSupplier.get().getConfigData(BlockStreamConfig.class).useSha256();
             final HistoryProver.Factory proverFactory = (s, t, k, p, w, r, x, l, m) -> new WrapsHistoryProver(
-                    s, t.wrapsMessageGracePeriod(), k, p, w, r, CompletableFuture::delayedExecutor, x, l, m, machine);
+                    s,
+                    t.wrapsMessageGracePeriod(),
+                    k,
+                    p,
+                    w,
+                    r,
+                    CompletableFuture::delayedExecutor,
+                    x,
+                    l,
+                    m,
+                    machine,
+                    useSha256);
             return new ProofControllerImpl(
                     selfId,
                     schnorrKeyPair,
@@ -182,7 +199,8 @@ public class ProofControllers {
                     proverFactory,
                     sourceProof,
                     historyProofMetrics,
-                    tssConfig);
+                    tssConfig,
+                    useSha256);
         }
     }
 

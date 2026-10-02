@@ -110,7 +110,8 @@ class ProofControllersTest {
                 selfNodeInfoSupplier,
                 historyService,
                 historyProofMetrics,
-                machine);
+                machine,
+                () -> DEFAULT_CONFIG);
     }
 
     @Test

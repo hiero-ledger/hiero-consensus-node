@@ -3,7 +3,6 @@ package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashLeaf;
 
-import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -97,7 +96,7 @@ public class IncrementalStreamingHasher {
      * Add a pre-hashed node to the Merkle tree. This is needed for a tree of other trees. Where each node at the
      * bottom of this tree is the root hash of another tree.
      *
-     * @param hash the 48-byte SHA-384 hash of the node to add (must already include the prefixing)
+     * @param hash the hash of the node to add (must already include the prefixing)
      */
     public void addNodeByHash(byte[] hash) {
         hashList.add(hash);
@@ -119,16 +118,17 @@ public class IncrementalStreamingHasher {
      *
      * <p>Time complexity: O(log n) where n is the leaf count.
      *
-     * <p>For an empty tree (no leaves added), this method returns the predefined
-     * {@link BlockStreamManager#HASH_OF_ZERO} which is {@code sha384Hash(new byte[]{0x00})}.
+     * <p>For an empty tree (no leaves added), this method returns the leaf hash of no data — i.e.
+     * {@code hashLeaf(digest, empty)} — under this hasher's own digest, so the result always matches this
+     * instance's algorithm regardless of which one is currently configured elsewhere.
      *
-     * @return the 48-byte SHA-384 Merkle tree root hash, or {@link BlockStreamManager#HASH_OF_ZERO_BYTES}
-     *         if no leaves have been added
+     * @return the Merkle tree root hash, or the empty-branch hash under this hasher's digest if no leaves
+     *         have been added
      */
     public byte[] computeRootHash() {
         if (hashList.isEmpty()) {
             // This value is precomputed as the hash of an empty tree; therefore it should _not_ be hashed as a leaf
-            return BlockStreamManager.HASH_OF_ZERO_BYTES;
+            return hashLeaf(digest, new byte[0]);
         }
         if (hashList.size() == 1) {
             // This value should already have been hashed as a leaf, and therefore should _not_ be re-hashed
@@ -170,7 +170,7 @@ public class IncrementalStreamingHasher {
      * <ul>
      *   <li>8 bytes: leaf count (long)</li>
      *   <li>4 bytes: hash count (int)</li>
-     *   <li>48 bytes × hash count: the pending subtree root hashes</li>
+     *   <li>{@code digest.getDigestLength()} bytes × hash count: the pending subtree root hashes</li>
      * </ul>
      *
      * @param filePath the path to the file where the state will be saved
@@ -180,7 +180,7 @@ public class IncrementalStreamingHasher {
         try (DataOutputStream out = new DataOutputStream(Files.newOutputStream(filePath))) {
             out.writeLong(leafCount);
             out.writeInt(hashList.size());
-            for (byte[] hash : hashList) { // all hashes are 48 bytes (SHA-384)
+            for (byte[] hash : hashList) {
                 out.write(hash);
             }
         }
@@ -198,7 +198,7 @@ public class IncrementalStreamingHasher {
             int hashCount = din.readInt();
             hashList.clear();
             for (int i = 0; i < hashCount; i++) {
-                byte[] hash = new byte[48]; // SHA-384 produces 48-byte hashes
+                byte[] hash = new byte[digest.getDigestLength()];
                 din.readFully(hash);
                 hashList.add(hash);
             }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowHashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -32,8 +33,23 @@ import org.hiero.consensus.model.hashgraph.Round;
  * Merkle trees will be in the order they are written.
  */
 public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener {
+    // SHA-384-default: the block-root Merkle tree's hash algorithm is chosen per-call by BlockStreamConfig.useSha256
+    // (see BlockStreamManagerImpl.digestOrThrow()); this constant is only the fallback for callers with no
+    // access to that config (e.g. Hedera.java's genesis sentinel, which is only ever compared for equality).
     byte[] HASH_OF_ZERO_BYTES = noThrowSha384HashOf(new byte[] {0x0});
-    Bytes HASH_OF_ZERO = Bytes.wrap(HASH_OF_ZERO_BYTES);
+    Bytes HASH_OF_ZERO_384 = Bytes.wrap(HASH_OF_ZERO_BYTES);
+
+    /**
+     * The genesis/empty-subtree sentinel {@code hash(0x00)} under the hash algorithm selected by
+     * {@code BlockStreamConfig.useSha256}: {@code sha256(0x00)} (32 bytes) when {@code useSha256} is true,
+     * otherwise the {@link #HASH_OF_ZERO_384} default ({@code sha384(0x00)}, 48 bytes).
+     *
+     * @param useSha256 whether to use SHA-256 instead of the SHA-384 default
+     * @return the config-appropriate hash-of-zero sentinel
+     */
+    static Bytes hashOfZero(final boolean useSha256) {
+        return useSha256 ? Bytes.wrap(noThrowHashOf(new byte[] {0x0}, true)) : HASH_OF_ZERO_384;
+    }
 
     /**
      * The number of sibling hashes on the path from a block's first branch up to its root: one per level
@@ -91,7 +107,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     /**
      * Initializes the block stream manager after a restart or during reconnect with the hashes necessary to
      * infer the starting block tree states and the last block hash used in the restart or reconnect. At
-     * genesis, the last block hash should be the {@link #HASH_OF_ZERO}. In all other cases, this value should
+     * genesis, the last block hash should be the {@link #HASH_OF_ZERO_384}. In all other cases, this value should
      * be null, and the method should calculate it from the intermediate subtree states.
      *
      * @param state the state to use

@@ -2,13 +2,13 @@
 package com.hedera.node.app.records.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.WritableBlockRecordStore;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
@@ -18,11 +18,13 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashMap;
 import java.util.Optional;
+import java.util.function.IntPredicate;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -37,7 +39,6 @@ import org.hiero.consensus.roster.ReadableRosterStore;
 public class MigrationRootHashVoteHandler implements TransactionHandler {
     private static final Logger log = LogManager.getLogger(MigrationRootHashVoteHandler.class);
 
-    private static final int SHA_384_HASH_LENGTH = 48;
     // Far beyond any realistic number of wrapped record blocks; also keeps the leaf count clear of
     // overflow as it is incremented per queued hash during finalization.
     private static final long MAX_INTERMEDIATE_LEAF_COUNT = 1L << 40;
@@ -145,9 +146,12 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
             return;
         }
 
+        final var useSha256 =
+                context.configuration().getConfigData(BlockStreamConfig.class).useSha256();
+
         // Defense-in-depth: never feed a structurally inconsistent winning vote into the streaming hasher,
         // which would otherwise fold past the available pending state and crash the handle thread.
-        if (!isStructurallyValid(op)) {
+        if (!isStructurallyValid(op, useSha256)) {
             log.error(
                     "Ignoring migration root hash vote finalization from node{} because the winning vote body is structurally invalid",
                     nodeId);
@@ -156,7 +160,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
 
         var previousWrappedRecordBlockRootHash = op.previousWrappedRecordBlockRootHash();
         final var hasher = new IncrementalStreamingHasher(
-                sha384DigestOrThrow(),
+                CommonUtils.digestOrThrow(useSha256),
                 op.wrappedIntermediatePreviousBlockRootHashes().stream()
                         .map(Bytes::toByteArray)
                         .toList(),
@@ -164,6 +168,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
         for (final var queuedHashes : store.wrappedHashesInOrder()) {
             final var allPrevBlocksRootHash = Bytes.wrap(hasher.computeRootHash());
             final var blockRootHash = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    () -> CommonUtils.digestOrThrow(useSha256),
                     previousWrappedRecordBlockRootHash,
                     allPrevBlocksRootHash,
                     WrappedRecordFileBlockHashes.newBuilder()
@@ -200,16 +205,38 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
     }
 
     /**
-     * Returns whether a vote body is internally consistent: both the previous root hash and every
-     * intermediate-state hash must be the expected SHA-384 length, the leaf count must be a sane
-     * non-negative value, and the number of intermediate hashes must equal the number of set bits in
-     * the leaf count (the pending-subtree invariant the streaming hasher relies on).
+     * Returns whether a vote body is internally consistent for a context-free check (e.g. {@code pureChecks},
+     * which has no {@code Configuration} and so cannot know the current {@code BlockStreamConfig.useSha256} setting):
+     * both the previous root hash and every intermediate-state hash must be a plausible block-root hash
+     * length (32 bytes for SHA-256 or 48 bytes for SHA-384), the leaf count must be a sane non-negative
+     * value, and the number of intermediate hashes must equal the number of set bits in the leaf count (the
+     * pending-subtree invariant the streaming hasher relies on).
      *
      * @param op the vote body
      * @return true if the body is structurally consistent
      */
     private static boolean isStructurallyValid(@NonNull final MigrationRootHashVoteTransactionBody op) {
-        if (op.previousWrappedRecordBlockRootHash().length() != SHA_384_HASH_LENGTH) {
+        return isStructurallyValid(op, MigrationRootHashVoteHandler::isPlausibleHashLength);
+    }
+
+    /**
+     * Returns whether a vote body is internally consistent given the current {@code BlockStreamConfig.useSha256}
+     * setting, per {@link #isStructurallyValid(MigrationRootHashVoteTransactionBody)} but requiring exactly
+     * the currently-active digest's length rather than any plausible one.
+     *
+     * @param op the vote body
+     * @param useSha256 whether the wrapped-record-block-root tree currently uses SHA-256
+     * @return true if the body is structurally consistent
+     */
+    private static boolean isStructurallyValid(
+            @NonNull final MigrationRootHashVoteTransactionBody op, final boolean useSha256) {
+        final int expectedLength = CommonUtils.digestOrThrow(useSha256).getDigestLength();
+        return isStructurallyValid(op, length -> length == expectedLength);
+    }
+
+    private static boolean isStructurallyValid(
+            @NonNull final MigrationRootHashVoteTransactionBody op, @NonNull final IntPredicate hashLengthOk) {
+        if (!hashLengthOk.test((int) op.previousWrappedRecordBlockRootHash().length())) {
             return false;
         }
         final var leafCount = op.wrappedIntermediateBlockRootsLeafCount();
@@ -221,10 +248,14 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
             return false;
         }
         for (final var hash : intermediateHashes) {
-            if (hash.length() != SHA_384_HASH_LENGTH) {
+            if (!hashLengthOk.test((int) hash.length())) {
                 return false;
             }
         }
         return true;
+    }
+
+    private static boolean isPlausibleHashLength(final int length) {
+        return length == 32 || length == 48;
     }
 }

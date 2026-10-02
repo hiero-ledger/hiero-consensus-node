@@ -880,6 +880,45 @@ class WrapsHistoryProverTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void storedProofHashLengthFollowsUseSha256Flag() {
+        final var proof = HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .build();
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+
+        subject = newProverWithUseSha256(false);
+        setField("voteDecisionFuture", new CompletableFuture<>());
+        subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
+        final var sha384Hash = ((Map<Long, Bytes>) getField("explicitHistoryProofHashes")).get(OTHER_NODE_ID);
+
+        subject = newProverWithUseSha256(true);
+        setField("voteDecisionFuture", new CompletableFuture<>());
+        subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
+        final var sha256Hash = ((Map<Long, Bytes>) getField("explicitHistoryProofHashes")).get(OTHER_NODE_ID);
+
+        assertEquals(48L, sha384Hash.length(), "SHA-384 proof-identity hash is 48 bytes");
+        assertEquals(32L, sha256Hash.length(), "SHA-256 proof-identity hash is 32 bytes");
+        assertNotEquals(sha384Hash, sha256Hash);
+    }
+
+    private WrapsHistoryProver newProverWithUseSha256(final boolean useSha256) {
+        return new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                executor,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine(),
+                useSha256);
+    }
+
+    @Test
     void observeProofVoteStoresHashWhenVoteHasProofButHistoryProofIsNull() {
         final var pendingFuture = new CompletableFuture<>();
         setField("voteDecisionFuture", pendingFuture);

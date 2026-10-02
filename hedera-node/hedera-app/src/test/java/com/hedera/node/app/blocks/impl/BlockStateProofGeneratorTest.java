@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO_384;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.BLOCK_CONTENTS_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.EXPECTED_MERKLE_PATH_COUNT;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.FINAL_NEXT_PATH_INDEX;
@@ -147,19 +147,19 @@ class BlockStateProofGeneratorTest {
 
     /**
      * Builds a minimal {@link PendingBlock} with the given number and sibling-hash count. Each sibling hash reuses
-     * {@link com.hedera.node.app.blocks.BlockStreamManager#HASH_OF_ZERO}, a valid SHA-384-length value, so that hash
+     * {@link com.hedera.node.app.blocks.BlockStreamManager#HASH_OF_ZERO_384}, a valid HASH_SIZE-length value, so that hash
      * conversion succeeds and only the guard under test can fail.
      */
     private static PendingBlock pendingBlock(final long number, final int siblingCount) {
         final var siblings = new MerkleSiblingHash[siblingCount];
         for (int i = 0; i < siblingCount; i++) {
-            siblings[i] = new MerkleSiblingHash(false, HASH_OF_ZERO);
+            siblings[i] = new MerkleSiblingHash(false, HASH_OF_ZERO_384);
         }
         return new PendingBlock(
                 number,
                 null,
-                HASH_OF_ZERO,
-                HASH_OF_ZERO,
+                HASH_OF_ZERO_384,
+                HASH_OF_ZERO_384,
                 BlockProof.newBuilder().block(number),
                 new NoOpTestWriter(),
                 Timestamp.DEFAULT,
@@ -523,7 +523,7 @@ class BlockStateProofGeneratorTest {
                     + "eefb629a01a636206b797b8515764bbda54d5acb4daf54192e1c4e3165be31bc325f9ed2dc9d52342d8abfed0199e343d7"
                     + "888f162394ace1955f1e8d77ed429");
 
-    private static final Bytes FIRST_EXPECTED_PREVIOUS_BLOCK_HASH = HASH_OF_ZERO;
+    private static final Bytes FIRST_EXPECTED_PREVIOUS_BLOCK_HASH = HASH_OF_ZERO_384;
 
     private static final long MIN_INDIRECT_BLOCK_NUM = 0L;
     private static final long MAX_BLOCK_NUM = 5L; // Includes the final pending (signed) block

@@ -4,9 +4,10 @@ package com.hedera.node.app.blocks.impl;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNATURE;
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO_384;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
+import static com.hedera.node.app.blocks.BlockStreamManager.hashOfZero;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashLeaf;
@@ -48,6 +49,7 @@ import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.block.stream.output.TransactionResult;
+import com.hedera.hapi.node.base.BlockHashAlgorithm;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
@@ -62,6 +64,7 @@ import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.OnDiskPendingBlock;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
@@ -131,7 +134,7 @@ class BlockStreamManagerImplTest {
     private static final long N_BLOCK_NO = 666L;
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L);
     private static final Timestamp CONSENSUS_THEN = new Timestamp(890, 0);
-    private static final Hash FAKE_START_OF_BLOCK_STATE_HASH = new Hash(HASH_OF_ZERO.toByteArray());
+    private static final Hash FAKE_START_OF_BLOCK_STATE_HASH = new Hash(HASH_OF_ZERO_384.toByteArray());
     private static final Bytes FAKE_RESTART_BLOCK_HASH = Bytes.fromHex("abcd".repeat(24));
     // Effective last block hash computed by the restart path from blockStreamInfoWith(Bytes.EMPTY, patch(0))
     private static final Bytes FAKE_PATCH_RESTART_HASH = Bytes.fromHex(
@@ -161,7 +164,7 @@ class BlockStreamManagerImplTest {
             BlockItem.newBuilder().recordFile(RecordFileItem.DEFAULT).build();
     private static final String SIMULATED_PIPELINE_FAILURE = "simulated hashing pipeline failure";
     private static final String SIMULATED_PIPELINE_ERROR = "simulated hashing pipeline error";
-    private final InitialStateHash hashInfo = new InitialStateHash(completedFuture(HASH_OF_ZERO), 0);
+    private final InitialStateHash hashInfo = new InitialStateHash(completedFuture(HASH_OF_ZERO_384), 0);
 
     @Mock
     private BlockHashSigner blockHashSigner;
@@ -240,6 +243,8 @@ class BlockStreamManagerImplTest {
 
     private boolean clprEnabled = false;
 
+    private boolean useSha256 = false;
+
     @BeforeEach
     void setUp() {
         writableStates = mock(WritableStates.class, withSettings().extraInterfaces(CommittableWritableStates.class));
@@ -249,6 +254,76 @@ class BlockStreamManagerImplTest {
                     ? blockSizeCircuitBreakerTripsCounter
                     : indirectProofsCounter;
         });
+    }
+
+    @Test
+    void reconstructLastBlockHashWithSha256DigestSupplierReturns32ByteHash() {
+        final var blockStreamInfo = blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION);
+        final Bytes hash =
+                BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo, CommonUtils::sha256DigestOrThrow);
+        assertEquals(32, hash.length());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void blockRootHashIsThirtyTwoBytesWithSha256() {
+        useSha256 = true;
+        givenSubjectWith(
+                1,
+                0,
+                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
+                platformStateWithFreezeTime(null),
+                aWriter,
+                bWriter);
+        givenEndOfRoundSetup();
+        lenient().doAnswer(inv -> bWriter).when(bWriter).writePbjItemAndBytes(any(), any());
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+
+        final CompletableFuture<Void> postAcceptFuture = (CompletableFuture<Void>) mock(CompletableFuture.class);
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(mockSigningFuture.thenAcceptAsync(any())).willReturn(postAcceptFuture);
+
+        subject.endRound(state, ROUND_NO); // closes block N
+
+        // Start block N+1: triggers blockHashManager.startBlock with the SHA-256 root hash of block N
+        given(round.getRoundNum()).willReturn(ROUND_NO + 1);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW.plusSeconds(1));
+        subject.startRound(round, state);
+
+        // Block N's root hash must be 32 bytes (SHA-256)
+        assertEquals(32, subject.blockHashByBlockNumber(N_BLOCK_NO).length());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void trailingOutputHashesAreThirtyTwoBytesPerEntryWithSha256() {
+        useSha256 = true;
+        givenSubjectWith(
+                1, 0, blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION), platformStateWithFreezeTime(null), aWriter);
+        givenEndOfRoundSetup();
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.writeItem(FAKE_TRANSACTION_RESULT);
+
+        final CompletableFuture<Void> postAcceptFuture = (CompletableFuture<Void>) mock(CompletableFuture.class);
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(mockSigningFuture.thenAcceptAsync(any())).willReturn(postAcceptFuture);
+
+        subject.endRound(state, ROUND_NO);
+
+        // With SHA-256, each trailing output hash entry is 32 bytes, not 48
+        assertEquals(64, infoRef.get().trailingOutputHashes().length());
     }
 
     @Test
@@ -677,7 +752,7 @@ class BlockStreamManagerImplTest {
                         4),
                 appendHash(FAKE_PATCH_RESTART_HASH, NONZERO_PREV_BLOCK_HASH, 256),
                 FAKE_SIGNED_TRANSACTION_HASHED,
-                HASH_OF_ZERO,
+                HASH_OF_ZERO_384,
                 2,
                 List.of(
                         Bytes.fromHex(
@@ -687,10 +762,10 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
                 CONSENSUS_THEN,
-                HASH_OF_ZERO,
+                HASH_OF_ZERO_384,
                 Bytes.fromHex(
-                        "9362621b45a8b81d91d65f58bc82aca40fcc2576157b6775052f66b23f968a4a0bde57d401840abb4c916ab7d9be081b"),
-                HASH_OF_ZERO,
+                        "c2973cea38b088de3996cf45ce5dbe339ae9b2c217204b40b7c6176c42a6000ed8619c487cd1db3509dc84bde58b18a2"),
+                HASH_OF_ZERO_384,
                 List.of(FAKE_PATCH_RESTART_HASH),
                 1);
 
@@ -1116,7 +1191,7 @@ class BlockStreamManagerImplTest {
                 appendHash(combine(Bytes.fromHex("dd".repeat(48)), FAKE_RESULT_HASH), resultHashes, 4),
                 appendHash(FAKE_NON_EMPTY_RESULTS_RESTART_HASH, NONZERO_PREV_BLOCK_HASH, 256),
                 FAKE_SIGNED_TRANSACTION_HASHED,
-                HASH_OF_ZERO,
+                HASH_OF_ZERO_384,
                 2,
                 List.of(
                         Bytes.fromHex(
@@ -1126,10 +1201,10 @@ class BlockStreamManagerImplTest {
                 SemanticVersion.DEFAULT,
                 CONSENSUS_THEN,
                 CONSENSUS_THEN,
-                HASH_OF_ZERO,
+                HASH_OF_ZERO_384,
                 Bytes.fromHex(
-                        "b4a01b52bd0d845e70cecaa6bc6851d8d6f1000e3dcd808f88a1f2999009c48462da8e2b247d771b783188147946fca7"),
-                HASH_OF_ZERO,
+                        "b14cb3ba5c0610ba2c18c12540725aa65eac623190c37014123b371aa2aaa86506b687a1fec7f03de5c7dfb30934dc7e"),
+                HASH_OF_ZERO_384,
                 List.of(FAKE_NON_EMPTY_RESULTS_RESTART_HASH),
                 1);
         final var actualBlockInfo = infoRef.get();
@@ -1991,7 +2066,7 @@ class BlockStreamManagerImplTest {
                 .thenAcceptAsync(any());
 
         // Initialize the subject
-        subject.init(state, HASH_OF_ZERO);
+        subject.init(state, HASH_OF_ZERO_384);
 
         // Start the round at t=0 with an event timestamp, and end the round at t=2 (the block's next 2-second boundary)
         // with the round timestamp
@@ -2039,9 +2114,42 @@ class BlockStreamManagerImplTest {
                 streamingObs);
 
         // init with HASH_OF_ZERO should NOT read from BlockRecordService at all
-        subject.init(state, HASH_OF_ZERO, true);
+        subject.init(state, HASH_OF_ZERO_384, true);
         // If cutover had run, it would have tried to read BlockRecordService states,
         // which are not mocked here; the test succeeding proves cutover was skipped.
+    }
+
+    @Test
+    void recognizesSha256GenesisSentinel() {
+        // With useSha256=true the genesis last-block-hash sentinel is the 32-byte sha256(0x00), not the
+        // 48-byte HASH_OF_ZERO_384. The genesis branch must detect it; otherwise init falls through to read
+        // the (unmocked) BlockStreamService singleton and throws.
+        final var config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.roundsPerBlock", 1)
+                .withValue("blockStream.useSha256", true)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
+        subject = new BlockStreamManagerImpl(
+                blockHashSigner,
+                () -> aWriter,
+                ForkJoinPool.commonPool(),
+                configProvider,
+                boundaryStateChangeListener,
+                platform,
+                quiescenceController,
+                hashInfo,
+                SemanticVersion.DEFAULT,
+                lifecycle,
+                quiescedHeartbeat,
+                metrics,
+                null,
+                streamingObs);
+
+        final var sha256Genesis = hashOfZero(true);
+        assertEquals(32, sha256Genesis.length());
+        // Must take the genesis branch without reading BlockStreamService state (which is unmocked here).
+        assertDoesNotThrow(() -> subject.init(state, sha256Genesis, true));
     }
 
     @Test
@@ -2081,7 +2189,7 @@ class BlockStreamManagerImplTest {
         given(state.getReadableStates(BlockRecordService.NAME)).willReturn(blockRecordReadable);
 
         // loadCutoverData should see previewStreamOverwritten=false and skip
-        subject.init(state, HASH_OF_ZERO, true);
+        subject.init(state, HASH_OF_ZERO_384, true);
     }
 
     @Test
@@ -2241,7 +2349,7 @@ class BlockStreamManagerImplTest {
         given(state.getReadableStates(BlockStreamService.NAME)).willReturn(blockStreamReadable);
 
         // init with HASH_OF_ZERO — cutover should be skipped since BSI has advanced
-        subject.init(state, HASH_OF_ZERO, true);
+        subject.init(state, HASH_OF_ZERO_384, true);
     }
 
     private void givenSingleRoundPerBlockSubject() {
@@ -2343,6 +2451,7 @@ class BlockStreamManagerImplTest {
                 .withValue("blockStream.blockPeriod", Duration.of(blockPeriod, ChronoUnit.SECONDS))
                 .withValue("blockStream.streamMode", streamMode.name())
                 .withValue("blockStream.maxBlockSizeBytes", maxBlockSizeBytes)
+                .withValue("blockStream.useSha256", useSha256)
                 .withValue("clpr.enabled", clprEnabled)
                 .getOrCreateConfig();
         return new VersionedConfigImpl(config, version);
@@ -2943,6 +3052,51 @@ class BlockStreamManagerImplTest {
         subject.notifyFatalEvent();
         assertDoesNotThrow(() -> subject.awaitFatalShutdown(Duration.ofSeconds(5)));
         verify(aWriter).flushIncompleteBlock();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void blockHeaderHashAlgorithmIsSha384() {
+        final var headerRef = new AtomicReference<BlockHeader>();
+        givenSubjectWith(
+                1, 0, blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION), platformStateWithFreezeTime(null), aWriter);
+        givenEndOfRoundSetup(headerRef);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+        final CompletableFuture<Void> postAcceptFuture = (CompletableFuture<Void>) mock(CompletableFuture.class);
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(mockSigningFuture.thenAcceptAsync(any())).willReturn(postAcceptFuture);
+
+        // useSha256=false → SHA2_384 in the block header
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.endRound(state, ROUND_NO);
+        assertEquals(BlockHashAlgorithm.SHA2_384, headerRef.get().hashAlgorithm());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void blockHeaderHashAlgorithmIsSha256() {
+        useSha256 = true;
+        final var headerRef = new AtomicReference<BlockHeader>();
+        givenSubjectWith(
+                1, 0, blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION), platformStateWithFreezeTime(null), aWriter);
+        givenEndOfRoundSetup(headerRef);
+        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW);
+        given(round.getRoundNum()).willReturn(ROUND_NO);
+        given(blockHashSigner.isReady()).willReturn(true);
+        final CompletableFuture<Void> postAcceptFuture = (CompletableFuture<Void>) mock(CompletableFuture.class);
+        given(blockHashSigner.sign(any(), any()))
+                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
+        given(mockSigningFuture.thenAcceptAsync(any())).willReturn(postAcceptFuture);
+
+        // useSha256=true → SHA2_256 in the block header
+        subject.init(state, FAKE_RESTART_BLOCK_HASH);
+        subject.startRound(round, state);
+        subject.endRound(state, ROUND_NO);
+        assertEquals(BlockHashAlgorithm.SHA2_256, headerRef.get().hashAlgorithm());
     }
 
     private BlockItem transactionResultItemFrom(Instant consensusTimestamp) {

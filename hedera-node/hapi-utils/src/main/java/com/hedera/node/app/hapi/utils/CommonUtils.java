@@ -85,6 +85,19 @@ public final class CommonUtils {
     }
 
     /**
+     * Returns a {@link MessageDigest} instance for the SHA-256 algorithm, throwing an unchecked exception if the
+     * algorithm is not found.
+     * @return a {@link MessageDigest} instance for the SHA-256 algorithm
+     */
+    public static MessageDigest sha256DigestOrThrow() {
+        try {
+            return MessageDigest.getInstance("SHA-256");
+        } catch (final NoSuchAlgorithmException fatal) {
+            throw new IllegalStateException(fatal);
+        }
+    }
+
+    /**
      * Returns a {@link MessageDigest} instance for the SHA-384 algorithm, throwing an unchecked exception if the
      * algorithm is not found.
      * @return a {@link MessageDigest} instance for the SHA-384 algorithm
@@ -95,6 +108,66 @@ public final class CommonUtils {
         } catch (final NoSuchAlgorithmException fatal) {
             throw new IllegalStateException(fatal);
         }
+    }
+
+    /**
+     * Returns a {@link MessageDigest} for SHA-256 if {@code useSha256} is true, or SHA-384 otherwise. Centralizes
+     * the choice driven by {@code BlockStreamConfig.useSha256} so callers don't each re-derive the same ternary.
+     * @param useSha256 whether to use SHA-256 instead of the SHA-384 default
+     * @return the selected {@link MessageDigest}
+     */
+    public static MessageDigest digestOrThrow(final boolean useSha256) {
+        return useSha256 ? sha256DigestOrThrow() : sha384DigestOrThrow();
+    }
+
+    /**
+     * Hashes the given bytes with the digest selected by {@code useSha256} (see {@link #digestOrThrow(boolean)}).
+     * @param byteArray the bytes to hash
+     * @param useSha256 whether to use SHA-256 instead of the SHA-384 default
+     * @return the resulting hash
+     */
+    public static byte[] noThrowHashOf(@NonNull final byte[] byteArray, final boolean useSha256) {
+        requireNonNull(byteArray);
+        return digestOrThrow(useSha256).digest(byteArray);
+    }
+
+    // SHA-256 hash functions with the default-provided message digest
+    // ** BEGIN Bytes Variants **
+    public static Bytes noThrowSha256HashOf(@NonNull final Bytes bytes) {
+        final var digest = sha256DigestOrThrow();
+        return hashOfAll(digest, bytes);
+    }
+
+    public static Bytes sha256HashOfAll(final Bytes... allBytes) {
+        final var digest = sha256DigestOrThrow();
+        return hashOfAll(digest, allBytes);
+    }
+
+    // ** BEGIN byte[] Variants **
+    public static byte[] noThrowSha256HashOf(final byte[] byteArray) {
+        requireNonNull(byteArray);
+        final var digest = sha256DigestOrThrow();
+        return digest.digest(byteArray);
+    }
+
+    public static Bytes sha256HashOfAll(final byte[]... bytes) {
+        return Bytes.wrap(sha256HashOf(bytes));
+    }
+
+    public static byte[] sha256HashOf(final byte[]... bytes) {
+        return hashOfAll(sha256DigestOrThrow(), bytes);
+    }
+
+    public static Bytes sha256HashOf(
+            @NonNull final Bytes first, @NonNull final Bytes second, @NonNull final byte[] third) {
+        requireNonNull(first);
+        requireNonNull(second);
+        requireNonNull(third);
+
+        final var digest = sha256DigestOrThrow();
+        first.writeTo(digest);
+        second.writeTo(digest);
+        return Bytes.wrap(digest.digest(third));
     }
 
     // SHA-384 hash functions with the default-provided message digest

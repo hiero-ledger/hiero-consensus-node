@@ -4,7 +4,6 @@ package com.hedera.node.app.service.contract.impl.test.utils;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
-import static com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations.ZERO_ENTROPY;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.MISSING_ENTITY_NUMBER;
 import static com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperations.NON_CANONICAL_REFERENCE_NUMBER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ALIASED_SOMEBODY;
@@ -249,8 +248,45 @@ class ConversionUtilsTest {
     }
 
     @Test
-    void wrapsExpectedHashPrefix() {
-        assertEquals(Hash.wrap(Bytes32.leftPad(Bytes.EMPTY, (byte) 0)), ConversionUtils.ethHashFrom(ZERO_ENTROPY));
+    void wrapsZeroBlockRootHash() {
+        final var zeroBlockRootHash = com.hedera.pbj.runtime.io.buffer.Bytes.wrap(new byte[32]);
+        assertEquals(Hash.wrap(Bytes32.ZERO), ConversionUtils.ethHashFrom(zeroBlockRootHash));
+    }
+
+    @Test
+    void wrapsNonZeroBlockRootHash() {
+        final var blockRootHash = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("11".repeat(32));
+        assertEquals(Hash.wrap(Bytes32.wrap(blockRootHash.toByteArray())), ConversionUtils.ethHashFrom(blockRootHash));
+    }
+
+    @Test
+    void truncatesFortyEightByteBlockRootHashToLeadingThirtyTwoBytes() {
+        // A 48-byte (SHA-384) block-root hash, as produced when BlockStreamConfig.useSha256=false (the default)
+        final var fortyEightByteBlockRootHash =
+                com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("11".repeat(32) + "22".repeat(16));
+        final var expected = Hash.wrap(Bytes32.wrap(
+                com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("11".repeat(32)).toByteArray()));
+        assertEquals(expected, ConversionUtils.ethHashFrom(fortyEightByteBlockRootHash));
+    }
+
+    @Test
+    void usesThirtyTwoByteBlockRootHashWholeWhenUseSha256() {
+        // A 32-byte (SHA-256) block-root hash, as produced when BlockStreamConfig.useSha256=true. All 32
+        // bytes are the EVM word, so nothing is truncated.
+        final var thirtyTwoByteBlockRootHash = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("11".repeat(32));
+        final var expected = Hash.wrap(Bytes32.wrap(thirtyTwoByteBlockRootHash.toByteArray()));
+        assertEquals(expected, ConversionUtils.ethHashFrom(thirtyTwoByteBlockRootHash));
+    }
+
+    @Test
+    void ethHashFromIgnoresBytesBeyondThirtyTwoSoHashLengthDoesNotChangeTheWord() {
+        // The EVM word is the leading 32 bytes regardless of whether BlockStreamConfig.useSha256 selected a
+        // 32-byte (SHA-256) or 48-byte (SHA-384) block-root hash. Two hashes that agree on their leading 32
+        // bytes but differ in length must therefore map to the same eth hash.
+        final var leadingThirtyTwo = "11".repeat(32);
+        final var sha256Hash = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex(leadingThirtyTwo);
+        final var sha384Hash = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex(leadingThirtyTwo + "22".repeat(16));
+        assertEquals(ConversionUtils.ethHashFrom(sha256Hash), ConversionUtils.ethHashFrom(sha384Hash));
     }
 
     @Test

@@ -2,7 +2,6 @@
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.node.app.blocks.impl.BlockRootTreeHasher.ASSIGNED_SLOT_COUNT;
-import static com.hedera.node.app.blocks.impl.BlockRootTreeHasher.EMPTY_SUBTREE;
 import static com.hedera.node.app.blocks.impl.BlockRootTreeHasher.SLOT_COUNT;
 import static java.util.Objects.requireNonNull;
 
@@ -11,7 +10,9 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.blocks.impl.BlockRootTreeHasher.RootAndSiblingHashes;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.function.Supplier;
 
 /**
  * The block-stream-facing entry point to the block root tree, used by block production, the wrapped record
@@ -86,6 +87,36 @@ public final class BlockRootTree {
     }
 
     /**
+     * Computes a block's root hash and sibling hashes using the given digest algorithm.
+     *
+     * @param digestFactory supplies a fresh {@link MessageDigest} for each hashing step
+     * @param timestampLeafHash the already-hashed timestamp leaf
+     * @param slots the {@link BlockRootTreeHasher#ASSIGNED_SLOT_COUNT} assigned branch roots
+     * @return the block root hash and the sibling hashes on branch 1's path
+     */
+    public static RootAndSiblingHashes computeRootAndSiblings(
+            @NonNull final Supplier<MessageDigest> digestFactory,
+            @NonNull final Bytes timestampLeafHash,
+            @NonNull final Bytes... slots) {
+        requireNonNull(digestFactory);
+        requireNonNull(timestampLeafHash);
+        final var paddedSlots = withReservedSlots(slots, BlockRootTreeHasher.emptySubtreeFor(digestFactory.get()));
+        final var subtreesRootHash = StreamingBlockRootTreeHasher.streamedRootOf(digestFactory, paddedSlots);
+        final var blockRootHash =
+                BlockImplUtils.hashInternalNode(digestFactory.get(), timestampLeafHash, subtreesRootHash);
+        final var siblings = new MerkleSiblingHash[BlockRootTreeHasher.SIBLING_COUNT];
+        for (int level = 0; level < BlockRootTreeHasher.SIBLING_COUNT; level++) {
+            final int from = 1 << level;
+            final int to = from << 1;
+            siblings[level] = new MerkleSiblingHash(
+                    false,
+                    StreamingBlockRootTreeHasher.streamedRootOf(
+                            digestFactory, Arrays.copyOfRange(paddedSlots, from, to)));
+        }
+        return new RootAndSiblingHashes(blockRootHash, siblings);
+    }
+
+    /**
      * Computes a block's root hash, for callers that do not need the sibling hashes.
      *
      * @param timestampLeafHash the already-hashed timestamp leaf
@@ -109,6 +140,46 @@ public final class BlockRootTree {
     }
 
     /**
+     * Computes a block's root hash using the given digest, for callers that need a configurable hash algorithm.
+     *
+     * @param digestFactory supplies a fresh {@link MessageDigest} for each hashing step
+     * @param consensusTimestamp the block's first consensus timestamp
+     * @param slots the assigned branch roots
+     * @return the block root hash
+     */
+    public static Bytes computeBlockRootHash(
+            @NonNull final Supplier<MessageDigest> digestFactory,
+            @NonNull final Timestamp consensusTimestamp,
+            @NonNull final Bytes... slots) {
+        requireNonNull(digestFactory);
+        requireNonNull(consensusTimestamp);
+        final var timestampLeafHash =
+                BlockImplUtils.hashLeaf(digestFactory.get(), Timestamp.PROTOBUF.toBytes(consensusTimestamp));
+        return computeBlockRootHash(digestFactory, timestampLeafHash, slots);
+    }
+
+    /**
+     * Computes a block's root hash using the given digest and an already-hashed timestamp leaf, for callers
+     * that need a configurable hash algorithm (e.g. the wrapped-record-block-root family, which hashes the
+     * timestamp leaf once and reuses it).
+     *
+     * @param digestFactory supplies a fresh {@link MessageDigest} for each hashing step
+     * @param timestampLeafHash the already-hashed timestamp leaf
+     * @param slots the assigned branch roots
+     * @return the block root hash
+     */
+    public static Bytes computeBlockRootHash(
+            @NonNull final Supplier<MessageDigest> digestFactory,
+            @NonNull final Bytes timestampLeafHash,
+            @NonNull final Bytes... slots) {
+        requireNonNull(digestFactory);
+        requireNonNull(timestampLeafHash);
+        final var paddedSlots = withReservedSlots(slots, BlockRootTreeHasher.emptySubtreeFor(digestFactory.get()));
+        final var subtreesRootHash = StreamingBlockRootTreeHasher.streamedRootOf(digestFactory, paddedSlots);
+        return BlockImplUtils.hashInternalNode(digestFactory.get(), timestampLeafHash, subtreesRootHash);
+    }
+
+    /**
      * Hashes a consensus timestamp as the block root's left-hand leaf.
      *
      * @param consensusTimestamp the timestamp to hash
@@ -126,14 +197,28 @@ public final class BlockRootTree {
      * @return all {@link BlockRootTreeHasher#SLOT_COUNT} branch roots
      */
     private static Bytes[] withReservedSlots(final Bytes[] assignedSlots) {
+        return withReservedSlots(assignedSlots, EMPTY_SUBTREE);
+    }
+
+    /**
+     * Expands the assigned branches to the full tree by padding the reserved branches with the given
+     * empty-branch value, computed for whichever digest is currently in use (see
+     * {@link BlockRootTreeHasher#emptySubtreeFor(java.security.MessageDigest)}).
+     *
+     * @param assignedSlots the assigned branch roots
+     * @param emptyValue the value to pad reserved branches with
+     * @return all {@link BlockRootTreeHasher#SLOT_COUNT} branch roots
+     */
+    private static Bytes[] withReservedSlots(final Bytes[] assignedSlots, final Bytes emptyValue) {
         requireNonNull(assignedSlots, "branch roots must not be null");
+        requireNonNull(emptyValue, "emptyValue must not be null");
         if (assignedSlots.length != ASSIGNED_SLOT_COUNT) {
             throw new IllegalArgumentException(
                     "Expected exactly %d branch roots but got %d".formatted(ASSIGNED_SLOT_COUNT, assignedSlots.length));
         }
         final var slots = new Bytes[SLOT_COUNT];
         System.arraycopy(assignedSlots, 0, slots, 0, ASSIGNED_SLOT_COUNT);
-        Arrays.fill(slots, ASSIGNED_SLOT_COUNT, SLOT_COUNT, EMPTY_SUBTREE);
+        Arrays.fill(slots, ASSIGNED_SLOT_COUNT, SLOT_COUNT, emptyValue);
         return slots;
     }
 

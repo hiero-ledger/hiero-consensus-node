@@ -9,8 +9,9 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_NEXT_
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO_384;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.hints.impl.RsaContext.CONSTRUCTION_ID;
 import static java.util.Comparator.comparingLong;
@@ -59,6 +60,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -92,6 +94,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                     || Boolean.parseBoolean(System.getenv("HINTS_DUMP_INVALID_AGGREGATE_VECTORS"));
 
     private final long hintsThresholdDenominator;
+    private final boolean useSha256;
     private final HintsLibrary hintsLibrary;
     private final Metrics metrics;
 
@@ -215,7 +218,8 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
             System.out.printf(
                     "Loaded epoch %d with %d block(s) from %s%n", i + 1, blocks.size(), blockStreamDirs.get(i));
         }
-        final var validator = new WrapsFreeBlockSignaturesValidator(hintsThresholdDenominator);
+        final var useSha256 = Boolean.getBoolean("blockStream.useSha256");
+        final var validator = new WrapsFreeBlockSignaturesValidator(hintsThresholdDenominator, useSha256);
         validator.validateBlockEpochs(blockEpochs);
 
         System.out.printf(
@@ -231,8 +235,9 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                 validator.canonicalBlockHashMismatches);
     }
 
-    public WrapsFreeBlockSignaturesValidator(final long hintsThresholdDenominator) {
+    public WrapsFreeBlockSignaturesValidator(final long hintsThresholdDenominator, final boolean useSha256) {
         this.hintsThresholdDenominator = hintsThresholdDenominator;
+        this.useSha256 = useSha256;
 
         metrics = new NoOpMetrics();
         final var platformConfig = ServicesMain.buildPlatformConfig();
@@ -282,8 +287,8 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
             logger.info(
                     "Discovered {}-byte ledger id for block #0 signature verification", discoveredLedgerId.length());
         }
-        var previousBlockHash = HASH_OF_ZERO;
-        var incrementalBlockHashes = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+        var previousBlockHash = HASH_OF_ZERO_384;
+        var incrementalBlockHashes = new IncrementalStreamingHasher(digest(), List.of(), 0);
 
         for (int epochIndex = 0; epochIndex < blockEpochs.size(); epochIndex++) {
             final var blocks = blockEpochs.get(epochIndex);
@@ -305,15 +310,15 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                 final var block = blocks.get(i);
                 final var blockNumber = blockNumberOf(block);
                 final IncrementalStreamingHasher inputTreeHasher =
-                        new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                        new IncrementalStreamingHasher(digest(), List.of(), 0);
                 final IncrementalStreamingHasher outputTreeHasher =
-                        new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                        new IncrementalStreamingHasher(digest(), List.of(), 0);
                 final IncrementalStreamingHasher consensusHeaderHasher =
-                        new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                        new IncrementalStreamingHasher(digest(), List.of(), 0);
                 final IncrementalStreamingHasher stateChangesHasher =
-                        new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                        new IncrementalStreamingHasher(digest(), List.of(), 0);
                 final IncrementalStreamingHasher traceDataHasher =
-                        new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
+                        new IncrementalStreamingHasher(digest(), List.of(), 0);
 
                 long firstBlockRound = -1;
                 long eventNodeId = -1;
@@ -496,7 +501,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         }
     }
 
-    private static StreamHashContext cutoverHashContextFrom(@NonNull final Block firstPostCutoverBlock) {
+    private StreamHashContext cutoverHashContextFrom(@NonNull final Block firstPostCutoverBlock) {
         final var blockInfo = BlockStreamAccess.computeSingletonValueFromUpdates(
                 List.of(firstPostCutoverBlock),
                 SingletonUpdateChange::blockInfoValue,
@@ -508,7 +513,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                     + " but its first block has no BlockInfo with wrapped record block hashes");
         }
         final var incrementalBlockHashes = new IncrementalStreamingHasher(
-                sha384DigestOrThrow(),
+                digest(),
                 blockInfo.wrappedIntermediatePreviousBlockRootHashes().stream()
                         .map(Bytes::toByteArray)
                         .toList(),
@@ -1344,8 +1349,8 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
      * Expected value: {@code cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8}.
      */
     private static Bytes emptyReservedHalf() {
-        final var pairOfEmpties =
-                BlockImplUtils.hashInternalNode(BlockStreamManager.HASH_OF_ZERO, BlockStreamManager.HASH_OF_ZERO);
+        final var pairOfEmpties = BlockImplUtils.hashInternalNode(
+                BlockStreamManager.HASH_OF_ZERO_384, BlockStreamManager.HASH_OF_ZERO_384);
         final var fourEmpties = BlockImplUtils.hashInternalNode(pairOfEmpties, pairOfEmpties);
         return BlockImplUtils.hashInternalNode(fourEmpties, fourEmpties);
     }
@@ -1379,7 +1384,11 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         return footer == null ? null : footer.previousBlockRootHash();
     }
 
-    private static @Nullable Bytes persistedBlockHashFrom(@NonNull final Block block) {
+    private MessageDigest digest() {
+        return useSha256 ? sha256DigestOrThrow() : sha384DigestOrThrow();
+    }
+
+    private @Nullable Bytes persistedBlockHashFrom(@NonNull final Block block) {
         final var blockStreamInfo = BlockStreamAccess.computeSingletonValueFromUpdates(
                 List.of(block),
                 SingletonUpdateChange::blockStreamInfoValue,
@@ -1387,7 +1396,9 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         if (blockStreamInfo == null || blockStreamInfo.blockNumber() != blockNumberOf(block)) {
             return null;
         }
-        return BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo);
+        // This validator reconstructs the block root Merkle tree with SHA-256 throughout (see the
+        // IncrementalStreamingHasher instances above); reconstruct the persisted last-block hash the same way.
+        return BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo, this::digest);
     }
 
     private static @Nullable BlockProof proofFrom(@NonNull final Block block) {
