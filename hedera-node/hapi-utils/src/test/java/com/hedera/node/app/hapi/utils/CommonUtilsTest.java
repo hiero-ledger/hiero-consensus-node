@@ -3,6 +3,7 @@ package com.hedera.node.app.hapi.utils;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
 import static com.hedera.node.app.hapi.utils.CommonUtils.base64encode;
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedSubtract;
 import static com.hedera.node.app.hapi.utils.CommonUtils.extractSignatureMap;
 import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBody;
 import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBodyByteString;
@@ -198,6 +199,19 @@ class CommonUtilsTest {
         assertFalse(productWouldOverflow(fineMultiplier, nonZeroMultiplicand));
         assertFalse(productWouldOverflow(fineMultiplier, 0));
         assertTrue(productWouldOverflow(overflowMultiplier, nonZeroMultiplicand));
+    }
+
+    @Test
+    void clampedSubtractSaturatesInTheDirectionOfTheOverflow() {
+        // In range: the exact difference
+        assertEquals(7L, clampedSubtract(10L, 3L));
+        assertEquals(-7L, clampedSubtract(3L, 10L));
+        // Upward overflow saturates at Long.MAX_VALUE, including the minuend == 0 case, which a
+        // minuend-keyed clamp (as in clampedAdd) would wrongly send to Long.MIN_VALUE
+        assertEquals(Long.MAX_VALUE, clampedSubtract(Long.MAX_VALUE, -1L));
+        assertEquals(Long.MAX_VALUE, clampedSubtract(0L, Long.MIN_VALUE));
+        // Downward overflow saturates at Long.MIN_VALUE
+        assertEquals(Long.MIN_VALUE, clampedSubtract(Long.MIN_VALUE, 1L));
     }
 
     @Test

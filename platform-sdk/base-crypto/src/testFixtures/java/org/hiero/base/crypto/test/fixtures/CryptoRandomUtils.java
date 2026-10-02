@@ -33,7 +33,17 @@ public class CryptoRandomUtils {
      * @return a random hash
      */
     public static @NonNull Hash randomHash(@NonNull final Random random) {
-        return new Hash(randomByteArray(random, DigestType.SHA_384.digestLength()), DigestType.SHA_384);
+        return randomHash(random, DigestType.SHA_384);
+    }
+
+    /**
+     * Generates a random hash
+     * @param random
+     * 		the random object to use
+     * @return a random hash
+     */
+    public static @NonNull Hash randomHash(@NonNull final Random random, @NonNull final DigestType digestType) {
+        return new Hash(randomByteArray(random, digestType.digestLength()), digestType);
     }
 
     /**

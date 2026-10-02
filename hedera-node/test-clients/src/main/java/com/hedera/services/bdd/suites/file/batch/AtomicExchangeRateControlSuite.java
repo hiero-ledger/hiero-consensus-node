@@ -136,7 +136,7 @@ class AtomicExchangeRateControlSuite {
                                 .payingWith("randomAccount")
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasPrecheckFrom(AUTHORIZATION_FAILED));
+                        .hasPrecheck(AUTHORIZATION_FAILED));
     }
 
     @HapiTest
