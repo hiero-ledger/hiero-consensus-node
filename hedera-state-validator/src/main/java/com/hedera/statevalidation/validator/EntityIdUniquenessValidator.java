@@ -33,6 +33,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -162,7 +163,8 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
     @Override
     public void validate() {
         if (issuesFound.get() != 0) {
-            throw new ValidationException(getName(), String.format("Expected <%d> but was <%d>", 0, issuesFound.get()));
+            throw new ValidationException(
+                    getName(), String.format(Locale.ROOT, "Expected <%d> but was <%d>", 0, issuesFound.get()));
         }
     }
 
@@ -227,8 +229,8 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
                 counter++;
             }
             if (counter == 0) {
-                final String errorMessage =
-                        String.format("No entity found for Entity ID %d.%d.%d", shardNum, realmNum, entityId);
+                final String errorMessage = String.format(
+                        Locale.ROOT, "No entity found for Entity ID %d.%d.%d", shardNum, realmNum, entityId);
                 log.error(errorMessage);
                 issuesFound.incrementAndGet();
             }
@@ -239,6 +241,7 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
                 }
 
                 final String errorMessage = String.format(
+                        Locale.ROOT,
                         """
                                       Entity ID %d.%d.%d is not unique, found %d entities.\s
                                        Token = %s, \
@@ -248,7 +251,17 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
                                        Topic = %s,\s
                                        File = %s,\s
                                        Schedule = %s
-                          """, shardNum, realmNum, entityId, counter, token, account, contract, topic, file, schedule);
+                          """,
+                        shardNum,
+                        realmNum,
+                        entityId,
+                        counter,
+                        token,
+                        account,
+                        contract,
+                        topic,
+                        file,
+                        schedule);
                 log.error(errorMessage);
                 issuesFound.incrementAndGet();
             }

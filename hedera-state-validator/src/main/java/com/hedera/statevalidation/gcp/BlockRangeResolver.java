@@ -21,6 +21,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -375,8 +376,12 @@ public final class BlockRangeResolver {
         }
         if (targetRound > maxRoundInLastBlock) {
             throw new IOException(String.format(
+                    Locale.ROOT,
                     "Target round %d exceeds the last available round %d in block %d at %s",
-                    targetRound, maxRoundInLastBlock, lastAvailableBlock, gcpBlockStreamDir));
+                    targetRound,
+                    maxRoundInLastBlock,
+                    lastAvailableBlock,
+                    gcpBlockStreamDir));
         }
 
         // Check if the left boundary block already contains the target round

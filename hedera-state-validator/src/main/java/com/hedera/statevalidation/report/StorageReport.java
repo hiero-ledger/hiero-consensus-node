@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.report;
 
+import java.util.Locale;
+
 /**
  * Represents a report for a specific storage type, containing details about key range, size, waste, and duplicates.
  */
@@ -76,15 +78,15 @@ public class StorageReport {
     public String toString() {
         StringBuilder sb = new StringBuilder();
 
-        sb.append(String.format("  Key Range: %d to %d\n", minKey, maxKey));
-        sb.append(String.format("  Size: %d MB\n", onDiskSizeInMb));
-        sb.append(String.format("  Files: %d\n", numberOfStorageFiles));
-        sb.append(String.format("  Items: %,d\n", itemCount));
+        sb.append(String.format(Locale.ROOT, "  Key Range: %d to %d\n", minKey, maxKey));
+        sb.append(String.format(Locale.ROOT, "  Size: %d MB\n", onDiskSizeInMb));
+        sb.append(String.format(Locale.ROOT, "  Files: %d\n", numberOfStorageFiles));
+        sb.append(String.format(Locale.ROOT, "  Items: %,d\n", itemCount));
 
-        sb.append(String.format("  Waste: %.2f%%\n", wastePercentage));
+        sb.append(String.format(Locale.ROOT, "  Waste: %.2f%%\n", wastePercentage));
 
         if (duplicateItems > 0) {
-            sb.append(String.format("  Duplicates: %,d\n", duplicateItems));
+            sb.append(String.format(Locale.ROOT, "  Duplicates: %,d\n", duplicateItems));
         }
 
         return sb.toString();

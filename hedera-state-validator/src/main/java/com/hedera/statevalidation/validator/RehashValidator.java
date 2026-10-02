@@ -8,6 +8,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.RecordAccessor;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Locale;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -81,7 +82,7 @@ public class RehashValidator implements Validator {
 
         if (!java.util.Objects.equals(originalHash, computedHash)) {
             throw new ValidationException(
-                    getName(), String.format("Expected <%s> but was <%s>", originalHash, computedHash));
+                    getName(), String.format(Locale.ROOT, "Expected <%s> but was <%s>", originalHash, computedHash));
         }
 
         logger.debug("It took {} ms to rehash the state", System.currentTimeMillis() - startTime);

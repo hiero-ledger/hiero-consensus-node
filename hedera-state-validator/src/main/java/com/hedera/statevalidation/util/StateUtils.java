@@ -75,6 +75,7 @@ import java.nio.file.Path;
 import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -356,7 +357,7 @@ public final class StateUtils {
         Objects.requireNonNull(serviceName);
         Objects.requireNonNull(stateKey);
 
-        final String searchKey = serviceName.toUpperCase() + "_I_" + stateKey.toUpperCase();
+        final String searchKey = serviceName.toUpperCase(Locale.ROOT) + "_I_" + stateKey.toUpperCase(Locale.ROOT);
 
         // First try singleton types
         for (final SingletonType singleton : SingletonType.values()) {
@@ -372,7 +373,8 @@ public final class StateUtils {
             }
         }
 
-        throw new IllegalArgumentException(String.format("No state ID found for %s.%s", serviceName, stateKey));
+        throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "No state ID found for %s.%s", serviceName, stateKey));
     }
 
     public static List<Pair<String, String>> prepareServiceNamesAndStateKeys() {

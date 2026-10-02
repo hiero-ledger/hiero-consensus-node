@@ -31,6 +31,7 @@ import java.security.KeyStoreException;
 import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
@@ -436,10 +437,13 @@ public final class ReplayPcesWorkflow {
             }
             if (System.nanoTime() >= deadline) {
                 throw new IllegalStateException(String.format(
+                        Locale.ROOT,
                         "Timed out after %s waiting for block finalization under %s; first unfinalized: %s. "
                                 + "The final block stream is incomplete (missing proof/.mf marker); failing so the "
                                 + "output is not mistaken for a valid equivalence result.",
-                        timeout, blockStreamsDir, pending.get()));
+                        timeout,
+                        blockStreamsDir,
+                        pending.get()));
             }
             try {
                 Thread.sleep(BLOCK_FINALIZE_POLL.toMillis());

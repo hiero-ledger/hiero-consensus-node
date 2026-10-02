@@ -32,6 +32,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
@@ -174,10 +175,13 @@ public class BlockStreamRecoveryWorkflow {
                 if (!foundStartingRound.get()
                         && item.hasRoundHeader()
                         && item.roundHeader().roundNumber() > firstRoundToApply) {
-                    throw new RuntimeException(("Given blockstream doesn't have a proper starting round."
+                    throw new RuntimeException(String.format(
+                            Locale.ROOT,
+                            "Given blockstream doesn't have a proper starting round."
                                     + " Must have a block item with a round = %d. "
-                                    + "The oldest round found is %d")
-                            .formatted(firstRoundToApply, item.roundHeader().roundNumber()));
+                                    + "The oldest round found is %d",
+                            firstRoundToApply,
+                            item.roundHeader().roundNumber()));
                 }
 
                 foundStartingRound.set(foundStartingRound.get()
@@ -195,8 +199,11 @@ public class BlockStreamRecoveryWorkflow {
                         return;
                     } else {
                         if (itemRound != currentRound.get() + 1) {
-                            throw new RuntimeException("Unexpected round number. Expected = %d, actual = %d"
-                                    .formatted(currentRound.get() + 1, itemRound));
+                            throw new RuntimeException(String.format(
+                                    Locale.ROOT,
+                                    "Unexpected round number. Expected = %d, actual = %d",
+                                    currentRound.get() + 1,
+                                    itemRound));
                         }
                         // Arriving at a new round header means the previous round's state changes
                         // are fully applied. Throttle here to cap the rate of applied rounds.
@@ -221,8 +228,11 @@ public class BlockStreamRecoveryWorkflow {
 
         if (targetRound != DEFAULT_TARGET_ROUND && currentRound.get() != targetRound) {
             throw new RuntimeException("Block stream is incomplete."
-                    + " Expected target round is %d, last applied round is %d"
-                            .formatted(targetRound, currentRound.get()));
+                    + String.format(
+                            Locale.ROOT,
+                            " Expected target round is %d, last applied round is %d",
+                            targetRound,
+                            currentRound.get()));
         }
 
         // To make sure that VirtualMap.Metadata is persisted after all changes from the block stream were applied
@@ -258,8 +268,11 @@ public class BlockStreamRecoveryWorkflow {
         }
 
         if (!expectedRootHash.isEmpty() && !expectedRootHash.equals(rootHash.toString())) {
-            throw new RuntimeException("Excepted and actual hashes do not match. \n Expected: %s \n Actual: %s "
-                    .formatted(expectedRootHash, rootHash));
+            throw new RuntimeException(String.format(
+                    Locale.ROOT,
+                    "Excepted and actual hashes do not match. \n Expected: %s \n Actual: %s ",
+                    expectedRootHash,
+                    rootHash));
         }
     }
 
@@ -297,15 +310,16 @@ public class BlockStreamRecoveryWorkflow {
         }
 
         if (!missingBlocks.isEmpty()) {
-            throw new RuntimeException(("Block stream directory is missing %d block file(s). "
-                            + "First present block = %d, last present block = %d. Missing blocks: %s")
-                    .formatted(
-                            missingBlocks.size(),
-                            blockNumbers.getFirst(),
-                            blockNumbers.getLast(),
-                            missingBlocks.size() <= 20
-                                    ? missingBlocks.toString()
-                                    : missingBlocks.subList(0, 20) + " ... (" + missingBlocks.size() + " total)"));
+            throw new RuntimeException(String.format(
+                    Locale.ROOT,
+                    "Block stream directory is missing %d block file(s). "
+                            + "First present block = %d, last present block = %d. Missing blocks: %s",
+                    missingBlocks.size(),
+                    blockNumbers.getFirst(),
+                    blockNumbers.getLast(),
+                    missingBlocks.size() <= 20
+                            ? missingBlocks.toString()
+                            : missingBlocks.subList(0, 20) + " ... (" + missingBlocks.size() + " total)"));
         }
 
         log.info(

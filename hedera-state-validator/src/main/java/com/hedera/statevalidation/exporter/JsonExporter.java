@@ -6,6 +6,7 @@ import static com.hedera.statevalidation.util.ConfigUtils.PRETTY_PRINT_ENABLED;
 import static com.hedera.statevalidation.util.ConfigUtils.getVirtualMapValueParseMaxSizeBytes;
 import static com.swirlds.state.merkle.StateKeyUtils.extractStateIdFromStateKeyOneOf;
 import static java.lang.StrictMath.toIntExact;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.StateKey;
@@ -26,6 +27,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -130,9 +132,9 @@ public class JsonExporter {
         for (int i = 0; i < writingParallelism; i++) {
             String fileName;
             if (allStates) {
-                fileName = String.format(ALL_STATES_TMPL, i + 1);
+                fileName = String.format(Locale.ROOT, ALL_STATES_TMPL, i + 1);
             } else {
-                fileName = String.format(SINGLE_STATE_TMPL, serviceName, stateKey, i + 1);
+                fileName = String.format(Locale.ROOT, SINGLE_STATE_TMPL, serviceName, stateKey, i + 1);
             }
 
             long firstPath = firstLeafPath + i * MAX_OBJ_PER_FILE;
@@ -147,7 +149,7 @@ public class JsonExporter {
         final VirtualMap vm = state.getRoot();
         final File file = new File(resultDir, fileName);
         boolean emptyFile = true;
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(file, UTF_8))) {
             for (long path = start; path <= end; path++) {
                 VirtualLeafBytes leafRecord = null;
                 try {
@@ -179,29 +181,35 @@ public class JsonExporter {
                     if (stateKey.key().kind().equals(StateKey.KeyOneOfType.SINGLETON)) {
                         JsonUtils.write(
                                 writer,
-                                "{\"p\":%d, \"v\":%s}\n".formatted(path, StateUtils.valueToJson(stateValue.value())),
+                                String.format(
+                                        Locale.ROOT,
+                                        "{\"p\":%d, \"v\":%s}\n",
+                                        path,
+                                        StateUtils.valueToJson(stateValue.value())),
                                 PRETTY_PRINT_ENABLED);
                     } else if (stateKey.key().value() instanceof Long) { // queue
                         JsonUtils.write(
                                 writer,
-                                "{\"p\":%d,\"i\":%s, \"v\":%s}\n"
-                                        .formatted(
-                                                path,
-                                                stateKey.key().value(),
-                                                StateUtils.valueToJson(stateValue.value())),
+                                String.format(
+                                        Locale.ROOT,
+                                        "{\"p\":%d,\"i\":%s, \"v\":%s}\n",
+                                        path,
+                                        stateKey.key().value(),
+                                        StateUtils.valueToJson(stateValue.value())),
                                 PRETTY_PRINT_ENABLED);
                     } else { // kv
                         JsonUtils.write(
                                 writer,
-                                "{\"p\":%d, \"k\":\"%s\", \"v\":\"%s\"}\n"
-                                        .formatted(
-                                                path,
-                                                StateUtils.keyToJson(stateKey.key())
-                                                        .replace("\\", "\\\\")
-                                                        .replace("\"", "\\\""),
-                                                StateUtils.valueToJson(stateValue.value())
-                                                        .replace("\\", "\\\\")
-                                                        .replace("\"", "\\\"")),
+                                String.format(
+                                        Locale.ROOT,
+                                        "{\"p\":%d, \"k\":\"%s\", \"v\":\"%s\"}\n",
+                                        path,
+                                        StateUtils.keyToJson(stateKey.key())
+                                                .replace("\\", "\\\\")
+                                                .replace("\"", "\\\""),
+                                        StateUtils.valueToJson(stateValue.value())
+                                                .replace("\\", "\\\\")
+                                                .replace("\"", "\\\"")),
                                 PRETTY_PRINT_ENABLED);
                     }
                     emptyFile = false;
