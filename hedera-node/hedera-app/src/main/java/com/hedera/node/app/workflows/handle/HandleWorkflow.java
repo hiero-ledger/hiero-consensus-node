@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLED_AT_CONSENSUS;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
@@ -742,6 +743,8 @@ public class HandleWorkflow {
         // We only construct an Iterator<ExecutableTxn> if this is not genesis, and we haven't already
         // created and exhausted iterators through the last second in the interval
         if (executionEnd.getEpochSecond() > lastExecutedSecond) {
+            // If no schedule can run, preserve the beginning of the unprocessed interval.
+            executionEnd = executionStart;
             final var config = configProvider.getConfiguration();
             final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
             final var consensusConfig = config.getConfigData(ConsensusConfig.class);
@@ -783,7 +786,12 @@ public class HandleWorkflow {
             final var writableStates = state.getWritableStates(ScheduleService.NAME);
             // Configuration sets a maximum number of execution slots per user transaction
             int n = schedulingConfig.maxExecutionsPerUserTxn();
-            while (iter.hasNext() && !nextTime.isAfter(lastUsableTime) && n > 0) {
+            while (iter.hasNext()
+                    && !nextTime.isAfter(lastUsableTime)
+                    && n > 0
+                    && (streamMode != BLOCKS || !blockStreamManager.hasReachedMaxBlockSize())) {
+                // Leave the next executable schedule in state when the block fills; retry in a later block.
+                // Checking before next() also prevents the iterator cleanup below from purging it.
                 final var executableTxn = iter.next();
                 if (schedulingConfig.longTermEnabled()) {
                     stakePeriodManager.setCurrentStakePeriodFor(nextTime);
@@ -871,6 +879,10 @@ public class HandleWorkflow {
         try {
             final var platformStateStore =
                     new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
+            // Block-full submissions follow normal consensus throttle fee charging.
+            final boolean blockFull = streamMode == BLOCKS
+                    && parentTxn.functionality() != HederaFunctionality.HINTS_PARTIAL_SIGNATURE
+                    && blockStreamManager.hasReachedMaxBlockSize();
             if (this.initTrigger != EVENT_STREAM_RECOVERY
                     && eventBirthRound <= platformStateStore.getLatestFreezeRound()) {
                 if (streamMode != RECORDS) {
@@ -881,7 +893,7 @@ public class HandleWorkflow {
                 }
                 initializeBuilderInfo(parentTxn.baseBuilder(), parentTxn.txnInfo(), exchangeRateManager.exchangeRates())
                         .status(BUSY);
-                // Flushes the BUSY builder to the stream, no other side effects
+                // Emit a zero-fee rejection without dispatching or mutating accounts.
                 parentTxn.stack().commitTransaction(parentTxn.baseBuilder());
             } else {
                 final var dispatch = parentTxnFactory.createDispatch(parentTxn, exchangeRateManager.exchangeRates());
@@ -894,13 +906,24 @@ public class HandleWorkflow {
                         hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
                 // In case a TSS callback needs access to the current dispatch's savepoint stack
                 this.inFlightDispatch = dispatch;
-                dispatchProcessor.processDispatch(dispatch, hollowAccountCompletionsDetails);
+                if (blockFull) {
+                    dispatchProcessor.processDispatch(dispatch, hollowAccountCompletionsDetails, true);
+                } else {
+                    dispatchProcessor.processDispatch(dispatch, hollowAccountCompletionsDetails);
+                }
                 updateWorkflowMetrics(parentTxn);
             }
             final var blockNumber = currentBlockNumber();
             final var handleOutput = parentTxn
                     .stack()
                     .buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates(), blockNumber);
+            if (streamMode == BLOCKS) {
+                blockStreamManager.recordSubmittedTransaction(
+                        handleOutput.blockRecordSourceOrThrow().blockItems(),
+                        parentTxn.functionality() == HederaFunctionality.HINTS_PARTIAL_SIGNATURE
+                                || parentTxn.functionality() == HederaFunctionality.MIGRATION_ROOT_HASH_VOTE,
+                        blockFull && parentTxn.baseBuilder().status() == THROTTLED_AT_CONSENSUS);
+            }
             recordCache.addRecordSource(
                     parentTxn.creatorInfo().nodeId(),
                     parentTxn.txnInfo().transactionID(),

@@ -55,6 +55,7 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.UncheckedSubmitBody;
 import com.hedera.node.app.blocks.BlockHashSigner;
+import com.hedera.node.app.blocks.BlockSizeIngestGate;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.info.CurrentPlatformStatus;
@@ -105,6 +106,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class IngestCheckerTest extends AppTestBase {
+    @Mock
+    private BlockSizeIngestGate blockSizeIngestGate;
+
     private static final SignatureMap MOCK_SIGNATURE_MAP =
             SignatureMap.newBuilder().build();
 
@@ -207,7 +211,62 @@ class IngestCheckerTest extends AppTestBase {
                 synchronizedThrottleAccumulator,
                 instantSource,
                 opWorkflowMetrics,
-                null);
+                null,
+                blockSizeIngestGate);
+    }
+
+    @Test
+    void fullBlockRejectsBeforeReservingCapacityOrComputingFees() {
+        when(blockSizeIngestGate.shouldReject(java.time.Duration.ofSeconds(2))).thenReturn(true);
+        assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration, new IngestChecker.Result()))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(BUSY));
+        verify(synchronizedThrottleAccumulator, never()).shouldThrottle(any(), any(), any());
+        verify(dispatcher, never()).dispatchComputeFees(any());
+        verify(opWorkflowMetrics).incrementThrottled(CONSENSUS_CREATE_TOPIC);
+    }
+
+    @Test
+    void openGateContinuesToOrdinaryThrottles() {
+        when(synchronizedThrottleAccumulator.shouldThrottle(eq(transactionInfo), eq(state), any()))
+                .thenThrow(new IllegalStateException("Reached ordinary throttles"));
+        assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration, new IngestChecker.Result()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Reached ordinary throttles");
+        verify(blockSizeIngestGate).shouldReject(java.time.Duration.ofSeconds(2));
+    }
+
+    @Test
+    void featureFlagDisabledBypassesSizeGateEvenWhenFull() {
+        final var disabledConfig = new VersionedConfigImpl(
+                HederaTestConfigBuilder.create()
+                        .withValue("blockStream.maxBlockSizeLimitEnabled", false)
+                        .getOrCreateConfig(),
+                1L);
+        when(synchronizedThrottleAccumulator.shouldThrottle(eq(transactionInfo), eq(state), any()))
+                .thenThrow(new IllegalStateException("Reached ordinary throttles"));
+        assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, disabledConfig, new IngestChecker.Result()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Reached ordinary throttles");
+        verify(blockSizeIngestGate, never()).shouldReject(any());
+    }
+
+    @Test
+    void signaturesBypassSizeGate() throws PreCheckException {
+        final var signatureInfo = new TransactionInfo(
+                transactionInfo.signedTx(),
+                transactionInfo.txBody(),
+                transactionInfo.signatureMap(),
+                transactionInfo.signedBytes(),
+                com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE,
+                serializedTx);
+        when(transactionChecker.parseAndCheck(serializedTx)).thenReturn(signatureInfo);
+        when(synchronizedThrottleAccumulator.shouldThrottle(eq(signatureInfo), eq(state), any()))
+                .thenThrow(new IllegalStateException("Reached ordinary throttles"));
+        assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration, new IngestChecker.Result()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Reached ordinary throttles");
+        verify(blockSizeIngestGate, never()).shouldReject(any());
     }
 
     @AfterEach
@@ -290,7 +349,8 @@ class IngestCheckerTest extends AppTestBase {
                 synchronizedThrottleAccumulator,
                 instantSource,
                 opWorkflowMetrics,
-                null);
+                null,
+                blockSizeIngestGate);
 
         // Then the checker should throw a PreCheckException
         assertThatThrownBy(() -> subject.runAllChecks(state, serializedTx, configuration, new IngestChecker.Result()))
@@ -1004,6 +1064,7 @@ class IngestCheckerTest extends AppTestBase {
         return new VersionedConfigImpl(
                 HederaTestConfigBuilder.create()
                         .withValue("networkAdmin.highVolumeThrottlesEnabled", highVolumeThrottlesEnabled)
+                        .withValue("blockStream.maxBlockSizeLimitEnabled", true)
                         .getOrCreateConfig(),
                 1L);
     }

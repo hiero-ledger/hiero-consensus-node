@@ -9,6 +9,7 @@ import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockItemWriter;
+import com.hedera.node.app.blocks.BlockSizeIngestGate;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
@@ -127,7 +128,14 @@ public class BlockStreamManagerWrapper {
                 new NoOpDependencies.NoOpLifecycle(),
                 NoOpDependencies.createBenchmarkQuiescedHeartbeat(quiescenceController),
                 new NoOpDependencies.NoOpMetrics(),
-                new BlockStreamingObs(configProvider));
+                new BlockStreamingObs(configProvider),
+                new BlockSizeIngestGate(),
+                new org.hiero.consensus.transaction.TransactionPoolNexus(
+                        new org.hiero.consensus.transaction.TransactionLimits(33554432, 33554432),
+                        100000,
+                        java.time.Duration.ofSeconds(1),
+                        new NoOpDependencies.NoOpMetrics(),
+                        java.time.InstantSource.system()));
 
         manager.init(state, BlockStreamManager.HASH_OF_ZERO);
     }

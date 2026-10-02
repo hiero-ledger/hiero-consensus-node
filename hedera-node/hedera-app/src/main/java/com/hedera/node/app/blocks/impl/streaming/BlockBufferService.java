@@ -11,7 +11,6 @@ import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
-import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -189,7 +188,7 @@ public class BlockBufferService {
     }
 
     private boolean isBackpressureEnabled() {
-        return bsConfig().streamMode() == StreamMode.BLOCKS && isGrpcStreamingEnabled();
+        return false;
     }
 
     /**
@@ -445,6 +444,7 @@ public class BlockBufferService {
         blockStreamMetrics.recordBlockClosed();
         blockStreamMetrics.recordBlockItemsPerBlock(blockState.itemCount());
         blockStreamMetrics.recordBlockBytes(blockState.sizeBytes());
+        logger.info("Block {} closed with serialized size {} bytes", blockNumber, blockState.sizeBytes());
         blockState.closeBlock();
     }
 
