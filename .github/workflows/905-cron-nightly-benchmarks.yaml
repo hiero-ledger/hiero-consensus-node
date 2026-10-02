@@ -10,11 +10,6 @@ on:
         type: string
         required: false
         default: ""
-  # TEMPORARY: one check run before merging, because workflow_dispatch only works from the default branch.
-  # Remove before merging.
-  push:
-    branches:
-      - 27438-schedule-nightly-benchmarks
 
 defaults:
   run:
