@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.falcon;
 
 import static java.util.Collections.unmodifiableSet;
+import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,6 +25,9 @@ import org.hiero.otter.fixtures.internal.simulator.SimulatorTimeManager;
  *
  * <p>This class implements the {@link TestEnvironment} interface and provides methods to access the
  * network, time manager, etc. for tests running on the Falcon framework.
+ *
+ * <p>In addition to the functionality of {@link TestEnvironment}, it exposes the creation-to-consensus latency and the
+ * event throughput of the network via {@link #consensusLatency()}.
  */
 public class FalconTestEnvironment implements TestEnvironment {
 
@@ -31,21 +35,40 @@ public class FalconTestEnvironment implements TestEnvironment {
     private static final Set<Capability> CAPABILITIES = unmodifiableSet(EnumSet.of(Capability.DETERMINISTIC_EXECUTION));
 
     /** Default granularity of the simulation */
-    static final Duration GRANULARITY = Duration.ofMillis(10);
+    public static final Duration DEFAULT_GRANULARITY = Duration.ofMillis(10);
 
     private final FalconNetwork network;
     private final SimulatorTimeManager timeManager;
     private final TransactionGenerator transactionGenerator;
 
     /**
-     * Constructor of {@link FalconTestEnvironment}
+     * Constructor of {@link FalconTestEnvironment} using the {@link #DEFAULT_GRANULARITY}.
      *
      * @param randomSeed the seed for the random number generator used in the test environment
      */
     public FalconTestEnvironment(final long randomSeed) {
+        this(randomSeed, DEFAULT_GRANULARITY);
+    }
+
+    /**
+     * Constructor of {@link FalconTestEnvironment}.
+     *
+     * <p>This constructor is public so that a test can create several environments, for example one per point of a
+     * parameter sweep. An environment created this way must be {@link #destroy() destroyed} by its creator.
+     *
+     * @param randomSeed the seed for the random number generator used in the test environment
+     * @param granularity the amount of simulated time that passes with each tick; every timestamp in the simulation is
+     * quantized to it. Must be positive.
+     * @throws IllegalArgumentException if {@code granularity} is not positive
+     */
+    public FalconTestEnvironment(final long randomSeed, @NonNull final Duration granularity) {
+        requireNonNull(granularity);
+        if (granularity.isNegative() || granularity.isZero()) {
+            throw new IllegalArgumentException("Granularity must be positive, but was " + granularity);
+        }
         final Randotron randotron = Randotron.create(randomSeed);
         final FakeTime time = new FakeTime(randotron.nextInstant(), Duration.ZERO);
-        timeManager = new SimulatorTimeManager(time, GRANULARITY);
+        timeManager = new SimulatorTimeManager(time, granularity);
         transactionGenerator = new FalconTransactionGenerator();
         network = new FalconNetwork(randotron, timeManager, transactionGenerator);
         timeManager.addTimeTickReceiver(network);
@@ -85,6 +108,18 @@ public class FalconTestEnvironment implements TestEnvironment {
     @NonNull
     public TransactionGenerator transactionGenerator() {
         return transactionGenerator;
+    }
+
+    /**
+     * Returns the creation-to-consensus latency and the event throughput of the network, measured in simulated time
+     * from the moment the network was started until now.
+     *
+     * @return a snapshot of the latency and throughput measured so far
+     * @throws IllegalStateException if the network has not been started yet
+     */
+    @NonNull
+    public ConsensusLatencyResult consensusLatency() {
+        return network.latencyRecorder().snapshot(timeManager.now());
     }
 
     /**

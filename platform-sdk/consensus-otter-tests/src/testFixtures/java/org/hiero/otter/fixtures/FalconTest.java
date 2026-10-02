@@ -15,7 +15,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
  *
  * <p>A Falcon test runs against the Falcon environment, which trades functionality for speed so that a test can be
  * repeated many times with a different seed each run. A Falcon test method can define one parameter of type
- * {@link TestEnvironment} to access the test environment.
+ * {@link TestEnvironment} or {@link org.hiero.otter.fixtures.falcon.FalconTestEnvironment} to access the test
+ * environment.
  */
 @Target({ElementType.METHOD})
 @Retention(RetentionPolicy.RUNTIME)
@@ -57,4 +58,15 @@ public @interface FalconTest {
      * @return the seed of the repetition to replay, or {@code 0} to run a sweep
      */
     long randomSeed() default 0L;
+
+    /**
+     * Specifies the granularity of the simulation in microseconds, i.e. the amount of simulated time that passes with
+     * each tick. Every timestamp in the simulation is quantized to this granularity, so it has to be well below the
+     * simulated network latency for timing measurements to be meaningful.
+     *
+     * <p>Must be positive. The default of 10ms is suitable for tests that do not measure latencies.
+     *
+     * @return the granularity of the simulation in microseconds
+     */
+    long granularityMicros() default 10_000L;
 }

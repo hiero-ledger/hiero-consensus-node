@@ -37,6 +37,9 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
      */
     private static final Map<NodeId, KeysAndCerts> KEYS_AND_CERTS_CACHE = new ConcurrentHashMap<>();
 
+    /** Collects the creation-to-consensus latency and the event throughput of all nodes in this network. */
+    private final ConsensusLatencyRecorder latencyRecorder = new ConsensusLatencyRecorder();
+
     /**
      * Constructor for {@code FalconNetwork}.
      *
@@ -62,9 +65,21 @@ public class FalconNetwork extends SimulatedNetwork implements TimeTickReceiver 
                 keysAndCerts,
                 simulatedNetworkConnectivity,
                 networkConfiguration,
-                consensusRoundPool);
+                consensusRoundPool,
+                latencyRecorder);
         simulatedNetworkConnectivity.addNode(node.getNodeId(), node);
+        latencyRecorder.registerNode(node.getNodeId());
         return node;
+    }
+
+    /**
+     * Returns the recorder that collects the creation-to-consensus latency and the event throughput of this network.
+     *
+     * @return the latency recorder
+     */
+    @NonNull
+    ConsensusLatencyRecorder latencyRecorder() {
+        return latencyRecorder;
     }
 
     /**
