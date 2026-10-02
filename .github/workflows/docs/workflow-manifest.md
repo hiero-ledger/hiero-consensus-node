@@ -115,6 +115,7 @@
 | 902-cron-auto-namespace-delete.yaml          | 902: [CRON] Auto Namespace Delete      | zxcron-auto-namespaces-delete.yaml                    | Delete automation Latitude Namespaces                             |
 | 903-cron-clean.yaml                          | 903: [CRON] Clean Latitude NS          | zxcron-clean.yaml                                     | CronClean Latitude Namespaces                                     |
 | 904-cron-release-branching.yaml              | 904: [CRON] Release Branching          | node-zxcron-release-branching.yaml                    | ZXCron: Automatic Release Branching                               |
+| 905-cron-nightly-benchmarks.yaml             | 905: [CRON] Nightly Benchmarks         | N/A                                                   | N/A                                                               |
 
 ## Numbering conventions
 
