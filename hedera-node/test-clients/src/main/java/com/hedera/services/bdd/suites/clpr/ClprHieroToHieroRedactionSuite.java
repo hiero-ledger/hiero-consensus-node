@@ -47,7 +47,10 @@ import org.junit.jupiter.api.Tag;
 @Tag(MULTINETWORK)
 public class ClprHieroToHieroRedactionSuite extends HieroToHieroBase {
 
-    @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
+    @MultiNetworkHapiTest({
+        @Network(value = "ledgerA", firstGrpcPort = 35400),
+        @Network(value = "ledgerB", firstGrpcPort = 36400)
+    })
     @DisplayName("Source admin redacts before peer ack → peer enqueues REDACTED reply, round-trip completes")
     Stream<DynamicTest> outboundRedactionBeforeAck(final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
         final var crypto = new ClprCrypto();
@@ -106,7 +109,10 @@ public class ClprHieroToHieroRedactionSuite extends HieroToHieroBase {
      * adopt-then-fold must work when the redacted slot is in the MIDDLE of the bundle (stricter
      * than head/tail). Any error → CLPR_RUNNING_HASH_MISMATCH and B's receivedMessageId stalls.
      */
-    @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
+    @MultiNetworkHapiTest({
+        @Network(value = "ledgerA", firstGrpcPort = 35400),
+        @Network(value = "ledgerB", firstGrpcPort = 36400)
+    })
     @DisplayName("Multi-message bundle with redacted middle slot → all 3 slots ack, no hash mismatch")
     Stream<DynamicTest> multiMessageBundleWithRedactedMiddleSlot(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {

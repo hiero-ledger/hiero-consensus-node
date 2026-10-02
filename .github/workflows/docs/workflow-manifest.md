@@ -108,6 +108,7 @@
 | 861-call-get-test-config.yaml                | 861: [CALL] Get CITR Test Config       |                                                       |                                                                   |
 | 862-call-get-chewie-properties.yaml          | 862: [CALL] Get CITR Chewie Properties |                                                       |                                                                   |
 | 863-call-get-chewie-allocation.yaml          | 863: [CALL] Get Chewie Allocation Details |                                                       |                                                                   |
+| 864-call-execute-hapi-clpr.yaml              | 864: [CALL] Exec HAPI CLPR             | N/A                                                   | N/A                                                               |
 |                                              |                                        |                                                       |                                                                   |
 | # CRON (900-999)                             |                                        |                                                       |                                                                   |
 | 900-cron-extended-test-suite.yaml            | 900: [CRON] CITR Ext Test Suite        | zxcron-extended-test-suite.yaml                       | ZXCron: [CITR] Extended Test Suite                                |

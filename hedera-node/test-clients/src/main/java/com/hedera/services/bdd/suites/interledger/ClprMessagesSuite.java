@@ -136,7 +136,14 @@ public class ClprMessagesSuite {
     /** Polling interval between responseCount queries. */
     private static final Duration POLL_INTERVAL = Duration.ofSeconds(5);
 
-    @MultiNetworkHapiTest({@Network("ledgerA"), @Network("ledgerB")})
+    // Pin the gRPC port bases to the values the committed TSS fixtures were captured at
+    // (ledgerA gossip 35403/35404, ledgerB gossip 36403/36404). This keeps the runtime roster
+    // hash identical to the preloaded construction's, so rewriteFixturePortsToRuntime is a no-op
+    // and the warm WRAPS-extensible proof is reused instead of forcing a fresh construction #2.
+    @MultiNetworkHapiTest({
+        @Network(value = "ledgerA", firstGrpcPort = 35400),
+        @Network(value = "ledgerB", firstGrpcPort = 36400)
+    })
     @DisplayName("Multi-message CLPR: 3×7 messages with EchoApplication auto-sync round-trip")
     Stream<DynamicTest> multiMessageRoundTrip(final SubProcessNetwork netA, final SubProcessNetwork netB) {
         // ── Channel keypair ────────────────────────────────────────────────────────────────────

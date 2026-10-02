@@ -70,11 +70,13 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
         @Network(
                 name = LEDGER_A_MANIFEST,
                 size = 2,
+                firstGrpcPort = 32000,
                 enableClprMtls = true,
                 firstMtlsPort = MTLS_PORT_A,
                 setupOverrides = {@ConfigOverride(key = "clpr.endpointManifestEnabled", value = "true")}),
         @Network(
                 name = LEDGER_B_MANIFEST,
+                firstGrpcPort = 32100,
                 enableClprMtls = true,
                 firstMtlsPort = MTLS_PORT_B,
                 setupOverrides = {@ConfigOverride(key = "clpr.endpointManifestEnabled", value = "true")})
@@ -113,11 +115,13 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
         @Network(
                 name = LEDGER_A_MANIFEST,
                 size = 2,
+                firstGrpcPort = 32000,
                 enableClprMtls = true,
                 firstMtlsPort = MTLS_PORT_A,
                 setupOverrides = {@ConfigOverride(key = "clpr.endpointManifestEnabled", value = "true")}),
         @Network(
                 name = LEDGER_B_MANIFEST,
+                firstGrpcPort = 32100,
                 enableClprMtls = true,
                 firstMtlsPort = MTLS_PORT_B,
                 setupOverrides = {@ConfigOverride(key = "clpr.endpointManifestEnabled", value = "true")})
@@ -199,11 +203,13 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
         @Network(
                 name = LEDGER_A_MANIFEST,
                 size = 2,
+                firstGrpcPort = 32000,
                 enableClprMtls = true,
                 firstMtlsPort = MTLS_PORT_A,
                 setupOverrides = {@ConfigOverride(key = "clpr.endpointManifestEnabled", value = "true")}),
         @Network(
                 name = LEDGER_B_MANIFEST,
+                firstGrpcPort = 32100,
                 enableClprMtls = true,
                 firstMtlsPort = MTLS_PORT_B,
                 setupOverrides = {@ConfigOverride(key = "clpr.endpointManifestEnabled", value = "true")})
@@ -323,11 +329,13 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
         @Network(
                 name = LEDGER_A_MANIFEST,
                 size = 2,
+                firstGrpcPort = 32000,
                 enableClprMtls = true,
                 firstMtlsPort = MTLS_PORT_A,
                 setupOverrides = {@ConfigOverride(key = "clpr.endpointManifestEnabled", value = "true")}),
         @Network(
                 name = LEDGER_B_MANIFEST,
+                firstGrpcPort = 32100,
                 enableClprMtls = true,
                 firstMtlsPort = MTLS_PORT_B,
                 setupOverrides = {@ConfigOverride(key = "clpr.endpointManifestEnabled", value = "true")})
@@ -374,11 +382,13 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
         @Network(
                 name = LEDGER_A_MANIFEST,
                 size = 2,
+                firstGrpcPort = 32000,
                 enableClprMtls = true,
                 firstMtlsPort = MTLS_PORT_A,
                 setupOverrides = {@ConfigOverride(key = "clpr.endpointManifestEnabled", value = "true")}),
         @Network(
                 name = LEDGER_B_MANIFEST,
+                firstGrpcPort = 32100,
                 enableClprMtls = true,
                 firstMtlsPort = MTLS_PORT_B,
                 setupOverrides = {@ConfigOverride(key = "clpr.endpointManifestEnabled", value = "true")})
