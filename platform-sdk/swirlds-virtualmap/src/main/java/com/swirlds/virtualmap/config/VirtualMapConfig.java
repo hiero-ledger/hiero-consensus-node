@@ -15,8 +15,8 @@ import com.swirlds.config.api.validation.annotation.Min;
  * 		Gets the percentage (from 0.0 to 100.0) of available processors to devote to hashing
  * 		threads. Ignored if an explicit number of threads is given via {@code virtualMap.numHashThreads}.
  * @param numHashThreads
- * 		The number of threads to devote to hashing. If not set, defaults to the number of threads implied by
- *        {@code virtualMap.percentHashThreads} and {@link Runtime#availableProcessors()}.
+ * 		The number of threads to devote to hashing. If not set, defaults to the number of threads implied
+ *      by {@code virtualMap.percentHashThreads} and {@link Runtime#availableProcessors()}.
  * @param reconnectMode
  *      Reconnect mode. For the list of accepted values, see {@link VirtualMapReconnectMode}.
  * @param reconnectFlushInterval
@@ -30,8 +30,13 @@ import com.swirlds.config.api.validation.annotation.Min;
  * 		The number of threads to devote to cache cleaning. If not set, defaults to the number of threads implied by
  *      {@code virtualMap.percentCleanerThreads} and {@link Runtime#availableProcessors()}.
  * @param copyFlushCandidateThreshold
- *      Virtual map copy flush threshold. A copy can be flushed to disk only if its size exceeds this
- *      threshold.
+ *      Virtual map copy flush threshold, in bytes. If estimated copy size exceeds the threshold,
+ *      and it contains less than {@link #percentFlushGarbageThreshold} redundant data, it will be
+ *      flushed to disk.
+ * @param percentFlushGarbageThreshold
+ *      When estimated copy size exceeds {@link #copyFlushCandidateThreshold}, and ratio of redundant data
+ *      in the copy to estimated copy size exceeds this threshold, in percent, the copy gets garbage collected,
+ *      i.e. all redundant data is purged from it. Then the copy can be merged into the newer copy.
  * @param familyThrottleThreshold
  *      Virtual map family throttle threshold. When estimated size of all unreleased copies of the same virtual
  *      root exceeds this threshold, virtual pipeline starts applying backpressure on creating new root copies.
@@ -56,6 +61,7 @@ public record VirtualMapConfig(
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "25.0") double percentCleanerThreads,
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numCleanerThreads,
         @Min(1) @ConfigProperty(defaultValue = "1200000000") long copyFlushCandidateThreshold,
+        @Min(0) @Max(100) @ConfigProperty(defaultValue = "50") double percentFlushGarbageThreshold,
         @Min(-1) @Max(100) @ConfigProperty(defaultValue = "10.0") double familyThrottlePercent,
         @Min(-1) @ConfigProperty(defaultValue = "-1") long familyThrottleThreshold,
         @Min(1) @ConfigProperty(defaultValue = "37748736") int valueParseMaxSizeBytes,
