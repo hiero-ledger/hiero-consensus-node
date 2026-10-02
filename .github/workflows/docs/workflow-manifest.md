@@ -62,6 +62,7 @@
 | 809-call-dependency-module-check.yaml        | 809: [CALL] Dependency Module Chk      | zxc-dependency-module-check.yaml                      | ZXC: Dependency Module Check                                      |
 | 810-call-execute-mats-hapi.yaml              | 810: [CALL] Exec MATS HAPI Suites      | N/A                                                   | N/A                                                               |
 | 811-call-execute-mats-otter.yaml             | 811: [CALL] Exec MATS Otter Suites     | N/A                                                   | N/A                                                               |
+| 812-call-benchmark-smoke.yaml                | 812: [CALL] Benchmark Smoke Run        | N/A                                                   | N/A                                                               |
 | 815-call-xts-tests.yaml                      | 815: [CALL] Exec XTS Tests             | zxc-xts-tests.yaml                                    | ZXC: Executable XTS Tests                                         |
 | 816-call-build-publish-state-validator.yaml  | 816: [CALL] Build State Validator      | zxc-build-publish-state-validator.yaml                | ZXC: Build & Publish Hedera State Validator Uber JAR              |
 | 817-call-jrs-regression.yaml                 | 817: [CALL] JRS Regression             | zxc-jrs-regression.yaml                               | ZXC: Regression                                                   |
@@ -129,7 +130,7 @@
   numbered in that consumer's block; per-suite leaves are neutral and are not.
 
 - **The contiguous space below 850 is now exhausted.** The next batch of leaf workflows starts at
-  **870**, on a clean ten boundary. 812-814 and 829-830 are reserved for MATS- and XTS-specific
+  **870**, on a clean ten boundary. 813-814 and 829-830 are reserved for MATS- and XTS-specific
   callees respectively.
 
 - **`disp`-class operational controllers live in 100-199.** `106-disp-xts-optional-tests.yaml` is

@@ -556,7 +556,7 @@ public class AtomicBatchTest {
                             .payingWith(opAcct)
                             // Isn't signed by anotherKey, so should fail
                             .signedBy(opKey)
-                            .hasPrecheck(INVALID_SIGNATURE),
+                            .hasKnownStatus(INVALID_SIGNATURE),
                     atomicBatch(
                                     oneHbarToDefaultPayerFrom(opAcct).batchKey(opKey),
                                     oneHbarToDefaultPayerFrom(opAcct).batchKey(anotherKey))
