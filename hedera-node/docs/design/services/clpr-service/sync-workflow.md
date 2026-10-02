@@ -15,12 +15,13 @@ All classes live under
 
 ```
                     ┌─────────────────────┐
-   peer →  gRPC →   │  ClprMethod         │     (Netty server route)
+   peer →  gRPC →   │ ClprStreamingSync   │     (Netty server route,
+                    │ Method              │      bidi stream)
                     └─────────┬───────────┘
                               │
                     ┌─────────▼───────────┐
-                    │ ClprSyncWorkflow    │
-                    │ (impl)              │
+                    │ ClprStreamingSync   │
+                    │ Session (per stream)│
                     └──┬──────────┬───────┘
    outbound (read     │           │   inbound bundle ingest
    from latest        │           │
@@ -37,7 +38,7 @@ All classes live under
                       │      └──────────────────┘
                       │
                       ▼
-              gRPC response to peer
+              bundles streamed back to peer
 
    ┌──────────────────────────────────┐
    │ ClprChannelManager            │   background scheduler
@@ -47,35 +48,32 @@ All classes live under
    │   ClprChannelLifecycle        │   ▼
    └──────────────────────────────────┘  ┌──────────────────┐
                                          │ ClprEndpoint     │  Netty + grpc-java
-                                         │ Client           │  client unary call
+                                         │ Client           │  client bidi stream
                                          └──────────────────┘
 ```
 
 ## Inbound path (peer → me)
 
-### `ClprMethod` and `ClprDiscoveryMethod`
+### `ClprStreamingSyncMethod` and `ClprDiscoveryMethod`
 
-`MethodBase` adapters (in `hedera-app/.../grpc/impl/`) wired into the Netty gRPC server by
-`GrpcServiceBuilder` / `NettyGrpcServerManager` for `proto.ClprEndpointService`. They
-dispatch to `ClprSyncWorkflow.handleSync` and `handleDiscovery` respectively.
+Server routes (in `hedera-app/.../grpc/impl/`) for `proto.ClprEndpointService`:
+
+- `sync` is a bidirectional stream of `ClprStreamingSyncPayload`. `NettyGrpcServerManager` registers it by hand
+  (`MethodType.BIDI_STREAMING`), because `GrpcServiceBuilder` only builds unary methods. `ClprStreamingSyncMethod`
+  asks `ClprSyncWorkflow.openStreamingSync` for a fresh `ClprStreamingSyncSession` per stream. There is no unary
+  `sync`: a peer that only speaks the old unary RPC cannot sync with this node.
+- `discoverEndpoints` is unary. `ClprDiscoveryMethod` is a `MethodBase` adapter built by `GrpcServiceBuilder` and
+  dispatches to `ClprSyncWorkflow.handleDiscovery`.
 
 ### `ClprSyncWorkflow` / `ClprSyncWorkflowImpl`
 
 `@Singleton`. Server-side handler.
 
-`handleSync`:
-1. Parse incoming `ClprSyncPayload`.
-2. Do not apply local peer-exclusion heuristics on the sync RPC when
-`clpr.syncPeerExclusionEnabled=false` (the default). Historical shunning logic is retained
-behind the feature flag for further archeology.
-3. Validate the channel referenced by the payload: must be `ACTIVE` (rejects
-`PAUSED`/`CLOSING`/`CLOSED`). Lookup uses the latest **immutable** state (a frozen
-snapshot, not the current handle round).
-4. **For outbound messages** (we are the source): read messages and queue metadata from
-the immutable state, build a `ClprSyncPayload` response with the proof (Hiero proof
-construction is currently stubbed — TODO CLPR-4.3 referenced in code).
-5. **For inbound messages** (we are the destination): hand the received payload to
-`ClprBundleSubmitter.submitBundle(...)`.
+`openStreamingSync`: rejects the stream with `UNAVAILABLE` when CLPR is disabled; otherwise returns a new
+`ClprStreamingSyncSession`. The session drives the server side of the two-phase exchange: it answers the peer's
+`ClprBundleRequest` with its own request and a bundle built from the latest **immutable** state, hands every bundle
+the peer sends to `ClprBundleSubmitter.submitBundle(...)`, and replies to each non-terminal message until either
+side has nothing left to send.
 
 `handleDiscovery`: replies with the local node's known peers from the seed-endpoint cache
 (maintained by `ClprChannelManager`) plus filtered roster contacts. When
@@ -123,22 +121,24 @@ Per-tick logic (background thread):
 - Acquire a per-channel lock (one in-flight sync per channel at a time).
 - Build the request payload (queue metadata + outbound bundle) from the latest immutable
 state.
-- Call `ClprEndpointClient.sync(...)`. On timeout (`clpr.syncTimeoutSeconds`) or error,
+- Call `ClprSynchronizer.synchronize(...)` (bound to `ClprStreamingSynchronizer`), which opens one
+streaming `sync` call via `ClprEndpointClient.sync(...)`. On timeout (`clpr.syncTimeoutSeconds`) or error,
 apply circuit-breaker / retry policy (`clpr.retryInitialDelayMs`,
 `clpr.retryMaxDelayMs`, `clpr.retryMaxAttempts`,
 `clpr.circuitBreakerCooldownSeconds`); decay peer reputation
 (`clpr.reputationDecaySeconds`). Open circuit breakers remove peers from the candidate
 set only when `clpr.syncPeerExclusionEnabled=true`; the default false setting keeps those
 signals observational and never declines to initiate a sync on that basis.
-- On success, hand the response payload to `ClprBundleSubmitter` to ingest the peer's
-outbound (i.e. our inbound) bundles.
+- Each bundle the peer streams back is handed to `ClprBundleSubmitter` to ingest the peer's
+outbound (i.e. our inbound) messages.
 
 ### `ClprEndpointClient`
 
-Outbound gRPC client. Netty + grpc-java `ClientCalls` for the
-`proto.ClprEndpointService/sync` unary RPC. Marshallers are byte-array based — payloads
-are pre-serialised `ClprSyncPayload` bytes — so the client does not need the protobuf
-service stub generated. One-shot unary call with `clpr.syncTimeoutSeconds` deadline.
+Outbound gRPC client. Netty + grpc-java `ClientCalls` for the bidirectional-streaming
+`proto.ClprEndpointService/sync` RPC and the unary `discoverEndpoints`. Marshallers are byte-array based — payloads
+are pre-serialised `ClprStreamingSyncPayload` bytes — so the client does not need the protobuf service stub
+generated. `sync(timeout)` returns a `ClprStreamingSyncCall`; the deadline covers the whole multi-bundle exchange,
+not a single message.
 
 ## Wiring (Dagger)
 
@@ -169,7 +169,7 @@ service stub generated. One-shot unary call with `clpr.syncTimeoutSeconds` deadl
 
 |           Spec            |                                    Code                                    |
 |---------------------------|----------------------------------------------------------------------------|
-| §1.5 sync RPC             | `ClprMethod` → `ClprSyncWorkflowImpl`                                      |
+| §1.5 sync RPC             | `ClprStreamingSyncMethod` → `ClprStreamingSyncSession`                     |
 | §1.5 endpoint signature   | platform event-level signature; `ClprBundleSubmitter` empty `SignatureMap` |
 | §1.6 misbehaviour (local) | `InboundSyncThrottle` shun list, gated by `clpr.syncPeerExclusionEnabled`  |
 | §4.2 bundle verification  | `ClprSubmitBundleHandler` (consensus path)                                 |
