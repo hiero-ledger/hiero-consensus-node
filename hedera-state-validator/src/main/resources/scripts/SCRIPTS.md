@@ -52,7 +52,7 @@ gcloud storage cp --recursive gs://testnet-2024-02-state-backups/testnet-2023-01
 gcloud storage cp --recursive   gs://testnet-2024-02-state-backups/testnet-2023-01-node00/214806705  .
 ```
 
-2Download or build the State Operator jar file:
+2. Download or build the State Operator jar file:
 To download:
 
 ```
