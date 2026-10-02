@@ -435,8 +435,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             return;
         }
 
-        // TODO temporary disabled for full rehash testing
-        /*try {
+        try {
             final boolean digestTypeChanged = Cryptography.DEFAULT_DIGEST_TYPE != dataSource.getLoadedHashDigestType();
             if (!digestTypeChanged) {
                 final Hash loadedHash = records.findHash(firstLeafPath);
@@ -458,7 +457,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
-        }*/
+        }
 
         logger.info(STARTUP.getMarker(), "Doing full rehash for the path range: {} - {}", firstLeafPath, lastLeafPath);
         final FullLeafRehashHashListener hashListener = new FullLeafRehashHashListener(
@@ -518,7 +517,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             final long millisSpent = System.currentTimeMillis() - start;
             logger.info(STARTUP.getMarker(), "It took {} seconds to feed all leaves to the hasher", millisSpent / 1000);
             setHashPrivate(fullRehashFuture.get(virtualMapConfig.fullRehashTimeoutMs() - millisSpent, MILLISECONDS));
-            logger.info(STARTUP.getMarker(), "Full rehash took {} seconds", (System.currentTimeMillis() - start) / 1000);
+            logger.info(
+                    STARTUP.getMarker(), "Full rehash took {} seconds", (System.currentTimeMillis() - start) / 1000);
         } catch (ExecutionException e) {
             final var message = "Failed to get hash during full rehashing";
             throw new RuntimeException(message, e.getCause() != null ? e.getCause() : e);

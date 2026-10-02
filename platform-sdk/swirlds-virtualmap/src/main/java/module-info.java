@@ -6,6 +6,7 @@ open module com.swirlds.virtualmap {
     exports com.swirlds.virtualmap;
     exports com.swirlds.virtualmap.datasource;
     exports com.swirlds.virtualmap.config;
+    exports com.swirlds.virtualmap.rehash;
     exports com.swirlds.virtualmap.sync;
     exports com.swirlds.virtualmap.sync.streams;
 

@@ -138,7 +138,7 @@ public class FullLeafRehashHashListener implements VirtualHashListener {
                         firstLeafPath, lastLeafPath, hashesToFlush.stream(), Stream.empty(), Stream.empty(), true);
                 final long end = System.currentTimeMillis();
                 statistics.recordFlush(end - start);
-                logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Flushed in {} ms", end - start);
+                logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Flushed in {} ms", end - start);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

@@ -28,6 +28,7 @@ import picocli.CommandLine.Parameters;
             DiffCommand.class,
             SortedDiffCommand.class,
             CompactionCommand.class,
+            FullRehashCommand.class,
             ApplyBlocksCommand.class,
             ReplayPcesCommand.class
         },
