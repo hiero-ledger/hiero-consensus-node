@@ -13,6 +13,7 @@ import com.swirlds.virtualmap.MerkleHasher;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.VirtualMapStatistics;
 import com.swirlds.virtualmap.internal.hash.FullLeafRehashHashListener;
@@ -56,6 +57,21 @@ public final class TaskPerNodeFullRehasher implements FullRehasher {
 
     private static final Logger logger = LogManager.getLogger(TaskPerNodeFullRehasher.class);
 
+    // Desired number of hash chunk flushes per full rehash. Every flush has a fixed cost (a new
+    // data file, metadata update, etc.), and every flush creates a new data file to compact later,
+    // so for small and mid-size states the number of flushes shouldn't depend on the state size
+    private static final long TARGET_FLUSHES = 128;
+
+    // Min flush interval, in hash slots (~24MB of heap). Small states are flushed in batches of
+    // at least this size.
+    private static final long MIN_FLUSH_INTERVAL = 500_000;
+
+    // Max flush interval, in hash slots (~96MB of heap). Large states are flushed in batches of
+    // at most this size. Up to two batches may be in memory at the same time: one is being
+    // flushed, and another one is collected by hashing threads in parallel. Larger batches are
+    // also slower to flush overall, as they put more pressure on GC
+    private static final long MAX_FLUSH_INTERVAL = 2_000_000;
+
     private final ForkJoinPool pool;
 
     /// Creates a new rehasher.
@@ -79,15 +95,15 @@ public final class TaskPerNodeFullRehasher implements FullRehasher {
             return null;
         }
 
-        logger.info(STARTUP.getMarker(), "Doing full rehash for the path range: {} - {}", firstLeafPath, lastLeafPath);
-        final FullLeafRehashHashListener chunkListener = new FullLeafRehashHashListener(
+        final int flushInterval = flushInterval(lastLeafPath, dataSource.getHashChunkHeight());
+        logger.info(
+                STARTUP.getMarker(),
+                "Doing full rehash for the path range: {} - {}, flush interval: {}",
                 firstLeafPath,
                 lastLeafPath,
-                dataSource,
-                new VirtualMapStatistics(VirtualMap.LABEL),
-                // even though this listener has nothing to do with the reconnect, reconnect flush interval value
-                // is appropriate to use here.
-                virtualMapConfig.reconnectFlushInterval());
+                flushInterval);
+        final FullLeafRehashHashListener chunkListener = new FullLeafRehashHashListener(
+                firstLeafPath, lastLeafPath, dataSource, new VirtualMapStatistics(VirtualMap.LABEL), flushInterval);
         final HashChunkCollector listener = new HashChunkCollector(dataSource.getHashChunkHeight(), chunkListener);
 
         final LongFunction<VirtualLeafBytes<?>> leafReader = path -> {
@@ -103,6 +119,36 @@ public final class TaskPerNodeFullRehasher implements FullRehasher {
                 hash(firstLeafPath, lastLeafPath, leafReader, listener, virtualMapConfig.fullRehashTimeoutMs());
         logger.info(STARTUP.getMarker(), "Full rehash took {} seconds", (System.currentTimeMillis() - start) / 1000);
         return rootHash;
+    }
+
+    /// Calculates the flush interval for [FullLeafRehashHashListener] based on the leaf path range.
+    ///
+    /// The listener flushes collected chunks once `number of chunks * 2 ^ chunkHeight` reaches
+    /// the flush interval. Every [VirtualHashChunk] allocates space for `2 ^ chunkHeight` hashes
+    /// in memory, even if only some of them are set (chunks at the last ranks are often not
+    /// full), so the flush interval is effectively the number of hash slots in memory per flush,
+    /// and a batch takes about `flushInterval * digestLength` bytes of heap.
+    ///
+    /// The total number of chunks in the tree is known from the last leaf path, so is the total
+    /// number of hash slots to flush. The interval is chosen to have [#TARGET_FLUSHES] flushes,
+    /// clamped to [[#MIN_FLUSH_INTERVAL], [#MAX_FLUSH_INTERVAL]]. Small states are then
+    /// flushed fewer times, and large states more times, but every batch takes at most ~96MB
+    /// of heap regardless of the state size.
+    ///
+    /// For example:
+    ///
+    /// - a state with ~1M leaves has ~0.27M chunks of height 6, or ~17M hash slots. 17M / 128
+    ///   is below the min, so the interval is 500K, which results in ~34 flushes
+    /// - a state with ~40M leaves has ~17M chunks, or ~1.09B hash slots. 1.09B / 128 = 8.5M is
+    ///   above the max, so the interval is 2M, which results in ~545 flushes
+    ///
+    /// @param lastLeafPath the last leaf path, must be positive
+    /// @param chunkHeight hash chunk height
+    /// @return the flush interval, in hash slots
+    static int flushInterval(final long lastLeafPath, final int chunkHeight) {
+        final long totalChunks = VirtualHashChunk.lastChunkIdForPaths(lastLeafPath, chunkHeight) + 1;
+        final long totalHashSlots = totalChunks * VirtualHashChunk.getChunkSize(chunkHeight);
+        return (int) Math.clamp(totalHashSlots / TARGET_FLUSHES, MIN_FLUSH_INTERVAL, MAX_FLUSH_INTERVAL);
     }
 
     /// Hashes the whole virtual tree with the given leaf path range and returns the root hash.
