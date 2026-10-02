@@ -53,7 +53,7 @@ gcloud storage cp --recursive   gs://testnet-2024-02-state-backups/testnet-2023-
 ```
 
 2. Download or build the State Operator jar file:
-To download:
+   To download:
 
 ```
 gcloud storage cp gs://hedera-ci-ephemeral-artifacts/hedera/hedera-state-validator/hedera-state-validator-0.77.jar .
