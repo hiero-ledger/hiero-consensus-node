@@ -36,6 +36,7 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.event.EventHashFactory;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
@@ -209,7 +210,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         // The event hash factory must be initialized before the consensus layer is created, because creating the
         // consensus layer reads events from the PCES files.
         final OptionalLong eventCutoverUpdate =
-                initializeEventHashFactory(initialSignedState.getState(), startedFromGenesis || isUpgrade);
+                initializeEventHashFactory(initialSignedState.getState(), startedFromGenesis, isUpgrade);
 
         final ConsensusLayerInputs inputs = createConsensusLayerInputs();
         final ConsensusLayerFactory factory = new ConsensusLayerFactory(inputs);
@@ -251,33 +252,40 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
      * the event cutover value in state must change. The value in state only changes when starting from genesis or
      * after an upgrade.
      *
-     * @param initialState       the state the node is starting from
-     * @param isGenesisOrUpgrade true if the node is starting from genesis or after an upgrade
-     * @return the event cutover value to record in state, or empty if the value in state must not change
+     * @param initialState the state the node is starting from
+     * @param isGenesis    true if the node is starting from genesis
+     * @param isUpgrade    true if the node is starting after an upgrade
+     * @return the event cutover value to record in state, or empty if the value in state must not change here
      */
     @NonNull
     private OptionalLong initializeEventHashFactory(
-            @NonNull final VirtualMapState initialState, final boolean isGenesisOrUpgrade) {
+            @NonNull final VirtualMapState initialState, final boolean isGenesis, final boolean isUpgrade) {
         final boolean eventCutoverActive =
                 configuration.getConfigData(EventConfig.class).enableEventCutover();
         final long eventCutoverMinBirthRound = PlatformStateUtils.eventCutoverMinBirthRoundOf(initialState);
 
-        if (!isGenesisOrUpgrade) {
+        if (!isGenesis && !isUpgrade) {
             // Restarting the same version. Use the value in state, which can only change at genesis or an upgrade.
             EventHashFactory.initialize(eventCutoverMinBirthRound > 0 ? eventCutoverMinBirthRound : Long.MAX_VALUE);
             return OptionalLong.empty();
         }
 
         if (eventCutoverActive) {
+            if (isGenesis) {
+                // Every event is post cutover. The genesis state must stay empty until changes can be externalized,
+                // so DefaultTransactionHandler records this value in state when it handles the first round.
+                EventHashFactory.initialize(ConsensusConstants.ROUND_FIRST);
+                return OptionalLong.empty();
+            }
             if (eventCutoverMinBirthRound <= 0) {
                 // It's time to do the cutover now. Update the value in state to the first birth round post cutover.
-                // Either the initial state is a genesis state and has a round of 0, or it's a freeze round.
+                // The initial state is a freeze state.
                 final long cutoverBirthRound = roundOf(initialState) + 1;
                 EventHashFactory.initialize(cutoverBirthRound);
                 return OptionalLong.of(cutoverBirthRound);
             }
-            // The cutover has already happened. Initialize the EventHashFactory with the value in
-            // state so that it uses the correct hash type for events.
+            // The cutover has already happened and the flag has not been reset. Initialize the
+            // EventHashFactory with the value in state so that it uses the correct hash type for events.
             EventHashFactory.initialize(eventCutoverMinBirthRound);
             return OptionalLong.empty();
         }

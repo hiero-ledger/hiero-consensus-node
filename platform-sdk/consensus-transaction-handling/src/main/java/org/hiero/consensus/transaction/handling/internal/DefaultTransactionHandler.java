@@ -6,6 +6,7 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.isGenesisStateOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.isInFreezePeriod;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.setLegacyRunningEventHashTo;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.updateLastFrozenTime;
@@ -39,10 +40,12 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.event.stream.config.EventStreamWiringConfig;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
@@ -106,6 +109,11 @@ public class DefaultTransactionHandler implements TransactionHandler {
     private final Configuration configuration;
 
     /**
+     * If true then the event hash cutover is enabled.
+     */
+    private final boolean eventCutoverEnabled;
+
+    /**
      * If true then write the legacy running event hash each round.
      */
     private final boolean writeLegacyRunningEventHash;
@@ -164,6 +172,8 @@ public class DefaultTransactionHandler implements TransactionHandler {
 
         this.roundsNonAncient =
                 configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
+        this.eventCutoverEnabled =
+                configuration.getConfigData(EventConfig.class).enableEventCutover();
         this.handlerMetrics = new RoundHandlingMetrics(time, metrics);
         this.transactionMetrics = new TransactionMetrics(metrics);
 
@@ -308,12 +318,20 @@ public class DefaultTransactionHandler implements TransactionHandler {
      * @param round the consensus round
      */
     private void updatePlatformState(@NonNull final ConsensusRound round) {
-        bulkUpdateOf(stateLifecycleManager.getMutableState(), v -> {
+        final VirtualMapState state = stateLifecycleManager.getMutableState();
+        // A genesis state must stay empty until changes can be externalized, so a network that starts with the event
+        // cutover enabled records the cutover with the first round it handles instead of at startup.
+        final boolean recordGenesisEventCutover = eventCutoverEnabled && isGenesisStateOf(state);
+        bulkUpdateOf(state, v -> {
             v.setRound(round.getRoundNum());
             v.setConsensusTimestamp(round.getConsensusTimestamp());
             v.setCreationSoftwareVersion(softwareVersion);
             v.setRoundsNonAncient(roundsNonAncient);
             v.setSnapshot(round.getSnapshot());
+            if (recordGenesisEventCutover) {
+                // the same value the EventHashFactory is initialized with at genesis: every event is post cutover
+                v.setEventCutoverMinBirthRound(ConsensusConstants.ROUND_FIRST);
+            }
         });
     }
 

@@ -13,7 +13,6 @@ import org.hiero.base.crypto.Hash;
  */
 public class EventHashFactory {
 
-//    private static long eventCutoverMinBirthRound = Long.MAX_VALUE;
     private static long eventCutoverMinBirthRound = -1;
 
     /**
@@ -55,6 +54,7 @@ public class EventHashFactory {
      */
     @NonNull
     public static Hash hash(@NonNull final byte[] bytes) {
+        throwIfNotInitialized();
         final DigestType digestType = DigestType.digestLengthToDigestType(bytes.length);
         if (digestType == null) {
             throw new IllegalArgumentException(
@@ -72,6 +72,7 @@ public class EventHashFactory {
      */
     @NonNull
     public static Hash hash(@NonNull final Bytes bytes) {
+        throwIfNotInitialized();
         final DigestType digestType = DigestType.digestLengthToDigestType((int) bytes.length());
         if (digestType == null) {
             throw new IllegalArgumentException(
@@ -87,6 +88,7 @@ public class EventHashFactory {
      * @return true if the birth round is post cutover
      */
     public static boolean isBirthRoundPostCutover(final long birthRound) {
+        throwIfNotInitialized();
         return birthRound >= eventCutoverMinBirthRound;
     }
 
@@ -97,6 +99,7 @@ public class EventHashFactory {
      * @return the digest type for the birth round
      */
     public static DigestType getTypeForBirthRound(final long birthRound) {
+        throwIfNotInitialized();
         return isBirthRoundPostCutover(birthRound) ? DigestType.SHA_256 : DigestType.SHA_384;
     }
 }

@@ -250,8 +250,8 @@ public final class PlatformStateUtils {
      * @param state                     the state to update
      * @param eventCutoverMinBirthRound the new event cutover minimum birth round
      */
-    public static void updateEventCutoverMinBirthRound(@NonNull final State state,
-            final long eventCutoverMinBirthRound) {
+    public static void updateEventCutoverMinBirthRound(
+            @NonNull final State state, final long eventCutoverMinBirthRound) {
         getWritablePlatformStateOf(state).setEventCutoverMinBirthRound(eventCutoverMinBirthRound);
     }
 
