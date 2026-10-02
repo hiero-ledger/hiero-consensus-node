@@ -797,6 +797,8 @@ jobs:
           sleep $(expr  ${{ inputs.nlg-accounts }} / 1000000 \* 60 ) # 1M accs per minute
 
       - name: Start profiling
+        env:
+          REF: ${{ inputs.ref }}
         run: |
           nlgpod=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')
 
@@ -809,4 +811,4 @@ jobs:
               "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}"/prof_report/$format  --cache-control="no-store, no-cache, max-age=1"
            sleep 120 # to start CN runs
           done
-
+          echo "Please see reports at ${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/prof_report"
