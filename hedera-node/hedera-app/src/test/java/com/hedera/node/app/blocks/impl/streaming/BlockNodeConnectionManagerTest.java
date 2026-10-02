@@ -58,6 +58,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -211,6 +212,18 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         resetMocks();
     }
 
+    @AfterEach
+    void afterEach() throws InterruptedException {
+        // Tests that start the manager spawn a real 'bn-conn-monitor' thread; if it outlives this class
+        // it keeps calling disabled mocks and floods the logger, breaking LogCaptor assertions elsewhere.
+        isConnectionManagerActive().set(false);
+        final Thread monitorThread = connectionMonitorThreadRef().getAndSet(null);
+        if (monitorThread != null) {
+            monitorThread.interrupt();
+            monitorThread.join(5_000);
+        }
+    }
+
     @Test
     void testIsActiveConnectionAutoReset_nullConnection() throws Throwable {
         final boolean isAutoReset = invoke_isActiveConnectionAutoReset(Instant.now(), null);
@@ -262,6 +275,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         when(activeConnection.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1));
         when(activeConnection.createTimestamp()).thenReturn(Instant.now());
         when(activeConnection.activeTimestamp()).thenReturn(Instant.now());
+        when(activeConnection.currentState()).thenReturn(ConnectionState.ACTIVE);
 
         blockNodes().clear();
         final BlockNode priority2Node = new BlockNode(
@@ -281,6 +295,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(activeConnection).createTimestamp();
         verify(activeConnection).activeTimestamp();
         verify(activeConnection).connectionStatistics();
+        verify(activeConnection).currentState();
         verifyNoMoreInteractions(activeConnection);
     }
 
@@ -292,6 +307,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         when(activeConnection.connectionId()).thenReturn(new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1));
         when(activeConnection.createTimestamp()).thenReturn(Instant.now());
         when(activeConnection.activeTimestamp()).thenReturn(Instant.now());
+        when(activeConnection.currentState()).thenReturn(ConnectionState.ACTIVE);
 
         blockNodes().clear();
         final BlockNode priority1Node = new BlockNode(
@@ -311,6 +327,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(activeConnection, times(2)).connectionId();
         verify(activeConnection).createTimestamp();
         verify(activeConnection).activeTimestamp();
+        verify(activeConnection).currentState();
         verifyNoMoreInteractions(activeConnection);
     }
 

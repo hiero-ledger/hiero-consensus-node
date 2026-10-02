@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Tag;
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
 @Tag(TestTags.GENESIS_SUBPROCESS)
-public @interface GenesisSubProcessTest {
+public @interface GenesisSubprocessTest {
 
     int networkSize() default 4;
 

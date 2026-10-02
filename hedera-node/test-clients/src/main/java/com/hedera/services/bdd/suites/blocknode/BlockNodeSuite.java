@@ -38,21 +38,18 @@ public class BlockNodeSuite {
                 @SubProcessNodeConfig(
                         nodeId = 0,
                         blockNodeIds = {0},
-                        blockNodePriorities = {0},
-                        applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
-                        })
+                        blockNodePriorities = {0})
             })
     @Order(1)
     final Stream<DynamicTest> node0StreamingHappyPath() {
         return validateHappyPath(20);
     }
 
+    // All four block nodes share priority group 0, and the connection manager probes an entire priority
+    // group under a single blockNode.blockNodeStatusTimeout budget (one invokeAll call for the group).
+    // The 1s default cannot cover constructing four gRPC clients, each of which is itself allowed
+    // connectionManagementTimeout (3s), so on a loaded runner every probe times out and every block node
+    // is cooled down.
     @HapiTest
     @HapiBlockNode(
             blockNodeConfigs = {
@@ -67,48 +64,40 @@ public class BlockNodeSuite {
                         blockNodeIds = {0, 1, 2, 3},
                         blockNodePriorities = {0, 0, 0, 0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
+                            "blockNode.blockNodeStatusTimeout",
+                            "10s",
+                            "blockNode.basicNodeCoolDownSeconds",
+                            "1"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 1,
                         blockNodeIds = {0, 1, 2, 3},
                         blockNodePriorities = {0, 0, 0, 0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
+                            "blockNode.blockNodeStatusTimeout",
+                            "10s",
+                            "blockNode.basicNodeCoolDownSeconds",
+                            "1"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 2,
                         blockNodeIds = {0, 1, 2, 3},
                         blockNodePriorities = {0, 0, 0, 0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
+                            "blockNode.blockNodeStatusTimeout",
+                            "10s",
+                            "blockNode.basicNodeCoolDownSeconds",
+                            "1"
                         }),
                 @SubProcessNodeConfig(
                         nodeId = 3,
                         blockNodeIds = {0, 1, 2, 3},
                         blockNodePriorities = {0, 0, 0, 0},
                         applicationPropertiesOverrides = {
-                            "blockStream.streamMode", "BOTH",
-                            "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.enableCutover", "false",
-                            "blockStream.streamWrappedRecordBlocks", "true",
-                            "blockStream.buffer.isBufferPersistenceEnabled", "false",
-                            "tss.forceMockSignatures", "true"
+                            "blockNode.blockNodeStatusTimeout",
+                            "10s",
+                            "blockNode.basicNodeCoolDownSeconds",
+                            "1"
                         })
             })
     @Order(2)
