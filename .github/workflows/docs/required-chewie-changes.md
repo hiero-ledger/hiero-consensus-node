@@ -1,0 +1,305 @@
+# Required Chewie Changes
+
+CITR in this repository is moving from cron- and tag-driven scheduling to **Chewie-driven dispatch**. Chewie will decide
+when an XTS candidate is tested, promote passing candidates into builds, and dispatch the workflows below. Until it
+does, the crons make the same dispatches: `900` dispatches `226` for the `xts-candidate` commit that `302` tags, `901`
+promotes the newest `xts-pass-*` tag and dispatches `227`, and `903` dispatches `107`. These crons are to be deprecated
+when Chewie owns workflow dispatching. Either way the suite results reach Chewie, because the reporting lives in the
+dispatched workflows, not in their triggers.
+
+This document is the contract between the two sides: which workflows Chewie dispatches, when, with which inputs, what
+each reports back, and the Chewie-side changes that must land with or before this repository's changes.
+
+## Table of Contents
+
+- [Dispatch Conventions](#dispatch-conventions)
+- [Flow Overview](#flow-overview)
+- [Workflows Chewie Dispatches](#workflows-chewie-dispatches)
+  - [226: XTS Controller](#226-xts-controller)
+  - [227: Daily Controllers](#227-daily-controllers)
+  - [224: MDLT Controller](#224-mdlt-controller)
+  - [107: Clean CITR Namespaces](#107-clean-citr-namespaces)
+  - [204/205/206: MDLT Follow-Up](#204205206-mdlt-follow-up)
+- [What This Repository Reports Back](#what-this-repository-reports-back)
+- [Required Chewie-Side Changes](#required-chewie-side-changes)
+- [Follow-Ups in This Repository](#follow-ups-in-this-repository)
+
+## Dispatch Conventions
+
+These apply to every dispatch below.
+
+- **Mechanism:** `POST /repos/hiero-ledger/hiero-consensus-node/actions/workflows/<file>/dispatches` with the Chewie
+  GitHub App installation token. The App needs `Actions: write` on this repository.
+- **Address workflows by file name**, e.g. `226-disp-citr-xts-controller.yaml`. Deprecated workflows keep their number
+  as a stub whose `name:` starts with `Deprecated:` and which exits 1 — never dispatch one.
+- **Dispatch on `main`.** The dispatch `ref` decides which version of the workflow runs, and the API only accepts a
+  branch or tag there, never a commit SHA. The commit or build under test is always passed as an **input**.
+- **Send exactly the declared inputs.** An undeclared input makes the whole dispatch fail with `422 Unexpected inputs
+  provided`. All inputs are strings on the wire, including booleans and choices.
+
+## Flow Overview
+
+```
+push to main ── MATS (300) ── POST /api/v1/suites/results  (suite_type: mats)
+        │
+        ▼
+[Chewie] selects an XTS candidate ──dispatch──▶ 226 (inputs.ref = <commit SHA>)
+                                                 ├─ XTS (815) + optional XTS (106)
+                                                 ├─ tags xts-pass-<epoch> on success (temporary)
+                                                 └─ POST /api/v1/suites/results  (suite_type: xts)
+        │
+        ▼
+[Chewie] promotion engine ── creates build-NNNNN ── Slack report
+        │
+        └──dispatch──▶ 227 (inputs.ref = build-NNNNN)
+                        ├─ 221 SDPT  (dispatched on the tag) ── reports sdpt
+                        ├─ 222 SDLT  (dispatched on the tag) ── reports sdlt
+                        └─ 223 SDCT  (ref + build-tag)
+
+[Chewie] hourly ──dispatch──▶ 107 (no inputs) — prune streams/MinIO in every CITR namespace
+
+[Chewie] SDPT + SDLT passed for a build ──dispatch──▶ 224 (inputs.build-tag = build-NNNNN)
+                        └─▶ 835 kickoff ── reports mdlt running
+                        └─▶ [Chewie, later] 204 monitor ── reports mdlt running / passed / failed / cancelled
+                                            205 publish / 206 tag result
+```
+
+Until Chewie owns workflow dispatching, the crons make the `226`, `227` and `107` dispatches (to be deprecated when
+Chewie owns workflow dispatching):
+
+```
+301 deploy ── 302 tags xts-candidate
+900 every 3 h ──dispatch──▶ 226 (inputs.ref = xts-candidate commit), unless the commit already passed XTS,
+                            is part of a build, is not on main, or has a 226 run queued or in progress
+901 Tue–Sat 01:00 UTC ── newest xts-pass-* → build-NNNNN ──dispatch──▶ 227 (inputs.ref = build-NNNNN)
+903 hourly ──dispatch──▶ 107
+```
+
+`224` has no cron; MDLT is dispatched by hand (`224` or `203`) until Chewie dispatches it.
+
+## Workflows Chewie Dispatches
+
+| Workflow                              | Status   | When                                           | Inputs                                                |
+|---------------------------------------|----------|------------------------------------------------|-------------------------------------------------------|
+| `226-disp-citr-xts-controller.yaml`   | Cron     | A commit is selected as the XTS candidate      | `ref` — full 40-character lowercase commit SHA        |
+| `227-disp-daily-controllers.yaml`     | Cron     | Right after Chewie creates a `build-NNNNN` tag | `ref` — the build tag, e.g. `build-00404`             |
+| `224-disp-mdlt-controller.yaml`       | Required | SDPT and SDLT have both passed for a build     | `build-tag` — the build tag, e.g. `build-00404`       |
+| `107-disp-clean-citr-namespaces.yaml` | Cron     | Hourly                                         | none                                                  |
+| `204-disp-mdlt-monitor.yaml`          | Planned  | While an MDLT allocation is running            | `build-tag`, `allocation-id`, `prune-block-node-data` |
+| `205-disp-mdlt-publish-results.yaml`  | Planned  | When an MDLT run completes                     | `build-tag`, `allocation-id`, `fsts_report`           |
+| `206-disp-mdlt-tag-result.yaml`       | Planned  | When an MDLT verdict is known                  | `build-tag`, `result` (`success` \| `failure`)        |
+
+"Cron" workflows are dispatched today by `900`, `901` and `903`, which are to be deprecated when Chewie owns workflow
+dispatching; when Chewie takes a dispatch over, disable the matching cron, or the work runs twice. "Required" workflows
+have no other trigger: if Chewie does not dispatch them, they run only by hand. "Planned" workflows are dispatched by
+hand today and already document Chewie as their intended caller.
+
+### 226: XTS Controller
+
+Dispatched today by the three-hourly `900` cron, for the `xts-candidate` commit that `302` tags; `900` is to be
+deprecated when Chewie owns workflow dispatching.
+
+- **When:** Chewie selects a candidate commit. Until then, `900` dispatches the `xts-candidate` commit every three hours
+  unless it already passed XTS (an `xts-pass-*` tag contains it), is part of a build, is not on `main`, or already has a
+  `226` run queued or in progress. `900` finds those by the run name, `226: [DISP] CITR XTS Controller (<sha>)`.
+- **Inputs:** `{"ref": "<40-character lowercase SHA>"}`. Anything else (a short SHA, a tag, `main`) fails the run
+  immediately, because the candidate is checked out at `fetch-depth: 1` and a short SHA can't be resolved there.
+- **Eligibility checked by 226:** the commit must be on `main` and must **not** already be part of a build
+  (`git tag --contains <sha>` matching `build-NNNNN`). A rejected candidate does not run XTS and is reported to Chewie as
+  `not_run`.
+- **Concurrency:** one run per SHA. A second dispatch for the same SHA queues behind the first.
+- **Results:** on success, tags `xts-pass-<epoch>` and reports the outcome to Chewie (see
+  [What This Repository Reports Back](#what-this-repository-reports-back)). The tag is required while the crons run:
+  `901` promotes the newest one, and `900` skips commits that carry one. It also
+  dispatches the optional XTS panels (`106`), which do not gate promotion.
+
+### 227: Daily Controllers
+
+Dispatched today by the `901` cron, right after it promotes a build; `901` is to be deprecated when Chewie owns workflow
+dispatching.
+
+- **When:** immediately after Chewie creates a `build-NNNNN` tag. Until then, `901` creates the tag (Tuesday to Saturday
+  at 01:00 UTC) and dispatches `227` with it.
+- **Inputs:** `{"ref": "build-NNNNN"}`. The build tag is the single source of truth — every controller runs and checks
+  out at the tag. Anything that doesn't match `^build-[0-9]{5}$` fails before any controller is dispatched.
+- **Dispatches:**
+  - `221` (SDPT) and `222` (SDLT) **on the tag**, with no inputs. They read the build number from `github.ref`.
+  - `223` (SDCT) on the tag, with `ref` and `build-tag` both set to the tag.
+- `224` (MDLT) is **not** dispatched by `227`; Chewie dispatches it separately, see [224](#224-mdlt-controller).
+
+### 224: MDLT Controller
+
+Replaces dispatching MDLT by hand.
+
+- **When:** once **both** SDPT and SDLT have passed for a build, according to Chewie's own suite results
+  (`report-sdpt-result` / `report-sdlt-result`). Chewie applies this gate; `224` (and the adhoc `203`) no longer check
+  for `sdpt-pass-`/`sdlt-pass-` tags.
+- **Inputs:** `{"build-tag": "build-NNNNN"}`.
+- **What follows:** `835` kicks off a multi-day run and `224` reports `running`. Progress and the verdict then arrive
+  through `204`/`205`/`206` (see [below](#204205206-mdlt-follow-up)).
+- **Unresolved — manual dispatch bypasses the gate.** Because the gate now lives only in Chewie, anyone who dispatches
+  `224` or `203` by hand can start a multi-day MDLT run (and its six-day allocation) against a build that has **not**
+  passed SDPT and SDLT. Before this change both workflows refused to start without the pass tags. See
+  [Follow-Ups](#follow-ups-in-this-repository) — this must be decided before merge.
+
+### 107: Clean CITR Namespaces
+
+Dispatched today by the hourly `903` cron; `903` is to be deprecated when Chewie owns workflow dispatching.
+
+- **When:** hourly, the cadence `903` dispatches it at.
+- **Inputs:** none.
+- **What it does:** on both perf clusters (Dallas, Chicago), for every namespace matching `solo-*-n<digit>` or
+  containing `chewie`, deletes consensus-node stream files older than 59 minutes and removes objects older than an hour
+  from the `solo-streams` and `solo-backups` MinIO buckets. It **never** deletes a namespace — allocation lifecycle stays
+  with Chewie.
+- **Why it matters:** without it, long-running allocations (18-hour SDLT, multi-day MDLT) can fill their disks.
+- **Concurrency:** one run at a time. An overlapping dispatch waits.
+
+### 204/205/206: MDLT Follow-Up
+
+An MDLT run lasts about five days, outside any workflow run. `835` only kicks it off and reports the kickoff. Each of
+these workflows already says, in its header, that Chewie is expected to dispatch it:
+
+- `204` monitors the run (green/red/yellow/black) and can prune block-node data older than 59 minutes.
+- `205` publishes logs and, optionally, FSTS_Insight PDF reports.
+- `206` tags `mdlt-pass-<build>` or `mdlt-fail-<build>` and reports to Slack/Rootly.
+
+## What This Repository Reports Back
+
+### Suite results
+
+Every suite reports to `POST /api/v1/suites/results` through one reusable workflow,
+`864-call-report-suite-result.yaml`. Each caller names its suite explicitly and maps its own job results to a
+disposition. The report job runs with `if: always()`, so cancelled runs are reported too.
+
+| Workflow | Suite  | Reports against               | Disposition                                                                                                                                               |
+|----------|--------|-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `300`    | `mats` | commit (`github.sha`), branch | As soon as MATS finishes: success → `passed`, cancelled → `cancelled`, skipped → `not_run`, otherwise `failed`                                            |
+| `226`    | `xts`  | commit (the candidate SHA)    | Rejected candidate → `not_run`; otherwise success → `passed`, failure → `failed`, cancelled → `cancelled`                                                 |
+| `221`    | `sdpt` | build number                  | cancelled → `cancelled`; test result success → `passed`; skipped → `not_run`; otherwise `failed`                                                          |
+| `222`    | `sdlt` | build number                  | Same as `221`                                                                                                                                             |
+| `224`    | `mdlt` | build number                  | Kickoff succeeded → **`running`**; cancelled → `cancelled`; skipped (build tag not verified) → `not_run`; otherwise `failed`                              |
+| `204`    | `mdlt` | build number                  | **Every status check:** in work → `running`; finished cleanly → `passed`; error in the client log → `failed`; namespace gone or run stopped → `cancelled` |
+| `206`    | `mdlt` | build number                  | The verdict Chewie dispatched it with: `success` → `passed`, `failure` → `failed`. Reported once the build is verified, whether or not tagging succeeds   |
+
+MDLT is the only suite reported more than once per run: `running` at kickoff and at each `204` check, a terminal
+disposition from `204` once the run has finished, and the final verdict from `206`. `206`'s own run conclusion only
+reflects tagging and notifications — a `failure` verdict still produces a successful `206` run — so its explicit report,
+not the run's conclusion, is the MDLT result. MATS reports for every push to `main` and `release/**`; pull-request MATS runs
+(`600`) are not reported.
+
+Example body (XTS):
+
+```json
+{
+  "suite_type": "xts",
+  "disposition": "passed",
+  "commit": "<40-character lowercase SHA>",
+  "branch": "main",
+  "start_time": "2026-10-01T03:56:13Z",
+  "end_time": "2026-10-01T09:12:40Z",
+  "workflow_run_id": 12345678901,
+  "run_attempt": 1
+}
+```
+
+- **`build_number`** is sent as an integer (`build-00404` → `404`). Empty fields are omitted.
+- **`start_time`** is the reporting run's own start (`run_started_at` for this attempt). **`end_time`** is only sent
+  with a terminal disposition, never with `running`.
+- **`workflow_run_id`** is the run doing the reporting — for MDLT that is `224` at kickoff and a different `204` run
+  for each check.
+- **Authentication:** `864` exchanges the identity key for a token itself, at report time. Long suites therefore never
+  report with a stale token.
+- **Reporting is required.** Chewie is the source of record for suite results, so a failed report — including a Chewie
+  outage — fails the run. The SDPT/SDLT/MDLT result tags (`sdpt-*`, `sdlt-*`, `mdlt-*`) are the optional, secondary
+  record and are being retired: those tagging jobs (`221`/`222` `tag-*-result`, `206` `tag-mdlt-result`) run with
+  `continue-on-error` and are excluded from the success/failure reporting, so a tagging problem never fails a run or
+  raises an alert. `226`'s `tag-for-promotion` is the exception: while `900` and `901` run, the `xts-pass-*` tag drives
+  promotion, so a failed tag fails the run and raises an alert.
+
+### Other signals
+
+| From                        | What                                                               | Where                                   |
+|-----------------------------|--------------------------------------------------------------------|-----------------------------------------|
+| `226` `tag-for-promotion`   | `xts-pass-<epoch>` tag on the candidate (read by `900`/`901`)      | git tags                                |
+| `221`/`201`, `222`/`202`    | `sdpt-pass-`/`sdpt-fail-<build>`, `sdlt-pass-`/`sdlt-fail-<build>` | git tags (signed)                       |
+| `206`                       | `mdlt-pass-`/`mdlt-fail-<build>`                                   | git tags (signed)                       |
+| `103`, `221`/`222`, by hand | Early release of an allocation (`225`)                             | `DELETE /api/v1/compute/allocation/:id` |
+
+## Required Chewie-Side Changes
+
+Must be in place before this repository's changes are relied on in production:
+
+1. **Dispatch permission.** Grant the Chewie App `Actions: write` on this repository. Correct
+   `docs/dev/citr_build_promotion.md` §4 in the Chewie repository, which still says Chewie does not dispatch and that a
+   `push: tags: ['build-*']` trigger is the handoff.
+2. **XTS candidate selection → dispatch `226`.** Takes over from `302` + `900`, which are to be deprecated when Chewie
+   owns workflow dispatching. Select commits on `main` that passed MATS and are not already part of a build. Disable
+   `900` when this starts, or XTS runs twice per candidate.
+3. **Accept suite results — this blocks merging.** Serve `POST /api/v1/suites/results` for `mats`, `xts`, `sdpt`,
+   `sdlt` and `mdlt`. The endpoint exists only in Chewie 3.x (v3.3.0 and later). Reporting is required, so against 2.11
+   every report returns 404 and **fails the run** — including MATS (`300`) on every push to `main`. Chewie 3.x must be in
+   production before this repository's changes merge, and it must be a release that schedules (item 9).
+   - **MATS gates XTS candidacy.** `300` reports MATS for every push to `main` and `release/**`, so candidate selection
+     (item 2) can use those reports directly.
+   - **MDLT progress arrives as repeated reports.** One MDLT run produces a `running` row at kickoff and one per `204`
+     check (each from a different workflow run), then terminal rows from `204` and `206`. Results are appended, so
+     Chewie must resolve an MDLT run's state from its **latest** report for the build, and must not count each row as a
+     separate execution. `206`'s report carries the verdict Chewie itself dispatched it with; it is the authoritative
+     MDLT result.
+4. **Promotion.** Enable the promotion engine (`CHEWIE_BUILD_LIFECYCLE_ENABLED`) to take over from `901`, which is to be
+   deprecated when Chewie owns workflow dispatching. **Disable `901` first**: it numbers builds from the repository
+   variable `XTS_BUILD_PROMOTION_INDEX`, Chewie from the highest existing tag, so running both mints conflicting
+   `build-NNNNN` tags. Then:
+   - Continue build numbering from the highest existing `build-NNNNN` tag. `XTS_BUILD_PROMOTION_INDEX` is then no
+     longer used.
+   - Create build tags with the **App installation token**. A tag pushed with a workflow's `GITHUB_TOKEN` does not
+     trigger other workflows, and `304` (publish yahcli image) runs on `build-*` tag pushes.
+   - Post the promotion and no-promotion Slack reports that `901` used to send.
+5. **Dispatch `227`** with the new build tag immediately after creating it (`901` does this until then).
+6. **Dispatch `224`** for a build once both SDPT and SDLT have passed for it, judged from Chewie's own suite results.
+   Neither `224` nor `203` checks pass tags any more; Chewie is the gate.
+7. **Dispatch `107` hourly.** `903` does this until then, and is to be deprecated when Chewie owns workflow dispatching;
+   disable it when Chewie starts.
+8. **MDLT follow-up (planned):** dispatch `204`/`205`/`206` for MDLT allocations.
+9. **Scheduling cutover — this blocks merging.** This repository schedules pods from the 3.x allocation response's
+   per-group labels and tolerations (see [Pod scheduling](chewie.md#pod-scheduling)), so it works only against a
+   release that writes those labels and taints onto the allocated machines: one carrying #606, #643, #817 and #825.
+   Never deploy `v3.8.0`, which has #606 and #643 without #817.
+   - **Verify on chewie-testing first.** Before any HCN run against the release, take an approved allocation's
+     `cn-nodes` group from `GET /api/v1/compute/allocation/:id`. A pause pod with that group's `labels` as its
+     `nodeSelector` and its `tolerations` must reach `Running` on one of the group's machines; the same pod without the
+     tolerations must stay `Pending`.
+   - **Clear the legacy `solo-*-nN` namespaces.** #826 removes the guard that kept Chewie from allocating machines those
+     namespaces were using, and Chewie's `NoSchedule` taints do not evict pods already running, so a leftover workload
+     would share hardware with a new allocation. `902` deletes only the boxes enabled on its schedule (by default
+     Dallas `n1`/`n2`), so delete the rest, or confirm they are empty, on both perf clusters before #826 ships.
+   - **Deploy on the same day as this repository's changes**, in the order tracked by swirldslabs/chewie#818:
+     1. Label every machine CITR may use `inventory.citr.hashgraph.io/eligible=true`, then confirm the count Chewie has
+        mirrored.
+     2. Disable any enabled `compute_reservations` row.
+     3. Drain live allocations and pause the CITR controllers. An MDLT allocation lives up to six days, so start the
+        drain that far ahead or release MDLT allocations early through `225`. An allocation approved before the upgrade
+        no longer matches its machines, and this repository's runs now fail at acquisition on one rather than
+        deploying misconfigured.
+     4. Deploy Chewie and this repository's changes.
+     5. Remove the `solo.hashgraph.io/*` taints, then resume the controllers. The taints come off last: a pod that
+        tolerates only Chewie's taints cannot schedule on a machine that still carries an operator taint.
+
+## Follow-Ups in This Repository
+
+Changes that depend on Chewie reaching a later state:
+
+- **MDLT gate on manual dispatch — needs a decision before merge.** `203` and `224` no longer verify that a build passed
+  SDPT and SDLT; only Chewie's dispatch of `224` applies that gate. A human dispatching either workflow by hand can now
+  start MDLT on a build that failed — or never ran — SDPT/SDLT, tying up a multi-day allocation for an ineligible build.
+  Options include restoring the check in both workflows against Chewie's suite results
+  (`GET /api/v1/suites/results?build_number=<n>&suite_type=sdpt&latest=true`, likewise `sdlt`), restoring it only in
+  the adhoc `203` with an explicit override input, or accepting the risk for manual runs.
+- **Retire the crons when Chewie owns workflow dispatching.** Deprecate `302`, `900`, `901` and `903` (and `301`'s
+  dispatch of `302`) once Chewie dispatches `226`, `227` and `107` and runs promotion.
+- **Retire the git result tags.** Chewie's reports are already the source of record; the tags are secondary. Remove
+  `tag-for-promotion` from `226` once the crons are retired and Chewie's promotion has run in production for a while,
+  together with its references in `report-success` and `report-failure`, and likewise the SDPT/SDLT/MDLT result tags
+  (`221`/`222`/`206`) after the same period. Each tagging job carries a comment listing what to remove with it. Nothing
+  in this repository reads the SDPT/SDLT/MDLT tags any more: MDLT is gated by Chewie, not by pass tags.

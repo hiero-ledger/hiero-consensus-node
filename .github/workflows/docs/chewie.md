@@ -99,8 +99,8 @@ The controller acquires the allocation itself and hands the test workflow only t
 5. The controller calls `831`/`833` with `allocation-id` — no other Chewie-related input.
 6. `831`/`833` call `858`/`860` themselves (to authenticate the read), and their own `acquire-kubernetes-resources`
    job calls `863: [CALL] Get Chewie Allocation Details`, which GETs the same allocation by id and emits the namespace,
-   cluster FQDN, CN/aux quantities, tolerations, node roles, network id, owner, and expiration — the same detail
-   shape `859` produced on create, just fetched instead of created.
+   cluster FQDN, expiration, and each group's quantity, scheduling labels, and tolerations — the same detail shape
+   `859` produced on create, just fetched instead of created.
 7. On a passing scheduled run, `221`/`222` dispatch
    [225: [DISP] Release Chewie Allocation](/.github/workflows/225-disp-release-chewie-allocation.yaml) with
    `chewie-allocation-id`, rather than fetching a JWT and releasing inline — `225` already owns fetching a fresh JWT
@@ -120,8 +120,20 @@ The test workflow still acquires its own allocation internally, the way SDPT/SDL
    approval until `chewie-request-timeout` seconds elapse.
 7. Chewie reclaims the namespace when the allocation expires. `835` never calls `DELETE` on its own allocation.
 
-For both paths, the approved allocation supplies the namespace, cluster FQDN, CN/aux quantities, tolerations, node
-roles, network id, owner, and expiration. The rest of the test run deploys into that namespace.
+For both paths, the approved allocation supplies the namespace, cluster FQDN, expiration, and each group's quantity,
+scheduling labels, and tolerations. The rest of the test run deploys into that namespace.
+
+### Pod scheduling
+
+Chewie marks each allocated machine with its group's scheduling labels and matching `NoSchedule` taints, so a pod runs
+on the allocation only if it carries that group's labels as its `nodeSelector` and its tolerations. Every pod spec in
+the CITR values templates under `support/citr/` (and in `103`'s remote Solo values files) names its group with a
+`chewie-group: cn` or `chewie-group: aux` placeholder. `support/chewie/apply-allocation-scheduling.sh` renders the
+placeholders from the allocation's `cn-`/`aux-labels` and `cn-`/`aux-tolerations` outputs before each deploy, and fails
+on an unrendered or unknown placeholder. The block-node host is selected by the consensus group's labels.
+
+HCN reads no network id, owner, or node role from the allocation: Chewie 3.x allocates individual machines and
+publishes none of them. Report paths and step summaries identify a run by its allocation id instead.
 
 ## Migration Notes
 

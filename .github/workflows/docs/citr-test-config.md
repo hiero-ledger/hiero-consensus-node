@@ -87,8 +87,10 @@ catching regressions without being unnecessarily long-running.
 
 ### Workflows
 
-- XTS is triggered by the [900: [CRON] CITR Ext Test Suite](/.github/workflows/900-cron-extended-test-suite.yaml)
-  workflow.
+- XTS runs in [226: [DISP] CITR XTS Controller](/.github/workflows/226-disp-citr-xts-controller.yaml), which reports
+  the result to Chewie. Every three hours
+  [900: [CRON] CITR Ext Test Suite](/.github/workflows/900-cron-extended-test-suite.yaml) dispatches it for the
+  `xts-candidate` commit; `900` is to be deprecated when Chewie owns workflow dispatching.
 - XTS Dry Run is triggered manually via
   the [001: [USER] CITR XTS Dry Run](/.github/workflows/001-user-dry-run-extended-test-suite.yaml) workflow.
 
@@ -287,8 +289,9 @@ as a longer running version of SDLT to catch potential issues that may not surfa
 
 Kickoff (Chewie allocates the cluster and namespace; the kickoff prints them to the job summary):
 
-- Automated: [224: [DISP] CITR MDLT Controller](/.github/workflows/224-disp-mdlt-controller.yaml) — takes a `build-tag`
-  and verifies the `sdpt-pass-XXXXX` and `sdlt-pass-XXXXX` tags exist before starting.
+- Automated: [224: [DISP] CITR MDLT Controller](/.github/workflows/224-disp-mdlt-controller.yaml) — dispatched by Chewie
+  with a `build-tag` once SDPT and SDLT have both passed for that build. Chewie applies that gate; the workflow does
+  not check pass tags.
 - Manual: [203: [USER] CITR MDLT Ctrl Adhoc](/.github/workflows/203-user-mdlt-controller-adhoc.yaml).
 - Both call the reusable
   [835: [CALL] CITR Exec MDLT](/.github/workflows/835-call-multi-day-longevity-test.yaml) executor.
