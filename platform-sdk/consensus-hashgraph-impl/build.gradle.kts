@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
+import me.champeau.jmh.ConcurrentExecutionControlBuildService
+import me.champeau.jmh.JMHTask
+
 plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.publish-artifactregistry")
@@ -67,4 +70,7 @@ tasks.register<JavaExec>("jmhSmoke") {
     args("-rf", "json", "-rff", "results.json")
     outputs.file(layout.buildDirectory.file("results/jmh-smoke/results.json"))
     outputs.cacheIf("a smoke run only checks that the benchmarks work") { true }
+    // one JMH run at a time across the build, shared with the jmh tasks; smoke runs of several
+    // modules would otherwise run in parallel and fail on JMH's lock file
+    usesService(ConcurrentExecutionControlBuildService.restrict(JMHTask::class.java, gradle))
 }
