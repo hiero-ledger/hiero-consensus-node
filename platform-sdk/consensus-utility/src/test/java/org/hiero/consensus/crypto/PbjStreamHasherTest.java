@@ -61,11 +61,12 @@ class PbjStreamHasherTest {
                 Arguments.of(0L, 1_000_000L, DigestType.SHA_256));
     }
 
-    @ParameterizedTest(name = "cutover {0}, birth round {1} -> {2}")
+    @ParameterizedTest(name = "cutoverRound {0}, birth round {1} -> {2}")
     @MethodSource("digestTypeSelection")
-    void digestTypeDependsOnBirthRound(final long cutover, final long birthRound, final DigestType expectedType) {
-        EventHashFactory.initialize(cutover);
-        final PlatformEvent event = eventWithBirthRound(birthRound);
+    void digestTypeDependsOnBirthRound(
+            final long cutoverRound, final long eventBirthRound, final DigestType expectedType) {
+        EventHashFactory.initialize(cutoverRound);
+        final PlatformEvent event = eventWithBirthRound(eventBirthRound);
 
         new PbjStreamHasher().hashEvent(event);
 
@@ -75,7 +76,7 @@ class PbjStreamHasherTest {
     @ParameterizedTest(name = "birth round {0} -> {1}")
     @CsvSource({"99, SHA_384", "100, SHA_256"})
     void eventWithoutTransactions(final long birthRound, final DigestType expectedType) {
-        EventHashFactory.initialize(CUTOVER);
+        EventHashFactory.initialize(100);
         final PlatformEvent event = new TestingEventBuilder(RANDOM)
                 .setBirthRound(birthRound)
                 .setAppTransactionCount(0)
@@ -97,6 +98,8 @@ class PbjStreamHasherTest {
         EventHashFactory.initialize(CUTOVER);
         final Hash postCutoverHash = hasher.hashEvent(event).getHash();
 
+        assertThat(preCutoverHash).isNotNull();
+        assertThat(postCutoverHash).isNotNull();
         assertThat(preCutoverHash.getDigestType()).isEqualTo(DigestType.SHA_384);
         assertThat(postCutoverHash.getDigestType()).isEqualTo(DigestType.SHA_256);
         assertThat(preCutoverHash.getBytes()).isNotEqualTo(postCutoverHash.getBytes());
