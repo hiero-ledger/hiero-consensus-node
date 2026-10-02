@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.hardLinkTree;
 
 import com.swirlds.config.api.Configuration;
+import com.swirlds.merkledb.collections.LongListImplementation;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.internal.MerkleDbDataSource;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
@@ -55,6 +56,10 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
 
     private final long initialCapacity;
 
+    /// Temporary snapshot experiment override; null preserves the normal configured index selection.
+    @Nullable
+    private final LongListImplementation longListImplementation;
+
     /**
      * Creates a new data source builder with the specified configuration, file system manager,
      * and initial MerkleDb database capacity.
@@ -63,7 +68,16 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
             @NonNull final Configuration configuration,
             @NonNull final FileSystemManager fileSystemManager,
             final long initialCapacity) {
-        this(null, configuration, fileSystemManager, initialCapacity);
+        this(null, configuration, fileSystemManager, initialCapacity, null);
+    }
+
+    /// Temporary snapshot experiment constructor selecting the implementation of all three indices.
+    public MerkleDbDataSourceBuilder(
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
+            final long initialCapacity,
+            @NonNull final LongListImplementation longListImplementation) {
+        this(null, configuration, fileSystemManager, initialCapacity, requireNonNull(longListImplementation));
     }
 
     /**
@@ -75,11 +89,21 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
             @NonNull final Configuration configuration,
             @NonNull final FileSystemManager fileSystemManager,
             final long initialCapacity) {
+        this(defaultDbFolderName, configuration, fileSystemManager, initialCapacity, null);
+    }
+
+    private MerkleDbDataSourceBuilder(
+            @Nullable final String defaultDbFolderName,
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
+            final long initialCapacity,
+            @Nullable final LongListImplementation longListImplementation) {
         this.defaultDbFolderName =
                 (defaultDbFolderName == null) || defaultDbFolderName.isBlank() ? null : defaultDbFolderName;
         this.configuration = requireNonNull(configuration).getConfigData(MerkleDbConfig.class);
         this.fileSystemManager = requireNonNull(fileSystemManager);
         this.initialCapacity = initialCapacity;
+        this.longListImplementation = longListImplementation;
     }
 
     /**
@@ -153,7 +177,8 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
                     label,
                     initialCapacity,
                     compactionEnabled,
-                    offlineUse);
+                    offlineUse,
+                    longListImplementation);
         } catch (final IOException ex) {
             throw new UncheckedIOException(ex);
         }
@@ -227,7 +252,14 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder {
             if (Files.isDirectory(snapshotDataSourceDir)) {
                 hardLinkTree(snapshotDataSourceDir, dataSourceDir);
                 return new MerkleDbDataSource(
-                        dataSourceDir, configuration, fileSystemManager, label, compactionEnabled, offlineUse);
+                        dataSourceDir,
+                        configuration,
+                        fileSystemManager,
+                        label,
+                        0,
+                        compactionEnabled,
+                        offlineUse,
+                        longListImplementation);
             }
             throw new IOException(
                     "Cannot restore MerkleDb data source: label=" + label + " snapshotDir=" + snapshotDir);
