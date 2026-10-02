@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.processors;
 
+import static com.hedera.hapi.streams.CallOperationType.OP_STATICCALL;
 import static com.hedera.hapi.streams.ContractActionType.PRECOMPILE;
 import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract.PRNG_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.ACTION_SIDECARS_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.HOOK_OWNER_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.OPS_DURATION_COUNTER;
@@ -30,6 +32,7 @@ import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCa
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractClprSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.hevm.OpsDurationSchedule;
@@ -45,6 +48,8 @@ import java.util.Deque;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
@@ -152,7 +157,11 @@ class CustomMessageCallProcessorTest {
 
         Assertions.assertEquals(GAS_REQUIREMENT, opsDurationTestCounter.opsDurationUnitsConsumed());
         verify(prngPrecompile)
-                .computeFully(PRNG_CONTRACT_ID, TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS.getBytes(), frame);
+                .computeFully(
+                        eq(PRNG_CONTRACT_ID),
+                        eq(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS.getBytes()),
+                        eq(frame),
+                        any());
         verify(result).isRefundGas();
         verify(frame).decrementRemainingGas(GAS_REQUIREMENT);
         verify(frame).setOutputData(OUTPUT_DATA);
@@ -176,7 +185,11 @@ class CustomMessageCallProcessorTest {
         // Unlike a native precompile, a system contract's computeFully() has already run by the time the
         // affordability check fails - so the work was really performed and must still be metered.
         verify(prngPrecompile)
-                .computeFully(PRNG_CONTRACT_ID, TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS.getBytes(), frame);
+                .computeFully(
+                        eq(PRNG_CONTRACT_ID),
+                        eq(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS.getBytes()),
+                        eq(frame),
+                        any());
         Assertions.assertEquals(
                 GAS_REQUIREMENT,
                 opsDurationTestCounter.opsDurationUnitsConsumed(),
@@ -200,6 +213,105 @@ class CustomMessageCallProcessorTest {
         verify(frame).setExceptionalHaltReason(Optional.empty());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"0x16e", "0x16f", "0x170", "0x171"})
+    void disabledClprIsHandledLikeANonExtantSystemAccount(final String hexAddress) {
+        final var address = Address.fromHexString(hexAddress);
+        final var clprContract = mock(AbstractClprSystemContract.class);
+        subject = new CustomMessageCallProcessor(
+                evm, featureFlags, registry, addressChecks, Map.of(address, clprContract), contractMetrics);
+        givenCallWithCode(address);
+        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
+        given(addressChecks.isSystemAccount(address)).willReturn(true);
+        given(frame.getValue()).willReturn(Wei.ZERO);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.getLast()).willReturn(frame);
+        doCallRealMethod().when(clprContract).isDisabled(frame);
+
+        subject.start(frame, operationTracer);
+
+        verify(clprContract, never()).computeFully(any(), any(), any(), any());
+        verify(frame).setOutputData(NOOP_OUTPUT_DATA);
+        verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
+        verify(frame).setExceptionalHaltReason(Optional.empty());
+        verify(operationTracer).tracePrecompileResult(frame, PRECOMPILE);
+    }
+
+    @Test
+    void enabledClprExecutesRegisteredSystemContract() {
+        final var address = Address.fromHexString("0x16e");
+        final var clprContract = mock(AbstractClprSystemContract.class);
+        subject = new CustomMessageCallProcessor(
+                evm, featureFlags, registry, addressChecks, Map.of(address, clprContract), contractMetrics);
+        givenCallWithCode(address);
+        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE))
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("clpr.enabled", true)
+                        .getOrCreateConfig());
+        doCallRealMethod().when(clprContract).isDisabled(frame);
+        given(frame.getValue()).willReturn(Wei.ZERO);
+        given(frame.getInputData()).willReturn(INPUT_DATA);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.getLast()).willReturn(frame);
+        given(frame.getContextVariable(OPS_DURATION_COUNTER))
+                .willReturn(OpsDurationCounter.withSchedule(OPS_DURATION_TEST_SCHEDULE));
+        given(contractMetrics.opsDurationMetrics()).willReturn(mock(OpsDurationMetrics.class));
+        doAnswer(invocation -> {
+                    invocation.<Consumer<FullResult>>getArgument(3).accept(FullResult.successResult(OUTPUT_DATA, 0));
+                    return null;
+                })
+                .when(clprContract)
+                .computeFully(any(), eq(INPUT_DATA), eq(frame), any());
+
+        subject.start(frame, operationTracer);
+
+        verify(clprContract).computeFully(any(), eq(INPUT_DATA), eq(frame), any());
+        verify(frame).setOutputData(OUTPUT_DATA);
+        verify(frame, never()).clearGasRemaining();
+        verify(operationTracer).tracePrecompileResult(frame, SYSTEM);
+    }
+
+    @Test
+    void suspendedSystemContractIsChargedAndTracedOnlyWhenCompleted() {
+        final var completion = new AtomicReference<Consumer<FullResult>>();
+        final var child = mock(MessageFrame.class);
+        final var counter = OpsDurationCounter.withSchedule(OPS_DURATION_TEST_SCHEDULE);
+        givenCallWithCode(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS);
+        given(frame.getInputData()).willReturn(INPUT_DATA);
+        given(frame.getValue()).willReturn(Wei.ZERO);
+        given(frame.getState()).willReturn(MessageFrame.State.CODE_SUSPENDED);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.getLast()).willReturn(frame);
+        given(stack.peekFirst()).willReturn(child);
+        given(child.isStatic()).willReturn(true);
+        given(frame.hasContextVariable(ACTION_SIDECARS_VARIABLE)).willReturn(true);
+        doAnswer(invocation -> {
+                    completion.set(invocation.getArgument(3));
+                    return null;
+                })
+                .when(prngPrecompile)
+                .computeFully(any(), any(), any(), any());
+
+        subject.start(frame, operationTracer);
+
+        verify(frame, never()).decrementRemainingGas(anyLong());
+        verify(frame, never()).setOutputData(any());
+        verify(operationTracer, never()).tracePrecompileResult(any(), any());
+        verifyNoInteractions(contractMetrics);
+        verify(operationTracer).traceSuspended(frame, child, OP_STATICCALL);
+
+        given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(counter);
+        given(contractMetrics.opsDurationMetrics()).willReturn(mock(OpsDurationMetrics.class));
+        given(frame.getRemainingGas()).willReturn(GAS_REQUIREMENT);
+        completion.get().accept(FullResult.successResult(OUTPUT_DATA, GAS_REQUIREMENT));
+
+        verify(frame).decrementRemainingGas(GAS_REQUIREMENT);
+        verify(frame).setOutputData(OUTPUT_DATA);
+        verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
+        verify(operationTracer).tracePrecompileResult(frame, SYSTEM);
+        Assertions.assertEquals(GAS_REQUIREMENT, counter.opsDurationUnitsConsumed());
+    }
+
     @Test
     void callsToDisabledSystemContractsAreHandledLikeCallsToNonExtantSystemAccounts() {
         final var disabledSystemContract = mock(HederaSystemContract.class);
@@ -219,7 +331,7 @@ class CustomMessageCallProcessorTest {
 
         subject.start(frame, operationTracer);
 
-        verify(disabledSystemContract, never()).computeFully(any(), any(), any());
+        verify(disabledSystemContract, never()).computeFully(any(), any(), any(), any());
         verify(frame).setOutputData(NOOP_OUTPUT_DATA);
         verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
         verify(frame).setExceptionalHaltReason(Optional.empty());
@@ -533,8 +645,14 @@ class CustomMessageCallProcessorTest {
     private void givenPrngCall(long gasRequirement) {
         givenCallWithCode(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS);
         given(frame.getInputData()).willReturn(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS.getBytes());
-        given(prngPrecompile.computeFully(any(), any(), any()))
-                .willReturn(new FullResult(result, gasRequirement, null));
+        doAnswer(invocation -> {
+                    invocation
+                            .<Consumer<FullResult>>getArgument(3)
+                            .accept(new FullResult(result, gasRequirement, null));
+                    return null;
+                })
+                .when(prngPrecompile)
+                .computeFully(any(), any(), any(), any());
     }
 
     private void verifyHalt(@NonNull final ExceptionalHaltReason reason, final boolean alsoVerifyTrace) {

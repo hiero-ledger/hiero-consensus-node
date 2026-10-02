@@ -147,6 +147,8 @@ class BEVM {
             _top.isWarm(parentContract);
         _top.isWarm(frame.getSenderAddress());
         _top.isWarm(frame.getContractAddress());
+        // As in Besu, the originator is warm even when this starts from a child frame (e.g. a CLPR authorization)
+        _top.isWarm(frame.getOriginatorAddress());
 
         assert _lastSKey == null && _lastSVal == null;
         return this;

@@ -40,7 +40,9 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
+import java.util.function.Consumer;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -84,9 +86,25 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
         this.contractMetrics = requireNonNull(contractMetrics);
     }
 
+    /**
+     * Computes the result synchronously; since the caller cannot resume a suspended frame, calls made this way never
+     * schedule child frames (so, e.g., a CLPR {@code sendMessage} fails closed without its authorization).
+     */
     @Override
     public FullResult computeFully(
             @NonNull final ContractID contractID, @NonNull final Bytes input, @NonNull final MessageFrame frame) {
+        final var completion = new SynchronousCompletion();
+        computeFully(contractID, input, frame, completion);
+        return requireNonNull(completion.result);
+    }
+
+    @Override
+    public void computeFully(
+            @NonNull final ContractID contractID,
+            @NonNull final Bytes input,
+            @NonNull final MessageFrame frame,
+            @NonNull final Consumer<FullResult> completion) {
+        requireNonNull(completion);
         requireNonNull(input);
         requireNonNull(frame);
         final var callType = callTypeOf(frame);
@@ -110,10 +128,12 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
                         getName(),
                         contractID);
             }
-            return haltResult(PRECOMPILE_ERROR, frame.getRemainingGas());
+            completion.accept(haltResult(PRECOMPILE_ERROR, frame.getRemainingGas()));
+            return;
         }
         final Call call;
         AbstractCallAttempt<?> attempt = null;
+        FullResult earlyResult = null;
         try {
             // Input boundary size validation.
             // With "input <= transactionMaxBytes()" we ensure nobody can send a huge input for parsing or execution,
@@ -130,33 +150,34 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
             // check if the calldata size of the call to
             call = attempt.asExecutableCall();
             if (call == null) {
-                return successResult(Bytes.EMPTY, 0);
-            }
-            if (logClprVerifier) {
-                log.debug(
-                        "[CLPR-VERIFY-NATIVE] translator MATCH name={} contractID={} selector={} method={} "
-                                + "sender={} allowsStatic={} frameStatic={}",
-                        getName(),
-                        contractID,
-                        selectorOf(input),
-                        call.getSystemContractMethod(),
-                        attempt.senderId(),
-                        call.allowsStaticFrame(),
-                        frame.isStatic());
-            }
-            if (frame.isStatic() && !call.allowsStaticFrame()) {
-                // FUTURE - we should really set an explicit halt reason here; instead we just halt the frame
-                // without setting a halt reason to simulate mono-service for differential testing
+                earlyResult = successResult(Bytes.EMPTY, 0);
+            } else {
                 if (logClprVerifier) {
-                    log.warn(
-                            "[CLPR-VERIFY-NATIVE] compute HALT name={} contractID={} selector={} "
-                                    + "reason=STATIC_FRAME_NOT_ALLOWED method={}",
+                    log.debug(
+                            "[CLPR-VERIFY-NATIVE] translator MATCH name={} contractID={} selector={} method={} "
+                                    + "sender={} allowsStatic={} frameStatic={}",
                             getName(),
                             contractID,
                             selectorOf(input),
-                            call.getSystemContractMethod());
+                            call.getSystemContractMethod(),
+                            attempt.senderId(),
+                            call.allowsStaticFrame(),
+                            frame.isStatic());
                 }
-                return haltResult(contractsConfigOf(frame).precompileHtsDefaultGasCost());
+                if (frame.isStatic() && !call.allowsStaticFrame()) {
+                    // FUTURE - we should really set an explicit halt reason here; instead we just halt the frame
+                    // without setting a halt reason to simulate mono-service for differential testing
+                    if (logClprVerifier) {
+                        log.warn(
+                                "[CLPR-VERIFY-NATIVE] compute HALT name={} contractID={} selector={} "
+                                        + "reason=STATIC_FRAME_NOT_ALLOWED method={}",
+                                getName(),
+                                contractID,
+                                selectorOf(input),
+                                call.getSystemContractMethod());
+                    }
+                    earlyResult = haltResult(contractsConfigOf(frame).precompileHtsDefaultGasCost());
+                }
             }
         } catch (final HandleException exception) {
             if (logClprVerifier) {
@@ -168,7 +189,8 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
                         exception.getStatus());
             }
             if (exception.getStatus().equals(INVALID_TRANSACTION_BODY)) {
-                return haltResult(INVALID_OPERATION, frame.getRemainingGas());
+                completion.accept(haltResult(INVALID_OPERATION, frame.getRemainingGas()));
+                return;
             } else {
                 final var enhancement = proxyUpdaterFor(frame).enhancement();
                 externalizeFailure(
@@ -179,23 +201,53 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
                         exception.getStatus(),
                         enhancement,
                         contractID);
-                return revertResult(exception.getStatus(), frame.getRemainingGas());
+                completion.accept(revertResult(exception.getStatus(), frame.getRemainingGas()));
+                return;
             }
         } catch (final Exception ignore) {
             // Input that cannot be translated to an executable call, for any
             // reason, halts the frame and consumes all remaining gas
-            return haltResult(INVALID_OPERATION, frame.getRemainingGas());
+            completion.accept(haltResult(INVALID_OPERATION, frame.getRemainingGas()));
+            return;
         }
-        return resultOfExecuting(attempt, call, input, frame, contractID);
+        // Complete outside the try, so a failing completion is never completed again by its catch blocks
+        if (earlyResult != null) {
+            completion.accept(earlyResult);
+            return;
+        }
+        final var result = resultOfExecuting(
+                attempt,
+                call,
+                input,
+                frame,
+                contractID,
+                completion instanceof SynchronousCompletion ? null : completion);
+        if (result != null) {
+            completion.accept(result);
+        }
+    }
+
+    /**
+     * Collects the result of a synchronous {@link #computeFully(ContractID, Bytes, MessageFrame)}.
+     */
+    private static final class SynchronousCompletion implements Consumer<FullResult> {
+        @Nullable
+        private FullResult result;
+
+        @Override
+        public void accept(@NonNull final FullResult result) {
+            this.result = requireNonNull(result);
+        }
     }
 
     @SuppressWarnings({"java:S2637", "java:S2259"}) // this function is going to be refactored soon.
-    private FullResult resultOfExecuting(
+    private @Nullable FullResult resultOfExecuting(
             @NonNull final AbstractCallAttempt<?> attempt,
             @NonNull final Call call,
             @NonNull final Bytes input,
             @NonNull final MessageFrame frame,
-            @NonNull final ContractID contractID) {
+            @NonNull final ContractID contractID,
+            @Nullable final Consumer<FullResult> completion) {
         final Call.PricedResult pricedResult;
         final var logClprVerifier = isClprVerifierDebugTarget(contractID, input);
         try {
@@ -209,6 +261,13 @@ public abstract class AbstractNativeSystemContract extends AbstractFullContract 
                         call.getSystemContractMethod(),
                         attempt.senderId(),
                         frame.getRemainingGas());
+            }
+            if (completion != null
+                    && call.scheduleChildFrame(
+                            frame,
+                            () -> completion.accept(requireNonNull(
+                                    resultOfExecuting(attempt, call, input, frame, contractID, null))))) {
+                return null;
             }
             pricedResult = call.execute(frame);
             final var gasRequirement = pricedResult.fullResult().gasRequirement();
