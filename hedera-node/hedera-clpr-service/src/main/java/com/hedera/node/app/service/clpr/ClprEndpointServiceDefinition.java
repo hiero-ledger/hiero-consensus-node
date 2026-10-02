@@ -3,7 +3,7 @@ package com.hedera.node.app.service.clpr;
 
 import com.hedera.hapi.node.state.clpr.ClprDiscoverEndpointsRequest;
 import com.hedera.hapi.node.state.clpr.ClprDiscoverEndpointsResponse;
-import com.hedera.hapi.node.state.clpr.ClprSyncPayload;
+import com.hedera.hapi.node.state.clpr.ClprStreamingSyncPayload;
 import com.hedera.pbj.runtime.RpcMethodDefinition;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -13,8 +13,8 @@ import java.util.Set;
  * Defines the CLPR endpoint-to-endpoint gRPC service. This service handles peer-to-peer
  * sync calls between CLPR endpoints on different ledger networks.
  *
- * <p>Unlike standard HAPI services that use {@code Transaction}/{@code Query} as request types,
- * this service uses {@link ClprSyncPayload} as both request and response types.
+ * <p>Unlike standard HAPI services that use {@code Transaction}/{@code Query} as request types, its {@code sync}
+ * RPC streams {@link ClprStreamingSyncPayload} in both directions.
  */
 @SuppressWarnings("java:S6548")
 public final class ClprEndpointServiceDefinition implements RpcServiceDefinition {
@@ -25,19 +25,19 @@ public final class ClprEndpointServiceDefinition implements RpcServiceDefinition
     public static final String SERVICE_NAME = "proto.ClprEndpointService";
 
     /**
-     * The full gRPC method name for the bidirectional-streaming {@code streamingSync} RPC.
+     * The full gRPC method name of the {@code sync} RPC, as the CLPR spec names it: a bidirectional stream of
+     * {@code ClprStreamingSyncPayload} in each direction, carrying the two-phase request/response exchange.
      *
-     * <p>Deliberately a bare constant rather than an entry in {@link #methods()}: that {@link Set} backs
-     * {@code NettyGrpcServerManager}'s auto-registration, which dispatches purely on request type and
-     * hardcodes {@code MethodType.UNARY}. A streaming method added there would be silently wired to the
-     * query workflow — it compiles, it starts, and it misbehaves only when called. Both the outbound
-     * client and the server-side streaming registration build their method descriptors from
-     * this constant instead, so the two ends cannot drift apart.
+     * <p>{@link #methods()} declares it so the gRPC server can find this service and route {@code sync} to the CLPR
+     * listener, but {@code NettyGrpcServerManager} registers it by hand: its request-type-dispatched auto-registration
+     * hardcodes {@code MethodType.UNARY}, and a streaming method wired as unary would answer the first message and
+     * close. The outbound client and the server-side registration both build their method descriptors from this
+     * constant, so the two ends cannot drift apart.
      */
-    public static final String STREAMING_SYNC_FULL_METHOD_NAME = SERVICE_NAME + "/streamingSync";
+    public static final String SYNC_FULL_METHOD_NAME = SERVICE_NAME + "/sync";
 
     private static final Set<RpcMethodDefinition<?, ?>> methods = Set.of(
-            new RpcMethodDefinition<>("sync", ClprSyncPayload.class, ClprSyncPayload.class),
+            new RpcMethodDefinition<>("sync", ClprStreamingSyncPayload.class, ClprStreamingSyncPayload.class),
             new RpcMethodDefinition<>(
                     "discoverEndpoints", ClprDiscoverEndpointsRequest.class, ClprDiscoverEndpointsResponse.class));
 

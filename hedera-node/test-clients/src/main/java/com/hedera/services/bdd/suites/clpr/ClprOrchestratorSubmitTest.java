@@ -24,10 +24,11 @@ import static java.util.Objects.requireNonNull;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.StateProof;
-import com.hedera.hapi.node.state.clpr.ClprSyncPayload;
+import com.hedera.hapi.node.state.clpr.ClprBundleRequest;
+import com.hedera.hapi.node.state.clpr.ClprBundleResponse;
+import com.hedera.hapi.node.state.clpr.ClprStreamingSyncPayload;
 import com.hedera.hapi.platform.state.StateItem;
 import com.hedera.hapi.platform.state.StateValue;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hederahashgraph.api.proto.java.ClprEndpoint;
@@ -45,12 +46,12 @@ import org.junit.jupiter.api.Tag;
 
 /**
  * Single-node embedded test that exercises the *receive* side of the CLPR sync
- * pipeline by invoking {@code ClprSyncWorkflow#handleSync} directly with a
- * {@code ClprSyncPayload} — exactly as the gRPC server does when a peer
- * endpoint calls {@code proto.ClprEndpointService/sync}.
+ * pipeline by opening a {@code ClprSyncWorkflow#openStreamingSync} session and feeding it a
+ * {@code ClprStreamingSyncPayload} — exactly as the gRPC server does when a peer
+ * endpoint streams on {@code proto.ClprEndpointService/sync}.
  *
- * <p>This is the production code path: the inbound gRPC handler deserializes
- * a {@code ClprSyncPayload}, validates the channel, builds a response, and
+ * <p>This is the production code path: the session deserializes the
+ * {@code ClprStreamingSyncPayload}, validates the channel, builds a reply, and
  * fire-and-forget submits the inbound bundle as a {@code ClprSubmitBundle}
  * HAPI transaction via {@link com.hedera.node.app.spi.AppContext.Gossip#submit}
  * (i.e. {@link com.hedera.node.app.Hedera#submit}). Runs in embedded mode so
@@ -112,16 +113,17 @@ public class ClprOrchestratorSubmitTest {
                     final var workflow = requireNonNull(
                             hedera.clprSyncWorkflow(), "ClprSyncWorkflow not available — Hedera not started?");
 
-                    // Build a ClprSyncPayload (PBJ form, same shape the gRPC server sees
-                    // after deserializing the wire bytes from a peer endpoint).
-                    final var syncPayload = ClprSyncPayload.newBuilder()
+                    // The peer's opening message: its one-shot request plus its bundle (PBJ form, same
+                    // shape the session sees after the gRPC server deserializes the wire bytes).
+                    final var syncPayload = ClprStreamingSyncPayload.newBuilder()
                             .channelId(Bytes.wrap(crypto.channelId))
-                            .bundlePayload(proofBytes)
+                            .bundleRequest(ClprBundleRequest.DEFAULT)
+                            .bundleResponse(ClprBundleResponse.newBuilder()
+                                    .bundlePayload(proofBytes)
+                                    .build())
                             .build();
-                    final var requestBytes = ClprSyncPayload.PROTOBUF.toBytes(syncPayload);
-                    final var responseBuf = BufferedData.allocate(8192);
 
-                    workflow.handleSync(requestBytes, responseBuf);
+                    workflow.openStreamingSync().onMessage(ClprStreamingSyncPayload.PROTOBUF.toBytes(syncPayload));
 
                     // Pump fake-platform time so the fire-and-forget ClprSubmitBundle
                     // submission can traverse consensus + handle.

@@ -221,20 +221,18 @@ public class ClprDisabledSuite {
                         .usePlaintext()
                         .build();
                 try {
-                    for (final var method : List.of("sync", "discoverEndpoints")) {
-                        final var error = assertThrows(
-                                StatusRuntimeException.class,
-                                () -> ClientCalls.blockingUnaryCall(
-                                        channel,
-                                        peerMethod(method, MethodDescriptor.MethodType.UNARY),
-                                        CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS),
-                                        new byte[0]));
-                        assertPeerServiceDisabled(error.getStatus());
-                    }
+                    final var error = assertThrows(
+                            StatusRuntimeException.class,
+                            () -> ClientCalls.blockingUnaryCall(
+                                    channel,
+                                    peerMethod("discoverEndpoints", MethodDescriptor.MethodType.UNARY),
+                                    CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS),
+                                    new byte[0]));
+                    assertPeerServiceDisabled(error.getStatus());
                     final var status = new CompletableFuture<Status>();
                     final var stream = ClientCalls.asyncBidiStreamingCall(
                             channel.newCall(
-                                    peerMethod("streamingSync", MethodDescriptor.MethodType.BIDI_STREAMING),
+                                    peerMethod("sync", MethodDescriptor.MethodType.BIDI_STREAMING),
                                     CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS)),
                             new StreamObserver<byte[]>() {
                                 @Override
