@@ -4,6 +4,7 @@ package org.hiero.base.crypto.engine;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Message;
 
@@ -22,7 +23,8 @@ public class DigestProvider extends CachingOperationProvider<Message, Void, byte
 
     /**
      * Computes the result of the cryptographic transformation using the provided message. This
-     * implementation defaults to an SHA-384 message digest and is provided for convenience.
+     * implementation uses the default digest type ({@link Cryptography#DEFAULT_DIGEST_TYPE}) and is provided for
+     * convenience.
      *
      * @param msg
      * 		the message for which to compute a message digest
@@ -31,7 +33,7 @@ public class DigestProvider extends CachingOperationProvider<Message, Void, byte
      * 		if an implementation of the required algorithm cannot be located or loaded
      */
     protected @NonNull byte[] compute(@NonNull final byte[] msg) throws NoSuchAlgorithmException {
-        return compute(msg, DigestType.SHA_384);
+        return compute(msg, Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
     /**
@@ -56,7 +58,7 @@ public class DigestProvider extends CachingOperationProvider<Message, Void, byte
 
     /**
      * Computes the result of the cryptographic transformation using the given subset of bytes from the provided
-     * message.  This implementation defaults to an SHA-384 message digest and is provided for convenience.
+     * message.
      *
      * @param msg
      * 		the message for which to compute a message digest
@@ -100,7 +102,7 @@ public class DigestProvider extends CachingOperationProvider<Message, Void, byte
 
     /**
      * Computes the result of the cryptographic transformation using the given subset of bytes from the provided
-     * message.  This implementation defaults to an SHA-384 message digest and is provided for convenience.
+     * message.
      *
      * @param algorithm
      * 		the required algorithm implemented to be used

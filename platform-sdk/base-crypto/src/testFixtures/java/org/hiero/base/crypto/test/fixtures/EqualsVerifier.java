@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.function.Function;
 import java.util.random.RandomGenerator;
-import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 
 public final class EqualsVerifier {
@@ -15,10 +15,10 @@ public final class EqualsVerifier {
     private EqualsVerifier() {}
 
     public static Hash randomHash(final RandomGenerator r) {
-        final int SIZE = 48;
+        final int SIZE = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
         byte[] value = new byte[SIZE];
         r.nextBytes(value);
-        return new Hash(value, DigestType.SHA_384);
+        return new Hash(value, Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
     private static final Random random = new Random();

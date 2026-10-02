@@ -39,7 +39,7 @@ public class Message implements Comparable<Message> {
      * 		if the {@code payload} parameter is null
      */
     public Message(final byte[] payload) {
-        this(payload, 0, (payload != null) ? payload.length : 0, DigestType.SHA_384);
+        this(payload, 0, (payload != null) ? payload.length : 0, Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
     /**
@@ -69,7 +69,7 @@ public class Message implements Comparable<Message> {
      * 		if the {@code offset} parameter is outside the bounds of the array
      */
     public Message(final byte[] payload, final int offset) {
-        this(payload, offset, (payload != null) ? payload.length - offset : 0, DigestType.SHA_384);
+        this(payload, offset, (payload != null) ? payload.length - offset : 0, Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
     /**
@@ -108,7 +108,7 @@ public class Message implements Comparable<Message> {
      *        {@code payload.length}
      */
     public Message(final byte[] payload, final int offset, final int length) {
-        this(payload, offset, length, DigestType.SHA_384);
+        this(payload, offset, length, Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
     /**

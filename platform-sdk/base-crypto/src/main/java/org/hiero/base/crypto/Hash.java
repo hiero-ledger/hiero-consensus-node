@@ -26,10 +26,11 @@ public class Hash implements Comparable<Hash>, SerializableWithKnownLength, Seri
     private DigestType digestType;
 
     /**
-     * Zero arg constructor. Creates a hash without any data using the default digest type ({@link DigestType#SHA_384}).
+     * Zero arg constructor. Creates a hash without any data using the default digest type
+     * ({@link Cryptography#DEFAULT_DIGEST_TYPE}).
      */
     public Hash() {
-        this(DigestType.SHA_384);
+        this(Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
     /**
@@ -40,17 +41,19 @@ public class Hash implements Comparable<Hash>, SerializableWithKnownLength, Seri
     }
 
     /**
-     * Same as {@link #Hash(Bytes, DigestType)} but with a digest type ({@link DigestType#SHA_384}) and wrapping the byte array.
+     * Same as {@link #Hash(Bytes, DigestType)} but with the default digest type
+     * ({@link Cryptography#DEFAULT_DIGEST_TYPE}) and wrapping the byte array.
      */
     public Hash(@NonNull final byte[] value) {
-        this(Bytes.wrap(value), DigestType.SHA_384);
+        this(Bytes.wrap(value), Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
     /**
-     * Same as {@link #Hash(Bytes, DigestType)} but with a digest type ({@link DigestType#SHA_384})
+     * Same as {@link #Hash(Bytes, DigestType)} but with the default digest type
+     * ({@link Cryptography#DEFAULT_DIGEST_TYPE}).
      */
     public Hash(@NonNull final Bytes value) {
-        this(value, DigestType.SHA_384);
+        this(value, Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
     /**

@@ -34,7 +34,7 @@ public class HashTests {
 
     @Test
     public void exceptionTests() {
-        final byte[] nonZeroHashValue = new byte[DigestType.SHA_384.digestLength()];
+        final byte[] nonZeroHashValue = new byte[Cryptography.DEFAULT_DIGEST_TYPE.digestLength()];
         Arrays.fill(nonZeroHashValue, Byte.MAX_VALUE);
 
         final Hash hash = new Hash(DigestType.SHA_384);
