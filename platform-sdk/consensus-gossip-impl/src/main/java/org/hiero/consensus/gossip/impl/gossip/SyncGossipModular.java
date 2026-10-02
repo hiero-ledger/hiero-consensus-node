@@ -17,6 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.manager.ThreadManager;
 import org.hiero.base.concurrent.pool.CachedPoolParallelExecutor;
+import org.hiero.base.concurrent.throttle.StackTraceDeduplicator;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.config.ProtocolConfig;
@@ -106,7 +107,11 @@ public class SyncGossipModular implements Gossip {
         }
         final PeerInfo selfPeer = Utilities.toPeerInfo(selfEntry);
 
-        this.network = new PeerCommunication(configuration, metrics, time, peers, selfPeer, ownKeysAndCerts);
+        // shared by everything reporting socket exceptions, so that the same problem is logged in full only once
+        final StackTraceDeduplicator socketExceptionDeduplicator = new StackTraceDeduplicator();
+
+        this.network = new PeerCommunication(
+                configuration, metrics, time, peers, selfPeer, ownKeysAndCerts, socketExceptionDeduplicator);
 
         this.fallenBehindMonitor = fallenBehindMonitor;
 
@@ -138,7 +143,8 @@ public class SyncGossipModular implements Gossip {
                 syncMetrics,
                 selfId,
                 fallenBehindMonitor,
-                event -> receivedEventHandler.accept(event));
+                event -> receivedEventHandler.accept(event),
+                socketExceptionDeduplicator);
 
         this.protocols = List.of(
                 HeartbeatProtocol.create(configuration, time, this.network.getNetworkMetrics()),

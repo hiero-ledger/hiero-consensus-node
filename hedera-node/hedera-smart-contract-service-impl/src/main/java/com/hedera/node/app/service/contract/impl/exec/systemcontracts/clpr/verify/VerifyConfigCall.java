@@ -111,7 +111,7 @@ public class VerifyConfigCall extends AbstractCall {
     private @NonNull PricedResult doExecute() {
         final StateProof proof;
         try {
-            proof = StateProof.PROTOBUF.parse(Bytes.wrap(stateProofBytes).toReadableSequentialData());
+            proof = StateProof.PROTOBUF.parseStrict(Bytes.wrap(stateProofBytes).toReadableSequentialData());
         } catch (final Exception e) {
             return fail("failed to parse StateProof", e);
         }
@@ -137,7 +137,7 @@ public class VerifyConfigCall extends AbstractCall {
         }
         final ClprLedgerConfiguration parsed;
         try {
-            parsed = ClprLedgerConfiguration.PROTOBUF.parse(configBytes.toReadableSequentialData());
+            parsed = ClprLedgerConfiguration.PROTOBUF.parseStrict(configBytes.toReadableSequentialData());
             requireNonNull(parsed);
         } catch (final Exception e) {
             return fail(
@@ -339,7 +339,7 @@ public class VerifyConfigCall extends AbstractCall {
         }
         final StateProof proof;
         try {
-            proof = StateProof.PROTOBUF.parse(Bytes.wrap(proofBytes).toReadableSequentialData());
+            proof = StateProof.PROTOBUF.parseStrict(Bytes.wrap(proofBytes).toReadableSequentialData());
         } catch (final Exception e) {
             fail("failed to parse manifest StateProof", e);
             return null;
