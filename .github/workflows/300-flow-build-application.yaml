@@ -41,6 +41,7 @@ jobs:
       enable-hapi-tests: "true"
       enable-otter-tests: "true"
       enable-snyk-scan: "true"
+      enable-benchmark-smoke: "true"
       enable-gradle-determinism: "true"
       enable-docker-determinism: "true"
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
