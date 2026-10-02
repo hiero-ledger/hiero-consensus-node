@@ -31,6 +31,7 @@ import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.ConsensusLayerWiring;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.io.RecycleBin;
+import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
@@ -172,6 +173,8 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         this.swirldName = requireNonNull(persistenceScope.swirldName);
         this.consensusEventStreamName = requireNonNull(consensusEventStreamName);
         this.transactionOffsetNanos = transactionOffsetNanos;
+
+        EventHashFactory.initialize(Long.MAX_VALUE);
 
         logger.info(STARTUP.getMarker(), "Starting with roster inputs:\n{}", rosterInputs);
     }

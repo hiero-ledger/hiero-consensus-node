@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.state.notifications;
 
+import static org.hiero.base.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
 
@@ -16,7 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class StateHashedNotificationTest {
     private static final long ROUND = 123L;
-    private static final Hash HASH = new Hash(new byte[48]);
+    private static final Hash HASH = new Hash(new byte[DEFAULT_DIGEST_TYPE.digestLength()], DEFAULT_DIGEST_TYPE);
 
     @Mock
     private VirtualMapState merkleRoot;
