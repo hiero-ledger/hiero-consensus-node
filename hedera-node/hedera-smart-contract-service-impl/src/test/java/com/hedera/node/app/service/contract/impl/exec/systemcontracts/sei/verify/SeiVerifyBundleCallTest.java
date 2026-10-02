@@ -387,6 +387,51 @@ class SeiVerifyBundleCallTest extends CallTestBase {
         }
     }
 
+    @Test
+    void rejectsMalformedProvenManifestBytes() {
+        final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
+        final byte[] malformedManifest = ClprEndpointManifest.PROTOBUF
+                .toBytes(ClprEndpointManifest.newBuilder()
+                        .version(3L)
+                        .serviceAddress(Bytes.wrap(new byte[20]))
+                        .build())
+                .append(Bytes.fromHex("c03e01"))
+                .toByteArray();
+        final var verified = verifiedBundle()
+                .blockHash(BLOCK_HASH)
+                .content(content)
+                .metadata(proven())
+                .manifestBytes(malformedManifest)
+                .build();
+
+        try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+                    .thenReturn(verified);
+
+            assertFailed(subject().execute(frame));
+        }
+    }
+
+    @Test
+    void rejectsProvenManifestVersionThatIsNotAbiEncodable() {
+        // PBJ reads a uint64 >= 2^63 as a negative long; it cannot be ABI-encoded as uint64, so the call must fail.
+        final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
+        final var provenWithNegativeVersion = new SeiCometBftProofVerifier.QueueMetadata(
+                42, SENT_HASH, 17, RECEIVED_HASH, ClprChannelStatus.ACTIVE.protoOrdinal(), LAST_HASH, -1L);
+        final var verified = verifiedBundle()
+                .blockHash(BLOCK_HASH)
+                .content(content)
+                .metadata(provenWithNegativeVersion)
+                .build();
+
+        try (final var verifier = mockStatic(SeiCometBftProofVerifier.class)) {
+            verifier.when(() -> SeiCometBftProofVerifier.verifyBundle(BUNDLE_PAYLOAD, TRUST_ANCHOR))
+                    .thenReturn(verified);
+
+            assertFailed(subject().execute(frame));
+        }
+    }
+
     private SeiVerifyBundleCall subject() {
         final byte[] channelContext = {7, 8, 9};
         return new SeiVerifyBundleCall(mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR);
