@@ -30,19 +30,49 @@ import java.util.List;
  * does NOT accept raw config bytes. Tests need to wrap their ledger config in this
  * synthetic state-proof shape before passing it as {@code configProofBytes}.
  *
- * <p>Spec refs: §3.1 (Verifier Contract Interface — {@code verifyConfig(bytes,bytes32)}
- * returns the proven configuration fields in an ABI tuple); §5.1.3 (Phase 2 — Reveal: the
- * {@code completeChannel} handler invokes the verifier over the registrant's
- * {@code config_proof_bytes} and stores the returned config + its {@code initial_trust_anchor}
- * on the new Channel).
+ * <p>Spec refs: §3.1 (Verifier Contract Interface — {@code verifyConfig(bytes,bytes32,bytes)}
+ * returns the proven configuration fields plus the peer endpoint manifest in an ABI tuple);
+ * §5.1.3 (Phase 2 — Reveal: the {@code completeChannel} handler invokes the verifier over the
+ * registrant's {@code config_proof_bytes} and stores the returned config + its
+ * {@code initial_trust_anchor} on the new Channel).
  */
 final class ClprTestProofs {
-    /** Config ABI used when endpoint manifests are disabled, shared by all native verifiers. */
-    static final Function VERIFY_CONFIG_WITH_SEED_ENDPOINTS = new Function(
-            "verifyConfig(bytes,bytes32)",
-            "(bytes,string,bytes,uint96,(uint64,uint64,uint64,uint64,uint64),bytes,bytes,(string,uint32,bytes,bytes)[])");
+    /** Manifest-aware config ABI shared by all native verifiers. */
+    static final Function VERIFY_CONFIG = new Function(
+            "verifyConfig(bytes,bytes32,bytes)",
+            "(bytes,string,bytes,uint96,(uint32,uint64,uint64,uint32,uint64,uint32,uint32),bytes,bytes,(uint64,bytes,(string,uint32,bytes,bytes)[]))");
 
     private ClprTestProofs() {}
+
+    /**
+     * Decodes the {@link com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration} carried by a config
+     * {@link StateProof} (the shape returned by {@code clprGetLedgerConfiguration}), or {@code null} if
+     * the proof has no ledger-config leaf or cannot be parsed. Lets HAPI suites check a captured config
+     * proof <b>in-process</b> — mirroring the extraction the verifier precompile does, but without a
+     * contract call. (A direct precompile call can't be used for this check under manifest-only mode: the
+     * manifest-aware {@code verifyConfig} needs both the config and manifest proofs, whose combined size
+     * exceeds the 6 KB {@code hedera.transaction.maxBytes} limit that applies to non-CLPR-dispatch calls.)
+     */
+    static com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration decodeLedgerConfig(final byte[] configProofBytes) {
+        try {
+            final var proof =
+                    StateProof.PROTOBUF.parse(Bytes.wrap(configProofBytes).toReadableSequentialData());
+            for (final var path : proof.paths()) {
+                if (!path.hasStateItemLeaf()) {
+                    continue;
+                }
+                final var item = StateItem.PROTOBUF.parse(path.stateItemLeaf().toReadableSequentialData());
+                final var value = item.value();
+                final var config = value == null ? null : value.clprServiceILedgerConfiguration();
+                if (config != null) {
+                    return config;
+                }
+            }
+        } catch (final Exception e) {
+            return null;
+        }
+        return null;
+    }
 
     /**
      * Wraps a {@link ClprLedgerConfiguration} in a synthetic {@link StateProof} that the
