@@ -46,3 +46,25 @@ jmh {
     // passes "-foe true", not "-foe 1" (https://github.com/melix/jmh-gradle-plugin/issues/255)
     failOnError = true
 }
+
+// a new commit changes only git.properties in the benchmark jar; keep the smoke run cached
+normalization { runtimeClasspath { ignore("git.properties") } }
+
+tasks.register<JavaExec>("jmhSmoke") {
+    group = "jmh"
+    description = "Runs every benchmark once, briefly, and fails on any error."
+    // the jar alone, so that the smoke run also catches packaging errors
+    classpath(tasks.named("jmhJarWithMergedServiceFiles"))
+    mainClass = "org.openjdk.jmh.Main"
+    args("-f", "1", "-wi", "0", "-i", "1", "-r", "100ms")
+    // without it, JMH exits successfully when a benchmark throws
+    args("-foe", "true")
+    jmh.profilers.get().forEach { args("-prof", it) }
+    // replaces the heap settings of the benchmarks (up to 8 GB, pre-touched)
+    args("-jvmArgsAppend", "-Xms2g -Xmx2g")
+    // a relative path keeps the cache key independent of the checkout location
+    workingDir = layout.buildDirectory.dir("results/jmh-smoke").get().asFile
+    args("-rf", "json", "-rff", "results.json")
+    outputs.file(layout.buildDirectory.file("results/jmh-smoke/results.json"))
+    outputs.cacheIf("a smoke run only checks that the benchmarks work") { true }
+}
