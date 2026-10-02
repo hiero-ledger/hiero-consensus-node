@@ -2,6 +2,7 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
+import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
@@ -278,23 +279,27 @@ class WritableHistoryStoreImplTest {
                 HistoryProofConstruction.newBuilder().constructionId(123L).build(), nextConstruction);
         assertSame(nextConstruction, subject.getNextConstruction());
 
-        assertThrows(IllegalArgumentException.class, () -> subject.setAssemblyTime(0L, CONSENSUS_NOW));
-        subject.setAssemblyTime(123L, CONSENSUS_NOW);
+        assertThrows(IllegalArgumentException.class, () -> subject.setAssemblyTime(0L, CONSENSUS_NOW, new TreeSet<>()));
+        subject.setAssemblyTime(123L, CONSENSUS_NOW, new TreeSet<>(List.of(1L, 2L)));
         assertEquals(
                 asTimestamp(CONSENSUS_NOW),
                 this.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
                         .assemblyStartTimeOrThrow());
+        assertEquals(
+                List.of(1L, 2L),
+                this.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
+                        .assembledProofKeyNodeIds());
         assertFalse(this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
                 .hasAssemblyStartTime());
 
-        subject.setAssemblyTime(123L, CONSENSUS_NOW);
+        subject.setAssemblyTime(123L, CONSENSUS_NOW, new TreeSet<>(List.of(1L, 2L)));
         assertEquals(
                 asTimestamp(CONSENSUS_NOW),
                 this.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID)
                         .assemblyStartTimeOrThrow());
 
         final var then = CONSENSUS_NOW.plusSeconds(1L);
-        subject.setAssemblyTime(456L, then);
+        subject.setAssemblyTime(456L, then, new TreeSet<>(List.of(3L)));
         assertEquals(
                 asTimestamp(then),
                 this.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
@@ -332,18 +337,71 @@ class WritableHistoryStoreImplTest {
                         .get(WRAPS_MESSAGE_HISTORIES_STATE_ID)
                         .size());
 
-        final var updated = subject.restartWrapsSigning(123L, new TreeSet<>(List.of(1L, 2L)));
+        final var updated =
+                subject.restartWrapsSigning(123L, new TreeSet<>(List.of(1L, 2L)), new TreeSet<>(List.of(2L)), null);
 
         assertEquals(2, updated.wrapsRetryCount());
         assertFalse(updated.hasFailureReason());
         assertTrue(updated.hasWrapsSigningState());
         assertEquals(
                 R1, updated.wrapsSigningStateOrElse(WrapsSigningState.DEFAULT).phase());
+        assertEquals(List.of(2L), updated.wrapsExcludedNodeIds());
         assertEquals(
                 0L,
                 state.getWritableStates(HistoryService.NAME)
                         .get(WRAPS_MESSAGE_HISTORIES_STATE_ID)
                         .size());
+
+        // Neither a later phase nor a failure clears the exclusions
+        subject.advanceWrapsSigningPhase(123L, R2, CONSENSUS_NOW);
+        assertEquals(List.of(2L), subject.getConstructionOrThrow(123L).wrapsExcludedNodeIds());
+        subject.failForReason(123L, "Still missing messages from R1 nodes [1] after end of grace period for phase R2");
+        assertEquals(List.of(2L), subject.getConstructionOrThrow(123L).wrapsExcludedNodeIds());
+    }
+
+    @Test
+    void restartWrapsSigningCanGiveR1AGracePeriod() {
+        setConstructions(
+                HistoryProofConstruction.newBuilder().constructionId(123L).build(), HistoryProofConstruction.DEFAULT);
+        final var graceEnd = CONSENSUS_NOW.plusSeconds(10);
+
+        final var updated =
+                subject.restartWrapsSigning(123L, new TreeSet<>(List.of(1L, 2L)), new TreeSet<>(List.of(2L)), graceEnd);
+
+        final var signingState = updated.wrapsSigningStateOrThrow();
+        assertEquals(R1, signingState.phase());
+        assertEquals(asTimestamp(graceEnd), signingState.gracePeriodEndTimeOrThrow());
+    }
+
+    @Test
+    void excludeFromWrapsSigningAddsToTheExcludedNodes() {
+        final var construction = HistoryProofConstruction.newBuilder()
+                .constructionId(123L)
+                .wrapsSigningState(WrapsSigningState.newBuilder().phase(R2).build())
+                .wrapsExcludedNodeIds(List.of(3L))
+                .build();
+        setConstructions(construction, HistoryProofConstruction.DEFAULT);
+
+        final var updated = subject.excludeFromWrapsSigning(123L, Set.of(1L));
+
+        assertEquals(List.of(1L, 3L), updated.wrapsExcludedNodeIds());
+        assertEquals(R2, updated.wrapsSigningStateOrThrow().phase());
+        // Nodes already excluded leave the construction as it was
+        assertSame(updated, subject.excludeFromWrapsSigning(123L, Set.of(3L)));
+    }
+
+    @Test
+    void setAssembledProofKeyNodeIdsKeepsTheSigningState() {
+        final var construction = HistoryProofConstruction.newBuilder()
+                .constructionId(123L)
+                .wrapsSigningState(WrapsSigningState.newBuilder().phase(R2).build())
+                .build();
+        setConstructions(construction, HistoryProofConstruction.DEFAULT);
+
+        final var updated = subject.setAssembledProofKeyNodeIds(123L, new TreeSet<>(List.of(1L, 2L)));
+
+        assertEquals(List.of(1L, 2L), updated.assembledProofKeyNodeIds());
+        assertEquals(R2, updated.wrapsSigningStateOrThrow().phase());
     }
 
     @Test

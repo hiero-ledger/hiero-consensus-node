@@ -3,11 +3,13 @@ package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static com.hedera.node.app.history.HistoryLibrary.MISSING_SCHNORR_KEY;
 import static com.hedera.node.app.history.HistoryService.isCompleted;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.history.impl.ProofVoteCategory.INVALID_RECURSIVE;
 import static com.hedera.node.app.history.impl.ProofVoteCategory.NOT_RECURSIVE;
 import static com.hedera.node.app.history.impl.ProofVoteCategory.VALID_RECURSIVE;
+import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.moreThanHalfOfTotal;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.summingLong;
@@ -39,6 +41,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
@@ -171,11 +175,10 @@ public class ProofControllerImpl implements ProofController {
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
         replayPersistedVotes(votes, tssConfig);
         if (!isCompleted(construction, tssConfig)) {
-            final var cutoffTime = construction.hasGracePeriodEndTime()
-                    ? asInstant(construction.gracePeriodEndTimeOrThrow())
-                    : Instant.MAX;
+            // Same keys as a node that never restarted: every key until the history is assembled, then only those
+            final var assembledNodeIds = Set.copyOf(construction.assembledProofKeyNodeIds());
             keyPublications.forEach(publication -> {
-                if (!publication.adoptionTime().isAfter(cutoffTime)) {
+                if (assembledNodeIds.isEmpty() || assembledNodeIds.contains(publication.nodeId())) {
                     maybeUpdateForProofKey(publication);
                 }
             });
@@ -209,11 +212,22 @@ public class ProofControllerImpl implements ProofController {
         requireNonNull(now);
         requireNonNull(historyStore);
         requireNonNull(tssConfig);
+        // Handling transactions can change the construction, so start from state like a newly built controller
+        construction = historyStore.getConstructionOrThrow(constructionId());
         targetMetadata = metadata;
         historyProofMetrics.observeStage(constructionId(), currentStage(metadata), now);
         try {
+            if (!construction.hasGracePeriodEndTime()
+                    && construction.assembledProofKeyNodeIds().isEmpty()
+                    && !targetProofKeys.isEmpty()) {
+                // Assembled before its proof key ids were recorded; since every node rebuilt its controller from
+                // state at the upgrade, they all have the same keys to record
+                construction = historyStore.setAssembledProofKeyNodeIds(
+                        constructionId(), new TreeSet<>(targetProofKeys.keySet()));
+            }
             if (construction.hasFailureReason()) {
-                if (!retryIfRecoverableFailure(construction.failureReasonOrThrow(), historyStore, tssConfig)) {
+                if (!retryIfRecoverableFailure(
+                        construction.failureReasonOrThrow(), Set.of(), historyStore, tssConfig, now)) {
                     return;
                 }
             }
@@ -234,7 +248,8 @@ public class ProofControllerImpl implements ProofController {
                     && !construction.hasWrapsSigningState()) {
                 if (shouldAssemble(now)) {
                     log.info("Assembly start time for construction #{} is {}", construction.constructionId(), now);
-                    construction = historyStore.setAssemblyTime(construction.constructionId(), now);
+                    construction = historyStore.setAssemblyTime(
+                            construction.constructionId(), now, new TreeSet<>(targetProofKeys.keySet()));
                 } else if (isActive) {
                     ensureProofKeyPublished();
                 }
@@ -255,8 +270,12 @@ public class ProofControllerImpl implements ProofController {
                 case HistoryProver.Outcome.Completed completed ->
                     finishProof(historyStore, completed.proof(), now, tssConfig);
                 case HistoryProver.Outcome.Failed failed -> {
-                    if (!retryIfRecoverableFailure(failed.reason(), historyStore, tssConfig)) {
+                    if (!retryIfRecoverableFailure(
+                            failed.reason(), failed.missingNodeIds(), historyStore, tssConfig, now)) {
                         log.warn("Failed construction #{} due to {}", constructionId(), failed.reason());
+                        // Keep the exclusions a retry would have used, in case the retry budget is raised later
+                        historyStore.excludeFromWrapsSigning(
+                                constructionId(), excludedNodeIdsAfter(failed.missingNodeIds()));
                         construction = historyStore.failForReason(constructionId(), failed.reason());
                     }
                 }
@@ -282,7 +301,12 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final WritableHistoryStore writableHistoryStore) {
         requireNonNull(publication);
         requireNonNull(writableHistoryStore);
-        if (construction.hasTargetProof()) {
+        // The prover can exclude a sender while handling transactions, so read the exclusions from state
+        if (construction.hasTargetProof()
+                || writableHistoryStore
+                        .getConstructionOrThrow(constructionId())
+                        .wrapsExcludedNodeIds()
+                        .contains(publication.nodeId())) {
             return false;
         }
         return requireNonNull(prover).addWrapsSigningMessage(constructionId(), publication, writableHistoryStore);
@@ -549,46 +573,90 @@ public class ProofControllerImpl implements ProofController {
 
     /**
      * If the given failure reason is recoverable and retry budget remains, restarts WRAPS signing for this
-     * construction and reinitializes in-memory prover state.
+     * construction and reinitializes in-memory prover state. Later attempts ignore the given missing nodes, as long
+     * as the other source nodes with proof keys can still reach the R1 threshold; and while any nodes are ignored,
+     * the restarted R1 has a grace period, after which the next attempt ignores no nodes.
      *
      * @param reason the failure reason
+     * @param missingNodeIds the ids of R1 participants whose later messages never arrived
      * @param historyStore the writable history store
      * @param tssConfig the TSS configuration
+     * @param now the current consensus time
      * @return whether a retry was started
      */
     private boolean retryIfRecoverableFailure(
             @NonNull final String reason,
+            @NonNull final Set<Long> missingNodeIds,
             @NonNull final WritableHistoryStore historyStore,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final TssConfig tssConfig,
+            @NonNull final Instant now) {
         requireNonNull(reason);
+        requireNonNull(missingNodeIds);
         requireNonNull(historyStore);
         requireNonNull(tssConfig);
+        requireNonNull(now);
         if (!WrapsHistoryProver.isRecoverableFailure(reason)) {
             return false;
         }
         final int maxWrapsRetries = tssConfig.maxWrapsRetries();
         if (construction.wrapsRetryCount() >= maxWrapsRetries) {
-            log.warn(
-                    "Construction #{} exhausted WRAPS retry budget ({}) after recoverable failure '{}'",
-                    constructionId(),
-                    maxWrapsRetries,
-                    reason);
+            // A failure already in state is found again every round, so only warn when it first happens
+            if (!construction.hasFailureReason()) {
+                log.warn(
+                        "Construction #{} exhausted WRAPS retry budget ({}) after recoverable failure '{}'",
+                        constructionId(),
+                        maxWrapsRetries,
+                        reason);
+            }
             return false;
         }
         if (prover != null) {
             prover.cancelPendingWork();
         }
-        construction = historyStore.restartWrapsSigning(constructionId(), weights.sourceNodeIds());
+        final SortedSet<Long> excludedNodeIds = reason.startsWith(WrapsHistoryProver.R1_TIMEOUT_FAILURE_PREFIX)
+                ? new TreeSet<>()
+                : excludedNodeIdsAfter(missingNodeIds);
+        final var r1GracePeriodEndTime =
+                excludedNodeIds.isEmpty() ? null : now.plus(tssConfig.wrapsMessageGracePeriod());
+        construction = historyStore.restartWrapsSigning(
+                constructionId(), weights.sourceNodeIds(), excludedNodeIds, r1GracePeriodEndTime);
         proofTagValidations.clear();
         historyProofMetrics.recordRetryStarted();
         prover = createProver(tssConfig);
         log.warn(
-                "Restarted WRAPS signing for construction #{} (retry {}/{}) after recoverable failure '{}'",
+                "Restarted WRAPS signing for construction #{} (retry {}/{}) after recoverable failure '{}'"
+                        + " (excluded nodes {})",
                 constructionId(),
                 construction.wrapsRetryCount(),
                 maxWrapsRetries,
-                reason);
+                reason,
+                excludedNodeIds);
         return true;
+    }
+
+    /**
+     * Returns the source nodes to exclude from the next attempt at signing: the ones already excluded, plus the given
+     * missing nodes if the other source nodes with proof keys still have enough weight to complete R1 without them.
+     *
+     * @param missingNodeIds the ids of R1 participants whose later messages never arrived
+     * @return the ids of the nodes to exclude
+     */
+    private SortedSet<Long> excludedNodeIdsAfter(@NonNull final Set<Long> missingNodeIds) {
+        final var excludedNodeIds = new TreeSet<>(construction.wrapsExcludedNodeIds());
+        if (excludedNodeIds.containsAll(missingNodeIds)) {
+            return excludedNodeIds;
+        }
+        final var withMissing = new TreeSet<>(excludedNodeIds);
+        withMissing.addAll(missingNodeIds);
+        // The prover ignores WRAPS messages from nodes without a proof key, so their weight cannot help complete R1
+        final var sourceProofKeys = sourceProofKeys();
+        final long remainingWeight = weights.sourceNodeWeights().entrySet().stream()
+                .filter(entry -> !withMissing.contains(entry.getKey())
+                        && !MISSING_SCHNORR_KEY.equals(
+                                sourceProofKeys.getOrDefault(entry.getKey(), MISSING_SCHNORR_KEY)))
+                .mapToLong(Map.Entry::getValue)
+                .sum();
+        return remainingWeight >= moreThanHalfOfTotal(weights.sourceNodeWeights()) ? withMissing : excludedNodeIds;
     }
 
     /**
@@ -615,7 +683,10 @@ public class ProofControllerImpl implements ProofController {
      * Ensures this node has published its proof key.
      */
     private void ensureProofKeyPublished() {
-        if (publicationFuture == null && weights.targetIncludes(selfId) && !targetProofKeys.containsKey(selfId)) {
+        // A key in state that differs from this node's key (e.g., after losing its key file) cannot sign for it
+        if (publicationFuture == null
+                && weights.targetIncludes(selfId)
+                && !schnorrKeyPair.publicKey().equals(targetProofKeys.get(selfId))) {
             log.info("Publishing Schnorr key for construction #{}", construction.constructionId());
             publicationFuture = CompletableFuture.runAsync(
                             () -> submissions
@@ -651,19 +722,25 @@ public class ProofControllerImpl implements ProofController {
     }
 
     private HistoryProver createProver(@NonNull final TssConfig tssConfig) {
-        final Map<Long, Bytes> sourceProofKeys = sourceProof == null
-                ? targetProofKeys
-                : sourceProof.targetProofKeys().stream().collect(toMap(ProofKey::nodeId, ProofKey::key));
         return proverFactory.create(
                 selfId,
                 tssConfig,
                 schnorrKeyPair,
                 sourceProof,
                 weights,
-                sourceProofKeys,
+                sourceProofKeys(),
                 executor,
                 historyLibrary,
                 submissions);
+    }
+
+    /**
+     * Returns the proof keys of the source nodes, which sign the target history.
+     */
+    private Map<Long, Bytes> sourceProofKeys() {
+        return sourceProof == null
+                ? targetProofKeys
+                : sourceProof.targetProofKeys().stream().collect(toMap(ProofKey::nodeId, ProofKey::key));
     }
 
     private HistoryProofMetrics.Stage currentStage(@Nullable final Bytes metadata) {

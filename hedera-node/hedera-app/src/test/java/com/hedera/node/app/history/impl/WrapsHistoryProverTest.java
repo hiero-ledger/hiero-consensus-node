@@ -12,10 +12,13 @@ import static java.time.Instant.EPOCH;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.isNull;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
@@ -28,17 +31,21 @@ import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.WrapsPhase;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
 import com.hedera.node.app.history.HistoryLibrary;
+import com.hedera.node.app.history.HistoryLibrary.AddressBook;
 import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
@@ -54,11 +61,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class WrapsHistoryProverTest {
     private static final long SELF_ID = 1L;
     private static final long OTHER_NODE_ID = 2L;
+    private static final long THIRD_NODE_ID = 3L;
     private static final long CONSTRUCTION_ID = 123L;
     private static final Bytes LEDGER_ID = Bytes.wrap("ledger");
     private static final Bytes TARGET_METADATA = Bytes.wrap("meta");
     private static final Bytes MESSAGE_BYTES = Bytes.wrap("msg");
     private static final Bytes R1_MESSAGE = Bytes.wrap("r1");
+    private static final Bytes OTHER_R1_MESSAGE = Bytes.wrap("other-r1");
+    private static final Bytes MESSAGE_CHECK_PRIVATE_KEY = Bytes.fromHex("01" + "00".repeat(31));
     private static final Bytes R2_MESSAGE = Bytes.wrap("r2");
     private static final Bytes R3_MESSAGE = Bytes.wrap("r3");
     private static final Duration GRACE_PERIOD = Duration.ofSeconds(5);
@@ -102,11 +112,20 @@ class WrapsHistoryProverTest {
         targetWeights.put(SELF_ID, 1L);
         targetWeights.put(OTHER_NODE_ID, 1L);
 
-        proofKeys.put(SELF_ID, Bytes.wrap("pk1"));
+        // This node signs with the key the source proof has for it
+        proofKeys.put(SELF_ID, KEY_PAIR.publicKey());
         proofKeys.put(OTHER_NODE_ID, Bytes.wrap("pk2"));
         targetProofKeys.putAll(proofKeys);
 
         weights = new RosterTransitionWeights(sourceWeights, targetWeights);
+
+        // Checks of other nodes' R1 and R2 messages pass unless a test says otherwise
+        lenient()
+                .when(historyLibrary.runWrapsPhaseR2(any(), emptyMessage(), any(), any(), any(), any()))
+                .thenReturn(R2_MESSAGE.toByteArray());
+        lenient()
+                .when(historyLibrary.runWrapsPhaseR3(any(), emptyMessage(), any(), any(), any(), any(), any()))
+                .thenReturn(R3_MESSAGE.toByteArray());
 
         subject = new WrapsHistoryProver(
                 SELF_ID,
@@ -120,6 +139,10 @@ class WrapsHistoryProverTest {
                 historyLibrary,
                 submissions,
                 new WrapsMpcStateMachine());
+    }
+
+    private static byte[] emptyMessage() {
+        return argThat(message -> message != null && message.length == 0);
     }
 
     private static HistoryProofConstruction constructionWithPhase(WrapsPhase phase, Instant graceEnd) {
@@ -185,9 +208,10 @@ class WrapsHistoryProverTest {
         final var outcome =
                 subject.advance(now, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
 
-        assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
-        final var failed = (HistoryProver.Outcome.Failed) outcome;
-        assertTrue(failed.reason().contains("Still missing messages"));
+        // Only a restart with excluded nodes gives R1 a grace period, and its end lets every node sign again
+        final var failed = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
+        assertEquals(WrapsHistoryProver.R1_TIMEOUT_FAILURE_PREFIX + "[" + SELF_ID + "]", failed.reason());
+        assertTrue(WrapsHistoryProver.isRecoverableFailure(failed.reason()));
     }
 
     @Test
@@ -227,6 +251,7 @@ class WrapsHistoryProverTest {
         final var failure = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
         assertEquals(
                 "Still missing messages from R1 nodes [2] after end of grace period for phase R2", failure.reason());
+        assertEquals(Set.of(OTHER_NODE_ID), failure.missingNodeIds());
         assertTrue(WrapsHistoryProver.isRecoverableFailure(failure.reason()));
         verify(writableHistoryStore, never()).advanceWrapsSigningPhase(eq(CONSTRUCTION_ID), eq(R3), any());
         verifyNoInteractions(submissions);
@@ -520,10 +545,14 @@ class WrapsHistoryProverTest {
         final var proof = captor.getValue();
         final var chainOfTrust = proof.chainOfTrustProofOrThrow();
         assertTrue(chainOfTrust.hasAggregatedNodeSignatures());
+        // The vote uses the signature the deterministic check already verified
+        assertEquals(AGG_SIG, chainOfTrust.aggregatedNodeSignaturesOrThrow().aggregatedSignature());
+        verify(historyLibrary, times(1)).runAggregationPhase(any(), any(), any(), any(), any(), any());
+        verify(historyLibrary, times(1)).verifyAggregateSignature(any(), any(), any(), any(), any());
     }
 
     @Test
-    void aggregatePhaseSkipsVoteWhenAggregationReturnsNull() {
+    void aggregatePhaseFailsRecoverablyWhenAggregationReturnsNull() {
         subject = new WrapsHistoryProver(
                 SELF_ID,
                 GRACE_PERIOD,
@@ -552,6 +581,7 @@ class WrapsHistoryProverTest {
         subject.replayWrapsSigningMessage(
                 CONSTRUCTION_ID, new WrapsMessagePublication(OTHER_NODE_ID, R3_MESSAGE, R3, EPOCH));
 
+        // Even a node that cannot submit reaches the same verdict
         final var outcome = subject.advance(
                 EPOCH,
                 constructionWithPhase(AGGREGATE, null),
@@ -559,14 +589,17 @@ class WrapsHistoryProverTest {
                 targetProofKeys,
                 tssConfig,
                 LEDGER_ID,
-                true);
+                false);
 
-        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        final var failure = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
+        assertEquals(WrapsHistoryProver.AGGREGATION_FAILURE_PREFIX + "[1, 2]", failure.reason());
+        assertTrue(failure.missingNodeIds().isEmpty());
+        assertTrue(WrapsHistoryProver.isRecoverableFailure(failure.reason()));
         verifyNoInteractions(submissions);
     }
 
     @Test
-    void aggregatePhaseSkipsVoteWhenAggregateSignatureIsInvalid() {
+    void aggregatePhaseFailsRecoverablyWhenAggregateSignatureIsInvalid() {
         subject = new WrapsHistoryProver(
                 SELF_ID,
                 GRACE_PERIOD,
@@ -606,8 +639,136 @@ class WrapsHistoryProverTest {
                 LEDGER_ID,
                 true);
 
-        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        final var failure = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
+        assertEquals(WrapsHistoryProver.AGGREGATION_FAILURE_PREFIX + "[1, 2]", failure.reason());
+        assertTrue(WrapsHistoryProver.isRecoverableFailure(failure.reason()));
         verifyNoInteractions(submissions);
+    }
+
+    @Test
+    void rejectsR1MessageTheNextRoundCannotReadAndIgnoresItsSender() {
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore));
+        // Only the round run for the sender alone, with the fixed check key, rejects its message
+        given(historyLibrary.runWrapsPhaseR2(
+                        any(),
+                        emptyMessage(),
+                        argThat(r1s -> r1s.length == 1 && Arrays.equals(r1s[0], OTHER_R1_MESSAGE.toByteArray())),
+                        argThat(key -> Arrays.equals(key, MESSAGE_CHECK_PRIVATE_KEY.toByteArray())),
+                        argThat(book -> isOnlySender(book, OTHER_NODE_ID)),
+                        eq(Set.of(OTHER_NODE_ID))))
+                .willReturn(null);
+
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, OTHER_R1_MESSAGE, R1, EPOCH),
+                writableHistoryStore));
+
+        // Without the rejected R1, the accepted one does not have enough weight to start R2
+        verify(writableHistoryStore, never()).advanceWrapsSigningPhase(anyLong(), any(), any());
+        verify(writableHistoryStore).excludeFromWrapsSigning(CONSTRUCTION_ID, Set.of(OTHER_NODE_ID));
+    }
+
+    @Test
+    void rejectsR2MessageThatDoesNotMatchItsSendersR1AndIgnoresItsSender() {
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore));
+        assertTrue(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, OTHER_R1_MESSAGE, R1, EPOCH),
+                writableHistoryStore));
+        // Only the round run for the sender alone, against the sender's own R1, rejects its R2
+        given(historyLibrary.runWrapsPhaseR3(
+                        any(),
+                        emptyMessage(),
+                        argThat(r1s -> r1s.length == 1 && Arrays.equals(r1s[0], OTHER_R1_MESSAGE.toByteArray())),
+                        argThat(r2s -> r2s.length == 1 && Arrays.equals(r2s[0], R2_MESSAGE.toByteArray())),
+                        argThat(key -> Arrays.equals(key, MESSAGE_CHECK_PRIVATE_KEY.toByteArray())),
+                        argThat(book -> isOnlySender(book, OTHER_NODE_ID)),
+                        eq(Set.of(OTHER_NODE_ID))))
+                .willReturn(null);
+
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, R2_MESSAGE, R2, EPOCH),
+                writableHistoryStore));
+        verify(writableHistoryStore).excludeFromWrapsSigning(CONSTRUCTION_ID, Set.of(OTHER_NODE_ID));
+    }
+
+    @Test
+    void ignoresMessagesFromNodesWithoutSourceWeight() {
+        // This node has a key in the source proof, but no source weight (e.g., it missed the hinTS key window)
+        proofKeys.put(THIRD_NODE_ID, Bytes.wrap("pk3"));
+
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(THIRD_NODE_ID, R1_MESSAGE, R1, EPOCH),
+                writableHistoryStore));
+
+        verifyNoInteractions(writableHistoryStore);
+        verify(historyLibrary, never()).runWrapsPhaseR2(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void doesNotSignWithAKeyOtherThanItsKeyInTheSourceProof() {
+        // For example, after this node lost its key file and created a new key
+        proofKeys.put(SELF_ID, Bytes.wrap("its-key-before"));
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                GRACE_PERIOD,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                delayer,
+                Runnable::run,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+
+        final var outcome = subject.advance(
+                EPOCH, constructionWithPhase(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID, true);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        verify(historyLibrary, never()).runWrapsPhaseR1(any(), any(), any());
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
+    void r1GracePeriodEndingWithoutAnyMessagesFailsRecoverably() {
+        final var outcome = subject.advance(
+                EPOCH.plusSeconds(10),
+                constructionWithPhase(R1, EPOCH.plusSeconds(5)),
+                TARGET_METADATA,
+                targetProofKeys,
+                tssConfig,
+                LEDGER_ID,
+                true);
+
+        final var failed = assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
+        assertEquals(WrapsHistoryProver.R1_TIMEOUT_FAILURE_PREFIX + "[]", failed.reason());
+        assertTrue(failed.missingNodeIds().isEmpty());
+        assertTrue(WrapsHistoryProver.isRecoverableFailure(failed.reason()));
+    }
+
+    private boolean isOnlySender(@NonNull final AddressBook book, final long nodeId) {
+        return Arrays.equals(book.nodeIds(), new long[] {nodeId})
+                && Arrays.equals(book.publicKeys()[0], proofKeys.get(nodeId).toByteArray());
+    }
+
+    @Test
+    void replayedMessagesAreNotCheckedAgain() {
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH));
+
+        // The replayed R1 was incorporated, so the same message arriving live is a duplicate
+        assertFalse(subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH),
+                writableHistoryStore));
+        verify(historyLibrary, never()).runWrapsPhaseR2(any(), any(), any(), any(), any(), any());
     }
 
     @Test

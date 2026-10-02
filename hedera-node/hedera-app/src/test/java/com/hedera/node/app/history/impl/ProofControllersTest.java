@@ -10,9 +10,12 @@ import static com.hedera.node.app.history.impl.ProofControllers.groundsChainOfTr
 import static com.hedera.node.app.history.impl.ProofControllers.groundsGenesisProof;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.hints.HintsScheme;
+import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.node.state.history.AggregatedNodeSignatures;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.History;
@@ -30,6 +33,10 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
@@ -159,6 +166,69 @@ class ProofControllersTest {
                 DEFAULT_CONFIG.getConfigData(TssConfig.class));
 
         assertInstanceOf(ProofControllerImpl.class, controller);
+    }
+
+    @Test
+    void replaysWrapsMessagesFromEverySourceNode() {
+        // The source roster signs, so a node the target roster drops still has messages to replay
+        final var sourceNodeIds = new TreeSet<>(List.of(1L, 2L, 3L));
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
+        given(weights.sourceNodesHaveTargetThreshold()).willReturn(true);
+        given(weights.sourceNodeIds()).willReturn(sourceNodeIds);
+        given(keyAccessor.getOrCreateSchnorrKeyPair(1L)).willReturn(MOCK_KEY_PAIR);
+        given(selfNodeInfoSupplier.get()).willReturn(selfNodeInfo);
+
+        subject.getOrCreateFor(
+                activeRosters,
+                ONE_CONSTRUCTION,
+                historyStore,
+                HintsConstruction.DEFAULT,
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class));
+
+        verify(historyStore).getWrapsMessagePublications(1L, sourceNodeIds);
+    }
+
+    @Test
+    void replacesControllerOnceTheActiveHintsConstructionHasAScheme() {
+        // At genesis the history construction can start before the hinTS scheme exists, using roster weights
+        given(activeRosters.transitionWeights(null)).willReturn(weights);
+        final var partyWeights = new TreeMap<>(Map.of(1L, 1L, 2L, 1L));
+        final var partyWeightedWeights = mock(RosterTransitionWeights.class);
+        given(activeRosters.transitionWeights(partyWeights)).willReturn(partyWeightedWeights);
+        final var hintsWithScheme = HintsConstruction.newBuilder()
+                .hintsScheme(HintsScheme.newBuilder()
+                        .nodePartyIds(new NodePartyId(1L, 0, 1L), new NodePartyId(2L, 1, 1L))
+                        .build())
+                .build();
+        final var tssConfig = DEFAULT_CONFIG.getConfigData(TssConfig.class);
+
+        final var first = subject.getOrCreateFor(
+                activeRosters,
+                ONE_CONSTRUCTION,
+                historyStore,
+                HintsConstruction.DEFAULT,
+                HistoryProofConstruction.DEFAULT,
+                tssConfig);
+        final var second = subject.getOrCreateFor(
+                activeRosters,
+                ONE_CONSTRUCTION,
+                historyStore,
+                hintsWithScheme,
+                HistoryProofConstruction.DEFAULT,
+                tssConfig);
+        final var third = subject.getOrCreateFor(
+                activeRosters,
+                ONE_CONSTRUCTION,
+                historyStore,
+                hintsWithScheme,
+                HistoryProofConstruction.DEFAULT,
+                tssConfig);
+
+        // A controller rebuilt from state would use the party weights, so the controller is replaced once
+        assertNotSame(first, second);
+        assertSame(second, third);
+        verify(activeRosters).transitionWeights(partyWeights);
     }
 
     @Test
