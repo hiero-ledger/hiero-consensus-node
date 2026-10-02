@@ -236,9 +236,10 @@ class VerifyBundleCallTest {
             // path verifier: both leaves verify against one block root and reach the branch together.
             // Without the messages.isEmpty() guard this would wrongly return manifestOnlySuccess.
             try (final var verifier = mockStatic(StateProofVerifier.class)) {
-                verifier.when(() -> StateProofVerifier.computeBlockRootHashFromPath(any()))
+                verifier.when(() -> StateProofVerifier.computeBlockRootHashFromPath(any(), any()))
                         .thenReturn(new byte[32]);
-                verifier.when(() -> StateProofVerifier.verifyPath(any(), any())).thenReturn(true);
+                verifier.when(() -> StateProofVerifier.verifyPath(any(), any(), any()))
+                        .thenReturn(true);
 
                 final var result = subject(
                                 multiLeafProof(manifestLeaf(manifest), keyedMessageLeaf(CHANNEL_ID, 1, message)))
@@ -460,9 +461,10 @@ class VerifyBundleCallTest {
 
         private PricedResult executeWithStubbedPathsForResult(@NonNull final Bytes... leaves) {
             try (var verifier = mockStatic(StateProofVerifier.class)) {
-                verifier.when(() -> StateProofVerifier.computeBlockRootHashFromPath(any()))
+                verifier.when(() -> StateProofVerifier.computeBlockRootHashFromPath(any(), any()))
                         .thenReturn(new byte[32]);
-                verifier.when(() -> StateProofVerifier.verifyPath(any(), any())).thenReturn(true);
+                verifier.when(() -> StateProofVerifier.verifyPath(any(), any(), any()))
+                        .thenReturn(true);
                 return new VerifyBundleCall(
                                 mockEnhancement(), gasCalculator, multiLeafProof(leaves), TRUST_ANCHOR, acceptingTss())
                         .execute(frame);
