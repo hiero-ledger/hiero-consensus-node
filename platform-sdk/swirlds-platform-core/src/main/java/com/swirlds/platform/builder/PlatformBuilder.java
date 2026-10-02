@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.builder;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -20,6 +22,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
+import java.util.OptionalLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
@@ -30,11 +33,14 @@ import org.hiero.consensus.ConsensusLayerFactory;
 import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.ConsensusLayerWiring;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.model.event.EventHashFactory;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
+import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
@@ -49,7 +55,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     /**
      * A record representing the persistence scope, which includes the application name and swirld name.
      *
-     * @param appName the name of the application
+     * @param appName    the name of the application
      * @param swirldName the name of the swirld
      */
     public record PersistenceScope(
@@ -118,22 +124,28 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     /**
      * Constructs a PlatformBuilder instance with the specified configuration and components.
      *
-     * @param configuration The configuration settings for the platform.
-     * @param metrics The metrics system for monitoring and reporting platform performance.
-     * @param time The time source for the platform, used for timestamping events and transactions.
-     * @param rosterInputs The roster inputs provided by the application to use at startup.
-     * @param keysAndCerts The cryptographic keys and certificates for the node, used for signing and verifying messages.
-     * @param selfId The unique identifier of the node within the network.
-     * @param recycleBin The recycle bin, which stores deleted files before they are permanently deleted.
-     * @param fileSystemManager The file system manager responsible for handling file operations.
-     * @param executionLayer The execution layer called for application-specific processing.
+     * @param configuration              The configuration settings for the platform.
+     * @param metrics                    The metrics system for monitoring and reporting platform performance.
+     * @param time                       The time source for the platform, used for timestamping events and
+     *                                   transactions.
+     * @param rosterInputs               The roster inputs provided by the application to use at startup.
+     * @param keysAndCerts               The cryptographic keys and certificates for the node, used for signing and
+     *                                   verifying messages.
+     * @param selfId                     The unique identifier of the node within the network.
+     * @param recycleBin                 The recycle bin, which stores deleted files before they are permanently
+     *                                   deleted.
+     * @param fileSystemManager          The file system manager responsible for handling file operations.
+     * @param executionLayer             The execution layer called for application-specific processing.
      * @param consensusStateEventHandler The handler for processing consensus-related events.
-     * @param initialState The initial state supplied by the application.
-     * @param stateLifecycleManager The lifecycle manager for managing the state lifecycle.
-     * @param softwareVersion The software version of the application.
-     * @param persistenceScope The application name and swirld name for determining where to store states on disk.
-     * @param consensusEventStreamName A part of the name of the directory where the consensus event stream is written.
-     * @param transactionOffsetNanos The nanosecond offset added to the first transaction's timestamp in each event.
+     * @param initialState               The initial state supplied by the application.
+     * @param stateLifecycleManager      The lifecycle manager for managing the state lifecycle.
+     * @param softwareVersion            The software version of the application.
+     * @param persistenceScope           The application name and swirld name for determining where to store states on
+     *                                   disk.
+     * @param consensusEventStreamName   A part of the name of the directory where the consensus event stream is
+     *                                   written.
+     * @param transactionOffsetNanos     The nanosecond offset added to the first transaction's timestamp in each
+     *                                   event.
      */
     public PlatformBuilder(
             @NonNull final Configuration configuration,
@@ -174,8 +186,6 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         this.consensusEventStreamName = requireNonNull(consensusEventStreamName);
         this.transactionOffsetNanos = transactionOffsetNanos;
 
-        EventHashFactory.initialize(Long.MAX_VALUE);
-
         logger.info(STARTUP.getMarker(), "Starting with roster inputs:\n{}", rosterInputs);
     }
 
@@ -188,14 +198,25 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     public Platform build() {
         throwIfAlreadyUsed();
         used = true;
+
+        final SignedState initialSignedState = initialState.get();
+        final boolean startedFromGenesis = initialSignedState.isGenesisState();
+        final boolean isUpgrade = !startedFromGenesis
+                && SEMANTIC_VERSION_COMPARATOR.compare(
+                                PlatformStateUtils.creationSemanticVersionOf(initialSignedState.getState()),
+                                softwareVersion)
+                        != 0;
+
+        // The event hash factory must be initialized before the consensus layer is created, because creating the
+        // consensus layer reads events from the PCES files.
+        final OptionalLong eventCutoverUpdate =
+                initializeEventHashFactory(initialSignedState.getState(), startedFromGenesis, isUpgrade);
+
         final ConsensusLayerInputs inputs = createConsensusLayerInputs();
         final ConsensusLayerFactory factory = new ConsensusLayerFactory(inputs);
         buildingBlocks = factory.create();
 
         ConsensusLayerWiring.wire(inputs, buildingBlocks);
-
-        final SignedState initialSignedState = initialState.get();
-        final boolean startedFromGenesis = initialSignedState.isGenesisState();
 
         final SwirldsPlatform platform;
         if (startedFromGenesis) {
@@ -208,6 +229,11 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
 
         InitialStateLoader.initializeModulesWithInitialState(platform, inputs, buildingBlocks);
 
+        // InitialStateLoader has moved the state lifecycle manager to a mutable copy of the initial state, so the
+        // event cutover value can be recorded without modifying the state that was loaded.
+        eventCutoverUpdate.ifPresent(eventCutoverMinBirthRound -> PlatformStateUtils.updateEventCutoverMinBirthRound(
+                stateLifecycleManager.getMutableState(), eventCutoverMinBirthRound));
+
         // Future work - capture the reconnect module, add a start() method to it, and call it later
         final boolean reconnectActive =
                 configuration.getConfigData(ReconnectConfig.class).active();
@@ -219,6 +245,61 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         initialState.close();
 
         return platform;
+    }
+
+    /**
+     * Initializes the {@link EventHashFactory} from the initial state and the configuration, and determines whether
+     * the event cutover value in state must change. The value in state only changes when starting from genesis or
+     * after an upgrade.
+     *
+     * @param initialState the state the node is starting from
+     * @param isGenesis    true if the node is starting from genesis
+     * @param isUpgrade    true if the node is starting after an upgrade
+     * @return the event cutover value to record in state, or empty if the value in state must not change here
+     */
+    @NonNull
+    private OptionalLong initializeEventHashFactory(
+            @NonNull final VirtualMapState initialState, final boolean isGenesis, final boolean isUpgrade) {
+        final boolean eventCutoverActive =
+                configuration.getConfigData(EventConfig.class).enableEventCutover();
+        final long eventCutoverMinBirthRound = PlatformStateUtils.eventCutoverMinBirthRoundOf(initialState);
+
+        if (!isGenesis && !isUpgrade) {
+            // Restarting the same version. Use the value in state, which can only change at genesis or an upgrade.
+            EventHashFactory.initialize(eventCutoverMinBirthRound > 0 ? eventCutoverMinBirthRound : Long.MAX_VALUE);
+            return OptionalLong.empty();
+        }
+
+        if (eventCutoverActive) {
+            if (isGenesis) {
+                // Every event is post cutover. The genesis state must stay empty until changes can be externalized,
+                // so DefaultTransactionHandler records this value in state when it handles the first round.
+                EventHashFactory.initialize(ConsensusConstants.ROUND_FIRST);
+                return OptionalLong.empty();
+            }
+            if (eventCutoverMinBirthRound <= 0) {
+                // It's time to do the cutover now. Update the value in state to the first birth round post cutover.
+                // The initial state is a freeze state.
+                final long cutoverBirthRound = roundOf(initialState) + 1;
+                EventHashFactory.initialize(cutoverBirthRound);
+                return OptionalLong.of(cutoverBirthRound);
+            }
+            // The cutover has already happened and the flag has not been reset. Initialize the
+            // EventHashFactory with the value in state so that it uses the correct hash type for events.
+            EventHashFactory.initialize(eventCutoverMinBirthRound);
+            return OptionalLong.empty();
+        }
+
+        if (eventCutoverMinBirthRound > 0) {
+            // The cutover has already happened, but the config says it is not active. Time to reset the value in state
+            // to 0. By now every non-ancient event is SHA-256.
+            EventHashFactory.initialize(0);
+            return OptionalLong.of(0);
+        }
+
+        // The cutover is not active and has not happened.
+        EventHashFactory.initialize(Long.MAX_VALUE);
+        return OptionalLong.empty();
     }
 
     /**
@@ -258,8 +339,8 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     }
 
     /**
-     * Creates and returns an instance of {@link ConsensusLayerInputs} configured with the necessary
-     * dependencies and settings required for initializing the consensus layer of the platform.
+     * Creates and returns an instance of {@link ConsensusLayerInputs} configured with the necessary dependencies and
+     * settings required for initializing the consensus layer of the platform.
      *
      * @return a fully-constructed {@link ConsensusLayerInputs} instance
      */
