@@ -100,13 +100,6 @@ public final class ClprRuntimeFacade implements ClprRuntime, ClprChannelLifecycl
     }
 
     @Override
-    public void handleSync(@NonNull final Bytes requestBytes, @NonNull final BufferedData responseBuffer) {
-        requireNonNull(requestBytes);
-        requireNonNull(responseBuffer);
-        syncWorkflow().handleSync(requestBytes, responseBuffer);
-    }
-
-    @Override
     public void handleDiscovery(@NonNull final Bytes requestBytes, @NonNull final BufferedData responseBuffer) {
         requireNonNull(requestBytes);
         requireNonNull(responseBuffer);

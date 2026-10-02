@@ -140,6 +140,21 @@ public final class ExpectedCustomThrottles {
             ClprRegisterConnector,
             ClprDeregisterConnector));
 
+    /**
+     * The CLPR operations in {@link #ACTIVE_OPS}, which throttle definitions are only expected to customize
+     * while CLPR is enabled.
+     */
+    public static final Set<HederaFunctionality> CLPR_OPS = Collections.unmodifiableSet(EnumSet.of(
+            ClprUpdateLedgerConfiguration,
+            ClprRegisterChannel,
+            ClprCompleteChannel,
+            ClprCloseChannel,
+            ClprGetLedgerConfiguration,
+            ClprSubmitBundle,
+            ClprRedactMessage,
+            ClprRegisterConnector,
+            ClprDeregisterConnector));
+
     private ExpectedCustomThrottles() {
         throw new UnsupportedOperationException("Utility Class");
     }

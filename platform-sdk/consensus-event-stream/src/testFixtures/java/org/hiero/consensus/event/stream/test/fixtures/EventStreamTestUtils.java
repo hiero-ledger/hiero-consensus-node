@@ -204,7 +204,7 @@ public final class EventStreamTestUtils {
                         signer,
                         false,
                         EventStreamType.getInstance()));
-        stream.setRunningHash(new Hash(new byte[DigestType.SHA_384.digestLength()]));
+        stream.setRunningHash(new Hash(new byte[DigestType.SHA_384.digestLength()], DigestType.SHA_384));
         rounds.stream().flatMap(r -> r.getStreamedEvents().stream()).forEach(stream::addObject);
         stream.close();
     }

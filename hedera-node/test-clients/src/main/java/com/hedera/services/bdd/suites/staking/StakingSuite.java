@@ -413,7 +413,7 @@ public class StakingSuite {
                                 .logged()
                                 .andAllChildRecords()
                                 .hasPaidStakingRewards(List.of(Pair.of(PAYABLE_CONTRACT, 333333300L))),
-                        contractUpdate(PAYABLE_CONTRACT).newStakedNodeId(111L).hasPrecheck(INVALID_STAKING_ID),
+                        contractUpdate(PAYABLE_CONTRACT).newStakedNodeId(111L).hasKnownStatus(INVALID_STAKING_ID),
                         // Same period should not trigger reward for the contract again, only for Alice
                         // whose stakedToMe has now changed
                         contractUpdate(PAYABLE_CONTRACT)
