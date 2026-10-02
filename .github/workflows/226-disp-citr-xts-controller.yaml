@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "226: [DISP] CITR XTS Controller"
+# 900 matches on the candidate in the run name to avoid dispatching a commit that already has a run.
+run-name: "226: [DISP] CITR XTS Controller (${{ inputs.ref }})"
 on:
   workflow_dispatch:
     inputs:
@@ -425,13 +427,10 @@ jobs:
             "branch-name": "${{ needs.fetch-xts-candidate.outputs.xts-commit-branch }}"
             }'
 
-  # Temporary and secondary: Chewie's report (report-xts-result) is the source of record. This tag is
-  # kept until Chewie's promotion has run in production for a while; when this job is removed, drop
-  # its TAG_FOR_PROMOTION_RESULT payload fields and `needs` entries in report-success/failure.
+  # Required: 901 promotes the newest xts-pass tag, and 900 skips commits that already carry one.
   tag-for-promotion:
     name: Tag as XTS-Passing
     runs-on: hl-cn-default-lin-sm
-    continue-on-error: true # optional: Chewie's suite report (864) is the source of record
     needs:
       - fetch-xts-candidate
       - xts-execution
@@ -473,7 +472,8 @@ jobs:
       - xts-execution
       - tag-for-promotion
     if: ${{ (needs.fetch-xts-candidate.result == 'success' &&
-      needs.xts-execution.result == 'success') &&
+      needs.xts-execution.result == 'success' &&
+      needs.tag-for-promotion.result == 'success') &&
       !cancelled() }}
     steps:
       - name: Initialize GitHub Job
@@ -515,7 +515,8 @@ jobs:
       - xts-execution
       - tag-for-promotion
     if: ${{ !( needs.fetch-xts-candidate.result == 'success' &&
-      needs.xts-execution.result == 'success') && always() }}
+      needs.xts-execution.result == 'success' &&
+      needs.tag-for-promotion.result == 'success') && always() }}
 
     steps:
       - name: Initialize GitHub Job

@@ -1,21 +1,108 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: 900: [CRON] CITR Ext Test Suite"
+name: "900: [CRON] CITR Ext Test Suite"
+# Scheduled trigger for XTS, to be deprecated when Chewie owns workflow dispatching. Picks the commit
+# tagged xts-candidate (set by 302 after each deploy) and dispatches 226, which runs XTS and reports
+# the result to Chewie. Disable it if Chewie dispatches 226 first, or XTS runs twice per candidate.
 on:
   workflow_dispatch:
+  schedule:
+    # Every three hours
+    - cron: "0 */3 * * *"
+
+permissions:
+  contents: read
+  actions: read
 
 defaults:
   run:
     shell: bash
 
-permissions:
-  contents: read
+env:
+  XTS_CANDIDATE_TAG: "xts-candidate"
+  XTS_PASS_GREP_PATTERN: "xts-pass-*"
+  PROMOTED_GREP_PATTERN: "build-.{5}"
 
 jobs:
-  print-deprecated:
-    name: Print Deprecated Warning
-    runs-on: hl-cn-default-lin-sm
+  prime-workflow:
+    name: Prime workflow
+    runs-on: hl-cn-default-lin-ss
     steps:
-      - name: Print Deprecation Warning
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Schedule Run
         run: |
-          echo "::warning::This workflow is deprecated and will be removed in a future release."
-          exit 1
+          echo "Picking up scheduled run at $(date -u +'%Y-%m-%d %H:%M:%S') UTC"
+
+  select-xts-candidate:
+    name: Select XTS Candidate
+    runs-on: hl-cn-default-lin-sm
+    outputs:
+      dispatch: ${{ steps.select.outputs.dispatch }}
+      commit: ${{ steps.select.outputs.commit }}
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "main"
+          checkout-fetch-depth: "0"
+          checkout-token: "${{ secrets.GH_ACCESS_TOKEN }}"
+
+      - name: Select Candidate
+        id: select
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          skip() {
+            echo "dispatch=false" >> "${GITHUB_OUTPUT}"
+            { echo "### No XTS Dispatched"; echo "${1}"; } >> "${GITHUB_STEP_SUMMARY}"
+            echo "${1}"
+            exit 0
+          }
+
+          XTS_COMMIT="$(git rev-list -n 1 "${XTS_CANDIDATE_TAG}" 2>/dev/null)" \
+            || skip "Tag \`${XTS_CANDIDATE_TAG}\` was not found."
+
+          # Already passed XTS, or already part of a build (on this commit or a descendant).
+          if [[ -n "$(git tag --contains "${XTS_COMMIT}" | grep -E "${XTS_PASS_GREP_PATTERN}|${PROMOTED_GREP_PATTERN}" || true)" ]]; then
+            skip "Commit \`${XTS_COMMIT}\` has already passed XTS or is part of a build."
+          fi
+
+          git merge-base --is-ancestor "${XTS_COMMIT}" origin/main \
+            || skip "Commit \`${XTS_COMMIT}\` is not on main."
+
+          # 226 queues a second run for the same commit rather than rejecting it, and the queued run would
+          # repeat XTS once the first one passed, so skip a commit that already has a run under way.
+          ACTIVE="$(gh run list --repo "${GITHUB_REPOSITORY}" --workflow 226-disp-citr-xts-controller.yaml \
+            --limit 50 --json displayTitle,status \
+            --jq "[.[] | select(.status != \"completed\" and (.displayTitle | contains(\"${XTS_COMMIT}\")))] | length")"
+          if [[ "${ACTIVE}" -ne 0 ]]; then
+            skip "A 226 run for \`${XTS_COMMIT}\` is already queued or in progress."
+          fi
+
+          echo "dispatch=true" >> "${GITHUB_OUTPUT}"
+          echo "commit=${XTS_COMMIT}" >> "${GITHUB_OUTPUT}"
+          { echo "### XTS Candidate"; echo "Dispatching 226 for \`${XTS_COMMIT}\`."; } >> "${GITHUB_STEP_SUMMARY}"
+
+  dispatch-xts-controller:
+    name: Dispatch XTS Controller
+    runs-on: hl-cn-default-lin-sm
+    needs: select-xts-candidate
+    if: ${{ needs.select-xts-candidate.outputs.dispatch == 'true' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: "Trigger 226: [DISP] CITR XTS Controller"
+        uses: step-security/workflow-dispatch@024752877e2bfa07299ee4204cc5f7e7c14ff930 # v1.3.21
+        with:
+          workflow: .github/workflows/226-disp-citr-xts-controller.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: main # 226 runs from main and takes the candidate commit as its input
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{ "ref": "${{ needs.select-xts-candidate.outputs.commit }}" }'

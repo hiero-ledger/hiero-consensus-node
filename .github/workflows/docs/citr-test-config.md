@@ -87,8 +87,10 @@ catching regressions without being unnecessarily long-running.
 
 ### Workflows
 
-- XTS is triggered by the [900: [CRON] CITR Ext Test Suite](/.github/workflows/900-cron-extended-test-suite.yaml)
-  workflow.
+- XTS runs in [226: [DISP] CITR XTS Controller](/.github/workflows/226-disp-citr-xts-controller.yaml), which reports
+  the result to Chewie. Every three hours
+  [900: [CRON] CITR Ext Test Suite](/.github/workflows/900-cron-extended-test-suite.yaml) dispatches it for the
+  `xts-candidate` commit; `900` is to be deprecated when Chewie owns workflow dispatching.
 - XTS Dry Run is triggered manually via
   the [001: [USER] CITR XTS Dry Run](/.github/workflows/001-user-dry-run-extended-test-suite.yaml) workflow.
 

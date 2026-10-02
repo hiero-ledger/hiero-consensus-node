@@ -17,7 +17,7 @@
 | 104-user-wraps-smoke-test.yaml                      | 104: [USER] WRAPS Runner Smoke Test         | N/A                                                   | N/A                                                               |
 | 105-user-publish-wraps-key.yaml                     | 105: [USER] Publish Wraps Proving Key Image | N/A                                                   | N/A                                                               |
 | 106-disp-xts-optional-tests.yaml                    | 106: [DISP] XTS Optional Tests              | N/A                                                   | N/A                                                               |
-| 107-disp-clean-citr-namespaces.yaml                 | 107: [DISP] Clean CITR Namespaces           | 903-cron-clean.yaml                                   | 903: [CRON] Clean Latitude NS                                     |
+| 107-disp-clean-citr-namespaces.yaml                 | 107: [DISP] Clean CITR Namespaces           |                                                       |                                                                   |
 |                                                     |                                             |                                                       |                                                                   |
 | # CITR (200-299)                                    |                                             |                                                       |                                                                   |
 | 201-user-sdpt-controller-adhoc.yaml                 | 201: [USER] CITR SDPT Ctrl Adhoc            | zxf-single-day-performance-test-controller-adhoc.yaml | ZXF: [CITR] Adhoc - Single Day Performance Test Controller (SDPT) |
@@ -37,6 +37,7 @@
 | # TRIGGERED (300-399)                               |                                             |                                                       |                                                                   |
 | 300-flow-build-application.yaml                     | 300: [FLOW] Build Application               | node-flow-build-application.yaml                      | Node: Build Application                                           |
 | 301-flow-deploy-release-artifact.yaml               | 301: [FLOW] Deploy Prod Release             | node-flow-deploy-release-artifact.yaml                | ZXF: Deploy Production Release                                    |
+| 302-disp-prepare-extended-test-suite.yaml           | 302: [DISP] CITR Prepare XTS                | zxf-prepare-extended-test-suite.yaml                  | ZXF: [CITR] Prepare Extended Test Suite                           |
 | 303-disp-deploy-integration.yaml                    | 303: [DISP] Deploy Integration              | node-zxf-deploy-integration.yaml                      | ZXF: [Node] Deploy Integration Network Release                    |
 | 304-flow-publish-yahcli-image.yaml                  | 304: [FLOW] Publish Yahcli Image            | zxf-publish-yahcli-image.yaml                         | ZXC: Publish Yahcli Image                                         |
 | 305-flow-generate-release-notes.yaml                | 305: [FLOW] Generate Rel Notes              | flow-generate-release-notes.yaml                      | Generate Release Notes                                            |
@@ -111,6 +112,11 @@
 | 864-call-report-suite-result.yaml                   | 864: [CALL] Report Suite Result             |                                                       |                                                                   |
 |                                                     |                                             |                                                       |                                                                   |
 | # CRON (900-999)                                    |                                             |                                                       |                                                                   |
+| 900-cron-extended-test-suite.yaml                   | 900: [CRON] CITR Ext Test Suite             | zxcron-extended-test-suite.yaml                       | ZXCron: [CITR] Extended Test Suite                                |
+| 901-cron-promote-build-candidate.yaml               | 901: [CRON] CITR Promote Build              | zxcron-promote-build-candidate.yaml                   | ZXCron: [CITR] Promote Build Candidate                            |
+| 902-cron-auto-namespace-delete.yaml                 | 902: [CRON] Auto Namespace Delete           | zxcron-auto-namespaces-delete.yaml                    | Delete automation Latitude Namespaces                             |
+| 903-cron-clean.yaml                                 | 903: [CRON] Clean Latitude NS               | zxcron-clean.yaml                                     | CronClean Latitude Namespaces                                     |
+| 904-cron-release-branching.yaml                     | 904: [CRON] Release Branching               | node-zxcron-release-branching.yaml                    | ZXCron: Automatic Release Branching                               |
 
 ## Numbering conventions
 

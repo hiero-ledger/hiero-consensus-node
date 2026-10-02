@@ -1,21 +1,42 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "Deprecated: 903: [CRON] Clean Latitude NS"
+name: "903: [CRON] Clean Latitude NS"
+# Hourly trigger for 107, to be deprecated when Chewie owns workflow dispatching. 107 prunes stream
+# files and MinIO objects in every CITR namespace.
 on:
+  schedule:
+    - cron: "0 * * * *"
   workflow_dispatch:
-
-defaults:
-  run:
-    shell: bash
 
 permissions:
   contents: read
 
 jobs:
-  print-deprecated:
-    name: Print Deprecated Warning
+  prime-workflow:
+    name: Prime workflow
+    runs-on: hl-cn-default-lin-ss
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Schedule Run
+        run: |
+          echo "Picking up scheduled run at $(date -u +'%Y-%m-%d %H:%M:%S') UTC"
+
+  dispatch-clean-namespaces:
+    name: Dispatch Clean CITR Namespaces
     runs-on: hl-cn-default-lin-sm
     steps:
-      - name: Print Deprecation Warning
-        run: |
-          echo "::warning::This workflow is deprecated and will be removed in a future release."
-          exit 1
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: "Trigger 107: [DISP] Clean CITR Namespaces"
+        uses: step-security/workflow-dispatch@024752877e2bfa07299ee4204cc5f7e7c14ff930 # v1.3.21
+        with:
+          workflow: .github/workflows/107-disp-clean-citr-namespaces.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: main
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
