@@ -22,8 +22,10 @@ import java.util.stream.Stream;
 import org.hiero.base.crypto.KeyGeneratingException;
 import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.event.creator.config.EventCreationConfig_;
+import org.hiero.consensus.event.stream.config.EventConfig_;
 import org.hiero.consensus.fakes.crypto.DetRandomProvider;
 import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.state.saved.SavedStateMetadata;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -80,6 +82,7 @@ public class StartFromStateTest {
                 .haveEqualCommonRounds()
                 .haveConsistentRounds();
         assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
+
 
         network.start();
 
@@ -149,5 +152,59 @@ public class StartFromStateTest {
                 .waitForCondition(
                         () -> network.newConsensusResults().allNodesAdvancedToRound(savedStateRound + 20),
                         Duration.ofSeconds(120L));
+    }
+
+    @OtterTest
+    @OtterSpecs(randomNodeIds = false)
+    void eventCutoverHappyPath(@NonNull final TestEnvironment env) {
+        final Network network = env.network();
+        final TimeManager timeManager = env.timeManager();
+        final SemanticVersion currentVersion = OtterSavedStateUtils.fetchApplicationVersion();
+
+        // Setup simulation
+        network.addNodes(4);
+        // The increase in event creation rate is to fix a past issue.
+        // This test encountered a coin round, it took many voting rounds to reach consensus. Because the checking
+        // status gets activated if an event does not reach consensus within a certain amount of time, the test would
+        // fail. By increasing the event creation rate, we can ensure that the network can create enough events to reach
+        // consensus in a timely manner.
+        network.withConfigValue(EventCreationConfig_.MAX_CREATION_RATE, 40);
+        network.savedStateDirectory(Path.of("previous-version-state"));
+        network.version(
+                currentVersion.copyBuilder().minor(currentVersion.minor()).build());
+
+        // Enable the event cutover feature for this test.
+        network.withConfigValue(EventConfig_.ENABLE_EVENT_CUTOVER, true);
+
+        // Initialize the EventHashFactory on the local JVM so that events sent back in consensus
+        // rounds for assertions are hashed correctly. The state this test starts from is round 32.
+        EventHashFactory.initialize(33);
+
+        // Setup continuous assertions
+        assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
+        assertContinuouslyThat(network.newConsensusResults())
+                .haveEqualCommonRounds()
+                .haveConsistentRounds();
+        assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
+
+        network.start();
+
+        final long highestRound = network.newConsensusResults().results().stream()
+                .map(SingleNodeConsensusResult::lastRoundNum)
+                .max(Long::compareTo)
+                .orElseThrow();
+
+        // Wait for 30 seconds
+        timeManager.waitFor(Duration.ofSeconds(30L));
+
+        // Validations
+        assertThat(network.newLogResults()).allNodesHaveMessageContaining(OtterApp.UPGRADE_DETECTED_LOG_PAYLOAD);
+        // Verify that all nodes progress at least 15 rounds
+        assertThat(network.newConsensusResults().allNodesAdvancedToRound(highestRound + 15))
+                .isTrue();
+        assertThat(network.newPlatformStatusResults())
+                .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
+
+        assertThat(network.newEventStreamResults()).haveEqualFiles();
     }
 }

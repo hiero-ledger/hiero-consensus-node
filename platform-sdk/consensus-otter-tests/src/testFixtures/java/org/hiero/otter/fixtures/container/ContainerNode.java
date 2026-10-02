@@ -181,7 +181,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
         this.nodeConfiguration =
                 new ContainerNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
-        EventHashFactory.initialize(Long.MAX_VALUE);
+//        EventHashFactory.initialize(Long.MAX_VALUE);
         this.random = new SecureRandom();
         this.gcLoggingEnabled = gcLoggingEnabled;
         this.jvmArgs = List.copyOf(requireNonNull(jvmArgs, "jvmArgs must not be null"));
