@@ -4,6 +4,7 @@ package com.hedera.node.app.records.impl;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.BDDMockito.given;
 
@@ -13,6 +14,7 @@ import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
@@ -142,7 +144,8 @@ class BlockStreamInfoImplTest {
         final var trailing = concat(hash(1), hash(2));
         final var blockStreamInfo = info(3L, trailing);
         final var subject = new BlockStreamInfoImpl(blockStreamInfo);
-        final var reconstructedLast = BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo);
+        final var reconstructedLast =
+                BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo, CommonUtils::sha384DigestOrThrow);
 
         assertEquals(reconstructedLast, subject.blockHashByBlockNumber(3L), "last block hash is reconstructed");
         assertEquals(hash(2), subject.blockHashByBlockNumber(2L), "previous block comes from trailing hashes");
@@ -156,7 +159,8 @@ class BlockStreamInfoImplTest {
         // blockNumber = 0: no prior trailing hashes; block 0's hash is reconstructed from genesis.
         final var blockStreamInfo = info(0L, Bytes.EMPTY);
         final var subject = new BlockStreamInfoImpl(blockStreamInfo);
-        final var reconstructedLast = BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo);
+        final var reconstructedLast =
+                BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo, CommonUtils::sha384DigestOrThrow);
 
         assertEquals(reconstructedLast, subject.blockHashByBlockNumber(0L));
         assertNull(subject.blockHashByBlockNumber(1L));
@@ -171,13 +175,29 @@ class BlockStreamInfoImplTest {
     }
 
     @Test
+    void blockHashByBlockNumberLengthFollowsUseSha256() {
+        // At blockNumber == 0 the single resolvable hash is the reconstructed last-block hash, whose digest
+        // algorithm (and therefore byte length) is selected by useSha256: 48 bytes for SHA-384, 32 for SHA-256.
+        final var blockStreamInfo = info(0L, Bytes.EMPTY);
+        final var sha384 = new BlockStreamInfoImpl(blockStreamInfo, false);
+        final var sha256 = new BlockStreamInfoImpl(blockStreamInfo, true);
+
+        assertEquals(48, (int) sha384.blockHashByBlockNumber(0L).length(), "SHA-384 block hash is 48 bytes");
+        assertEquals(32, (int) sha256.blockHashByBlockNumber(0L).length(), "SHA-256 block hash is 32 bytes");
+        assertNotEquals(
+                sha384.blockHashByBlockNumber(0L),
+                sha256.blockHashByBlockNumber(0L),
+                "flipping useSha256 changes the reconstructed block hash");
+    }
+
+    @Test
     void fromStateReadsBlockStreamInfoSingleton() {
         given(state.getReadableStates(BlockStreamService.NAME)).willReturn(readableStates);
         given(readableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID))
                 .willReturn(singletonState);
         given(singletonState.get()).willReturn(info(10L, hash(1)));
 
-        final var subject = BlockStreamInfoImpl.from(state);
+        final var subject = BlockStreamInfoImpl.from(state, false);
 
         assertEquals(11L, subject.blockNo());
         assertEquals(BLOCK_TIME, subject.blockTimestamp());
@@ -204,7 +224,8 @@ class BlockStreamInfoImplTest {
         final var trailing = concat(hash(1), hash(2));
         final var blockStreamInfo = info(3L, trailing);
         final var blocks = new BlockStreamInfoImpl(blockStreamInfo);
-        final var lastBlockHash = BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo);
+        final var lastBlockHash =
+                BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo, CommonUtils::sha384DigestOrThrow);
 
         // Equivalent records-mode view: lastBlockNumber = 3 and blockHashes include block 3's hash directly.
         final var records = new BlockRecordInfoImpl(

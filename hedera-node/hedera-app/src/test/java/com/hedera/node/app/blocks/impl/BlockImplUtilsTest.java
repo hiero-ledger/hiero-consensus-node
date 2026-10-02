@@ -287,4 +287,34 @@ class BlockImplUtilsTest {
         // Only equality check needed, as previous checks already guarantee the no prefix case is different
         assertEquals(actualInternalNodePrefix, actualInternalMixedPrefix);
     }
+
+    @Test
+    void blockHashByBlockNumberSliceLengthFollowsHashSize() {
+        // Three consecutive block hashes, laid out back-to-back. The caller selects the per-hash stride via
+        // hashSize: 48 bytes for SHA-384 (the useSha256=false path) or 32 bytes for SHA-256 (useSha256=true).
+        // This is the mechanism BlockStreamInfoImpl relies on to honor the useSha256 flag.
+        final long lastBlockNo = 5L;
+        final long requestedBlockNo = 4L; // the middle of the three available hashes
+
+        final byte[] sha384Bytes = new byte[48 * 3];
+        for (int i = 0; i < sha384Bytes.length; i++) {
+            sha384Bytes[i] = (byte) i;
+        }
+        final var sha384Slice =
+                BlockImplUtils.blockHashByBlockNumber(Bytes.wrap(sha384Bytes), lastBlockNo, requestedBlockNo, 48);
+        assertNotNull(sha384Slice);
+        assertEquals(48L, sha384Slice.length());
+
+        final byte[] sha256Bytes = new byte[32 * 3];
+        for (int i = 0; i < sha256Bytes.length; i++) {
+            sha256Bytes[i] = (byte) i;
+        }
+        final var sha256Slice =
+                BlockImplUtils.blockHashByBlockNumber(Bytes.wrap(sha256Bytes), lastBlockNo, requestedBlockNo, 32);
+        assertNotNull(sha256Slice);
+        assertEquals(32L, sha256Slice.length());
+
+        // The middle slice starts at a different offset under each stride (48 vs 32), so the bytes differ too.
+        assertNotEquals(sha384Slice, sha256Slice);
+    }
 }

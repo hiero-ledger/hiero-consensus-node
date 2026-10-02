@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_BLOCK_STREAM_INFO;
+import static com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_256;
 import static com.hedera.hapi.node.base.BlockHashAlgorithm.SHA2_384;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
@@ -34,6 +35,7 @@ import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.SingletonUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.base.BlockHashAlgorithm;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
@@ -382,7 +384,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             this.previousBlockHashes.addNodeByHash(
                     lastBlockInfoEver.previousWrappedRecordBlockRootHash().toByteArray());
             previousBlockHashesUpdated = true;
-        } else if (Objects.equals(HASH_OF_ZERO, lastBlockHash)) {
+        } else if (Objects.equals(HASH_OF_ZERO_384, lastBlockHash)) {
             // Genesis case
             effectiveLastBlockHash = lastBlockHash;
             this.previousBlockHashes = new IncrementalStreamingHasher(digestOrThrow(), new ArrayList<>(), 0);
@@ -405,27 +407,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             effectiveLastBlockHash = reconstructLastBlockHash(blockStreamInfo, this::digestOrThrow);
         }
         this.lastBlockHash = effectiveLastBlockHash;
-        if (!previousBlockHashesUpdated && !Objects.equals(effectiveLastBlockHash, HASH_OF_ZERO)) {
+        if (!previousBlockHashesUpdated && !Objects.equals(effectiveLastBlockHash, HASH_OF_ZERO_384)) {
             previousBlockHashes.addNodeByHash(effectiveLastBlockHash.toByteArray());
         }
-    }
-
-    /**
-     * Reconstructs the block root hash of the last completed block (block {@code blockStreamInfo.blockNumber()})
-     * from the given {@link BlockStreamInfo} singleton.
-     *
-     * <p>A block's own hash is never stored in its own committed state — the hash commits over the state change
-     * that writes this very singleton — so it must be re-derived from the persisted subtree roots. This is the
-     * same derivation {@link #init} performs on startup; it is shared here so the query path
-     * ({@code BlockStreamInfoImpl}) can resolve {@code blockhash(block.number - 1)} for the most recent block
-     * exactly as {@code BlockRecordInfoImpl} does, since {@link BlockStreamInfo#trailingBlockHashes()} only
-     * covers blocks up to {@code blockNumber - 1}.
-     *
-     * @param blockStreamInfo the block stream info singleton
-     * @return the block root hash of {@code blockStreamInfo.blockNumber()}, or {@link #HASH_OF_ZERO} if no block has completed
-     */
-    public static Bytes reconstructLastBlockHash(@NonNull final BlockStreamInfo blockStreamInfo) {
-        return reconstructLastBlockHash(blockStreamInfo, CommonUtils::sha384DigestOrThrow);
     }
 
     public static Bytes reconstructLastBlockHash(
@@ -433,11 +417,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         requireNonNull(blockStreamInfo);
         requireNonNull(digestFactory);
         if (blockStreamInfo.blockNumber() < 0L) {
-            return HASH_OF_ZERO;
+            return HASH_OF_ZERO_384;
         }
         final int hashSize = digestFactory.get().getDigestLength();
         final var prevBlockHash = blockStreamInfo.blockNumber() == 0L
-                ? HASH_OF_ZERO
+                ? HASH_OF_ZERO_384
                 : BlockImplUtils.blockHashByBlockNumber(
                         blockStreamInfo.trailingBlockHashes(),
                         blockStreamInfo.blockNumber() - 1,
@@ -526,7 +510,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             writer = writerSupplier.get();
             blockTimestamp = asTimestamp(firstConsensusTimestampOf(round));
 
-            final var blockStreamInfo = blockStreamInfoFrom(state, HASH_OF_ZERO.equals(lastBlockHash));
+            final var blockStreamInfo = blockStreamInfoFrom(state, HASH_OF_ZERO_384.equals(lastBlockHash));
             lastUsedTime = blockStreamInfo.blockEndTimeOrElse(Timestamp.DEFAULT);
             pendingWork = classifyPendingWork(blockStreamInfo, version);
             lastTopLevelTime = asInstant(blockStreamInfo.lastHandleTimeOrElse(EPOCH));
@@ -558,7 +542,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             worker = new BlockStreamManagerTask();
             final var header = BlockHeader.newBuilder()
                     .number(blockNumber)
-                    .hashAlgorithm(SHA2_384)
+                    .hashAlgorithm(blockHashAlgorithm())
                     .softwareVersion(creationSemanticVersionOf(state))
                     .blockTimestamp(blockTimestamp)
                     .hapiProtoVersion(hapiVersion);
@@ -571,7 +555,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     /**
      * Initializes the block stream manager after a restart or during reconnect with the hash of the last block
      * incorporated in the state used in the restart or reconnect. (At genesis, this hash should be the
-     * {@link #HASH_OF_ZERO}.)
+     * {@link #HASH_OF_ZERO_384}.)
      *
      * @param blockHash the hash of the last block
      */
@@ -1818,6 +1802,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 .useSha256());
     }
 
+    private BlockHashAlgorithm blockHashAlgorithm() {
+        return configProvider
+                        .getConfiguration()
+                        .getConfigData(BlockStreamConfig.class)
+                        .useSha256()
+                ? SHA2_256
+                : SHA2_384;
+    }
+
     /**
      * Fills the {@link BlockRootTree} branches with this block's sub-tree roots and computes its root hash.
      * Since it's not known whether the pending proof will be directly signed at this point in the block's
@@ -1828,7 +1821,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * {@link BlockImplUtils#INTERNAL_NODE_PREFIX}), so they are not hashed again until combined with
      * another hash.
      * <p>
-     * At the genesis block {@code prevBlockHash} is {@link BlockStreamManager#HASH_OF_ZERO}; for all other
+     * At the genesis block {@code prevBlockHash} is {@link BlockStreamManager#HASH_OF_ZERO_384}; for all other
      * blocks it is the previous block's root hash.
      * @return the block root hash and all possibly-required sibling hashes, ordered from bottom (the
      * branch level) to top (the root)

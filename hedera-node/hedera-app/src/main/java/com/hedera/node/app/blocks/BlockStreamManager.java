@@ -36,7 +36,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     // (see BlockStreamManagerImpl.digestOrThrow()); this constant is only the fallback for callers with no
     // access to that config (e.g. Hedera.java's genesis sentinel, which is only ever compared for equality).
     byte[] HASH_OF_ZERO_BYTES = noThrowSha384HashOf(new byte[] {0x0});
-    Bytes HASH_OF_ZERO = Bytes.wrap(HASH_OF_ZERO_BYTES);
+    Bytes HASH_OF_ZERO_384 = Bytes.wrap(HASH_OF_ZERO_BYTES);
 
     /**
      * The number of sibling hashes on the path from a block's first branch up to its root: one per level
@@ -94,7 +94,7 @@ public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener
     /**
      * Initializes the block stream manager after a restart or during reconnect with the hashes necessary to
      * infer the starting block tree states and the last block hash used in the restart or reconnect. At
-     * genesis, the last block hash should be the {@link #HASH_OF_ZERO}. In all other cases, this value should
+     * genesis, the last block hash should be the {@link #HASH_OF_ZERO_384}. In all other cases, this value should
      * be null, and the method should calculate it from the intermediate subtree states.
      *
      * @param state the state to use

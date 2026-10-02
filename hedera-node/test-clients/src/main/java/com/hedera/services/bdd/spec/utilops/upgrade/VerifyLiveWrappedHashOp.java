@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.upgrade;
 
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO_384;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static java.util.Objects.requireNonNull;
 
@@ -37,7 +37,7 @@ public class VerifyLiveWrappedHashOp extends UtilOp {
 
         // Replay .rcd files from genesis through the live-hash block
         final var hasher = new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0L);
-        final var result = RcdFileBlockHashReplay.replay(spec, -1, endBlock, HASH_OF_ZERO, hasher);
+        final var result = RcdFileBlockHashReplay.replay(spec, -1, endBlock, HASH_OF_ZERO_384, hasher);
 
         // Final hash assertion: .rcd chain vs node logged hash
         Assertions.assertEquals(

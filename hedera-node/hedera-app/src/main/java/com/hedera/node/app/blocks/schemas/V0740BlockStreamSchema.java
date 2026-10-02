@@ -2,7 +2,7 @@
 package com.hedera.node.app.blocks.schemas;
 
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO_384;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
@@ -186,14 +186,14 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
                 .blockTime(blockInfo.firstConsTimeOfCurrentBlock())
                 .trailingOutputHashes(lastFourHashes)
                 .trailingBlockHashes(lastBlockHashes)
-                .inputTreeRootHash(HASH_OF_ZERO)
+                .inputTreeRootHash(HASH_OF_ZERO_384)
                 .numPrecedingStateChangesItems(0)
                 .rightmostPrecedingStateChangesTreeHashes(List.of())
                 .blockEndTime(blockInfo.lastUsedConsTime())
                 .lastIntervalProcessTime(blockInfo.lastIntervalProcessTime())
                 .lastHandleTime(blockInfo.consTimeOfLastHandledTxn())
-                .consensusHeaderRootHash(HASH_OF_ZERO)
-                .traceDataRootHash(HASH_OF_ZERO)
+                .consensusHeaderRootHash(HASH_OF_ZERO_384)
+                .traceDataRootHash(HASH_OF_ZERO_384)
                 .intermediatePreviousBlockRootHashes(wrappedPrevRecordBlockRootHashes)
                 .intermediateBlockRootsLeafCount(blockInfo.wrappedIntermediateBlockRootsLeafCount())
                 .build();

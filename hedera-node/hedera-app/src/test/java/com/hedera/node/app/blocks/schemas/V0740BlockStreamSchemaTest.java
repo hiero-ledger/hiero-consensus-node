@@ -146,7 +146,7 @@ class V0740BlockStreamSchemaTest {
         final var runningHashes = validRunningHashes();
         final var previewBsi = BlockStreamInfo.newBuilder()
                 .blockNumber(50)
-                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO)
+                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO_384)
                 .build();
 
         givenCutoverContext(blockInfo, runningHashes, previewBsi);
@@ -194,7 +194,7 @@ class V0740BlockStreamSchemaTest {
         final var runningHashes = validRunningHashes();
         final var previewBsi = BlockStreamInfo.newBuilder()
                 .blockNumber(50)
-                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO)
+                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO_384)
                 .build();
 
         givenCutoverContext(blockInfo, runningHashes, previewBsi);
@@ -223,9 +223,9 @@ class V0740BlockStreamSchemaTest {
         assertEquals(expectedTrailing, written.trailingBlockHashes());
 
         // Tree hashes should be zeroed
-        assertEquals(BlockStreamManager.HASH_OF_ZERO, written.inputTreeRootHash());
-        assertEquals(BlockStreamManager.HASH_OF_ZERO, written.consensusHeaderRootHash());
-        assertEquals(BlockStreamManager.HASH_OF_ZERO, written.traceDataRootHash());
+        assertEquals(BlockStreamManager.HASH_OF_ZERO_384, written.inputTreeRootHash());
+        assertEquals(BlockStreamManager.HASH_OF_ZERO_384, written.consensusHeaderRootHash());
+        assertEquals(BlockStreamManager.HASH_OF_ZERO_384, written.traceDataRootHash());
         assertEquals(0, written.numPrecedingStateChangesItems());
         assertEquals(List.of(), written.rightmostPrecedingStateChangesTreeHashes());
     }
@@ -247,7 +247,7 @@ class V0740BlockStreamSchemaTest {
         final var runningHashes = validRunningHashes();
         final var previewBsi = BlockStreamInfo.newBuilder()
                 .blockNumber(50)
-                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO)
+                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO_384)
                 .build();
 
         givenCutoverContext(blockInfo, runningHashes, previewBsi, blockDir);
@@ -291,7 +291,7 @@ class V0740BlockStreamSchemaTest {
         final var runningHashes = validRunningHashes();
         final var previewBsi = BlockStreamInfo.newBuilder()
                 .blockNumber(50)
-                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO)
+                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO_384)
                 .build();
 
         givenCutoverContext(blockInfo, runningHashes, previewBsi, blockDir);
@@ -312,7 +312,7 @@ class V0740BlockStreamSchemaTest {
         final var runningHashes = validRunningHashes();
         final var previewBsi = BlockStreamInfo.newBuilder()
                 .blockNumber(50)
-                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO)
+                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO_384)
                 .build();
 
         givenCutoverContext(blockInfo, runningHashes, previewBsi, blockDir);
@@ -341,7 +341,7 @@ class V0740BlockStreamSchemaTest {
         final var runningHashes = validRunningHashes();
         final var previewBsi = BlockStreamInfo.newBuilder()
                 .blockNumber(50)
-                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO)
+                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO_384)
                 .build();
 
         givenCutoverContext(blockInfo, runningHashes, previewBsi);
@@ -407,7 +407,7 @@ class V0740BlockStreamSchemaTest {
         final var runningHashes = validRunningHashes();
         final var previewBsi = BlockStreamInfo.newBuilder()
                 .blockNumber(0)
-                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO)
+                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO_384)
                 .build();
 
         givenCutoverContext(blockInfo, runningHashes, previewBsi);
@@ -446,7 +446,7 @@ class V0740BlockStreamSchemaTest {
         final var runningHashes = validRunningHashes();
         final var previewBsi = BlockStreamInfo.newBuilder()
                 .blockNumber(50)
-                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO)
+                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO_384)
                 .build();
 
         givenCutoverContext(blockInfo, runningHashes, previewBsi);
@@ -481,7 +481,7 @@ class V0740BlockStreamSchemaTest {
         final var runningHashes = validRunningHashes();
         final var previewBsi = BlockStreamInfo.newBuilder()
                 .blockNumber(50)
-                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO)
+                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO_384)
                 .build();
 
         givenCutoverContext(blockInfo, runningHashes, previewBsi);
@@ -512,7 +512,7 @@ class V0740BlockStreamSchemaTest {
         final var runningHashes = validRunningHashes();
         final var previewBsi = BlockStreamInfo.newBuilder()
                 .blockNumber(50)
-                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO)
+                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO_384)
                 .build();
 
         givenCutoverContext(blockInfo, runningHashes, previewBsi);
@@ -545,7 +545,7 @@ class V0740BlockStreamSchemaTest {
         final var runningHashes = validRunningHashes();
         final var previewBsi = BlockStreamInfo.newBuilder()
                 .blockNumber(50)
-                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO)
+                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO_384)
                 .build();
 
         givenCutoverContext(blockInfo, runningHashes, previewBsi);
@@ -576,7 +576,7 @@ class V0740BlockStreamSchemaTest {
         final var runningHashes = validRunningHashes();
         final var previewBsi = BlockStreamInfo.newBuilder()
                 .blockNumber(50)
-                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO)
+                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO_384)
                 .build();
 
         givenCutoverContext(blockInfo, runningHashes, previewBsi, blockDir);
@@ -611,7 +611,7 @@ class V0740BlockStreamSchemaTest {
         final var runningHashes = validRunningHashes();
         final var previewBsi = BlockStreamInfo.newBuilder()
                 .blockNumber(50)
-                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO)
+                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO_384)
                 .build();
 
         givenCutoverContext(blockInfo, runningHashes, previewBsi, blockDir);

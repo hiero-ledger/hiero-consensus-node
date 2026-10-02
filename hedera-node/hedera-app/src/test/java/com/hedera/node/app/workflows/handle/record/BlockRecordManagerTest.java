@@ -2,7 +2,7 @@
 package com.hedera.node.app.workflows.handle.record;
 
 import static com.hedera.hapi.util.HapiUtils.asAccountString;
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO_384;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.BlockRecordService.NAME;
 import static com.hedera.node.app.records.RecordTestData.BLOCK_NUM;
@@ -903,11 +903,11 @@ final class BlockRecordManagerTest extends AppTestBase {
     @Nested
     class ComputeWrappedRecordBlockRootHashTest {
 
-        private static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
+        private static final Bytes EMPTY_INT_NODE = BlockImplUtils.hashInternalNode(HASH_OF_ZERO_384, HASH_OF_ZERO_384);
 
         /**
          * The root of the eight empty reserved branches 9-16: a perfect 8-leaf subtree where every leaf is
-         * {@link com.hedera.node.app.blocks.BlockStreamManager#HASH_OF_ZERO}. Computed (rather than a literal
+         * {@link com.hedera.node.app.blocks.BlockStreamManager#HASH_OF_ZERO_384}. Computed (rather than a literal
          * constant) so this manual computation tracks the active hash algorithm/size without needing to be
          * recomputed by hand whenever that changes.
          */
@@ -918,7 +918,7 @@ final class BlockRecordManagerTest extends AppTestBase {
         @Test
         void producesHashOfCorrectSize() {
             final var result = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
-                    HASH_OF_ZERO, HASH_OF_ZERO, entryWithZeroHashes());
+                    HASH_OF_ZERO_384, HASH_OF_ZERO_384, entryWithZeroHashes());
 
             assertThat(result.length()).isEqualTo(HASH_SIZE);
         }
@@ -1004,7 +1004,7 @@ final class BlockRecordManagerTest extends AppTestBase {
             // with the consensus timestamp leaf.
             final Bytes branches12 = BlockImplUtils.hashInternalNode(prevBlockHash, allPrevRootHash);
             final Bytes branches34 = EMPTY_INT_NODE;
-            final Bytes branches56 = BlockImplUtils.hashInternalNode(HASH_OF_ZERO, outputHash);
+            final Bytes branches56 = BlockImplUtils.hashInternalNode(HASH_OF_ZERO_384, outputHash);
             final Bytes branches78 = EMPTY_INT_NODE;
 
             final Bytes branches1234 = BlockImplUtils.hashInternalNode(branches12, branches34);
@@ -1028,7 +1028,7 @@ final class BlockRecordManagerTest extends AppTestBase {
             final var entry = entryWith(randomHash(), randomHash());
 
             final var block1Hash =
-                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(HASH_OF_ZERO, allPrevRootHash, entry);
+                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(HASH_OF_ZERO_384, allPrevRootHash, entry);
             final var block2Hash =
                     BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(block1Hash, allPrevRootHash, entry);
 

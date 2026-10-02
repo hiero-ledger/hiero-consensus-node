@@ -270,6 +270,26 @@ class ConversionUtilsTest {
     }
 
     @Test
+    void usesThirtyTwoByteBlockRootHashWholeWhenUseSha256() {
+        // A 32-byte (SHA-256) block-root hash, as produced when BlockStreamConfig.useSha256=true. All 32
+        // bytes are the EVM word, so nothing is truncated.
+        final var thirtyTwoByteBlockRootHash = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex("11".repeat(32));
+        final var expected = Hash.wrap(Bytes32.wrap(thirtyTwoByteBlockRootHash.toByteArray()));
+        assertEquals(expected, ConversionUtils.ethHashFrom(thirtyTwoByteBlockRootHash));
+    }
+
+    @Test
+    void ethHashFromIgnoresBytesBeyondThirtyTwoSoHashLengthDoesNotChangeTheWord() {
+        // The EVM word is the leading 32 bytes regardless of whether BlockStreamConfig.useSha256 selected a
+        // 32-byte (SHA-256) or 48-byte (SHA-384) block-root hash. Two hashes that agree on their leading 32
+        // bytes but differ in length must therefore map to the same eth hash.
+        final var leadingThirtyTwo = "11".repeat(32);
+        final var sha256Hash = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex(leadingThirtyTwo);
+        final var sha384Hash = com.hedera.pbj.runtime.io.buffer.Bytes.fromHex(leadingThirtyTwo + "22".repeat(16));
+        assertEquals(ConversionUtils.ethHashFrom(sha256Hash), ConversionUtils.ethHashFrom(sha384Hash));
+    }
+
+    @Test
     void convertsNumberToLongZeroAddress() {
         final var number = 0x1234L;
         final var expected = Address.fromHexString("0x1234");

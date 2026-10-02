@@ -277,8 +277,8 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
      * Expected value: {@code cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8}.
      */
     private static Bytes emptyReservedHalf() {
-        final var pairOfEmpties =
-                BlockImplUtils.hashInternalNode(BlockStreamManager.HASH_OF_ZERO, BlockStreamManager.HASH_OF_ZERO);
+        final var pairOfEmpties = BlockImplUtils.hashInternalNode(
+                BlockStreamManager.HASH_OF_ZERO_384, BlockStreamManager.HASH_OF_ZERO_384);
         final var fourEmpties = BlockImplUtils.hashInternalNode(pairOfEmpties, pairOfEmpties);
         return BlockImplUtils.hashInternalNode(fourEmpties, fourEmpties);
     }

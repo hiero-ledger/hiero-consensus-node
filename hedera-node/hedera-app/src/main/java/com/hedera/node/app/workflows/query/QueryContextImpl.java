@@ -120,10 +120,11 @@ public class QueryContextImpl implements QueryContext {
         if (blockRecordInfo == null) {
             // In BLOCKS mode the legacy BlockInfo singleton is not maintained, so block number/timestamp/hashes
             // must be sourced from BlockStreamInfo (mirrors the handle-path selection in ParentTxnFactory).
-            final var streamMode =
-                    configuration.getConfigData(BlockStreamConfig.class).streamMode();
-            blockRecordInfo =
-                    streamMode == StreamMode.BLOCKS ? BlockStreamInfoImpl.from(state) : BlockRecordInfoImpl.from(state);
+            final var blockStreamConfig = configuration.getConfigData(BlockStreamConfig.class);
+            final var streamMode = blockStreamConfig.streamMode();
+            blockRecordInfo = streamMode == StreamMode.BLOCKS
+                    ? BlockStreamInfoImpl.from(state, blockStreamConfig.useSha256())
+                    : BlockRecordInfoImpl.from(state);
         }
         return blockRecordInfo;
     }

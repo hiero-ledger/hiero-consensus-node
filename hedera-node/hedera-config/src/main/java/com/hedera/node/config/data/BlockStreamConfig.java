@@ -74,6 +74,9 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean enableCutover,
 
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean useSha256,
+
         @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean streamWrappedRecordBlocks,
 

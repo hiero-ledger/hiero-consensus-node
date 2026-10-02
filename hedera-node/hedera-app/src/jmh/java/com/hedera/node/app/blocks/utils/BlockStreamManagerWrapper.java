@@ -130,7 +130,7 @@ public class BlockStreamManagerWrapper {
                 null,
                 new BlockStreamingObs(configProvider));
 
-        manager.init(state, BlockStreamManager.HASH_OF_ZERO);
+        manager.init(state, BlockStreamManager.HASH_OF_ZERO_384);
     }
 
     public void startBlock(long blockNumber, BlockItem header) {

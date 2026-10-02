@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO_384;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
@@ -49,7 +49,7 @@ public interface BlockRootTreeHasher {
      * algorithm is chosen by {@code BlockStreamConfig.useSha256} must use {@link #emptySubtreeFor(MessageDigest)}
      * with the same digest instead, since this constant does not vary with that flag.
      */
-    Bytes EMPTY_SUBTREE = HASH_OF_ZERO;
+    Bytes EMPTY_SUBTREE = HASH_OF_ZERO_384;
 
     /**
      * The hash of an empty branch under the given digest, {@code hash(0x00)}. Equivalent to

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.upgrade;
 
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
+import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO_384;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.WRAPPED_RECORD_HASHES_FILE;
 import static java.util.Objects.requireNonNull;
@@ -89,7 +89,7 @@ public class BuildDynamicJumpstartConfigOp extends UtilOp {
         // chained hash. Unlike the disk hashes file (which may start at a block > 0),
         // the .rcd files must exist for ALL blocks from genesis and produce a correct chain.
         final var hasher = new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0L);
-        final var replayResult = RcdFileBlockHashReplay.replay(spec, -1, jumpstartBlockNum, HASH_OF_ZERO, hasher);
+        final var replayResult = RcdFileBlockHashReplay.replay(spec, -1, jumpstartBlockNum, HASH_OF_ZERO_384, hasher);
         final var prevWrappedBlockHash = replayResult.finalChainedHash();
         log.info(
                 "Computed jumpstart state via .rcd replay from genesis; "
