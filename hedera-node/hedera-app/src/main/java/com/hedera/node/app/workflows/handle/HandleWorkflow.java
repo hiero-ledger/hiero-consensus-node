@@ -1191,7 +1191,12 @@ public class HandleWorkflow {
                                     requireNonNull(candidateRoster),
                                     requireNonNull(candidateRosterHash),
                                     tssConfig);
-                        } else if (historyStore.handoff(activeRoster, candidateRoster, candidateRosterHash)) {
+                        } else if (historyStore.handoff(
+                                activeRoster,
+                                // A grounding handoff keeps the active roster, so a pending candidate roster
+                                // must not remove proof keys its WRAPS genesis proof still needs
+                                isWrapsGenesis ? null : candidateRoster,
+                                candidateRosterHash)) {
                             // Make sure we include the latest chain-of-trust proof in following block proofs
                             historyService.setLatestHistoryProof(construction.targetProofOrThrow());
                             if (isWrapsGenesis) {

@@ -153,6 +153,20 @@ message HistoryProofConstruction {
    * The number of times the network has had to restart this construction.
    */
   uint32 wraps_retry_count = 10;
+
+  /**
+   * Once the network assembles the history for this construction, the ids
+   * of the target roster nodes whose proof keys are in that history.
+   */
+  repeated uint64 assembled_proof_key_node_ids = 11;
+
+  /**
+   * The ids of source nodes whose WRAPS messages are ignored in later
+   * attempts at this construction, because in an earlier attempt they
+   * published an R1 message but not a later one before its grace period
+   * ended.
+   */
+  repeated uint64 wraps_excluded_node_ids = 12;
 }
 
 /**
