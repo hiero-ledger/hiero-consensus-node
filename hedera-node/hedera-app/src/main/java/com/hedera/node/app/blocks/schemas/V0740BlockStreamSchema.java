@@ -2,7 +2,6 @@
 package com.hedera.node.app.blocks.schemas;
 
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO_384;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
@@ -13,6 +12,7 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
+import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -180,20 +180,21 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
         log.info(
                 "Using current preview stream state hash {} as the starting state hash for first block after cutover",
                 lastBlockStreamInfo.startOfBlockStateHash());
+        final var emptySubtreeRoot = BlockStreamManager.hashOfZero(config.useSha256());
         final var cutoverBlockStreamInfo = lastBlockStreamInfo
                 .copyBuilder()
                 .blockNumber(blockInfo.lastBlockNumber())
                 .blockTime(blockInfo.firstConsTimeOfCurrentBlock())
                 .trailingOutputHashes(lastFourHashes)
                 .trailingBlockHashes(lastBlockHashes)
-                .inputTreeRootHash(HASH_OF_ZERO_384)
+                .inputTreeRootHash(emptySubtreeRoot)
                 .numPrecedingStateChangesItems(0)
                 .rightmostPrecedingStateChangesTreeHashes(List.of())
                 .blockEndTime(blockInfo.lastUsedConsTime())
                 .lastIntervalProcessTime(blockInfo.lastIntervalProcessTime())
                 .lastHandleTime(blockInfo.consTimeOfLastHandledTxn())
-                .consensusHeaderRootHash(HASH_OF_ZERO_384)
-                .traceDataRootHash(HASH_OF_ZERO_384)
+                .consensusHeaderRootHash(emptySubtreeRoot)
+                .traceDataRootHash(emptySubtreeRoot)
                 .intermediatePreviousBlockRootHashes(wrappedPrevRecordBlockRootHashes)
                 .intermediateBlockRootsLeafCount(blockInfo.wrappedIntermediateBlockRootsLeafCount())
                 .build();

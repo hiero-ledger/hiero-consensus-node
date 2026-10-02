@@ -7,6 +7,7 @@ import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNAT
 import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO_384;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
+import static com.hedera.node.app.blocks.BlockStreamManager.hashOfZero;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashLeaf;
@@ -2116,6 +2117,39 @@ class BlockStreamManagerImplTest {
         subject.init(state, HASH_OF_ZERO_384, true);
         // If cutover had run, it would have tried to read BlockRecordService states,
         // which are not mocked here; the test succeeding proves cutover was skipped.
+    }
+
+    @Test
+    void recognizesSha256GenesisSentinel() {
+        // With useSha256=true the genesis last-block-hash sentinel is the 32-byte sha256(0x00), not the
+        // 48-byte HASH_OF_ZERO_384. The genesis branch must detect it; otherwise init falls through to read
+        // the (unmocked) BlockStreamService singleton and throws.
+        final var config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withValue("blockStream.roundsPerBlock", 1)
+                .withValue("blockStream.useSha256", true)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
+        subject = new BlockStreamManagerImpl(
+                blockHashSigner,
+                () -> aWriter,
+                ForkJoinPool.commonPool(),
+                configProvider,
+                boundaryStateChangeListener,
+                platform,
+                quiescenceController,
+                hashInfo,
+                SemanticVersion.DEFAULT,
+                lifecycle,
+                quiescedHeartbeat,
+                metrics,
+                null,
+                streamingObs);
+
+        final var sha256Genesis = hashOfZero(true);
+        assertEquals(32, sha256Genesis.length());
+        // Must take the genesis branch without reading BlockStreamService state (which is unmocked here).
+        assertDoesNotThrow(() -> subject.init(state, sha256Genesis, true));
     }
 
     @Test

@@ -18,6 +18,7 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema;
 import com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
@@ -130,7 +131,11 @@ public class BlockStreamManagerWrapper {
                 null,
                 new BlockStreamingObs(configProvider));
 
-        manager.init(state, BlockStreamManager.HASH_OF_ZERO_384);
+        final boolean useSha256 = configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .useSha256();
+        manager.init(state, BlockStreamManager.hashOfZero(useSha256));
     }
 
     public void startBlock(long blockNumber, BlockItem header) {

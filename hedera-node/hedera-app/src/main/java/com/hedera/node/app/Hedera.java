@@ -7,7 +7,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO_384;
 import static com.hedera.node.app.quiescence.QuiescenceUtils.isRelevantTransaction;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.nodeSignedTxWith;
@@ -1516,7 +1515,11 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         }
         if (blockStreamEnabled) {
             notifications.register(StateHashedListener.class, daggerApp.blockStreamManager());
-            final var lastBlockHash = (trigger == GENESIS) ? HASH_OF_ZERO_384 : null;
+            final var useSha256 = configProvider
+                    .getConfiguration()
+                    .getConfigData(BlockStreamConfig.class)
+                    .useSha256();
+            final var lastBlockHash = (trigger == GENESIS) ? BlockStreamManager.hashOfZero(useSha256) : null;
             daggerApp
                     .blockStreamManager()
                     .init(state, lastBlockHash, blockStreamService.consumeBsiSchemaOverwriteExecuted());

@@ -19,6 +19,7 @@ import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -228,6 +229,36 @@ class V0740BlockStreamSchemaTest {
         assertEquals(BlockStreamManager.HASH_OF_ZERO_384, written.traceDataRootHash());
         assertEquals(0, written.numPrecedingStateChangesItems());
         assertEquals(List.of(), written.rightmostPrecedingStateChangesTreeHashes());
+    }
+
+    @Test
+    void usesSha256EmptySubtreeRootsWhenConfigured() {
+        final var blockInfo = validBlockInfo();
+        final var runningHashes = validRunningHashes();
+        final var previewBsi = BlockStreamInfo.newBuilder()
+                .blockNumber(50)
+                .startOfBlockStateHash(BlockStreamManager.HASH_OF_ZERO_384)
+                .build();
+
+        given(ctx.isGenesis()).willReturn(false);
+        given(ctx.appConfig()).willReturn(configWithSha256(tempDir.resolve("default-blocks")));
+        given(ctx.sharedValues()).willReturn(fullSharedValues(blockInfo, runningHashes));
+        given(ctx.newStates()).willReturn(writableStates);
+        given(writableStates.<BlockStreamInfo>getSingleton(BLOCK_STREAM_INFO_STATE_ID))
+                .willReturn(blockStreamInfoState);
+        given(blockStreamInfoState.get()).willReturn(previewBsi);
+
+        subject.restart(ctx);
+
+        final var captor = ArgumentCaptor.forClass(BlockStreamInfo.class);
+        verify(blockStreamInfoState).put(captor.capture());
+        final var written = captor.getValue();
+
+        final var expectedEmptyRoot = Bytes.wrap(CommonUtils.noThrowSha256HashOf(new byte[] {0x0}));
+        assertEquals(32, expectedEmptyRoot.length());
+        assertEquals(expectedEmptyRoot, written.inputTreeRootHash());
+        assertEquals(expectedEmptyRoot, written.consensusHeaderRootHash());
+        assertEquals(expectedEmptyRoot, written.traceDataRootHash());
     }
 
     @Test
@@ -688,6 +719,14 @@ class V0740BlockStreamSchemaTest {
         return HederaTestConfigBuilder.create()
                 .withValue("blockStream.enableCutover", enableCutover)
                 .withValue("blockStream.blockFileDir", blockDir.toString())
+                .getOrCreateConfig();
+    }
+
+    private Configuration configWithSha256(final Path blockDir) {
+        return HederaTestConfigBuilder.create()
+                .withValue("blockStream.enableCutover", true)
+                .withValue("blockStream.blockFileDir", blockDir.toString())
+                .withValue("blockStream.useSha256", true)
                 .getOrCreateConfig();
     }
 }

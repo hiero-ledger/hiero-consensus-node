@@ -384,7 +384,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             this.previousBlockHashes.addNodeByHash(
                     lastBlockInfoEver.previousWrappedRecordBlockRootHash().toByteArray());
             previousBlockHashesUpdated = true;
-        } else if (Objects.equals(HASH_OF_ZERO_384, lastBlockHash)) {
+        } else if (Objects.equals(hashOfZero(), lastBlockHash)) {
             // Genesis case
             effectiveLastBlockHash = lastBlockHash;
             this.previousBlockHashes = new IncrementalStreamingHasher(digestOrThrow(), new ArrayList<>(), 0);
@@ -407,7 +407,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             effectiveLastBlockHash = reconstructLastBlockHash(blockStreamInfo, this::digestOrThrow);
         }
         this.lastBlockHash = effectiveLastBlockHash;
-        if (!previousBlockHashesUpdated && !Objects.equals(effectiveLastBlockHash, HASH_OF_ZERO_384)) {
+        if (!previousBlockHashesUpdated && !Objects.equals(effectiveLastBlockHash, hashOfZero())) {
             previousBlockHashes.addNodeByHash(effectiveLastBlockHash.toByteArray());
         }
     }
@@ -417,11 +417,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         requireNonNull(blockStreamInfo);
         requireNonNull(digestFactory);
         if (blockStreamInfo.blockNumber() < 0L) {
-            return HASH_OF_ZERO_384;
+            return BlockRootTreeHasher.emptySubtreeFor(digestFactory.get());
         }
         final int hashSize = digestFactory.get().getDigestLength();
         final var prevBlockHash = blockStreamInfo.blockNumber() == 0L
-                ? HASH_OF_ZERO_384
+                ? BlockRootTreeHasher.emptySubtreeFor(digestFactory.get())
                 : BlockImplUtils.blockHashByBlockNumber(
                         blockStreamInfo.trailingBlockHashes(),
                         blockStreamInfo.blockNumber() - 1,
@@ -510,7 +510,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             writer = writerSupplier.get();
             blockTimestamp = asTimestamp(firstConsensusTimestampOf(round));
 
-            final var blockStreamInfo = blockStreamInfoFrom(state, HASH_OF_ZERO_384.equals(lastBlockHash));
+            final var blockStreamInfo = blockStreamInfoFrom(state, hashOfZero().equals(lastBlockHash));
             lastUsedTime = blockStreamInfo.blockEndTimeOrElse(Timestamp.DEFAULT);
             pendingWork = classifyPendingWork(blockStreamInfo, version);
             lastTopLevelTime = asInstant(blockStreamInfo.lastHandleTimeOrElse(EPOCH));
@@ -1797,6 +1797,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private MessageDigest digestOrThrow() {
         return CommonUtils.digestOrThrow(configProvider
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .useSha256());
+    }
+
+    private Bytes hashOfZero() {
+        return BlockStreamManager.hashOfZero(configProvider
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
                 .useSha256());
