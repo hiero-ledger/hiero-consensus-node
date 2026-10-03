@@ -109,7 +109,10 @@ catching regressions without being unnecessarily long-running.
 | Block Node Regression Panel               | [821: [CALL] Block Node Regression](/.github/workflows/821-call-block-node-regression.yaml)      | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              | `access-token`<br/>`slack-detailed-report-webhook`                                                                                                                                                                                                       | Fetch XTS Candidate<br/>Compile Code |
 | Solo 0.78 to 0.79 Cutover Panel           | [826: [CALL] Solo 078-079 Cutover](/.github/workflows/826-call-solo-078-to-079-cutover.yaml)     | `ref: <commit-sha>`<br/>`solo-version: vars.CITR_SOLO_VERSION`                                                                                                                                                                                                                                                              |                                                                                                                                                                                                                                                          | Fetch XTS Candidate<br/>Compile Code |
 
-## SDCT
+## SDCT 
+
+> **Note: Short-stop Design.** The SDCT workflow, Jenkins job contract and test driver described below are a short-stop
+> design that lets the GA workflow run unattended on perf1. The final design will come in the next CITR phase.
 
 ### Purpose
 
@@ -122,7 +125,8 @@ if the E2E SLA is met. It runs on a large, mainnet-like environment.
 
 - SDCT runs on the **performance** (**perf1**) network that has a Mirror node setup, hosted on GCP and various external
   server providers (**Latitude**, **OVH**, **AWS**, etc.).
-- SDCT is expected to complete around 20 hours after the test suite starts.
+- SDCT is expected to complete around 24 hours after the workflow starts: up to 22 hours of test driver time plus the
+  network reset.
 - SDCT supports artifacts built from any PR, tag, or branch.
 
 ### Workflows
@@ -130,23 +134,152 @@ if the E2E SLA is met. It runs on a large, mainnet-like environment.
 - SDCT is triggered by
   the [223: [DISP] CITR SDCT Controller](/.github/workflows/223-disp-sdct-controller.yaml)
   workflow
-  - The workflow is currently being updated with a fast-fail enhancement
+  - The workflow checks that the build artifact is in GCS (a missing artifact fails the run at once), starts the
+    external `SDCT` Jenkins job with [sdct.sh](/.github/workflows/support/scripts/sdct.sh) and follows it until
+    completion with [sdct-wait.sh](/.github/workflows/support/scripts/sdct-wait.sh)
+  - A full run lasts about a day, longer than the 6 h runner job limit. `canonical-test` ends as soon as the Jenkins
+    build has started; the build is then followed by a chain of jobs of at most 330 minutes each (`follow-1` …
+    `follow-6` through [864: [CALL] CITR SDCT Follow](/.github/workflows/864-call-sdct-follow.yaml)), and the
+    `SDCT Verdict` job decides the result
+  - The workflow selects one of the SDCT tests: `sdct` (the full test, default), `mini` (the same flow in about two
+    hours, for debugging and verification) or `custom` (an ad hoc test); each test is a profile of the test driver
+    maintained with the Jenkins job
+  - The result of the full `sdct` test is tagged as `sdct-pass-<build>` or `sdct-fail-<build>`; failures raise a Rootly
+    alert (`CITR SDCT` for test failures, `CI/CD Workflows` for infrastructure and setup failures). `mini` and `custom`
+    results are reported in the workflow summary and artifact only
+  - Slack reporting to the performance-test-reports channel is handled by the Jenkins job
+  - The full `sdct` test reports its status to Chewie: `running` once the Jenkins build has started, then the final
+    disposition (see [Chewie Reporting](#chewie-reporting))
 
-### Included Tests
+### Jenkins SDCT Job Contract
 
-These tests run sequentially with a Mirror node setup to measure E2E latency performance.
+The workflow relies on the following from the `SDCT` Jenkins job and its test driver.
 
-|                       Test                        | TPS |
-|---------------------------------------------------|-----|
-| Idle load                                         | 10  |
-| Crypto Transfer                                   | 200 |
-| Mixed Tx Types                                    | 2K  |
-| Mixed Tx Types with Smartcontract                 | 10K |
-| Crypto Transfer                                   | 10K |
-| HCS                                               | 10K |
-| HTS                                               | 10K |
-| Mixed Tx Types(1/2 HCS and Crypto/HTS rest)       | 10K |
-| Mixed Tx Types(equal weight among HCS/Crypto/HTS) | 10K |
+| #  | Requirement                                                                                                                         |
+|----|-------------------------------------------------------------------------------------------------------------------------------------|
+| J1 | Accept the build parameters `BUILD_TAG`, `BUILD_COMMIT`, `VERSION_SERVICE`, `VERSION_BLOCKNODE`, `VERSION_MIRRORNODE`, `GH_RUN_ID`, `GH_RUN_URL` |
+|    | `BUILD_COMMIT` is the build artifact name used to reset the network; the `VERSION_*` parameters are used for reporting only |
+|    | `BUILD_TAG` is the `build-tag` input on `main` and the `ref` input otherwise (e.g. `ref=v0.77.4`, `build-tag=build-v0.77.4` → `BUILD_TAG=v0.77.4`, `BUILD_COMMIT=build-v0.77.4`) |
+|    | Accept `SDCT_TEST` (`sdct`, `mini`, `custom`) to select the test, defaulting to `sdct`                                        |
+| J2 | Print the console markers below, with a heartbeat at least every 15 minutes                                                         |
+|    | Every stage, including the network reset before the driver starts, prints at least one line every 60 minutes (the reset wait prints every 5 minutes) |
+| J3 | On a fail-fast decision, stop the load, set `currentBuild.result = 'FAILURE'` and finish the build                                  |
+| J4 | Always archive `sdct-result.json` (schema below) in a `post { always { ... } }` block                                               |
+| J5 | Provide a service account token with Job/Read, Job/Build and Job/Cancel on `nightly/sdct`                                           |
+
+Console markers (one per line):
+
+```text
+SDCT-STATUS: RUNNING phase=<setup|test|teardown> test=<i>/<n> name=<name> tps=<tps>
+SDCT-HEARTBEAT: <iso-timestamp>
+SDCT-STATUS: FAIL reason=<text>
+SDCT-STATUS: PASS
+```
+
+`SDCT-STATUS: FAIL` is printed as soon as the driver decides to abort; `SDCT-STATUS: PASS` or `FAIL` is printed once at
+the end of the run.
+
+`sdct-result.json`:
+
+```json
+{
+  "result": "PASS|FAIL|ERROR",
+  "reason": "text, empty on PASS",
+  "note": "optional text",
+  "scaled": { "factor": 0.9, "original": { "max_time_test_s": 72000, "max_time_setup_s": 21600, "end_grace_s": 900 },
+              "scaled": { "max_time_test_s": 64800, "max_time_setup_s": 19440, "end_grace_s": 810 } },
+  "tests": [
+    { "name": "Crypto Transfer", "tps": 10000, "p50_ms": 0, "p99_ms": 0, "sla_met": true, "result": "PASS|FAIL" }
+  ],
+  "started": "<iso-timestamp>",
+  "finished": "<iso-timestamp>"
+}
+```
+
+- `FAIL` is a test failure; `ERROR` is an infrastructure or setup failure (e.g. unclean environment, failed deployment).
+- `p50_ms`, `p99_ms` and `sla_met` are `null` until latency collection is available.
+- `note` (optional) is set when `MAX_TIME_HARD` stopped a healthy NLG in the second half of the load phase; the result
+  is still `PASS`.
+- `scaled` (optional) is set when the NLG pod became Ready after `POD_READY_TIMEOUT` and the driver shortened
+  `MAX_TIME_TEST`, `MAX_TIME_SETUP` and `END_GRACE` by `factor` to fit `MAX_TIME_HARD`.
+
+Workflow behavior:
+
+- **Queue**: the queue item returned by `buildWithParameters` is polled every minute; the run fails as an
+  infrastructure error if the build has not started after 10 minutes or the queue item is cancelled. Only one SDCT
+  build runs at a time, so the queue is empty in practice.
+- **Build**: every 5 minutes the workflow reads the build status and the new console output (`progressiveText`), and
+  echoes the `SDCT-*` markers. The first poll verifies that the build's `GH_RUN_ID` matches the workflow run.
+- **Fail-fast**: after a `SDCT-STATUS: FAIL` marker the workflow waits at most 30 minutes for the build to finish,
+  then reports a failure.
+- **Hang, errors**: no new console output for 60 minutes or 6 consecutive failed polls end the run as an
+  infrastructure error; hung builds are stopped. The workflow has no overall deadline: the test driver bounds the
+  SDCT run time.
+- **Handoff**: `canonical-test` hands the build to `follow-1` as soon as it has started. Each follow job follows the
+  build for at most 330 minutes, then hands it to the next job with the console offset and the fail-fast and hang
+  timers, so markers are not replayed and the timers run on. Six follow jobs cover about 33 hours; a build still
+  running after `follow-6` is stopped as an infrastructure error. The `SDCT Verdict` job
+  takes the result of the last job; if a job did not report (cancelled between jobs, runner lost), it stops the
+  build and reports an infrastructure error.
+- **Cancel**: cancelling the workflow run stops the Jenkins build, or cancels the queue item if the build has not
+  started yet, in whichever job is running at the time.
+- **Serialization**: SDCT runs on the single perf1 network, so runs of the workflow are serialized and the Jenkins job
+  does not run concurrent builds.
+- **Verdict**: Jenkins `SUCCESS` with `sdct-result.json` `PASS` (or no file) passes; `FAILURE`, `UNSTABLE`, a `FAIL`
+  marker or a `FAIL` result fails; an `ERROR` result or anything else (e.g. `ABORTED`) is an infrastructure error and
+  is not tagged. Once `SDCT-STATUS: PASS` is printed (and no `FAIL` marker), the run passes: a later Jenkins
+  failure, hang or unreachable build (e.g. in post-test processing) is reported as a warning in the reason only.
+  `sdct-result.json` and the last 5000 console lines are uploaded as the `sdct-results` artifact by the job that
+  decides the verdict.
+- **Shortened runs**: `POD_READY_TIMEOUT` is a soft limit. The driver keeps waiting for Ready, then scales the test
+  timers by `f = min(1, remaining / (MAX_TIME_TEST + END_GRACE))`. A shortened run that reaches `MAX_TIME_HARD` with a
+  healthy NLG and at least `MIN_LOAD_TEST_TIME` of load is a pass; the step summary shows the `note` and the scaled
+  timers. The console markers are unchanged.
+
+### Mock Runs
+
+Dispatching 223 with `mock=true` runs the same workflow against the `nightly/sdct-mock` Jenkins job instead of
+`nightly/sdct`. The mock job prints a synthetic network reset, ACTIVE check and test driver output (the same
+`SDCT-*` markers and `sdct-result.json`) and never touches perf1.
+
+- `mock-scenario` selects the outcome: `pass` (default), `fail`, `post-pass-failure`, `hang`, `exhaust`, `reset-fail`,
+  `not-active`, `driver-error`
+- The job budget is 6 minutes, with 2 minute polls, a 3 minute fail-fast grace and a 6 minute hang check; follow job
+  `k` hands off at `build start + 6k` minutes, so a scenario runs through all six follow jobs in about 35 minutes
+- Tags, Rootly alerts and Chewie reports are not executed: the jobs log the commands and payloads instead
+- The run name starts with `[MOCK]`
+
+### Chewie Reporting
+
+Only the full `sdct` test reports to Chewie, with
+[report-suite-result.sh](/.github/workflows/support/chewie/report-suite-result.sh), from two jobs on the
+`hl-cn-chewie-lin-sm` runner (the SDCT runner may not reach Chewie):
+
+- `Chewie Report Running`: after `canonical-test`, when the Jenkins build has started
+- `Chewie Report Final`: after `SDCT Verdict` and `Chewie Report Running` (`if: always()`), so the final status is
+  always posted last
+
+Each report gets its own token from `api/v1/auth/token` (a final report can be a day after the start), masks it, and
+posts to `api/v1/suites/results`. A Chewie failure is only a warning: it never fails the run, the verdict, the tag or
+the Rootly alert.
+
+| Field | Value |
+|---|---|
+| `build_number` | string; `main`: the build tag number without leading zeros (`build-00401` → `"401"`); other refs: the `build-tag` input as typed |
+| `suite_type` | `"sdct"` |
+| `disposition` | see below |
+| `start_time` | Jenkins build start, RFC3339 UTC, the same in both reports; the decision time if the build never started |
+| `end_time` | `null` while `running`; the decision time in the final report |
+| `workflow_run_id`, `run_attempt` | the 223 run id and attempt |
+
+| Outcome | Disposition |
+|---|---|
+| Jenkins build started | `running` |
+| `pass` | `passed` |
+| `fail` | `failed` |
+| Infrastructure error, including a Jenkins build that never started | `not_run` (TODO: refine, e.g. `isolated_issue`, once the Chewie semantics are confirmed) |
+| Workflow run cancelled | `cancelled` |
+
 
 ## SDPT
 
