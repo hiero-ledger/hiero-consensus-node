@@ -1,0 +1,18 @@
+apiVersion: chaos-mesh.org/v1alpha1
+kind: PodChaos
+metadata:
+  name: solo-chaos-pod-failure-${UUID}
+  namespace: chaos-mesh
+spec:
+  action: pod-failure
+  mode: all
+  duration: ${DURATION}
+  selector:
+    namespaces:
+      - ${NAMESPACE}
+    expressionSelectors:
+      - key: solo.hedera.com/node-name
+        operator: In
+        values: [${NODE_NAMES}]
+    labelSelectors:
+      'solo.hedera.com/type': 'network-node'

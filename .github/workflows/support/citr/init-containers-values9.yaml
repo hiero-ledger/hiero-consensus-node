@@ -19,6 +19,8 @@ hedera:
           limits:
             cpu: 22
             memory: 256Gi
+      labels:
+        solo.hedera.com/region: 'us'
     - name: node2
       nodeId: 1
       accountId: 0.0.4
@@ -30,6 +32,8 @@ hedera:
           limits:
             cpu: 22
             memory: 256Gi
+      labels:
+        solo.hedera.com/region: 'us'
     - name: node3
       nodeId: 2
       accountId: 0.0.5
@@ -41,6 +45,8 @@ hedera:
           limits:
             cpu: 22
             memory: 256Gi
+      labels:
+        solo.hedera.com/region: 'us'
     - name: node4
       nodeId: 3
       accountId: 0.0.6
@@ -52,6 +58,8 @@ hedera:
           limits:
             cpu: 22
             memory: 256Gi
+      labels:
+        solo.hedera.com/region: 'eu'
     - name: node5
       nodeId: 4
       accountId: 0.0.7
@@ -63,6 +71,8 @@ hedera:
           limits:
             cpu: 22
             memory: 256Gi
+      labels:
+        solo.hedera.com/region: 'eu'
     - name: node6
       nodeId: 5
       accountId: 0.0.8
@@ -74,6 +84,8 @@ hedera:
           limits:
             cpu: 22
             memory: 256Gi
+      labels:
+        solo.hedera.com/region: 'eu'
     - name: node7
       nodeId: 6
       accountId: 0.0.9
@@ -85,6 +97,8 @@ hedera:
           limits:
             cpu: 22
             memory: 256Gi
+      labels:
+        solo.hedera.com/region: 'ap'
     - name: node8
       nodeId: 7
       accountId: 0.0.10
@@ -96,6 +110,8 @@ hedera:
           limits:
             cpu: 22
             memory: 256Gi
+      labels:
+        solo.hedera.com/region: 'ap'
     - name: node9
       nodeId: 8
       accountId: 0.0.11
@@ -107,6 +123,8 @@ hedera:
           limits:
             cpu: 22
             memory: 256Gi
+      labels:
+        solo.hedera.com/region: 'ap'
 defaults:
   sidecars:
     recordStreamUploader:
