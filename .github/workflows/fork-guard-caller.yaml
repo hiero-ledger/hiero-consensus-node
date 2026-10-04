@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Adversarial test for hiero-ledger/hiero-consensus-node#26276.
+#
+# `pull_request`-triggered CALLER. It does nothing but invoke the reusable
+# fork-guard-callee.yaml over `workflow_call`. The point is to reproduce the
+# exact shape #26276 touched — a workflow_call workflow whose jobs are gated on
+# a fork expression — and observe both expressions from inside a fork.
+name: "Fork Guard Adversarial · Caller (pull_request)"
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  call-reusable:
+    name: Invoke the reusable workflow_call workflow
+    uses: ./.github/workflows/fork-guard-callee.yaml

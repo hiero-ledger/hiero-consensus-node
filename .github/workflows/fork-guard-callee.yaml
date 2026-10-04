@@ -1,0 +1,105 @@
+# SPDX-License-Identifier: Apache-2.0
+#
+# Adversarial test for hiero-ledger/hiero-consensus-node#26276
+# ("ci(fix): use correct github.event.repository.fork").
+#
+# This reusable (workflow_call) workflow is invoked by fork-guard-caller.yaml,
+# which is triggered by `pull_request`. A called workflow INHERITS the caller's
+# event payload, so inside here `github.event` is the pull_request payload.
+#
+# It prints BOTH fork expressions and gates two jobs on them so the run's job
+# list visibly shows which guard actually blocks on a fork:
+#   * OLD (pre-#26276):  github.event.workflow_call.repository.fork
+#   * NEW (post-#26276): github.event.repository.fork
+name: "Fork Guard Adversarial · Callee (workflow_call)"
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  show-fork-context:
+    name: Show both fork expressions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump fork-guard expressions
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          # OLD expression removed by #26276. There is no `workflow_call` key on
+          # the event payload, so this renders to the empty string.
+          OLD_EXPR: ${{ github.event.workflow_call.repository.fork }}
+          OLD_GUARD: ${{ !github.event.workflow_call.repository.fork }}
+          # NEW expression added by #26276. `github.event.repository` is the repo
+          # the event fired in — the fork — so on a fork this is `true`.
+          NEW_EXPR: ${{ github.event.repository.fork }}
+          NEW_GUARD: ${{ !github.event.repository.fork }}
+          # The property that actually answers "did this PR come FROM a fork?".
+          PR_HEAD_FORK: ${{ github.event.pull_request.head.repo.fork }}
+        run: |
+          {
+            echo "### Fork-guard expression evaluation"
+            echo ""
+            echo "| Expression | Value |"
+            echo "| --- | --- |"
+            echo "| \`github.event_name\` | \`${EVENT_NAME}\` |"
+            echo "| \`github.repository\` | \`${REPO}\` |"
+            echo "| OLD  \`github.event.workflow_call.repository.fork\` | \`${OLD_EXPR}\` (empty ⇒ always falsy) |"
+            echo "| OLD guard \`!(…workflow_call.repository.fork)\` | \`${OLD_GUARD}\` |"
+            echo "| NEW  \`github.event.repository.fork\` | \`${NEW_EXPR}\` |"
+            echo "| NEW guard \`!(…repository.fork)\` | \`${NEW_GUARD}\` |"
+            echo "| \`github.event.pull_request.head.repo.fork\` | \`${PR_HEAD_FORK}\` |"
+          } | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo ""
+          echo "Interpretation:"
+          echo "  OLD guard = ${OLD_GUARD}  -> pre-#26276 guarded jobs ran EVEN on forks (the bug)."
+          echo "  NEW guard = ${NEW_GUARD}  -> post-#26276 guarded jobs are skipped on this fork."
+          echo ""
+          echo "Caveat — repository.fork vs pull_request.head.repo.fork:"
+          echo "  github.event.repository.fork          = ${NEW_EXPR}  (is THIS repo a fork?)"
+          echo "  github.event.pull_request.head.repo.fork = ${PR_HEAD_FORK}  (did this PR come FROM a fork?)"
+          echo "  Here both are 'true' so they agree. They DIVERGE in the upstream case:"
+          echo "  a PR opened from a contributor fork against the UPSTREAM repo runs in the"
+          echo "  upstream context, so repository.fork == false (base repo is not a fork) while"
+          echo "  head.repo.fork == true. #26276's repository.fork guard does NOT cover that case;"
+          echo "  head.repo.fork does."
+
+  guarded-old-expression:
+    name: "Job guarded by OLD expr (pre-#26276)"
+    needs: show-fork-context
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.workflow_call.repository.fork }}
+    steps:
+      - run: |
+          echo "OLD guard PASSED — this job executed."
+          echo "On a fork, that is exactly the leak #26276 set out to close:"
+          echo "the guard never evaluated to false, so protected jobs always ran."
+
+  guarded-new-expression:
+    name: "Job guarded by NEW expr (post-#26276)"
+    needs: show-fork-context
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.repository.fork }}
+    steps:
+      - run: |
+          echo "NEW guard PASSED — this job executed."
+          echo "On a fork this SHOULD be skipped; if you see this run on a fork,"
+          echo "the fix would be regressing."
+
+  guarded-head-repo-fork:
+    name: "Job guarded by head.repo.fork (came-from-a-fork)"
+    needs: show-fork-context
+    runs-on: ubuntu-latest
+    # The expression that actually answers "did this PR come from a fork?".
+    # Unlike repository.fork, it inspects the PR HEAD repo, so it is true both on
+    # a downstream fork (here) AND for a contributor-fork PR against upstream —
+    # the case repository.fork misses. Skips here because head.repo.fork == true.
+    if: ${{ !github.event.pull_request.head.repo.fork }}
+    steps:
+      - run: |
+          echo "head.repo.fork guard PASSED — this job executed."
+          echo "Skipped on this fork PR (head.repo.fork == true). It would ALSO skip"
+          echo "a contributor-fork PR against upstream, where repository.fork == false"
+          echo "and the #26276 guard would incorrectly let the job run."
