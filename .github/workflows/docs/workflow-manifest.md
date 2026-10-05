@@ -8,6 +8,7 @@
 | 004-user-deploy-preview.yaml                 | 004: [USER] Deploy Preview             | node-flow-deploy-preview.yaml                         | Node: Deploy Preview                                              |
 | 005-user-artifact-determinism.yaml           | 005: [USER] Artifact Determinism       | flow-artifact-determinism.yaml                        | Artifact Determinism                                              |
 | 006-user-update-gs-state-variable.yaml       | 006: [USER] Update GS State Var        | zxf-update-gs-state-variable.yaml                     | ZXF: Update GS_STATE Variable                                     |
+| 007-user-benchmark-runner-eval.yaml          | 007: [USER] Bench Runner Eval          | N/A                                                   | N/A                                                               |
 |                                              |                                        |                                                       |                                                                   |
 | # OPERATIONAL (100-199)                      |                                        |                                                       |                                                                   |
 | 100-user-collect-workflow-logs.yaml          | 100: [USER] Collect Workflow Logs      | zxf-collect-workflow-logs.yaml                        | ZXF: Collect Workflow Run Logs                                    |

@@ -1,0 +1,126 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "007: [USER] Bench Runner Eval"
+# TEMPORARY: evaluates whether the benchmark runner gives stable results (consensus benchmarks pilot, session R).
+# Runs ConsensusImplBenchmark with a calibration-grade configuration from the jar, without Gradle, and records the
+# environment before, during, and after the run. Publishes nothing. Repeat a run with "gh run rerun <run id>".
+on:
+  # TEMPORARY: workflow_dispatch works only for workflows on the default branch
+  push:
+    branches:
+      - 27331-benchmark-runner-evaluation
+  workflow_dispatch:
+    inputs:
+      jmh-args:
+        description: "JMH arguments that set forks, iterations, and their duration."
+        type: string
+        required: false
+        default: ""
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+# never two evaluation runs at once: they could share a node
+concurrency:
+  group: benchmark-runner-eval
+  cancel-in-progress: false
+
+env:
+  GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
+  GRADLE_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+  # every iteration is a measurement iteration, so that the JSON holds all of them and the analysis finds where warmup
+  # ends; JMH writes warmup iterations to neither the JSON nor, for profiler results, the log
+  JMH_ARGS: ${{ inputs.jmh-args || '-f 10 -wi 0 -i 20 -r 5s' }}
+  RESULTS_DIR: ${{ github.workspace }}/build/benchmark-runner-eval
+
+jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    with:
+      ref: ${{ github.sha }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  jmh:
+    name: JMH Runner Evaluation
+    runs-on: hl-cn-benchmark-lin
+    # JMH takes about 36 minutes with the default arguments
+    timeout-minutes: 75
+    needs:
+      - extract-jdk-version
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          # the commit, not the branch: a rerun measures the same code even after the branch has moved
+          checkout-ref: "${{ github.sha }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-java: "true"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+          java-distribution: "temurin"
+          setup-gradle: "true"
+          gradle-cache-read-only: "true"
+
+      # Stops the daemon afterwards, so that no Gradle process is alive while the benchmark measures
+      - name: Build Benchmark Jar
+        run: |
+          ./gradlew :consensus-hashgraph-impl:jmhJarWithMergedServiceFiles
+          ./gradlew --stop
+
+      - name: Record Environment Before
+        run: |
+          mkdir -p "${RESULTS_DIR}"
+          {
+            echo "commit=$(git rev-parse HEAD)"
+            echo "ref=${GITHUB_REF}"
+            echo "run_id=${GITHUB_RUN_ID}"
+            echo "run_attempt=${GITHUB_RUN_ATTEMPT}"
+            echo "runner_name=${RUNNER_NAME}"
+            echo "runner_label=hl-cn-benchmark-lin"
+            echo "jmh_args=${JMH_ARGS}"
+            echo "started=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          } > "${RESULTS_DIR}/run-info.properties"
+          .github/workflows/support/scripts/record-benchmark-environment.sh > "${RESULTS_DIR}/environment-before.txt"
+          cat "${RESULTS_DIR}/run-info.properties" "${RESULTS_DIR}/environment-before.txt"
+
+      # The job's timeout is the hang guard: it ends the ephemeral runner with every JVM in it. Each output line is
+      # prefixed with its time, so that iterations can be matched with the monitor's samples.
+      - name: Run Benchmark
+        id: jmh
+        run: |
+          .github/workflows/support/scripts/record-benchmark-environment.sh --monitor 5 > "${RESULTS_DIR}/monitor.csv" 2>&1 &
+          monitor_pid=$!
+          trap 'kill "${monitor_pid}"' EXIT
+          jar=$(ls platform-sdk/consensus-hashgraph-impl/build/libs/consensus-hashgraph-impl-*-jmh-merged.jar)
+          # shellcheck disable=SC2086 # JMH_ARGS holds several arguments
+          "${JAVA_HOME}/bin/java" -jar "${jar}" ConsensusImplBenchmark \
+            -foe true \
+            -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler \
+            ${JMH_ARGS} \
+            -rf json -rff "${RESULTS_DIR}/results.json" 2>&1 \
+            | while IFS= read -r line; do echo "${EPOCHREALTIME} ${line}"; done \
+            | tee "${RESULTS_DIR}/jmh-output.txt"
+
+      - name: Record Environment After
+        if: ${{ always() && steps.jmh.outcome != 'skipped' }}
+        run: |
+          echo "finished=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${RESULTS_DIR}/run-info.properties"
+          .github/workflows/support/scripts/record-benchmark-environment.sh > "${RESULTS_DIR}/environment-after.txt"
+          sed -n '/^== summary/,/^== end summary/p' "${RESULTS_DIR}/environment-after.txt"
+
+      - name: Upload Results
+        if: ${{ always() && steps.jmh.outcome != 'skipped' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          # one artifact per attempt, because further runs are reruns of the first
+          name: benchmark-runner-eval-${{ github.run_attempt }}
+          path: ${{ env.RESULTS_DIR }}
+          if-no-files-found: error
+          retention-days: 90
