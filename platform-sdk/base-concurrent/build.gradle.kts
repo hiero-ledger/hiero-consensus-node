@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-import java.io.ByteArrayOutputStream
-import java.io.OutputStream
 import me.champeau.jmh.ConcurrentExecutionControlBuildService
 import me.champeau.jmh.JMHTask
 
@@ -42,64 +40,6 @@ timingSensitiveModuleInfo {
     requires("org.junit.jupiter.params")
 }
 
-// JMH prints UTF-8 symbols (approx-equal and plus-minus signs) regardless of the JVM settings,
-// which are garbled
-// by consoles that are not UTF-8. This stream keeps the console output ASCII-only.
-class AsciiOutputStream(private val delegate: OutputStream) : OutputStream() {
-    private val line = ByteArrayOutputStream()
-    private val superscriptDigits = "\u2070\u00b9\u00b2\u00b3\u2074\u2075\u2076\u2077\u2078\u2079"
-
-    override fun write(b: Int) {
-        line.write(b)
-        if (b == '\n'.code) flush()
-    }
-
-    override fun flush() = emit(force = false)
-
-    override fun close() {
-        emit(force = true)
-        delegate.close()
-    }
-
-    // An incomplete UTF-8 sequence at the end (split across two writes) is kept until the rest
-    // arrives,
-    // unless force is set.
-    private fun emit(force: Boolean) {
-        val bytes = line.toByteArray()
-        val end = if (force) bytes.size else completeUtf8Length(bytes)
-        if (end > 0) {
-            val ascii = StringBuilder()
-            for (c in String(bytes, 0, end, Charsets.UTF_8)) {
-                when {
-                    c.code < 128 -> ascii.append(c)
-                    c == '\u2248' -> ascii.append('~')
-                    c == '\u00b1' -> ascii.append("+/-")
-                    c == '\u207b' -> ascii.append('-')
-                    c in superscriptDigits -> ascii.append('0' + superscriptDigits.indexOf(c))
-                    else -> ascii.append('?')
-                }
-            }
-            delegate.write(ascii.toString().toByteArray(Charsets.US_ASCII))
-            line.reset()
-            line.write(bytes, end, bytes.size - end)
-        }
-        delegate.flush()
-    }
-
-    // Length of the prefix of bytes that ends on a complete UTF-8 sequence.
-    private fun completeUtf8Length(bytes: ByteArray): Int {
-        val n = bytes.size
-        for (k in 1..minOf(3, n)) {
-            val b = bytes[n - k].toInt() and 0xFF
-            if ((b and 0xC0) == 0x80) continue // continuation byte: keep looking for the lead byte
-            if (b < 0x80) return n // ASCII: everything before is complete
-            val length = if (b >= 0xF0) 4 else if (b >= 0xE0) 3 else 2
-            return if (k < length) n - k else n
-        }
-        return n
-    }
-}
-
 // Optional properties of jmhOutputQueue:
 //   -PjmhProfilers=gc[,perfnorm]           JMH profilers
 //   -PjmhForks=3                           number of forks (default 1)
@@ -111,10 +51,9 @@ val jmhForks = providers.gradleProperty("jmhForks").orElse("1")
 val jmhGroups = providers.gradleProperty("jmhGroups").map { it.split(",") }.orElse(emptyList())
 val jmhParams = providers.gradleProperty("jmhParams").map { it.split(";") }.orElse(emptyList())
 
-// Setup shared by the two tasks below. They run JMH's own main class on the benchmark jar instead
-// of
-// using the JMH plugin's task: that task can't filter its console output (see AsciiOutputStream),
-// and its options can't be overridden from the command line.
+// Setup shared by the two tasks below. Like jmhSmoke in consensus-hashgraph-impl, they run JMH's
+// main class on the benchmark jar instead of using the JMH plugin's task, so that the options above
+// can be set from the command line.
 fun JavaExec.runsJmh() {
     group = "jmh"
     // the jar alone, so that a run also catches packaging errors
@@ -125,7 +64,6 @@ fun JavaExec.runsJmh() {
     args("-foe", "true")
     // one JMH run at a time across the build; parallel runs fail on JMH's lock file
     usesService(ConcurrentExecutionControlBuildService.restrict(JMHTask::class.java, gradle))
-    doFirst { standardOutput = AsciiOutputStream(System.out) }
 }
 
 // Full measurement run of OutputQueueBench, configured with the properties above.
