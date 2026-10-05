@@ -16,6 +16,8 @@ import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TssStartupNetworksTest {
     private static final long SELF_NODE_ID = 0L;
@@ -86,9 +88,10 @@ class TssStartupNetworksTest {
         assertThat(metadata).isEmpty();
     }
 
-    @Test
-    void writesStartupNetworkPrivateKeysUnderNonProdProfile() {
-        final var config = config("DEV");
+    @ParameterizedTest
+    @ValueSource(strings = {"DEV", "TEST"})
+    void writesStartupNetworkPrivateKeysUnderNonProdProfile(final String profile) {
+        final var config = config(profile);
 
         TssStartupNetworks.writePrivateKeys(networkWithSelfPrivateKeys(), config, SELF_NODE_ID);
 
@@ -99,11 +102,16 @@ class TssStartupNetworksTest {
     @Test
     void doesNotWriteStartupNetworkPrivateKeysUnderProdProfile() {
         final var config = config("PROD");
+        final var existingBlsKey = Bytes.wrap("existing-bls-key");
+        final var existingSchnorrKeys =
+                new TssKeyFiles.SchnorrKeyPair(Bytes.wrap("existing-private"), Bytes.wrap("existing-public"));
+        TssKeyFiles.writeBlsPrivateKey(config, CONSTRUCTION_ID, existingBlsKey);
+        TssKeyFiles.writeSchnorrKeyPair(config, CONSTRUCTION_ID, existingSchnorrKeys);
 
         TssStartupNetworks.writePrivateKeys(networkWithSelfPrivateKeys(), config, SELF_NODE_ID);
 
-        assertThat(TssKeyFiles.readBlsPrivateKey(config, CONSTRUCTION_ID)).isEmpty();
-        assertThat(TssKeyFiles.readSchnorrKeyPair(config, CONSTRUCTION_ID)).isEmpty();
+        assertThat(TssKeyFiles.readBlsPrivateKey(config, CONSTRUCTION_ID)).contains(existingBlsKey);
+        assertThat(TssKeyFiles.readSchnorrKeyPair(config, CONSTRUCTION_ID)).contains(existingSchnorrKeys);
     }
 
     private Network networkWithSelfPrivateKeys() {

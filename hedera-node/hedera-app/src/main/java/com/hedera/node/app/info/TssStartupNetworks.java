@@ -76,6 +76,22 @@ public final class TssStartupNetworks {
     }
 
     /**
+     * Checks whether dev-only TSS metadata may be imported before changing state, runtime contexts, or local keys.
+     */
+    public static boolean shouldImportTssMetadata(@NonNull final Network network, @NonNull final Configuration config) {
+        requireNonNull(network);
+        requireNonNull(config);
+        if (!hasTssMetadata(network)) {
+            return false;
+        }
+        if (isProdProfile(config)) {
+            log.warn("Skipping all dev-only TSS metadata imports from startup network under the PROD profile");
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * Enriches the given base network with TSS metadata from state and local key files.
      */
     public static Network enrichFromState(
@@ -273,12 +289,7 @@ public final class TssStartupNetworks {
             @NonNull final Network network, @NonNull final Configuration config, final long selfNodeId) {
         requireNonNull(network);
         requireNonNull(config);
-        if (!hasTssMetadata(network)) {
-            return;
-        }
-        // Mirrors the export side; a startup network JSON must never source private keys under PROD
-        if (isProdProfile(config)) {
-            log.warn("Refusing to write dev-only TSS private keys from startup network under the PROD profile");
+        if (!shouldImportTssMetadata(network, config)) {
             return;
         }
         final var tssMetadata = network.tssMetadataOrElse(TssMetadata.DEFAULT);

@@ -778,7 +778,7 @@ public class SystemTransactions {
         requireNonNull(config);
         try {
             final var network = startupNetworks.genesisNetworkOrThrow(config);
-            if (!TssStartupNetworks.hasTssMetadata(network)) {
+            if (!TssStartupNetworks.shouldImportTssMetadata(network, config)) {
                 return;
             }
             log.warn("Writing dev-only local TSS private keys from startup network JSON");

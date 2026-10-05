@@ -270,7 +270,7 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             final int networkSize) {
         requireNonNull(writableStates);
         requireNonNull(configuration);
-        final var maybeGenesisNetwork = genesisTssNetwork();
+        final var maybeGenesisNetwork = genesisTssNetwork(configuration);
         if (maybeGenesisNetwork.isPresent()) {
             logger.warn("Initializing dev-only hinTS genesis state and runtime from startup network JSON");
             final var activeConstruction =
@@ -296,13 +296,15 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         return true;
     }
 
-    private Optional<Network> genesisTssNetwork() {
+    private Optional<Network> genesisTssNetwork(@NonNull final Configuration configuration) {
         try {
             final var network = genesisNetworkSupplier.get();
             if (network == null) {
                 return Optional.empty();
             }
-            return TssStartupNetworks.hasTssMetadata(network) ? Optional.of(network) : Optional.empty();
+            return TssStartupNetworks.shouldImportTssMetadata(network, configuration)
+                    ? Optional.of(network)
+                    : Optional.empty();
         } catch (IllegalStateException e) {
             logger.debug("No genesis startup network available for hinTS bootstrap", e);
             return Optional.empty();
