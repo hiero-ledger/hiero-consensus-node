@@ -67,12 +67,21 @@ public class AsyncOutputStream {
     /// enforcing the exact bound with `offerIfBelowThreshold`.
     private final MpscVarHandleArrayQueue<byte[]> outputQueue;
 
-    /// Spin iterations before parking in [#backOff(int, int)].
+    // Backoff tuning. The values are heuristics, not derived from a model; OutputQueueBench (base-concurrent)
+    // was used to check that they don't limit throughput.
+
+    /// Spin iterations before parking in [#backOff(int, int)]. 128 [Thread#onSpinWait()] hints take a few
+    /// microseconds, which covers the usual gap between two messages; parking costs a system call and a
+    /// scheduler wake-up (tens of microseconds on Linux), so it is only worth it once the wait gets longer.
     private static final int SPIN_LIMIT = 128;
-    /// Producers waiting for space: parks grow 1µs, 2µs, ... up to `1µs << 7` (128µs).
+    /// Producers waiting for space: parks grow 1µs, 2µs, ... up to `1µs << 7` (128µs). A slot frees up
+    /// as soon as the writer takes one message, so producers must notice quickly; 128µs keeps that delay
+    /// small while 16 waiting producers don't burn CPU. With this cap the slow-consumer benchmark still runs
+    /// the writer at its full rate.
     private static final int PRODUCER_MAX_PARK_SHIFT = 7;
-    /// Idle writer: parks grow up to `1µs << 10` (about 1ms). Data is flushed only every `flushInterval`
-    /// (8ms by default), so waking up to 1ms late adds little latency while cutting idle wake-ups.
+    /// Idle writer: parks grow up to `1µs << 10` (about 1ms). It must stay well below `flushInterval`
+    /// (8ms by default), the delay already accepted for buffered data, so waking up to 1ms late adds little
+    /// latency; going lower would only add idle wake-ups that burn CPU for nothing.
     private static final int WRITER_MAX_PARK_SHIFT = 10;
 
     /// Maximum time buffered data waits for a flush while messages keep arriving. When the queue runs dry the
@@ -278,10 +287,15 @@ public class AsyncOutputStream {
     /// observe interrupts on their next check.
     private static int backOff(final int idle, final int maxParkShift) {
         if (idle < SPIN_LIMIT) {
+            // first SPIN_LIMIT calls: stay on the CPU, the next message is likely microseconds away
             Thread.onSpinWait();
         } else {
+            // after that, park for 1µs << n, where n counts the parks so far: 1µs, 2µs, 4µs, ...
+            // capped at 1µs << maxParkShift
             LockSupport.parkNanos(1_000L << Math.min(idle - SPIN_LIMIT, maxParkShift));
         }
+        // the caller passes the result back in on the next call. Capping it keeps the park length at its
+        // maximum and stops the counter from growing (and eventually overflowing) during a long wait
         return Math.min(idle + 1, SPIN_LIMIT + maxParkShift);
     }
 }

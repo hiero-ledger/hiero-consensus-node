@@ -52,7 +52,7 @@ import org.openjdk.jmh.infra.Blackhole;
 /// ./gradlew :base-concurrent:jmhOutputQueue
 /// ./gradlew :base-concurrent:jmhOutputQueue -PjmhProfilers=gc            # allocation rate
 /// ./gradlew :base-concurrent:jmhOutputQueue -PjmhProfilers=gc,perfnorm   # Linux only: cycles, cache misses
-/// ./gradlew :base-concurrent:jmhOutputQueue -PjmhSmoke                   # very short smoke run
+/// ./gradlew :base-concurrent:jmhSmoke                                   # every benchmark once, briefly
 /// ./gradlew :base-concurrent:jmhOutputQueue -PjmhForks=3 -PjmhGroups=producers16 "-PjmhParams=producerTokens=1000"
 /// ./gradlew :base-concurrent:jmhOutputQueue "-PjmhParams=impl=MPSC_VARHANDLE,LINKED_BLOCKING;consumerTokens=0"
 /// ```
