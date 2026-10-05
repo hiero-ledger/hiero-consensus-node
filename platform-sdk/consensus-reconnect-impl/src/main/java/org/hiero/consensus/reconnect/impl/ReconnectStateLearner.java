@@ -20,6 +20,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.net.Socket;
 import java.net.SocketException;
 import java.time.Duration;
 import org.apache.logging.log4j.LogManager;
@@ -27,6 +28,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.manager.ThreadManager;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.gossip.impl.network.SocketConnection;
 import org.hiero.consensus.state.SignedStateFileReader;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SigSet;
@@ -54,6 +56,8 @@ public class ReconnectStateLearner {
     private final Configuration configuration;
     private final LearningSynchronizer synchronizer;
 
+    private int originalSendBufferSize;
+    private int originalReceiveBufferSize;
     private SigSet sigSet;
 
     /**
@@ -149,6 +153,48 @@ public class ReconnectStateLearner {
         }
     }
 
+    private void increaseSocketBuffers() {
+        // Empirical test: raise socket buffers for the reconnect bulk transfer.
+        // Post-connect SO_SNDBUF takes effect on Linux for the send buffer.
+        // SO_RCVBUF post-connect has limited effect on the advertised window (already
+        // negotiated at SYN), but can help the kernel buffer incoming data on this side.
+        // Log first so we know what we started from.
+        final Socket socket = ((SocketConnection) connection).getSocket();
+        try {
+            originalSendBufferSize = socket.getSendBufferSize();
+            originalReceiveBufferSize = socket.getReceiveBufferSize();
+            logger.info(
+                    RECONNECT.getMarker(),
+                    "Reconnect socket buffers BEFORE: sendBytes={} receiveBytes={}",
+                    socket.getSendBufferSize(),
+                    socket.getReceiveBufferSize());
+            socket.setSendBufferSize(4 * 1024 * 1024); // 4 MB
+            socket.setReceiveBufferSize(4 * 1024 * 1024);
+            logger.info(
+                    RECONNECT.getMarker(),
+                    "Reconnect socket buffers AFTER:  sendBytes={} receiveBytes={}",
+                    socket.getSendBufferSize(),
+                    socket.getReceiveBufferSize());
+        } catch (SocketException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void resetSocketBuffers() {
+        final Socket socket = ((SocketConnection) connection).getSocket();
+        try {
+            socket.setSendBufferSize(originalSendBufferSize);
+            socket.setReceiveBufferSize(originalReceiveBufferSize);
+            logger.info(
+                    RECONNECT.getMarker(),
+                    "Reconnect socket buffers reset: sendBytes={} receiveBytes={}",
+                    socket.getSendBufferSize(),
+                    socket.getReceiveBufferSize());
+        } catch (SocketException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     /**
      * Perform the reconnect operation.
      *
@@ -160,6 +206,7 @@ public class ReconnectStateLearner {
     @NonNull
     public ReservedSignedState execute() throws ReconnectStateException {
         increaseSocketTimeout();
+        increaseSocketBuffers();
         ReservedSignedState reservedSignedState = null;
         try {
             receiveSignatures();
@@ -178,6 +225,7 @@ public class ReconnectStateLearner {
             throw new ReconnectStateException("interrupted while attempting to reconnect", e);
         } finally {
             resetSocketTimeout();
+            resetSocketBuffers();
         }
     }
 
