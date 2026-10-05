@@ -9,7 +9,6 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_NEXT_
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO_384;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
@@ -287,7 +286,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
             logger.info(
                     "Discovered {}-byte ledger id for block #0 signature verification", discoveredLedgerId.length());
         }
-        var previousBlockHash = HASH_OF_ZERO_384;
+        var previousBlockHash = BlockStreamManager.hashOfZero(useSha256);
         var incrementalBlockHashes = new IncrementalStreamingHasher(digest(), List.of(), 0);
 
         for (int epochIndex = 0; epochIndex < blockEpochs.size(); epochIndex++) {
@@ -589,7 +588,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                     proof.hasBlockStateProof(),
                     "Indirect proof for block #%s is missing a block state proof".formatted(blockNumber));
             if (indirectProofSeq == null) {
-                indirectProofSeq = new IndirectProofSequenceValidator();
+                indirectProofSeq = new IndirectProofSequenceValidator(useSha256);
             }
             indirectProofSeq.registerProof(
                     blockNumber, proof, expectedBlockHash, previousBlockHash, blockTimestamp, expectedSiblingHashes);
@@ -1303,7 +1302,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
 
     private record RootAndSiblingHashes(Bytes blockRootHash, MerkleSiblingHash[] siblingHashes) {}
 
-    private static RootAndSiblingHashes computeBlockHash(
+    private RootAndSiblingHashes computeBlockHash(
             @NonNull final Timestamp blockTimestamp,
             @NonNull final Bytes previousBlockHash,
             @NonNull final IncrementalStreamingHasher prevBlockRootsHasher,
@@ -1322,18 +1321,18 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         // Built by hand, on purpose. This validator must not share the block root tree implementation with
         // block production: if it did, any error in that implementation would be reproduced here and the
         // validator would pass regardless. Branches 1-8 carry data, branches 9-16 are reserved and empty.
-        final var branches12 = BlockImplUtils.hashInternalNode(previousBlockHash, prevBlocksRootHash);
-        final var branches34 = BlockImplUtils.hashInternalNode(startOfBlockStateHash, consensusHeaderHash);
-        final var branches56 = BlockImplUtils.hashInternalNode(inputTreeHash, outputTreeHash);
-        final var branches78 = BlockImplUtils.hashInternalNode(finalStateChangesHash, traceDataHash);
-        final var branches1234 = BlockImplUtils.hashInternalNode(branches12, branches34);
-        final var branches5678 = BlockImplUtils.hashInternalNode(branches56, branches78);
-        final var assignedHalf = BlockImplUtils.hashInternalNode(branches1234, branches5678);
+        final var branches12 = BlockImplUtils.hashInternalNode(digest(), previousBlockHash, prevBlocksRootHash);
+        final var branches34 = BlockImplUtils.hashInternalNode(digest(), startOfBlockStateHash, consensusHeaderHash);
+        final var branches56 = BlockImplUtils.hashInternalNode(digest(), inputTreeHash, outputTreeHash);
+        final var branches78 = BlockImplUtils.hashInternalNode(digest(), finalStateChangesHash, traceDataHash);
+        final var branches1234 = BlockImplUtils.hashInternalNode(digest(), branches12, branches34);
+        final var branches5678 = BlockImplUtils.hashInternalNode(digest(), branches56, branches78);
+        final var assignedHalf = BlockImplUtils.hashInternalNode(digest(), branches1234, branches5678);
 
         final var reservedHalf = emptyReservedHalf();
-        final var subtreesRoot = BlockImplUtils.hashInternalNode(assignedHalf, reservedHalf);
-        final var timestampLeaf = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(blockTimestamp));
-        final var root = BlockImplUtils.hashInternalNode(timestampLeaf, subtreesRoot);
+        final var subtreesRoot = BlockImplUtils.hashInternalNode(digest(), assignedHalf, reservedHalf);
+        final var timestampLeaf = BlockImplUtils.hashLeaf(digest(), Timestamp.PROTOBUF.toBytes(blockTimestamp));
+        final var root = BlockImplUtils.hashInternalNode(digest(), timestampLeaf, subtreesRoot);
 
         // The right sibling of branch 1's ancestor at each level, bottom-up
         return new RootAndSiblingHashes(root, new MerkleSiblingHash[] {
@@ -1346,13 +1345,15 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
 
     /**
      * The root of the eight empty reserved branches 9-16, derived here rather than read from production.
-     * Expected value: {@code cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8}.
+     * Under the SHA-384 default the expected value is
+     * {@code cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8};
+     * under {@code useSha256} it is the SHA-256 analogue computed from {@code hashOfZero(true)}.
      */
-    private static Bytes emptyReservedHalf() {
-        final var pairOfEmpties = BlockImplUtils.hashInternalNode(
-                BlockStreamManager.HASH_OF_ZERO_384, BlockStreamManager.HASH_OF_ZERO_384);
-        final var fourEmpties = BlockImplUtils.hashInternalNode(pairOfEmpties, pairOfEmpties);
-        return BlockImplUtils.hashInternalNode(fourEmpties, fourEmpties);
+    private Bytes emptyReservedHalf() {
+        final var emptyLeaf = BlockStreamManager.hashOfZero(useSha256);
+        final var pairOfEmpties = BlockImplUtils.hashInternalNode(digest(), emptyLeaf, emptyLeaf);
+        final var fourEmpties = BlockImplUtils.hashInternalNode(digest(), pairOfEmpties, pairOfEmpties);
+        return BlockImplUtils.hashInternalNode(digest(), fourEmpties, fourEmpties);
     }
 
     private static List<Block> readBlocksFrom(@NonNull final Path blockStreamsDir) {

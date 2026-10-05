@@ -6,7 +6,7 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_LEDGE
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
-import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowHashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.stateNameOf;
@@ -91,6 +91,7 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.file.FileSystemManager;
@@ -112,7 +113,11 @@ public class StateChangesValidator implements BlockStreamValidator {
     public static final AtomicBoolean AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED = new AtomicBoolean(true);
     public static final AtomicBoolean ADAPTIVE_SIGNATURE_CHECKS_ENABLED = new AtomicBoolean(false);
 
-    private static final int HASH_SIZE = 48;
+    // The saved-state root hash in the state-metadata file is the platform signed-state Merkle root, hashed with the
+    // platform digest Cryptography.DEFAULT_DIGEST_TYPE (NOT BlockStreamConfig.useSha256). Tracking the platform digest
+    // length directly means this auto-adjusts (48 -> 32) if/when that digest flips to SHA-256, without coupling to the
+    // block-stream flag, which moves on a different (though related) switch.
+    private static final int HASH_SIZE = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
     private static final int HINTS_VERIFICATION_KEY_LENGTH = 1096;
     private static final int AGGREGATE_SCHNORR_SIGNATURE_LENGTH = 192;
 
@@ -364,8 +369,9 @@ public class StateChangesValidator implements BlockStreamValidator {
         this.hintsLibrary = (hintsEnabled == HintsEnabled.YES) ? new HintsLibraryImpl() : null;
         this.historyLibrary = (historyEnabled == HistoryEnabled.YES) ? new HistoryLibraryImpl() : null;
         this.wrapsEnabled = wrapsEnabled;
-        this.proofSeqFactory =
-                (stateProofsEnabled == StateProofsEnabled.YES) ? IndirectProofSequenceValidator::new : () -> null;
+        this.proofSeqFactory = (stateProofsEnabled == StateProofsEnabled.YES)
+                ? () -> new IndirectProofSequenceValidator(useSha256)
+                : () -> null;
 
         logger.info("Registered all Service and migrated state definitions to version {}", servicesVersion);
     }
@@ -1011,7 +1017,9 @@ public class StateChangesValidator implements BlockStreamValidator {
     }
 
     private void assertMockSignature(@NonNull final BlockProof proof, @NonNull final Bytes expectedBlockHash) {
-        final var expectedMockSignature = Bytes.wrap(noThrowSha384HashOf(expectedBlockHash.toByteArray()));
+        // The node's mock signature is noThrowHashOf(blockHash, useSha256) (TssBlockHashSigner.sign), so it follows
+        // the block-stream digest flag, not the platform digest.
+        final var expectedMockSignature = Bytes.wrap(noThrowHashOf(expectedBlockHash.toByteArray(), useSha256));
         assertEquals(
                 expectedMockSignature,
                 proof.signedBlockProofOrThrow().blockSignature(),

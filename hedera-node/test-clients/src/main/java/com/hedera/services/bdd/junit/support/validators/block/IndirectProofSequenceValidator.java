@@ -22,10 +22,12 @@ import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.utility.Pair;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -70,6 +72,29 @@ class IndirectProofSequenceValidator {
     private long firstUnsignedBlockNum = -1;
     private long signedBlockNum;
     private boolean endOfSequenceReached = false;
+
+    /**
+     * Whether block hashes in this sequence were produced with SHA-256 (32-byte) rather than the SHA-384 (48-byte)
+     * default, per {@code BlockStreamConfig.useSha256}. Must match the digest the block stream under validation was
+     * produced with, or every recomputed merkle hash will mismatch.
+     */
+    private final boolean useSha256;
+
+    IndirectProofSequenceValidator(final boolean useSha256) {
+        this.useSha256 = useSha256;
+    }
+
+    /**
+     * Creates a validator for the legacy SHA-384 path. Retained for the development {@link TestCase} harness, whose
+     * fixtures are SHA-384.
+     */
+    IndirectProofSequenceValidator() {
+        this(false);
+    }
+
+    private MessageDigest digest() {
+        return CommonUtils.digestOrThrow(useSha256);
+    }
 
     /**
      * Runs a test case verifying an indirect proof sequence.
@@ -337,7 +362,7 @@ class IndirectProofSequenceValidator {
             allSiblingHashes.add(SiblingNode.newBuilder()
                     .isLeft(true)
                     .hash(BlockImplUtils.hashLeaf(
-                            currentBlockPaths.left().leaf().timestampLeafOrThrow()))
+                            digest(), currentBlockPaths.left().leaf().timestampLeafOrThrow()))
                     .build());
         }
 
@@ -471,17 +496,17 @@ class IndirectProofSequenceValidator {
         var hash = mp2.hashOrThrow();
         for (final SiblingNode sibling : allSiblings) {
             if (sibling.isLeft()) {
-                hash = BlockImplUtils.hashInternalNode(sibling.hash(), hash);
+                hash = BlockImplUtils.hashInternalNode(digest(), sibling.hash(), hash);
             } else {
-                hash = BlockImplUtils.hashInternalNode(hash, sibling.hash());
+                hash = BlockImplUtils.hashInternalNode(digest(), hash, sibling.hash());
             }
         }
         // Combine the signed block's timestamp with the computed block contents hash to get the final block hash
         final var signedTimestamp = paths.getFirst().timestampLeafOrThrow();
         final var signedTimestampBytes = Timestamp.PROTOBUF.toBytes(signedBlockTimestamp);
         assertEquals(signedTimestampBytes, signedTimestamp, "Mismatch in signed block's timestamp bytes");
-        final var hashedTsBytes = BlockImplUtils.hashLeaf(signedTimestampBytes);
-        hash = BlockImplUtils.hashInternalNode(hashedTsBytes, hash);
+        final var hashedTsBytes = BlockImplUtils.hashLeaf(digest(), signedTimestampBytes);
+        hash = BlockImplUtils.hashInternalNode(digest(), hashedTsBytes, hash);
 
         // This hash must now equal the root hash of the signed block
         return hash;
