@@ -75,12 +75,12 @@ public class CryptoStakingSuite {
                         .balance(ONE_HUNDRED_HBARS)
                         .declinedReward(false)
                         .stakedAccountId("0")
-                        .hasPrecheck(INVALID_STAKING_ID),
+                        .hasKnownStatus(INVALID_STAKING_ID),
                 cryptoCreate("invalidStakedNode")
                         .balance(ONE_HUNDRED_HBARS)
                         .declinedReward(false)
                         .stakedNodeId(-1L)
-                        .hasPrecheck(INVALID_STAKING_ID));
+                        .hasKnownStatus(INVALID_STAKING_ID));
     }
 
     @HapiTest
