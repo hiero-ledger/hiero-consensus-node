@@ -1183,7 +1183,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             effectiveSignature,
                             signedBlock.blockTimestamp(),
                             // Pass the remaining pending blocks, but don't remove them from the queue
-                            pendingBlocks.stream());
+                            pendingBlocks.stream(),
+                            configProvider
+                                    .getConfiguration()
+                                    .getConfigData(BlockStreamConfig.class)
+                                    .useSha256());
                 } catch (final IllegalStateException e) {
                     // This block can't be proven (e.g. a gap in the pending queue) and has already been polled from
                     // pendingBlocks, so release its writer and drop any on-disk pending files here — no later path

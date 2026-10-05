@@ -6,6 +6,7 @@ import com.hedera.hapi.block.stream.SiblingNode;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -63,6 +64,9 @@ public class BlockStateProofGenerator {
      * @param latestSignedBlockSignature the signature of the latest signed block
      * @param remainingPendingBlocks stream of remaining pending blocks after the current one. This queue is
      *                               passed for <b>read-only</b> purposes; don't dequeue from it.
+     * @param useSha256 whether intermediate-block timestamp leaves are hashed with SHA-256 (32-byte) instead of the
+     *                  SHA-384 (48-byte) default, per {@code BlockStreamConfig.useSha256}. Must match the digest the
+     *                  signed block's own siblings and timestamp leaf were produced with, or the proof will not verify.
      * @return the constructed state proof
      * @throws IllegalStateException if the latest signed block is not strictly after the current pending block, if the
      *                               pending blocks contain duplicate block numbers or do not cover every block from the
@@ -74,7 +78,8 @@ public class BlockStateProofGenerator {
             final long latestSignedBlockNumber,
             final Bytes latestSignedBlockSignature,
             final Timestamp latestSignedBlockTimestamp,
-            @NonNull final Stream<PendingBlock> remainingPendingBlocks) {
+            @NonNull final Stream<PendingBlock> remainingPendingBlocks,
+            final boolean useSha256) {
 
         // Construct the necessary merkle paths for all blocks from [current, blockNumber - 1]. This makes it necessary
         // to read each pending block, but not dequeue them. The current pending block was already polled from the
@@ -142,7 +147,8 @@ public class BlockStateProofGenerator {
                         .hash(s.siblingHash())
                         .build());
             }
-            final var hashedTs = BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(block.blockTimestamp()));
+            final var hashedTs = BlockImplUtils.hashLeaf(
+                    CommonUtils.digestOrThrow(useSha256), Timestamp.PROTOBUF.toBytes(block.blockTimestamp()));
             siblings.add(SiblingNode.newBuilder().isLeft(true).hash(hashedTs).build());
         }
 
