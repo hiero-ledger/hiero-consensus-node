@@ -25,6 +25,16 @@ public interface ExecutorFactory {
     ForkJoinPool createForkJoinPool(int parallelism, boolean asyncMode);
 
     /**
+     * Create a ForkJoinPool with the given parallelism and async mode set to true.
+     *
+     * @param parallelism the parallelism
+     * @return the ForkJoinPool
+     */
+    default ForkJoinPool createForkJoinPool(int parallelism) {
+        return createForkJoinPool(parallelism, true);
+    }
+
+    /**
      * Create an ExecutorService with the given thread count.
      *
      * @param threadCount the thread count

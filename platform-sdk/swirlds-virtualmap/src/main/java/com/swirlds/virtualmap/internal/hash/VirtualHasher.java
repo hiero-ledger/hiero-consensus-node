@@ -80,7 +80,7 @@ public final class VirtualHasher {
                         "VirtualHasher",
                         (_, e) -> logger.error(
                                 EXCEPTION.getMarker(), "Virtual hasher thread terminated with exception", e))
-                .createForkJoinPool(virtualMapConfig.getNumHashThreads(), true);
+                .createForkJoinPool(virtualMapConfig.getNumHashThreads());
     }
 
     /**

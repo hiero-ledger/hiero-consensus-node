@@ -101,7 +101,7 @@ public class IntakeBenchmark {
     @Setup(Level.Trial)
     public void beforeBenchmark() {
         threadPool = ExecutorFactory.create("JMH", IntakeBenchmark::uncaughtException)
-                .createForkJoinPool(numberOfThreads, true);
+                .createForkJoinPool(numberOfThreads);
     }
 
     @TearDown(Level.Trial)

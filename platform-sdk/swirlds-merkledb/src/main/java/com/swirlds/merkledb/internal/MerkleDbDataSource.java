@@ -316,7 +316,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         // thread pool to run tasks during flushes
         final ExecutorFactory flushPoolFactory = ExecutorFactory.create(
                 "MerkleDbFlusher", (_, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during flush", e));
-        flushPool = flushPoolFactory.createForkJoinPool(config.getNumFlushThreads(), true);
+        flushPool = flushPoolFactory.createForkJoinPool(config.getNumFlushThreads());
 
         dbPaths = new MerkleDbPaths(storageDir);
 

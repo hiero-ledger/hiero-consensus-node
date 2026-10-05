@@ -95,7 +95,7 @@ public class ThreadLocalHandlingTest {
         final Runnable onStartup = () -> threadLocal.set(TEST_VALUE);
         final ExecutorFactory executorFactory =
                 DefaultExecutorFactory.create("test-group", onStartup, exceptionHandler);
-        final ForkJoinPool forkJoinPool = executorFactory.createForkJoinPool(threadCount, true);
+        final ForkJoinPool forkJoinPool = executorFactory.createForkJoinPool(threadCount);
         addShutdown(forkJoinPool);
         final Runnable task = createCheckThreadLocalTask(latch, threadLocal, errors);
 

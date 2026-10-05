@@ -60,7 +60,7 @@ public class HashgraphModuleBenchmark {
         // this makes sense since consensus only has a single component.
         final int numberOfThreads = 1;
         threadPool = ExecutorFactory.create("JMH", HashgraphModuleBenchmark::uncaughtException)
-                .createForkJoinPool(numberOfThreads, true);
+                .createForkJoinPool(numberOfThreads);
     }
 
     @TearDown(Level.Trial)
