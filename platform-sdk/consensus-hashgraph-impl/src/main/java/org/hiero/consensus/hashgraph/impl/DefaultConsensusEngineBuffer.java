@@ -1,7 +1,5 @@
 package org.hiero.consensus.hashgraph.impl;
 
-import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
-
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -85,10 +83,7 @@ public class DefaultConsensusEngineBuffer implements ConsensusEngineBuffer {
             final PlatformEvent eventToAdd = pendingEventQueue.poll();
             final ConsensusEngineOutput output = consensusEngine.addEvent(eventToAdd);
             preConsensusEvents.addAll(output.preConsensusEvents());
-            final ConsensusResult firstResult = addResultsToBuffer(output.consensusResult());
-            resultsToReturn.add(firstResult);
-            advanceFutureEventBufferWindow(firstResult.consensusRound().getEventWindow());
-            requestCounter--;
+            consensusResultQueue.addAll(output.consensusResult());
             resultsToReturn.addAll(getBufferedConsensusResults());
         }
 
@@ -105,21 +100,13 @@ public class DefaultConsensusEngineBuffer implements ConsensusEngineBuffer {
             final ConsensusResult nextResult = consensusResultQueue.poll();
             if (nextResult != null) {
                 results.add(nextResult);
-                advanceFutureEventBufferWindow(nextResult.consensusRound().getEventWindow());
+                final EventWindow eventWindow = nextResult.consensusRound().getEventWindow();
+                final List<PlatformEvent> newNonFutureEvents = futureEventBuffer.updateEventWindow(eventWindow);
+                pendingEventQueue.addAll(newNonFutureEvents);
                 requestCounter--;
             }
         }
         return results;
-    }
-
-    private void advanceFutureEventBufferWindow(@NonNull final EventWindow eventWindow) {
-        pendingEventQueue.addAll(futureEventBuffer.updateEventWindow(eventWindow));
-    }
-
-    @NonNull
-    private ConsensusResult addResultsToBuffer(@NonNull final List<ConsensusResult> output) {
-        consensusResultQueue.addAll(output.subList(1, output.size()));
-        return output.getFirst();
     }
 
     @Override
