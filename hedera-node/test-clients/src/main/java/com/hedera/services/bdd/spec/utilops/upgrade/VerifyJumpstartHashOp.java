@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.upgrade;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -47,7 +47,8 @@ public class VerifyJumpstartHashOp extends UtilOp {
         final long freezeBlock = Long.parseLong(freezeBlockNum);
         final long jumpstartBlockNum = jumpstartConfig.blockNum();
         final Bytes prevHash = jumpstartConfig.previousWrappedRecordBlockHash();
-        final var hasher = createHasherFromConfig(jumpstartConfig);
+        final boolean useSha256 = spec.startupProperties().getBoolean("blockStream.useSha256");
+        final var hasher = createHasherFromConfig(jumpstartConfig, useSha256);
 
         log.info(
                 "[VerifyJumpstartHash] Jumpstart block={}, prevHash={}, freeze block={}",
@@ -55,7 +56,8 @@ public class VerifyJumpstartHashOp extends UtilOp {
                 prevHash,
                 freezeBlock);
 
-        final var rcdResult = RcdFileBlockHashReplay.replay(spec, jumpstartBlockNum, freezeBlock, prevHash, hasher);
+        final var rcdResult =
+                RcdFileBlockHashReplay.replay(spec, jumpstartBlockNum, freezeBlock, prevHash, hasher, useSha256);
 
         log.info(
                 "[VerifyJumpstartHash] .rcd replay processed {} blocks, final hash: {}",
@@ -78,12 +80,14 @@ public class VerifyJumpstartHashOp extends UtilOp {
         return false;
     }
 
-    private static IncrementalStreamingHasher createHasherFromConfig(@NonNull final BlockStreamJumpstartConfig config) {
+    private static IncrementalStreamingHasher createHasherFromConfig(
+            @NonNull final BlockStreamJumpstartConfig config, final boolean useSha256) {
         final var subtreeHashes = config.streamingHasherSubtreeHashes();
         final List<byte[]> hashes = new ArrayList<>(subtreeHashes.size());
         for (final var hash : subtreeHashes) {
             hashes.add(hash.toByteArray());
         }
-        return new IncrementalStreamingHasher(sha256DigestOrThrow(), hashes, config.streamingHasherLeafCount());
+        return new IncrementalStreamingHasher(
+                CommonUtils.digestOrThrow(useSha256), hashes, config.streamingHasherLeafCount());
     }
 }

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.upgrade;
 
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO_384;
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.WRAPPED_RECORD_HASHES_FILE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashesLog;
+import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.HapiSpec;
@@ -88,8 +88,10 @@ public class BuildDynamicJumpstartConfigOp extends UtilOp {
         // Replay .rcd files from genesis through the jumpstart block to compute the TRUE
         // chained hash. Unlike the disk hashes file (which may start at a block > 0),
         // the .rcd files must exist for ALL blocks from genesis and produce a correct chain.
-        final var hasher = new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0L);
-        final var replayResult = RcdFileBlockHashReplay.replay(spec, -1, jumpstartBlockNum, HASH_OF_ZERO_384, hasher);
+        final boolean useSha256 = spec.startupProperties().getBoolean("blockStream.useSha256");
+        final var hasher = new IncrementalStreamingHasher(CommonUtils.digestOrThrow(useSha256), List.of(), 0L);
+        final var replayResult = RcdFileBlockHashReplay.replay(
+                spec, -1, jumpstartBlockNum, BlockStreamManager.hashOfZero(useSha256), hasher, useSha256);
         final var prevWrappedBlockHash = replayResult.finalChainedHash();
         log.info(
                 "Computed jumpstart state via .rcd replay from genesis; "

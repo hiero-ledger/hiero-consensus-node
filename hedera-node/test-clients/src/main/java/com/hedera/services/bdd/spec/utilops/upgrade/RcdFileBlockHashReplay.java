@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.upgrade;
 
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashInternalNode;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
@@ -9,7 +8,8 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.streams.RecordStreamFile;
 import com.hedera.hapi.streams.SidecarFile;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
-import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.impl.BlockImplUtils;
+import com.hedera.node.app.blocks.impl.BlockRootTreeHasher;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils;
@@ -24,11 +24,13 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.zip.GZIPInputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -66,6 +68,7 @@ public final class RcdFileBlockHashReplay {
      *                           (use {@code HASH_OF_ZERO} for genesis)
      * @param initialHasher      the incremental streaming hasher to start from
      *                           (use a fresh empty hasher for genesis)
+     * @param useSha256          whether to use SHA-256 ({@code true}) or SHA-384 ({@code false})
      * @return the replay result with per-block entries and final chained hash
      */
     public static ReplayResult replay(
@@ -73,7 +76,8 @@ public final class RcdFileBlockHashReplay {
             final long startBlockExclusive,
             final long endBlockInclusive,
             @NonNull final Bytes initialPrevHash,
-            @NonNull final IncrementalStreamingHasher initialHasher)
+            @NonNull final IncrementalStreamingHasher initialHasher,
+            final boolean useSha256)
             throws IOException, ParseException {
         requireNonNull(spec);
         requireNonNull(initialPrevHash);
@@ -152,13 +156,14 @@ public final class RcdFileBlockHashReplay {
                     sidecars,
                     DEFAULT_MAX_SIDECAR_SIZE_BYTES);
 
-            // Compute per-block hashes (SHA-384 default, matching this file's own hashInternalNode() calls below)
-            final var entry = WrappedRecordFileBlockHashesCalculator.compute(input, CommonUtils::sha384DigestOrThrow);
+            final Supplier<MessageDigest> digestFactory = () -> CommonUtils.digestOrThrow(useSha256);
+            final var entry = WrappedRecordFileBlockHashesCalculator.compute(input, digestFactory);
             entriesByBlock.put(blockNumber, entry);
 
             // Compute block root hash via Merkle tree (independent of production code)
             final var allPrevBlocksRootHash = Bytes.wrap(initialHasher.computeRootHash());
-            final var blockRootHash = computeBlockRootHash(prevWrappedBlockHash, allPrevBlocksRootHash, entry);
+            final var blockRootHash =
+                    computeBlockRootHash(prevWrappedBlockHash, allPrevBlocksRootHash, entry, useSha256);
 
             // Update chain
             initialHasher.addNodeByHash(blockRootHash.toByteArray());
@@ -183,33 +188,39 @@ public final class RcdFileBlockHashReplay {
     static Bytes computeBlockRootHash(
             @NonNull final Bytes prevWrappedBlockHash,
             @NonNull final Bytes allPrevBlocksRootHash,
-            @NonNull final WrappedRecordFileBlockHashes entry) {
+            @NonNull final WrappedRecordFileBlockHashes entry,
+            final boolean useSha256) {
         // Built by hand, on purpose. This replay must not share the block root tree implementation with
         // block production: if it did, any error in that implementation would be reproduced here and the
         // replay would agree with production regardless. A wrapped record block populates only branches 1, 2
         // and 6; every other branch, assigned or reserved, is the empty sub-tree hash.
-        final var empty = BlockStreamManager.HASH_OF_ZERO_384;
-        final var branches12 = hashInternalNode(prevWrappedBlockHash, allPrevBlocksRootHash);
-        final var branches34 = hashInternalNode(empty, empty);
-        final var branches56 = hashInternalNode(empty, entry.outputItemsTreeRootHash());
-        final var branches78 = hashInternalNode(empty, empty);
-        final var branches1234 = hashInternalNode(branches12, branches34);
-        final var branches5678 = hashInternalNode(branches56, branches78);
-        final var assignedHalf = hashInternalNode(branches1234, branches5678);
+        final var digest = CommonUtils.digestOrThrow(useSha256);
+        final var empty = BlockRootTreeHasher.emptySubtreeFor(digest);
+        final var branches12 = BlockImplUtils.hashInternalNode(
+                CommonUtils.digestOrThrow(useSha256), prevWrappedBlockHash, allPrevBlocksRootHash);
+        final var branches34 = BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(useSha256), empty, empty);
+        final var branches56 = BlockImplUtils.hashInternalNode(
+                CommonUtils.digestOrThrow(useSha256), empty, entry.outputItemsTreeRootHash());
+        final var branches78 = BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(useSha256), empty, empty);
+        final var branches1234 =
+                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(useSha256), branches12, branches34);
+        final var branches5678 =
+                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(useSha256), branches56, branches78);
+        final var assignedHalf =
+                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(useSha256), branches1234, branches5678);
 
-        final var subtreesRoot = hashInternalNode(assignedHalf, emptyReservedHalf());
-        return hashInternalNode(entry.consensusTimestampHash(), subtreesRoot);
+        final var subtreesRoot = BlockImplUtils.hashInternalNode(
+                CommonUtils.digestOrThrow(useSha256), assignedHalf, emptyReservedHalf(useSha256));
+        return BlockImplUtils.hashInternalNode(
+                CommonUtils.digestOrThrow(useSha256), entry.consensusTimestampHash(), subtreesRoot);
     }
 
-    /**
-     * The root of the eight empty reserved branches 9-16, derived here rather than read from production.
-     * Expected value: {@code cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8}.
-     */
-    private static Bytes emptyReservedHalf() {
-        final var pairOfEmpties =
-                hashInternalNode(BlockStreamManager.HASH_OF_ZERO_384, BlockStreamManager.HASH_OF_ZERO_384);
-        final var fourEmpties = hashInternalNode(pairOfEmpties, pairOfEmpties);
-        return hashInternalNode(fourEmpties, fourEmpties);
+    private static Bytes emptyReservedHalf(final boolean useSha256) {
+        final var empty = BlockRootTreeHasher.emptySubtreeFor(CommonUtils.digestOrThrow(useSha256));
+        final var pairOfEmpties = BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(useSha256), empty, empty);
+        final var fourEmpties =
+                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(useSha256), pairOfEmpties, pairOfEmpties);
+        return BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(useSha256), fourEmpties, fourEmpties);
     }
 
     /**
