@@ -12,6 +12,7 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.MerklePathUtils;
@@ -36,6 +37,7 @@ import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -63,7 +65,7 @@ public class MerkleDbTestUtils {
     public static final MerkleDbConfig DEFAULT_MERKLE_DB_CONFIG =
             DEFAULT_CONFIGURATION.getConfigData(MerkleDbConfig.class);
 
-    /// Writes the list using the default writer count, replacing any existing file,
+    /// Writes the list using the default snapshot parallelism, replacing any existing file,
     /// and verifies that the file exists.
     ///
     /// @param longList the LongList instance to write
@@ -76,9 +78,8 @@ public class MerkleDbTestUtils {
         final Path file = tempDir.resolve(fileName);
 
         Files.deleteIfExists(file);
-        final int threadCount = DEFAULT_MERKLE_DB_CONFIG.longListWriteThreads();
-        try (final ExecutorService executor = Executors.newFixedThreadPool(threadCount)) {
-            longList.writeToFile(file, executor, threadCount);
+        try (final ForkJoinPool pool = new ForkJoinPool(DEFAULT_MERKLE_DB_CONFIG.snapshotThreads())) {
+            MerkleDbFileUtils.waitForSnapshot(longList.writeToFile(file, pool));
         }
 
         assertTrue(

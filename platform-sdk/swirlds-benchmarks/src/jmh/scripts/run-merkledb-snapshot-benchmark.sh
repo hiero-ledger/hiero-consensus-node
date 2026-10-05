@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Complete 1B-leaf MerkleDB snapshot campaign: force off, hash-cache overlap always on.
 # Run explicitly on the Linux benchmark machine. --dry-run only prints the plan.
+# --retry RUN_ID restarts with that run's frozen JAR and settings, without rebuilding.
 
 set -euo pipefail
 
@@ -11,18 +12,31 @@ REPO_ROOT="$(git -C "${MODULE_DIR}" rev-parse --show-toplevel)"
 RUNNER_SOURCE="${SCRIPT_DIR}/$(basename -- "${BASH_SOURCE[0]}")"
 PREFLIGHT_SOURCE="${SCRIPT_DIR}/check-merkledb-snapshot-benchmark-system.sh"
 CAMPAIGN_LABEL="${CAMPAIGN_LABEL:-baseline}"
+PREBUILT_JMH_JAR="${PREBUILT_JMH_JAR:-}"
 if [[ ! "${CAMPAIGN_LABEL}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]]; then
     echo "CAMPAIGN_LABEL must contain 1-64 letters, digits, dots, underscores, or hyphens, starting with a letter/digit." >&2
     exit 2
 fi
 
 DRY_RUN=false
-if (( $# == 1 )) && [[ "$1" == --dry-run ]]; then
-    DRY_RUN=true
-elif (( $# != 0 )); then
-    echo "Usage: $0 [--dry-run] (optional environment: CAMPAIGN_LABEL, JAVA_HOME)" >&2
-    exit 2
-fi
+RETRY_RUN=""
+while (( $# > 0 )); do
+    case "$1" in
+        --dry-run) DRY_RUN=true; shift ;;
+        --retry)
+            if (( $# < 2 )) || [[ ! "$2" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ || -n "${RETRY_RUN}" ]]; then
+                echo "--retry requires one run ID from the campaign results directory." >&2
+                exit 2
+            fi
+            RETRY_RUN="$2"
+            shift 2
+            ;;
+        *)
+            echo "Usage: $0 [--dry-run] [--retry RUN_ID] (optional environment: CAMPAIGN_LABEL, JAVA_HOME, PREBUILT_JMH_JAR)" >&2
+            exit 2
+            ;;
+    esac
+done
 
 # Ten thousand 100,000-leaf copies retain the original fixture creation cadence.
 LEAF_COUNT=1000000000
@@ -32,10 +46,19 @@ JVM_ARGS="-Xms4g -Xmx32g -XX:MaxDirectMemorySize=16g"
 BENCHMARK='com.swirlds.benchmark.MerkleDbSnapshotBenchmark.snapshot$'
 RUN_ID="${CAMPAIGN_LABEL}-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 SCRATCH_PARENT="${MODULE_DIR}/build/tmp/merkledb-snapshot-1b-campaign"
+JMH_TMP_DIR="${SCRATCH_PARENT}/jmh-tmp"
 RESULTS_PARENT="${MODULE_DIR}/build/results/jmh/merkledb-snapshot-1b-campaign"
 RESULTS_DIR="${RESULTS_PARENT}/${RUN_ID}"
 ARCHIVE="${RESULTS_PARENT}/${RUN_ID}.tar.gz"
 JMH_JAR="${RESULTS_DIR}/jmh.jar"
+SETTINGS_SOURCE="${MODULE_DIR}/settings.txt"
+if [[ -n "${RETRY_RUN}" ]]; then
+    [[ -z "${PREBUILT_JMH_JAR}" ]] || { echo "Use either --retry or PREBUILT_JMH_JAR, not both." >&2; exit 2; }
+    PREBUILT_JMH_JAR="${RESULTS_PARENT}/${RETRY_RUN}/jmh.jar"
+    SETTINGS_SOURCE="${RESULTS_PARENT}/${RETRY_RUN}/settings.txt"
+    [[ -f "${PREBUILT_JMH_JAR}" && -r "${PREBUILT_JMH_JAR}" && -f "${SETTINGS_SOURCE}" && -r "${SETTINGS_SOURCE}" ]] \
+        || { echo "Cannot read the frozen JAR and settings for run: ${RETRY_RUN}" >&2; exit 2; }
+fi
 SCRATCH_DIR=""
 PHASE=initialization
 COMPLETED_BLOCKS=0
@@ -55,6 +78,7 @@ write_manifest() {
         echo "exit_code=${exit_code}"
         echo "campaign_label=${CAMPAIGN_LABEL}"
         echo "run_id=${RUN_ID}"
+        echo "retry_of=${RETRY_RUN}"
         echo "phase=${PHASE}"
         echo "started_at=${STARTED_AT}"
         echo "updated_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -137,7 +161,7 @@ finish_run() {
 
 run_jmh() {
     local result_name="$1" implementations="$2" writer_counts="$3" prepare="$4" warmups="$5" iterations="$6" timeout="$7"
-    local -a command=("${JAVA}" -jar "${JMH_JAR}" "${BENCHMARK}"
+    local -a command=("${JAVA}" "-Djava.io.tmpdir=${JMH_TMP_DIR}" -jar "${JMH_JAR}" "${BENCHMARK}"
         -p "longListImplementation=${implementations}"
         -p "threadsPerLongList=${writer_counts}"
         -p "prepareFixtureOnly=${prepare}"
@@ -175,10 +199,15 @@ main() {
         echo "Campaign ${CAMPAIGN_LABEL}: 1B leaves, key=32 B, record=128 B, force off, overlap always on."
         echo "5 implementations x 5 writer counts = 25 configurations; 3 blocks = 75 rows / 225 measured samples."
         echo "Each configuration has 1 warmup + 3 measurements per block (9 measured snapshots total)."
-        echo "Build: ${REPO_ROOT}/gradlew :swirlds-benchmarks:jmhJar --console=plain"
+        echo "Check host activity and leftover fixtures before building and again before JMH; stop if not ready."
+        if [[ -n "${PREBUILT_JMH_JAR}" ]]; then
+            echo "Reuse JAR (no Gradle build): ${PREBUILT_JMH_JAR}"
+        else
+            echo "Build: ${REPO_ROOT}/gradlew :swirlds-benchmarks:jmhJar --console=plain"
+        fi
         echo "Freeze JAR, runner, preflight, settings, and software metadata in ${RESULTS_DIR} before JMH."
         echo "Working directory: a unique mktemp run.* under ${SCRATCH_PARENT}"
-        run_jmh fixture-preparation SEGMENT 1 true 0 1 360m
+        run_jmh fixture-preparation SEGMENT 1 true 0 1 720m
         run_blocks
         echo "Archive after success/failure: ${ARCHIVE} (check manifest.txt status)."
         return 0
@@ -190,8 +219,18 @@ main() {
     java_version="$("${JAVA}" -version 2>&1 | awk -F'"' 'NR == 1 { print $2 }')"
     [[ "${java_version}" == 25.0.2* ]] || { echo "Java 25.0.2 required; found ${java_version}" >&2; return 1; }
     command -v sha256sum >/dev/null || { echo "sha256sum is required." >&2; return 1; }
+    if [[ -n "${PREBUILT_JMH_JAR}" ]]; then
+        [[ -f "${PREBUILT_JMH_JAR}" && -r "${PREBUILT_JMH_JAR}" ]] \
+            || { echo "Cannot read prebuilt JMH JAR: ${PREBUILT_JMH_JAR}" >&2; return 1; }
+        PREBUILT_JMH_JAR="$(cd -- "$(dirname -- "${PREBUILT_JMH_JAR}")" && pwd -P)/$(basename -- "${PREBUILT_JMH_JAR}")"
+    fi
 
-    mkdir -p -- "${SCRATCH_PARENT}" "${RESULTS_PARENT}"
+    # Do not build or create another fixture while the host is busy or prior scratch remains.
+    bash "${PREFLIGHT_SOURCE}" "${MODULE_DIR}"
+
+    mkdir -p -- "${SCRATCH_PARENT}" "${RESULTS_PARENT}" "${JMH_TMP_DIR}"
+    # Fail before building if this checkout's JMH lock is not writable.
+    : >>"${JMH_TMP_DIR}/jmh.lock"
     SCRATCH_PARENT="$(cd -- "${SCRATCH_PARENT}" && pwd -P)"
     [[ ! -e "${RESULTS_DIR}" && ! -e "${ARCHIVE}" ]] || { echo "Run ID already exists: ${RUN_ID}" >&2; return 1; }
     mkdir -- "${RESULTS_DIR}"
@@ -204,7 +243,7 @@ main() {
 
     cp -- "${RUNNER_SOURCE}" "${RESULTS_DIR}/runner.sh"
     cp -- "${PREFLIGHT_SOURCE}" "${RESULTS_DIR}/preflight.sh"
-    cp -- "${MODULE_DIR}/settings.txt" "${RESULTS_DIR}/settings-source.txt"
+    cp -- "${SETTINGS_SOURCE}" "${RESULTS_DIR}/settings-source.txt"
     # Keep one effective occurrence of each campaign setting, even if the source has duplicates.
     # BaseBench must preserve the fixture between forks; CSV writes would add unrelated I/O.
     awk -F, '
@@ -232,32 +271,44 @@ main() {
         echo "JVM arguments: ${JVM_ARGS}"
         "${JAVA}" -version
         git -C "${REPO_ROOT}" status --short --branch
-        bash "${RESULTS_DIR}/preflight.sh" "${SCRATCH_DIR}"
+        if command -v lscpu >/dev/null; then lscpu; fi
+        if command -v lsblk >/dev/null; then lsblk -o NAME,MODEL,SIZE,ROTA,TRAN,TYPE,MOUNTPOINTS; fi
     } >"${RESULTS_DIR}/environment.txt" 2>&1
     git -C "${REPO_ROOT}" diff HEAD --binary >"${RESULTS_DIR}/source.diff"
 
-    PHASE=build
-    write_manifest running 0
-    cd -- "${REPO_ROOT}"
-    "${REPO_ROOT}/gradlew" :swirlds-benchmarks:jmhJar --console=plain 2>&1 | tee "${RESULTS_DIR}/build.log"
-    # Do not delete prior build outputs: ambiguity fails safely instead of selecting a stale JAR.
-    local -a jmh_jars
-    shopt -s nullglob
-    jmh_jars=("${MODULE_DIR}"/build/libs/swirlds-benchmarks-*-jmh.jar)
-    shopt -u nullglob
-    if (( ${#jmh_jars[@]} != 1 )); then
-        echo "Expected exactly one JMH JAR after build, found ${#jmh_jars[@]}; inspect build/libs manually." >&2
-        return 1
+    local artifact="${PREBUILT_JMH_JAR}"
+    if [[ -n "${artifact}" ]]; then
+        printf 'Reusing prebuilt JAR; Gradle build skipped: %s\n' "${artifact}" | tee "${RESULTS_DIR}/build.log"
+    else
+        PHASE=build
+        write_manifest running 0
+        cd -- "${REPO_ROOT}"
+        "${REPO_ROOT}/gradlew" :swirlds-benchmarks:jmhJar --console=plain 2>&1 | tee "${RESULTS_DIR}/build.log"
+        # Do not delete prior build outputs: ambiguity fails safely instead of selecting a stale JAR.
+        local -a jmh_jars
+        shopt -s nullglob
+        jmh_jars=("${MODULE_DIR}"/build/libs/swirlds-benchmarks-*-jmh.jar)
+        shopt -u nullglob
+        if (( ${#jmh_jars[@]} != 1 )); then
+            echo "Expected exactly one JMH JAR after build, found ${#jmh_jars[@]}; inspect build/libs manually." >&2
+            return 1
+        fi
+        artifact="${jmh_jars[0]}"
     fi
-    cp -- "${jmh_jars[0]}" "${JMH_JAR}"
-    printf 'Build artifact: %s\n' "${jmh_jars[0]}" >>"${RESULTS_DIR}/environment.txt"
+    # A build may take a while; check again just before preparing the fixture.
+    PHASE=system-check
+    write_manifest running 0
+    bash "${RESULTS_DIR}/preflight.sh" "${MODULE_DIR}" "${SCRATCH_DIR}" \
+        | tee "${RESULTS_DIR}/system-check.txt"
+    cp -- "${artifact}" "${JMH_JAR}"
+    printf 'Benchmark artifact source: %s\n' "${artifact}" >>"${RESULTS_DIR}/environment.txt"
     (cd -- "${RESULTS_DIR}" && sha256sum jmh.jar runner.sh preflight.sh settings.txt) \
         >"${RESULTS_DIR}/frozen-inputs.sha256"
     chmod a-w -- "${JMH_JAR}" "${RESULTS_DIR}/runner.sh" "${RESULTS_DIR}/preflight.sh" "${RESULTS_DIR}/settings.txt"
 
     # All forks use the frozen artifact, not build/libs, while development can continue.
     cd -- "${SCRATCH_DIR}"
-    run_jmh fixture-preparation SEGMENT 1 true 0 1 360m
+    run_jmh fixture-preparation SEGMENT 1 true 0 1 720m
     local -a fixture_dirs
     shopt -s nullglob
     fixture_dirs=("${SCRATCH_DIR}"/data/MerkleDbSnapshotBenchmark/fixture-*)

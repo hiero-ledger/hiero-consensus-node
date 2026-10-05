@@ -59,8 +59,8 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
     @Param({"SEGMENT", "DISK", "HEAP", "OFF_HEAP", "DISK_SEGMENT"})
     public LongListImplementation longListImplementation;
 
-    @Param({"1", "2", "8", "16", "32"})
-    public int threadsPerLongList;
+    @Param({"3", "6", "24", "48", "96"})
+    public int snapshotThreads;
 
     /// Preparation trials publish the reusable fixture without measuring another full snapshot.
     @Param({"false"})
@@ -81,7 +81,7 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
         super.configureBenchmarkConfiguration(configurationBuilder);
         configurationBuilder.withSource(new SimpleConfigSource()
                 .withValue("benchmark.csvWriteFrequency", 0)
-                .withValue("merkleDb.longListWriteThreads", threadsPerLongList)
+                .withValue("merkleDb.snapshotThreads", snapshotThreads)
                 .withOrdinal(Integer.MAX_VALUE));
     }
 

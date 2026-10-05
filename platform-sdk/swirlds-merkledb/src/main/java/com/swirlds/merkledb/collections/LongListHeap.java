@@ -37,6 +37,10 @@ import org.hiero.base.utility.MemoryUtils;
 @SuppressWarnings("unused")
 public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
 
+    /// A bounded direct transfer buffer reused by each snapshot worker.
+    private static final ThreadLocal<ByteBuffer> WRITE_BUFFER_THREAD_LOCAL =
+            ThreadLocal.withInitial(() -> allocateDirect(1024 * 1024).order(ByteOrder.LITTLE_ENDIAN));
+
     /** A buffer for reading chunk data from the file only during the initialization. */
     private ByteBuffer initReadBuffer;
 
@@ -152,31 +156,28 @@ public final class LongListHeap extends AbstractLongList<AtomicLongArray> {
 
     /// {@inheritDoc}
     @Override
-    protected void writeLongsData(final FileChannel fc, final long startIndex, final long endIndex, long fileOffset)
+    protected void writeChunkData(
+            @NonNull final FileChannel fc,
+            @NonNull final AtomicLongArray chunk,
+            final int startIndexInChunk,
+            final int endIndexInChunk,
+            long fileOffset)
             throws IOException {
-        // write data
-        final ByteBuffer tempBuffer = allocateDirect(1024 * 1024);
-        try {
-            tempBuffer.order(ByteOrder.LITTLE_ENDIAN);
-            final LongBuffer tempLongBuffer = tempBuffer.asLongBuffer();
-            for (long i = startIndex; i < endIndex; i++) {
-                // if buffer is full then write
-                if (!tempLongBuffer.hasRemaining()) {
-                    tempBuffer.clear();
-                    fileOffset += MerkleDbFileUtils.completelyWrite(fc, tempBuffer, fileOffset);
-                    tempLongBuffer.clear();
-                }
-                // add value to buffer
-                tempLongBuffer.put(get(i, 0));
+        final ByteBuffer tempBuffer = WRITE_BUFFER_THREAD_LOCAL.get();
+        tempBuffer.clear();
+        final LongBuffer tempLongBuffer = tempBuffer.asLongBuffer();
+        for (int i = startIndexInChunk; i < endIndexInChunk; i++) {
+            if (!tempLongBuffer.hasRemaining()) {
+                tempBuffer.clear();
+                fileOffset += MerkleDbFileUtils.completelyWrite(fc, tempBuffer, fileOffset);
+                tempLongBuffer.clear();
             }
-            // write any remaining
-            if (tempLongBuffer.position() > 0) {
-                tempBuffer.position(0);
-                tempBuffer.limit(tempLongBuffer.position() * Long.BYTES);
-                MerkleDbFileUtils.completelyWrite(fc, tempBuffer, fileOffset);
-            }
-        } finally {
-            MemoryUtils.closeDirectByteBuffer(tempBuffer);
+            tempLongBuffer.put(chunk.get(i));
+        }
+        if (tempLongBuffer.position() > 0) {
+            tempBuffer.position(0);
+            tempBuffer.limit(tempLongBuffer.position() * Long.BYTES);
+            MerkleDbFileUtils.completelyWrite(fc, tempBuffer, fileOffset);
         }
     }
 

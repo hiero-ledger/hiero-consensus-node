@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.collections;
 
-import static java.lang.Math.toIntExact;
-
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -284,51 +282,25 @@ public final class LongListSegment extends AbstractLongList<LongListSegment.Segm
 
     /// {@inheritDoc}
     ///
-    /// Writes the assigned chunk range to the file channel. Each chunk's {@link MemorySegment}
-    /// is exposed as a {@link ByteBuffer} view via {@link MemorySegment#asByteBuffer()}
-    /// for {@link FileChannel} compatibility. For null chunk slots (sparse regions), a
-    /// pre-allocated zero-filled buffer is written instead.
+    /// Writes a view of the assigned chunk range without copying its native bytes.
     ///
-    /// Snapshot range invocations may run concurrently, but the snapshot is sequenced after
-    /// flush completion by the virtual pipeline. No concurrent {@link #closeChunk} can invalidate
+    /// Chunk writes may run concurrently, but the snapshot is sequenced after
+    /// flush completion by the virtual pipeline. No concurrent [#closeChunk(SegmentChunk)] can invalidate
     /// a chunk's arena during this operation.
     @Override
-    protected void writeLongsData(
-            @NonNull final FileChannel fc, final long startIndex, final long endIndex, long fileOffset)
+    protected void writeChunkData(
+            @NonNull final FileChannel fc,
+            @NonNull final SegmentChunk chunk,
+            final int startIndexInChunk,
+            final int endIndexInChunk,
+            final long fileOffset)
             throws IOException {
-        final int totalNumOfChunks = calculateNumberOfChunks(endIndex);
-        final int firstChunkWithDataIndex = toIntExact(startIndex / longsPerChunk);
-
-        // A zero-filled buffer for null chunk slots. Heap-allocated — no arena needed.
-        final ByteBuffer emptyBuffer = ByteBuffer.allocate(memoryChunkSize);
-
-        for (int i = firstChunkWithDataIndex; i < totalNumOfChunks; i++) {
-            final SegmentChunk segChunk = chunkList.get(i);
-            final ByteBuffer buf;
-            if (segChunk != null) {
-                buf = segChunk.segment().asByteBuffer().order(ByteOrder.LITTLE_ENDIAN);
-            } else {
-                emptyBuffer.clear();
-                buf = emptyBuffer;
-            }
-
-            if (i == firstChunkWithDataIndex) {
-                final int firstValidIndexInChunk = toIntExact(startIndex % longsPerChunk);
-                buf.position(firstValidIndexInChunk * Long.BYTES);
-            } else {
-                buf.position(0);
-            }
-
-            if (i == (totalNumOfChunks - 1)) {
-                final long bytesWrittenSoFar = (long) memoryChunkSize * i;
-                final long remainingBytes = endIndex * Long.BYTES - bytesWrittenSoFar;
-                buf.limit(toIntExact(remainingBytes));
-            } else {
-                buf.limit(memoryChunkSize);
-            }
-
-            fileOffset += MerkleDbFileUtils.completelyWrite(fc, buf, fileOffset);
-        }
+        final ByteBuffer buffer = chunk.segment()
+                .asSlice(
+                        (long) startIndexInChunk * Long.BYTES,
+                        (long) (endIndexInChunk - startIndexInChunk) * Long.BYTES)
+                .asByteBuffer();
+        MerkleDbFileUtils.completelyWrite(fc, buffer, fileOffset);
     }
 
     // =========================================================================

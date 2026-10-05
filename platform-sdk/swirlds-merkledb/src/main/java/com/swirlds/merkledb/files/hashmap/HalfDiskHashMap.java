@@ -19,6 +19,8 @@ import com.swirlds.merkledb.files.DataFileCommon;
 import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.internal.MerkleDbDataSource;
+import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
+import com.swirlds.merkledb.utilities.SnapshotTask;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -30,11 +32,12 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.LongSummaryStatistics;
-import java.util.concurrent.Executor;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.collections.api.tuple.primitive.IntObjectPair;
@@ -396,28 +399,33 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
 
     /** {@inheritDoc} */
     public void snapshot(final Path snapshotDirectory) throws IOException {
-        snapshot(snapshotDirectory, Runnable::run, 1);
+        try (final ForkJoinPool pool = new ForkJoinPool(1)) {
+            MerkleDbFileUtils.waitForSnapshot(snapshot(snapshotDirectory, pool, new AtomicReference<>()));
+        }
     }
 
-    /// Writes a snapshot, using the supplied executor for parallel bucket-index writes.
+    /// Submits the bucket index, file links, and metadata to the snapshot pool.
     ///
-    /// Waits for all writes to finish. The caller owns the executor.
+    /// The map must remain unchanged and the pool must stay open until the returned future completes.
+    /// The returned future must not be canceled or externally completed.
     ///
     /// @param snapshotDirectory directory to write the snapshot to
-    /// @param executor executor able to run writer tasks while this method waits
-    /// @param threadCount maximum number of bucket-index writer threads; one writes on the calling thread
-    /// @throws IOException if the snapshot cannot be written
-    public void snapshot(final Path snapshotDirectory, final Executor executor, final int threadCount)
-            throws IOException {
-        // create snapshot directory if needed
-        Files.createDirectories(snapshotDirectory);
-        // write index to file
-        bucketIndexToBucketLocation.writeToFile(
-                snapshotDirectory.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX), executor, threadCount);
-        // snapshot files
-        fileCollection.snapshot(snapshotDirectory);
-        // write metadata
-        writeMetadata(snapshotDirectory);
+    /// @param pool pool shared by all snapshot tasks
+    /// @param failure shared snapshot failure; queued operations skip work once it is set
+    /// @return completion of all writes, including file closure and any failure
+    public CompletableFuture<Void> snapshot(
+            final Path snapshotDirectory, final ForkJoinPool pool, final AtomicReference<Throwable> failure) {
+        final CompletableFuture<Void> directoryReady =
+                SnapshotTask.submit(pool, failure, () -> Files.createDirectories(snapshotDirectory));
+        return directoryReady.thenCompose(_ -> {
+            final CompletableFuture<Void> bucketIndexSnapshot = bucketIndexToBucketLocation.writeToFile(
+                    snapshotDirectory.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX), pool, failure);
+            final CompletableFuture<Void> filesSnapshot =
+                    SnapshotTask.submit(pool, failure, () -> fileCollection.snapshot(snapshotDirectory));
+            final CompletableFuture<Void> metadataSnapshot =
+                    SnapshotTask.submit(pool, failure, () -> writeMetadata(snapshotDirectory));
+            return SnapshotTask.allOf(failure, bucketIndexSnapshot, filesSnapshot, metadataSnapshot);
+        });
     }
 
     /**

@@ -10,13 +10,13 @@ import com.swirlds.merkledb.collections.LongListOffHeap;
 import com.swirlds.merkledb.collections.LongListSegment;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.files.DataFileCommon;
+import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.hiero.base.file.FileSystemManager;
@@ -61,7 +61,7 @@ public class LongListSnapshotBenchmark {
     private Path trialDirectory;
     private Path snapshotFile;
     private LongList source;
-    private ExecutorService executor;
+    private ForkJoinPool pool;
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
@@ -94,14 +94,12 @@ public class LongListSnapshotBenchmark {
                 forceFile(file);
             }
         }
-        if (threadsPerLongList > 1) {
-            executor = Executors.newFixedThreadPool(threadsPerLongList);
-        }
+        pool = new ForkJoinPool(threadsPerLongList);
     }
 
     @Benchmark
     public void writeToFile() throws IOException {
-        source.writeToFile(snapshotFile, executor, threadsPerLongList);
+        MerkleDbFileUtils.waitForSnapshot(source.writeToFile(snapshotFile, pool));
     }
 
     @TearDown(Level.Invocation)
@@ -117,8 +115,8 @@ public class LongListSnapshotBenchmark {
     @TearDown(Level.Trial)
     public void tearDownTrial() throws IOException {
         try {
-            if (executor != null) {
-                executor.close();
+            if (pool != null) {
+                pool.close();
             }
             if (source != null) {
                 source.close();
