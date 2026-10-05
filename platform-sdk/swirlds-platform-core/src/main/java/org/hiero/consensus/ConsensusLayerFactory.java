@@ -538,7 +538,7 @@ public class ConsensusLayerFactory {
         final int coreCount = Runtime.getRuntime().availableProcessors();
         final int parallelism = (int)
                 Math.max(1, wiringConfig.defaultPoolMultiplier() * coreCount + wiringConfig.defaultPoolConstant());
-        final ForkJoinPool defaultPool = executorFactory.createForkJoinPool(parallelism);
+        final ForkJoinPool defaultPool = executorFactory.createForkJoinPool(parallelism, true);
         logger.info(STARTUP.getMarker(), "Default platform pool parallelism: {}", parallelism);
 
         return WiringModelBuilder.create(metrics, time)
