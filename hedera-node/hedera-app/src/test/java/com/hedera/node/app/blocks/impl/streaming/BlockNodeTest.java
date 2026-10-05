@@ -349,6 +349,29 @@ class BlockNodeTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testOnActive_connectionClosedDuringRegistrationIsCleanedUpOnce() {
+        final ConnectionId connId = new ConnectionId(NODE_ID, ConnectionType.BLOCK_STREAMING, 1);
+        final BlockNodeStreamingConnection connection = mock(BlockNodeStreamingConnection.class);
+        when(connection.configuration()).thenReturn(configuration);
+        when(connection.connectionId()).thenReturn(connId);
+        when(connection.closeReason()).thenReturn(CloseReason.PERIODIC_RESET);
+        // the close lands once the history entry exists, so onClose() already undoes the registration
+        when(connection.currentState()).thenAnswer(invocation -> {
+            node.onClose(connection);
+            return ConnectionState.CLOSED;
+        });
+
+        node.onActive(connection);
+
+        // onActive() must not undo it a second time, or the counters would go negative
+        assertThat(activeStreamingConnectionRef()).hasNullValue();
+        assertThat(globalActiveStreamConnectionCount).hasValue(0);
+        assertThat(localActiveStreamingConnectionCount()).hasValue(0);
+        assertThat(connectionHistories()).containsOnlyKeys(connId);
+        assertThat(connectionHistories().get(connId).closeReason).isEqualTo(CloseReason.PERIODIC_RESET);
+    }
+
+    @Test
     void testOnClose_nullConnection() {
         assertThatThrownBy(() -> node.onClose(null))
                 .isInstanceOf(NullPointerException.class)

@@ -38,6 +38,7 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
+import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -1933,6 +1934,32 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         verify(node).onTerminate(CloseReason.SHUTDOWN);
         verify(bufferService).shutdown();
         verify(blockNodeConfigService).shutdown();
+    }
+
+    @Test
+    void testConnectionMonitor_failedCheckStillBacksOff() {
+        final long intervalNanos = TimeUnit.MILLISECONDS.toNanos(configProvider
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .connectionMonitorCheckIntervalMillis());
+        final List<Long> checkTimes = new ArrayList<>();
+        // every connectivity check fails; the second also stops the manager so the loop exits
+        doAnswer(invocation -> {
+                    checkTimes.add(System.nanoTime());
+                    if (checkTimes.size() == 2) {
+                        isConnectionManagerActive().set(false);
+                    }
+                    throw new IllegalStateException("connectivity check failed");
+                })
+                .when(metrics)
+                .recordActiveConnectionCount(anyLong());
+        isConnectionManagerActive().set(true);
+
+        connectionManager.new ConnectionMonitorTask().run();
+
+        // a failed check must still wait out the interval, not retry at once and spin
+        assertThat(checkTimes).hasSize(2);
+        assertThat(checkTimes.get(1) - checkTimes.get(0)).isGreaterThanOrEqualTo(intervalNanos);
     }
 
     // Utilities
