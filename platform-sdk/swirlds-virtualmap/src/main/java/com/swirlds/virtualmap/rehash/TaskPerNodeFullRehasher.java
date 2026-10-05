@@ -66,11 +66,10 @@ public final class TaskPerNodeFullRehasher implements FullRehasher {
     // at least this size.
     private static final long MIN_FLUSH_INTERVAL = 500_000;
 
-    // Max flush interval, in hash slots (~96MB of heap). Large states are flushed in batches of
+    // Max flush interval, in hash slots (~192MB of heap). Large states are flushed in batches of
     // at most this size. Up to two batches may be in memory at the same time: one is being
-    // flushed, and another one is collected by hashing threads in parallel. Larger batches are
-    // also slower to flush overall, as they put more pressure on GC
-    private static final long MAX_FLUSH_INTERVAL = 2_000_000;
+    // flushed, and another one is collected by hashing threads in parallel
+    private static final long MAX_FLUSH_INTERVAL = 4_000_000;
 
     private final ForkJoinPool pool;
 
@@ -132,7 +131,7 @@ public final class TaskPerNodeFullRehasher implements FullRehasher {
     /// The total number of chunks in the tree is known from the last leaf path, so is the total
     /// number of hash slots to flush. The interval is chosen to have [#TARGET_FLUSHES] flushes,
     /// clamped to [[#MIN_FLUSH_INTERVAL], [#MAX_FLUSH_INTERVAL]]. Small states are then
-    /// flushed fewer times, and large states more times, but every batch takes at most ~96MB
+    /// flushed fewer times, and large states more times, but every batch takes at most ~192MB
     /// of heap regardless of the state size.
     ///
     /// For example:
@@ -140,7 +139,7 @@ public final class TaskPerNodeFullRehasher implements FullRehasher {
     /// - a state with ~1M leaves has ~0.27M chunks of height 6, or ~17M hash slots. 17M / 128
     ///   is below the min, so the interval is 500K, which results in ~34 flushes
     /// - a state with ~40M leaves has ~17M chunks, or ~1.09B hash slots. 1.09B / 128 = 8.5M is
-    ///   above the max, so the interval is 2M, which results in ~545 flushes
+    ///   above the max, so the interval is 4M, which results in ~273 flushes
     ///
     /// @param lastLeafPath the last leaf path, must be positive
     /// @param chunkHeight hash chunk height
