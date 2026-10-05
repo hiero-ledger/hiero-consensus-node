@@ -32,6 +32,7 @@ public interface Gossip {
      *                           Should be called exactly once after each call to pause()
      * @param systemHealthInput   used to tell gossip the health of the system, carries the duration that the system has
      *                            been in an unhealthy state
+     * @param platformStatusInput used to tell gossip the status of the platform
      * @param syncProgressOutput  used to report current sync status against specific peer
      */
     void bind(
@@ -45,5 +46,6 @@ public interface Gossip {
             @NonNull BindableInputWire<NoInput, Void> pauseInput,
             @NonNull BindableInputWire<NoInput, Void> resumeInput,
             @NonNull BindableInputWire<Duration, Void> systemHealthInput,
+            @NonNull BindableInputWire<PlatformStatus, Void> platformStatusInput,
             @NonNull StandardOutputWire<SyncProgress> syncProgressOutput);
 }

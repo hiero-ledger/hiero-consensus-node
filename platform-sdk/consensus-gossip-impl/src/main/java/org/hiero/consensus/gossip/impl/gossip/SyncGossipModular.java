@@ -201,6 +201,7 @@ public class SyncGossipModular implements Gossip {
             @NonNull final BindableInputWire<NoInput, Void> pauseGossip,
             @NonNull final BindableInputWire<NoInput, Void> resumeGossip,
             @NonNull final BindableInputWire<Duration, Void> systemHealthInput,
+            @NonNull final BindableInputWire<PlatformStatus, Void> platformStatusInput,
             @NonNull final StandardOutputWire<SyncProgress> syncLagOutput) {
 
         startInput.bindConsumer(ignored -> {
@@ -220,6 +221,7 @@ public class SyncGossipModular implements Gossip {
         eventWindowInput.bindConsumer(synchronizer::updateEventWindow);
 
         systemHealthInput.bindConsumer(rpcProtocolFactory::reportUnhealthyDuration);
+        platformStatusInput.bindConsumer(rpcProtocolFactory::updatePlatformStatus);
         pauseGossip.bindConsumer(ignored -> {
             rpcProtocolFactory.pause();
             fallenBehindMonitor.notifySyncProtocolPaused();

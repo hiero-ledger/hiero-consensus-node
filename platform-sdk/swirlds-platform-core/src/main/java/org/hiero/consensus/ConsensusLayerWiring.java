@@ -171,6 +171,7 @@ public class ConsensusLayerWiring {
 
         platformStatus.solderTo(buildingBlocks.eventCreatorModule().platformStatusInputWire());
         platformStatus.solderTo(buildingBlocks.hashgraphModule().platformStatusInputWire(), INJECT);
+        platformStatus.solderTo(buildingBlocks.gossipModule().platformStatusInputWire(), INJECT);
         platformStatus.solderTo("ExecutionStatusHandler", "status updates", executionLayerCallbacks::onPlatformStatusChange);
     }
 }

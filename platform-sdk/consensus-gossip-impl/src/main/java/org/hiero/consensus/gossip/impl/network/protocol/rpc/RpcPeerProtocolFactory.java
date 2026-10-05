@@ -47,7 +47,6 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
     private static final Logger logger = LogManager.getLogger(RpcPeerProtocolFactory.class);
 
     private final CachedPoolParallelExecutor executor;
-    // TODO pass in a supplier in the constructor
     private final AtomicReference<PlatformStatus> platformStatus = new AtomicReference<>(PlatformStatus.STARTING_UP);
     private final NetworkMetrics networkMetrics;
     private final Time time;
@@ -268,6 +267,15 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
      */
     public void reportUnhealthyDuration(@NonNull final Duration duration) {
         permitProvider.reportUnhealthyDuration(duration);
+    }
+
+    /**
+     * Update the platform status. Syncs are only initiated and accepted while the status permits it.
+     *
+     * @param status the new platform status
+     */
+    public void updatePlatformStatus(@NonNull final PlatformStatus status) {
+        platformStatus.set(status);
     }
 
     /**

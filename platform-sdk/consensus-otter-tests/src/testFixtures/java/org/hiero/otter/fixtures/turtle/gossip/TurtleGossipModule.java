@@ -137,6 +137,15 @@ public class TurtleGossipModule implements GossipModule {
      */
     @Override
     @NonNull
+    public InputWire<PlatformStatus> platformStatusInputWire() {
+        return requireNonNull(gossipWiring, "Not initialized").getPlatformStatusInput();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
     public InputWire<Duration> healthStatusInputWire() {
         return requireNonNull(gossipWiring, "Not initialized").getSystemHealthInput();
     }
