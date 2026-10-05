@@ -152,7 +152,7 @@ common-case true duplicates.
   Concurrent scheduler.
 - **What it does**: verifies the event's cryptographic signature
   against the creator's public key, looked up in the current
-  `RosterHistory`.
+  `RosterWrapperHistory`.
 - **Failure outcome**: invalid signature → `null` and
   `validationFailedAccumulator.update(1)`.
 - **Bypasses**:

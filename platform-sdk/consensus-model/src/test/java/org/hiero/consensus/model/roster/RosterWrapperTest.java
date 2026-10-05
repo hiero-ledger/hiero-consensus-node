@@ -43,11 +43,11 @@ class RosterWrapperTest {
      */
     @Test
     void indexFollowsRosterOrder() {
-        assertThat(roster.getIndex(NODE_3)).isEqualTo(0);
-        assertThat(roster.getIndex(NODE_7)).isEqualTo(1);
-        assertThat(roster.getIndex(NODE_11)).isEqualTo(2);
+        assertThat(roster.index(NODE_3)).isEqualTo(0);
+        assertThat(roster.index(NODE_7)).isEqualTo(1);
+        assertThat(roster.index(NODE_11)).isEqualTo(2);
 
-        assertThat(roster.getIndex(ABSENT_NODE)).isEqualTo(-1);
+        assertThat(roster.index(ABSENT_NODE)).isEqualTo(-1);
         assertThat(roster.contains(NODE_7)).isTrue();
         assertThat(roster.contains(ABSENT_NODE)).isFalse();
     }
@@ -58,10 +58,10 @@ class RosterWrapperTest {
      */
     @Test
     void rosterEntryIsLookedUpByNodeId() {
-        assertThat(roster.getRosterEntry(NODE_7).nodeId()).isEqualTo(NODE_7);
-        assertThat(roster.getRosterEntry(NODE_7).weight()).isEqualTo(20L);
+        assertThat(roster.rosterEntry(NODE_7).nodeId()).isEqualTo(NODE_7);
+        assertThat(roster.weight(NODE_7)).isEqualTo(20L);
 
-        assertThatThrownBy(() -> roster.getRosterEntry(ABSENT_NODE)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> roster.rosterEntry(ABSENT_NODE)).isInstanceOf(IllegalArgumentException.class);
     }
 
     /**

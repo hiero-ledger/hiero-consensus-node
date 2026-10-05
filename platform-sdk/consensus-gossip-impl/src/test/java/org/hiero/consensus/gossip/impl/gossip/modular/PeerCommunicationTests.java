@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 import org.hiero.base.concurrent.manager.AdHocThreadManager;
+import org.hiero.base.concurrent.throttle.StackTraceDeduplicator;
 import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.gossip.config.ProtocolConfig;
@@ -102,7 +103,8 @@ public class PeerCommunicationTests {
                     Time.getCurrent(),
                     new ArrayList<>(),
                     selfPeer,
-                    perNodeCerts.get(selfPeer.nodeId()));
+                    perNodeCerts.get(selfPeer.nodeId()),
+                    new StackTraceDeduplicator());
 
             final ProtocolConfig protocolConfig = configuration.getConfigData(ProtocolConfig.class);
             final VersionCompareHandshake versionCompareHandshake = new VersionCompareHandshake(

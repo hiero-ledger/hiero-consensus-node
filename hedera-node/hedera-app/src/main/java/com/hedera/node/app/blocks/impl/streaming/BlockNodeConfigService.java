@@ -184,6 +184,7 @@ public class BlockNodeConfigService {
             }
 
             final byte[] bytes = Files.readAllBytes(path);
+            // Allow unknown/removed fields so block-node configuration remains compatible across versions.
             connectionInfo = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(bytes));
         } catch (final IOException | ParseException e) {
             logger.warn("Failed to read block node configuration from {}", path, e);

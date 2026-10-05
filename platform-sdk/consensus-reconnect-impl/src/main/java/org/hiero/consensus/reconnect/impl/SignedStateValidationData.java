@@ -12,6 +12,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Optional;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -23,7 +24,7 @@ import org.hiero.consensus.roster.RosterUtils;
  * @param consensusTimestamp
  * 		The consensus timestamp from an earlier state
  * @param rosterHash
- * 		The roster hash value for the current roster (mostly used for diagnostics).
+ * 		The roster hash value for the active roster (mostly used for diagnostics).
  * @param consensusEventsRunningHash
  * 		The running hash of the consensus event hashes throughout history
  */
@@ -43,7 +44,7 @@ public record SignedStateValidationData(
                 roundOf(that),
                 Optional.ofNullable(consensusTimestampOf(that)).orElse(Instant.EPOCH),
                 roster == null ? null : RosterUtils.hash(roster),
-                Optional.ofNullable(legacyRunningEventHashOf(that)).orElse(new Hash()));
+                Optional.ofNullable(legacyRunningEventHashOf(that)).orElse(new Hash(DigestType.SHA_384)));
     }
 
     /**
