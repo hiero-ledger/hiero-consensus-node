@@ -394,6 +394,7 @@ class VerifyBundleCallTest {
         @MethodSource("nonContiguousRuns")
         @DisplayName("given message leaves that are not one contiguous run of the channel, then the bundle is rejected")
         void givenNonContiguousMessageLeaves_thenRejected(final String description, final List<Bytes> messageLeaves) {
+            stubManifestFlag();
             final var leaves = new ArrayList<Bytes>();
             leaves.add(channelLeaf(CHANNEL));
             leaves.addAll(messageLeaves);
@@ -419,6 +420,7 @@ class VerifyBundleCallTest {
         @Test
         @DisplayName("given a message leaf without a key, then the bundle is rejected")
         void givenMessageLeafWithoutKey_thenRejected() {
+            stubManifestFlag();
             final var keylessMessageLeaf = leaf(
                     null,
                     StateValue.newBuilder()
@@ -433,6 +435,7 @@ class VerifyBundleCallTest {
         @Test
         @DisplayName("given a message leaf keyed as another state, then the bundle is rejected")
         void givenMessageLeafWithNonMessageKey_thenRejected() {
+            stubManifestFlag();
             final var channelKey = StateKey.newBuilder()
                     .clprServiceIChannels(
                             ProtoBytes.newBuilder().value(CHANNEL_ID).build())
