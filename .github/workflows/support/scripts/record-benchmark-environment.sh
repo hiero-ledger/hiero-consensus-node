@@ -42,9 +42,37 @@ cgroup_stat() {
   fi
 }
 
+expand_cpu_list() {
+  # prints one CPU number per line for a list such as "0-5,24-29"
+  tr ',' '\n' <<< "$1" | awk -F- '{ for (c = $1; c <= ($2 == "" ? $1 : $2); c++) print c }'
+}
+
+hot_cpu_columns() {
+  # The CPU that the busiest thread of this container runs on (the benchmark thread, while a benchmark runs), its
+  # clock, how busy its hyperthread sibling and the CPUs sharing its L3 cache were in the last interval, and the
+  # highest clock of any CPU. $1 holds the busy fraction of every CPU in the last interval, one "cpu fraction" per line.
+  local busy="$1" cpu sibling l3 topology=/sys/devices/system/cpu
+  cpu=$(ps -eLo psr=,pcpu= --sort=-pcpu 2> /dev/null | awk 'NR == 1 { print $1 }')
+  if [[ -z "${cpu}" || ! -r "${topology}/cpu${cpu}/topology/thread_siblings_list" ]]; then
+    echo ",,,,,"
+    return
+  fi
+  sibling=$(expand_cpu_list "$(cat "${topology}/cpu${cpu}/topology/thread_siblings_list")" | grep -vx "${cpu}" | head -n 1)
+  l3=$(expand_cpu_list "$(cat "${topology}/cpu${cpu}/cache/index3/shared_cpu_list" 2> /dev/null)")
+  awk -v cpu="${cpu}" -v sibling="${sibling}" -v l3="$(tr '\n' ' ' <<< "${l3}")" '
+    BEGIN { n = split(l3, members, " "); for (i = 1; i <= n; i++) in_l3[members[i]] = 1 }
+    NR == FNR { fraction[$1] = $2; next }
+    /^processor/ { p = $3 }
+    /^cpu MHz/ { mhz = $4 + 0; if (p == cpu) own = mhz; if (mhz > max) max = mhz }
+    END {
+      for (c in in_l3) if (c != cpu) l3_busy += fraction[c]
+      printf "%s,%.0f,%.3f,%.3f,%d,%.0f\n", cpu, own, fraction[sibling], l3_busy, n, max
+    }' <(echo "header 0"; echo "${busy}") /proc/cpuinfo
+}
+
 monitor() {
-  local interval="$1"
-  echo "epoch,cpu_user,cpu_nice,cpu_system,cpu_idle,cpu_iowait,cpu_irq,cpu_softirq,cpu_steal,procs_running,load1,host_cpu_some_avg10,cg_usage_usec,cg_nr_periods,cg_nr_throttled,cg_throttled_usec,cg_cpu_some_avg10,mhz_mean"
+  local interval="$1" previous="" current busy
+  echo "epoch,cpu_user,cpu_nice,cpu_system,cpu_idle,cpu_iowait,cpu_irq,cpu_softirq,cpu_steal,procs_running,load1,host_cpu_some_avg10,cg_usage_usec,cg_nr_periods,cg_nr_throttled,cg_throttled_usec,cg_cpu_some_avg10,mhz_mean,hot_cpu,hot_cpu_mhz,sibling_busy,l3_others_busy,l3_cpus,mhz_max"
   while true; do
     local stat procs load host_psi cg_psi mhz
     stat=$(awk '$1 == "cpu" { print $2 "," $3 "," $4 "," $5 "," $6 "," $7 "," $8 "," $9; exit }' /proc/stat 2> /dev/null)
@@ -53,7 +81,14 @@ monitor() {
     host_psi=$(awk '$1 == "some" { sub("avg10=", "", $2); print $2 }' /proc/pressure/cpu 2> /dev/null)
     cg_psi=$(awk '$1 == "some" { sub("avg10=", "", $2); print $2 }' "${CGROUP}/cpu.pressure" 2> /dev/null)
     mhz=$(awk -F: '/^cpu MHz/ { s += $2; n++ } END { if (n) printf "%.0f", s / n }' /proc/cpuinfo 2> /dev/null)
-    echo "${EPOCHREALTIME:-$(date +%s)},${stat:-,,,,,,,},${procs},${load},${host_psi},$(cgroup_stat usage_usec),$(cgroup_stat nr_periods),$(cgroup_stat nr_throttled),$(cgroup_stat throttled_usec),${cg_psi},${mhz}"
+    # busy and total jiffies of every CPU, and the busy fraction of every CPU since the previous sample
+    current=$(awk '/^cpu[0-9]/ { print substr($1, 4), $2 + $3 + $4 + $7 + $8, $2 + $3 + $4 + $5 + $6 + $7 + $8 + $9 }' \
+      /proc/stat 2> /dev/null)
+    busy=$(awk 'NR == FNR { b[$1] = $2; t[$1] = $3; next }
+      ($1 in t) && $3 > t[$1] { printf "%s %.3f\n", $1, ($2 - b[$1]) / ($3 - t[$1]) }' \
+      <(echo "${previous}") <(echo "${current}") 2> /dev/null)
+    previous="${current}"
+    echo "${EPOCHREALTIME:-$(date +%s)},${stat:-,,,,,,,},${procs},${load},${host_psi},$(cgroup_stat usage_usec),$(cgroup_stat nr_periods),$(cgroup_stat nr_throttled),$(cgroup_stat throttled_usec),${cg_psi},${mhz},$(hot_cpu_columns "${busy}")"
     sleep "${interval}"
   done
 }
