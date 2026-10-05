@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.event;
 
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.util.HapiUtils;
@@ -12,6 +14,7 @@ import java.util.List;
 import java.util.Objects;
 import org.hiero.base.crypto.AbstractHashable;
 import org.hiero.consensus.main.model.ConsensusTransaction;
+import org.hiero.consensus.main.model.EventDescriptorWrapper;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 
@@ -27,15 +30,15 @@ public class EventMetadata extends AbstractHashable {
     /**
      * the self parent event descriptor
      */
-    private final org.hiero.consensus.main.model.EventDescriptorWrapper selfParent;
+    private final EventDescriptorWrapper selfParent;
 
     /**
      * the other parents' event descriptors
      */
-    private final List<org.hiero.consensus.main.model.EventDescriptorWrapper> otherParents;
+    private final List<EventDescriptorWrapper> otherParents;
 
     /** a combined list of all parents, selfParent + otherParents */
-    private final List<org.hiero.consensus.main.model.EventDescriptorWrapper> allParents;
+    private final List<EventDescriptorWrapper> allParents;
 
     /**
      * creation time, as claimed by its creator
@@ -54,7 +57,7 @@ public class EventMetadata extends AbstractHashable {
     /**
      * The event descriptor for this event. Is not itself hashed.
      */
-    private org.hiero.consensus.main.model.EventDescriptorWrapper descriptor;
+    private EventDescriptorWrapper descriptor;
 
     /**
      * The birth round that was initialized to the event.
@@ -67,19 +70,18 @@ public class EventMetadata extends AbstractHashable {
      * @param creatorId    ID of this event's creator
      * @param allParents   all parent event descriptors
      * @param timeCreated  creation time, as claimed by its creator
-     * @param transactions list of transactions included in this event instance
+     * @param transactionBytes list of transactions included in this event instance
      * @param birthRound   birth round associated with event
      */
     public EventMetadata(
             @NonNull final NodeId creatorId,
-            @NonNull final List<org.hiero.consensus.main.model.EventDescriptorWrapper> allParents,
+            @NonNull final List<EventDescriptorWrapper> allParents,
             @NonNull final Instant timeCreated,
-            @NonNull final List<Bytes> transactions,
+            @NonNull final List<Bytes> transactionBytes,
             final long birthRound) {
 
-        Objects.requireNonNull(transactions, "The transactions must not be null");
-        this.creatorId = Objects.requireNonNull(creatorId, "The creatorId must not be null");
-        this.allParents = Objects.requireNonNull(allParents, "The allParents must not be null");
+        this.creatorId = requireNonNull(creatorId);
+        this.allParents = requireNonNull(allParents);
         if (!allParents.isEmpty() && allParents.getFirst().creator().equals(creatorId)) {
             // this event has a self parent
             this.selfParent = allParents.getFirst();
@@ -89,8 +91,8 @@ public class EventMetadata extends AbstractHashable {
             this.selfParent = null;
             this.otherParents = allParents;
         }
-        this.timeCreated = Objects.requireNonNull(timeCreated, "The timeCreated must not be null");
-        this.transactions = Objects.requireNonNull(transactions, "transactions must not be null").stream()
+        this.timeCreated = requireNonNull(timeCreated);
+        this.transactions = transactionBytes.stream()
                 .map(TransactionWrapper::new)
                 .toList();
         this.consensusTransactions = transactions.stream().map(ConsensusTransaction.class::cast).toList();
@@ -104,12 +106,12 @@ public class EventMetadata extends AbstractHashable {
      */
     public EventMetadata(@NonNull final GossipEvent gossipEvent) {
         this(
-                NodeId.of(Objects.requireNonNull(gossipEvent.eventCore(), "The eventCore must not be null")
+                NodeId.of(requireNonNull(gossipEvent.eventCore(), "The eventCore must not be null")
                         .creatorNodeId()),
                 gossipEvent.parents().stream()
-                        .map(org.hiero.consensus.main.model.EventDescriptorWrapper::new)
+                        .map(EventDescriptorWrapper::new)
                         .toList(),
-                HapiUtils.asInstant(Objects.requireNonNull(
+                HapiUtils.asInstant(requireNonNull(
                         gossipEvent.eventCore().timeCreated(), "The timeCreated must not be null")),
                 gossipEvent.transactions(),
                 gossipEvent.eventCore().birthRound());
@@ -140,7 +142,7 @@ public class EventMetadata extends AbstractHashable {
      * @return the event descriptor for the self parent
      */
     @Nullable
-    public org.hiero.consensus.main.model.EventDescriptorWrapper getSelfParent() {
+    public EventDescriptorWrapper getSelfParent() {
         return selfParent;
     }
 
@@ -150,7 +152,7 @@ public class EventMetadata extends AbstractHashable {
      * @return the event descriptors for the other parents
      */
     @NonNull
-    public List<org.hiero.consensus.main.model.EventDescriptorWrapper> getOtherParents() {
+    public List<EventDescriptorWrapper> getOtherParents() {
         return otherParents;
     }
 
@@ -165,7 +167,7 @@ public class EventMetadata extends AbstractHashable {
 
     /** @return a list of all parents, self parent (if any), + all other parents */
     @NonNull
-    public List<org.hiero.consensus.main.model.EventDescriptorWrapper> getAllParents() {
+    public List<EventDescriptorWrapper> getAllParents() {
         return allParents;
     }
 
@@ -198,13 +200,13 @@ public class EventMetadata extends AbstractHashable {
      * @throws IllegalStateException if called prior to this event being hashed
      */
     @NonNull
-    public org.hiero.consensus.main.model.EventDescriptorWrapper getDescriptor() {
+    public EventDescriptorWrapper getDescriptor() {
         if (descriptor == null) {
             if (getHash() == null) {
                 throw new IllegalStateException("The hash of the event must be set before creating the descriptor");
             }
 
-            descriptor = new org.hiero.consensus.main.model.EventDescriptorWrapper(
+            descriptor = new EventDescriptorWrapper(
                     new EventDescriptor(getHash().getBytes(), creatorId.id(), getBirthRound()));
         }
 
