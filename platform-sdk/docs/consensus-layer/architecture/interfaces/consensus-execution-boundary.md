@@ -235,7 +235,7 @@ This lets the execution layer keep a balanced count of in-flight transactions.
   `TransactionHandler::handleConsensusRound`, and `StaleEventConsumer::processStaleEvent`; its comment
   records the contract: *"the consensus engine ensures that all pre-consensus events either reach
   consensus or become stale."*
-- The endpoints in `swirlds-platform-core/.../eventhandling/`:
+- The endpoints in `consensus-transaction-handling/.../handling/internal/`:
   `DefaultTransactionPrehandler#prehandleApplicationTransactions` calls `onPreHandle`,
   `DefaultTransactionHandler#handleConsensusRound` calls `onHandleConsensusRound`.
 

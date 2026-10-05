@@ -22,7 +22,7 @@ quiescing node holds `ACTIVE`, see
 ## Dependency Rules
 
 May depend on:
-- Supporting modules: `consensus-model`, `consensus-metrics`, `consensus-roster`
+- Supporting modules: `consensus-model`, `consensus-metrics`
 - `swirlds-base`, `swirlds-logging`, `swirlds-config-api`, `swirlds-metrics-api`,
 `consensus-wiring-framework`
 

@@ -3,8 +3,6 @@ package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework;
 
 import static org.hiero.consensus.test.fixtures.WeightGenerators.BALANCED;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -24,7 +22,9 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.StandardEv
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.StandardEventSource;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.test.fixtures.WeightGenerator;
 
 /** A builder for {@link ConsensusTestOrchestrator} instances */
@@ -95,10 +95,10 @@ public class OrchestratorBuilder {
         final long shuffler1Seed = random.nextLong();
         final long shuffler2Seed = random.nextLong();
 
-        final Roster roster = RosterFactory.randomRoster(random, numberOfNodes, weightGenerator);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, numberOfNodes, weightGenerator);
 
         final List<Long> weights =
-                roster.rosterEntries().stream().map(RosterEntry::weight).toList();
+                roster.rosterEntries().stream().map(RosterEntryWrapper::weight).toList();
         final List<EventSource> eventSources;
         if (eventSourceBuilder != null) {
             eventSources = eventSourceBuilder.apply(weights);

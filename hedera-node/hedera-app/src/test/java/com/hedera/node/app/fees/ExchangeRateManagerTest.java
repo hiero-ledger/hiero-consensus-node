@@ -91,6 +91,40 @@ class ExchangeRateManagerTest {
                 .has(responseCode(ResponseCodeEnum.INVALID_EXCHANGE_RATE_FILE));
     }
 
+    @Test
+    void updateRejectsNonPositiveCentEquiv() {
+        // A super-user bypasses the intraday-change limit, but must still not be able to install a rate whose
+        // centEquiv is zero -- that would make fee conversion divide by zero on every node.
+        final var zeroCentRate =
+                ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(0).expirationTime(expirationTime);
+        final var zeroRates = ExchangeRateSet.newBuilder()
+                .currentRate(zeroCentRate)
+                .nextRate(zeroCentRate)
+                .build();
+        final var zeroRateBytes = ExchangeRateSet.PROTOBUF.toBytes(zeroRates);
+        final var superUser = AccountID.newBuilder().accountNum(50L).build();
+
+        assertThatThrownBy(() -> subject.update(zeroRateBytes, superUser))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(ResponseCodeEnum.INVALID_EXCHANGE_RATE_FILE));
+    }
+
+    @Test
+    void getAFromBSaturatesOnNonPositiveRateComponents() throws Exception {
+        // internalUpdate() is the single writer of the active rate and rejects degenerate rates, so the
+        // private converter can never see one through the public API. This exercises the defense-in-depth
+        // guard directly: a non-positive multiplier (aEquiv) or divisor (bEquiv) must saturate to
+        // Long.MAX_VALUE rather than divide by zero or yield a free/negative fee.
+        final var getAFromB =
+                ExchangeRateManager.class.getDeclaredMethod("getAFromB", long.class, int.class, int.class);
+        getAFromB.setAccessible(true);
+
+        assertEquals(Long.MAX_VALUE, (long) getAFromB.invoke(null, 100L, 0, centEquiv)); // aEquiv == 0
+        assertEquals(Long.MAX_VALUE, (long) getAFromB.invoke(null, 100L, -1, centEquiv)); // aEquiv < 0
+        assertEquals(Long.MAX_VALUE, (long) getAFromB.invoke(null, 100L, hbarEquiv, 0)); // bEquiv == 0
+        assertEquals(200L, (long) getAFromB.invoke(null, 100L, 100, 50)); // normal: 100 * 100 / 50
+    }
+
     @ParameterizedTest
     @MethodSource("provideConsensusTimesForActiveRate")
     void activeRateWorksAsExpected(Instant consensusTime, ExchangeRate expectedExchangeRate) {

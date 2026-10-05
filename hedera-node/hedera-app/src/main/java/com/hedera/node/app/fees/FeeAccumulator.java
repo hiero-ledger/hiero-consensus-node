@@ -141,6 +141,31 @@ public class FeeAccumulator {
         overflowRefundableFees = null;
     }
 
+    /**
+     * Reverses any node fees this accumulator charged for the remembered node account, undoing the
+     * matching in-memory node-payments accumulation performed during {@link #chargeFees}. Must be
+     * called on the rollback path <b>before</b> {@link #resetRefundableFees()} clears the tracked
+     * amounts, so that the subsequent re-charge does not leave the node-payments map double-counting
+     * the node fee. A no-op when no node fee was charged (e.g. non-USER/NODE dispatches, or when the
+     * fee collection account is disabled).
+     */
+    public void reverseAccumulatedNodeFees() {
+        if (nodeAccountId == null) {
+            return;
+        }
+        // Node fees only ever accrue to the primary payer, but summing any overflow payers keeps this
+        // correct if that ever changes; every node fee charged by this dispatch targets nodeAccountId.
+        long total = primaryRefundableNodeFee;
+        if (overflowRefundableFees != null) {
+            for (final var refundable : overflowRefundableFees.values()) {
+                total = Math.addExact(total, refundable.nodeFee);
+            }
+        }
+        if (total > 0) {
+            tokenApi.reverseNodeFee(nodeAccountId, total);
+        }
+    }
+
     private void validateNodeAccount(@NonNull final AccountID nodeAccountId) {
         if (this.nodeAccountId != null
                 && this.nodeAccountId != nodeAccountId

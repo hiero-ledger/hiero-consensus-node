@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.stack;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.RECURSIVE_SCHEDULING_LIMIT_REACHED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.PRECEDING;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REMOVABLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -20,6 +25,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -36,7 +42,9 @@ import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -117,9 +125,117 @@ class SavepointStackImplTest extends StateTestBase {
                 .isInstanceOf(HandleException.class)
                 .hasMessage(NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION.protoName());
         assertThat(firstPresetId)
-                .isEqualTo(vanillaBaseId.copyBuilder().nonce(53).build());
+                .isEqualTo(vanillaBaseId.copyBuilder().nonce(54).build());
         assertThat(secondPresetId)
-                .isEqualTo(vanillaBaseId.copyBuilder().nonce(2 * 53).build());
+                .isEqualTo(vanillaBaseId.copyBuilder().nonce(2 * 54).build());
+    }
+
+    @Test
+    @DisplayName("a preset id cannot collide with a sequentially assigned child nonce at the stride boundary")
+    void presetIdsDoNotCollideWithSequentialChildNonces() {
+        final int maxPreceding = 3;
+        final int maxFollowing = 50;
+        final var baseId = TransactionID.newBuilder()
+                .accountID(PAYER_ID)
+                .transactionValidStart(VALID_START)
+                .build();
+        final var stack = SavepointStackImpl.newRootStack(
+                baseState,
+                maxPreceding,
+                maxFollowing,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                StreamMode.RECORDS,
+                TraceDataSizeLimiter.NO_LIMIT);
+        initialized(stack.getBaseBuilder(StreamBuilder.class)).transactionID(baseId);
+
+        // Saturate the preceding budget, whose builders are numbered ahead of the following ones
+        for (int i = 0; i < maxPreceding; i++) {
+            initialized(stack.createIrreversiblePrecedingBuilder());
+        }
+        // The first child takes the preset id an HSS scheduleCall dispatch would get; it keeps that id, but
+        // still consumes a sequential offset, so a later child can be numbered onto the same nonce
+        final var presetId = stack.nextPresetTxnId(false);
+        addChildTo(stack).transactionID(presetId);
+        for (int i = 1; i < maxFollowing; i++) {
+            addChildTo(stack);
+        }
+        stack.commitFullStack();
+
+        final List<TransactionRecord> records = new ArrayList<>();
+        stack.buildHandleOutput(
+                        Instant.ofEpochSecond(VALID_START.seconds(), VALID_START.nanos()), ExchangeRateSet.DEFAULT)
+                .recordSourceOrThrow()
+                .forEachTxnRecord(records::add);
+
+        assertThat(records).hasSize(1 + maxPreceding + maxFollowing);
+        assertThat(records.stream().map(TransactionRecord::transactionIDOrThrow).toList())
+                .doesNotHaveDuplicates();
+    }
+
+    @Test
+    @DisplayName("a scheduled execution gets no preset id after scheduling a contract call")
+    void scheduledExecutionGetsNoPresetIdAfterSchedulingAContractCall() {
+        final int maxPreceding = 3;
+        final int maxFollowing = 50;
+        // A schedule created by an earlier transaction executes in its own unit, keeping the nonce it was
+        // handed as a preset id and carrying scheduled=true
+        final var scheduledBaseId = TransactionID.newBuilder()
+                .accountID(PAYER_ID)
+                .transactionValidStart(VALID_START)
+                .scheduled(true)
+                .nonce(maxPreceding + maxFollowing + 1)
+                .build();
+        final var stack = rootStackWith(scheduledBaseId, maxPreceding, maxFollowing);
+
+        // Scheduling a contract call is the last preset id a unit may take, c.f. RECURSIVE_FUNCTIONS in
+        // ChildDispatchFactory; without that no further preset range is reserved, and the nonces of a schedule
+        // this one creates cannot reach one
+        final var presetId = stack.nextPresetTxnId(true);
+
+        assertThat(presetId)
+                .isEqualTo(scheduledBaseId
+                        .copyBuilder()
+                        .nonce(scheduledBaseId.nonce() + maxPreceding + maxFollowing + 1)
+                        .build());
+        assertThatThrownBy(() -> stack.nextPresetTxnId(false))
+                .isInstanceOf(HandleException.class)
+                .hasMessage(NO_SCHEDULING_ALLOWED_AFTER_SCHEDULED_RECURSION.protoName());
+    }
+
+    /**
+     * Returns a root stack whose base builder carries the given transaction ID.
+     */
+    private SavepointStackImpl rootStackWith(
+            final TransactionID baseId, final int maxPreceding, final int maxFollowing) {
+        final var stack = SavepointStackImpl.newRootStack(
+                baseState,
+                maxPreceding,
+                maxFollowing,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                StreamMode.RECORDS,
+                TraceDataSizeLimiter.NO_LIMIT);
+        initialized(stack.getBaseBuilder(StreamBuilder.class)).transactionID(baseId);
+        return stack;
+    }
+
+    /**
+     * Adds a committed {@code CHILD} builder to the given root stack's following builders.
+     */
+    private StreamBuilder addChildTo(final SavepointStackImpl root) {
+        final var childStack = SavepointStackImpl.newChildStack(
+                root, REVERSIBLE, CHILD, NOOP_SIGNED_TX_CUSTOMIZER, StreamMode.RECORDS);
+        final var builder = initialized(childStack.getBaseBuilder(StreamBuilder.class));
+        childStack.commitFullStack();
+        return builder;
+    }
+
+    /**
+     * Sets the minimum fields a builder needs to be externalized as a record.
+     */
+    private StreamBuilder initialized(final StreamBuilder builder) {
+        return builder.signedTx(SignedTransaction.DEFAULT).status(SUCCESS).exchangeRate(ExchangeRateSet.DEFAULT);
     }
 
     @Test
@@ -141,7 +257,7 @@ class SavepointStackImplTest extends StateTestBase {
                 parent, REVERSIBLE, SCHEDULED, NOOP_SIGNED_TX_CUSTOMIZER, StreamMode.BOTH);
 
         final var presetId = subject.nextPresetTxnId(false);
-        assertThat(presetId).isEqualTo(vanillaBaseId.copyBuilder().nonce(53).build());
+        assertThat(presetId).isEqualTo(vanillaBaseId.copyBuilder().nonce(54).build());
     }
 
     @Test
@@ -347,6 +463,41 @@ class SavepointStackImplTest extends StateTestBase {
         assertThat(records).singleElement().satisfies(record -> assertThat(
                         record.receiptOrThrow().blockNumber())
                 .isNull());
+    }
+
+    @Test
+    void suppressesOnlyBlockOutputInBothMode() {
+        final var txnId = TransactionID.newBuilder()
+                .accountID(PAYER_ID)
+                .transactionValidStart(VALID_START)
+                .build();
+        final var stack = SavepointStackImpl.newRootStack(
+                baseState,
+                3,
+                50,
+                roundStateChangeListener,
+                immediateStateChangeListener,
+                StreamMode.BOTH,
+                TraceDataSizeLimiter.NO_LIMIT,
+                () -> true);
+        stack.getBaseBuilder(StreamBuilder.class)
+                .transactionID(txnId)
+                .signedTx(SignedTransaction.DEFAULT)
+                .status(SUCCESS)
+                .exchangeRate(ExchangeRateSet.DEFAULT);
+        stack.commitFullStack();
+
+        final var handleOutput = stack.buildHandleOutput(
+                Instant.ofEpochSecond(VALID_START.seconds(), VALID_START.nanos()),
+                ExchangeRateSet.DEFAULT,
+                BLOCK_NUMBER);
+
+        assertThat(handleOutput.blockRecordSourceOrThrow().blockItems()).isEmpty();
+        assertThat(handleOutput.recordSourceOrThrow().identifiedReceipts())
+                .singleElement()
+                .extracting(receipt -> receipt.txnId())
+                .isEqualTo(txnId);
+        assertThat(handleOutput.preferredRecordSource()).isSameAs(handleOutput.recordSourceOrThrow());
     }
 
     @Nested
@@ -997,6 +1148,208 @@ class SavepointStackImplTest extends StateTestBase {
             assertThat(stack.rootStates(FOOD_SERVICE)).has(content(newData));
             assertThat(stack.getReadableStates(FOOD_SERVICE)).has(content(newData));
             assertThat(stack.getWritableStates(FOOD_SERVICE)).has(content(newData));
+        }
+    }
+
+    @Nested
+    @DisplayName("Tests for attributing ids to synthetic records dispatched inside an atomic batch")
+    class AtomicBatchIdentityTests {
+        private static final TransactionID BATCH_ID = TransactionID.newBuilder()
+                .accountID(PAYER_ID)
+                .transactionValidStart(VALID_START)
+                .build();
+        private static final TransactionID INNER_A_ID = TransactionID.newBuilder()
+                .accountID(AccountID.newBuilder().accountNum(1001L).build())
+                .transactionValidStart(new Timestamp(1_234_500L, 1))
+                .build();
+        private static final TransactionID INNER_B_ID = TransactionID.newBuilder()
+                .accountID(AccountID.newBuilder().accountNum(1002L).build())
+                .transactionValidStart(new Timestamp(1_234_501L, 2))
+                .build();
+
+        /** The preset-id stride for the 3/50 budget {@link #batchRootStack()} uses. */
+        private static final int STRIDE = 3 + 50 + 1;
+
+        @Test
+        @DisplayName("a preceding dispatch flushed out of an inner transaction's savepoint keeps that inner's identity")
+        void lateFlushedPrecedingKeepsItsOwnBatchInnerIdentity() {
+            final var stack = batchRootStack();
+
+            // Inner A is a contract call that lazy-creates an account; as the EVM does, it opens a savepoint
+            // before dispatching, so the synthetic creation is only flushed when the EVM transaction commits,
+            // landing *after* inner A in the root sink
+            final var innerA = batchInnerStackIn(stack, INNER_A_ID);
+            innerA.createSavepoint();
+            final var creation = precedingDispatchIn(innerA);
+            innerA.commit();
+            innerA.commitFullStack();
+
+            // Inner B is an unrelated transfer that happens to follow inner A
+            batchInnerStackIn(stack, INNER_B_ID).commitFullStack();
+            stack.commitFullStack();
+
+            assertThat(idsFrom(stack))
+                    .containsExactly(
+                            BATCH_ID,
+                            INNER_A_ID,
+                            INNER_A_ID.copyBuilder().nonce(1).build(),
+                            INNER_B_ID);
+            assertThat(creation.transactionID())
+                    .isEqualTo(INNER_A_ID.copyBuilder().nonce(1).build());
+        }
+
+        @Test
+        @DisplayName("a preceding dispatch flushed ahead of its inner transaction keeps that inner's identity")
+        void earlyFlushedPrecedingKeepsItsOwnBatchInnerIdentity() {
+            final var stack = batchRootStack();
+
+            // Inner A is a transfer that auto-creates an aliased receiver; with no intervening savepoint the
+            // synthetic creation is flushed *ahead* of inner A in the root sink
+            final var innerA = batchInnerStackIn(stack, INNER_A_ID);
+            precedingDispatchIn(innerA);
+            innerA.commitFullStack();
+
+            batchInnerStackIn(stack, INNER_B_ID).commitFullStack();
+            stack.commitFullStack();
+
+            assertThat(idsFrom(stack))
+                    .containsExactly(BATCH_ID, INNER_A_ID.copyBuilder().nonce(1).build(), INNER_A_ID, INNER_B_ID);
+        }
+
+        @Test
+        @DisplayName("a preceding dispatch in the last inner transaction keeps that inner's identity")
+        void precedingInLastBatchInnerKeepsThatInnerIdentity() {
+            final var stack = batchRootStack();
+
+            batchInnerStackIn(stack, INNER_A_ID).commitFullStack();
+            final var innerB = batchInnerStackIn(stack, INNER_B_ID);
+            innerB.createSavepoint();
+            precedingDispatchIn(innerB);
+            innerB.commit();
+            innerB.commitFullStack();
+            stack.commitFullStack();
+
+            assertThat(idsFrom(stack))
+                    .containsExactly(
+                            BATCH_ID,
+                            INNER_A_ID,
+                            INNER_B_ID,
+                            INNER_B_ID.copyBuilder().nonce(1).build());
+        }
+
+        @Test
+        @DisplayName("a preceding dispatch is not confused by a child record of an earlier inner transaction")
+        void precedingIsUnaffectedByChildOfEarlierBatchInner() {
+            final var stack = batchRootStack();
+
+            final var innerA = batchInnerStackIn(stack, INNER_A_ID);
+            initialized(innerA.createRemovableChildBuilder());
+            innerA.commitFullStack();
+
+            final var innerB = batchInnerStackIn(stack, INNER_B_ID);
+            innerB.createSavepoint();
+            precedingDispatchIn(innerB);
+            innerB.commit();
+            innerB.commitFullStack();
+            stack.commitFullStack();
+
+            assertThat(idsFrom(stack))
+                    .containsExactly(
+                            BATCH_ID,
+                            INNER_A_ID,
+                            INNER_A_ID.copyBuilder().nonce(1).build(),
+                            INNER_B_ID,
+                            INNER_B_ID.copyBuilder().nonce(2).build());
+        }
+
+        @Test
+        @DisplayName("a child record dispatched inside an inner transaction keeps that inner's identity")
+        void childKeepsItsOwnBatchInnerIdentity() {
+            final var stack = batchRootStack();
+
+            batchInnerStackIn(stack, INNER_A_ID).commitFullStack();
+            final var innerB = batchInnerStackIn(stack, INNER_B_ID);
+            initialized(innerB.createRemovableChildBuilder());
+            innerB.commitFullStack();
+            stack.commitFullStack();
+
+            assertThat(idsFrom(stack))
+                    .containsExactly(
+                            BATCH_ID,
+                            INNER_A_ID,
+                            INNER_B_ID,
+                            INNER_B_ID.copyBuilder().nonce(1).build());
+        }
+
+        @Test
+        @DisplayName("a preceding dispatch of the batch itself keeps the batch's identity")
+        void precedingOutsideAnyBatchInnerKeepsTheBatchIdentity() {
+            final var stack = batchRootStack();
+
+            // For example, completing a hollow account that is paying for the batch itself
+            precedingDispatchIn(stack);
+            batchInnerStackIn(stack, INNER_A_ID).commitFullStack();
+            stack.commitFullStack();
+
+            assertThat(idsFrom(stack))
+                    .containsExactly(BATCH_ID.copyBuilder().nonce(1).build(), BATCH_ID, INNER_A_ID);
+        }
+
+        @Test
+        @DisplayName("a preset id requested inside a batch inner carries that inner's identity")
+        void presetIdInsideABatchInnerCarriesThatInnersIdentity() {
+            final var stack = batchRootStack();
+            final var innerA = batchInnerStackIn(stack, INNER_A_ID);
+
+            final var presetId = innerA.nextPresetTxnId(false);
+
+            // The payer and valid start are the inner's, so a schedule created with this id is filed under the
+            // transaction that asked for it rather than under the enclosing batch
+            assertThat(presetId)
+                    .isEqualTo(INNER_A_ID.copyBuilder().nonce(STRIDE).build());
+        }
+
+        private SavepointStackImpl batchRootStack() {
+            final var stack = SavepointStackImpl.newRootStack(
+                    baseState,
+                    3,
+                    50,
+                    roundStateChangeListener,
+                    immediateStateChangeListener,
+                    StreamMode.RECORDS,
+                    TraceDataSizeLimiter.NO_LIMIT);
+            initialized(stack.getBaseBuilder(StreamBuilder.class))
+                    .functionality(ATOMIC_BATCH)
+                    .transactionID(BATCH_ID);
+            return stack;
+        }
+
+        private SavepointStackImpl batchInnerStackIn(final SavepointStackImpl root, final TransactionID innerTxnId) {
+            final var innerStack = SavepointStackImpl.newChildStack(
+                    root, REVERSIBLE, BATCH_INNER, NOOP_SIGNED_TX_CUSTOMIZER, StreamMode.RECORDS);
+            initialized(innerStack.getBaseBuilder(StreamBuilder.class)).transactionID(innerTxnId);
+            return innerStack;
+        }
+
+        /**
+         * Dispatches a synthetic setup transaction in the given stack, as a lazy account creation does; note it is
+         * given no transaction id of its own, so one must be assigned when the user transaction is built.
+         */
+        private StreamBuilder precedingDispatchIn(final SavepointStackImpl parentStack) {
+            final var precedingStack = SavepointStackImpl.newChildStack(
+                    parentStack, REMOVABLE, PRECEDING, NOOP_SIGNED_TX_CUSTOMIZER, StreamMode.RECORDS);
+            final var builder = initialized(precedingStack.getBaseBuilder(StreamBuilder.class));
+            precedingStack.commitFullStack();
+            return builder;
+        }
+
+        private List<TransactionID> idsFrom(final SavepointStackImpl stack) {
+            final List<TransactionRecord> records = new ArrayList<>();
+            stack.buildHandleOutput(
+                            Instant.ofEpochSecond(VALID_START.seconds(), VALID_START.nanos()), ExchangeRateSet.DEFAULT)
+                    .recordSourceOrThrow()
+                    .forEachTxnRecord(records::add);
+            return records.stream().map(TransactionRecord::transactionIDOrThrow).toList();
         }
     }
 

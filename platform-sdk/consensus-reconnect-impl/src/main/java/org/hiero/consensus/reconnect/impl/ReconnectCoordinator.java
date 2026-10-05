@@ -15,11 +15,12 @@ import java.util.Objects;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
-import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.round.EventWindowUtils;
 import org.hiero.consensus.state.signed.SignedState;
@@ -155,8 +156,8 @@ public class ReconnectCoordinator {
 
         final ReadableRosterStore rosterStore =
                 new ReadableRosterStoreImpl(state.getReadableStates(RosterStateId.SERVICE_NAME));
-        final RosterHistory rosterHistory = rosterStore.getRosterHistory();
-        this.injectRosterHistory(rosterHistory);
+        final ConsensusLayerRosterInputs rosterInputs = rosterStore.getConsensusLayerRosterInputs();
+        this.injectRosterInputs(rosterInputs);
 
         final int roundsNonAncient =
                 configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
@@ -179,7 +180,8 @@ public class ReconnectCoordinator {
     /**
      * @see EventIntakeModule#rosterHistoryInputWire()
      */
-    private void injectRosterHistory(@NonNull final RosterHistory rosterHistory) {
+    private void injectRosterInputs(@NonNull final ConsensusLayerRosterInputs rosterInputs) {
+        final RosterWrapperHistory rosterHistory = RosterWrapperHistory.of(rosterInputs);
         buildingBlocks.eventIntakeModule().rosterHistoryInputWire().inject(rosterHistory);
     }
 

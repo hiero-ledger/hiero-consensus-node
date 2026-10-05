@@ -127,6 +127,12 @@ public class VirtualMapStateLifecycleManager implements StateLifecycleManager<Vi
         return stateRef.get();
     }
 
+    /// {@inheritDoc}
+    @Override
+    public void prepareForFreeze() {
+        getMutableState().getRoot().getDataSource().stopAndDisableBackgroundCompaction(false);
+    }
+
     /**
      * {@inheritDoc}
      */

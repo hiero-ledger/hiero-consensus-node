@@ -6,7 +6,7 @@ import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
 import static org.awaitility.Awaitility.await;
 
 import com.swirlds.benchmark.reconnect.StateBuilder;
-import com.swirlds.merkledb.MerkleDbDataSource;
+import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.virtualmap.VirtualMap;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
@@ -72,7 +72,7 @@ public class VirtualMapReadBench extends VirtualMapBaseBench {
         virtualMap.release();
         virtualMap = null;
 
-        await().atMost(Duration.ofSeconds(30)).until(() -> MerkleDbDataSource.getCountOfOpenDatabases() == 0);
+        await().atMost(Duration.ofSeconds(30)).until(() -> MerkleDbDataSourceBuilder.getCountOfOpenDatabases() == 0);
 
         super.onTrialTearDown();
     }

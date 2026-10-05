@@ -72,7 +72,15 @@ public class NetConfig {
 
     public Map<String, String> toSpecProperties() {
         Map<String, String> customProps = new HashMap<>();
-        customProps.put("nodes", nodes.stream().map(NodeConfig::toString).collect(Collectors.joining(",")));
+        // Strip the #id suffix so NodeConnectInfo can parse the account literal correctly;
+        // without this, the #id suffix prevents ID_LITERAL_PATTERN from matching and causes
+        // HapiSpecSetup.nodes() to assign sequential stub accounts instead of the real ones.
+        customProps.put(
+                "nodes",
+                nodes.stream()
+                        .map(NodeConfig::toString)
+                        .map(s -> s.contains("#") ? s.substring(0, s.indexOf('#')) : s)
+                        .collect(Collectors.joining(",")));
         if (shard != null) {
             customProps.put("hapi.spec.default.shard", String.valueOf(shard));
         }

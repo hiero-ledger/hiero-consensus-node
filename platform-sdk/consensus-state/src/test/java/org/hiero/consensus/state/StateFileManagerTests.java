@@ -46,7 +46,6 @@ import org.hiero.consensus.state.config.StateConfig_;
 import org.hiero.consensus.state.persistence.DefaultSavedStateController;
 import org.hiero.consensus.state.persistence.DefaultStateSnapshotManager;
 import org.hiero.consensus.state.persistence.SignedStateFilePath;
-import org.hiero.consensus.state.persistence.SignedStateFileUtils;
 import org.hiero.consensus.state.persistence.StateSnapshotManager;
 import org.hiero.consensus.state.saved.DeserializedSignedState;
 import org.hiero.consensus.state.saved.SavedStateInfo;
@@ -123,7 +122,7 @@ class StateFileManagerTests {
         assertEventuallyEquals(
                 -1, originalState::getReservationCount, Duration.ofSeconds(1), "invalid reservation count");
 
-        final Path hashInfoFile = stateDirectory.resolve(SignedStateFileUtils.HASH_INFO_FILE_NAME);
+        final Path hashInfoFile = stateDirectory.resolve(SignedStateFileConstants.HASH_INFO_FILE_NAME);
         final Path settingsUsedFile = stateDirectory.resolve("settingsUsed.txt");
 
         assertTrue(exists(hashInfoFile), "no hash info file found");

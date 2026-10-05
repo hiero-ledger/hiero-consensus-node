@@ -3,8 +3,6 @@ package org.hiero.consensus.event.creator.impl.tipset;
 
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_4_2;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
@@ -13,6 +11,8 @@ import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.SpeedometerMetric;
 import org.hiero.consensus.metrics.statistics.AverageStat;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**
  * Encapsulates metrics for the tipset event creator.
@@ -43,7 +43,7 @@ public class TipsetMetrics {
      * @param metrics the metrics instance to use
      * @param roster  the roster of nodes in the network
      */
-    public TipsetMetrics(@NonNull final Metrics metrics, @NonNull final Roster roster) {
+    public TipsetMetrics(@NonNull final Metrics metrics, @NonNull final RosterWrapper roster) {
 
         tipsetAdvancementMetric = metrics.getOrCreate(TIPSET_ADVANCEMENT_CONFIG);
         selfishnessMetric = metrics.getOrCreate(SELFISHNESS_CONFIG);
@@ -55,8 +55,8 @@ public class TipsetMetrics {
                 FORMAT_4_2,
                 AverageStat.WEIGHT_VOLATILE);
 
-        for (final RosterEntry address : roster.rosterEntries()) {
-            final NodeId nodeId = NodeId.of(address.nodeId());
+        for (final RosterEntryWrapper address : roster.rosterEntries()) {
+            final NodeId nodeId = address.nodeId();
 
             final SpeedometerMetric.Config parentConfig = new SpeedometerMetric.Config(
                             "platform", "tipsetParent" + nodeId.id())

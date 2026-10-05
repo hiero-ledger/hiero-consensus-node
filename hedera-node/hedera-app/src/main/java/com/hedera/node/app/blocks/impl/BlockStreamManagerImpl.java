@@ -20,11 +20,13 @@ import static com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
+import static com.hedera.node.config.types.StreamMode.BOTH;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSemanticVersionOf;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.StateProof;
@@ -54,10 +56,12 @@ import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TctProbe;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.state.BlockProvenStateAccessor;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.node.config.data.StakingConfig;
@@ -97,6 +101,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -122,6 +127,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private final int roundsPerBlock;
     private final Duration blockPeriod;
+    private final boolean blockSizeCircuitBreakerApplicable;
     private final BlockHashSigner blockHashSigner;
     private final SemanticVersion version;
     private final SemanticVersion hapiVersion;
@@ -132,6 +138,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final ConfigProvider configProvider;
     private final Supplier<BlockItemWriter> writerSupplier;
     private final BoundaryStateChangeListener boundaryStateChangeListener;
+
+    @Nullable
+    private final BlockProvenStateAccessor blockProvenStateAccessor;
 
     private final Lifecycle lifecycle;
     private final BlockHashManager blockHashManager;
@@ -164,6 +173,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private Instant consensusTimeCurrentRound;
     private Timestamp lastUsedTime;
     private BlockItemWriter writer;
+    // The circuit-breaker size configuration snapshot for the current block.
+    private boolean blockSizeCircuitBreakerEnabled;
+    private long maxBlockSizeBytes;
+    // The canonical serialized size of all items accepted into the current block, excluding its asynchronous proof.
+    private long currentBlockSizeBytes;
+    // Once open, no more output from savepoint stacks is accepted until the next block starts.
+    private boolean savepointOutputSuppressed;
 
     // Block merkle subtrees and leaves
     private IncrementalStreamingHasher previousBlockHashes;
@@ -185,6 +201,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * The number of blocks awaiting proof via ledger signature on their block hash (or a subsequent block hash).
      */
     private final AtomicInteger pendingBlockProofCount = new AtomicInteger(0);
+
+    /**
+     * One-shot transition flag: flips {@code false → true} the first time
+     * {@link #finishProofWithSignature} embeds a WRAPS recursive proof into a block signature.
+     * After that block, captured cross-network state proofs reference WRAPS-carrying state and
+     * peer ledgers' {@code NativeTssVerifier.verifyTss} accepts them. Logged exactly once for
+     * test-harness use (see {@code MultiNetworkExtension.awaitWrapsSyncPoint}).
+     */
+    private final AtomicBoolean wrapsProofMaterialized = new AtomicBoolean(false);
     /**
      * Guards the future returned to callers waiting for all pending block proofs to complete.
      */
@@ -247,6 +272,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private final BlockStreamingObs streamingObs;
 
+    private final Counter blockSizeCircuitBreakerTripsCounter;
+
     @Inject
     public BlockStreamManagerImpl(
             @NonNull final BlockHashSigner blockHashSigner,
@@ -261,6 +288,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final Lifecycle lifecycle,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
             @NonNull final Metrics metrics,
+            @Nullable final BlockProvenStateAccessor blockProvenStateAccessor,
             @NonNull final BlockStreamingObs streamingObs) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.platform = requireNonNull(platform);
@@ -272,6 +300,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.lifecycle = requireNonNull(lifecycle);
         this.configProvider = requireNonNull(configProvider);
         this.quiescedHeartbeat = requireNonNull(quiescedHeartbeat);
+        this.blockProvenStateAccessor = blockProvenStateAccessor;
         final var config = configProvider.getConfiguration();
         this.hintsEnabled = config.getConfigData(TssConfig.class).hintsEnabled();
         this.quiescenceEnabled = config.getConfigData(QuiescenceConfig.class).enabled();
@@ -279,6 +308,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         this.roundsPerBlock = blockStreamConfig.roundsPerBlock();
         this.blockPeriod = blockStreamConfig.blockPeriod();
+        this.blockSizeCircuitBreakerApplicable = blockStreamConfig.streamMode() == BOTH;
         final var networkAdminConfig = config.getConfigData(NetworkAdminConfig.class);
         this.diskNetworkExport = networkAdminConfig.diskNetworkExport();
         this.diskNetworkExportFile = networkAdminConfig.diskNetworkExportFile();
@@ -292,6 +322,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         indirectProofCounter = requireNonNull(metrics)
                 .getOrCreate(new Counter.Config("block", "numIndirectProofs")
                         .withDescription("Number of blocks closed with indirect proofs"));
+        blockSizeCircuitBreakerTripsCounter = metrics.getOrCreate(new Counter.Config(
+                        "block", "numBlockSizeCircuitBreakerTrips")
+                .withDescription("Number of preview blocks whose savepoint output was suppressed by the size limit"));
         if (!quiescenceEnabled) {
             log.info("Quiescence is disabled");
             quiescedHeartbeat.shutdown();
@@ -477,6 +510,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
         // Writer will be null when beginning a new block
         if (writer == null) {
+            final var blockStreamConfig = configProvider.getConfiguration().getConfigData(BlockStreamConfig.class);
+            maxBlockSizeBytes = blockStreamConfig.maxBlockSizeBytes();
+            blockSizeCircuitBreakerEnabled = blockSizeCircuitBreakerApplicable && maxBlockSizeBytes > 0;
+            currentBlockSizeBytes = 0;
+            savepointOutputSuppressed = false;
+
             writer = writerSupplier.get();
             blockTimestamp = asTimestamp(firstConsensusTimestampOf(round));
 
@@ -517,7 +556,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .blockTimestamp(blockTimestamp)
                     .hapiProtoVersion(hapiVersion);
             streamingObs.onBlockInit(blockNumber);
-            worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
+            writeItem(BlockItem.newBuilder().blockHeader(header).build());
         }
         consensusTimeCurrentRound = round.getConsensusTimestamp();
     }
@@ -590,6 +629,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         block.proofBuilder(),
                         pendingWriter,
                         block.pendingProof().blockTimestamp(),
+                        // Recovered blocks do not retain the state roots CLPR needs for snapshot registration.
+                        Bytes.EMPTY,
+                        Bytes.EMPTY,
                         block.siblingHashesIfUseful()));
             } catch (Exception e) {
                 log.warn(
@@ -726,7 +768,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             quiescenceController.finishHandlingInProgressBlock();
             state.commitSingletons();
             // Flush all boundary state changes besides the BlockStreamInfo
-            worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
+            writeItem(flushChangesFromListener(boundaryStateChangeListener));
             worker.sync();
 
             // This block's starting state hash is the end state hash of the last non-empty round
@@ -781,7 +823,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             ((CommittableWritableStates) writableState).commit();
 
             // Produce one more state change item (i.e. putting the block stream info just constructed into state)
-            worker.addItem(flushChangesFromListener(boundaryStateChangeListener));
+            writeItem(flushChangesFromListener(boundaryStateChangeListener));
             worker.sync();
 
             final var stateChangesHash = Bytes.wrap(stateChangesHasher.computeRootHash());
@@ -814,7 +856,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var footerItem =
                     BlockItem.newBuilder().blockFooter(blockFooter).build();
             streamingObs.onBlockFooterCreate(blockNumber);
-            worker.addItem(footerItem);
+            writeItem(footerItem);
             worker.sync();
 
             // Create a pending block, waiting to be signed
@@ -827,6 +869,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     blockProofBuilder,
                     writer,
                     blockTimestamp,
+                    blockStartStateHash,
+                    consensusHeaderHash,
                     rootAndSiblingHashes.siblingHashes()));
 
             // Update in-memory state to prepare for the next block
@@ -947,11 +991,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         if (fatalShutdownRequested) {
             return;
         }
-        lastUsedTime = switch (item.item().kind()) {
-            case STATE_CHANGES -> item.stateChangesOrThrow().consensusTimestampOrThrow();
-            case TRANSACTION_RESULT -> item.transactionResultOrThrow().consensusTimestampOrThrow();
-            default -> lastUsedTime;
-        };
+        requireNonNull(item);
+        accountForWrittenItems(List.of(item));
+        updateLastUsedTimeFrom(item);
         worker.addItem(item);
     }
 
@@ -962,6 +1004,87 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             return;
         }
         writeItem(itemSpec.apply(lastUsedTime));
+    }
+
+    @Override
+    public void writeSavepointItems(
+            @NonNull final List<BlockItem> items, @NonNull final Instant lastUsedConsensusTime) {
+        requireNonNull(items);
+        requireNonNull(lastUsedConsensusTime);
+
+        if (blockSizeCircuitBreakerEnabled) {
+            if (savepointOutputSuppressed) {
+                advanceLastUsedTimeTo(lastUsedConsensusTime);
+                return;
+            }
+            final long candidateSize = serializedBlockSize(items);
+            final long projectedSize = saturatedAdd(currentBlockSizeBytes, candidateSize);
+            if (projectedSize > maxBlockSizeBytes) {
+                tripBlockSizeCircuitBreaker(projectedSize, candidateSize);
+                advanceLastUsedTimeTo(lastUsedConsensusTime);
+                return;
+            }
+            currentBlockSizeBytes = projectedSize;
+            items.forEach(item -> {
+                updateLastUsedTimeFrom(item);
+                worker.addItem(item);
+            });
+        } else {
+            items.forEach(this::writeItem);
+        }
+        advanceLastUsedTimeTo(lastUsedConsensusTime);
+    }
+
+    @Override
+    public boolean isSavepointOutputSuppressed() {
+        return savepointOutputSuppressed;
+    }
+
+    private void accountForWrittenItems(@NonNull final List<BlockItem> items) {
+        if (!blockSizeCircuitBreakerEnabled) {
+            return;
+        }
+        final long addedSize = serializedBlockSize(items);
+        currentBlockSizeBytes = saturatedAdd(currentBlockSizeBytes, addedSize);
+        if (!savepointOutputSuppressed && currentBlockSizeBytes > maxBlockSizeBytes) {
+            tripBlockSizeCircuitBreaker(currentBlockSizeBytes, addedSize);
+        }
+    }
+
+    private void tripBlockSizeCircuitBreaker(final long projectedSize, final long addedSize) {
+        savepointOutputSuppressed = true;
+        blockSizeCircuitBreakerTripsCounter.increment();
+        log.error(
+                "Preview block #{} reached a projected serialized size of {} bytes after adding {} bytes, "
+                        + "exceeding the {}-byte limit; suppressing savepoint output for the rest of the block",
+                blockNumber,
+                projectedSize,
+                addedSize,
+                maxBlockSizeBytes);
+    }
+
+    private static long serializedBlockSize(@NonNull final List<BlockItem> items) {
+        // A Block is only a repeated BlockItem field, so measuring a Block containing this batch gives its exact
+        // contribution to the canonical, uncompressed protobuf representation.
+        return Block.PROTOBUF.measureRecord(new Block(items));
+    }
+
+    private static long saturatedAdd(final long a, final long b) {
+        return a > Long.MAX_VALUE - b ? Long.MAX_VALUE : a + b;
+    }
+
+    private void updateLastUsedTimeFrom(@NonNull final BlockItem item) {
+        lastUsedTime = switch (item.item().kind()) {
+            case STATE_CHANGES -> item.stateChangesOrThrow().consensusTimestampOrThrow();
+            case TRANSACTION_RESULT -> item.transactionResultOrThrow().consensusTimestampOrThrow();
+            default -> lastUsedTime;
+        };
+    }
+
+    private void advanceLastUsedTimeTo(@NonNull final Instant consensusTime) {
+        if (lastUsedTime == null || consensusTime.isAfter(asInstant(lastUsedTime))) {
+            lastUsedTime = asTimestamp(consensusTime);
+        }
     }
 
     @Override
@@ -1028,6 +1151,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final Bytes effectiveSignature;
         if (verificationKey != null && chainOfTrustProof != null) {
             if (chainOfTrustProof.hasWrapsProof()) {
+                if (wrapsProofMaterialized.compareAndSet(false, true)) {
+                    log.info(
+                            "[CLPR-SYNC-POINT] block #{} is the first to embed the WRAPS recursive proof — "
+                                    + "cross-network state-proof verification is now enabled",
+                            blockNumber);
+                }
                 effectiveSignature =
                         verificationKey.append(blockSignature).append(chainOfTrustProof.wrapsProofOrThrow());
             } else {
@@ -1101,7 +1230,41 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (currentPendingBlock.contentsPath() != null) {
                 cleanUpPendingBlock(currentPendingBlock.contentsPath());
             }
+
             markPendingBlockProofComplete(currentPendingBlock);
+
+            // Register CLPR block metadata so ClprStateProofManager can build state proofs.
+            // Only do this for in-memory blocks (startingStateHash non-empty) when CLPR is enabled,
+            // and ONLY for the directly-signed block: `effectiveSignature` signs block N's root, but
+            // an indirectly-proven pending block M < N has a Merkle path terminating at M's own root,
+            // so pairing M's path with N's signature would register a snapshot that can never verify.
+            if (blockProvenStateAccessor != null
+                    && currentPendingBlock.number() == blockNumber
+                    && !currentPendingBlock.startingStateHash().equals(Bytes.EMPTY)
+                    && configProvider
+                            .getConfiguration()
+                            .getConfigData(ClprConfig.class)
+                            .enabled()) {
+                try {
+                    final var path = PartialPathBuilder.startingStateToBlockRoot(
+                            currentPendingBlock.previousBlockHash(),
+                            currentPendingBlock.siblingHashes()[0].siblingHash(),
+                            currentPendingBlock.startingStateHash(),
+                            currentPendingBlock.consensusHeaderRootHash(),
+                            currentPendingBlock.siblingHashes());
+                    blockProvenStateAccessor.registerBlockMetadata(
+                            currentPendingBlock.startingStateHash(),
+                            currentPendingBlock.blockHash(),
+                            effectiveSignature,
+                            currentPendingBlock.blockTimestamp(),
+                            path);
+                } catch (final Exception e) {
+                    log.warn(
+                            "Failed to register CLPR block metadata for block #{}: {}",
+                            currentPendingBlock.number(),
+                            e.getMessage());
+                }
+            }
         }
     }
 

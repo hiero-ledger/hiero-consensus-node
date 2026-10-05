@@ -3,6 +3,7 @@ package com.hedera.node.app.fees;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
@@ -229,5 +230,77 @@ class FeeAccumulatorTest {
                         eq(recordBuilder),
                         isNull(),
                         any(LongConsumer.class));
+    }
+
+    @Test
+    void reverseAccumulatedNodeFeesIsNoopWhenNoNodeFeeCharged() {
+        subject.reverseAccumulatedNodeFees();
+
+        verify(tokenApi, never()).reverseNodeFee(any(), anyLong());
+    }
+
+    @Test
+    void reverseAccumulatedNodeFeesReversesTheChargedNodeFee() {
+        final var chargedFees = new Fees(4, 20, 30);
+        given(tokenApi.chargeFees(
+                        eq(PAYER_ID),
+                        eq(NODE_ACCOUNT_ID),
+                        eq(chargedFees),
+                        eq(recordBuilder),
+                        isNull(),
+                        any(LongConsumer.class)))
+                .willReturn(chargedFees);
+
+        subject.chargeFees(PAYER_ID, NODE_ACCOUNT_ID, chargedFees, null);
+        subject.reverseAccumulatedNodeFees();
+
+        verify(tokenApi).reverseNodeFee(NODE_ACCOUNT_ID, 4L);
+    }
+
+    @Test
+    void reverseAccumulatedNodeFeesIsNoopWhenNoNodeFeeAccrued() {
+        final var chargedFees = new Fees(0, 20, 30);
+        given(tokenApi.chargeFees(
+                        eq(PAYER_ID),
+                        eq(NODE_ACCOUNT_ID),
+                        eq(chargedFees),
+                        eq(recordBuilder),
+                        isNull(),
+                        any(LongConsumer.class)))
+                .willReturn(chargedFees);
+
+        subject.chargeFees(PAYER_ID, NODE_ACCOUNT_ID, chargedFees, null);
+        subject.reverseAccumulatedNodeFees();
+
+        verify(tokenApi, never()).reverseNodeFee(any(), anyLong());
+    }
+
+    @Test
+    void reverseAccumulatedNodeFeesSumsNodeFeesAcrossOverflowPayers() {
+        final var primaryCharge = new Fees(4, 20, 0);
+        final var overflowCharge = new Fees(3, 10, 0);
+        given(tokenApi.chargeFees(
+                        eq(PAYER_ID),
+                        eq(NODE_ACCOUNT_ID),
+                        eq(primaryCharge),
+                        eq(recordBuilder),
+                        isNull(),
+                        any(LongConsumer.class)))
+                .willReturn(primaryCharge);
+        given(tokenApi.chargeFees(
+                        eq(SECOND_PAYER_ID),
+                        eq(NODE_ACCOUNT_ID),
+                        eq(overflowCharge),
+                        eq(recordBuilder),
+                        isNull(),
+                        any(LongConsumer.class)))
+                .willReturn(overflowCharge);
+
+        // Both charges target the same node account; the second payer is tracked as overflow.
+        subject.chargeFees(PAYER_ID, NODE_ACCOUNT_ID, primaryCharge, null);
+        subject.chargeFees(SECOND_PAYER_ID, NODE_ACCOUNT_ID, overflowCharge, null);
+        subject.reverseAccumulatedNodeFees();
+
+        verify(tokenApi).reverseNodeFee(NODE_ACCOUNT_ID, 7L);
     }
 }

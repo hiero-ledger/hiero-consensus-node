@@ -257,14 +257,35 @@ public class ThrottleServiceManager {
      * on the frontend.
      *
      * @param numCapacity the number of implicit creations or auto associations
+     * @param hederaFunctionality the functionality whose bucket the capacity was claimed against
+     * @param useHighVolumeBucket whether the capacity was claimed against the high-volume bucket, so it is
+     * leaked back into the same bucket it was charged to
      */
-    public void reclaimFrontendThrottleCapacity(final int numCapacity, final HederaFunctionality hederaFunctionality) {
+    public void reclaimFrontendThrottleCapacity(
+            final int numCapacity, final HederaFunctionality hederaFunctionality, final boolean useHighVolumeBucket) {
         try {
-            ingestThrottle.leakCapacityForNOfUnscaled(numCapacity, hederaFunctionality);
+            ingestThrottle.leakCapacityForNOfUnscaled(numCapacity, hederaFunctionality, useHighVolumeBucket);
         } catch (Exception ignore) {
             // Ignore if the frontend bucket has already leaked all the capacity
             // used for throttling the transaction on the frontend
         }
+    }
+
+    /**
+     * Returns whether the implicit-creation capacity for the given transaction was claimed against the
+     * high-volume frontend bucket, so the reclaim can leak it back into the same bucket it was charged to.
+     *
+     * @param body the transaction body
+     * @param function the functionality of the transaction
+     * @param implicitCreationsCount the number of implicit creations
+     * @return whether the high-volume bucket was used
+     */
+    public boolean usesHighVolumeBucketForImplicitCreations(
+            @NonNull final TransactionBody body,
+            @NonNull final HederaFunctionality function,
+            final int implicitCreationsCount) {
+        return ingestThrottle.usesHighVolumeBucketForImplicitCreations(
+                function, body.highVolume(), implicitCreationsCount);
     }
 
     // override hashCode()/equals() for array fields

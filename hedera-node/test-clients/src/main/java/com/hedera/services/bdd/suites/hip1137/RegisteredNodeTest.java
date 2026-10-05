@@ -188,7 +188,7 @@ public class RegisteredNodeTest {
                 registeredNodeUpdate(() -> NON_EXISTENT_ID)
                         .description("ghost")
                         .signedBy(DEFAULT_PAYER)
-                        .hasPrecheck(INVALID_REGISTERED_NODE_ID));
+                        .hasKnownStatus(INVALID_REGISTERED_NODE_ID));
     }
 
     @HapiTest
@@ -340,7 +340,7 @@ public class RegisteredNodeTest {
                 newKeyNamed(ADMIN_KEY),
                 registeredNodeDelete(() -> NON_EXISTENT_ID)
                         .signedBy(DEFAULT_PAYER)
-                        .hasPrecheck(INVALID_REGISTERED_NODE_ID));
+                        .hasKnownStatus(INVALID_REGISTERED_NODE_ID));
     }
 
     @HapiTest
