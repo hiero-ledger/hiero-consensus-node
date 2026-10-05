@@ -22,12 +22,19 @@ die()  { log "$1" "$RED"; exit "${2:-1}"; }
 Usage() {
 cat <<EOF
 Usage: $0 wait <queue-id>
+       $0 start <queue-id>
+       $0 follow <build-number>
        $0 stop <build-number>
        $0 cancel
 
 wait:   follows the Jenkins queue item and build, writes build-number, build-url,
-        jenkins-result, verdict (pass|fail|infra) and reason to GITHUB_OUTPUT,
-        exits 0 only on pass.
+        jenkins-result, verdict (pass|fail|infra), reason and state=done to GITHUB_OUTPUT,
+        exits 0 only on pass. At SDCT_DEADLINE it hands off instead: writes state=running,
+        build-number, build-url and resume, exits 0.
+start:  waits for the queue item like wait, then hands the build off as soon as it has started:
+        writes state=running, build-number, build-url, resume and build-started (the Jenkins
+        build start, RFC3339 UTC), exits 0. Queue failures end as wait does (state=done, infra).
+follow: continues a handed-off build from SDCT_RESUME, same outputs as wait.
 stop:   aborts the Jenkins build.
 cancel: aborts whatever a previous wait left behind in SDCT_OUT_DIR: the build if
         it started, otherwise the queue item.
@@ -36,8 +43,14 @@ Environment variables required:
   USERNAME      Jenkins user
   PASSWORD      Jenkins token
   SERVER        Jenkins base URL (https://jenkins.example.com)
-  GH_RUN_ID     GitHub workflow run id (wait only)
+  GH_RUN_ID     GitHub workflow run id (wait, start and follow)
   SDCT_OUT_DIR  Directory for sdct-result.json, console-tail.log, queue-id and build-number
+
+Optional:
+  SDCT_DEADLINE   epoch seconds; wait, start and follow hand off (or give up in the queue) at this time
+  SDCT_RESUME     follow only: the resume JSON written by the previous handoff
+  SDCT_BUILD_URL  follow only: the Jenkins build URL
+  SDCT_JOB_PATH   Jenkins job path (default job/nightly/job/sdct; mock runs: job/nightly/job/sdct-mock)
 EOF
 exit 1
 }
@@ -51,7 +64,7 @@ readonly FAIL_GRACE=${FAIL_GRACE:-1800}               # 30 min after a FAIL mark
 readonly HANG_TIMEOUT=${HANG_TIMEOUT:-3600}           # 60 min without console output
 readonly MAX_HTTP_ERRORS=${MAX_HTTP_ERRORS:-6}        # consecutive failed polls
 readonly CONSOLE_TAIL_LINES=5000
-readonly JOB_PATH="job/nightly/job/sdct"
+readonly JOB_PATH=${SDCT_JOB_PATH:-job/nightly/job/sdct}  # mock runs: job/nightly/job/sdct-mock
 
 # Preflight Checks
 #
@@ -60,6 +73,9 @@ readonly JOB_PATH="job/nightly/job/sdct"
 [[ -v PASSWORD     && -n ${PASSWORD}     ]] || die "PASSWORD not set" 2
 [[ -v SERVER       && -n ${SERVER}       ]] || die "SERVER not set" 2
 [[ -v SDCT_OUT_DIR && -n ${SDCT_OUT_DIR} ]] || die "SDCT_OUT_DIR not set" 2
+readonly SDCT_DEADLINE=${SDCT_DEADLINE:-}
+[[ -z "${SDCT_DEADLINE}" || "${SDCT_DEADLINE}" =~ ^[0-9]+$ ]] || die "Invalid SDCT_DEADLINE: ${SDCT_DEADLINE}" 2
+[[ "${JOB_PATH}" =~ ^job/[A-Za-z0-9_/-]+$ ]] || die "Invalid SDCT_JOB_PATH: ${JOB_PATH}" 2
 
 command -v curl >/dev/null || die "❌ curl is not installed"
 command -v jq >/dev/null || die "❌ jq is not installed"
@@ -133,11 +149,10 @@ if [[ "${MODE}" == "cancel" ]]; then
   exit $?
 fi
 
-[[ "${MODE}" == "wait" ]] || Usage
+[[ "${MODE}" == "wait" || "${MODE}" == "start" || "${MODE}" == "follow" ]] || Usage
 [[ -v GH_RUN_ID && -n ${GH_RUN_ID} ]] || die "GH_RUN_ID not set" 2
-readonly QUEUE_ID=${2}
-[[ "${QUEUE_ID}" =~ ^[0-9]+$ ]] || die "Invalid queue id: ${QUEUE_ID}" 2
-echo "${QUEUE_ID}" > "${SDCT_OUT_DIR}/queue-id"
+
+past_deadline() { [[ -n "${SDCT_DEADLINE}" ]] && (( $(date +%s) >= SDCT_DEADLINE )); }
 
 VERDICT=""
 REASON=""
@@ -146,6 +161,7 @@ BUILD_NUMBER=""
 BUILD_URL=""
 
 finish() {
+  set_output "state" "done"
   set_output "build-number" "${BUILD_NUMBER}"
   set_output "build-url" "${BUILD_URL}"
   set_output "jenkins-result" "${JENKINS_RESULT}"
@@ -159,6 +175,11 @@ finish() {
     echo "- **Jenkins Result**: ${JENKINS_RESULT:-N/A}"
     echo "- **Verdict**: ${VERDICT}"
     [[ -n "${REASON}" ]] && echo "- **Reason**: ${REASON}"
+    if [[ -s "${result_file}" ]]; then
+      jq -r '(.note // empty | "- **Note**: \(.)"),
+             (.scaled // empty | "- **Shortened**: f=\(.factor); MAX_TIME_TEST \(.original.max_time_test_s)s → \(.scaled.max_time_test_s)s, MAX_TIME_SETUP \(.original.max_time_setup_s)s → \(.scaled.max_time_setup_s)s, END_GRACE \(.original.end_grace_s)s → \(.scaled.end_grace_s)s")' \
+        "${result_file}" 2>/dev/null || true
+    fi
     if [[ -s "${result_file}" ]] && jq -e '.tests | type == "array"' "${result_file}" >/dev/null 2>&1; then
       echo
       echo "| Test | TPS | p50 (ms) | p99 (ms) | SLA Met | Result |"
@@ -181,49 +202,110 @@ finish() {
   esac
 }
 
-# Phase A: wait for the queue item to become a build
-#
-log "⏳ Waiting for Jenkins queue item ${QUEUE_ID} to start" "$RESET"
-queue_start=$(date +%s)
-errors=0
-while :; do
-  if item=$(jenkins_get "${SERVER}/queue/item/${QUEUE_ID}/api/json?tree=cancelled,why,executable%5Bnumber,url%5D"); then
-    errors=0
-    BUILD_NUMBER=$(jq -r '.executable.number // empty' <<< "${item}")
-    if [[ -n "${BUILD_NUMBER}" ]]; then
-      BUILD_URL=$(jq -r '.executable.url // empty' <<< "${item}")
-      break
+# Hand the running build over to the next job: the timers and the console offset travel in resume
+handoff() {
+  local resume
+  resume=$(jq -cn --argjson offset "${offset}" --argjson last_growth "${last_growth}" \
+                  --argjson fail_seen_at "${fail_seen_at:-null}" --argjson pass_seen "${pass_seen}" \
+                  --arg reason "${REASON}" \
+                  '{offset: $offset, last_growth: $last_growth, fail_seen_at: $fail_seen_at, pass_seen: $pass_seen, reason: $reason}')
+  set_output "state" "running"
+  set_output "build-number" "${BUILD_NUMBER}"
+  set_output "build-url" "${BUILD_URL}"
+  set_output "resume" "${resume}"
+  {
+    echo "## SDCT Jenkins Build"
+    echo "- **Jenkins Build**: ${BUILD_URL:-N/A}"
+    echo "- **State**: running, handed off to the next job at console offset ${offset}"
+  } >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+  log "⏭️  ${1:-Job deadline reached, Jenkins build ${BUILD_NUMBER} handed off at console offset ${offset}}" "$YELLOW"
+  exit 0
+}
+
+# Phase B state; follow restores it from the previous job
+last_growth=$(date +%s)
+offset=0
+fail_seen_at=""
+pass_seen=false
+
+if [[ "${MODE}" == "follow" ]]; then
+  BUILD_NUMBER=${2}
+  [[ "${BUILD_NUMBER}" =~ ^[0-9]+$ ]] || die "Invalid build number: ${BUILD_NUMBER}" 2
+  BUILD_URL=${SDCT_BUILD_URL:-}
+  resume=${SDCT_RESUME:-}
+  jq -e '(.offset | type == "number" and . >= 0) and (.last_growth | type == "number")
+         and (.fail_seen_at == null or (.fail_seen_at | type == "number"))
+         and (.pass_seen | type == "boolean") and (.reason | type == "string")' <<< "${resume}" >/dev/null 2>&1 \
+    || die "Invalid SDCT_RESUME: ${resume}" 2
+  offset=$(jq -r '.offset | floor' <<< "${resume}")
+  last_growth=$(jq -r '.last_growth | floor' <<< "${resume}")
+  fail_seen_at=$(jq -r '.fail_seen_at // empty | floor' <<< "${resume}")
+  pass_seen=$(jq -r '.pass_seen' <<< "${resume}")
+  REASON=$(jq -r '.reason' <<< "${resume}")
+  log "▶️  Following Jenkins build ${BUILD_NUMBER} from console offset ${offset}" "$GREEN"
+else
+  readonly QUEUE_ID=${2}
+  [[ "${QUEUE_ID}" =~ ^[0-9]+$ ]] || die "Invalid queue id: ${QUEUE_ID}" 2
+  echo "${QUEUE_ID}" > "${SDCT_OUT_DIR}/queue-id"
+
+  # Phase A: wait for the queue item to become a build
+  #
+  log "⏳ Waiting for Jenkins queue item ${QUEUE_ID} to start" "$RESET"
+  queue_start=$(date +%s)
+  errors=0
+  while :; do
+    if item=$(jenkins_get "${SERVER}/queue/item/${QUEUE_ID}/api/json?tree=cancelled,why,executable%5Bnumber,url%5D"); then
+      errors=0
+      BUILD_NUMBER=$(jq -r '.executable.number // empty' <<< "${item}")
+      if [[ -n "${BUILD_NUMBER}" ]]; then
+        BUILD_URL=$(jq -r '.executable.url // empty' <<< "${item}")
+        break
+      fi
+      if [[ "$(jq -r '.cancelled // false' <<< "${item}")" == "true" ]]; then
+        VERDICT="infra"; REASON="Jenkins queue item ${QUEUE_ID} was cancelled"; finish
+      fi
+      why=$(jq -r '.why // "unknown"' <<< "${item}")
+    else
+      errors=$((errors + 1))
+      why="queue poll failed (${errors}/${MAX_HTTP_ERRORS})"
+      if (( errors >= MAX_HTTP_ERRORS )); then
+        VERDICT="infra"; REASON="Jenkins queue item ${QUEUE_ID} unreachable after ${errors} attempts"; finish
+      fi
     fi
-    if [[ "$(jq -r '.cancelled // false' <<< "${item}")" == "true" ]]; then
-      VERDICT="infra"; REASON="Jenkins queue item ${QUEUE_ID} was cancelled"; finish
+    if (( $(date +%s) - queue_start >= QUEUE_TIMEOUT )); then
+      VERDICT="infra"; REASON="Build not started after $((QUEUE_TIMEOUT / 60)) min in the Jenkins queue: ${why}"; finish
     fi
-    why=$(jq -r '.why // "unknown"' <<< "${item}")
-  else
-    errors=$((errors + 1))
-    why="queue poll failed (${errors}/${MAX_HTTP_ERRORS})"
-    if (( errors >= MAX_HTTP_ERRORS )); then
-      VERDICT="infra"; REASON="Jenkins queue item ${QUEUE_ID} unreachable after ${errors} attempts"; finish
+    if past_deadline; then
+      cancel_queue_item "${QUEUE_ID}" || true
+      VERDICT="infra"; REASON="Build not started before the job deadline: ${why}"; finish
     fi
-  fi
-  if (( $(date +%s) - queue_start >= QUEUE_TIMEOUT )); then
-    VERDICT="infra"; REASON="Build not started after $((QUEUE_TIMEOUT / 60)) min in the Jenkins queue: ${why}"; finish
-  fi
-  log "⏳ Still queued: ${why}" "$RESET"
-  sleep "${QUEUE_INTERVAL}"
-done
+    log "⏳ Still queued: ${why}" "$RESET"
+    sleep "${QUEUE_INTERVAL}"
+  done
+  log "▶️  Jenkins build ${BUILD_NUMBER} started: ${BUILD_URL}" "$GREEN"
+fi
 
 echo "${BUILD_NUMBER}" > "${SDCT_OUT_DIR}/build-number"
 BUILD_API="${SERVER}/${JOB_PATH}/${BUILD_NUMBER}"
-log "▶️  Jenkins build ${BUILD_NUMBER} started: ${BUILD_URL}" "$GREEN"
 
-# Phase B: poll the build until it completes
+# start: hand the build off at once; the next job follows it from the beginning of the console
+if [[ "${MODE}" == "start" ]]; then
+  started=""
+  if status=$(jenkins_get "${BUILD_API}/api/json?tree=timestamp"); then
+    started_ms=$(jq -r '.timestamp // empty' <<< "${status}")
+    [[ "${started_ms}" =~ ^[0-9]+$ ]] && started=$(date -u -d "@$(( started_ms / 1000 ))" '+%Y-%m-%dT%H:%M:%SZ')
+  fi
+  [[ -n "${started}" ]] || log "⚠️  Jenkins build ${BUILD_NUMBER} start time not available, using the current time" "$YELLOW"
+  set_output "build-started" "${started:-$(date -u '+%Y-%m-%dT%H:%M:%SZ')}"
+  last_growth=$(date +%s)
+  handoff "Jenkins build ${BUILD_NUMBER} started, handed off to the next job"
+fi
+
+# Phase B: poll the build until it completes or the job deadline hands it off
 #
-# No overall deadline: the test driver bounds the SDCT run time, a silent build is caught as hung
-last_growth=$(date +%s)
-offset=0
+# No overall deadline: the test driver bounds the SDCT run time, a silent build is caught as hung.
+# last_growth and fail_seen_at are wall-clock epochs, so the hang and fail-fast timers run on across handoffs.
 errors=0
-fail_seen_at=""
-pass_seen=false
 verified=false
 building="true"
 forced=""
@@ -285,7 +367,14 @@ while :; do
     forced="infra"; REASON="No console output for $((HANG_TIMEOUT / 60)) min, build considered hung"; break
   fi
 
-  sleep "${POLL_INTERVAL}"
+  past_deadline && handoff
+  # Never sleep past the deadline, so the handoff (or Phase C) starts on time
+  nap=${POLL_INTERVAL}
+  if [[ -n "${SDCT_DEADLINE}" ]] && (( SDCT_DEADLINE - $(date +%s) < nap )); then
+    nap=$(( SDCT_DEADLINE - $(date +%s) ))
+    (( nap > 0 )) || nap=1
+  fi
+  sleep "${nap}"
 done
 
 # Phase C: collect results and decide the verdict

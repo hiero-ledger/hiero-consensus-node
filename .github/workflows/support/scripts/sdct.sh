@@ -31,6 +31,11 @@ Environment variables required:
   SERVER      Jenkins base URL (https://jenkins.example.com)
   GH_RUN_ID   GitHub workflow run id, used to correlate the Jenkins build
   GH_RUN_URL  GitHub workflow run URL
+
+Optional:
+  SDCT_JOB_PATH      Jenkins job path (default job/nightly/job/sdct; mock runs: job/nightly/job/sdct-mock)
+  MOCK_SCENARIO      mock runs only: posted as the MOCK_SCENARIO build parameter
+  MOCK_STEP_MINUTES  mock runs only: posted as the MOCK_STEP_MINUTES build parameter (the mock job budget)
 EOF
 exit 1
 }
@@ -52,6 +57,19 @@ readonly VERSION_MIRRORNODE=${5}
 readonly SDCT_TEST=${6:-sdct}
 [[ "${SDCT_TEST}" =~ ^(sdct|mini|custom)$ ]] || die "Unknown test name: ${SDCT_TEST}" 2
 readonly USERPASSWORD="${USERNAME}:${PASSWORD}"
+readonly SDCT_JOB_PATH=${SDCT_JOB_PATH:-job/nightly/job/sdct}
+[[ "${SDCT_JOB_PATH}" =~ ^job/[A-Za-z0-9_/-]+$ ]] || die "Invalid SDCT_JOB_PATH: ${SDCT_JOB_PATH}" 2
+
+# Mock runs: extra build parameters for the nightly/sdct-mock job, posted only when set
+MOCK_FIELDS=()
+if [[ -n "${MOCK_SCENARIO:-}" ]]; then
+  [[ "${MOCK_SCENARIO}" =~ ^[a-z-]+$ ]] || die "Invalid MOCK_SCENARIO: ${MOCK_SCENARIO}" 2
+  MOCK_FIELDS+=(-F "MOCK_SCENARIO=${MOCK_SCENARIO}")
+fi
+if [[ -n "${MOCK_STEP_MINUTES:-}" ]]; then
+  [[ "${MOCK_STEP_MINUTES}" =~ ^[1-9][0-9]*$ ]] || die "Invalid MOCK_STEP_MINUTES: ${MOCK_STEP_MINUTES}" 2
+  MOCK_FIELDS+=(-F "MOCK_STEP_MINUTES=${MOCK_STEP_MINUTES}")
+fi
 
 command -v curl >/dev/null || die "❌ curl is not installed"
 command -v mktemp >/dev/null || die "❌ mktemp is not available"
@@ -79,7 +97,8 @@ curl --no-progress-meter -f -X POST -u "$USERPASSWORD" --cookie "$COOKIEJAR" \
      -F "GH_RUN_ID=${GH_RUN_ID}"                             \
      -F "GH_RUN_URL=${GH_RUN_URL}"                           \
      -F "SDCT_TEST=${SDCT_TEST}"                             \
-     "${SERVER}/job/nightly/job/sdct/buildWithParameters"    \
+     ${MOCK_FIELDS[@]+"${MOCK_FIELDS[@]}"}                   \
+     "${SERVER}/${SDCT_JOB_PATH}/buildWithParameters"        \
   || die "❌ Error: Canonical Test failed to start for [${BUILD_TAG}] [${VERSION_SERVICE}]" 4
 
 # Jenkins answers with "Location: <server>/queue/item/<id>/"
