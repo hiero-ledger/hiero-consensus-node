@@ -6,7 +6,8 @@ module graph.
 ## Architecture
 
 Tooling module — support code for the performance tests in
-[`consensus-otter-tests`](../consensus-otter-tests), [`consensus-sloth`](../consensus-sloth), and
+[`consensus-otter-tests`](../consensus-otter-tests), [`consensus-sloth`](../consensus-sloth),
+[`consensus-network-simulation`](../consensus-network-simulation), and
 the JMH benchmarks (`src/jmh`) of other modules. For the modules these tests exercise, see the
 [architecture overview](../docs/consensus-layer/architecture/overview.md).
 
@@ -23,4 +24,5 @@ benchmark tooling must not pin them in place
 May be depended on only by:
 - `consensus-otter-tests`
 - `consensus-sloth`
+- `consensus-network-simulation`, in its tests only
 - The JMH source sets (`src/jmh`) of any module
