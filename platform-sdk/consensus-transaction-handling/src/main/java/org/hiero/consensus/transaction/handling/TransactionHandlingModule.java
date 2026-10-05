@@ -53,6 +53,10 @@ public class TransactionHandlingModule {
     private final OutputWire<ReservedSignedState> stateOutputWire;
     private final OutputWire<StateWithHashComplexity> stateWithHashComplexityOutputWire;
 
+    // These input wires are cached, because lookups are expensive and they are called for each event/round
+    private final InputWire<Event> preHandleEventInputWire;
+    private final InputWire<Round> handleConsensusRoundInputWire;
+
     /**
      * Constructor for {@code TransactionHandlingModule}
      *
@@ -110,6 +114,10 @@ public class TransactionHandlingModule {
                 new StateWithHashComplexityToStateReserver("postHandler_stateWithHashComplexityToStateReserver"));
         this.stateOutputWire.solderTo(latestImmutableStateInputWire());
 
+        this.preHandleEventInputWire =
+                prehanderWiring.getInputWire(TransactionPrehandler::prehandleApplicationTransactions);
+        this.handleConsensusRoundInputWire = handlerWiring.getInputWire(TransactionHandler::handleConsensusRound);
+
         // Create and bind components
         latestImmutableStateNexusWiring.bind(latestImmutableStateNexus);
         final TransactionPrehandler transactionPrehandler =
@@ -135,7 +143,7 @@ public class TransactionHandlingModule {
     @InputWireLabel("preconsensus event")
     @NonNull
     public InputWire<Event> preHandleEventInputWire() {
-        return prehanderWiring.getInputWire(TransactionPrehandler::prehandleApplicationTransactions);
+        return preHandleEventInputWire;
     }
 
     /**
@@ -146,7 +154,7 @@ public class TransactionHandlingModule {
     @InputWireLabel("consensus round")
     @NonNull
     public InputWire<Round> handleConsensusRoundInputWire() {
-        return handlerWiring.getInputWire(TransactionHandler::handleConsensusRound);
+        return handleConsensusRoundInputWire;
     }
 
     /**

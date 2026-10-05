@@ -87,6 +87,7 @@ public class DefaultHashgraphModule implements HashgraphModule {
 
         // Force not soldered wires to be built
         consensusEngineBufferWiring.getInputWire(ConsensusEngineBuffer::outOfBandSnapshotUpdate);
+        consensusEngineBufferWiring.getInputWire(ConsensusEngineBuffer::requestRound);
 
         // Create and bind components
         final ConsensusEngine consensusEngine = new DefaultConsensusEngine(

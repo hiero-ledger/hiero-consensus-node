@@ -126,6 +126,7 @@ public class DefaultPcesModule implements PcesModule {
 
         // Force not soldered wires to be built
         pcesWriterWiring.getInputWire(InlinePcesWriter::registerDiscontinuity);
+        pcesWriterWiring.getInputWire(InlinePcesWriter::setMinimumBirthRoundToStore);
 
         // Create and bind components
         try {
