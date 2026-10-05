@@ -45,6 +45,49 @@ class FeeConstantsTest {
     }
 
     @Test
+    void getTinybarsFromTinyCentsSaturatesOnNonPositiveCentEquiv() {
+        // A zero centEquiv would divide by zero -> saturate to Long.MAX_VALUE instead of throwing.
+        final var zeroCentRate =
+                ExchangeRate.newBuilder().setHbarEquiv(1).setCentEquiv(0).build();
+        assertEquals(Long.MAX_VALUE, FeeConstants.getTinybarsFromTinyCents(zeroCentRate, 100L));
+        final var negativeCentRate =
+                ExchangeRate.newBuilder().setHbarEquiv(1).setCentEquiv(-100).build();
+        assertEquals(Long.MAX_VALUE, FeeConstants.getTinybarsFromTinyCents(negativeCentRate, 100L));
+    }
+
+    @Test
+    void getTinybarsFromTinyCentsSaturatesOnNonPositiveHbarEquiv() {
+        // A non-positive hbarEquiv would make the fee free or negative; saturate instead.
+        final var zeroHbarRate =
+                ExchangeRate.newBuilder().setHbarEquiv(0).setCentEquiv(100).build();
+        assertEquals(Long.MAX_VALUE, FeeConstants.getTinybarsFromTinyCents(zeroHbarRate, 100L));
+        final var negativeHbarRate =
+                ExchangeRate.newBuilder().setHbarEquiv(-5).setCentEquiv(100).build();
+        assertEquals(Long.MAX_VALUE, FeeConstants.getTinybarsFromTinyCents(negativeHbarRate, 100L));
+    }
+
+    @Test
+    void getTinybarsFromTinyCentsSaturatesInsteadOfOverflowing() {
+        // A valid but extremely skewed rate can exceed the long range; saturate rather than throw.
+        final var skewedRate = ExchangeRate.newBuilder()
+                .setHbarEquiv(Integer.MAX_VALUE)
+                .setCentEquiv(1)
+                .build();
+        assertEquals(Long.MAX_VALUE, FeeConstants.getTinybarsFromTinyCents(skewedRate, Long.MAX_VALUE / 2));
+    }
+
+    @Test
+    void tinycentsToTinybarsSaturatesOnDegenerateRate() {
+        // The same guarantee on the path used by the fee context.
+        final var zeroCentRate =
+                ExchangeRate.newBuilder().setHbarEquiv(1).setCentEquiv(0).build();
+        assertEquals(Long.MAX_VALUE, FeeConstants.tinycentsToTinybars(100L, zeroCentRate));
+        final var zeroHbarRate =
+                ExchangeRate.newBuilder().setHbarEquiv(0).setCentEquiv(100).build();
+        assertEquals(Long.MAX_VALUE, FeeConstants.tinycentsToTinybars(100L, zeroHbarRate));
+    }
+
+    @Test
     void getContractFunctionSizeSumsComponents() {
         final var result = ContractFunctionResult.newBuilder()
                 .setContractCallResult(ByteString.copyFromUtf8("contractCallResult"))

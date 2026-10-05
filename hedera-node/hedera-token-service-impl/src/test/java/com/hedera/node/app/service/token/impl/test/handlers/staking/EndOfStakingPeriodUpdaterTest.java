@@ -6,6 +6,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
 import static com.hedera.node.app.service.token.Units.HBARS_TO_TINYBARS;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
@@ -21,6 +23,7 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
+import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -54,6 +57,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -69,7 +73,7 @@ public class EndOfStakingPeriodUpdaterTest {
     @Mock
     private TokenContext context;
 
-    @Mock
+    @Mock(answer = Answers.RETURNS_SELF)
     private NodeStakeUpdateStreamBuilder nodeStakeUpdateRecordBuilder;
 
     @Mock
@@ -108,15 +112,49 @@ public class EndOfStakingPeriodUpdaterTest {
                 .isEqualTo(expectedMidnightTime);
     }
 
+    @Test
+    void insolventRewardAccountYieldsZeroRewardRateRatherThanNegative() {
+        // 0.0.800 holds 1_000 hbar (see setup()), but 100_000 hbar of rewards are already pending, so the
+        // "unreserved" balance is deeply negative. Before flooring the balance ratio at zero, the HIP-782
+        // smoothing term r * (2 - r) grew quadratically negative and produced a negative reward rate, which
+        // then *decreased* pending rewards in state.
+        final var pendingRewards = 10_000_000_000_000L;
+        commonSetup(
+                1_000L * HBARS_TO_TINYBARS,
+                STAKING_INFO_1,
+                STAKING_INFO_2,
+                STAKING_INFO_3,
+                pendingRewards,
+                newStakingConfig().withValue("staking.rewardBalanceThreshold", 100_000_000_000L));
+        given(entityIdFactory.newAccountId(800L)).willReturn(asAccount(0L, 0L, 800));
+
+        subject.updateNodes(context, ExchangeRateSet.DEFAULT);
+
+        // A zero reward rate accrues nothing, so pending rewards are left exactly as they were
+        assertThat(stakingRewardsStore.pendingRewards()).isEqualTo(pendingRewards);
+        assertThat(logCaptor.infoLogs())
+                .anyMatch(log -> log.startsWith("The max reward rate for the ending period was 0 tb/hbar"));
+    }
+
     private void commonSetup(
             final long totalStakeRewardStart,
             @NonNull final StakingNodeInfo info1,
             @NonNull final StakingNodeInfo info2,
             @NonNull final StakingNodeInfo info3) {
+        commonSetup(totalStakeRewardStart, info1, info2, info3, 0L, newStakingConfig());
+    }
+
+    private void commonSetup(
+            final long totalStakeRewardStart,
+            @NonNull final StakingNodeInfo info1,
+            @NonNull final StakingNodeInfo info2,
+            @NonNull final StakingNodeInfo info3,
+            final long pendingRewards,
+            @NonNull final TestConfigBuilder configBuilder) {
         given(context.consensusTime()).willReturn(Instant.now());
 
         // Create staking config
-        final var stakingConfig = newStakingConfig().getOrCreateConfig();
+        final var stakingConfig = configBuilder.getOrCreateConfig();
         given(context.configuration()).willReturn(stakingConfig);
 
         // Create account store (with data)
@@ -134,14 +172,17 @@ public class EndOfStakingPeriodUpdaterTest {
                 new FunctionWritableSingletonState<>(ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> null, c -> {}),
                 ENTITY_COUNTS_STATE_ID,
                 new FunctionWritableSingletonState<>(
-                        ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> null, c -> {}))));
+                        ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> null, c -> {}),
+                HIGHEST_NODE_ID_STATE_ID,
+                new FunctionWritableSingletonState<>(
+                        HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> null, c -> {}))));
         stakingInfoStore = new WritableStakingInfoStore(
                 new MapWritableStates(Map.of(STAKING_INFOS_STATE_ID, stakingInfosState)), entityIdStore);
         given(context.writableStore(WritableStakingInfoStore.class)).willReturn(stakingInfoStore);
 
         // Create staking reward store (with data)
-        final var backingValue =
-                new AtomicReference<>(new NetworkStakingRewards(true, totalStakeRewardStart, 0, 0, Timestamp.DEFAULT));
+        final var backingValue = new AtomicReference<>(
+                new NetworkStakingRewards(true, totalStakeRewardStart, 0, pendingRewards, Timestamp.DEFAULT));
         WritableSingletonState<NetworkStakingRewards> stakingRewardsState = new FunctionWritableSingletonState<>(
                 STAKING_NETWORK_REWARDS_STATE_ID,
                 STAKING_NETWORK_REWARDS_STATE_LABEL,

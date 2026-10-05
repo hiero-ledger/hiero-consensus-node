@@ -19,6 +19,7 @@ import com.swirlds.merkledb.files.DataFileCollection.LoadedDataCallback;
 import com.swirlds.merkledb.files.DataFileCommon;
 import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
+import com.swirlds.merkledb.internal.MerkleDbDataSource;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -103,6 +104,11 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
     /** The name to use for the files prefix on disk */
     private final String storeName;
 
+    /** Fork-join pool for HDHM.endWriting() */
+    private final ForkJoinPool flushPool;
+
+    private volatile AbstractTask notifyTask;
+
     /** Bucket pool used by this HDHM */
     private final ReusableBucketPool bucketPool;
     /** Store for session data during a writing transaction */
@@ -116,35 +122,12 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     private Thread writingThread;
 
-    /** Fork-join pool for HDHM.endWriting() */
-    private static volatile ForkJoinPool SHARED_FLUSHING_POOL = null;
-
-    /**
-     * This method is invoked from a non-static method and uses the provided configuration.
-     * Consequently, the flushing pool will be initialized using the configuration provided
-     * by the first instance of HalfDiskHashMap class that calls the relevant non-static method.
-     * Subsequent calls will reuse the same pool, regardless of any new configurations provided.
-     * </br>
-     * FUTURE WORK: it can be moved to MerkleDb.
-     */
-    private static void initFlushingPool(final @NonNull MerkleDbConfig config) {
-        ForkJoinPool pool = SHARED_FLUSHING_POOL;
-        if (pool == null) {
-            synchronized (HalfDiskHashMap.class) {
-                pool = SHARED_FLUSHING_POOL;
-                if (pool == null) {
-                    final int flushThreadCount = config.getNumHalfDiskHashMapFlushThreads();
-                    pool = new ForkJoinPool(flushThreadCount);
-                    SHARED_FLUSHING_POOL = pool;
-                }
-            }
-        }
-    }
-
     /**
      * Construct a new HalfDiskHashMap
      *
-     * @param config                         merkle db config.
+     * @param config                         MerkleDb config
+     * @param flushPool                      Thread pool to run tasks during flushes. This HDHM doesn't own this pool,
+     *                                       it's managed and closed by the caller, typically a MerkleDb data source
      * @param fileSystemManager              File system manager to use for resolving file locations
      * @param initialCapacity                Initial map capacity. This should be more than big enough to avoid too
      *                                       many key collisions. This capacity is used to calculate the initial number
@@ -164,6 +147,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
      */
     public HalfDiskHashMap(
             final @NonNull MerkleDbConfig config,
+            final @NonNull ForkJoinPool flushPool,
             final @NonNull FileSystemManager fileSystemManager,
             final long initialCapacity,
             final @NonNull Path storeDir,
@@ -172,7 +156,6 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             final boolean preferDiskBasedIndex)
             throws IOException {
         requireNonNull(config);
-        initFlushingPool(config);
         this.goodAverageBucketEntryCount = config.goodAverageBucketEntryCount();
         // Max number of keys is limited by merkleDbConfig.maxNumberOfKeys. Number of buckets is,
         // on average, goodAverageBucketEntryCount times smaller than the number of keys.
@@ -185,6 +168,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         this.storeDir = requireNonNull(storeDir);
         this.storeName = storeName;
         Path indexFile = storeDir.resolve(storeName + BUCKET_INDEX_FILENAME_SUFFIX);
+        this.flushPool = requireNonNull(flushPool);
         // create bucket pool
         this.bucketPool = new ReusableBucketPool(Bucket::new);
         // load or create new
@@ -530,11 +514,25 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         try {
             if (size > 0) {
                 fileCollection.startWriting();
-                final ForkJoinPool pool = SHARED_FLUSHING_POOL;
-                final AbstractTask notifyTask = new NotifyTask(pool, size);
-                final SubmitBucketTask submitTask = new SubmitBucketTask(pool, notifyTask);
+                notifyTask = new NotifyTask(flushPool, size);
+                final SubmitBucketTask submitTask = new SubmitBucketTask(flushPool, notifyTask);
                 submitTask.send();
-                notifyTask.join();
+                // Check if the flushing pool is still alive or not. The goal is to make sure
+                // the current thread doesn't get stuck in notifyTask.get() waiting for all bucket
+                // tasks to complete, but they cannot complete because the pool is already down.
+                // The following scenarios are possible:
+                // 1. flushPool is already shut down. notifyTask.get() is not called. No data is
+                // written to the new file, but the data source is closing , and all data files
+                // will be deleted shortly anyway
+                // 2. flushPool is alive. notifyTask is set above, it will be canceled in
+                // cancelWriting(), if the data source is closed
+                if (flushPool.isShutdown()) {
+                    logger.warn(
+                            MERKLE_DB.getMarker(),
+                            "Failed to finish writing to HDHM, the flushing pool has been closed. This may happen if the data source is closed in a different thread");
+                } else {
+                    notifyTask.get();
+                }
                 // close files session
                 dataFileReader = fileCollection.endWriting();
                 logger.info(
@@ -554,8 +552,28 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         } finally {
             writingThread = null;
             oneTransactionsData = null;
+            notifyTask = null;
         }
         return dataFileReader;
+    }
+
+    /**
+     * If this HDHM is writing data in {@link #endWriting()} in a parallel thread, the writing
+     * is canceled. That thread is made sure to not stuck waiting for writing to complete. If
+     * there is no active writing, this method does nothing.
+     *
+     * <p>The method should be called only after the flushing pool is requested to shut down.
+     * This is what {@link MerkleDbDataSource#close()} does.
+     */
+    public void cancelWriting() {
+        // This method is expected to be called only after the flushing pool has been
+        // requested to shut down
+        assert flushPool.isShutdown();
+        // Use a local var, since notifyTask field may be changed by a different thread
+        final AbstractTask t = notifyTask;
+        if (t != null) {
+            t.cancel(true);
+        }
     }
 
     /**

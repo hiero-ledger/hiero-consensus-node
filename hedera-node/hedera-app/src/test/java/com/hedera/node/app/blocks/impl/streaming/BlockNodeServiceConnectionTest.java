@@ -21,6 +21,7 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodeServiceConnection.GetB
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeServiceConnection.ServiceClientHolder;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.types.BlockStreamGrpcCompressionType;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
@@ -88,7 +89,11 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         lenient()
                 .doReturn(client)
                 .when(clientFactory)
-                .createServiceClient(any(BlockNodeConfiguration.class), any(Duration.class), anyString());
+                .createServiceClient(
+                        any(BlockNodeConfiguration.class),
+                        any(Duration.class),
+                        anyString(),
+                        any(BlockStreamGrpcCompressionType.class));
         lenient()
                 .doReturn(mock(ServiceInterface.RequestOptions.class))
                 .when(clientFactory)
@@ -116,7 +121,12 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(holder).isNotNull();
         assertThat(holder.client()).isEqualTo(client);
 
-        verify(clientFactory).createServiceClient(eq(nodeConfiguration), any(Duration.class), anyString());
+        verify(clientFactory)
+                .createServiceClient(
+                        eq(nodeConfiguration),
+                        any(Duration.class),
+                        anyString(),
+                        any(BlockStreamGrpcCompressionType.class));
 
         verifyNoInteractions(executorService);
         verifyNoInteractions(client);
@@ -147,7 +157,12 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
 
         final ArgumentCaptor<? extends Runnable> execSvcCaptor = ArgumentCaptor.forClass(Runnable.class);
 
-        verify(clientFactory).createServiceClient(eq(nodeConfiguration), any(Duration.class), anyString());
+        verify(clientFactory)
+                .createServiceClient(
+                        eq(nodeConfiguration),
+                        any(Duration.class),
+                        anyString(),
+                        any(BlockStreamGrpcCompressionType.class));
         verify(executorService).submit(execSvcCaptor.capture());
 
         assertThat(execSvcCaptor.getAllValues()).hasSize(1);
@@ -189,7 +204,12 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
 
         final ArgumentCaptor<? extends Runnable> execSvcCaptor = ArgumentCaptor.forClass(Runnable.class);
 
-        verify(clientFactory).createServiceClient(eq(nodeConfiguration), any(Duration.class), anyString());
+        verify(clientFactory)
+                .createServiceClient(
+                        eq(nodeConfiguration),
+                        any(Duration.class),
+                        anyString(),
+                        any(BlockStreamGrpcCompressionType.class));
         verify(executorService).submit(execSvcCaptor.capture());
 
         assertThat(execSvcCaptor.getAllValues()).hasSize(1);

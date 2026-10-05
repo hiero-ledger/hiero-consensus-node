@@ -203,7 +203,7 @@ public final class StateUtils {
             }));
             SignedStateFileReader.registerServiceStates(state);
             initServiceMigrator(state, platformContext, serviceRegistry);
-            state.getRoot().getDataSource().stopAndDisableBackgroundCompaction();
+            state.getRoot().getDataSource().stopAndDisableBackgroundCompaction(true);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

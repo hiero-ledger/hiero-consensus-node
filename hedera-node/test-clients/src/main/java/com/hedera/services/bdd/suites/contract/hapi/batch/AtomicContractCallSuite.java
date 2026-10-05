@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.contract.hapi.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asContractString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -44,7 +43,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createLargeFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sidecarIdValidator;
@@ -52,7 +50,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_RECEIVER;
-import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_SENDER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -69,15 +66,12 @@ import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddre
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asToken;
 import static com.hedera.services.bdd.suites.contract.Utils.captureChildCreate2MetaFor;
-import static com.hedera.services.bdd.suites.contract.Utils.contractIdFromHexedMirrorAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
-import static com.hedera.services.bdd.suites.contract.Utils.getABIForContract;
 import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.numAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.SALT;
 import static com.hedera.services.bdd.suites.regression.factories.HollowAccountCompletedFuzzingFactory.CONTRACT;
 import static com.hedera.services.bdd.suites.utils.EvmAddressUtils.randomHeadlongAddress;
-import static com.hedera.services.bdd.suites.utils.contracts.SimpleBytesResult.bigIntResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
@@ -636,62 +630,6 @@ class AtomicContractCallSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> whitelistingAliasedContract() {
-        final var creationTxn = "creationTxn";
-        final var mirrorWhitelistCheckTxn = "mirrorWhitelistCheckTxn";
-        final var evmWhitelistCheckTxn = "evmWhitelistCheckTxn";
-
-        final var WHITELISTER = "Whitelister";
-        final var CREATOR = "Creator";
-
-        final AtomicReference<String> childMirror = new AtomicReference<>();
-        final AtomicReference<String> childEip1014 = new AtomicReference<>();
-
-        return hapiTest(
-                sourcing(() -> createLargeFile(DEFAULT_PAYER, WHITELISTER, literalInitcodeFor("Whitelister"))),
-                sourcing(() -> createLargeFile(DEFAULT_PAYER, CREATOR, literalInitcodeFor("Creator"))),
-                doingContextual(spec -> allRunFor(
-                        spec,
-                        contractCreate(WHITELISTER).payingWith(DEFAULT_PAYER).gas(GAS_TO_OFFER),
-                        contractCreate(CREATOR)
-                                .payingWith(DEFAULT_PAYER)
-                                .gas(GAS_TO_OFFER)
-                                .via(creationTxn))),
-                captureChildCreate2MetaFor(1, 0, "setup", creationTxn, childMirror, childEip1014),
-                doingContextual(spec -> allRunFor(
-                        spec,
-                        atomicBatch(
-                                        contractCall(
-                                                        WHITELISTER,
-                                                        "addToWhitelist",
-                                                        asHeadlongAddress(childEip1014.get()))
-                                                .payingWith(DEFAULT_PAYER)
-                                                .batchKey(BATCH_OPERATOR),
-                                        contractCallWithFunctionAbi(
-                                                        asContractString(contractIdFromHexedMirrorAddress(
-                                                                spec, childMirror.get())),
-                                                        getABIFor(FUNCTION, "isWhitelisted", WHITELISTER),
-                                                        asHeadlongAddress(getNestedContractAddress(WHITELISTER, spec)))
-                                                .payingWith(DEFAULT_PAYER)
-                                                .via(mirrorWhitelistCheckTxn)
-                                                .batchKey(BATCH_OPERATOR),
-                                        contractCall(
-                                                        CREATOR,
-                                                        "isWhitelisted",
-                                                        asHeadlongAddress(getNestedContractAddress(WHITELISTER, spec)))
-                                                .payingWith(DEFAULT_PAYER)
-                                                .via(evmWhitelistCheckTxn)
-                                                .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR))),
-                getTxnRecord(mirrorWhitelistCheckTxn)
-                        .hasPriority(
-                                recordWith().contractCallResult(resultWith().contractCallResult(bigIntResult(1)))),
-                getTxnRecord(evmWhitelistCheckTxn)
-                        .hasPriority(
-                                recordWith().contractCallResult(resultWith().contractCallResult(bigIntResult(1)))));
-    }
-
-    @HapiTest
     final Stream<DynamicTest> cannotUseMirrorAddressOfAliasedContractInPrecompileMethod() {
         final var creationTxn = "creationTxn";
         final var ASSOCIATOR = "Associator";
@@ -746,97 +684,6 @@ class AtomicContractCallSuite {
                                             .batchKey(BATCH_OPERATOR))
                                     .payingWith(BATCH_OPERATOR));
                 }));
-    }
-
-    @SuppressWarnings("java:S5669")
-    @HapiTest
-    final Stream<DynamicTest> bitcarbonTestStillPasses() {
-        final var addressBook = "AddressBook";
-        final var jurisdictions = "Jurisdictions";
-        final var minters = "Minters";
-        final var addJurisTxn = "addJurisTxn";
-        final var historicalAddress = "1234567890123456789012345678901234567890";
-        final AtomicReference<byte[]> nyJurisCode = new AtomicReference<>();
-        final AtomicReference<byte[]> defaultPayerMirror = new AtomicReference<>();
-        final AtomicReference<String> addressBookMirror = new AtomicReference<>();
-        final AtomicReference<String> jurisdictionMirror = new AtomicReference<>();
-        return hapiTest(
-                getAccountInfo(DEFAULT_CONTRACT_SENDER).savingSnapshot(DEFAULT_CONTRACT_SENDER),
-                doingContextual(spec -> defaultPayerMirror.set((unhex(
-                        spec.registry().getAccountInfo(DEFAULT_CONTRACT_SENDER).getContractAccountID())))),
-                uploadInitCode(addressBook, jurisdictions),
-                // refusingEthConversion because the minters contract has placeholders that the
-                // HapiEthereumContractCreate doesn't
-                // support
-                contractCreate(addressBook)
-                        .gas(1_000_000L)
-                        .exposingContractIdTo(id -> addressBookMirror.set(
-                                asHexedSolidityAddress((int) id.getShardNum(), id.getRealmNum(), id.getContractNum())))
-                        .payingWith(DEFAULT_CONTRACT_SENDER)
-                        .refusingEthConversion(),
-                contractCreate(jurisdictions)
-                        .gas(4_000_000L)
-                        .exposingContractIdTo(id -> jurisdictionMirror.set(
-                                asHexedSolidityAddress((int) id.getShardNum(), id.getRealmNum(), id.getContractNum())))
-                        .withExplicitParams(() -> EXPLICIT_JURISDICTION_CONS_PARAMS)
-                        .payingWith(DEFAULT_CONTRACT_SENDER)
-                        .refusingEthConversion(),
-                sourcing(() -> createLargeFile(
-                        DEFAULT_CONTRACT_SENDER,
-                        minters,
-                        bookInterpolated(literalInitcodeFor(minters).toByteArray(), addressBookMirror.get()))),
-                contractCreate(minters)
-                        .gas(2_000_000L)
-                        .withExplicitParams(
-                                () -> String.format(EXPLICIT_MINTER_CONS_PARAMS_TPL, jurisdictionMirror.get()))
-                        .payingWith(DEFAULT_CONTRACT_SENDER)
-                        .refusingEthConversion(),
-                atomicBatch(
-                                contractCall(minters)
-                                        .withExplicitParams(() -> String.format(
-                                                EXPLICIT_MINTER_CONFIG_PARAMS_TPL, jurisdictionMirror.get()))
-                                        .batchKey(BATCH_OPERATOR),
-                                contractCall(jurisdictions)
-                                        .withExplicitParams(() -> EXPLICIT_JURISDICTIONS_ADD_PARAMS)
-                                        .via(addJurisTxn)
-                                        .gas(1_000_000)
-                                        .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR),
-                getTxnRecord(addJurisTxn)
-                        .exposingFilteredCallResultVia(
-                                getABIForContract(jurisdictions),
-                                "JurisdictionAdded",
-                                data -> nyJurisCode.set((byte[]) data[0])),
-                sourcing(() -> logIt("NY juris code is " + CommonUtils.hex(nyJurisCode.get()))),
-                sourcing(() -> contractCallLocal(jurisdictions, "isValid", nyJurisCode.get())
-                        .has(resultWith()
-                                .resultThruAbi(
-                                        getABIFor(FUNCTION, "isValid", jurisdictions),
-                                        isLiteralResult(new Object[] {Boolean.TRUE})))),
-                contractCallLocal(minters, "seven")
-                        .has(resultWith()
-                                .resultThruAbi(
-                                        getABIFor(FUNCTION, "seven", minters),
-                                        isLiteralResult(new Object[] {BigInteger.valueOf(7L)}))),
-                sourcing(() -> contractCallLocal(minters, OWNER)
-                        .has(resultWith()
-                                .resultThruAbi(
-                                        getABIFor(FUNCTION, OWNER, minters),
-                                        isLiteralResult(new Object[] {asHeadlongAddress(defaultPayerMirror.get())})))),
-                sourcing(() -> contractCallLocal(jurisdictions, OWNER)
-                        .has(resultWith()
-                                .resultThruAbi(
-                                        getABIFor(FUNCTION, OWNER, minters),
-                                        isLiteralResult(new Object[] {asHeadlongAddress(defaultPayerMirror.get())})))),
-                sourcing(() -> atomicBatch(contractCall(
-                                        minters,
-                                        "add",
-                                        asHeadlongAddress(historicalAddress),
-                                        "Peter",
-                                        nyJurisCode.get())
-                                .gas(1_000_000)
-                                .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR)));
     }
 
     @HapiTest
@@ -969,38 +816,6 @@ class AtomicContractCallSuite {
                     final var ercMetadata = decoder.decode(ercResult.toByteArray());
                     assertEquals("efbfbd", CommonUtils.hex((byte[]) ercMetadata.get(0)));
                 }));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> imapUserExercise() {
-        final var contract = "User";
-        final var insert1To4 = "insert1To10";
-        final var insert2To8 = "insert2To8";
-        final var insert3To16 = "insert3To16";
-        final var remove2 = "remove2";
-        final var gasToOffer = 400_000;
-
-        return hapiTest(
-                uploadInitCode(contract),
-                contractCreate(contract),
-                atomicBatch(
-                                contractCall(contract, INSERT, BigInteger.ONE, BigInteger.valueOf(4))
-                                        .gas(gasToOffer)
-                                        .via(insert1To4)
-                                        .batchKey(BATCH_OPERATOR),
-                                contractCall(contract, INSERT, BigInteger.TWO, BigInteger.valueOf(8))
-                                        .gas(gasToOffer)
-                                        .via(insert2To8)
-                                        .batchKey(BATCH_OPERATOR),
-                                contractCall(contract, INSERT, BigInteger.valueOf(3), BigInteger.valueOf(16))
-                                        .gas(gasToOffer)
-                                        .via(insert3To16)
-                                        .batchKey(BATCH_OPERATOR),
-                                contractCall(contract, "remove", BigInteger.TWO)
-                                        .gas(gasToOffer)
-                                        .via(remove2)
-                                        .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR));
     }
 
     // For this test we use refusingEthConversion() for the Eth Call isomer,

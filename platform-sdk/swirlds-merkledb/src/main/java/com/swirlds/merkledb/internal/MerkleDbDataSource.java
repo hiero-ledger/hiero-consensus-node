@@ -1,0 +1,1538 @@
+// SPDX-License-Identifier: Apache-2.0
+package com.swirlds.merkledb.internal;
+
+import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
+import static com.swirlds.merkledb.KeyRange.INVALID_KEY_RANGE;
+import static java.util.Objects.requireNonNull;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+
+import com.hedera.pbj.runtime.FieldDefinition;
+import com.hedera.pbj.runtime.FieldType;
+import com.hedera.pbj.runtime.ProtoParserTools;
+import com.hedera.pbj.runtime.ProtoWriterTools;
+import com.hedera.pbj.runtime.io.WritableSequentialData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
+import com.swirlds.base.units.UnitConstants;
+import com.swirlds.base.utility.ToStringBuilder;
+import com.swirlds.merkledb.KeyRange;
+import com.swirlds.merkledb.collections.LongList;
+import com.swirlds.merkledb.collections.LongListDisk;
+import com.swirlds.merkledb.collections.LongListSegment;
+import com.swirlds.merkledb.config.MerkleDbConfig;
+import com.swirlds.merkledb.files.DataFileCollection.LoadedDataCallback;
+import com.swirlds.merkledb.files.DataFileCommon;
+import com.swirlds.merkledb.files.DataFileCompactor;
+import com.swirlds.merkledb.files.DataFileReader;
+import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
+import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
+import com.swirlds.metrics.api.Metrics;
+import com.swirlds.virtualmap.MerklePathUtils;
+import com.swirlds.virtualmap.datasource.VirtualDataSource;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
+import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.LongAdder;
+import java.util.stream.Stream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.AbstractTask;
+import org.hiero.base.concurrent.ExecutorFactory;
+import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.io.IORunnable;
+
+public final class MerkleDbDataSource implements VirtualDataSource {
+
+    public static final String ID_TO_HASH_CHUNK = "IdToHashChunk";
+    public static final String OBJECT_KEY_TO_PATH = "ObjectKeyToPath";
+    public static final String PATH_TO_KEY_VALUE = "PathToKeyValue";
+    private static final Logger logger = LogManager.getLogger(MerkleDbDataSource.class);
+
+    /** Label for database component used in logging, stats, etc. */
+    static final String MERKLEDB_COMPONENT = "merkledb";
+
+    /** Count of open database instances */
+    private static final LongAdder COUNT_OF_OPEN_DATABASES = new LongAdder();
+
+    /** Data source metadata fields */
+
+    // First leaf path
+    private static final FieldDefinition FIELD_DSMETADATA_MINVALIDKEY =
+            new FieldDefinition("minValidKey", FieldType.UINT64, false, true, false, 1);
+
+    // Last leaf path
+    private static final FieldDefinition FIELD_DSMETADATA_MAXVALIDKEY =
+            new FieldDefinition("maxValidKey", FieldType.UINT64, false, true, false, 2);
+
+    // Initial capacity
+    private static final FieldDefinition FIELD_DSMETADATA_INITIALCAPACITY =
+            new FieldDefinition("initialCapacity", FieldType.UINT64, false, true, false, 3);
+
+    // Hash chunk height
+    private static final FieldDefinition FIELD_DSMETADATA_HASHCHUNKHEIGHT =
+            new FieldDefinition("hashChunkHeight", FieldType.UINT32, false, true, false, 7);
+
+    // Hash digest type (algorithm). See DigestType.algorithmName() for details
+    private static final FieldDefinition FIELD_DSMETADATA_HASHDIGESTTYPE =
+            new FieldDefinition("hashDigestType", FieldType.STRING, false, true, false, 8);
+
+    /*
+     * MerkleDb configuration.
+     */
+    private final MerkleDbConfig merkleDbConfig;
+
+    /** Table name. Used as a subdir name in the database directory */
+    private final String tableName;
+
+    private volatile long initialCapacity;
+
+    /**
+     * Indicates whether disk based indices are used for this data source.
+     */
+    private final boolean preferDiskBasedIndices;
+
+    /**
+     * In memory off-heap index for hash chunks. Maps chunk IDs to disk locations.
+     * A part of the hash chunk store.
+     */
+    private final LongList idToDiskLocationHashChunks;
+
+    /**
+     * In memory off-heap index for leaves. Maps paths to disk locations. A part of
+     * the leaves store.
+     */
+    private final LongList pathToDiskLocationLeafNodes;
+
+    /**
+     * Hash chunk height. When an empty MerkleDb data source is created, the height is
+     * read from {@link MerkleDbConfig#hashChunkHeight()}. When an existing
+     * data source is loaded from disk, the value from the config is ignored, and the
+     * height is loaded from the data source metadata file.
+     */
+    private final int hashChunkHeight;
+
+    /**
+     * Mixed disk (data) and off-heap memory (index) store for hash chunks. Stores
+     * {@link VirtualHashChunk} objects.
+     */
+    private final MemoryIndexDiskKeyValueStore hashChunkStore;
+
+    /**
+     * Hash chunk cache threshold. All hash chunks with IDs less than the threshold will
+     * be put to the cache on writes, other chunks will be written directly to disk.
+     */
+    private final int hashChunkCacheThreshold;
+
+    /**
+     * In memory cache for hash chunks with IDs less than {@link #hashChunkCacheThreshold}.
+     * When a data source snapshot is written to disk, all hash chunks from this cache are
+     * written to disk first.
+     */
+    private final Map<Long, VirtualHashChunk> hashChunkCache;
+
+    /**
+     * Mixed disk (data) and off-heap (index) memory store for key to path mappings.
+     */
+    private final HalfDiskHashMap keyToPath;
+
+    /**
+     * Mixed disk (data) and off-heap memory (index) store for leaves. Stores {@link
+     * VirtualLeafBytes} objects.
+     */
+    private final MemoryIndexDiskKeyValueStore keyValueStore;
+
+    /**
+     * Thread pool to run all tasks during flushes: to store hashes, to store leaves, and
+     * to update key/path mappings.
+     */
+    private final ForkJoinPool flushPool;
+
+    /**
+     * During flush, this is the future to wait for hashes writing to complete. The
+     * future is used to interrupt the flushing thread, if the data source is closed
+     * in parallel. When a flush is complete, this field is set to null.
+     */
+    private volatile Future<?> flushingHashesFuture;
+
+    /**
+     * During flush, this is the future to wait for leaves writing to complete. The
+     * future is used to interrupt the flushing thread, if the data source is closed
+     * in parallel. When a flush is complete, this field is set to null.
+     */
+    private volatile Future<?> flushingLeavesFuture;
+
+    /**
+     * Cache size for reading virtual leaf records. Initialized in data source creation time from
+     * MerkleDb settings. If the value is zero, the leaf records cache isn't used.
+     */
+    private final int leafRecordCacheSize;
+
+    /**
+     * Virtual leaf records cache. It's a simple array indexed by leaf keys % cache size. Cache
+     * eviction is not needed, as array size is fixed and can be configured in MerkleDb settings.
+     * Index conflicts are resolved in a very straightforward way: whatever entry is read last, it's
+     * put to the cache.
+     */
+    private final VirtualLeafBytes[] leafRecordCache;
+
+    /** Thread pool creating snapshots, it is unbounded in threads, but we use at most 7 */
+    private final ExecutorService snapshotExecutor;
+
+    /** Flag for if a snapshot is in progress */
+    private final AtomicBoolean snapshotInProgress = new AtomicBoolean(false);
+
+    /** The range of valid leaf paths for data currently stored by this data source. */
+    private volatile KeyRange validLeafPathRange = INVALID_KEY_RANGE;
+
+    /**
+     * If this data source is created from scratch, the digest type is always DEFAULT_DIGEST_TYPE.
+     * If the data source is loaded from a snapshot, the digest type is initialized from
+     * data source metadata. If there is no information about message digest type in the
+     * metadata, this indicates the snapshot is old, and all hashes in it are SHA-384.
+     *
+     * <p>During data flushes, all hashes must be of DEFAULT_DIGEST_TYPE. This field is only
+     * used to check whether full tree rehash is needed at startup because of default message
+     * digest type change.
+     */
+    private volatile DigestType loadedHashDigestTypeOrDefault = Cryptography.DEFAULT_DIGEST_TYPE;
+
+    /** Paths to all database files and directories */
+    private final MerkleDbPaths dbPaths;
+
+    private final AtomicBoolean closed = new AtomicBoolean(false);
+
+    /** Runs compactions for the storages of this data source */
+    final MerkleDbCompactionCoordinator compactionCoordinator;
+
+    private MerkleDbStatisticsUpdater statisticsUpdater;
+
+    /**
+     * Scanner for the {@link #hashChunkStore} (IdToHashChunk). Traverses
+     * {@link #idToDiskLocationHashChunks} to compute per-file garbage statistics.
+     * Created once during construction and reused across flushes.
+     */
+    private final GarbageScanner chunkStoreScanner;
+    /**
+     * Scanner for the {@link #keyValueStore} (PathToKeyValue). Traverses
+     * {@link #pathToDiskLocationLeafNodes} to compute per-file garbage statistics.
+     * Created once during construction and reused across flushes.
+     */
+    private final GarbageScanner pathToKeyValueStoreScanner;
+    /**
+     * Scanner for the {@link #keyToPath} store (ObjectKeyToPath). Traverses the
+     * bucket index ({@link HalfDiskHashMap#getBucketIndexToBucketLocation()}) to compute
+     * per-file garbage statistics. Constructed with {@code deduplicateMirroredEntries = true}
+     * to handle {@link HalfDiskHashMap} bucket index doubling, where unsanitized entries at
+     * {@code index[x]} and {@code index[x + N/2]} may point to the same data location.
+     * Created once during construction and reused across flushes.
+     */
+    private final GarbageScanner objectKeyToPathScanner;
+
+    /**
+     * Creates a new MerkleDb data source. The specified storage dir must exist and contain valid
+     * data source files. Initial capacity and hashes RAM/disk threshold are read from data source
+     * metadata file.
+     */
+    public MerkleDbDataSource(
+            final Path storageDir,
+            final MerkleDbConfig config,
+            final FileSystemManager fileSystemManager,
+            final String tableName,
+            final boolean compactionEnabled,
+            final boolean offlineUse)
+            throws IOException {
+        this(storageDir, config, fileSystemManager, tableName, 0, compactionEnabled, offlineUse);
+    }
+
+    /**
+     * Creates a new MerkleDb data source. If the specified storage dir exists, it's considered a
+     * data source snapshot, and the data source is loaded from the existing files. If no data or
+     * metadata files are found, an exception is thrown. If the specified storage dir doesn't exist,
+     * a new empty data source is created with initial capacity as specified.
+     *
+     * @param storageDir Directory to store data files
+     * @param config merkle db configuration
+     * @param tableName Data source label, used in logs, metrics, etc.
+     * @param initialCapacity Initial database capacity. Only used if a new database is created. If
+     *                        an existing database is loaded from the storage dir, initial capacity
+     *                        is read from MerkleDb metadata file
+     * @param compactionEnabled Indicates whether background compaction should be running for this data
+     *                          source
+     * @param diskBasedIndices Indicates that the data source should use disk based indices
+     * @throws IOException If an I/O error occurs
+     */
+    public MerkleDbDataSource(
+            final Path storageDir,
+            final MerkleDbConfig config,
+            final FileSystemManager fileSystemManager,
+            final String tableName,
+            final long initialCapacity,
+            final boolean compactionEnabled,
+            final boolean diskBasedIndices)
+            throws IOException {
+        this.tableName = tableName;
+        this.merkleDbConfig = config;
+
+        this.preferDiskBasedIndices = diskBasedIndices || merkleDbConfig.useDiskIndices();
+        this.hashChunkHeight = merkleDbConfig.hashChunkHeight();
+
+        // create thread group with label
+        final ThreadGroup threadGroup = new ThreadGroup("MerkleDb-" + tableName);
+        // thread pool creating snapshots, it is unbounded in threads, but we use at most 7
+        snapshotExecutor = Executors.newCachedThreadPool(new ThreadConfiguration(getStaticThreadManager())
+                .setThreadGroup(threadGroup)
+                .setThreadNameProvider(CompositeThreadNameProvider.createNumbered(MERKLEDB_COMPONENT, "Snapshot"))
+                .setExceptionHandler(
+                        (_, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during snapshots", e))
+                .buildFactory());
+        // thread pool to run tasks during flushes
+        final ExecutorFactory flushPoolFactory = ExecutorFactory.create(
+                "MerkleDbFlusher", (_, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during flush", e));
+        flushPool = flushPoolFactory.createForkJoinPool(config.getNumFlushThreads());
+
+        dbPaths = new MerkleDbPaths(storageDir);
+
+        // check if we are loading an existing database or creating a new one
+        if (Files.exists(storageDir)) {
+            // Read metadata, inits initialCapacity and validLeafPathRange
+            if (!loadMetadata(dbPaths)) {
+                logger.error(
+                        MERKLE_DB.getMarker(),
+                        "[{}] Loading existing set of data files but no metadata file was found in" + " [{}]",
+                        tableName,
+                        storageDir.toAbsolutePath());
+                throw new IOException("Can not load an existing MerkleDbDataSource from ["
+                        + storageDir.toAbsolutePath()
+                        + "] because metadata file is missing");
+            }
+        } else {
+            this.initialCapacity = initialCapacity;
+            Files.createDirectories(storageDir);
+        }
+
+        if (this.initialCapacity <= 0) {
+            throw new IllegalStateException("Initial capacity must be greater than 0, but was " + this.initialCapacity);
+        }
+
+        final boolean forceIndexRebuilding = merkleDbConfig.indexRebuildingEnforced();
+
+        // Get the max number of keys is set in the MerkleDb config, then multiply it by
+        // two, since virtual path range is 2 times the number of keys stored in a virtual map.
+        // Path to KV index capacity will be based on this max virtual path. Hash chunk index
+        // capacity will be derived from this max virtual path, too. Index capacity limits
+        // the max size of the index, but it doesn't have anything to do with the index initial
+        // size. If a new MerkleDb instance is created, both indices will have size 0
+        final long maxPath = merkleDbConfig.maxNumOfKeys() * 2;
+        // Path to KV index capacity is the same as max virtual path
+        final long kvIndexCapacity = maxPath;
+        // ID to hash index capacity is the min chunk ID to cover all paths from 0 to maxPath
+        final long hashIndexCapacity = VirtualHashChunk.lastChunkIdForPaths(maxPath, hashChunkHeight) + 1;
+
+        // Hash chunk disk location index (chunk ID to disk location)
+        final Path idToHashChunksFile = dbPaths.idToDiskLocationHashChunksFile;
+        if (Files.exists(idToHashChunksFile) && !forceIndexRebuilding) {
+            idToDiskLocationHashChunks = preferDiskBasedIndices
+                    ? new LongListDisk(idToHashChunksFile, hashIndexCapacity, merkleDbConfig, fileSystemManager)
+                    : new LongListSegment(idToHashChunksFile, hashIndexCapacity, merkleDbConfig);
+        } else {
+            idToDiskLocationHashChunks = preferDiskBasedIndices
+                    ? new LongListDisk(hashIndexCapacity, merkleDbConfig, fileSystemManager)
+                    : new LongListSegment(hashIndexCapacity, merkleDbConfig);
+        }
+
+        // Hash chunk store (hash chunks)
+        final LoadedDataCallback hashChunkLoadedCallback;
+        // Check if hash chunk index is to be restored: either the index file is missing, or
+        // index rebuilding is explicitly forced in MerkleDbConfig
+        final boolean needRestorePathToDiskLocationHashChunks = idToDiskLocationHashChunks.size() == 0;
+        if (needRestorePathToDiskLocationHashChunks) {
+            if (validLeafPathRange.getMaxValidKey() >= 0) {
+                idToDiskLocationHashChunks.updateValidRange(0, validLeafPathRange.getMaxValidKey());
+            }
+            hashChunkLoadedCallback = (dataLocation, hashData) -> {
+                final VirtualHashChunk hashChunk = VirtualHashChunk.parseFrom(hashData, hashChunkHeight);
+                final long path = hashChunk.path();
+                // Old data files may contain entries with paths outside the current virtual node range
+                final long firstHashPath = MerklePathUtils.getRightChildPath(path);
+                if (firstHashPath <= validLeafPathRange.getMaxValidKey()) {
+                    final long chunkId = VirtualHashChunk.pathToChunkId(firstHashPath, hashChunkHeight);
+                    idToDiskLocationHashChunks.put(chunkId, dataLocation);
+                }
+            };
+        } else {
+            hashChunkLoadedCallback = null;
+        }
+        hashChunkStore = new MemoryIndexDiskKeyValueStore(
+                merkleDbConfig,
+                dbPaths.hashChunkDirectory,
+                tableName + "_idtohashchunk",
+                null,
+                hashChunkLoadedCallback,
+                idToDiskLocationHashChunks);
+
+        hashChunkCacheThreshold = merkleDbConfig.hashChunkCacheThreshold();
+        hashChunkCache = new ConcurrentHashMap<>(hashChunkCacheThreshold);
+
+        // KV disk location index (path to disk location)
+        final Path pathToLeafLocationFile = dbPaths.pathToDiskLocationLeafNodesFile;
+        if (Files.exists(pathToLeafLocationFile) && !forceIndexRebuilding) {
+            pathToDiskLocationLeafNodes = preferDiskBasedIndices
+                    ? new LongListDisk(pathToLeafLocationFile, kvIndexCapacity, config, fileSystemManager)
+                    : new LongListSegment(pathToLeafLocationFile, kvIndexCapacity, config);
+        } else {
+            pathToDiskLocationLeafNodes = preferDiskBasedIndices
+                    ? new LongListDisk(kvIndexCapacity, config, fileSystemManager)
+                    : new LongListSegment(kvIndexCapacity, config);
+        }
+
+        // Leaves store (leaf nodes)
+        final LoadedDataCallback leafRecordLoadedCallback;
+        // Check if leaf node index is to be restored: either the index file is missing, or
+        // index rebuilding is explicitly forced in MerkleDbConfig
+        final boolean needRestorePathToDiskLocationLeafNodes =
+                (pathToDiskLocationLeafNodes.size() == 0) && (validLeafPathRange.getMinValidKey() > 0);
+        if (needRestorePathToDiskLocationLeafNodes) {
+            if (validLeafPathRange.getMaxValidKey() >= 0) {
+                pathToDiskLocationLeafNodes.updateValidRange(
+                        validLeafPathRange.getMinValidKey(), validLeafPathRange.getMaxValidKey());
+            }
+            leafRecordLoadedCallback = (dataLocation, leafData) -> {
+                final VirtualLeafBytes<?> leafBytes = VirtualLeafBytes.parseFrom(leafData);
+                final long path = leafBytes.path();
+                // Old data files may contain entries with paths outside the current leaf range
+                if (validLeafPathRange.withinRange(path)) {
+                    pathToDiskLocationLeafNodes.put(path, dataLocation);
+                }
+            };
+        } else {
+            leafRecordLoadedCallback = null;
+        }
+        keyValueStore = new MemoryIndexDiskKeyValueStore(
+                merkleDbConfig,
+                dbPaths.pathToKeyValueDirectory,
+                tableName + "_pathtohashkeyvalue",
+                null,
+                leafRecordLoadedCallback,
+                pathToDiskLocationLeafNodes);
+
+        // Keys (keys to paths)
+        keyToPath = new HalfDiskHashMap(
+                config,
+                flushPool,
+                fileSystemManager,
+                this.initialCapacity,
+                dbPaths.keyToPathDirectory,
+                tableName + "_objectkeytopath",
+                null,
+                preferDiskBasedIndices);
+        keyToPath.printStats();
+        // Repair keyToPath based on pathToKeyValue data, if requested and not disk based indices
+        if (!preferDiskBasedIndices) {
+            final String tablesToRepairHdhmConfig = merkleDbConfig.tablesToRepairHdhm();
+            if (tablesToRepairHdhmConfig != null) {
+                final String[] tableNames = tablesToRepairHdhmConfig.split(",");
+                if (Arrays.stream(tableNames).filter(s -> !s.isBlank()).anyMatch(tableName::equals)) {
+                    keyToPath.repair(getFirstLeafPath(), getLastLeafPath(), keyValueStore);
+                }
+            }
+        }
+
+        // Leaf records cache
+        leafRecordCacheSize = merkleDbConfig.leafRecordCacheSize();
+        leafRecordCache = (leafRecordCacheSize > 0) ? new VirtualLeafBytes[leafRecordCacheSize] : null;
+
+        // Stats
+        statisticsUpdater = new MerkleDbStatisticsUpdater(merkleDbConfig, tableName);
+
+        // File compactions
+        compactionCoordinator = new MerkleDbCompactionCoordinator(merkleDbConfig);
+        if (compactionEnabled) {
+            enableBackgroundCompaction();
+        }
+
+        chunkStoreScanner = new GarbageScanner(idToDiskLocationHashChunks, hashChunkStore.getFileCollection());
+        pathToKeyValueStoreScanner = new GarbageScanner(pathToDiskLocationLeafNodes, keyValueStore.getFileCollection());
+        objectKeyToPathScanner =
+                new GarbageScanner(keyToPath.getBucketIndexToBucketLocation(), keyToPath.getFileCollection(), true);
+
+        // If this data source is restored from a snapshot, the storage dir may contain index files. They
+        // are no longer needed and can be deleted
+        Files.deleteIfExists(dbPaths.pathToDiskLocationLeafNodesFile);
+        Files.deleteIfExists(dbPaths.idToDiskLocationHashChunksFile);
+        // Also, delete the metadata file to make sure future metadata updates are in a new file, not the
+        // hard-linked file from the snapshot directory
+        Files.deleteIfExists(dbPaths.metadataFile);
+        // Write metadata to disk to have consistent set of files on disk at any given moment. This
+        // will create a new file, not reuse the hard-linked file shared with a snapshot dir
+        saveMetadata(dbPaths);
+
+        COUNT_OF_OPEN_DATABASES.increment();
+        logger.info(
+                MERKLE_DB.getMarker(),
+                "Created MerkleDB [{}] with store path '{}', initial capacity = {}, hash chunk height = {}",
+                tableName,
+                storageDir,
+                this.initialCapacity,
+                this.hashChunkHeight);
+    }
+
+    @NonNull
+    public MerkleDbPaths getDbPaths() {
+        return dbPaths;
+    }
+
+    /**
+     * Enables background compaction process.
+     */
+    @Override
+    public void enableBackgroundCompaction() {
+        compactionCoordinator.enableBackgroundCompaction();
+    }
+
+    ///
+    /// Stop background compaction, interrupting the current compaction if one is happening. This
+    /// will not corrupt the database but will leave files around.
+    ///
+    @Override
+    public void stopAndDisableBackgroundCompaction(final boolean waitForTasksToComplete) {
+        compactionCoordinator.stopAndDisableBackgroundCompaction(waitForTasksToComplete);
+    }
+
+    /**
+     * Get the count of open database instances. This is databases that have been opened but not yet
+     * closed.
+     *
+     * @return Count of open databases.
+     */
+    public static long getCountOfOpenDatabases() {
+        return COUNT_OF_OPEN_DATABASES.sum();
+    }
+
+    /** Get the most recent first leaf path */
+    @Override
+    public long getFirstLeafPath() {
+        return validLeafPathRange.getMinValidKey();
+    }
+
+    /** Get the most recent last leaf path */
+    @Override
+    public long getLastLeafPath() {
+        return validLeafPathRange.getMaxValidKey();
+    }
+
+    @Override
+    public int getHashChunkHeight() {
+        return hashChunkHeight;
+    }
+
+    @NonNull
+    @Override
+    public DigestType getLoadedHashDigestType() {
+        return loadedHashDigestTypeOrDefault;
+    }
+
+    /**
+     * Pauses compaction of all data file collections used by this data source while running the
+     * provided action. Compaction may not stop immediately, but as soon as the compaction process
+     * needs to update data source state (which is critical for snapshots, e.g. update an index),
+     * it is blocked until the action completes.
+     *
+     * @param action action to run while compaction is paused
+     */
+    public void pauseCompactionAndRun(@NonNull final IORunnable action) throws IOException {
+        compactionCoordinator.pauseCompactionAndRun(action);
+    }
+
+    /**
+     * Save a batch of data to data store.
+     * <p>
+     * If you call this method where not all data is provided to cover the change in
+     * firstLeafPath and lastLeafPath, then any reads after this call may return rubbish or throw
+     * obscure exceptions for any internals or leaves that have not been written. For example, if
+     * you were to grow the tree by more than 2x, and then called this method in batches, be aware
+     * that if you were to query for some record between batches that hadn't yet been saved, you
+     * will encounter problems.
+     *
+     * @param firstLeafPath the tree path for first leaf
+     * @param lastLeafPath the tree path for last leaf
+     * @param hashChunksToUpdate stream of hash chunks to update, it is assumed this is sorted by
+     *     path and each path only appears once.
+     * @param leafRecordsToAddOrUpdate stream of new leaf nodes and updated leaf nodes
+     * @param leafRecordsToDelete stream of new leaf nodes to delete, The leaf record's key and path
+     *     have to be populated, all other data can be null.
+     * @param isReconnectContext if true, the method called in the context of reconnect
+     * @throws IOException If there was a problem saving changes to data source
+     */
+    @Override
+    @SuppressWarnings("rawtypes")
+    public void saveRecords(
+            final long firstLeafPath,
+            final long lastLeafPath,
+            @NonNull final Stream<VirtualHashChunk> hashChunksToUpdate,
+            @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
+            @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
+            final boolean isReconnectContext)
+            throws IOException {
+        try {
+            validLeafPathRange = new KeyRange(firstLeafPath, lastLeafPath);
+
+            // Update valid key range in the metadata file
+            final Future<?> waitForMetadata = flushPool.submit(() -> {
+                try {
+                    saveMetadata(dbPaths);
+                } catch (final IOException e) {
+                    logger.error(EXCEPTION.getMarker(), "Failed to save MerkleDb metadata", e);
+                    throw new UncheckedIOException(e);
+                }
+            });
+
+            // Hashes
+            final VirtualHashChunk[] dirtyHashes = hashChunksToUpdate.toArray(VirtualHashChunk[]::new);
+            flushingHashesFuture = writeHashes(lastLeafPath, dirtyHashes);
+
+            // Leaves
+            final VirtualLeafBytes<?>[] dirtyLeaves = leafRecordsToAddOrUpdate.toArray(VirtualLeafBytes[]::new);
+            flushingLeavesFuture = writeLeavesToPathToKeyValue(firstLeafPath, lastLeafPath, dirtyLeaves);
+
+            // In some rare cases, the data source can be closed, while the flush is still in
+            // progress, for example during failed reconnects. We need to make sure the current
+            // thread doesn't get stuck in flushingHashes/LeavesFuture.get() below, when the
+            // flushing pool is already down, and some hashes/leaves tasks are not executed.
+            // Check if the pool is still alive. If it is alive, and the data source is closed
+            // later, the futures will be canceled in cancelFlush()
+            if (flushPool.isShutdown()) {
+                logger.warn(
+                        MERKLE_DB.getMarker(),
+                        "Failed to flush data, the flushing pool has been closed. This may happen if the data source is closed in a different thread");
+                return;
+            }
+
+            // Key to path
+            final VirtualLeafBytes<?>[] deletedLeaves = leafRecordsToDelete.toArray(VirtualLeafBytes[]::new);
+            // This call is blocking, it returns after all mappings are updated in HDHM
+            writeLeavesToKeyToPath(firstLeafPath, lastLeafPath, dirtyLeaves, deletedLeaves, isReconnectContext);
+
+            // As soon as this method returns, virtual node cache will start deleting the flushed
+            // data from memory. To avoid data loss, it's critical to wait till all data is written
+            // to disk before returning from this method. If there is a request to read an object
+            // while this method is still running, the object will be found in the cache. If a
+            // read request is made after the flush is complete, the object will be found on disk
+            // (or in the cache, if not purged from memory yet - purging is asynchronous)
+            try {
+                waitForMetadata.get();
+                if (flushingHashesFuture != null) {
+                    flushingHashesFuture.get();
+                }
+                // Run all compactions even if there have been no objects written. This will take
+                // care of scenarios like when leaf range becomes empty, and the stream of dirty
+                // leaves to store is empty
+                runHashChunkStoreCompaction();
+                if (flushingLeavesFuture != null) {
+                    flushingLeavesFuture.get();
+                }
+                runPathToKeyValueStoreCompaction();
+                runKeyToPathStoreCompaction();
+            } catch (final InterruptedException e) {
+                logger.warn(EXCEPTION.getMarker(), "[{}] Flush interrupted", tableName, e);
+                Thread.currentThread().interrupt();
+            } catch (final ExecutionException e) {
+                logger.error(EXCEPTION.getMarker(), "[{}] Flush failed", tableName, e);
+                throw new RuntimeException(e);
+            }
+        } finally {
+            flushingLeavesFuture = null;
+            flushingHashesFuture = null;
+            // Report total size on disk as sum of all store files. All metadata and other helper files
+            // are considered small enough to be ignored. If/when we decide to use on-disk long lists
+            // for indices, they should be added here
+            statisticsUpdater.updateStoreFileStats(this);
+            // update off-heap stats
+            statisticsUpdater.updateOffHeapStats(this);
+        }
+    }
+
+    /**
+     * Load a leaf record by key.
+     *
+     * @param keyBytes they to the leaf to load record for
+     * @return loaded record or null if not found
+     * @throws IOException If there was a problem reading record from db
+     */
+    @Nullable
+    @Override
+    public VirtualLeafBytes<?> loadLeafRecord(final Bytes keyBytes) throws IOException {
+        requireNonNull(keyBytes);
+        final int keyHashCode = keyBytes.hashCode();
+
+        final long path;
+        VirtualLeafBytes<?> cached = null;
+        int cacheIndex = -1;
+        if (leafRecordCache != null) {
+            cacheIndex = Math.abs(keyHashCode % leafRecordCacheSize);
+            // No synchronization is needed here. Java guarantees (JLS 17.7) that reference writes
+            // are atomic, so we will never get corrupted objects from the array. The object may
+            // be overwritten in the cache in a different thread in parallel, but it isn't a
+            // problem as cached entry key is checked below anyway
+            cached = leafRecordCache[cacheIndex];
+        }
+        // If an entry is found in the cache, and entry key is the one requested
+        if ((cached != null) && keyBytes.equals(cached.keyBytes())) {
+            // Some cache entries contain just key and path, but no value. If the value is there,
+            // just return the cached entry. If not, at least make use of the path
+            if (cached.valueBytes() != null) {
+                return cached;
+            }
+            // Note that the path may be INVALID_PATH here, this is perfectly legal
+            path = cached.path();
+        } else {
+            // Cache miss
+            cached = null;
+            statisticsUpdater.countLeafKeyReads();
+            path = keyToPath.get(keyBytes, INVALID_PATH);
+        }
+
+        // If the key didn't map to anything, we just return null
+        if (path == INVALID_PATH) {
+            // Cache the result if not already cached
+            if (leafRecordCache != null && cached == null) {
+                leafRecordCache[cacheIndex] = new VirtualLeafBytes<>(path, keyBytes, null);
+            }
+            return null;
+        }
+
+        // If the key returns a value from the map, but it lies outside the first/last
+        // leaf path, then return null. This can happen if the map contains old keys
+        // that haven't been removed.
+        if (!validLeafPathRange.withinRange(path)) {
+            return null;
+        }
+
+        statisticsUpdater.countLeafReads();
+        // Go ahead and lookup the value.
+        VirtualLeafBytes<?> leafBytes = VirtualLeafBytes.parseFrom(keyValueStore.get(path));
+        assert leafBytes != null && leafBytes.keyBytes().equals(keyBytes);
+
+        if (leafRecordCache != null) {
+            // No synchronization is needed here, see the comment above
+            leafRecordCache[cacheIndex] = leafBytes;
+        }
+
+        return leafBytes;
+    }
+
+    /**
+     * Load a leaf record by path. This method returns {@code null}, if the path is outside the
+     * valid path range.
+     *
+     * @param path the path for the leaf we are loading
+     * @return loaded record or null if not found
+     * @throws IOException If there was a problem reading record from db
+     */
+    @Nullable
+    @Override
+    public VirtualLeafBytes<?> loadLeafRecord(final long path) throws IOException {
+        if (path < 0) {
+            throw new IllegalArgumentException("Path (" + path + ") is not valid");
+        }
+        final KeyRange leafPathRange = validLeafPathRange;
+        if (!leafPathRange.withinRange(path)) {
+            return null;
+        }
+        statisticsUpdater.countLeafReads();
+        return VirtualLeafBytes.parseFrom(keyValueStore.get(path));
+    }
+
+    /**
+     * Find the path of the given key.
+     *
+     * @param keyBytes the key for a path
+     * @return the path or INVALID_PATH if not stored
+     * @throws IOException If there was a problem locating the key
+     */
+    @Override
+    public long findKey(final Bytes keyBytes) throws IOException {
+        requireNonNull(keyBytes);
+        final int keyHashCode = keyBytes.hashCode();
+
+        // Check the cache first
+        int cacheIndex = -1;
+        if (leafRecordCache != null) {
+            cacheIndex = Math.abs(keyHashCode % leafRecordCacheSize);
+            // No synchronization is needed here. See the comment in loadLeafRecord(key) above
+            final VirtualLeafBytes<?> cached = leafRecordCache[cacheIndex];
+            if (cached != null && keyBytes.equals(cached.keyBytes())) {
+                // Cached path may be a valid path or INVALID_PATH, both are legal here
+                return cached.path();
+            }
+        }
+
+        statisticsUpdater.countLeafKeyReads();
+        final long path = keyToPath.get(keyBytes, INVALID_PATH);
+
+        if (leafRecordCache != null) {
+            // Path may be INVALID_PATH here. Still needs to be cached (negative result)
+            leafRecordCache[cacheIndex] = new VirtualLeafBytes<>(path, keyBytes, null);
+        }
+
+        return path;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Nullable
+    @Override
+    public VirtualHashChunk loadHashChunk(final long chunkId) throws IOException {
+        if (chunkId < 0) {
+            throw new IllegalArgumentException("Hash chunk ID (" + chunkId + ") is not valid");
+        }
+
+        final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
+        if (MerklePathUtils.getLeftChildPath(chunkPath) > getLastLeafPath()) {
+            return null;
+        }
+
+        if (chunkId < hashChunkCacheThreshold) {
+            final VirtualHashChunk chunk = hashChunkCache.get(chunkId);
+            if (chunk != null) {
+                // Should count hash reads here, too?
+                return chunk.copy();
+            }
+        }
+
+        final VirtualHashChunk chunk = VirtualHashChunk.parseFrom(hashChunkStore.get(chunkId), hashChunkHeight);
+        assert chunk != null;
+        if (chunkId < hashChunkCacheThreshold) {
+            hashChunkCache.put(chunkId, chunk.copy());
+        }
+
+        statisticsUpdater.countHashReads();
+
+        return chunk;
+    }
+
+    /**
+     * If there is an active flush, it gets interrupted. If the flushing thread
+     * is waiting on various flushing tasks to complete (leaves, hashes, HDHM), it
+     * will be unblocked.
+     *
+     * <p>This method is safe to call even if there is no flush currently in progress.
+     */
+    private void cancelFlush() {
+        // This method should be called only after the flushing pool is marked to shut down
+        assert flushPool.isShutdown();
+        final Future<?> hf = flushingHashesFuture;
+        if (hf != null) {
+            hf.cancel(true);
+        }
+        final Future<?> lf = flushingLeavesFuture;
+        if (lf != null) {
+            lf.cancel(true);
+        }
+        keyToPath.cancelWriting();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void close() throws IOException {
+        if (!closed.getAndSet(true)) {
+            try {
+                // Stop file compaction
+                compactionCoordinator.stopAndDisableBackgroundCompaction(false);
+                // Shut down all executors. If a flush is currently in progress, it will be interrupted
+                flushPool.shutdownNow();
+                snapshotExecutor.shutdownNow();
+                // If there is a flush in progress on another thread, that thread may be
+                // stuck in waiting for hashes/leaves or HDHM writing to complete. Flushing
+                // pool shutdown interrupts all existing hashes/leaves/HDHM tasks, but the
+                // flushing thread is not interrupted. cancelFlush() is exactly to solve
+                // this problem. If there is no active flush, cancelFlush() is still safe
+                // to call
+                cancelFlush();
+            } finally {
+                try {
+                    // close all closable data stores
+                    logger.info(MERKLE_DB.getMarker(), "Closing Data Source [{}]", tableName);
+                    // Hash chunk store
+                    hashChunkStore.close();
+                    // Hash chunk cache
+                    hashChunkCache.clear();
+                    // Then hash chunk index
+                    idToDiskLocationHashChunks.close();
+                    // Key to paths, both store and index
+                    keyToPath.close();
+                    // Leaves store
+                    keyValueStore.close();
+                    // Then leaves index
+                    pathToDiskLocationLeafNodes.close();
+                } catch (final Exception e) {
+                    logger.warn(EXCEPTION.getMarker(), "Exception while closing Data Source [{}]", tableName);
+                } catch (final Error t) {
+                    logger.error(EXCEPTION.getMarker(), "Error while closing Data Source [{}]", tableName);
+                    throw t;
+                } finally {
+                    // updated count of open databases
+                    COUNT_OF_OPEN_DATABASES.decrement();
+                    // Delete the data dir
+                    DataFileCommon.deleteDirectoryAndContents(dbPaths.storageDir);
+                }
+            }
+        }
+    }
+
+    /**
+     * Write a snapshot of the current state of the database at this moment in time. This will block
+     * till the snapshot is completely created.
+     * <p>
+     *
+     * <b> Only one snapshot can happen at a time, this will throw an IllegalStateException if
+     * another snapshot is currently happening. </b>
+     * <p>
+     * <b> IMPORTANT, after this is completed the caller owns the directory. It is responsible
+     * for deleting it when it is no longer needed. </b>
+     *
+     * @param snapshotDirectory Directory to put snapshot into, it will be created if it doesn't
+     *     exist.
+     * @throws IOException If there was a problem writing the current database out to the given
+     *     directory
+     * @throws IllegalStateException If there is already a snapshot happening
+     */
+    @Override
+    public void snapshot(final Path snapshotDirectory) throws IOException, IllegalStateException {
+        // check if another snapshot was running
+        final boolean aSnapshotWasInProgress = snapshotInProgress.getAndSet(true);
+        if (aSnapshotWasInProgress) {
+            throw new IllegalStateException("Tried to start a snapshot when one was already in progress");
+        }
+        logger.info(MERKLE_DB.getMarker(), "[{}] Starting snapshot to {}", tableName, snapshotDirectory);
+        try {
+            // start timing snapshot
+            final long START = System.currentTimeMillis();
+            // create snapshot dir if it doesn't exist
+            Files.createDirectories(snapshotDirectory);
+            final MerkleDbPaths snapshotDbPaths = new MerkleDbPaths(snapshotDirectory);
+            // main snapshotting process in multiple-threads
+            try {
+                // Flush cached hash chunks to the hash chunk store
+                flushHashChunkCache();
+                final CountDownLatch countDownLatch = new CountDownLatch(6);
+                // write all data stores
+                runWithSnapshotExecutor(countDownLatch, "idToDiskLocationHashChunks", () -> {
+                    idToDiskLocationHashChunks.writeToFile(snapshotDbPaths.idToDiskLocationHashChunksFile);
+                    return true;
+                });
+                runWithSnapshotExecutor(countDownLatch, "pathToDiskLocationLeafNodes", () -> {
+                    pathToDiskLocationLeafNodes.writeToFile(snapshotDbPaths.pathToDiskLocationLeafNodesFile);
+                    return true;
+                });
+                runWithSnapshotExecutor(countDownLatch, "hashChunkStore", () -> {
+                    hashChunkStore.snapshot(snapshotDbPaths.hashChunkDirectory);
+                    return true;
+                });
+                runWithSnapshotExecutor(countDownLatch, "keyToPath", () -> {
+                    keyToPath.snapshot(snapshotDbPaths.keyToPathDirectory);
+                    return true;
+                });
+                runWithSnapshotExecutor(countDownLatch, "keyValueStore", () -> {
+                    keyValueStore.snapshot(snapshotDbPaths.pathToKeyValueDirectory);
+                    return true;
+                });
+                runWithSnapshotExecutor(countDownLatch, "metadata", () -> {
+                    saveMetadata(snapshotDbPaths);
+                    return true;
+                });
+                // wait for the others to finish
+                countDownLatch.await();
+            } catch (final InterruptedException e) {
+                logger.error(
+                        EXCEPTION.getMarker(),
+                        "[{}] InterruptedException from waiting for countDownLatch in snapshot",
+                        tableName,
+                        e);
+                Thread.currentThread().interrupt();
+            }
+            logger.info(
+                    MERKLE_DB.getMarker(),
+                    "[{}] Snapshot all finished in {} seconds",
+                    tableName,
+                    (System.currentTimeMillis() - START) * UnitConstants.MILLISECONDS_TO_SECONDS);
+        } finally {
+            snapshotInProgress.set(false);
+        }
+    }
+
+    /** toString for debugging */
+    @Override
+    public String toString() {
+        return new ToStringBuilder(this)
+                .append("storageDir", dbPaths.storageDir)
+                .append("initialCapacity", initialCapacity)
+                .append("preferDiskBasedIndexes", preferDiskBasedIndices)
+                .append("idToDiskLocationHashChunks.size", idToDiskLocationHashChunks.size())
+                .append("pathToDiskLocationLeafNodes.size", pathToDiskLocationLeafNodes.size())
+                .append("hashChunkStore", hashChunkStore)
+                .append("keyToPath", keyToPath)
+                .append("keyValueStore", keyValueStore)
+                .append("snapshotInProgress", snapshotInProgress.get())
+                .toString();
+    }
+
+    /**
+     * Table name for this data source in its virtual database instance.
+     *
+     * @return Table name
+     */
+    public String getTableName() {
+        return tableName;
+    }
+
+    public long getInitialCapacity() {
+        return initialCapacity;
+    }
+
+    // For testing purpose
+    boolean isCompactionEnabled() {
+        return compactionCoordinator.isCompactionEnabled();
+    }
+
+    private void saveMetadata(final MerkleDbPaths targetDir) throws IOException {
+        final KeyRange leafRange = validLeafPathRange;
+        final Path targetFile = targetDir.metadataFile;
+        // newOutputStream() overrides the file, if it exists, no need to delete explicitly
+        try (final OutputStream fileOut = Files.newOutputStream(targetFile)) {
+            final WritableSequentialData out = new WritableStreamingData(fileOut);
+            // First leaf path
+            if (leafRange.getMinValidKey() != 0) {
+                ProtoWriterTools.writeTag(out, FIELD_DSMETADATA_MINVALIDKEY);
+                out.writeVarLong(leafRange.getMinValidKey(), false);
+            }
+            // Last leaf path
+            if (leafRange.getMaxValidKey() != 0) {
+                ProtoWriterTools.writeTag(out, FIELD_DSMETADATA_MAXVALIDKEY);
+                out.writeVarLong(leafRange.getMaxValidKey(), false);
+            }
+            // Initial capacity is always greater than 0
+            ProtoWriterTools.writeTag(out, FIELD_DSMETADATA_INITIALCAPACITY);
+            out.writeVarLong(initialCapacity, false);
+            // Hash chunk height
+            ProtoWriterTools.writeTag(out, FIELD_DSMETADATA_HASHCHUNKHEIGHT);
+            out.writeVarInt(hashChunkHeight, false);
+            // Message digest type (algorithm name) for hashes
+            ProtoWriterTools.writeString(
+                    out, FIELD_DSMETADATA_HASHDIGESTTYPE, Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
+            // Flush
+            fileOut.flush();
+        }
+    }
+
+    private boolean loadMetadata(final MerkleDbPaths sourceDir) throws IOException {
+        if (Files.exists(sourceDir.metadataFile)) {
+            final Path sourceFile = sourceDir.metadataFile;
+            long minValidKey = 0;
+            long maxValidKey = 0;
+            // If there is no hash type ID field in the metadata, it must be an old data
+            // source snapshot, where SHA-384 was used by default
+            loadedHashDigestTypeOrDefault = DigestType.SHA_384;
+            try (final ReadableStreamingData in = new ReadableStreamingData(sourceFile)) {
+                while (in.hasRemaining()) {
+                    final int tag = in.readVarInt(false);
+                    final int fieldNum = tag >> TAG_FIELD_OFFSET;
+                    if (fieldNum == FIELD_DSMETADATA_MINVALIDKEY.number()) {
+                        minValidKey = in.readVarLong(false);
+                    } else if (fieldNum == FIELD_DSMETADATA_MAXVALIDKEY.number()) {
+                        maxValidKey = in.readVarLong(false);
+                    } else if (fieldNum == FIELD_DSMETADATA_INITIALCAPACITY.number()) {
+                        initialCapacity = in.readVarLong(false);
+                    } else if (fieldNum == FIELD_DSMETADATA_HASHCHUNKHEIGHT.number()) {
+                        final int hashChunkHeight = in.readVarInt(false);
+                        if (this.hashChunkHeight != hashChunkHeight) {
+                            throw new IllegalStateException("Hash chunk height mismatch, config=" + this.hashChunkHeight
+                                    + " disk=" + hashChunkHeight);
+                        }
+                    } else if (fieldNum == FIELD_DSMETADATA_HASHDIGESTTYPE.number()) {
+                        final String name = ProtoParserTools.readString(in);
+                        loadedHashDigestTypeOrDefault = DigestType.algorithmNameToDigestType(name);
+                        if (loadedHashDigestTypeOrDefault == null) {
+                            throw new IOException("Unknown hash digest type: " + name);
+                        }
+                    } else {
+                        throw new IOException("Unknown data source metadata field: " + fieldNum);
+                    }
+                }
+                validLeafPathRange = new KeyRange(minValidKey, maxValidKey);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void registerMetrics(final Metrics metrics) {
+        statisticsUpdater.registerMetrics(metrics);
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void copyStatisticsFrom(final VirtualDataSource that) {
+        if (!(that instanceof MerkleDbDataSource thatDataSource)) {
+            logger.warn(MERKLE_DB.getMarker(), "Can only copy statistics from MerkleDbDataSource");
+            return;
+        }
+        statisticsUpdater = thatDataSource.statisticsUpdater;
+    }
+
+    // ==================================================================================================================
+    // private methods
+
+    /**
+     * Run a runnable on background thread using snapshot ExecutorService, counting down latch when
+     * done.
+     *
+     * @param countDownLatch latch to count down when done
+     * @param taskName the name of the task for logging
+     * @param runnable the code to run
+     */
+    private void runWithSnapshotExecutor(
+            final CountDownLatch countDownLatch, final String taskName, final Callable<Object> runnable) {
+        snapshotExecutor.submit(() -> {
+            final long START = System.currentTimeMillis();
+            try {
+                runnable.call();
+                logger.trace(
+                        MERKLE_DB.getMarker(),
+                        "[{}] Snapshot {} complete in {} seconds",
+                        tableName,
+                        taskName,
+                        (System.currentTimeMillis() - START) * UnitConstants.MILLISECONDS_TO_SECONDS);
+                return true; // turns this into a callable, so it can throw checked
+                // exceptions
+            } catch (final Throwable t) {
+                // log and rethrow
+                logger.error(EXCEPTION.getMarker(), "[{}] Snapshot {} failed", tableName, taskName, t);
+                throw t;
+            } finally {
+                countDownLatch.countDown();
+            }
+        });
+    }
+
+    /**
+     * Write all the given hash chunks to hashChunkStore. The hash chunks are processed in
+     * multiple threads by submitting several tasks to {@link #flushPool}.
+     *
+     * <p>The method returns as soon as the tasks are submitted and returns a {@link Future}
+     * object that can be used to wait for all tasks to complete.
+     */
+    private Future<Void> writeHashes(final long maxValidPath, @NonNull final VirtualHashChunk[] dirtyHashes)
+            throws IOException {
+        if (maxValidPath < 0) {
+            // Empty store
+            hashChunkStore.updateValidKeyRange(-1, -1);
+        } else {
+            hashChunkStore.updateValidKeyRange(0, VirtualHashChunk.lastChunkIdForPaths(maxValidPath, hashChunkHeight));
+        }
+
+        if ((maxValidPath < 0) || (dirtyHashes.length == 0)) {
+            // nothing to do
+            return null;
+        }
+
+        hashChunkStore.startWriting();
+
+        final CompletableFuture<Void> result = new CompletableFuture<>();
+        // A counter to check how many tasks have been finished. Once it reaches zero, the result
+        // future is marked complete
+        final AtomicInteger tasksRemaining = new AtomicInteger(dirtyHashes.length);
+        // Hash index in the dirtyHashes array. Every task gets and increments the index to
+        // find out what hash chunk to write
+        final AtomicInteger index = new AtomicInteger(0);
+
+        final class StoreHashChunkTask extends AbstractTask {
+
+            StoreHashChunkTask() {
+                super(flushPool, 1);
+            }
+
+            @Override
+            protected boolean onExecute() throws IOException {
+                final int chunkIndex = index.getAndIncrement();
+                if (chunkIndex >= dirtyHashes.length) {
+                    return true;
+                }
+                if (chunkIndex < dirtyHashes.length - 1) {
+                    new StoreHashChunkTask().send();
+                }
+                final VirtualHashChunk chunk = dirtyHashes[chunkIndex];
+                final long chunkId = chunk.getChunkId();
+                if (chunkId < hashChunkCacheThreshold) {
+                    hashChunkCache.put(chunkId, chunk);
+                } else {
+                    hashChunkStore.put(chunkId, chunk::writeTo, chunk.getSerializedSizeInBytes());
+                }
+                statisticsUpdater.countFlushHashesWritten(); // Count hash chunk as one hash write
+                if (tasksRemaining.decrementAndGet() == 0) {
+                    result.complete(null);
+                }
+                return true;
+            }
+
+            @Override
+            protected void onException(final Throwable t) {
+                logger.error(MERKLE_DB.getMarker(), "Failed to write a hash chunk to disk", t);
+                result.completeExceptionally(t);
+            }
+        }
+
+        // Schedule the first task. It will schedule more tasks when run
+        new StoreHashChunkTask().send();
+
+        return result.thenRun(() -> {
+            // Finish writing to the data file and update file stats
+            try {
+                final DataFileReader newHashesFile = hashChunkStore.endWriting();
+                statisticsUpdater.setFlushHashesStoreFileSize(newHashesFile);
+            } catch (final IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+    }
+
+    /**
+     * Write all the given leaf records to pathToKeyValue. The leaf records are processed in
+     * multiple threads by submitting several tasks to {@link #flushPool}.
+     *
+     * <p>The method returns as soon as the tasks are submitted and returns a {@link Future}
+     * object that can be used to wait for all tasks to complete.
+     */
+    private Future<Void> writeLeavesToPathToKeyValue(
+            final long firstLeafPath, final long lastLeafPath, @NonNull final VirtualLeafBytes<?>[] dirtyLeaves)
+            throws IOException {
+        if (lastLeafPath < 0) {
+            // Empty store
+            keyValueStore.updateValidKeyRange(-1, -1);
+        } else {
+            keyValueStore.updateValidKeyRange(firstLeafPath, lastLeafPath);
+        }
+
+        if ((lastLeafPath < 0) || (dirtyLeaves.length == 0)) {
+            // Nothing to do
+            return null;
+        }
+
+        keyValueStore.startWriting();
+
+        // Functionally, leaves don't have to be sorted. However, performance wise, sorting
+        // is beneficial, as adjacent leaves are written together, which reduces the number
+        // of random reads later. Treat dirtyLeaves as immutable
+        VirtualLeafBytes<?>[] sortedDirtyLeaves = dirtyLeaves.clone();
+        Arrays.parallelSort(sortedDirtyLeaves, Comparator.comparingLong(VirtualLeafBytes::path));
+
+        final CompletableFuture<Void> result = new CompletableFuture<>();
+        // A counter to check how many tasks have been finished. Once it reaches zero, the result
+        // future is marked complete
+        final AtomicInteger tasksRemaining = new AtomicInteger(sortedDirtyLeaves.length);
+        // Leaf record index in the sortedDirtyLeaves array. Every task gets and increments the index
+        // to find out what leaf to write. This (almost) preserves the sorted order in which leaves
+        // are written to disk
+        final AtomicInteger index = new AtomicInteger(0);
+
+        final class StoreLeafTask extends AbstractTask {
+
+            StoreLeafTask() {
+                super(flushPool, 1);
+            }
+
+            @Override
+            protected boolean onExecute() throws Exception {
+                final int leafIndex = index.getAndIncrement();
+                if (leafIndex >= sortedDirtyLeaves.length) {
+                    return true;
+                }
+                if (leafIndex < sortedDirtyLeaves.length - 1) {
+                    new StoreLeafTask().send();
+                }
+                final VirtualLeafBytes<?> leafBytes = sortedDirtyLeaves[leafIndex];
+                keyValueStore.put(leafBytes.path(), leafBytes::writeTo, leafBytes.getSizeInBytes());
+                statisticsUpdater.countFlushLeavesWritten();
+                if (tasksRemaining.decrementAndGet() == 0) {
+                    result.complete(null);
+                }
+                return true;
+            }
+
+            @Override
+            protected void onException(final Throwable t) {
+                logger.error(MERKLE_DB.getMarker(), "Failed to write a leaf record to disk", t);
+                result.completeExceptionally(t);
+            }
+        }
+
+        // Schedule the first task. It will schedule more tasks when run
+        new StoreLeafTask().send();
+
+        return result.thenRun(() -> {
+            try {
+                // Finish writing to the data file and update file stats
+                final DataFileReader pathToKeyValueReader = keyValueStore.endWriting();
+                statisticsUpdater.setFlushLeavesStoreFileSize(pathToKeyValueReader);
+            } catch (final IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+    }
+
+    /** Write all the given leaf records to keyToPath */
+    private void writeLeavesToKeyToPath(
+            final long firstLeafPath,
+            final long lastLeafPath,
+            @NonNull final VirtualLeafBytes<?>[] dirtyLeaves,
+            @NonNull final VirtualLeafBytes<?>[] deletedLeaves,
+            boolean isReconnect) {
+        if (dirtyLeaves.length == 0 && deletedLeaves.length == 0) {
+            // Nothing to do
+            return;
+        }
+
+        keyToPath.startWriting();
+
+        // Iterate over leaf records
+        for (final VirtualLeafBytes<?> leafBytes : dirtyLeaves) {
+            // Check if the record is new or moved. If not, skip the path update
+            if (leafBytes.isNewOrMoved()) {
+                final long path = leafBytes.path();
+                // Update key to path index
+                keyToPath.put(leafBytes.keyBytes(), path);
+                statisticsUpdater.countFlushLeafKeysWritten();
+            }
+
+            // cache the record
+            invalidateReadCache(leafBytes.keyBytes());
+        }
+
+        // Iterate over leaf records to delete
+        for (VirtualLeafBytes<?> leafBytes : deletedLeaves) {
+            // Update key to path index. In some cases (e.g. during reconnect), some leaves in the
+            // deletedLeaves stream have been moved to different paths in the tree. This is good
+            // indication that these leaves should not be deleted. This is why putIfEqual() and
+            // deleteIfEqual() are used below rather than unconditional put() and delete() as for
+            // dirtyLeaves stream above
+            if (isReconnect) {
+                keyToPath.deleteIfEqual(leafBytes.keyBytes(), leafBytes.path());
+            } else {
+                keyToPath.delete(leafBytes.keyBytes());
+            }
+            statisticsUpdater.countFlushLeavesDeleted();
+
+            // delete from pathToKeyValue, we don't need to explicitly delete leaves as
+            // they will be deleted on
+            // next merge based on range of valid leaf paths. If a leaf at path X is deleted
+            // then a new leaf is
+            // inserted at path X then the record is just updated to new leaf's data.
+
+            // delete the record from the cache
+            invalidateReadCache(leafBytes.keyBytes());
+        }
+
+        // end writing
+        final DataFileReader keyToPathReader = keyToPath.endWriting();
+        statisticsUpdater.setFlushLeafKeysStoreFileSize(keyToPathReader);
+
+        if (!compactionCoordinator.isCompactionRunning(OBJECT_KEY_TO_PATH)) {
+            keyToPath.resizeIfNeeded(firstLeafPath, lastLeafPath);
+        }
+    }
+
+    /**
+     * Flushes {@link #hashChunkCache} to disk by writing all cached hash chunks to a new
+     * data file and adding it to {@link #hashChunkStore}.
+     */
+    private void flushHashChunkCache() throws IOException {
+        if (getLastLeafPath() <= 0) {
+            return;
+        }
+        final long maxValidChunkId = VirtualHashChunk.lastChunkIdForPaths(getLastLeafPath(), hashChunkHeight);
+        hashChunkStore.startWriting();
+        for (final VirtualHashChunk chunk : hashChunkCache.values()) {
+            final long chunkId = chunk.getChunkId();
+            if (chunkId <= maxValidChunkId) {
+                hashChunkStore.put(chunkId, chunk::writeTo, chunk.getSerializedSizeInBytes());
+            }
+        }
+        final DataFileReader newHashesFile = hashChunkStore.endWriting();
+        statisticsUpdater.setFlushHashesStoreFileSize(newHashesFile);
+    }
+
+    /**
+     * Creates a new data file compactor for hashChunkStore file collection.
+     */
+    DataFileCompactor newHashChunkStoreCompactor() {
+        return new DataFileCompactor(
+                hashChunkStore.getFileCollection(),
+                idToDiskLocationHashChunks,
+                statisticsUpdater::setHashesStoreCompactionTimeMs,
+                statisticsUpdater::setHashesStoreCompactionSavedSpaceMb,
+                statisticsUpdater::setHashesStoreFileSizeByLevelMb,
+                () -> {
+                    statisticsUpdater.updateStoreFileStats(this);
+                    statisticsUpdater.updateOffHeapStats(this);
+                });
+    }
+
+    /**
+     * Creates a new data file compactor for pathToKeyValue file collection.
+     */
+    DataFileCompactor newKeyValueStoreCompactor() {
+        return new DataFileCompactor(
+                keyValueStore.getFileCollection(),
+                pathToDiskLocationLeafNodes,
+                statisticsUpdater::setLeavesStoreCompactionTimeMs,
+                statisticsUpdater::setLeavesStoreCompactionSavedSpaceMb,
+                statisticsUpdater::setLeavesStoreFileSizeByLevelMb,
+                () -> {
+                    statisticsUpdater.updateStoreFileStats(this);
+                    statisticsUpdater.updateOffHeapStats(this);
+                });
+    }
+
+    /**
+     * Creates a new data file compactor for keyToPath file collection.
+     */
+    DataFileCompactor newKeyToPathCompactor() {
+        return new DataFileCompactor(
+                keyToPath.getFileCollection(),
+                keyToPath.getBucketIndexToBucketLocation(),
+                statisticsUpdater::setLeafKeysStoreCompactionTimeMs,
+                statisticsUpdater::setLeafKeysStoreCompactionSavedSpaceMb,
+                statisticsUpdater::setLeafKeysStoreFileSizeByLevelMb,
+                () -> {
+                    statisticsUpdater.updateStoreFileStats(this);
+                    statisticsUpdater.updateOffHeapStats(this);
+                },
+                true, // deduplicateMirroredEntries — HDHM store
+                keyToPath.getNumOfBuckets()); // index size = total bucket count
+    }
+
+    /**
+     * Invalidates the given key in virtual leaf record cache, if the cache is enabled.
+     * <p>
+     * If the key is deleted, it's still updated in the cache. It means no record with the given
+     * key exists in the data source, so further lookups for the key are skipped.
+     * <p>
+     * Cache index is calculated as the key's hash code % cache size. The cache is only updated,
+     * if the current record at this index has the given key. If the key is different, no update is
+     * performed.
+     *
+     * @param keyBytes virtual key
+     */
+    private void invalidateReadCache(final Bytes keyBytes) {
+        if (leafRecordCache == null) {
+            return;
+        }
+        final int keyHashCode = keyBytes.hashCode();
+        final int cacheIndex = Math.abs(keyHashCode % leafRecordCacheSize);
+        final VirtualLeafBytes<?> cached = leafRecordCache[cacheIndex];
+        if ((cached != null) && keyBytes.equals(cached.keyBytes())) {
+            leafRecordCache[cacheIndex] = null;
+        }
+    }
+
+    public void runHashChunkStoreCompaction() {
+        compactionCoordinator.submitScanIfNotRunning(ID_TO_HASH_CHUNK, chunkStoreScanner);
+        compactionCoordinator.submitCompactionTasks(
+                ID_TO_HASH_CHUNK, this::newHashChunkStoreCompactor, merkleDbConfig, hashChunkStore.getFileCollection());
+    }
+
+    public void runPathToKeyValueStoreCompaction() {
+        compactionCoordinator.submitScanIfNotRunning(PATH_TO_KEY_VALUE, pathToKeyValueStoreScanner);
+        compactionCoordinator.submitCompactionTasks(
+                PATH_TO_KEY_VALUE, this::newKeyValueStoreCompactor, merkleDbConfig, keyValueStore.getFileCollection());
+    }
+
+    public void runKeyToPathStoreCompaction() {
+        final KeyRange leafPathRange = validLeafPathRange;
+        if (keyToPath.isResizeNeeded(leafPathRange.getMinValidKey(), leafPathRange.getMaxValidKey())) {
+            return;
+        }
+        compactionCoordinator.submitScanIfNotRunning(OBJECT_KEY_TO_PATH, objectKeyToPathScanner);
+        compactionCoordinator.submitCompactionTasks(
+                OBJECT_KEY_TO_PATH, this::newKeyToPathCompactor, merkleDbConfig, keyToPath.getFileCollection());
+    }
+
+    public void awaitForCurrentCompactionsToComplete(final long timeoutMillis) {
+        compactionCoordinator.awaitForCurrentCompactionsToComplete(timeoutMillis);
+    }
+
+    public MemoryIndexDiskKeyValueStore getHashChunkStore() {
+        return hashChunkStore;
+    }
+
+    public HalfDiskHashMap getKeyToPath() {
+        return keyToPath;
+    }
+
+    public MemoryIndexDiskKeyValueStore getKeyValueStore() {
+        return keyValueStore;
+    }
+
+    MerkleDbCompactionCoordinator getCompactionCoordinator() {
+        return compactionCoordinator;
+    }
+
+    public LongList getIdToDiskLocationHashChunks() {
+        return idToDiskLocationHashChunks;
+    }
+
+    public LongList getPathToDiskLocationLeafNodes() {
+        return pathToDiskLocationLeafNodes;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int hashCode() {
+        return Objects.hash(dbPaths.storageDir);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (!(o instanceof MerkleDbDataSource other)) {
+            return false;
+        }
+        return Objects.equals(dbPaths.storageDir, other.dbPaths.storageDir);
+    }
+}

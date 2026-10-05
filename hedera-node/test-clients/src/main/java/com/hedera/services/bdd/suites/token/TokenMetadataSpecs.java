@@ -65,7 +65,7 @@ public class TokenMetadataSpecs {
         return defaultHapiSpec("validatesMetadataLength")
                 .given()
                 .when()
-                .then(tokenCreate(PRIMARY).metaData(metadataStringTooLong).hasPrecheck(METADATA_TOO_LONG));
+                .then(tokenCreate(PRIMARY).metaData(metadataStringTooLong).hasKnownStatus(METADATA_TOO_LONG));
     }
 
     @HapiTest

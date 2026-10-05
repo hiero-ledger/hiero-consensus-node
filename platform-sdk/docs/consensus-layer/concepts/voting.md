@@ -42,10 +42,9 @@ and cannot decide.
 
 ## In current code
 
-`ConsensusImpl.voteInAllElections` (line 497) drives one voter's pass
-across all undecided candidates, dispatching to `firstVote` (line
-652), `getCountingVote` (line 578), or `coinVote` (line 621) per
-candidate, in
+`ConsensusImpl.voteInAllElections` drives one voter's pass
+across all undecided candidates, dispatching to `firstVote`,
+`getCountingVote`, or `coinVote` per candidate, in
 [`ConsensusImpl.java`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java).
 Per-round election state lives in
 [`RoundElections`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/RoundElections.java).

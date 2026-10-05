@@ -64,7 +64,7 @@ jobs:
           setup-gradle: "true"
           gradle-cache-read-only: "false"
           setup-node: "true"
-          node-version: "22"
+          node-version: "24"
 
       # Build the local hedera-node artifacts (hedera-node/data) that step 3
       # of the migration script stages onto each consensus node via
@@ -114,6 +114,7 @@ jobs:
       #   4a) Mirror importer log scan for ERROR-level entries
       - name: Run migration test
         id: run-migration-tests
+        timeout-minutes: 25
         env:
           KEEP_NETWORK: "true" # keep kind alive so post-run log collection can reach it
         run: ./hedera-node/test-clients/scripts/solo/migration-testing/solo-migration-test.sh

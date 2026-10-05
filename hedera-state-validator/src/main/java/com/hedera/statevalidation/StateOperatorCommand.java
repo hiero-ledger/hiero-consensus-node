@@ -29,7 +29,10 @@ import picocli.CommandLine.Parameters;
             SortedDiffCommand.class,
             CompactionCommand.class,
             ApplyBlocksCommand.class,
-            ReplayPcesCommand.class
+            BlocksToPcesCommand.class,
+            ReplayPcesCommand.class,
+            OutputRecordCompareCommand.class,
+            TxDumpCommand.class
         },
         description = "CLI tool with validation and introspection modes.")
 public class StateOperatorCommand implements Runnable {
@@ -143,6 +146,10 @@ public class StateOperatorCommand implements Runnable {
     private void initializeTmpDirIfUnset() {
         final String existingTmpDir = System.getProperty(TMP_DIR_PROPERTY, "");
         if (!existingTmpDir.isBlank()) {
+            // paths.tmpDir is resolved relative to savedStateDir, so a relative value gets
+            // nested under it and FileSystemManager can't create it. Pin it to an absolute path.
+            System.setProperty(
+                    TMP_DIR_PROPERTY, Path.of(existingTmpDir).toAbsolutePath().toString());
             return;
         }
         System.setProperty(
@@ -196,8 +203,21 @@ public class StateOperatorCommand implements Runnable {
     @Override
     public void run() {
         // This runs if no subcommand is provided
-        System.out.println(
-                "Specify a subcommand (validate/analyze/introspect/export/sorted-export/compact/apply-blocks).");
+        System.out.println("""
+                        Specify a subcommand:
+                          validate      - Validate the state
+                          analyze       - Analyze the state
+                          introspect    - Introspect the state
+                          export        - Export the state
+                          sorted-export - Export the state sorted by a specific criterion
+                          compact       - Compact the state
+                          apply-blocks  - Apply blocks to the state
+                          diff          - Compare two states and generate a diff
+                          sorted-diff   - Compare two states and generate a diff grouped by state and key
+                          blocks-to-pces - Convert blocks to PCES file s
+                          output-record-compare - Compare two output record streams\s
+                          tx-dump       - Dump transactions from the state
+                        """);
         CommandLine.usage(this, System.out);
     }
 

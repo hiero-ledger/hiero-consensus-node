@@ -7,6 +7,7 @@ import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStaki
 import static com.hedera.node.app.service.token.impl.test.handlers.staking.StakeInfoHelperTest.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.token.impl.test.util.CommonTestUtils.assertUnsupportedConstructor;
 
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils;
 import com.hedera.node.config.data.StakingConfig;
@@ -183,5 +184,43 @@ class EndOfStakingPeriodUtilsTest {
         final var result = computeNewStakes(input, STAKING_CONFIG);
         Assertions.assertThat(result.stake()).isEqualTo(STAKE_TO_REWARD + STAKE_TO_NOT_REWARD);
         Assertions.assertThat(result.stakeRewardStart()).isEqualTo(STAKE_TO_REWARD);
+    }
+
+    @Test
+    void maxTotalRewardSaturatesInsteadOfWrapping() {
+        // The legacy `staking.rewardRate` magnitude (1e17/365, a total-per-period value) mistakenly
+        // supplied for the per-hbar rate - see StartStaking#CANONICAL_REWARD_RATE
+        final var legacyTotalPerPeriodRate = 273_972_602_739_726L;
+        final var totalStakedRewardStart = 650_000_000_000_000_000L;
+
+        final var body = EndOfStakingPeriodUtils.newNodeStakeUpdate(
+                Timestamp.DEFAULT, List.of(), STAKING_CONFIG, totalStakedRewardStart, legacyTotalPerPeriodRate, 0L, 0L);
+
+        Assertions.assertThat(body.maxTotalReward()).isEqualTo(Long.MAX_VALUE);
+        Assertions.assertThat(body.stakingRewardRate()).isEqualTo(Long.MAX_VALUE);
+    }
+
+    @Test
+    void maxTotalRewardSaturatesToMinValueForNegativeRates() {
+        final var body = EndOfStakingPeriodUtils.newNodeStakeUpdate(
+                Timestamp.DEFAULT, List.of(), STAKING_CONFIG, 650_000_000_000_000_000L, -273_972_602_739_726L, 0L, 0L);
+
+        Assertions.assertThat(body.maxTotalReward()).isEqualTo(Long.MIN_VALUE);
+        Assertions.assertThat(body.stakingRewardRate()).isEqualTo(Long.MIN_VALUE);
+    }
+
+    @Test
+    void maxTotalRewardIsExactForInRangeRewardRates() {
+        // Mainnet's default rate against the default `staking.maxStakeRewarded` of 6.5e9 hbar
+        final var perHbarRewardRate = 6849L;
+        final var totalStakedRewardStart = 650_000_000_000_000_000L;
+        final var expected = perHbarRewardRate * (totalStakedRewardStart / 100_000_000L);
+
+        final var body = EndOfStakingPeriodUtils.newNodeStakeUpdate(
+                Timestamp.DEFAULT, List.of(), STAKING_CONFIG, totalStakedRewardStart, perHbarRewardRate, 0L, 0L);
+
+        Assertions.assertThat(body.maxTotalReward()).isEqualTo(expected);
+        Assertions.assertThat(body.stakingRewardRate()).isEqualTo(expected);
+        Assertions.assertThat(body.maxStakingRewardRatePerHbar()).isEqualTo(perHbarRewardRate);
     }
 }

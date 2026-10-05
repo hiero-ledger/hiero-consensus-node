@@ -44,8 +44,8 @@ It prints the output directory (default `<repo>/build/kb-freshness`). Read these
   migrations (a gone key another record now declares) and ready link rewrites for misdirected doc
   links.
 - `coverage.md` — documentation gaps (coverage lane): undocumented code and config keys, config
-  records with no tunables section at all, topics anchoring no source, interface docs not checked at
-  Tier-2, and cited topic slugs with no document — **not** drift.
+  records with no tunables section at all, topics anchoring no source, and cited topic slugs with no
+  document — **not** drift.
 - `worklist.json` — the semantic worklist (below).
 
 Do not re-derive or second-guess the deterministic findings; present them as-is.
@@ -117,9 +117,8 @@ Close with a short, concrete action list derived from this run (skip lines that 
 2. **Hand-fix the GONE findings**: point at `suggestions.md` for did-you-mean hints — including
    config-key migration hints and ready link rewrites; all of them need a human decision and are
    never auto-applied.
-3. **Close coverage gaps**: mention `coverage.md` items worth acting on (unanchored topics, interface
-   docs not opted into Tier-2, undocumented config keys, config records with no tunables section,
-   topic slugs with no document).
+3. **Close coverage gaps**: mention `coverage.md` items worth acting on (unanchored topics,
+   undocumented config keys, config records with no tunables section, topic slugs with no document).
 4. **Close the review loop**: for each worklisted document whose semantic pass found every claim
    `supported` (or whose contradictions have since been fixed), suggest bumping its `last_reviewed`
    via `--mark-reviewed <entry-key>` (repeatable). A bare spec records the document's newest

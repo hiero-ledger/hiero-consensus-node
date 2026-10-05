@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -15,6 +14,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
@@ -37,7 +37,7 @@ public interface EventCreatorModule {
      * @param time                      provides the time source for the event creator
      * @param random                    provides the secure random source for the event creator
      * @param keysAndCerts              provides the keys and certificates for this node
-     * @param roster                    provides the current roster
+     * @param roster                    provides the active roster
      * @param selfId                    the ID of this node
      * @param transactionSupplier       provides transactions to include in events
      * @param signatureTransactionCheck checks for pending signature transactions
@@ -49,7 +49,7 @@ public interface EventCreatorModule {
             @NonNull Time time,
             @NonNull SecureRandom random,
             @NonNull KeysAndCerts keysAndCerts,
-            @NonNull Roster roster,
+            @NonNull RosterWrapper roster,
             @NonNull NodeId selfId,
             @NonNull EventTransactionSupplier transactionSupplier,
             @NonNull SignatureTransactionCheck signatureTransactionCheck);

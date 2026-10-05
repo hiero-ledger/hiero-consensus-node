@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.signing.*;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
-import org.hiero.consensus.roster.test.fixtures.RosterWithKeys;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWithKeys;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 
@@ -24,7 +24,7 @@ public class GeneratorEventGraphSourceBuilder {
     private Time time;
     private Long seed;
     private Integer maxOtherParents;
-    private Roster roster;
+    private RosterWrapper roster;
     private RosterWithKeys rosterWithKeys;
     private Integer numNodes;
     private boolean realSignatures = false;
@@ -89,7 +89,7 @@ public class GeneratorEventGraphSourceBuilder {
      * @param roster the roster
      * @return this builder
      */
-    public GeneratorEventGraphSourceBuilder roster(@Nullable final Roster roster) {
+    public GeneratorEventGraphSourceBuilder roster(@Nullable final RosterWrapper roster) {
         if (numNodes != null) {
             throw new IllegalStateException("Cannot set roster when numNodes is already set");
         }
@@ -169,20 +169,21 @@ public class GeneratorEventGraphSourceBuilder {
      * @return a new instance
      */
     public GeneratorEventGraphSource build() {
-        final Roster actualRoster;
+        final RosterWrapper actualRoster;
         final GeneratorEventSigner signer;
 
         final int nodeCount = numNodes != null ? numNodes : DEFAULT_NUM_NODES;
         if (realSignatures) {
             final RosterWithKeys rosterWithKeys = this.rosterWithKeys != null
                     ? this.rosterWithKeys
-                    : RosterFactory.randomRosterWithKeys(
+                    : RosterWrapperFactory.randomRosterWithKeys(
                             Randotron.create(getSeed()), nodeCount, WeightGenerators.GAUSSIAN);
             signer = new RealEventSigner(rosterWithKeys);
-            actualRoster = rosterWithKeys.getRoster();
+            actualRoster = rosterWithKeys.roster();
         } else {
             signer = new RandomEventSigner(getSeed());
-            actualRoster = roster != null ? roster : RosterFactory.randomRoster(Randotron.create(getSeed()), nodeCount);
+            actualRoster =
+                    roster != null ? roster : RosterWrapperFactory.randomRoster(Randotron.create(getSeed()), nodeCount);
         }
 
         return new GeneratorEventGraphSource(

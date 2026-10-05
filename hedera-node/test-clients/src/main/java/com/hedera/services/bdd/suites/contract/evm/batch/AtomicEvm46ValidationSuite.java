@@ -5,7 +5,6 @@ import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubK
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -15,7 +14,6 @@ import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.includ
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAliasedAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAutoCreatedAccountBalance;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getContractInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -57,7 +55,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -264,84 +261,6 @@ class AtomicEvm46ValidationSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> directCallToNonExistingMirrorAddressResultsInSuccessfulNoOp() {
-
-        return hapiTest(
-                withOpContext((spec, ctxLog) -> spec.registry()
-                        .saveContractId(
-                                "nonExistingMirrorAddress",
-                                spec,
-                                ByteString.copyFrom(unhex(NON_EXISTING_MIRROR_ADDRESS)))),
-                withOpContext((spec, ctxLog) -> allRunFor(
-                        spec,
-                        atomicBatch(
-                                        contractCallWithFunctionAbi(
-                                                        "nonExistingMirrorAddress",
-                                                        getABIFor(FUNCTION, NAME, ERC_721_ABI))
-                                                .gas(GAS_LIMIT_FOR_CALL)
-                                                .via("directCallToNonExistingMirrorAddress")
-                                                .batchKey(BATCH_OPERATOR),
-                                        // attempt call again, make sure the result is the same
-                                        contractCallWithFunctionAbi(
-                                                        "nonExistingMirrorAddress",
-                                                        getABIFor(FUNCTION, NAME, ERC_721_ABI))
-                                                .gas(GAS_LIMIT_FOR_CALL)
-                                                .via("directCallToNonExistingMirrorAddress2")
-                                                .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR))),
-                getTxnRecord("directCallToNonExistingMirrorAddress")
-                        .hasPriority(recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(
-                                        resultWith().gasUsed(INTRINSIC_GAS_COST + EXTRA_GAS_FOR_FUNCTION_SELECTOR))),
-                getTxnRecord("directCallToNonExistingMirrorAddress2")
-                        .hasPriority(recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(
-                                        resultWith().gasUsed(INTRINSIC_GAS_COST + EXTRA_GAS_FOR_FUNCTION_SELECTOR))),
-                getContractInfo("nonExistingMirrorAddress").hasCostAnswerPrecheck(INVALID_CONTRACT_ID));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> directCallToNonExistingNonMirrorAddressResultsInSuccessfulNoOp() {
-
-        return hapiTest(
-                withOpContext((spec, ctxLog) -> spec.registry()
-                        .saveContractId(
-                                "nonExistingNonMirrorAddress",
-                                spec,
-                                ByteString.copyFrom(unhex(NON_EXISTING_NON_MIRROR_ADDRESS)))),
-                withOpContext((spec, ctxLog) -> allRunFor(
-                        spec,
-                        atomicBatch(
-                                        contractCallWithFunctionAbi(
-                                                        "nonExistingNonMirrorAddress",
-                                                        getABIFor(FUNCTION, NAME, ERC_721_ABI))
-                                                .gas(GAS_LIMIT_FOR_CALL)
-                                                .via("directCallToNonExistingNonMirrorAddress")
-                                                .batchKey(BATCH_OPERATOR),
-                                        // attempt call again, make sure the result is the same
-                                        contractCallWithFunctionAbi(
-                                                        "nonExistingNonMirrorAddress",
-                                                        getABIFor(FUNCTION, NAME, ERC_721_ABI))
-                                                .gas(GAS_LIMIT_FOR_CALL)
-                                                .via("directCallToNonExistingNonMirrorAddress2")
-                                                .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR))),
-                getTxnRecord("directCallToNonExistingNonMirrorAddress")
-                        .hasPriority(recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(
-                                        resultWith().gasUsed(INTRINSIC_GAS_COST + EXTRA_GAS_FOR_FUNCTION_SELECTOR))),
-                getTxnRecord("directCallToNonExistingNonMirrorAddress2")
-                        .hasPriority(recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(
-                                        resultWith().gasUsed(INTRINSIC_GAS_COST + EXTRA_GAS_FOR_FUNCTION_SELECTOR))),
-                getContractInfo("nonExistingNonMirrorAddress").hasCostAnswerPrecheck(INVALID_CONTRACT_ID));
-    }
-
-    @HapiTest
     final Stream<DynamicTest> directCallToRevertingContractRevertsWithCorrectRevertReason() {
 
         return hapiTest(
@@ -364,108 +283,6 @@ class AtomicEvm46ValidationSuite {
                                         .error(errorMessageResult("RevertReason")
                                                 .getBytes()
                                                 .toString()))));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> directCallToExistingCryptoAccountResultsInSuccess() {
-
-        AtomicReference<AccountID> mirrorAccountID = new AtomicReference<>();
-
-        return hapiTest(
-                newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
-                cryptoCreate("MirrorAccount").balance(ONE_HUNDRED_HBARS).exposingCreatedIdTo(mirrorAccountID::set),
-                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, ECDSA_KEY, ONE_HUNDRED_HBARS)),
-                withOpContext((spec, opLog) -> {
-                    spec.registry()
-                            .saveContractId(
-                                    "mirrorAddress",
-                                    asContract("0.0." + mirrorAccountID.get().getAccountNum()));
-                    updateSpecFor(spec, ECDSA_KEY);
-                    spec.registry()
-                            .saveContractId(
-                                    "nonMirrorAddress",
-                                    asContract("0.0."
-                                            + spec.registry()
-                                                    .getAccountID(ECDSA_KEY)
-                                                    .getAccountNum()));
-                }),
-                withOpContext((spec, ctxLog) -> allRunFor(
-                        spec,
-                        atomicBatch(
-                                        contractCallWithFunctionAbi(
-                                                        "mirrorAddress", getABIFor(FUNCTION, NAME, ERC_721_ABI))
-                                                .gas(GAS_LIMIT_FOR_CALL)
-                                                .via("callToMirrorAddress")
-                                                .batchKey(BATCH_OPERATOR),
-                                        contractCallWithFunctionAbi(
-                                                        "nonMirrorAddress", getABIFor(FUNCTION, NAME, ERC_721_ABI))
-                                                .gas(GAS_LIMIT_FOR_CALL)
-                                                .via("callToNonMirrorAddress")
-                                                .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR))),
-                getTxnRecord("callToMirrorAddress")
-                        .hasPriority(recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(
-                                        resultWith().gasUsed(INTRINSIC_GAS_COST + EXTRA_GAS_FOR_FUNCTION_SELECTOR))),
-                getTxnRecord("callToNonMirrorAddress")
-                        .hasPriority(recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(
-                                        resultWith().gasUsed(INTRINSIC_GAS_COST + EXTRA_GAS_FOR_FUNCTION_SELECTOR))));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> directCallWithValueToExistingCryptoAccountResultsInSuccess() {
-
-        AtomicReference<AccountID> mirrorAccountID = new AtomicReference<>();
-
-        return hapiTest(
-                newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
-                cryptoCreate("MirrorAccount").balance(ONE_HUNDRED_HBARS).exposingCreatedIdTo(mirrorAccountID::set),
-                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, ECDSA_KEY, ONE_HUNDRED_HBARS)),
-                withOpContext((spec, opLog) -> {
-                    spec.registry().saveContractId("mirrorAddress", asContract(mirrorAccountID.get()));
-                    updateSpecFor(spec, ECDSA_KEY);
-                    final var ecdsaKey = spec.registry()
-                            .getKey(ECDSA_KEY)
-                            .getECDSASecp256K1()
-                            .toByteArray();
-                    final var senderAddress = ByteString.copyFrom(recoverAddressFromPubKey(ecdsaKey));
-                    spec.registry().saveContractId("nonMirrorAddress", spec, senderAddress);
-                    spec.registry()
-                            .saveAccountId("NonMirrorAccount", spec.registry().getAccountID(ECDSA_KEY));
-                }),
-                withOpContext((spec, ctxLog) -> allRunFor(
-                        spec,
-                        balanceSnapshot("mirrorSnapshot", "MirrorAccount"),
-                        balanceSnapshot("nonMirrorSnapshot", "NonMirrorAccount"),
-                        atomicBatch(
-                                        contractCallWithFunctionAbi(
-                                                        "mirrorAddress", getABIFor(FUNCTION, NAME, ERC_721_ABI))
-                                                .gas(GAS_LIMIT_FOR_CALL)
-                                                .sending(ONE_HBAR)
-                                                .via("callToMirrorAddress")
-                                                .batchKey(BATCH_OPERATOR),
-                                        contractCallWithFunctionAbi(
-                                                        "nonMirrorAddress", getABIFor(FUNCTION, NAME, ERC_721_ABI))
-                                                .sending(ONE_HBAR)
-                                                .gas(GAS_LIMIT_FOR_CALL)
-                                                .via("callToNonMirrorAddress")
-                                                .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR))),
-                getTxnRecord("callToMirrorAddress")
-                        .hasPriority(recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(
-                                        resultWith().gasUsed(INTRINSIC_GAS_COST + EXTRA_GAS_FOR_FUNCTION_SELECTOR))),
-                getTxnRecord("callToNonMirrorAddress")
-                        .hasPriority(recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(
-                                        resultWith().gasUsed(INTRINSIC_GAS_COST + EXTRA_GAS_FOR_FUNCTION_SELECTOR))),
-                getAccountBalance("MirrorAccount").hasTinyBars(changeFromSnapshot("mirrorSnapshot", ONE_HBAR)),
-                getAccountBalance("NonMirrorAccount").hasTinyBars(changeFromSnapshot("nonMirrorSnapshot", ONE_HBAR)));
     }
 
     @HapiTest

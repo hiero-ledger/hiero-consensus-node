@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.throttle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL_LOCAL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
@@ -63,6 +64,7 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
@@ -351,12 +353,15 @@ public class ThrottleAccumulator {
      *
      * @param n the number of transactions to consider
      * @param function the functionality type of the transactions
+     * @param useHighVolumeBucket whether the capacity was claimed against the high-volume bucket, so it is
+     * leaked back into the same bucket it was charged to
      */
-    public void leakCapacityForNOfUnscaled(final int n, @NonNull final HederaFunctionality function) {
+    public void leakCapacityForNOfUnscaled(
+            final int n, @NonNull final HederaFunctionality function, final boolean useHighVolumeBucket) {
         if (throttleType == NOOP_THROTTLE) {
             return;
         }
-        final var manager = Objects.requireNonNull(functionReqs.get(function));
+        final var manager = Objects.requireNonNull(getReqsManager(function, useHighVolumeBucket));
         manager.undoClaimedReqsFor(n);
     }
 
@@ -578,7 +583,12 @@ public class ThrottleAccumulator {
         // exemption
         // but this is only possible for the case of triggered transactions which is not yet implemented (see
         // MonoMultiplierSources.java)
-        final boolean isPayerThrottleExempt = throttleExempt(txnInfo.payerID(), configuration);
+        // While CLPR is enabled, node-generated bundles must consume the dedicated CLPR capacity
+        // even though their node-account payers are otherwise exempt from throttling.
+        final boolean consumesClprBundleCapacity = function == CLPR_SUBMIT_BUNDLE
+                && configuration.getConfigData(ClprConfig.class).enabled();
+        final boolean isPayerThrottleExempt =
+                !consumesClprBundleCapacity && throttleExempt(txnInfo.payerID(), configuration);
         if (isPayerThrottleExempt) {
             return false;
         }
@@ -1131,6 +1141,28 @@ public class ThrottleAccumulator {
         return useHighVolumeBucket
                 ? hasHighVolumeThrottleFor(function) ? highVolumeFunctionReqs.get(function) : functionReqs.get(function)
                 : functionReqs.get(function);
+    }
+
+    /**
+     * Returns whether an implicit-creation claim ({@link HederaFunctionality#CRYPTO_CREATE}) carried by a
+     * transaction of the given functionality would have been routed to the high-volume bucket at claim time,
+     * mirroring {@link #shouldUseHighVolumeBucket}. Used by the reclaim path so that capacity is leaked back
+     * into the same bucket it was charged to.
+     *
+     * @param function the functionality of the transaction carrying the implicit creations
+     * @param highVolume whether the transaction was submitted as high-volume
+     * @param implicitCreationsCount the number of implicit creations
+     * @return whether the claim used the high-volume bucket
+     */
+    public boolean usesHighVolumeBucketForImplicitCreations(
+            @NonNull final HederaFunctionality function, final boolean highVolume, final int implicitCreationsCount) {
+        final boolean highVolumeEnabled =
+                configSupplier.get().getConfigData(NetworkAdminConfig.class).highVolumeThrottlesEnabled();
+        return shouldUseHighVolumeBucket(
+                highVolume && highVolumeEnabled,
+                HIGH_VOLUME_THROTTLE_FUNCTIONS.contains(function),
+                function,
+                implicitCreationsCount);
     }
 
     /**

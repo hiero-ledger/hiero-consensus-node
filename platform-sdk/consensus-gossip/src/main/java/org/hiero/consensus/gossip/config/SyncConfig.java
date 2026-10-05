@@ -33,8 +33,6 @@ import java.time.Duration;
  *                                           a self event, we must know about the event for at least this amount of time
  *                                           before the event is eligible to be sent. This is to help to reduce
  *                                           duplicate rate in when broadcast is enabled
- * @param syncKeepalivePeriod                send a keepalive message every this many milliseconds when reading events
- *                                           during a sync
  * @param maxSyncTime                        the maximum amount of time to spend syncing with a peer, syncs that take
  *                                           longer than this will be aborted
  * @param maxSyncEventCount                  the maximum number of events to send in a sync, or 0 for no limit
@@ -74,6 +72,9 @@ import java.time.Duration;
  * @param keepSendingEventsWhenUnhealthy     when enabled, instead of completely reducing number of syncs when system is
  *                                           unhealthy, we will just stop receiving and processing remote events, while
  *                                           we still continue sending our own events
+ * @param rpcInputQueueCapacity              maximum number of parsed messages which can be waiting for the rpc
+ *                                           dispatch thread; when full, the read thread stops reading from the
+ *                                           socket, which applies TCP backpressure to the peer
  * @param pingPeriod                         period at which ping messages are sent to peers during syncs
  */
 @ConfigData("sync")
@@ -87,7 +88,6 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "3s") Duration nonAncestorFilterThreshold,
         @ConfigProperty(defaultValue = "250ms") Duration ancestorFilterThreshold,
         @ConfigProperty(defaultValue = "1s") Duration selfFilterThreshold,
-        @ConfigProperty(defaultValue = "500ms") Duration syncKeepalivePeriod,
         @ConfigProperty(defaultValue = "1m") Duration maxSyncTime,
         @ConfigProperty(defaultValue = "5000") int maxSyncEventCount,
         @ConfigProperty(defaultValue = "1s") Duration unhealthyGracePeriod,
@@ -100,4 +100,5 @@ public record SyncConfig(
         @ConfigProperty(defaultValue = "-1") double fairMaxConcurrentSyncs,
         @ConfigProperty(defaultValue = "0.3") double fairMinimalRoundRobinSize,
         @ConfigProperty(defaultValue = "true") boolean keepSendingEventsWhenUnhealthy,
+        @ConfigProperty(defaultValue = "10000") int rpcInputQueueCapacity,
         @ConfigProperty(defaultValue = "1s") Duration pingPeriod) {}
