@@ -3,10 +3,10 @@ package com.swirlds.platform.builder;
 
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.builder.EventCutoverCalculator.calculateEventCutoverRound;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
-import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -35,8 +35,6 @@ import org.hiero.consensus.ConsensusLayerWiring;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.io.RecycleBin;
-import org.hiero.consensus.model.event.EventHashFactory;
-import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
@@ -206,11 +204,13 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
                                 PlatformStateUtils.creationSemanticVersionOf(initialSignedState.getState()),
                                 softwareVersion)
                         != 0;
+        final boolean eventCutoverActive =
+                configuration.getConfigData(EventConfig.class).enableEventCutover();
 
         // The event hash factory must be initialized before the consensus layer is created, because creating the
         // consensus layer reads events from the PCES files.
         final OptionalLong eventCutoverUpdate =
-                initializeEventHashFactory(initialSignedState.getState(), startedFromGenesis, isUpgrade);
+                calculateEventCutoverRound(initialSignedState.getState(), isUpgrade, eventCutoverActive);
 
         final ConsensusLayerInputs inputs = createConsensusLayerInputs();
         final ConsensusLayerFactory factory = new ConsensusLayerFactory(inputs);
@@ -245,61 +245,6 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         initialState.close();
 
         return platform;
-    }
-
-    /**
-     * Initializes the {@link EventHashFactory} from the initial state and the configuration, and determines whether
-     * the event cutover value in state must change. The value in state only changes when starting from genesis or
-     * after an upgrade.
-     *
-     * @param initialState the state the node is starting from
-     * @param isGenesis    true if the node is starting from genesis
-     * @param isUpgrade    true if the node is starting after an upgrade
-     * @return the event cutover value to record in state, or empty if the value in state must not change here
-     */
-    @NonNull
-    private OptionalLong initializeEventHashFactory(
-            @NonNull final VirtualMapState initialState, final boolean isGenesis, final boolean isUpgrade) {
-        final boolean eventCutoverActive =
-                configuration.getConfigData(EventConfig.class).enableEventCutover();
-        final long eventCutoverMinBirthRound = PlatformStateUtils.eventCutoverMinBirthRoundOf(initialState);
-
-        if (!isGenesis && !isUpgrade) {
-            // Restarting the same version. Use the value in state, which can only change at genesis or an upgrade.
-            EventHashFactory.initialize(eventCutoverMinBirthRound > 0 ? eventCutoverMinBirthRound : Long.MAX_VALUE);
-            return OptionalLong.empty();
-        }
-
-        if (eventCutoverActive) {
-            if (isGenesis) {
-                // Every event is post cutover. The genesis state must stay empty until changes can be externalized,
-                // so DefaultTransactionHandler records this value in state when it handles the first round.
-                EventHashFactory.initialize(ConsensusConstants.ROUND_FIRST);
-                return OptionalLong.empty();
-            }
-            if (eventCutoverMinBirthRound <= 0) {
-                // It's time to do the cutover now. Update the value in state to the first birth round post cutover.
-                // The initial state is a freeze state.
-                final long cutoverBirthRound = roundOf(initialState) + 1;
-                EventHashFactory.initialize(cutoverBirthRound);
-                return OptionalLong.of(cutoverBirthRound);
-            }
-            // The cutover has already happened and the flag has not been reset. Initialize the
-            // EventHashFactory with the value in state so that it uses the correct hash type for events.
-            EventHashFactory.initialize(eventCutoverMinBirthRound);
-            return OptionalLong.empty();
-        }
-
-        if (eventCutoverMinBirthRound > 0) {
-            // The cutover has already happened, but the config says it is not active. Time to reset the value in state
-            // to 0. By now every non-ancient event is SHA-256.
-            EventHashFactory.initialize(0);
-            return OptionalLong.of(0);
-        }
-
-        // The cutover is not active and has not happened.
-        EventHashFactory.initialize(Long.MAX_VALUE);
-        return OptionalLong.empty();
     }
 
     /**

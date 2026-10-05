@@ -235,7 +235,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         log.info("Starting node {}...", selfId);
 
-        if (savedStateDirectory != null) {
+        if (lifeCycle == INIT && savedStateDirectory != null) {
             final PathsConfig pathsConfig = configuration().current().getConfigData(PathsConfig.class);
             ContainerUtils.copySavedStateToContainer(container, selfId, pathsConfig, savedStateDirectory);
         }
@@ -488,7 +488,10 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     @Override
     @NonNull
     public SingleNodePcesResult newPcesResult() {
-        throwIsNotInLifecycle(SHUTDOWN, "Node must be in the shutdown state to retrieve PCES results.");
+        throwIsNotInLifecycle(
+                SHUTDOWN,
+                "Node must be in the shutdown state to retrieve PCES results. "
+                        + "Ensure network.shutdown() or node.shutdown() is called before accessing PCES results.");
 
         final Configuration configuration = nodeConfiguration.current();
         final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
