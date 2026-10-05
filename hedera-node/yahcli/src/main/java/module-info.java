@@ -21,8 +21,6 @@ module com.hedera.node.yahcli {
             info.picocli;
     opens com.hedera.services.yahcli.commands.ivy.scenarios to
             org.yaml.snakeyaml;
-    opens com.hedera.services.yahcli.config.domain to
-            org.yaml.snakeyaml;
     opens com.hedera.services.yahcli.commands.keys to
             info.picocli;
     opens com.hedera.services.yahcli.commands.nodes to
@@ -33,6 +31,8 @@ module com.hedera.node.yahcli {
             info.picocli;
     opens com.hedera.services.yahcli.commands.system to
             info.picocli;
+    opens com.hedera.services.yahcli.config.domain to
+            org.yaml.snakeyaml;
 
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.addressbook;
