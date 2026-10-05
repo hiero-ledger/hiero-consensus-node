@@ -96,6 +96,11 @@ public class MerkleDbSnapshotBenchmark extends VirtualMapBaseBench {
 
         try {
             preparedFixtureDirectory = fixtureDirectory(merkleDbConfig);
+            // Protect benchmark campaigns from accidentally regenerating a missing or incompatible saved fixture.
+            if (Boolean.getBoolean("benchmark.requireExistingFixture")
+                    && !Files.isDirectory(preparedFixtureDirectory)) {
+                throw new IOException("Missing or incompatible saved fixture: " + preparedFixtureDirectory);
+            }
             createFixtureIfNeeded(preparedFixtureDirectory);
             if (prepareFixtureOnly) {
                 logger.info("Fixture preparation complete: {} (no measured snapshot)", preparedFixtureDirectory);

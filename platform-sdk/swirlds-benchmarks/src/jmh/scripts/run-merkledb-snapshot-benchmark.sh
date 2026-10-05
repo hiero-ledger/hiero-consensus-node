@@ -3,15 +3,17 @@
 # Complete 1B-leaf MerkleDB snapshot campaign: force off, hash-cache overlap always on.
 # Run explicitly on the Linux benchmark machine. --dry-run only prints the plan.
 # --retry RUN_ID restarts with that run's frozen JAR and settings, without rebuilding.
+# --reuse-fixture uses the validated fixture saved by a previous run, with a fresh JAR by default.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 MODULE_DIR="$(cd -- "${SCRIPT_DIR}/../../.." && pwd)"
 REPO_ROOT="$(git -C "${MODULE_DIR}" rev-parse --show-toplevel)"
+SOURCE_REVISION="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
 RUNNER_SOURCE="${SCRIPT_DIR}/$(basename -- "${BASH_SOURCE[0]}")"
 PREFLIGHT_SOURCE="${SCRIPT_DIR}/check-merkledb-snapshot-benchmark-system.sh"
-CAMPAIGN_LABEL="${CAMPAIGN_LABEL:-baseline}"
+CAMPAIGN_LABEL="${CAMPAIGN_LABEL:-tasks}"
 PREBUILT_JMH_JAR="${PREBUILT_JMH_JAR:-}"
 if [[ ! "${CAMPAIGN_LABEL}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$ ]]; then
     echo "CAMPAIGN_LABEL must contain 1-64 letters, digits, dots, underscores, or hyphens, starting with a letter/digit." >&2
@@ -20,9 +22,11 @@ fi
 
 DRY_RUN=false
 RETRY_RUN=""
+REUSE_FIXTURE=false
 while (( $# > 0 )); do
     case "$1" in
         --dry-run) DRY_RUN=true; shift ;;
+        --reuse-fixture) REUSE_FIXTURE=true; shift ;;
         --retry)
             if (( $# < 2 )) || [[ ! "$2" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ || -n "${RETRY_RUN}" ]]; then
                 echo "--retry requires one run ID from the campaign results directory." >&2
@@ -32,7 +36,7 @@ while (( $# > 0 )); do
             shift 2
             ;;
         *)
-            echo "Usage: $0 [--dry-run] [--retry RUN_ID] (optional environment: CAMPAIGN_LABEL, JAVA_HOME, PREBUILT_JMH_JAR)" >&2
+            echo "Usage: $0 [--dry-run] [--reuse-fixture] [--retry RUN_ID] (optional environment: CAMPAIGN_LABEL, JAVA_HOME, PREBUILT_JMH_JAR)" >&2
             exit 2
             ;;
     esac
@@ -47,6 +51,9 @@ BENCHMARK='com.swirlds.benchmark.MerkleDbSnapshotBenchmark.snapshot$'
 RUN_ID="${CAMPAIGN_LABEL}-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 SCRATCH_PARENT="${MODULE_DIR}/build/tmp/merkledb-snapshot-1b-campaign"
 JMH_TMP_DIR="${SCRATCH_PARENT}/jmh-tmp"
+SAVED_FIXTURE_DIR="${SCRATCH_PARENT}/saved-fixture"
+FIXTURE_MODE=fresh
+[[ "${REUSE_FIXTURE}" == false ]] || FIXTURE_MODE=reuse
 RESULTS_PARENT="${MODULE_DIR}/build/results/jmh/merkledb-snapshot-1b-campaign"
 RESULTS_DIR="${RESULTS_PARENT}/${RUN_ID}"
 ARCHIVE="${RESULTS_PARENT}/${RUN_ID}.tar.gz"
@@ -79,6 +86,9 @@ write_manifest() {
         echo "campaign_label=${CAMPAIGN_LABEL}"
         echo "run_id=${RUN_ID}"
         echo "retry_of=${RETRY_RUN}"
+        echo "fixture_mode=${FIXTURE_MODE}"
+        echo "parallelism_parameter=snapshotThreads"
+        echo "parallelism_values=3,6,24,48,96"
         echo "phase=${PHASE}"
         echo "started_at=${STARTED_AT}"
         echo "updated_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -90,6 +100,61 @@ write_manifest() {
         echo "snapshot_force=false"
         echo "hash_cache_overlap=true"
     } >"${RESULTS_DIR}/manifest.txt"
+}
+
+# Record file names, sizes and modification times without rereading a 262-GiB fixture.
+fixture_inventory() {
+    (cd -- "$1" && LC_ALL=C find . -type f -printf '%P\t%s\t%T@\n' | LC_ALL=C sort)
+}
+
+restore_saved_fixture() {
+    [[ -d "${SAVED_FIXTURE_DIR}" && ! -L "${SAVED_FIXTURE_DIR}" ]] \
+        || { echo "No saved fixture to reuse: ${SAVED_FIXTURE_DIR}" >&2; return 1; }
+    [[ -z "$(find "${SAVED_FIXTURE_DIR}" -type l -print -quit)" ]] \
+        || { echo "Saved fixture must not contain symbolic links." >&2; return 1; }
+    local input
+    for input in settings.txt fixture-key.txt inventory.txt origin.txt; do
+        [[ -f "${SAVED_FIXTURE_DIR}/${input}" ]] \
+            || { echo "Saved fixture is incomplete: missing ${input}" >&2; return 1; }
+    done
+    cmp -s "${SAVED_FIXTURE_DIR}/settings.txt" "${RESULTS_DIR}/settings.txt" \
+        && cmp -s "${SAVED_FIXTURE_DIR}/fixture-key.txt" "${RESULTS_DIR}/fixture-key.txt" \
+        || { echo "Saved fixture settings or workload differ; refusing reuse." >&2; return 1; }
+    local -a fixtures=()
+    local fixture
+    for fixture in "${SAVED_FIXTURE_DIR}"/fixture-*; do
+        [[ ! -d "${fixture}" ]] || fixtures+=("${fixture}")
+    done
+    (( ${#fixtures[@]} == 1 )) \
+        || { echo "Saved fixture must contain exactly one fixture directory." >&2; return 1; }
+    fixture_inventory "${fixtures[0]}" >"${RESULTS_DIR}/fixture-inventory.txt"
+    cmp -s "${SAVED_FIXTURE_DIR}/inventory.txt" "${RESULTS_DIR}/fixture-inventory.txt" \
+        || { echo "Saved fixture files changed or are missing; refusing reuse." >&2; return 1; }
+    mkdir -p -- "${SCRATCH_DIR}/data/MerkleDbSnapshotBenchmark"
+    # The builder restores into its own working directory; the fixture is never modified.
+    cp -al -- "${fixtures[0]}" "${SCRATCH_DIR}/data/MerkleDbSnapshotBenchmark/"
+    cp -- "${SAVED_FIXTURE_DIR}/origin.txt" "${RESULTS_DIR}/fixture-origin.txt"
+    echo "Reusing saved fixture: ${fixtures[0]} (hard links, no data copy)"
+}
+
+save_fixture() {
+    local fixture="$1" pending="${SCRATCH_DIR}/fixture-cache"
+    [[ ! -e "${SAVED_FIXTURE_DIR}" && ! -L "${SAVED_FIXTURE_DIR}" ]] \
+        || { echo "Refusing to overwrite saved fixture: ${SAVED_FIXTURE_DIR}" >&2; return 1; }
+    mkdir -- "${pending}"
+    cp -al -- "${fixture}" "${pending}/"
+    cp -- "${RESULTS_DIR}/settings.txt" "${RESULTS_DIR}/fixture-key.txt" "${pending}/"
+    fixture_inventory "${fixture}" >"${pending}/inventory.txt"
+    {
+        echo "run_id=${RUN_ID}"
+        echo "recorded_checkout=${SOURCE_REVISION}"
+        echo "jar_sha256=$(sha256sum "${JMH_JAR}" | awk '{ print $1 }')"
+    } >"${pending}/origin.txt"
+    cp -- "${pending}/origin.txt" "${RESULTS_DIR}/fixture-origin.txt"
+    cp -- "${pending}/inventory.txt" "${RESULTS_DIR}/fixture-inventory.txt"
+    # Publish only after fixture preparation and validation have completed successfully.
+    mv -T -- "${pending}" "${SAVED_FIXTURE_DIR}"
+    echo "Saved fixture for the next implementation: ${SAVED_FIXTURE_DIR}"
 }
 
 remove_owned_scratch() {
@@ -160,16 +225,20 @@ finish_run() {
 }
 
 run_jmh() {
-    local result_name="$1" implementations="$2" writer_counts="$3" prepare="$4" warmups="$5" iterations="$6" timeout="$7"
+    local result_name="$1" implementations="$2" pool_sizes="$3" prepare="$4" warmups="$5" iterations="$6" timeout="$7"
+    local fork_args="${JVM_ARGS}"
+    if [[ "${prepare}" == false ]]; then
+        fork_args+=" -Dbenchmark.requireExistingFixture=true"
+    fi
     local -a command=("${JAVA}" "-Djava.io.tmpdir=${JMH_TMP_DIR}" -jar "${JMH_JAR}" "${BENCHMARK}"
         -p "longListImplementation=${implementations}"
-        -p "threadsPerLongList=${writer_counts}"
+        -p "snapshotThreads=${pool_sizes}"
         -p "prepareFixtureOnly=${prepare}"
         -p "numFiles=${NUM_FILES}" -p "numRecords=${NUM_RECORDS}"
         -p "maxKey=${LEAF_COUNT}" -p keySize=32 -p recordSize=128 -p numThreads=32
         -t 1 -bm ss -tu ms -wi "${warmups}" -i "${iterations}" -f 1
         -to "${timeout}" -foe true -rf json -rff "${RESULTS_DIR}/${result_name}.json"
-        -jvmArgs "${JVM_ARGS}")
+        -jvmArgs "${fork_args}")
     if [[ "${DRY_RUN}" == true ]]; then
         printf '%q ' "${command[@]}"
         printf '\n'
@@ -185,11 +254,11 @@ run_jmh() {
 run_blocks() {
     # Rotate both axes across blocks to distribute ordering and machine drift.
     # Every cell receives one unmeasured warmup and three measured snapshots per block.
-    run_jmh merkledb-snapshot-block-A "SEGMENT,DISK,HEAP,OFF_HEAP,DISK_SEGMENT" "1,2,8,16,32" false 1 3 60m
+    run_jmh merkledb-snapshot-block-A "SEGMENT,DISK,HEAP,OFF_HEAP,DISK_SEGMENT" "3,6,24,48,96" false 1 3 60m
     COMPLETED_BLOCKS=1
-    run_jmh merkledb-snapshot-block-B "DISK_SEGMENT,OFF_HEAP,HEAP,DISK,SEGMENT" "32,16,8,2,1" false 1 3 60m
+    run_jmh merkledb-snapshot-block-B "DISK_SEGMENT,OFF_HEAP,HEAP,DISK,SEGMENT" "96,48,24,6,3" false 1 3 60m
     COMPLETED_BLOCKS=2
-    run_jmh merkledb-snapshot-block-C "HEAP,DISK_SEGMENT,SEGMENT,OFF_HEAP,DISK" "8,16,32,1,2" false 1 3 60m
+    run_jmh merkledb-snapshot-block-C "HEAP,DISK_SEGMENT,SEGMENT,OFF_HEAP,DISK" "24,48,96,3,6" false 1 3 60m
     COMPLETED_BLOCKS=3
 }
 
@@ -197,7 +266,7 @@ main() {
     if [[ "${DRY_RUN}" == true ]]; then
         echo "Plan only: no build, fixture, benchmark, or filesystem writes."
         echo "Campaign ${CAMPAIGN_LABEL}: 1B leaves, key=32 B, record=128 B, force off, overlap always on."
-        echo "5 implementations x 5 writer counts = 25 configurations; 3 blocks = 75 rows / 225 measured samples."
+        echo "5 implementations x 5 pool sizes (3,6,24,48,96) = 25 configurations; 3 blocks = 75 rows / 225 measured samples."
         echo "Each configuration has 1 warmup + 3 measurements per block (9 measured snapshots total)."
         echo "Check host activity and leftover fixtures before building and again before JMH; stop if not ready."
         if [[ -n "${PREBUILT_JMH_JAR}" ]]; then
@@ -207,7 +276,12 @@ main() {
         fi
         echo "Freeze JAR, runner, preflight, settings, and software metadata in ${RESULTS_DIR} before JMH."
         echo "Working directory: a unique mktemp run.* under ${SCRATCH_PARENT}"
-        run_jmh fixture-preparation SEGMENT 1 true 0 1 720m
+        if [[ "${REUSE_FIXTURE}" == true ]]; then
+            echo "Validate and hardlink ${SAVED_FIXTURE_DIR}; skip fixture generation."
+        else
+            run_jmh fixture-preparation SEGMENT 3 true 0 1 720m
+            echo "Save the validated fixture at ${SAVED_FIXTURE_DIR} for --reuse-fixture."
+        fi
         run_blocks
         echo "Archive after success/failure: ${ARCHIVE} (check manifest.txt status)."
         return 0
@@ -226,7 +300,11 @@ main() {
     fi
 
     # Do not build or create another fixture while the host is busy or prior scratch remains.
-    bash "${PREFLIGHT_SOURCE}" "${MODULE_DIR}"
+    if [[ "${REUSE_FIXTURE}" == true && ! -d "${SAVED_FIXTURE_DIR}" ]]; then
+        echo "No saved fixture to reuse: ${SAVED_FIXTURE_DIR}" >&2
+        return 1
+    fi
+    bash "${PREFLIGHT_SOURCE}" "${MODULE_DIR}" "" "${FIXTURE_MODE}"
 
     mkdir -p -- "${SCRATCH_PARENT}" "${RESULTS_PARENT}" "${JMH_TMP_DIR}"
     # Fail before building if this checkout's JMH lock is not writable.
@@ -262,9 +340,18 @@ main() {
     ' "${RESULTS_DIR}/settings-source.txt" >"${RESULTS_DIR}/settings.txt"
     cp -- "${RESULTS_DIR}/settings.txt" "${SCRATCH_DIR}/settings.txt"
     {
+        echo "layout_version=1"
+        echo "leaf_count=${LEAF_COUNT}"
+        echo "num_files=${NUM_FILES}"
+        echo "num_records=${NUM_RECORDS}"
+        echo "key_size=32"
+        echo "record_size=128"
+        echo "num_threads=32"
+    } >"${RESULTS_DIR}/fixture-key.txt"
+    {
         echo "Started: ${STARTED_AT}"
         echo "Campaign label: ${CAMPAIGN_LABEL}"
-        echo "Git revision: $(git -C "${REPO_ROOT}" rev-parse HEAD)"
+        echo "Git revision: ${SOURCE_REVISION}"
         echo "JAVA_HOME: ${JAVA_HOME:-unset}"
         echo "Java command: ${JAVA}"
         echo "Scratch: ${SCRATCH_DIR}"
@@ -298,17 +385,29 @@ main() {
     # A build may take a while; check again just before preparing the fixture.
     PHASE=system-check
     write_manifest running 0
-    bash "${RESULTS_DIR}/preflight.sh" "${MODULE_DIR}" "${SCRATCH_DIR}" \
+    bash "${RESULTS_DIR}/preflight.sh" "${MODULE_DIR}" "${SCRATCH_DIR}" "${FIXTURE_MODE}" \
         | tee "${RESULTS_DIR}/system-check.txt"
     cp -- "${artifact}" "${JMH_JAR}"
     printf 'Benchmark artifact source: %s\n' "${artifact}" >>"${RESULTS_DIR}/environment.txt"
     (cd -- "${RESULTS_DIR}" && sha256sum jmh.jar runner.sh preflight.sh settings.txt) \
         >"${RESULTS_DIR}/frozen-inputs.sha256"
     chmod a-w -- "${JMH_JAR}" "${RESULTS_DIR}/runner.sh" "${RESULTS_DIR}/preflight.sh" "${RESULTS_DIR}/settings.txt"
+    # Reject an old baseline JAR before spending hours on fixture generation.
+    "${JAVA}" "-Djava.io.tmpdir=${JMH_TMP_DIR}" -jar "${JMH_JAR}" "${BENCHMARK}" -lp \
+        | tee "${RESULTS_DIR}/benchmark-parameters.txt"
+    if ! awk '$1 == "param" && $2 == "\"snapshotThreads\"" { found=1 } END { exit !found }' \
+        "${RESULTS_DIR}/benchmark-parameters.txt"; then
+        echo "This runner requires a shared-pool benchmark JAR with snapshotThreads; rebuild from this branch." >&2
+        return 1
+    fi
 
     # All forks use the frozen artifact, not build/libs, while development can continue.
     cd -- "${SCRATCH_DIR}"
-    run_jmh fixture-preparation SEGMENT 1 true 0 1 720m
+    if [[ "${REUSE_FIXTURE}" == true ]]; then
+        restore_saved_fixture
+    else
+        run_jmh fixture-preparation SEGMENT 3 true 0 1 720m
+    fi
     local -a fixture_dirs
     shopt -s nullglob
     fixture_dirs=("${SCRATCH_DIR}"/data/MerkleDbSnapshotBenchmark/fixture-*)
@@ -331,7 +430,18 @@ main() {
         echo "At least 32 GiB must remain after fixture preparation; available KiB=${available_kib}" >&2
         return 1
     fi
+    if [[ "${REUSE_FIXTURE}" == false ]]; then
+        save_fixture "${fixture_dir}"
+    fi
+    # Preparation can take hours. Check again immediately before the measured blocks.
+    PHASE=measurement-system-check
+    write_manifest running 0
+    bash "${RESULTS_DIR}/preflight.sh" "${MODULE_DIR}" "${SCRATCH_DIR}" reuse \
+        | tee "${RESULTS_DIR}/measurement-system-check.txt"
     run_blocks
+    fixture_inventory "${fixture_dir}" >"${RESULTS_DIR}/fixture-inventory-after.txt"
+    cmp -s "${RESULTS_DIR}/fixture-inventory.txt" "${RESULTS_DIR}/fixture-inventory-after.txt" \
+        || { echo "Fixture files changed during measurement; inspect this run before reusing the fixture." >&2; return 1; }
     CAMPAIGN_FINISHED=true
 }
 

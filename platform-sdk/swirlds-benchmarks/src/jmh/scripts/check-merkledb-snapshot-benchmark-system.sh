@@ -6,10 +6,15 @@
 set -euo pipefail
 export LC_ALL=C
 
-if (( $# > 2 )); then
-    echo "Usage: $0 [benchmark-module-directory [current-run-directory]]" >&2
+if (( $# > 3 )); then
+    echo "Usage: $0 [benchmark-module-directory [current-run-directory [fresh|reuse]]]" >&2
     exit 2
 fi
+FIXTURE_MODE="${3:-fresh}"
+case "${FIXTURE_MODE}" in
+    fresh|reuse) ;;
+    *) echo "Invalid fixture mode: ${FIXTURE_MODE}; expected fresh or reuse." >&2; exit 2 ;;
+esac
 [[ "$(uname -s)" == Linux ]] || { echo "This check must run on the Linux benchmark machine." >&2; exit 2; }
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,6 +23,7 @@ SCRATCH_PARENT="${MODULE_DIR}/build/tmp/merkledb-snapshot-1b-campaign"
 if [[ -d "${SCRATCH_PARENT}" ]]; then
     SCRATCH_PARENT="$(cd -- "${SCRATCH_PARENT}" && pwd -P)"
 fi
+SAVED_FIXTURE="${SCRATCH_PARENT}/saved-fixture"
 CURRENT_RUN="${2:-}"
 CHECK_PATH="${SCRATCH_PARENT}"
 [[ -d "${CHECK_PATH}" ]] || CHECK_PATH="${MODULE_DIR}"
@@ -34,6 +40,15 @@ fi
 
 echo "MerkleDB snapshot readiness check — $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "Host: $(hostname); $(uname -sr); $(getconf _NPROCESSORS_ONLN) logical CPUs"
+echo "Fixture mode: ${FIXTURE_MODE}"
+if [[ -e "${SAVED_FIXTURE}" || -L "${SAVED_FIXTURE}" ]]; then
+    echo "Saved fixture: ${SAVED_FIXTURE}"
+    if [[ "${FIXTURE_MODE}" == fresh ]]; then
+        fail "Saved fixture already exists; use the runner's --reuse-fixture flag. Nothing was deleted."
+    fi
+else
+    echo "Saved fixture: none."
+fi
 JAVA="${JAVA_HOME:+${JAVA_HOME}/bin/}java"
 if command -v "${JAVA}" >/dev/null; then
     java_version="$("${JAVA}" -version 2>&1 | awk -F'"' 'NR == 1 { print $2 }')"
@@ -51,7 +66,11 @@ echo "Benchmark filesystem:"
 findmnt -T "${CHECK_PATH}" -o TARGET,SOURCE,FSTYPE,OPTIONS || fail "Cannot describe the benchmark filesystem."
 df -hT "${CHECK_PATH}"
 disk_kib="$(df -Pk "${CHECK_PATH}" | awk 'NR == 2 { print $4 }')"
-(( disk_kib >= 400 * 1024 * 1024 )) || fail "Need at least 400 GiB free before fixture generation."
+if [[ "${FIXTURE_MODE}" == reuse ]]; then
+    (( disk_kib >= 32 * 1024 * 1024 )) || fail "Need at least 32 GiB free when reusing the saved fixture."
+else
+    (( disk_kib >= 400 * 1024 * 1024 )) || fail "Need at least 400 GiB free before fixture generation."
+fi
 
 echo
 echo "Leftover campaign directories:"
