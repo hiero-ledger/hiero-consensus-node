@@ -69,7 +69,7 @@ public class InitialStateLoader {
         // Startup initialization may hash/freeze the state referenced by the initial SignedState.
         // Move the lifecycle manager to a fresh mutable copy before transaction handling begins.
         stateLifecycleManager.copyMutableState();
-        // Genesis state must stay empty until changes can be externalized in the block stream
+        // Genesis state is null until the first round, so no changes can be made at this point.
         if (!signedState.isGenesisState()) {
             setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), inputs.version());
         }

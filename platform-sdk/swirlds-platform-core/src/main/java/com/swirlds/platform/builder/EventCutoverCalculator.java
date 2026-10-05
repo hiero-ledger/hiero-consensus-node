@@ -39,10 +39,10 @@ public class EventCutoverCalculator {
 
         if (eventCutoverActive) {
             if (isGenesis) {
-                // Every event is post cutover. The genesis platform state singleton is externalized in its entirety
-                // when the first round is handled, so recording this value at startup reaches the block stream.
+                // Every event is post cutover. A genesis state has no platform state to modify yet, so
+                // DefaultTransactionHandler records this value in state when it handles the first round.
                 EventHashFactory.initialize(ConsensusConstants.ROUND_FIRST);
-                return OptionalLong.of(ConsensusConstants.ROUND_FIRST);
+                return OptionalLong.empty();
             }
             if (eventCutoverMinBirthRound <= 0) {
                 // It's time to do the cutover now. Update the value in state to the first birth round post cutover.

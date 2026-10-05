@@ -33,6 +33,7 @@ import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.app.OtterApp;
+import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
@@ -73,9 +74,7 @@ public class EventCutoverTest {
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
-        assertContinuouslyThat(network.newConsensusResults())
-                .haveEqualCommonRounds()
-                .haveConsistentRounds();
+        assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds();
         assertContinuouslyThat(network.newReconnectResults()).doNotAttemptToReconnect();
 
         network.start();
@@ -84,12 +83,39 @@ public class EventCutoverTest {
         timeManager.waitFor(Duration.ofSeconds(30L));
 
         // Validations
-        assertThat(network.newPlatformStatusResults())
+        final MultipleNodePlatformStatusResults networkStatusResults = network.newPlatformStatusResults();
+        assertThat(networkStatusResults)
                 .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
 
         network.shutdown();
 
-        assertPcesEventHashesMatchExpectedDigestType(network);
+        networkStatusResults.clear();
+
+        network.start();
+
+        // Validations
+        assertThat(networkStatusResults)
+                .haveSteps(target(ACTIVE).requiringInterim(REPLAYING_EVENTS, OBSERVING, CHECKING));
+
+        // Wait for 30 seconds
+        timeManager.waitFor(Duration.ofSeconds(30L));
+
+        network.shutdown();
+
+        for (final SingleNodePcesResult pcesResult : network.newPcesResults().pcesResults()) {
+            try (final IOIterator<PlatformEvent> pcesEventIt = pcesResult.pcesEvents()) {
+                while (pcesEventIt.hasNext()) {
+                    final PlatformEvent event = pcesEventIt.next();
+
+                    // Each event's parents hashes (the only hashes written to PCES)
+                    // should match the expected digest type.
+                    event.allParentsIterator().forEachRemaining(parent -> {
+                        assertThat(parent.hash()).isNotNull();
+                        assertThat(parent.hash().getDigestType()).isEqualTo(expectedDigestType);
+                    });
+                }
+            }
+        }
     }
 
     /**

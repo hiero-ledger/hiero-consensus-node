@@ -63,13 +63,10 @@ class EventCutoverCalculatorTest {
                 Arguments.of(Start.RESTART, false, PREVIOUS_CUTOVER, OptionalLong.empty(), PREVIOUS_CUTOVER),
                 Arguments.of(Start.RESTART, true, INVALID_CUTOVER, OptionalLong.empty(), Long.MAX_VALUE),
                 Arguments.of(Start.RESTART, false, INVALID_CUTOVER, OptionalLong.empty(), Long.MAX_VALUE),
-                // genesis with the cutover enabled hashes every event with SHA-256
+                // genesis with the cutover enabled hashes every event with SHA-256, and the value is recorded by the
+                // transaction handler with the first round because a genesis state has no platform state yet
                 Arguments.of(
-                        Start.GENESIS,
-                        true,
-                        NO_CUTOVER_IN_STATE,
-                        OptionalLong.of(ConsensusConstants.ROUND_FIRST),
-                        ConsensusConstants.ROUND_FIRST),
+                        Start.GENESIS, true, NO_CUTOVER_IN_STATE, OptionalLong.empty(), ConsensusConstants.ROUND_FIRST),
                 Arguments.of(Start.GENESIS, false, NO_CUTOVER_IN_STATE, OptionalLong.empty(), Long.MAX_VALUE),
                 // the cutover upgrade records the first round after the freeze round
                 Arguments.of(
