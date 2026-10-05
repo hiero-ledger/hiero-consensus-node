@@ -78,7 +78,7 @@ class AtomicFileDeleteSuite {
                 cryptoCreate(BATCH_OPERATOR),
                 atomicBatch(fileDelete("0.0.3").signedBy(GENESIS).batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasPrecheckFrom(ResponseCodeEnum.ENTITY_NOT_ALLOWED_TO_DELETE));
+                        .hasPrecheck(ResponseCodeEnum.ENTITY_NOT_ALLOWED_TO_DELETE));
     }
 
     @HapiTest

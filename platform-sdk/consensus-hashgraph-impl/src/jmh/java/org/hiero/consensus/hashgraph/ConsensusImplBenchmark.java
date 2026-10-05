@@ -63,8 +63,9 @@ import org.openjdk.jmh.infra.Blackhole;
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
  */
 @State(Scope.Thread)
+// a provisional value for sanity runs; it is calibrated on the benchmark machine later
 @Fork(
-        value = 20,
+        value = 3,
         jvmArgsAppend = {"-Xms2g", "-Xmx2g", "-XX:+AlwaysPreTouch"})
 @Warmup(iterations = 5, time = 5)
 @Measurement(iterations = 5, time = 5)
