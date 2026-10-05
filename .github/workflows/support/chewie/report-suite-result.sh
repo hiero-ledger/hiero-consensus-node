@@ -35,11 +35,13 @@ report_suite_result() {
   fi
   [[ -n "${build_number}" ]] || warn "BUILD_TAG not set"
 
+  # No jq keywords as variable names (e.g. $end): jq 1.6, on the runners, rejects them
   local payload
   payload=$(jq -cn --arg build_number "${build_number}" --arg disposition "${disposition}" \
-                   --arg start "${start_time}" --arg end "${end_time}" \
+                   --arg start_time "${start_time}" --arg end_time "${end_time}" \
                    --argjson run_id "${GH_RUN_ID}" --argjson attempt "${GH_RUN_ATTEMPT}" \
-                   '{build_number: $build_number, suite_type: "sdct", disposition: $disposition, start_time: $start, end_time: (if $end == "" then null else $end end), workflow_run_id: $run_id, run_attempt: $attempt}')
+                   '{build_number: $build_number, suite_type: "sdct", disposition: $disposition, start_time: $start_time, end_time: (if $end_time == "" then null else $end_time end), workflow_run_id: $run_id, run_attempt: $attempt}') \
+    && [[ -n "${payload}" ]] || warn "could not build the payload"
 
   if [[ "${CHEWIE_DRY_RUN:-false}" == "true" ]]; then
     echo "Chewie report (mock: not executed): POST ${CHEWIE_HOST:-<CHEWIE_HOST>}/api/v1/suites/results ${payload}"

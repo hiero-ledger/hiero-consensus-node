@@ -144,7 +144,9 @@ if the E2E SLA is met. It runs on a large, mainnet-like environment.
   - The workflow selects one of the SDCT tests: `sdct` (the full test, default), `mini` (the same flow in about two
     hours, for debugging and verification) or `custom` (an ad hoc test); each test is a profile of the test driver
     maintained with the Jenkins job
-  - The result of the full `sdct` test is tagged as `sdct-pass-<build>` or `sdct-fail-<build>`; failures raise a Rootly
+  - Result tags are disabled for every test, the full `sdct` test included: the `Tag SDCT Result` job only logs the
+    `sdct-pass-<build>` / `sdct-fail-<build>` tag and the `git tag` / `git push` commands it would run. Failures of the
+    full `sdct` test raise a Rootly
     alert (`CITR SDCT` for test failures, `CI/CD Workflows` for infrastructure and setup failures). `mini` and `custom`
     results are reported in the workflow summary and artifact only
   - Slack reporting to the performance-test-reports channel is handled by the Jenkins job
