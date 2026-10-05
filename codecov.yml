@@ -25,3 +25,4 @@ ignore:
   - "**/test-clients/**"
   - "**/statedumpers/**"
   - "**/testFixtures/**"
+  - "**/org/hiero/base/concurrent/jctools/**"
