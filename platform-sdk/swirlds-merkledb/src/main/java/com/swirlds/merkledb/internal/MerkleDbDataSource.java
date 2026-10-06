@@ -5,6 +5,7 @@ import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 import static com.swirlds.merkledb.KeyRange.INVALID_KEY_RANGE;
+import static com.swirlds.merkledb.utilities.MerkleDbFileUtils.runSnapshotOperation;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.FieldDefinition;
@@ -28,7 +29,6 @@ import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
-import com.swirlds.merkledb.utilities.SnapshotTask;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
@@ -46,8 +46,10 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -171,7 +173,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     private final ForkJoinPool flushPool;
 
     /// Thread pool shared by the data source's snapshot operations and index writers.
-    private final ForkJoinPool snapshotPool;
+    private final ExecutorService snapshotPool;
 
     /**
      * During flush, this is the future to wait for hashes writing to complete. The
@@ -334,7 +336,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
         final ExecutorFactory snapshotPoolFactory = ExecutorFactory.create(
                 "MerkleDbSnapshot-" + tableName,
                 (_, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during snapshot", e));
-        snapshotPool = snapshotPoolFactory.createForkJoinPool(config.snapshotThreads());
+        snapshotPool = snapshotPoolFactory.createExecutorService(config.snapshotThreads());
 
         dbPaths = new MerkleDbPaths(storageDir);
 
@@ -962,8 +964,17 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final CompletableFuture<Void> hashesSnapshot = snapshotHashes(snapshotDbPaths, failure);
             final CompletableFuture<Void> keyToPathSnapshot =
                     keyToPath.snapshot(snapshotDbPaths.keyToPathDirectory, snapshotPool, failure);
-            final CompletableFuture<Void> snapshot =
-                    SnapshotTask.allOf(failure, metadataSnapshot, leavesSnapshot, hashesSnapshot, keyToPathSnapshot);
+            final CompletableFuture<Void> snapshot = CompletableFuture.allOf(
+                            metadataSnapshot, leavesSnapshot, hashesSnapshot, keyToPathSnapshot)
+                    .handle((_, exception) -> {
+                        if (failure.get() != null) {
+                            throw new CompletionException(failure.get());
+                        }
+                        if (exception != null) {
+                            throw new CompletionException(exception);
+                        }
+                        return null;
+                    });
             // Only the caller waits. Drain every started task before returning.
             MerkleDbFileUtils.waitForSnapshot(snapshot);
             logger.info(
@@ -1103,7 +1114,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
     /// Writes the data source metadata on the snapshot pool.
     private CompletableFuture<Void> snapshotMetadata(
             final MerkleDbPaths paths, final AtomicReference<Throwable> failure) {
-        return SnapshotTask.submit(snapshotPool, failure, () -> saveMetadata(paths));
+        return runSnapshotOperation(snapshotPool, failure, () -> saveMetadata(paths));
     }
 
     /// Writes the leaf index and links the leaf files independently.
@@ -1111,8 +1122,8 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final MerkleDbPaths paths, final AtomicReference<Throwable> failure) {
         final CompletableFuture<Void> leafIndexSnapshot =
                 pathToDiskLocationLeafNodes.writeToFile(paths.pathToDiskLocationLeafNodesFile, snapshotPool, failure);
-        final CompletableFuture<Void> leafFilesSnapshot =
-                SnapshotTask.submit(snapshotPool, failure, () -> keyValueStore.snapshot(paths.pathToKeyValueDirectory));
+        final CompletableFuture<Void> leafFilesSnapshot = runSnapshotOperation(
+                snapshotPool, failure, () -> keyValueStore.snapshot(paths.pathToKeyValueDirectory));
         return CompletableFuture.allOf(leafIndexSnapshot, leafFilesSnapshot);
     }
 
@@ -1121,12 +1132,12 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final MerkleDbPaths paths, final AtomicReference<Throwable> failure) {
         // The flush overlaps the other groups. Both hash snapshots need its updated index and files.
         final CompletableFuture<Void> hashCacheFlush =
-                SnapshotTask.submit(snapshotPool, failure, this::flushHashChunkCache);
+                runSnapshotOperation(snapshotPool, failure, this::flushHashChunkCache);
         return hashCacheFlush.thenCompose(_ -> {
             final CompletableFuture<Void> hashIndexSnapshot =
                     idToDiskLocationHashChunks.writeToFile(paths.idToDiskLocationHashChunksFile, snapshotPool, failure);
-            final CompletableFuture<Void> hashFilesSnapshot =
-                    SnapshotTask.submit(snapshotPool, failure, () -> hashChunkStore.snapshot(paths.hashChunkDirectory));
+            final CompletableFuture<Void> hashFilesSnapshot = runSnapshotOperation(
+                    snapshotPool, failure, () -> hashChunkStore.snapshot(paths.hashChunkDirectory));
             return CompletableFuture.allOf(hashIndexSnapshot, hashFilesSnapshot);
         });
     }

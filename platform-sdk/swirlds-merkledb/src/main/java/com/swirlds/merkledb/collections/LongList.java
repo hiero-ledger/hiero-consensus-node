@@ -5,7 +5,7 @@ import com.swirlds.merkledb.files.DataFileCommon;
 import java.io.Closeable;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.LongStream;
 
@@ -100,7 +100,7 @@ public interface LongList extends CASableLongIndex, Closeable, OffHeapUser {
     /// @param file new file to write; its parent directory must exist and be writable
     /// @param pool pool shared by the snapshot tasks
     /// @return completion of all writes and file cleanup; failures are reported through this future
-    default CompletableFuture<Void> writeToFile(final Path file, final ForkJoinPool pool) {
+    default CompletableFuture<Void> writeToFile(final Path file, final Executor pool) {
         return writeToFile(file, pool, new AtomicReference<>());
     }
 
@@ -111,7 +111,7 @@ public interface LongList extends CASableLongIndex, Closeable, OffHeapUser {
     /// @param pool pool shared by the snapshot tasks
     /// @param failure shared snapshot failure; initially empty
     /// @return completion after all accepted writers stop and the file is closed
-    CompletableFuture<Void> writeToFile(Path file, ForkJoinPool pool, AtomicReference<Throwable> failure);
+    CompletableFuture<Void> writeToFile(Path file, Executor pool, AtomicReference<Throwable> failure);
 
     /**
      * Updates min and max valid indexes in this list. If both values are -1, this indicates

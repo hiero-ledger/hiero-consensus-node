@@ -79,7 +79,7 @@ import com.swirlds.config.api.validation.annotation.Positive;
  *      Minimum number of small files at a level before consolidation triggers. Prevents
  *      pointless runs when only a few small files exist.
  * @param snapshotThreads
- *      Shared worker parallelism for all tasks in a MerkleDb snapshot, including index writes.
+ *      Number of worker threads shared by snapshot operations, including index writes.
  */
 // spotless:off
 @ConfigData("merkleDb")
@@ -110,7 +110,7 @@ public record MerkleDbConfig(
         @ConfigProperty(defaultValue = "false") boolean useDiskIndices,
         @Min(0) @ConfigProperty(defaultValue = "50") long consolidationMaxInputFileSizeMB,
         @Min(2) @ConfigProperty(defaultValue = "10") int consolidationMinFileCount,
-        @Min(1) @Max(32767) @ConfigProperty(defaultValue = "12") int snapshotThreads) {
+        @Min(1) @ConfigProperty(defaultValue = "12") int snapshotThreads) {
 
     // spotless:on
 

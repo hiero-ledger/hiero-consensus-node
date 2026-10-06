@@ -3,6 +3,8 @@ package com.swirlds.merkledb.collections;
 
 import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 import static com.swirlds.merkledb.utilities.MerkleDbFileUtils.readFromFileChannel;
+import static com.swirlds.merkledb.utilities.MerkleDbFileUtils.recordSnapshotFailure;
+import static com.swirlds.merkledb.utilities.MerkleDbFileUtils.runSnapshotOperation;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.lang.Math.toIntExact;
@@ -10,7 +12,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
-import com.swirlds.merkledb.utilities.SnapshotTask;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -24,15 +25,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BooleanSupplier;
 import java.util.stream.LongStream;
 import java.util.stream.StreamSupport;
-import org.hiero.base.concurrent.AbstractTask;
 
 /**
  * Common parent class for long list implementations. It takes care of loading a snapshot from disk,
@@ -180,7 +179,7 @@ public abstract class AbstractLongList<C> implements LongList {
         chunkList = new AtomicReferenceArray<>(calculateNumberOfChunks(capacity));
     }
 
-    /// Loads index data from a file previously saved using [#writeToFile(Path, ForkJoinPool)].
+    /// Loads index data from a file previously saved using [#writeToFile(Path, Executor)].
     ///
     /// @param file the file to load from
     /// @throws IOException if the file cannot be read
@@ -493,75 +492,43 @@ public abstract class AbstractLongList<C> implements LongList {
     /// {@inheritDoc}
     @Override
     public CompletableFuture<Void> writeToFile(
-            final Path file, final ForkJoinPool pool, final AtomicReference<Throwable> failure) {
+            final Path file, final Executor pool, final AtomicReference<Throwable> failure) {
         final long firstIndex = minValidIndex.get();
         final long endIndex = size();
         final int firstChunk = toIntExact(max(firstIndex, 0) / longsPerChunk);
         // Moving the valid range beyond populated data leaves only the header to write.
         final int chunkCount =
                 endIndex > 0 && firstIndex < endIndex ? calculateNumberOfChunks(endIndex) - firstChunk : 0;
-        final AtomicInteger tasksRemaining = new AtomicInteger(chunkCount);
-        final CompletableFuture<Void> chunksWritten = new CompletableFuture<>();
         final AtomicReference<FileChannel> channel = new AtomicReference<>();
 
-        final class WriteChunkTask extends AbstractTask {
-            private final int chunkIndex;
-
-            WriteChunkTask(final int chunkIndex) {
-                super(pool, 1);
-                this.chunkIndex = chunkIndex;
-            }
-
-            @Override
-            protected boolean onExecute() throws IOException {
-                if (failure.get() == null) {
-                    final long chunkStart = (long) chunkIndex * longsPerChunk;
-                    final int startInChunk = toIntExact(max(firstIndex - chunkStart, 0));
-                    final int endInChunk = toIntExact(min(endIndex - chunkStart, longsPerChunk));
-                    final long fileOffset = FILE_HEADER_SIZE_V3 + (chunkStart + startInChunk - firstIndex) * Long.BYTES;
-                    final C chunk = chunkList.get(chunkIndex);
-                    if (chunk == null) {
-                        writeZeroes(channel.get(), (endInChunk - startInChunk) * Long.BYTES, fileOffset);
-                    } else {
-                        writeChunkData(channel.get(), chunk, startInChunk, endInChunk, fileOffset);
-                    }
-                }
-                taskFinished();
-                return true;
-            }
-
-            @Override
-            protected void onException(final Throwable t) {
-                SnapshotTask.recordFailure(failure, t);
-                taskFinished();
-            }
-
-            /// Counts skipped and failed tasks too, so file cleanup cannot overtake a running writer.
-            private void taskFinished() {
-                if (tasksRemaining.decrementAndGet() == 0) {
-                    chunksWritten.complete(null);
-                }
-            }
-        }
-
-        final CompletableFuture<Void> headerWritten = SnapshotTask.submit(pool, failure, () -> {
+        final CompletableFuture<Void> headerWritten = runSnapshotOperation(pool, failure, () -> {
             channel.set(FileChannel.open(file, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE));
             writeHeader(channel.get());
         });
         final CompletableFuture<Void> writesFinished = headerWritten.thenCompose(_ -> {
-            int submitted = 0;
+            final List<CompletableFuture<Void>> writes = new ArrayList<>(chunkCount);
             try {
-                for (; submitted < chunkCount && failure.get() == null; submitted++) {
-                    new WriteChunkTask(firstChunk + submitted).send();
+                for (int i = 0; i < chunkCount && failure.get() == null; i++) {
+                    final int chunkIndex = firstChunk + i;
+                    writes.add(runSnapshotOperation(pool, failure, () -> {
+                        final long chunkStart = (long) chunkIndex * longsPerChunk;
+                        final int startInChunk = toIntExact(max(firstIndex - chunkStart, 0));
+                        final int endInChunk = toIntExact(min(endIndex - chunkStart, longsPerChunk));
+                        final long fileOffset =
+                                FILE_HEADER_SIZE_V3 + (chunkStart + startInChunk - firstIndex) * Long.BYTES;
+                        final C chunk = chunkList.get(chunkIndex);
+                        if (chunk == null) {
+                            writeZeroes(channel.get(), (endInChunk - startInChunk) * Long.BYTES, fileOffset);
+                        } else {
+                            writeChunkData(channel.get(), chunk, startInChunk, endInChunk, fileOffset);
+                        }
+                    }));
                 }
             } catch (final RuntimeException | Error t) {
-                SnapshotTask.recordFailure(failure, t);
+                recordSnapshotFailure(failure, t);
             }
-            // Unsubmitted chunks will never run; accepted tasks still have to finish or skip their write.
-            if (tasksRemaining.addAndGet(-(chunkCount - submitted)) == 0) {
-                chunksWritten.complete(null);
-            }
-            return chunksWritten;
+            // Even after a failure, accepted writes must finish before the channel can close.
+            return CompletableFuture.allOf(writes.toArray(CompletableFuture[]::new));
         });
         return writesFinished.handle((_, exception) -> {
             // Execution and submission failures have already been recorded by the tasks above.
@@ -570,7 +537,7 @@ public abstract class AbstractLongList<C> implements LongList {
                     channel.get().close();
                 }
             } catch (final IOException t) {
-                SnapshotTask.recordFailure(failure, t);
+                recordSnapshotFailure(failure, t);
             }
             if (failure.get() != null) {
                 throw new CompletionException(failure.get());

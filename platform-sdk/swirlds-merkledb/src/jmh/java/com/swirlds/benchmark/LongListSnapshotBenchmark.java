@@ -16,7 +16,8 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.hiero.base.file.FileSystemManager;
@@ -61,7 +62,7 @@ public class LongListSnapshotBenchmark {
     private Path trialDirectory;
     private Path snapshotFile;
     private LongList source;
-    private ForkJoinPool pool;
+    private ExecutorService pool;
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
@@ -94,7 +95,7 @@ public class LongListSnapshotBenchmark {
                 forceFile(file);
             }
         }
-        pool = new ForkJoinPool(threadsPerLongList);
+        pool = Executors.newFixedThreadPool(threadsPerLongList);
     }
 
     @Benchmark

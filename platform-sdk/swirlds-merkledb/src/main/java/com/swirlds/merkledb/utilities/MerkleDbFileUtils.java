@@ -9,9 +9,56 @@ import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.io.IORunnable;
 
 public final class MerkleDbFileUtils {
     private MerkleDbFileUtils() {}
+
+    /// Runs snapshot I/O on the supplied pool, skipping it if another operation has failed.
+    /// Rejected submissions are returned as failed futures so accepted work can still be awaited.
+    public static CompletableFuture<Void> runSnapshotOperation(
+            final Executor pool, final AtomicReference<Throwable> failure, final IORunnable operation) {
+        try {
+            return CompletableFuture.runAsync(
+                    () -> {
+                        final Throwable previousFailure = failure.get();
+                        if (previousFailure != null) {
+                            throw new CompletionException(previousFailure);
+                        }
+                        try {
+                            operation.run();
+                        } catch (final Throwable t) {
+                            recordSnapshotFailure(failure, t);
+                            throw new CompletionException(t);
+                        }
+                    },
+                    pool);
+        } catch (final RuntimeException | Error t) {
+            recordSnapshotFailure(failure, t);
+            return CompletableFuture.failedFuture(t);
+        }
+    }
+
+    /// Keeps later failures as suppressed errors. A rejected submission takes priority over a writer failure.
+    public static void recordSnapshotFailure(final AtomicReference<Throwable> failure, final Throwable t) {
+        synchronized (failure) {
+            final Throwable previousFailure = failure.get();
+            if (previousFailure == null) {
+                failure.set(t);
+            } else if (previousFailure != t) {
+                if (t instanceof RejectedExecutionException
+                        && !(previousFailure instanceof RejectedExecutionException)) {
+                    t.addSuppressed(previousFailure);
+                    failure.set(t);
+                } else {
+                    previousFailure.addSuppressed(t);
+                }
+            }
+        }
+    }
 
     /// Waits for snapshot writes and file closure before reporting failure or interruption.
     /// Call this from the snapshot caller, not a pool worker. The future must not be canceled.
