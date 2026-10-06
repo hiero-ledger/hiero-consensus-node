@@ -518,9 +518,13 @@ class ClprChannelManagerTest {
         }
 
         @Test
-        @DisplayName("seedPeerEndpoints with empty list is a no-op")
-        void seedPeerEndpointsWithEmptyList() {
+        @DisplayName("seedPeerEndpoints with an empty list clears a previously cached endpoint")
+        void seedPeerEndpointsWithEmptyListClearsPreviousCache() {
+            subject.seedPeerEndpoints(CHANNEL_ID_1, List.of(makeEndpoint("10.0.0.7", 50211)));
+            assertThat(subject.getKnownEndpoints(CHANNEL_ID_1)).isNotEmpty();
+
             subject.seedPeerEndpoints(CHANNEL_ID_1, Collections.emptyList());
+
             assertThat(subject.getKnownEndpoints(CHANNEL_ID_1)).isEmpty();
         }
     }
@@ -721,6 +725,26 @@ class ClprChannelManagerTest {
 
             subject.onChannelClosed(CONN);
             assertThat(subject.knownPeerCaCertificatesByIssuer()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("seedPeerEndpoints with an empty list drops this channel's CA from the trust index, "
+                + "retaining a CA still referenced by another channel")
+        void seedPeerEndpointsEmptyListDropsCaButRetainsCaSharedByAnotherChannel() throws Exception {
+            final var ca1 = caWithCn("ca-one");
+            final var ca2 = caWithCn("ca-two");
+            subject.seedPeerEndpoints(CONN, List.of(endpointWithCert("10.0.0.1", ca1)));
+            final var conn2 = Bytes.wrap(distinctConnId());
+            subject.seedPeerEndpoints(conn2, List.of(endpointWithCert("10.0.0.2", ca2)));
+            assertThat(allTrustedCerts(subject)).containsExactlyInAnyOrder(ca1, ca2);
+
+            // A replacement manifest with zero endpoints (e.g. the manifest-only recovery path, spec
+            // §8.1.4) must replace — not skip — the cache entry, rebuilding the trust index so ca1 is
+            // dropped while ca2 (contributed independently by conn2) remains trusted.
+            subject.seedPeerEndpoints(CONN, List.of());
+
+            assertThat(subject.getKnownEndpoints(CONN)).isEmpty();
+            assertThat(allTrustedCerts(subject)).containsExactly(ca2);
         }
 
         @Test
@@ -940,6 +964,43 @@ class ClprChannelManagerTest {
                 assertThat(managerB.knownChannelsIds()).contains(CHANNEL_ID_1);
                 assertThat(managerB.getKnownEndpoints(CHANNEL_ID_1)).containsExactly(endpoint);
                 assertNotNull(managerB.syncTickFuture(CHANNEL_ID_1));
+            } finally {
+                managerB.stop();
+            }
+        }
+
+        @Test
+        @DisplayName("replacing cached endpoints with an empty manifest clears them on disk and after restart")
+        void seedPeerEndpointsEmptyListClearsDiskCacheAndSurvivesRestart() {
+            final var cacheFile = tempDir.resolve("clpr-peer-endpoints.json");
+            final var endpoint = makeEndpoint("10.0.0.7", 50211);
+
+            subject.start();
+            subject.onChannelActivated(CHANNEL_ID_1);
+            subject.seedPeerEndpoints(CHANNEL_ID_1, List.of(endpoint));
+            await().atMost(Duration.ofSeconds(5)).until(() -> cacheHasEndpoint(cacheFile, CHANNEL_ID_1));
+
+            // A non-empty-to-empty manifest update (e.g. manifest-only recovery, spec §8.1.4) must
+            // flush the cleared cache to disk too, not leave the stale endpoint behind.
+            subject.seedPeerEndpoints(CHANNEL_ID_1, List.of());
+            await().atMost(Duration.ofSeconds(5))
+                    .until(() -> cacheHas(cacheFile, CHANNEL_ID_1) && !cacheHasEndpoint(cacheFile, CHANNEL_ID_1));
+            subject.stop();
+
+            final var managerB = new ClprChannelManager(
+                    configProvider, networkInfo, stateAccessor, synchronizer, leafCertManager, clientCache);
+            final var channelStore = mock(ReadableChannelStore.class);
+            given(channelStore.getChannel(CHANNEL_ID_1))
+                    .willReturn(ClprChannel.newBuilder()
+                            .channelId(CHANNEL_ID_1)
+                            .status(ClprChannelStatus.ACTIVE)
+                            .peerThrottles(ClprThrottles.newBuilder().build())
+                            .build());
+            try (var _ = givenMockedStateForRehydration(channelStore, nodeStoreWithSize(10))) {
+                managerB.start();
+
+                assertThat(managerB.knownChannelsIds()).contains(CHANNEL_ID_1);
+                assertThat(managerB.getKnownEndpoints(CHANNEL_ID_1)).isEmpty();
             } finally {
                 managerB.stop();
             }
