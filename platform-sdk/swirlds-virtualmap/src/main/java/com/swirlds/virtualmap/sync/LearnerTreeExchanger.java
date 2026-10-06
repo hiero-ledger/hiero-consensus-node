@@ -146,6 +146,15 @@ public final class LearnerTreeExchanger {
         }
     }
 
+    /**
+     * Returns traversal statistics collected by the traversal order.
+     *
+     * @return traversal statistics summary, see {@link NodeTraversalOrder#getStatistics()}
+     */
+    public String getTraversalStatistics() {
+        return traversalOrder.getStatistics();
+    }
+
     public void onRequestSend() {
         stats.incrementTransfersFromLearner();
     }

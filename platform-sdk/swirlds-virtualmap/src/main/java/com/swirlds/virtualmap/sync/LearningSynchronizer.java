@@ -185,6 +185,7 @@ public class LearningSynchronizer {
             VirtualMap syncedVirtualMap = exchanger.onSuccessfulComplete();
             logger.info(RECONNECT.getMarker(), "learner is done synchronizing");
             logger.info(RECONNECT.getMarker(), syncMetrics::toString);
+            logger.info(RECONNECT.getMarker(), "Traversal statistics: {}", exchanger.getTraversalStatistics());
             return syncedVirtualMap;
         } catch (final Throwable t) {
             logger.info(RECONNECT.getMarker(), "Caught exception while completing synchronization", t);

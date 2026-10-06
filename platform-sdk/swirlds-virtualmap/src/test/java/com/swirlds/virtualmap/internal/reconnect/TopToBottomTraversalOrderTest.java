@@ -1763,6 +1763,114 @@ class TopToBottomTraversalOrderTest {
         }
     }
 
+    // ═════════════════════════════════════════════════════════════════════════
+    // Group 14 — Statistics
+    // ═════════════════════════════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("Group 14 — Statistics")
+    class StatisticsTests {
+
+        @Test
+        @DisplayName("14.1 — Seed rank offset and bottom gap match the drill-down geometry")
+        void seedRankOffsetAndBottomGap() {
+            // Large trees: chunk height 23 (last leaf rank) and 22 (first leaf rank), both seeded 11 ranks
+            // below the chunk root, i.e. 12 and 11 ranks above the leaves
+            assertEquals(11, TopToBottomTraversalOrder.seedRankOffset(23));
+            assertEquals(11, TopToBottomTraversalOrder.seedRankOffset(22));
+            assertEquals(3, TopToBottomTraversalOrder.bottomGap(12)); // 12, 9, 6, 3
+            assertEquals(2, TopToBottomTraversalOrder.bottomGap(11)); // 11, 8, 5, 2
+            assertEquals(1, TopToBottomTraversalOrder.bottomGap(10)); // 10, 7, 4, 1
+            // Chunk-mode reference tree: chunk height 9, seeded at rank 5, 5 ranks above the leaves
+            assertEquals(4, TopToBottomTraversalOrder.seedRankOffset(9));
+            assertEquals(2, TopToBottomTraversalOrder.bottomGap(5)); // 5, 2
+            // Seeds within RANK_STEP of the leaves are never drilled down
+            assertEquals(3, TopToBottomTraversalOrder.bottomGap(3));
+            assertEquals(1, TopToBottomTraversalOrder.bottomGap(1));
+        }
+
+        @Test
+        @DisplayName("14.2 — Simple mode reports no statistics")
+        void simpleMode() {
+            final var order = new TopToBottomTraversalOrder();
+            order.start(SIMPLE_FIRST, SIMPLE_LAST, SIMPLE_FIRST, SIMPLE_LAST);
+            assertEquals("simple mode", order.getStatistics());
+        }
+
+        @Test
+        @DisplayName("14.3 — Fully dirty tree: internal responses are counted by distance to the leaf rank")
+        void fullyDirtyTree() {
+            final var order = new TopToBottomTraversalOrder();
+            order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
+
+            final List<Long> leaves = driveAllDirty(order);
+            for (final long leaf : leaves) {
+                order.nodeReceived(leaf, true);
+            }
+
+            // 2 chunks x 16 seeds at rank 5 (5 ranks above the leaves), each drilled down to 8
+            // grand-children at rank 8 (2 ranks above the leaves)
+            assertEquals(
+                    "chunks=2, outOfRangeLeaves=0, staleInternals=0; leaf rank 10: leaves=1024, cleanLeaves=1024, "
+                            + "internals by distance to leaf rank (total/clean)=[5=32/0, 2=256/0]",
+                    order.getStatistics());
+        }
+
+        @Test
+        @DisplayName("14.4 — Leaves outside the old leaf range are counted separately")
+        void outOfRangeLeaves() {
+            // Old range [767, 1534]: teacher leaves 1023–1534 are checked, 1535–2046 are sent by position
+            final var order = new TopToBottomTraversalOrder();
+            order.start(OTHER_FIRST_LEAF, OTHER_LAST_LEAF, CHUNK_FIRST, CHUNK_LAST);
+
+            final List<Long> leaves = driveAllDirty(order);
+            for (final long leaf : leaves) {
+                order.nodeReceived(leaf, leaf % 2 == 0);
+            }
+
+            final String stats = order.getStatistics();
+            assertTrue(stats.contains("outOfRangeLeaves=512"), stats);
+            assertTrue(stats.contains("leaves=512, cleanLeaves=256"), stats);
+        }
+
+        @Test
+        @DisplayName("14.5 — Internal responses for completed chunks are counted as stale")
+        void staleInternals() {
+            final var order = new TopToBottomTraversalOrder();
+            order.start(CHUNK_FIRST, CHUNK_LAST, CHUNK_FIRST, CHUNK_LAST);
+
+            driveAllClean(order);
+            order.nodeReceived(CHUNK1_INIT_LO, false); // chunk 1 is already completed
+
+            final String stats = order.getStatistics();
+            assertTrue(stats.contains("staleInternals=1"), stats);
+            assertTrue(stats.contains("[5=32/32]"), stats);
+        }
+
+        @Test
+        @DisplayName("14.6 — Two leaf ranks: statistics are reported per leaf rank")
+        void twoLeafRanks() {
+            // Same tree as 13.8: rank-27 chunks are seeded 12 ranks above the leaves, rank-26 chunks 11 ranks
+            final long first = 100_000_000L;
+            final long last = 200_000_000L;
+            final var order = new TopToBottomTraversalOrder();
+            order.start(first, last, first, last);
+
+            driveAllClean(order);
+
+            final String stats = order.getStatistics();
+            assertTrue(stats.startsWith("chunks=17, "), stats);
+            assertTrue(
+                    stats.contains("leaf rank 27: leaves=0, cleanLeaves=0, "
+                            + "internals by distance to leaf rank (total/clean)=[12="),
+                    stats);
+            assertTrue(
+                    stats.contains("leaf rank 26: leaves=0, cleanLeaves=0, "
+                            + "internals by distance to leaf rank (total/clean)=[11="),
+                    stats);
+        }
+    }
+
     // ── Utility ───────────────────────────────────────────────────────────────
 
     /** Returns a list containing all longs in [lo, hi] inclusive. */
