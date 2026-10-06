@@ -63,6 +63,7 @@ import org.hiero.base.crypto.CertificateUtils;
 import org.hiero.base.crypto.CryptoConstants;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.KeyGeneratingException;
+import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.crypto.KeyCertPurpose;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -313,7 +314,7 @@ public class EnhancedKeyStoreLoader {
                         signingCert.getSubjectX500Principal().getName(),
                         signingKeyPair,
                         SecureRandom.getInstanceStrong(),
-                        CryptoConstants.SIG_TYPE2);
+                        SigningSchema.fromKeyType(privateSigningKey).getSigningAlgorithm());
                 agrCertificates.put(nodeId, agrCert);
             }
         }
