@@ -254,7 +254,7 @@ class V0740BlockStreamSchemaTest {
         verify(blockStreamInfoState).put(captor.capture());
         final var written = captor.getValue();
 
-        final var expectedEmptyRoot = Bytes.wrap(CommonUtils.noThrowSha256HashOf(new byte[] {0x0}));
+        final var expectedEmptyRoot = Bytes.wrap(CommonUtils.noThrowHashOf(new byte[] {0x0}, DigestType.SHA_256));
         assertEquals(32, expectedEmptyRoot.length());
         assertEquals(expectedEmptyRoot, written.inputTreeRootHash());
         assertEquals(expectedEmptyRoot, written.consensusHeaderRootHash());

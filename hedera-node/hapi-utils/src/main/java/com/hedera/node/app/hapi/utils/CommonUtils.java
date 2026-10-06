@@ -131,45 +131,6 @@ public final class CommonUtils {
         return digestOrThrow(digestType).digest(byteArray);
     }
 
-    // SHA-256 hash functions with the default-provided message digest
-    // ** BEGIN Bytes Variants **
-    public static Bytes noThrowSha256HashOf(@NonNull final Bytes bytes) {
-        final var digest = sha256DigestOrThrow();
-        return hashOfAll(digest, bytes);
-    }
-
-    public static Bytes sha256HashOfAll(final Bytes... allBytes) {
-        final var digest = sha256DigestOrThrow();
-        return hashOfAll(digest, allBytes);
-    }
-
-    // ** BEGIN byte[] Variants **
-    public static byte[] noThrowSha256HashOf(final byte[] byteArray) {
-        requireNonNull(byteArray);
-        final var digest = sha256DigestOrThrow();
-        return digest.digest(byteArray);
-    }
-
-    public static Bytes sha256HashOfAll(final byte[]... bytes) {
-        return Bytes.wrap(sha256HashOf(bytes));
-    }
-
-    public static byte[] sha256HashOf(final byte[]... bytes) {
-        return hashOfAll(sha256DigestOrThrow(), bytes);
-    }
-
-    public static Bytes sha256HashOf(
-            @NonNull final Bytes first, @NonNull final Bytes second, @NonNull final byte[] third) {
-        requireNonNull(first);
-        requireNonNull(second);
-        requireNonNull(third);
-
-        final var digest = sha256DigestOrThrow();
-        first.writeTo(digest);
-        second.writeTo(digest);
-        return Bytes.wrap(digest.digest(third));
-    }
-
     // SHA-384 hash functions with the default-provided message digest
     // ** BEGIN Bytes Variants **
     // (FUTURE) Rename since 'no throw' is confusing

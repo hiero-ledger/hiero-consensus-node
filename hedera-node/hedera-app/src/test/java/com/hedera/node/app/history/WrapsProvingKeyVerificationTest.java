@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha256HashOf;
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowHashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.history.WrapsProvingKeyVerification.artifactsAlreadyPresent;
 import static com.hedera.node.app.history.WrapsProvingKeyVerification.artifactsInstalledAndVerified;
@@ -65,7 +65,7 @@ class WrapsProvingKeyVerificationTest {
     private static final byte[] CONTENT_A = "test-content-a-for-proving-key".getBytes();
     private static final byte[] CONTENT_B = "test-content-b-different-key!!".getBytes();
     private static final Bytes HASH_A = noThrowSha384HashOf(Bytes.wrap(CONTENT_A));
-    private static final Bytes HASH_A_SHA256 = noThrowSha256HashOf(Bytes.wrap(CONTENT_A));
+    private static final Bytes HASH_A_SHA256 = Bytes.wrap(noThrowHashOf(CONTENT_A, DigestType.SHA_256));
     private static final String DOWNLOAD_URL = "https://s3.example.com/bucket/proving-key.tar.gz";
 
     @Mock
