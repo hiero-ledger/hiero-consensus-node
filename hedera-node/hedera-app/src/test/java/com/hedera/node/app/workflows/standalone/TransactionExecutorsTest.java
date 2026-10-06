@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.standalone;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MESSAGE_QUEUE_STATE_ID;
+import static com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema.STORAGE_STATE_ID;
 import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
@@ -32,10 +36,17 @@ import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.file.FileCreateTransactionBody;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.clpr.ClprChannel;
+import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprConnector;
 import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
+import com.hedera.hapi.node.state.clpr.ClprMessageKey;
+import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.contract.SlotKey;
+import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -60,6 +71,7 @@ import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.impl.ClprServiceImpl;
+import com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
@@ -136,6 +148,8 @@ import org.hyperledger.besu.evm.tracing.StreamingOperationTracer;
 import org.hyperledger.besu.evm.worldstate.WorldView;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -338,7 +352,7 @@ public class TransactionExecutorsTest {
                 .toList();
         org.assertj.core.api.Assertions.assertThat(actions)
                 .anySatisfy(action -> {
-                    assertThat(action.callOperationType()).isEqualTo(CallOperationType.OP_STATICCALL);
+                    assertThat(action.callOperationType()).isEqualTo(CallOperationType.OP_CALL);
                     assertThat(action.callingContract()).isEqualTo(CLPR_ROUTER_ID);
                     assertThat(action.recipientContract()).isEqualTo(connectorId);
                     assertThat(action.callDepth()).isEqualTo(2);
@@ -352,6 +366,103 @@ public class TransactionExecutorsTest {
                     assertThat(action.callDepth()).isEqualTo(0);
                     assertThat(action.hasOutput()).isTrue();
                 });
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "600160005260206000f3, true, false, true", // Approve and enqueue
+        "600060005260206000f3, true, false, false", // Reject authorization
+        "600160005260206000fd, true, false, false", // Revert authorization
+        "600160005260206000f3, false, false, false", // Approve, but channel lookup fails
+        "600160005260206000f3, true, true, false" // Approve and enqueue, but caller reverts
+    })
+    void connectorAuthorizationStateAndLogsFollowSendMessageOutcome(
+            final String authorizationResult,
+            final boolean channelExists,
+            final boolean callerReverts,
+            final boolean commits) {
+        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "clpr.enabled", "true");
+        final var state = genesisState(overrides);
+        final var executor = TRANSACTION_EXECUTORS.newExecutor(
+                TransactionExecutors.Properties.newBuilder()
+                        .state(state)
+                        .appProperties(overrides)
+                        .build(),
+                new AppEntityIdFactory(DEFAULT_CONFIG));
+        // SSTORE slot 0 = 1; LOG0 an empty event; then return/revert with the authorization result.
+        final var connectorId = createdContractId(
+                executor, "601480600b6000396000f3" + "600160005560006000a0" + authorizationResult, 0L);
+        final var forwarderInitcode = callerReverts
+                ? CLPR_FORWARDER_INITCODE.substring(0, CLPR_FORWARDER_INITCODE.length() - 2) + "fd"
+                : CLPR_FORWARDER_INITCODE;
+        final var forwarderId = createdContractId(executor, forwarderInitcode, 0L);
+        final var clprStates = state.getWritableStates(ClprService.NAME);
+        V0780ClprSchema.initializeSingletons(clprStates, DEFAULT_CONFIG);
+        final var connectorKey = new ClprConnectorKey(CLPR_CHANNEL_ID, CLPR_CONNECTOR_ID);
+        clprStates
+                .<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID)
+                .put(
+                        connectorKey,
+                        ClprConnector.newBuilder()
+                                .connectorId(CLPR_CONNECTOR_ID)
+                                .channelId(CLPR_CHANNEL_ID)
+                                .connectorContract(connectorId)
+                                .build());
+        final var channelKey = new ProtoBytes(CLPR_CHANNEL_ID);
+        if (channelExists) {
+            clprStates
+                    .<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID)
+                    .put(
+                            channelKey,
+                            ClprChannel.newBuilder()
+                                    .channelId(CLPR_CHANNEL_ID)
+                                    .status(ClprChannelStatus.ACTIVE)
+                                    .nextMessageId(1L)
+                                    .sentRunningHash(Bytes.wrap(new byte[32]))
+                                    .lastConfigTimestamp(new Timestamp(1L, 0))
+                                    .build());
+        }
+        ((CommittableWritableStates) clprStates).commit();
+
+        final var output = executor.execute(contractCallSendMessage(forwarderId), Instant.EPOCH);
+
+        final var record = output.getFirst().transactionRecord();
+        assertThat(record.receiptOrThrow().status()).isEqualTo(callerReverts ? CONTRACT_REVERT_EXECUTED : SUCCESS);
+        final var result = record.contractCallResultOrThrow();
+        if (!callerReverts) {
+            assertThat(new java.math.BigInteger(1, result.contractCallResult().toByteArray()))
+                    .isEqualTo(commits ? java.math.BigInteger.ONE : java.math.BigInteger.ZERO);
+        }
+        final var slot = state.getReadableStates(ContractServiceImpl.NAME)
+                .<SlotKey, SlotValue>get(STORAGE_STATE_ID)
+                .get(new SlotKey(connectorId, Bytes.wrap(new byte[32])));
+        final var message = state.getReadableStates(ClprService.NAME)
+                .<ClprMessageKey, ClprMessageValue>get(MESSAGE_QUEUE_STATE_ID)
+                .get(new ClprMessageKey(CLPR_CHANNEL_ID, 1L));
+        if (commits) {
+            assertThat(slot).isNotNull();
+            assertThat(slot.value()).isEqualTo(Bytes.fromHex("00".repeat(31) + "01"));
+            assertThat(message).isNotNull();
+            assertThat(result.logInfo().size()).isEqualTo(1);
+            assertThat(result.logInfo().getFirst().contractID()).isEqualTo(connectorId);
+        } else {
+            assertThat(slot).isNull();
+            assertThat(message).isNull();
+            assertThat(result.logInfo().isEmpty()).isTrue();
+        }
+        final var finalClprStates = state.getReadableStates(ClprService.NAME);
+        assertThat(finalClprStates
+                        .<ClprConnectorKey, ClprConnector>get(CONNECTORS_STATE_ID)
+                        .get(connectorKey)
+                        .inFlightMessageCount())
+                .isEqualTo(commits ? 1L : 0L);
+        if (channelExists) {
+            assertThat(finalClprStates
+                            .<ProtoBytes, ClprChannel>get(CHANNELS_STATE_ID)
+                            .get(channelKey)
+                            .nextMessageId())
+                    .isEqualTo(commits ? 2L : 1L);
+        }
     }
 
     @Test

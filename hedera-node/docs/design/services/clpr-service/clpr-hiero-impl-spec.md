@@ -722,11 +722,13 @@ Per cross-platform spec §3.2 for the `IClprConnectorAuth` interface definition 
 
 On Hiero, Connector authorization contracts are **smart contracts** (EVM contracts with Hiero `AccountID`s)
 implementing the `IClprConnectorAuth` interface (spec §3.2). The CLPR `sendMessage` system contract invokes
-`authorizeOutboundMessage(bytes32,bytes,bytes,bytes)` as a static child EVM frame on the sending transaction's own
+`authorizeOutboundMessage(bytes32,bytes,bytes,bytes)` as a child EVM `CALL` frame on the sending transaction's own
 frame stack, with the CLPR system contract as `msg.sender` and a fixed 50,000 gas budget that is not charged to the
 caller. The connector thus shares the sending transaction's context: its `tx.origin`, transient storage, and warm
 addresses; and, when the sender is an EVM hook, the hook's restrictions (no `DELEGATECALL` or `CALLCODE`). A revert,
 halt, or `false` result fails the send with `CLPR_AUTHORIZATION_FAILED`, without failing the rest of the transaction.
+The connector may update its own contract state and emit logs during authorization. These changes revert if
+authorization, the send, or an enclosing call fails.
 
 ## 6.2 Simple Connector Implementations
 

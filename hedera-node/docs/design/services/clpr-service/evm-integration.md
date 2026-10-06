@@ -40,10 +40,11 @@ selects the translator.
 `SendMessageCall` (in `…clpr/sendmessage/`):
 
 1. **Connector authorization.** Per the spec (§3.2 / §4.3 step 3), `SendMessageCall.scheduleChildFrame`
-   calls the connector contract's `authorizeOutboundMessage(bytes32,bytes,bytes,bytes)` as a static child
+   calls the connector contract's `authorizeOutboundMessage(bytes32,bytes,bytes,bytes)` as a child `CALL`
    frame on the sending transaction's own frame stack, with `0x16e` as `msg.sender` and a fixed 50,000 gas
    budget not charged to the caller. The system contract frame suspends until the child completes; a revert,
-   halt, or `false` result fails the call with `CLPR_AUTHORIZATION_FAILED`.
+   halt, or `false` result fails the call with `CLPR_AUTHORIZATION_FAILED`. The connector may update its own
+   contract state and emit logs; these changes revert if authorization, the send, or an enclosing call fails.
 2. **Dispatch into native code:** invokes `ClprServiceApi.sendMessage(channelId,
    connectorId, targetApplication, sender, messageData)`. The `sender` parameter is the
    originating EVM address — it is **stamped server-side** from the EVM frame's

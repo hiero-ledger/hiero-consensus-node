@@ -56,6 +56,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.apache.tuweni.bytes.Bytes32;
+import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.Code;
@@ -290,7 +291,7 @@ class SendMessageCallTest extends CallTestBase {
         assertThat(frame.getMessageFrameStack()).containsExactly(child, frame);
         assertThat(child.getMessageFrameStack()).isSameAs(frame.getMessageFrameStack());
         assertThat(child.getWorldUpdater()).isSameAs(childUpdater);
-        assertThat(child.isStatic()).isTrue();
+        assertThat(child.isStatic()).isFalse();
         assertThat(child.getSenderAddress().getBytes().toArray()).isEqualTo(CLPR_EVM_ADDRESS_BYTES.toByteArray());
         assertThat(child.getOriginatorAddress()).isEqualTo(SENDER_ADDRESS);
         assertThat(child.getRecipientAddress()).isEqualTo(contract.getAddress());
@@ -344,8 +345,8 @@ class SendMessageCallTest extends CallTestBase {
         "true, 600060005260206000f3, false",
         "false, 600160005260206000fd, false",
         "true, 600160005260206000fd, false",
-        "false, 6001600055600160005260206000f3, false",
-        "true, 6001600055600160005260206000f3, false"
+        "false, 6001600055600160005260206000f3, true",
+        "true, 6001600055600160005260206000f3, true"
     })
     void processesAuthorizationBytecodeBeforeEnqueuing(
             final boolean useBonneville, final String bytecode, final boolean succeeds) {
@@ -353,6 +354,12 @@ class SendMessageCallTest extends CallTestBase {
         givenParentFrame(200_000L);
         givenAuthorizationContract();
         given(contract.getCode()).willReturn(org.apache.tuweni.bytes.Bytes.fromHexString(bytecode));
+        final boolean writesStorage = bytecode.startsWith("6001600055");
+        if (writesStorage) {
+            given(childUpdater.getAccount(contract.getAddress())).willReturn(contract);
+            given(contract.getStorageValue(UInt256.ZERO)).willReturn(UInt256.ZERO);
+            given(contract.getOriginalStorageValue(UInt256.ZERO)).willReturn(UInt256.ZERO);
+        }
         if (succeeds) {
             given(storeFactory.serviceApi(ClprServiceApi.class)).willReturn(clprApi);
         }
@@ -385,6 +392,9 @@ class SendMessageCallTest extends CallTestBase {
 
         assertThat(frame.getMessageFrameStack()).containsExactly(frame);
         assertThat(result.get().responseCode()).isEqualTo(succeeds ? SUCCESS : CLPR_AUTHORIZATION_FAILED);
+        if (writesStorage) {
+            verify(contract).setStorageValue(UInt256.ZERO, UInt256.ONE);
+        }
         if (succeeds) {
             final var order = inOrder(childUpdater, clprApi);
             order.verify(childUpdater).commit();

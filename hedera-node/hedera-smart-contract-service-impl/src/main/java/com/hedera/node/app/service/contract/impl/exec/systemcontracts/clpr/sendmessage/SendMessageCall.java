@@ -93,11 +93,12 @@ public class SendMessageCall extends AbstractCall {
     }
 
     /**
-     * Schedules the connector's {@code authorizeOutboundMessage} as a static child frame on the sending transaction's
+     * Schedules the connector's {@code authorizeOutboundMessage} as a child call frame on the sending transaction's
      * own frame stack, with the CLPR system contract as {@code msg.sender} and a fixed gas budget that (as with the
      * earlier child dispatch) is not charged to the caller. Because the child shares the sending transaction's context,
      * the connector observes its {@code tx.origin}, transient storage, and warm addresses; and when the sender is an EVM
      * hook, the hook's restrictions (e.g. no {@code DELEGATECALL} or {@code CALLCODE}) also apply to the connector.
+     * The connector may update its own state and emit logs; these changes revert if the send or an enclosing call fails.
      */
     @Override
     public boolean scheduleChildFrame(@NonNull final MessageFrame frame, @NonNull final Runnable continuation) {
@@ -130,7 +131,7 @@ public class SendMessageCall extends AbstractCall {
                 .value(Wei.ZERO)
                 .apparentValue(Wei.ZERO)
                 .code(codeCache.getCodeFromTuweni(contract.getCode()))
-                .isStatic(true)
+                .isStatic(frame.isStatic())
                 .completer(child -> completeAuthorization(frame, child, continuation))
                 .build();
         frame.setState(MessageFrame.State.CODE_SUSPENDED);
@@ -143,6 +144,9 @@ public class SendMessageCall extends AbstractCall {
             @NonNull final Runnable continuation) {
         authorized = child.getState() == MessageFrame.State.COMPLETED_SUCCESS
                 && decodeBoolResult(tuweniToPbjBytes(child.getOutputData()));
+        if (authorized) {
+            frame.addLogs(child.getLogs());
+        }
         frame.setState(MessageFrame.State.CODE_EXECUTING);
         continuation.run();
     }
