@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedAccount;
@@ -33,7 +34,9 @@ import org.junit.jupiter.api.DynamicTest;
  *
  * <p>Also documents the same scenario inside an atomic batch, where the submitting node is currently not
  * charged: inner-transaction dispatches skip creator charging, so the batch fails with
- * {@code INNER_TRANSACTION_FAILED} and the batch payer is charged instead.
+ * {@code INNER_TRANSACTION_FAILED} and the batch payer is charged instead. System-file updates are not
+ * allowed inside an atomic batch, so the batch case uses an unauthorized system-file delete, which is
+ * subject to the same check.
  */
 public class SystemFileUpdateDueDiligenceTest {
     // 0.0.4 is a non-default node; submitting to it bypasses ingest in embedded mode
@@ -88,8 +91,8 @@ public class SystemFileUpdateDueDiligenceTest {
 
     @EmbeddedHapiTest(value = MUST_SKIP_INGEST)
     @DisplayName(
-            "an unauthorized system-file update inside an atomic batch that bypassed ingest charges the batch payer")
-    final Stream<DynamicTest> unauthorizedSystemFileUpdateInAtomicBatchThatBypassedIngestChargesTheBatchPayer() {
+            "an unauthorized system-file delete inside an atomic batch that bypassed ingest charges the batch payer")
+    final Stream<DynamicTest> unauthorizedSystemFileDeleteInAtomicBatchThatBypassedIngestChargesTheBatchPayer() {
         final var nonPrivilegedPayer = "nonPrivilegedPayer";
         final var batchOperator = "batchOperator";
         final var batchTxn = "batchTxn";
@@ -100,15 +103,14 @@ public class SystemFileUpdateDueDiligenceTest {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, SUBMITTING_NODE_ACCOUNT_ID, ONE_HBAR)),
                 // Ingest privilege-checks batch inner transactions too, so an honest node rejects this batch
                 // outright; submitting to a non-default node bypasses ingest and lets it reach consensus.
-                // This documents the current charging for that case: pre-handle flags the inner update as a
+                // This documents the current charging for that case: pre-handle flags the inner delete as a
                 // node due-diligence failure, but BATCH_INNER dispatches skip creator charging, so the batch
                 // fails with INNER_TRANSACTION_FAILED and the batch payer — not the submitting node — is
                 // charged. Whether the node should be charged instead is tracked as a follow-up.
-                atomicBatch(fileUpdate(EXCHANGE_RATES)
-                                .contents("Should be impossible!")
+                atomicBatch(fileDelete(EXCHANGE_RATES)
                                 .payingWith(nonPrivilegedPayer)
                                 .batchKey(batchOperator)
-                                .hasKnownStatus(AUTHORIZATION_FAILED))
+                                .hasKnownStatus(ENTITY_NOT_ALLOWED_TO_DELETE))
                         .payingWith(batchOperator)
                         .via(batchTxn)
                         .setNode(SUBMITTING_NODE_ACCOUNT_ID)

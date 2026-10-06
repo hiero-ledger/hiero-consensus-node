@@ -12,7 +12,13 @@ import static com.hedera.node.app.workflows.standalone.TransactionExecutors.MAX_
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -81,6 +87,7 @@ import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.app.throttle.AppScheduleThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
+import com.hedera.node.app.workflows.handle.DispatchProcessor;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.EntitiesConfig;
@@ -109,6 +116,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import org.apache.tuweni.bytes.Bytes32;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
@@ -292,6 +300,77 @@ public class TransactionExecutorsTest {
         // With just 42 bytes allowed for signed transactions, the executor will not be able to construct
         // a dispatch for the transaction and throw an exception
         assertThrows(NullPointerException.class, () -> executor.execute(uploadMultipurposeInitcode(), Instant.EPOCH));
+    }
+
+    @Test
+    void dispatchOrResyncResyncsAndRethrowsWhenDispatchThrows() {
+        final var dispatchProcessor = mock(DispatchProcessor.class);
+        final var state = mock(State.class);
+        final var failure = new IllegalStateException("abandoned");
+
+        final var thrown = assertThrows(
+                IllegalStateException.class,
+                () -> TransactionExecutors.dispatchOrResync(
+                        () -> {
+                            throw failure;
+                        },
+                        dispatchProcessor,
+                        state));
+
+        assertSame(failure, thrown);
+        verify(dispatchProcessor).resyncAfterAbandonedTransaction(state);
+    }
+
+    @Test
+    void dispatchOrResyncResyncsAndRethrowsWhenDispatchThrowsError() {
+        final var dispatchProcessor = mock(DispatchProcessor.class);
+        final var state = mock(State.class);
+        final var failure = new AssertionError("abandoned");
+
+        final var thrown = assertThrows(
+                AssertionError.class,
+                () -> TransactionExecutors.dispatchOrResync(
+                        () -> {
+                            throw failure;
+                        },
+                        dispatchProcessor,
+                        state));
+
+        assertSame(failure, thrown);
+        verify(dispatchProcessor).resyncAfterAbandonedTransaction(state);
+    }
+
+    @Test
+    void dispatchOrResyncKeepsOriginalFailureWhenResyncAlsoThrows() {
+        final var dispatchProcessor = mock(DispatchProcessor.class);
+        final var state = mock(State.class);
+        final var failure = new IllegalStateException("abandoned");
+        final var resyncFailure = new IllegalStateException("resync failed");
+        doThrow(resyncFailure).when(dispatchProcessor).resyncAfterAbandonedTransaction(state);
+
+        final var thrown = assertThrows(
+                IllegalStateException.class,
+                () -> TransactionExecutors.dispatchOrResync(
+                        () -> {
+                            throw failure;
+                        },
+                        dispatchProcessor,
+                        state));
+
+        assertSame(failure, thrown);
+        assertSame(resyncFailure, thrown.getSuppressed()[0]);
+    }
+
+    @Test
+    void dispatchOrResyncDoesNotResyncWhenDispatchSucceeds() {
+        final var dispatchProcessor = mock(DispatchProcessor.class);
+        final var state = mock(State.class);
+        final var ran = new AtomicBoolean();
+
+        TransactionExecutors.dispatchOrResync(() -> ran.set(true), dispatchProcessor, state);
+
+        assertTrue(ran.get());
+        verifyNoInteractions(dispatchProcessor);
     }
 
     @Test

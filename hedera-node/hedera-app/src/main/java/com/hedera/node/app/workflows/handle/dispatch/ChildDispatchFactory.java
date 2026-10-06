@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.dispatch;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_TRANSACTION_IN_BLACKLIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.service.schedule.impl.handlers.HandlerUtility.functionalityForType;
@@ -39,6 +41,7 @@ import com.hedera.node.app.service.entityid.impl.EntityNumGeneratorImpl;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.service.util.impl.handlers.AtomicBatchHandler;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.signature.AppKeyVerifier;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
@@ -80,6 +83,7 @@ import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
+import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -185,7 +189,8 @@ public class ChildDispatchFactory {
         // results from the override pre-handle result
         final var preHandleResult = overridePreHandleResult != null
                 ? overridePreHandleResult
-                : preHandleChild(options.body(), options.payerId(), config, readableStoreFactory, creatorInfo);
+                : preHandleChild(
+                        options.body(), options.payerId(), config, readableStoreFactory, creatorInfo, topLevelFunction);
         final var childVerifier = overridePreHandleResult != null
                 ? new DefaultKeyVerifier(
                         config.getConfigData(HederaConfig.class), overridePreHandleResult.getVerificationResults())
@@ -364,6 +369,7 @@ public class ChildDispatchFactory {
      * @param config the configuration
      * @param readableStoreFactory the readable store factory
      * @param creatorInfo the creator info
+     * @param topLevelFunction the functionality of the top-level transaction
      * @return the pre-handle result
      */
     private PreHandleResult preHandleChild(
@@ -371,8 +377,16 @@ public class ChildDispatchFactory {
             @NonNull final AccountID syntheticPayerId,
             @NonNull final Configuration config,
             @NonNull final ReadableStoreFactory readableStoreFactory,
-            @NonNull final NodeInfo creatorInfo) {
+            @NonNull final NodeInfo creatorInfo,
+            @NonNull final HederaFunctionality topLevelFunction) {
         try {
+            // A transaction dispatched from inside an atomic batch is subject to the same rule as the batch's inner
+            // transactions
+            if (topLevelFunction == ATOMIC_BATCH
+                    && AtomicBatchHandler.isNeverAllowedInBatch(
+                            txBody, config.getConfigData(LedgerConfig.class).numReservedSystemEntities())) {
+                throw new PreCheckException(BATCH_TRANSACTION_IN_BLACKLIST);
+            }
             final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
             dispatcher.dispatchPureChecks(pureChecksContext);
             final var preHandleContext = new PreHandleContextImpl(

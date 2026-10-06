@@ -32,6 +32,7 @@ import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
 import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
 import com.hedera.node.app.throttle.AppScheduleThrottleFactory;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
+import com.hedera.node.app.workflows.handle.DispatchProcessor;
 import com.hedera.node.app.workflows.standalone.impl.StandaloneNetworkInfo;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
@@ -232,12 +233,39 @@ public enum TransactionExecutors {
         final var exchangeRateManager = executor.exchangeRateManager();
         return (transactionBody, consensusNow, tracers) -> {
             final var dispatch = executor.standaloneDispatchFactory().newDispatch(state, transactionBody, consensusNow);
-            tracerBinding.runWhere(
-                    List.of(tracers), () -> executor.dispatchProcessor().processDispatch(dispatch));
+            final var dispatchProcessor = executor.dispatchProcessor();
+            dispatchOrResync(
+                    () -> tracerBinding.runWhere(List.of(tracers), () -> dispatchProcessor.processDispatch(dispatch)),
+                    dispatchProcessor,
+                    state);
             return dispatch.stack()
                     .buildHandleOutput(consensusNow, exchangeRateManager.exchangeRates())
                     .singleTransactionRecords();
         };
+    }
+
+    /**
+     * Runs the given dispatch. If it throws anything, re-derives the in-memory facilities from the state that remains, so
+     * they match it, and rethrows the exception.
+     *
+     * @param dispatch the dispatch to run
+     * @param dispatchProcessor the dispatch processor that tracks in-memory facility updates
+     * @param state the state the dispatch runs against
+     */
+    static void dispatchOrResync(
+            @NonNull final Runnable dispatch,
+            @NonNull final DispatchProcessor dispatchProcessor,
+            @NonNull final State state) {
+        try {
+            dispatch.run();
+        } catch (final Throwable t) {
+            try {
+                dispatchProcessor.resyncAfterAbandonedTransaction(state);
+            } catch (final Throwable resyncFailure) {
+                t.addSuppressed(resyncFailure);
+            }
+            throw t;
+        }
     }
 
     /**

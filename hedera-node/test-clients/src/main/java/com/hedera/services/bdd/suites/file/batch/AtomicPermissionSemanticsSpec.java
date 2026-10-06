@@ -3,39 +3,29 @@ package com.hedera.services.bdd.suites.file.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileAppend;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
-import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.suites.HapiSuite.ADDRESS_BOOK_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.HapiSuite.NODE_DETAILS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNAUTHORIZED;
 
-import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.ControlForKey;
 import com.hedera.services.bdd.spec.keys.KeyFactory;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -50,32 +40,6 @@ class AtomicPermissionSemanticsSpec {
     public static final String ETERNAL = "eternal";
     public static final String WACL = "wacl";
     private static final String BATCH_OPERATOR = "batchOperator";
-
-    @HapiTest
-    final Stream<DynamicTest> addressBookAdminExemptFromFeesGivenAuthorizedOps() {
-        long amount = 100 * 100_000_000L;
-        AtomicReference<byte[]> origContents = new AtomicReference<>();
-        return hapiTest(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, ADDRESS_BOOK_CONTROL, amount))
-                        .fee(ONE_HUNDRED_HBARS),
-                fileCreate("tbu"),
-                getFileContents(NODE_DETAILS).consumedBy(origContents::set),
-                atomicBatch(
-                                fileUpdate(NODE_DETAILS)
-                                        .payingWith(ADDRESS_BOOK_CONTROL)
-                                        .contents(ignore -> ByteString.copyFrom(origContents.get()))
-                                        .via("authorizedTxn")
-                                        .batchKey(BATCH_OPERATOR),
-                                fileUpdate("tbu")
-                                        .payingWith(ADDRESS_BOOK_CONTROL)
-                                        .contents("This is something new.")
-                                        .via("unauthorizedTxn")
-                                        .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR),
-                getTxnRecord("unauthorizedTxn").hasPriority(recordWith().feeDifferentThan(0L)),
-                getTxnRecord("authorizedTxn").hasPriority(recordWith().fee(0L)));
-    }
 
     @HapiTest
     final Stream<DynamicTest> supportsImmutableFiles() {

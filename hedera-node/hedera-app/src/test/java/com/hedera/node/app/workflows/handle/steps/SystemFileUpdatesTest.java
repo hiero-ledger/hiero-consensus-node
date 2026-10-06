@@ -11,6 +11,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -152,6 +153,65 @@ class SystemFileUpdatesTest implements TransactionFactory {
 
         // then
         assertThatCode(() -> subject.handleTxBody(state, txBody)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void resyncTargetCapturesFacilityFileAndAppliedContents() {
+        final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
+        final var fileID = idFactory.newFileId(config.throttleDefinitions());
+        files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
+
+        final var target = subject.resyncTarget(state, fileUpdateOf(fileID));
+
+        assertThat(target)
+                .contains(new SystemFileUpdates.ResyncTarget(
+                        SystemFileUpdates.ResyncTarget.Facility.THROTTLE_DEFINITIONS, fileID, FILE_BYTES));
+    }
+
+    @Test
+    void resyncTargetIsEmptyForNonFacilityFiles() {
+        assertThat(subject.resyncTarget(state, fileUpdateOf(idFactory.newFileId(1001L))))
+                .isEmpty();
+        assertThat(subject.resyncTarget(state, TransactionBody.DEFAULT)).isEmpty();
+    }
+
+    @Test
+    void resyncIfChangedSkipsWhenCommittedContentsMatchAppliedContents() {
+        final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
+        final var fileID = idFactory.newFileId(config.throttleDefinitions());
+        files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
+
+        subject.resyncIfChanged(
+                state,
+                new SystemFileUpdates.ResyncTarget(
+                        SystemFileUpdates.ResyncTarget.Facility.THROTTLE_DEFINITIONS, fileID, FILE_BYTES));
+
+        verifyNoInteractions(throttleServiceManager);
+    }
+
+    @Test
+    void resyncIfChangedRederivesFromCommittedContentsWhenTheyDiffer() {
+        final var config = configProvider.getConfiguration().getConfigData(FilesConfig.class);
+        final var fileID = idFactory.newFileId(config.throttleDefinitions());
+        files.put(fileID, File.newBuilder().contents(FILE_BYTES).build());
+
+        subject.resyncIfChanged(
+                state,
+                new SystemFileUpdates.ResyncTarget(
+                        SystemFileUpdates.ResyncTarget.Facility.THROTTLE_DEFINITIONS,
+                        fileID,
+                        Bytes.wrap("rolled back")));
+
+        verify(throttleServiceManager).recreateThrottles(FILE_BYTES);
+    }
+
+    private TransactionBody fileUpdateOf(final FileID fileID) {
+        return TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder()
+                        .accountID(idFactory.newAccountId(50L))
+                        .build())
+                .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(fileID))
+                .build();
     }
 
     @Test

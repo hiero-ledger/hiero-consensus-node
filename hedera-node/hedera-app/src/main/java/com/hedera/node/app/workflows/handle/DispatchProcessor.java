@@ -44,9 +44,12 @@ import com.hedera.node.app.workflows.handle.throttle.DispatchUsageManager;
 import com.hedera.node.app.workflows.handle.throttle.ThrottleException;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -78,6 +81,19 @@ public class DispatchProcessor {
     private final NetworkInfo networkInfo;
     private final OpWorkflowMetrics workflowMetrics;
     private final AppFeeCharging appFeeCharging;
+
+    /**
+     * The system-file facilities that a dispatch within the current transaction updated in memory, each with the file
+     * contents it was last updated from. Once the transaction commits, each facility whose file no longer has those
+     * contents is re-derived from the committed state.
+     */
+    private final Map<SystemFileUpdates.ResyncTarget.Facility, SystemFileUpdates.ResyncTarget> pendingFacilityResyncs =
+            new EnumMap<>(SystemFileUpdates.ResyncTarget.Facility.class);
+    /**
+     * Whether a dispatch within the current transaction refreshed the node info in memory, so it must be refreshed
+     * again from the committed state once the transaction commits.
+     */
+    private boolean pendingNodeInfoResync;
 
     @Inject
     public DispatchProcessor(
@@ -149,6 +165,36 @@ public class DispatchProcessor {
         dispatchUsageManager.finalizeAndSaveUsage(dispatch);
         recordFinalizer.finalizeRecord(dispatch);
         dispatch.stack().commitFullStack();
+        if (dispatch.stack().isRoot()) {
+            resyncFromCommittedState(dispatch.stack());
+        }
+    }
+
+    /**
+     * Re-derives, from the given state, every in-memory facility and the node info that a dispatch updated in memory
+     * but whose transaction did not complete normally, and clears the pending updates. Called when the handle
+     * workflow abandons a transaction after an unexpected failure, so memory matches the state that remains.
+     *
+     * @param state the state that remains after the abandoned transaction
+     */
+    public void resyncAfterAbandonedTransaction(@NonNull final State state) {
+        requireNonNull(state);
+        resyncFromCommittedState(state);
+    }
+
+    /**
+     * Re-derives, from the committed state, the in-memory facilities and node info that a dispatch within the
+     * transaction just committed updated, so they always match the committed state.
+     *
+     * @param stack the committed state of the transaction
+     */
+    private void resyncFromCommittedState(@NonNull final State stack) {
+        pendingFacilityResyncs.values().forEach(target -> systemFileUpdates.resyncIfChanged(stack, target));
+        pendingFacilityResyncs.clear();
+        if (pendingNodeInfoResync) {
+            networkInfo.updateFrom(stack);
+            pendingNodeInfoResync = false;
+        }
     }
 
     /**
@@ -232,6 +278,16 @@ public class DispatchProcessor {
      * @param dispatch the dispatch to be processed
      */
     private void handleSystemUpdates(final Dispatch dispatch) {
+        // The transaction can still be rolled back or abandoned after this dispatch, and applying an update can fail
+        // partway, so first remember what it updates in memory; it is re-derived from the committed state once the
+        // transaction completes
+        systemFileUpdates
+                .resyncTarget(dispatch.stack(), dispatch.txnInfo().txBody())
+                .ifPresent(target -> pendingFacilityResyncs.put(target.facility(), target));
+        if (dispatch.txnInfo().functionality() == NODE_UPDATE) {
+            pendingNodeInfoResync = true;
+        }
+
         // Notify responsible facility if system-file was uploaded.
         // Returns SUCCESS if no system-file was uploaded
         final var fileUpdateResult = systemFileUpdates.handleTxBody(

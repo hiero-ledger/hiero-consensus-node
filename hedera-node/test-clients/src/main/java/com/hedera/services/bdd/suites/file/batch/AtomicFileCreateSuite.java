@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.file.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
 import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
@@ -11,18 +10,10 @@ import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.KeyShape.threshOf;
 import static com.hedera.services.bdd.spec.keys.SigControl.OFF;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
-import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
-import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATES;
-import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATE_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
@@ -39,7 +30,6 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.Transaction;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -51,21 +41,6 @@ import org.junit.jupiter.api.Tag;
 class AtomicFileCreateSuite {
 
     private static final String BATCH_OPERATOR = "batchOperator";
-
-    @HapiTest
-    final Stream<DynamicTest> exchangeRateControlAccountIsntCharged() {
-        return hapiTest(
-                cryptoCreate(BATCH_OPERATOR),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, EXCHANGE_RATE_CONTROL, 1_000_000_000_000L)),
-                balanceSnapshot("pre", EXCHANGE_RATE_CONTROL),
-                getFileContents(EXCHANGE_RATES).saveTo("exchangeRates.bin"),
-                atomicBatch(fileUpdate(EXCHANGE_RATES)
-                                .payingWith(EXCHANGE_RATE_CONTROL)
-                                .path(Path.of("./", "exchangeRates.bin").toString())
-                                .batchKey(BATCH_OPERATOR))
-                        .payingWith(BATCH_OPERATOR),
-                getAccountBalance(EXCHANGE_RATE_CONTROL).hasTinyBars(changeFromSnapshot("pre", 0)));
-    }
 
     @HapiTest
     final Stream<DynamicTest> createFailsWithExcessiveLifetime() {

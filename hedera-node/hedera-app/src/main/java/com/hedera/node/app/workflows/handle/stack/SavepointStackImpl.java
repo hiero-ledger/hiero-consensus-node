@@ -734,6 +734,15 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     }
 
     /**
+     * Returns whether this is the root stack of a transaction, rather than the stack of a dispatch made within it.
+     *
+     * @return true if this is a root stack
+     */
+    public boolean isRoot() {
+        return !(state instanceof SavepointStackImpl);
+    }
+
+    /**
      * Returns the transaction id of the nearest atomic batch inner transaction enclosing this stack, or null if this
      * stack is not being used within a batch inner transaction.
      */

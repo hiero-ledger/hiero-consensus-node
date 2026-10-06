@@ -1,0 +1,1 @@
+[{"inputs":[{"internalType":"address","name":"schedule","type":"address"}],"name":"authorizeScheduleAndRevert","outputs":[],"stateMutability":"nonpayable","type":"function"}]
