@@ -106,7 +106,7 @@ class ClprStreamingSynchronizerTest {
         // Peer selection is covered by ClprPeerSelectorTest; here it just hands back the one peer.
         lenient().when(peerSelector.selectEndpoint(any(), any())).thenReturn(new SelectedPeer(PEER_ID, endpoint()));
         lenient().when(clientCache.clientFor(any(), anyInt(), any(), any())).thenReturn(client);
-        lenient().when(client.streamingSync(any())).thenReturn(streamingCall);
+        lenient().when(client.sync(any())).thenReturn(streamingCall);
         lenient().when(bundleSubmitter.submitBundle(any())).thenReturn(true);
         subject = new ClprStreamingSynchronizer(
                 configProvider, bundleSubmitter, stateProofManager, leafCertManager, clientCache, peerSelector);

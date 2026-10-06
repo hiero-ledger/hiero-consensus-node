@@ -48,6 +48,8 @@
 |                                              |                                        |                                                       |                                                                   |
 | # AI HELPERS (700-799)                       |                                        |                                                       |                                                                   |
 | 701-flow-auto-unapprove.yaml                 | 701: [FLOW] Auto Unapprove PR          | 080-flow-auto-unapprove.yaml                          | 080: [FLOW] Auto Unapprove PR                                     |
+| 702-flow-codeowners.yaml                     | 702: [FLOW] Codeowners Plus            | n/a                                                   | n/a                                                               |
+| 703-flow-codeowners-rerun.yaml               | 703: [FLOW] Codeowners Rerun           | n/a                                                   | n/a                                                               |
 |                                              |                                        |                                                       |                                                                   |
 | # REUSABLE (800-899)                         |                                        |                                                       |                                                                   |
 | 800-call-mats-tests.yaml                     | 800: [CALL] Exec MATS Tests            | zxc-mats-tests.yaml                                   | ZXC: Executable MATS Tests                                        |
@@ -62,6 +64,7 @@
 | 809-call-dependency-module-check.yaml        | 809: [CALL] Dependency Module Chk      | zxc-dependency-module-check.yaml                      | ZXC: Dependency Module Check                                      |
 | 810-call-execute-mats-hapi.yaml              | 810: [CALL] Exec MATS HAPI Suites      | N/A                                                   | N/A                                                               |
 | 811-call-execute-mats-otter.yaml             | 811: [CALL] Exec MATS Otter Suites     | N/A                                                   | N/A                                                               |
+| 812-call-benchmark-smoke.yaml                | 812: [CALL] Benchmark Smoke Run        | N/A                                                   | N/A                                                               |
 | 815-call-xts-tests.yaml                      | 815: [CALL] Exec XTS Tests             | zxc-xts-tests.yaml                                    | ZXC: Executable XTS Tests                                         |
 | 816-call-build-publish-state-validator.yaml  | 816: [CALL] Build State Validator      | zxc-build-publish-state-validator.yaml                | ZXC: Build & Publish Hedera State Validator Uber JAR              |
 | 817-call-jrs-regression.yaml                 | 817: [CALL] JRS Regression             | zxc-jrs-regression.yaml                               | ZXC: Regression                                                   |
@@ -115,6 +118,7 @@
 | 902-cron-auto-namespace-delete.yaml          | 902: [CRON] Auto Namespace Delete      | zxcron-auto-namespaces-delete.yaml                    | Delete automation Latitude Namespaces                             |
 | 903-cron-clean.yaml                          | 903: [CRON] Clean Latitude NS          | zxcron-clean.yaml                                     | CronClean Latitude Namespaces                                     |
 | 904-cron-release-branching.yaml              | 904: [CRON] Release Branching          | node-zxcron-release-branching.yaml                    | ZXCron: Automatic Release Branching                               |
+| 905-cron-nightly-benchmarks.yaml             | 905: [CRON] Nightly Benchmarks         | N/A                                                   | N/A                                                               |
 
 ## Numbering conventions
 
@@ -129,7 +133,7 @@
   numbered in that consumer's block; per-suite leaves are neutral and are not.
 
 - **The contiguous space below 850 is now exhausted.** The next batch of leaf workflows starts at
-  **870**, on a clean ten boundary. 812-814 and 829-830 are reserved for MATS- and XTS-specific
+  **870**, on a clean ten boundary. 813-814 and 829-830 are reserved for MATS- and XTS-specific
   callees respectively.
 
 - **`disp`-class operational controllers live in 100-199.** `106-disp-xts-optional-tests.yaml` is

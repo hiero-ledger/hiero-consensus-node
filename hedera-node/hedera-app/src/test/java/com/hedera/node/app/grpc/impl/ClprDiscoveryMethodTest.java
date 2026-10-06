@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.node.app.utils.TestUtils;
@@ -51,8 +50,5 @@ final class ClprDiscoveryMethodTest {
         final var requestCaptor = ArgumentCaptor.forClass(Bytes.class);
         verify(workflow).handleDiscovery(requestCaptor.capture(), any(BufferedData.class));
         assertThat(requestCaptor.getValue()).isEqualTo(expectedRequestBytes);
-
-        // And handleSync was never called (sanity check that the correct method was routed)
-        verify(workflow, never()).handleSync(any(), any());
     }
 }

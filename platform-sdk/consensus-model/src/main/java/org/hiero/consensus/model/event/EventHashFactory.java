@@ -35,9 +35,7 @@ public class EventHashFactory {
      */
     @NonNull
     public static Hash hash(@NonNull final Bytes bytes, final long eventBirthRound) {
-        return eventBirthRound < eventCutoverMinBirthRound
-                ? new Hash(bytes, DigestType.SHA_384)
-                : new Hash(bytes, DigestType.SHA_256);
+        return new Hash(bytes, getTypeForBirthRound(eventBirthRound));
     }
 
     /**
@@ -72,5 +70,25 @@ public class EventHashFactory {
                     String.format("No digest known digest type for length %s", bytes.length()));
         }
         return new Hash(bytes, digestType);
+    }
+
+    /**
+     * Determines if a birth round is prior to or after the event cutover.
+     *
+     * @param birthRound the birth round to check
+     * @return true if the birth round is post cutover
+     */
+    public static boolean isBirthRoundPostCutover(final long birthRound) {
+        return birthRound >= eventCutoverMinBirthRound;
+    }
+
+    /**
+     * Gets the digest type for a given birth round. If the birth round is prior to the cutover, SHA-384 is returned.
+     *
+     * @param birthRound the birth round to check
+     * @return the digest type for the birth round
+     */
+    public static DigestType getTypeForBirthRound(final long birthRound) {
+        return isBirthRoundPostCutover(birthRound) ? DigestType.SHA_256 : DigestType.SHA_384;
     }
 }
