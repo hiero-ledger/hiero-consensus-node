@@ -456,7 +456,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         logger.info(STARTUP.getMarker(), "Doing full rehash for the path range: {} - {}", firstLeafPath, lastLeafPath);
         final int hashChunkHeight = dataSource.getHashChunkHeight();
-        final int flushInterval = flushInterval(lastLeafPath, hashChunkHeight);
+        final int flushInterval = fullRehashFlushInterval(lastLeafPath, hashChunkHeight);
         final FullLeafRehashHashListener chunkListener =
                 new FullLeafRehashHashListener(firstLeafPath, lastLeafPath, dataSource, statistics, flushInterval);
         final HashChunkCollector hashListener = new HashChunkCollector(hashChunkHeight, chunkListener);
@@ -532,7 +532,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     /// @param lastLeafPath the last leaf path, must be positive
     /// @param chunkHeight hash chunk height
     /// @return the flush interval, in hash slots
-    private static int flushInterval(final long lastLeafPath, final int chunkHeight) {
+    private static int fullRehashFlushInterval(final long lastLeafPath, final int chunkHeight) {
         // Desired number of hash chunk flushes per full rehash. Every flush has a fixed cost (a new
         // data file, metadata update, etc.), and every flush creates a new data file to compact later,
         // so for small and mid-size states the number of flushes shouldn't depend on the state size
