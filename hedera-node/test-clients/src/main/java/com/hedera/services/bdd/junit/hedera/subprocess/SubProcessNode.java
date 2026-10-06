@@ -11,7 +11,7 @@ import static com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus.GrpcSta
 import static com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus.GrpcStatus.NA;
 import static com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus.GrpcStatus.UP;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.conditionFuture;
-import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.destroyAnySubProcessNodeWithId;
+import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.destroyAnySubProcessNodeFor;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.startSubProcessNodeFrom;
 import static com.hedera.services.bdd.junit.hedera.subprocess.StatusLookupAttempt.newLogAttempt;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ERROR_REDIRECT_FILE;
@@ -218,7 +218,7 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
             final int configVersion, @NonNull final Map<String, String> envOverrides) {
         assertStopped();
         assertWorkingDirInitialized();
-        destroyAnySubProcessNodeWithId(metadata.nodeId());
+        destroyAnySubProcessNodeFor(metadata.networkName(), metadata.nodeId());
         processHandle = startSubProcessNodeFrom(metadata, configVersion, envOverrides);
         return this;
     }

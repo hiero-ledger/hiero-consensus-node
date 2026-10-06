@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/state/clpr/clpr_ledger_configuration.proto";
+
+/**
+ * Updates the local CLPR ledger configuration.
+ * Requires the CLPR admin key.
+ *
+ * The handler auto-sets timestamp. The chain_id and protocol_version
+ * fields are immutable (set at genesis from configuration properties)
+ * and cannot be changed via this transaction.
+ */
+message ClprUpdateLedgerConfigurationTransactionBody {
+    /**
+     * The configuration to update. chain_id, protocol_version, and timestamp
+     * are ignored — chain_id and protocol_version are immutable, timestamp
+     * is set by the handler.
+     */
+    com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration configuration = 1;
+}

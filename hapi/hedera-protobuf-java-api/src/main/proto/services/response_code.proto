@@ -1983,4 +1983,210 @@ enum ResponseCodeEnum {
      * for every part but the last of a multi-part upload.
      */
     CONFIG_FILE_PART_UPLOADED = 536;
+
+    /**
+     * The CLPR service is not enabled on this ledger.
+     */
+    CLPR_NOT_ENABLED = 537;
+
+    /**
+     * A CLPR configuration field has an invalid value.<br/>
+     * Throttle values such as max_messages_per_bundle, max_message_payload_bytes,
+     * and max_queue_depth must be greater than zero.
+     */
+    INVALID_CLPR_CONFIGURATION = 538;
+
+    /**
+     * The chain_id in a CLPR ledger configuration is immutable
+     * (set at genesis from configuration properties).
+     */
+    CLPR_CHAIN_ID_IMMUTABLE = 539;
+
+    /**
+     * Too many endpoints were specified in the CLPR configuration.<br/>
+     * The maximum number of endpoints is set by `max_local_endpoints` when
+     * that value is non-zero.
+     */
+    CLPR_TOO_MANY_SEED_ENDPOINTS = 540;
+
+    /**
+     * An endpoint in the CLPR configuration is missing required fields
+     * (service_endpoint, tls_certificate, or ecdsa_signing_key).
+     */
+    CLPR_INVALID_SEED_ENDPOINT = 541;
+
+    /**
+     * A CLPR Channel with the given channel_id already exists.
+     */
+    CLPR_CHANNEL_ALREADY_EXISTS = 542;
+
+    /**
+     * The signature on the CLPR channel completion is invalid.
+     */
+    CLPR_INVALID_SIGNATURE = 543;
+
+    /**
+     * The verifier contract account does not exist or is not a smart contract.
+     */
+    CLPR_INVALID_VERIFIER_CONTRACT = 544;
+
+    /**
+     * The verifier contract's verifyConfig call failed or returned invalid data.
+     */
+    CLPR_VERIFIER_CONFIG_FAILED = 545;
+
+    /**
+     * The keccak256(channel_id || public_key) does not match any stored
+     * ownership commitment.
+     */
+    CLPR_COMMITMENT_MISMATCH = 546;
+
+    /**
+     * The specified channel_id does not correspond to any known CLPR channel.
+     */
+    CLPR_CHANNEL_NOT_FOUND = 547;
+
+    /**
+     * The channel's current status does not allow the requested transition
+     * (e.g., attempting to close an already-closing or closed channel).
+     */
+    CLPR_INVALID_CHANNEL_STATUS = 548;
+
+    /**
+     * The specified message ID does not exist in the queue.
+     */
+    CLPR_MESSAGE_NOT_FOUND = 549;
+
+    /**
+     * The message has already been acknowledged by the peer and cannot be redacted.
+     */
+    CLPR_MESSAGE_ALREADY_ACKNOWLEDGED = 550;
+
+    /**
+     * The endpoint signature is invalid or the signer is not a registered endpoint.
+     */
+    CLPR_INVALID_ENDPOINT_SIGNATURE = 551;
+
+    /**
+     * The bundle proof verification failed.
+     */
+    CLPR_BUNDLE_VERIFICATION_FAILED = 552;
+
+    /**
+     * The running hash in the bundle does not match the expected value.
+     */
+    CLPR_RUNNING_HASH_MISMATCH = 553;
+
+    /**
+     * The message queue has reached the maximum depth for this Channel.
+     */
+    CLPR_QUEUE_FULL = 554;
+
+    /**
+     * The specified Connector does not exist.
+     */
+    CLPR_CONNECTOR_NOT_FOUND = 555;
+
+    /**
+     * A Connector with the same (channel_id, connector_id) already exists.
+     */
+    CLPR_CONNECTOR_ALREADY_EXISTS = 556;
+
+    /**
+     * The caller is not the admin of the specified Connector.
+     */
+    CLPR_CONNECTOR_UNAUTHORIZED = 557;
+
+    /**
+     * The connector_id is missing or empty.
+     */
+    CLPR_INVALID_CONNECTOR_ADDRESS = 558;
+
+    /**
+     * The connector_contract does not refer to a deployed smart contract.
+     */
+    CLPR_INVALID_CONNECTOR_CONTRACT = 559;
+
+    /**
+     * The locked_stake amount is below the minimum required by ClprConfig.
+     */
+    CLPR_INSUFFICIENT_STAKE = 560;
+
+    /**
+     * The message payload exceeds the destination ledger's max_message_payload_bytes.
+     */
+    CLPR_PAYLOAD_TOO_LARGE = 561;
+
+    /**
+     * The Connector's authorization contract rejected the message.
+     */
+    CLPR_AUTHORIZATION_FAILED = 562;
+
+    /**
+     * The message has already been redacted (payload already removed).
+     */
+    CLPR_MESSAGE_ALREADY_REDACTED = 563;
+
+    /**
+     * The Connector has exceeded its per-Channel queue quota. Other
+     * Connectors may still enqueue messages on this Channel.
+     */
+    CLPR_QUEUE_QUOTA_EXCEEDED = 564;
+
+    /**
+     * The Connector's balance is insufficient to cover the queue fee
+     * (including any congestion escalation).
+     */
+    CLPR_INSUFFICIENT_CONNECTOR_BALANCE = 565;
+
+    /**
+     * Internal CLPR state is corrupt (e.g., an outbound message ID was assigned but the
+     * message does not exist in the queue). Requires investigation and possible data migration.
+     */
+    CLPR_INTERNAL_STATE_CORRUPTION = 566;
+
+    /**
+     * Cannot deregister a Connector that still has unresolved outbound in-flight messages.
+     * All enqueued DATA messages must be acknowledged by a terminal reply before deregistration.
+     */
+    CLPR_CONNECTOR_HAS_IN_FLIGHT_MESSAGES = 567;
+
+    /**
+     * A per-message protobuf decode failed inside a verifier-accepted bundle. Because the
+     * verifier already attested to the bundle contents, a decode failure means the verifier
+     * signed off on malformed data. The Channel is transitioned to PAUSED and remaining
+     * messages in the bundle are not processed.
+     */
+    CLPR_BUNDLE_DECODE_FAILED = 568;
+
+    /**
+     * The submitted bundle carries no application messages, no trust anchor advance, and
+     * no ack progress. Such a bundle has nothing to deliver and is rejected to prevent
+     * endpoints from posting empty proofs.
+     *
+     * @deprecated Use CLPR_NO_PROGRESS instead.
+     */
+    CLPR_EMPTY_BUNDLE = 569 [deprecated = true];
+
+    /**
+     * The submitting endpoint has exceeded its fair share of the per-ledger
+     * max_bundles_per_sec throttle. Each endpoint's share is
+     * max_bundles_per_sec / num_registered_endpoints; submissions beyond that
+     * within a one-second window are rejected and the endpoint is charged a
+     * misbehavior penalty.
+     */
+    CLPR_RATE_LIMITED = 570;
+
+    /**
+     * A submitted bundle satisfies none of the four Bundle Progress Criteria (spec §2.1.2).
+     * The submitting endpoint is charged a penalty fee.
+     */
+    CLPR_NO_PROGRESS = 571;
+
+    /**
+     * Attempted to redact a message slot whose payload is not a Data Message.
+     * Per spec §4.4, only Data Messages may be redacted — Response Messages
+     * and Control Messages may not.
+     */
+    CLPR_MESSAGE_NOT_REDACTABLE = 572;
 }

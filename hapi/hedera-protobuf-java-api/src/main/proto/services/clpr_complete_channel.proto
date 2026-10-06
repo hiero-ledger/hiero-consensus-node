@@ -1,0 +1,99 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+
+/**
+ * Signature scheme used for the ownership proof in channel completion.
+ */
+enum ClprSignatureScheme {
+    /**
+     * ECDSA secp256k1. Public key is 64 bytes (uncompressed x||y without
+     * 0x04 prefix). Signature is 64 bytes (r[32] || s[32]).
+     */
+    ECDSA_SECP256K1 = 0;
+
+    /**
+     * Ed25519. Public key is 32 bytes. Signature is 64 bytes.
+     */
+    ED25519 = 1;
+}
+
+/**
+ * Phase 2 (Reveal): Completes a pending channel commitment by revealing
+ * the preimage and proving key ownership.
+ * Permissionless — any payer can complete.
+ *
+ * The handler verifies that keccak256(channel_id || public_key) matches
+ * a stored ownership_commitment, verifies the signature, validates the
+ * verifier contract and peer configuration, then creates the Channel
+ * in ACTIVE state.
+ *
+ * See the cross-platform spec §5.1 for the full commit-reveal scheme.
+ */
+message ClprCompleteChannelTransactionBody {
+    /**
+     * 32-byte Channel ID. Same on all chains for a given channel.
+     */
+    bytes channel_id = 1;
+
+    /**
+     * Public key proving ownership of the commitment.
+     * Encoding depends on signature_scheme:
+     *   ECDSA_SECP256K1: 64 bytes (uncompressed x||y without 0x04 prefix)
+     *   ED25519: 32 bytes
+     */
+    bytes public_key = 2;
+
+    /**
+     * Signature over keccak256(channel_id), proving the caller holds
+     * the private key. Always 64 bytes regardless of scheme.
+     */
+    bytes signature = 3;
+
+    /**
+     * The signature scheme used for public_key and signature.
+     * Defaults to ECDSA_SECP256K1.
+     */
+    ClprSignatureScheme signature_scheme = 4;
+
+    /**
+     * ContractID of the locally deployed verifier system contract.
+     * Immutable after channel creation.
+     */
+    proto.ContractID verifier_contract = 5;
+
+    /**
+     * Opaque proof bytes from the peer ledger, passed to verifyConfig() to obtain the
+     * verified peer configuration. The proven ClprLedgerConfiguration carries the peer's
+     * trust anchor in its initial_trust_anchor field; the verifier reads it from there
+     * (rather than from a separate registrant-supplied argument) and the CLPR Service
+     * seeds Channel.trust_anchor / trust_anchor_id from the same field.
+     */
+    bytes config_proof_bytes = 6;
+
+    /**
+     * Opaque proof bytes attesting the peer's initial ClprEndpointManifest, passed to the
+     * manifest-aware verifyConfig(bytes,bytes,bytes) ABI (spec §4.8, ADR "Channel Creation
+     * and Initial Peer Manifest"). The verifier returns both the ClprLedgerConfiguration and
+     * a ClprEndpointManifest attested by the same initial trust anchor; the CLPR Service
+     * seeds Channel.endpoint_manifest and Channel.endpoint_manifest_version from that
+     * result.
+     *
+     * <p>Empty is valid: a peer with no advertised endpoints yet must still succeed with an
+     * empty manifest (test spec §3.2.1d).
+     *
+     * <p>Flag-guarded: only threaded to the peer verifier when {@code
+     * clpr.endpointManifestEnabled=true}. When the flag is off, the receiving CLPR Service
+     * falls back to the legacy verifyConfig(bytes) ABI and this field is ignored; the
+     * resulting Channel has an empty manifest at version 0 (uninitialized). No freshness
+     * check is performed at completeChannel time.
+     */
+    bytes endpoint_manifest_proof_bytes = 7;
+}

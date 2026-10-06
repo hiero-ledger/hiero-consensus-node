@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * Redact a message from the outbound queue before it has been delivered.
+ *
+ * The message payload is removed but the queue slot and running hash
+ * (running_hash_after_processing in ClprMessageValue) are preserved so
+ * the hash chain remains valid. The destination receives the message slot
+ * with an empty ClprMessagePayload and generates a REDACTED response.
+ *
+ * Authority: CLPR Service admin only.
+ * MUST fail if the message has already been acknowledged by the peer
+ * (message_id is less than or equal to acked_message_id).
+ */
+message ClprRedactMessageTransactionBody {
+    /**
+     * 32-byte Channel ID identifying the Channel that owns the message.
+     */
+    bytes channel_id = 1;
+
+    /**
+     * Sequence number of the message to redact within the Channel's
+     * outbound queue.
+     */
+    uint64 message_id = 2;
+}

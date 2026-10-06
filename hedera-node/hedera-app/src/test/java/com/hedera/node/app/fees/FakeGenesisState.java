@@ -195,7 +195,7 @@ public class FakeGenesisState {
                                     (long) i == accountsConfig.treasury() ? ledgerConfig.totalTinyBarFloat() : 0L)
                             .build());
         }
-        for (final long num : List.of(800L, 801L)) {
+        for (final long num : List.of(800L, 801L, 803L)) {
             final var accountId = AccountID.newBuilder().accountNum(num).build();
             accounts.put(
                     accountId,

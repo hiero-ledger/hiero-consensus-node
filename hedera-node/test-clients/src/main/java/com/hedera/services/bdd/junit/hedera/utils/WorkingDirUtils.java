@@ -40,6 +40,7 @@ public class WorkingDirUtils {
     private static final String DEFAULT_SCOPE = "hapi";
     private static final String KEYS_FOLDER = "keys";
     private static final String CONFIG_FOLDER = "config";
+    private static final String CLPR_FOLDER = "clpr";
     private static final String LOG4J2_XML = "log4j2.xml";
     private static final String PROJECT_BOOTSTRAP_ASSETS_LOC = "hedera-node/configuration/dev";
     private static final String TEST_CLIENTS_BOOTSTRAP_ASSETS_LOC = "../configuration/dev";
@@ -75,7 +76,8 @@ public class WorkingDirUtils {
     public static final String CANDIDATE_ROSTER_JSON = "candidate-roster.json";
     public static final String APPLICATION_PROPERTIES = "application.properties";
 
-    private static final List<String> WORKING_DIR_DATA_FOLDERS = List.of(KEYS_FOLDER, CONFIG_FOLDER, UPGRADE_DIR);
+    private static final List<String> WORKING_DIR_DATA_FOLDERS =
+            List.of(KEYS_FOLDER, CONFIG_FOLDER, UPGRADE_DIR, CLPR_FOLDER);
 
     private static final String LOG4J2_DATE_FORMAT = "%d{yyyy-MM-dd HH:mm:ss.SSS}";
 
@@ -123,11 +125,16 @@ public class WorkingDirUtils {
      * @param workingDir the path to the working directory
      * @param network genesis network
      * @param nodeId own nodeId
+     * @param networkName the name of the network owning this node
      */
     public static void recreateWorkingDir(
-            @NonNull final Path workingDir, @NonNull final Network network, final long nodeId) {
+            @NonNull final Path workingDir,
+            @NonNull final Network network,
+            final long nodeId,
+            @NonNull final String networkName) {
         requireNonNull(workingDir);
         requireNonNull(network);
+        requireNonNull(networkName);
 
         // Clean up any existing directory structure
         rm(workingDir);
@@ -144,7 +151,7 @@ public class WorkingDirUtils {
         // Copy the bootstrap assets into the working directory
         copyBootstrapAssets(bootstrapAssetsLoc(), workingDir);
         // Update the log4j2.xml file with the correct output directory
-        updateLog4j2XmlOutputDir(workingDir, nodeId);
+        updateLog4j2XmlOutputDir(workingDir, nodeId, networkName);
     }
 
     /**
@@ -232,7 +239,8 @@ public class WorkingDirUtils {
                 : Path.of(TEST_CLIENTS_BOOTSTRAP_ASSETS_LOC);
     }
 
-    private static void updateLog4j2XmlOutputDir(@NonNull final Path workingDir, long nodeId) {
+    private static void updateLog4j2XmlOutputDir(
+            @NonNull final Path workingDir, long nodeId, @NonNull final String networkName) {
         final var path = workingDir.resolve(LOG4J2_XML);
         final var log4j2Xml = readStringUnchecked(path);
         final var updatedLog4j2Xml = log4j2Xml
@@ -265,8 +273,8 @@ public class WorkingDirUtils {
                 .replace(
                         "output/",
                         workingDir.resolve(OUTPUT_DIR).toAbsolutePath().normalize() + "/")
-                // Differentiate between node outputs in combined logging
-                .replace(LOG4J2_DATE_FORMAT, LOG4J2_DATE_FORMAT + " &lt;" + "n" + nodeId + "&gt;");
+                // Differentiate between node outputs in combined logging (e.g. <ledgerA-n0>)
+                .replace(LOG4J2_DATE_FORMAT, LOG4J2_DATE_FORMAT + " &lt;" + networkName + "-n" + nodeId + "&gt;");
         writeStringUnchecked(path, updatedLog4j2Xml, StandardOpenOption.WRITE);
     }
 
@@ -371,6 +379,13 @@ public class WorkingDirUtils {
                             workingDir
                                     .resolve(DATA_DIR)
                                     .resolve(CONFIG_FOLDER)
+                                    .resolve(file.getFileName().toString()));
+                } else if (assetDir.resolve(KEYS_FOLDER).equals(file.getParent())) {
+                    copyUnchecked(
+                            file,
+                            workingDir
+                                    .resolve(DATA_DIR)
+                                    .resolve(CLPR_FOLDER)
                                     .resolve(file.getFileName().toString()));
                 } else {
                     copyUnchecked(file, workingDir.resolve(file.getFileName().toString()));

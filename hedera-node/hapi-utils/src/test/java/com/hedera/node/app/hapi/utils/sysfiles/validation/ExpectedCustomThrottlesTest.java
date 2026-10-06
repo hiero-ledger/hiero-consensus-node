@@ -2,6 +2,16 @@
 package com.hedera.node.app.hapi.utils.sysfiles.validation;
 
 import static com.hedera.node.app.hapi.utils.sysfiles.validation.ExpectedCustomThrottles.ACTIVE_OPS;
+import static com.hedera.node.app.hapi.utils.sysfiles.validation.ExpectedCustomThrottles.CLPR_OPS;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCloseChannel;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCompleteChannel;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprDeregisterConnector;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprGetLedgerConfiguration;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRedactMessage;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterChannel;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterConnector;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprSubmitBundle;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprUpdateLedgerConfiguration;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusCreateTopic;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusDeleteTopic;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusGetTopicInfo;
@@ -60,6 +70,7 @@ import static com.hederahashgraph.api.proto.java.HederaFunctionality.UtilPrng;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
 class ExpectedCustomThrottlesTest {
@@ -67,7 +78,7 @@ class ExpectedCustomThrottlesTest {
     // Suppress the warning that we use too many assets
     @SuppressWarnings("java:S5961")
     void releaseTwentyHasExpected() {
-        assertEquals(56, ACTIVE_OPS.size());
+        assertEquals(65, ACTIVE_OPS.size());
 
         assertTrue(ACTIVE_OPS.contains(CryptoCreate), "Missing CryptoCreate!");
         assertTrue(ACTIVE_OPS.contains(CryptoTransfer), "Missing CryptoTransfer!");
@@ -125,5 +136,20 @@ class ExpectedCustomThrottlesTest {
         assertTrue(ACTIVE_OPS.contains(ScheduleGetInfo), "Missing ScheduleGetInfo!");
         assertTrue(ACTIVE_OPS.contains(EthereumTransaction), "Missing EthereumTransaction!");
         assertTrue(ACTIVE_OPS.contains(UtilPrng), "Missing UtilPrng!");
+        assertTrue(ACTIVE_OPS.contains(ClprUpdateLedgerConfiguration), "Missing ClprUpdateLedgerConfiguration!");
+        assertTrue(ACTIVE_OPS.contains(ClprRegisterChannel), "Missing ClprRegisterChannel!");
+        assertTrue(ACTIVE_OPS.contains(ClprCompleteChannel), "Missing ClprCompleteChannel!");
+        assertTrue(ACTIVE_OPS.contains(ClprCloseChannel), "Missing ClprCloseChannel!");
+        assertTrue(ACTIVE_OPS.contains(ClprGetLedgerConfiguration), "Missing ClprGetLedgerConfiguration!");
+        assertTrue(ACTIVE_OPS.contains(ClprSubmitBundle), "Missing ClprSubmitBundle!");
+        assertTrue(ACTIVE_OPS.contains(ClprRedactMessage), "Missing ClprRedactMessage!");
+        assertTrue(ACTIVE_OPS.contains(ClprRegisterConnector), "Missing ClprRegisterConnector!");
+        assertTrue(ACTIVE_OPS.contains(ClprDeregisterConnector), "Missing ClprDeregisterConnector!");
+    }
+
+    @Test
+    void clprOpsAreTheActiveClprOps() {
+        assertEquals(
+                ACTIVE_OPS.stream().filter(op -> op.name().startsWith("Clpr")).collect(Collectors.toSet()), CLPR_OPS);
     }
 }

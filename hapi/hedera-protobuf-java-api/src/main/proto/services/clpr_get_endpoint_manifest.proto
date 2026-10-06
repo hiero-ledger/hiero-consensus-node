@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/query_header.proto";
+import "services/response_header.proto";
+import "services/state/clpr/clpr_endpoint_manifest.proto";
+
+/**
+ * Query to retrieve the current CLPR endpoint manifest for this ledger (spec §6.5).
+ * Public read: no authorization required. Callers use the response to build the
+ * endpoint_manifest_proof_bytes needed by ClprCompleteChannel (spec PR #332) and
+ * to construct manifest-recovery ClprSubmitBundle calls (spec PR #336).
+ */
+message ClprGetEndpointManifestQuery {
+    /**
+     * Standard query header.
+     */
+    proto.QueryHeader header = 1;
+}
+
+/**
+ * Response containing the current CLPR endpoint manifest.
+ */
+message ClprGetEndpointManifestResponse {
+    /**
+     * Standard response header.
+     */
+    proto.ResponseHeader header = 1;
+
+    /**
+     * The current CLPR endpoint manifest singleton.
+     */
+    com.hedera.hapi.node.state.clpr.ClprEndpointManifest manifest = 2;
+
+    /**
+     * A serialized StateProof carrying the Merkle path from the ClprEndpointManifest
+     * singleton leaf up to the latest signed block root on this ledger.
+     *
+     * Suitable verbatim as endpoint_manifest_proof_bytes for a peer's
+     * ClprCompleteChannel transaction when that peer's verifier is the
+     * native HieroTssVerifier (or any verifier that accepts a StateProof).
+     *
+     * Empty when no signed block snapshot is available yet (e.g. during node
+     * bring-up before the first block is signed); clients should retry.
+     */
+    bytes manifest_state_proof = 3;
+}

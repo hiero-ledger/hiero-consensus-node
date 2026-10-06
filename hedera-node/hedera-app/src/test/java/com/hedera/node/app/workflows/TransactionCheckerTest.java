@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
@@ -1342,6 +1343,31 @@ final class TransactionCheckerTest extends AppTestBase {
                     .has(responseCode(TRANSACTION_OVERSIZE));
 
             assertThat(counterMetric("NonGovernanceOversizedTxnsRcv").get()).isEqualTo(2L);
+        }
+
+        @Test
+        void oversizedClprCompleteChannelIsExemptForNonGovernancePayer() throws PreCheckException {
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", true)
+                            .withValue("governanceTransactions.maxTxnSize", MAX_LARGE_TX_SIZE)
+                            .withValue("governanceTransactions.accountsRange", GOVERNANCE_ACCOUNTS_RANGE)
+                            .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE)
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(props, metrics);
+            final var txInfo = mock(TransactionInfo.class);
+            when(txInfo.signedTx())
+                    .thenReturn(SignedTransaction.newBuilder()
+                            .bodyBytes(Bytes.wrap(new byte[25 * 1024]))
+                            .build());
+            when(txInfo.functionality()).thenReturn(CLPR_COMPLETE_CHANNEL);
+            final var nonGovernancePayer =
+                    AccountID.newBuilder().accountNum(1000).build();
+
+            checker.checkTransactionSize(txInfo);
+            assertDoesNotThrow(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, nonGovernancePayer));
         }
 
         private static Stream<Arguments> governanceAccountNumbers() {

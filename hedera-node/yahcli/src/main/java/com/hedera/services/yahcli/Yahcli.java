@@ -3,6 +3,8 @@ package com.hedera.services.yahcli;
 
 import com.hedera.services.yahcli.commands.accounts.AccountsCommand;
 import com.hedera.services.yahcli.commands.accounts.SetupStakeCommand;
+import com.hedera.services.yahcli.commands.clpr.ClprCommand;
+import com.hedera.services.yahcli.commands.contracts.ContractsCommand;
 import com.hedera.services.yahcli.commands.fees.FeesCommand;
 import com.hedera.services.yahcli.commands.files.SysFilesCommand;
 import com.hedera.services.yahcli.commands.ivy.IvyCommand;
@@ -46,6 +48,8 @@ import picocli.CommandLine.Spec;
             NodesCommand.class,
             RegisteredNodesCommand.class,
             IvyCommand.class,
+            ClprCommand.class,
+            ContractsCommand.class,
         },
         description = "Performs DevOps-type actions against a Hedera Services network")
 public class Yahcli implements Callable<Integer> {

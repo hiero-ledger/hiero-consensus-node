@@ -39,6 +39,7 @@ import com.hederahashgraph.api.proto.java.TransactionResponse;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -219,9 +220,13 @@ public class EmbeddedNetwork extends AbstractNetwork {
             @NonNull final Consumer<EmbeddedHedera> start, @NonNull final Map<String, String> bootstrapOverrides) {
         // Initialize the working directory
         embeddedNode.initWorkingDir(network);
-        if (!bootstrapOverrides.isEmpty()) {
-            updateBootstrapProperties(embeddedNode.getExternalPath(APPLICATION_PROPERTIES), bootstrapOverrides);
-        }
+
+        // Differently from the dev/application.properties config, embedded networks require mocked
+        // TSS signatures and a 1-min staking period for node rewards tests.
+        final Map<String, String> effectiveOverrides = new HashMap<>(bootstrapOverrides);
+        effectiveOverrides.put("tss.forceMockSignatures", "true");
+        effectiveOverrides.put("staking.periodMins", "1");
+        updateBootstrapProperties(embeddedNode.getExternalPath(APPLICATION_PROPERTIES), effectiveOverrides);
         embeddedNode.start();
         // Start the embedded Hedera "network"
         embeddedHedera = switch (mode) {

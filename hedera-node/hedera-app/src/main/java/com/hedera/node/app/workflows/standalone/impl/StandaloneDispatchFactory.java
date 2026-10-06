@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.standalone.impl;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.node.app.service.clpr.impl.ClprServiceApiProvider.CLPR_SERVICE_API_PROVIDER;
 import static com.hedera.node.app.service.token.impl.api.TokenServiceApiProvider.TOKEN_SERVICE_API_PROVIDER;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.EMPTY_METADATA;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.initializeBuilderInfo;
@@ -22,6 +23,7 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fees.ResourcePriceCalculatorImpl;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.records.impl.BlockRecordInfoImpl;
+import com.hedera.node.app.service.clpr.ClprServiceApi;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.EntityNumGeneratorImpl;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
@@ -129,7 +131,9 @@ public class StandaloneDispatchFactory {
                 TokenServiceApi.class,
                 TOKEN_SERVICE_API_PROVIDER,
                 ScheduleServiceApi.class,
-                scheduleService.apiProvider());
+                scheduleService.apiProvider(),
+                ClprServiceApi.class,
+                CLPR_SERVICE_API_PROVIDER);
     }
 
     /**

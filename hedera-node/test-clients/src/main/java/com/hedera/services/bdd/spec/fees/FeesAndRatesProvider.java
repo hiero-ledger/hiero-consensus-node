@@ -49,7 +49,7 @@ import org.hiero.hapi.support.fees.Extra;
 public class FeesAndRatesProvider {
     private static final Logger log = LogManager.getLogger(FeesAndRatesProvider.class);
 
-    private static final int NUM_DOWNLOAD_ATTEMPTS = 10;
+    private static final int NUM_DOWNLOAD_ATTEMPTS = 60;
 
     public static final BigDecimal USD_DIVISOR = BigDecimal.valueOf(100L);
     public static final BigDecimal HBAR_DIVISOR = BigDecimal.valueOf(100_000_000L);

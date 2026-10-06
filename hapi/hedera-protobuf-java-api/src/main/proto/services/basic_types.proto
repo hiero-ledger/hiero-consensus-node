@@ -1878,6 +1878,67 @@ enum HederaFunctionality {
      * Vote on wrapped record migration hash state.
      */
     MigrationRootHashVote = 116;
+
+    /**
+     * Update the local CLPR ledger configuration.
+     */
+    ClprUpdateLedgerConfiguration = 117;
+
+    /**
+     * Register a new CLPR Channel to a peer ledger.
+     */
+    ClprRegisterChannel = 118;
+
+    /**
+     * Complete a PENDING CLPR Channel (reveal phase).
+     */
+    ClprCompleteChannel = 119;
+
+    /**
+     * Initiate graceful closure of a CLPR Channel.
+     */
+    ClprCloseChannel = 120;
+
+    /**
+     * Get the current CLPR ledger configuration.
+     */
+    ClprGetLedgerConfiguration = 121;
+
+    /**
+     * Submit a bundle of cross-ledger messages from a peer sync.
+     */
+    ClprSubmitBundle = 122;
+
+    /**
+     * Redact a message from the outbound queue before delivery.
+     */
+    ClprRedactMessage = 123;
+
+    /**
+     * Register a Connector on the CLPR Service.
+     */
+    ClprRegisterConnector = 124;
+
+    /**
+     * Remove a Connector from the CLPR Service.
+     */
+    ClprDeregisterConnector = 125;
+
+    /**
+     * Complete a Connector registration (reveal phase).
+     */
+    ClprCompleteConnector = 126;
+
+    /**
+     * Self-publish a node's CLPR endpoint into a manifest construction (spec §2.4.1 /
+     * `dev-context/clpr-endpoint-self-publication-design.md`).
+     */
+    ClprEndpointPublication = 127;
+
+    /**
+     * Get the current CLPR endpoint manifest (spec §6.5).
+     */
+    ClprGetEndpointManifest = 128;
 }
 
 /**
