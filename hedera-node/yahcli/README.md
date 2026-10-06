@@ -32,7 +32,10 @@ appear below.
 19. [(DAB) Creating a node](#dab-creating-a-node)
 20. [(DAB) Deleting a node](#dab-deleting-a-node)
 21. [(DAB) Updating a node](#dab-updating-a-node)
-21. [Running `ivy` acceptance tests](#running-ivy-acceptance-tests)
+22. [Creating a registered node](#creating-a-registered-node)
+23. [Updating a registered node](#updating-a-registered-node)
+24. [Deleting a registered node](#deleting-a-registered-node)
+25. [Running `ivy` acceptance tests](#running-ivy-acceptance-tests)
 
 # Setting up the working directory
 
@@ -153,14 +156,14 @@ when running against this network.
 To download the fee schedules from previewnet given the config above, we run,
 
 ```
-$ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -p 2 -n previewnet sysfiles download fees
+$ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -p 2 -n previewnet sysfiles download simpleFees
 Targeting previewnet, paying with 0.0.2
-Downloading the fees...OK
+Downloading the simpleFees...OK
 $ ls previewnet/sysfiles/
-feeSchedules.json
+simpleFeesSchedules.json
 ```
 
-The fee schedules were downloaded in JSON form to _previewnet/sysfiles/feeSchedules.json_.
+The fee schedules were downloaded in JSON form to _previewnet/sysfiles/simpleFeesSchedules.json_.
 To see more options for the `download` subcommand (including a custom download directory),
 we run,
 
@@ -402,7 +405,7 @@ $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -n local
 # Preparing an NMT software upgrade
 
 To prepare for an automatic software upgrade, there must exist a system file in the range `0.0.150-159`
-(by default, `0.0.150`) that is a ZIP archive with artifacts listed in the [NMT requirements document](https://github.com/swirlds/swirlds-docker/blob/main/docs/docker-infrastructure-design.md#toc-phase-1-feat-hedera-node-protobuf-defs-current). The expected
+(by default, `0.0.150`) that is a ZIP archive with artifacts listed in the [NMT requirements document](https://github.com/hashgraph/node-management-tools/blob/main/docs/docker-infrastructure-design.md#toc-phase-1-feat-hedera-node-protobuf-defs-current). The expected
 SHA-384 hash of this ZIP must be given so the nodes can validate the integrity of the upgrade file before
 staging its artifacts for NMT to use. This looks like,
 
@@ -417,7 +420,7 @@ $ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -n local
 # Launching an NMT telemetry upgrade
 
 To perform an automatic telemetry upgrade, there must exist a system file in the range `0.0.150-159`
-(by default, `0.0.159`) that is a ZIP archive with artifacts listed in the [NMT requirements document](https://github.com/swirlds/swirlds-docker/blob/main/docs/docker-infrastructure-design.md#toc-phase-1-feat-hedera-node-protobuf-defs-current). The expected
+(by default, `0.0.159`) that is a ZIP archive with artifacts listed in the [NMT requirements document](https://github.com/hashgraph/node-management-tools/blob/main/docs/docker-infrastructure-design.md#toc-phase-1-feat-hedera-node-protobuf-defs-current). The expected
 SHA-384 hash of this ZIP must be known so the nodes can validate the integrity of the upgrade file before
 staging its artifacts for NMT to use.  This looks like,
 
@@ -792,6 +795,8 @@ to accept rewards. This value defaults to `true` (declines the rewards) if not s
 
 The `--grpcProxyEndpoint` option, given in the form `{<IPV4>|<FQDN>}:<PORT>`, can be used to specify a gRPC proxy endpoint for the node. This is optional.
 
+The `--associatedRegisteredNode` option can be used to associate one or more registered node IDs with the new node. For example, `--associatedRegisteredNode 1 2 3` associates registered nodes 1, 2, and 3 with the new node. This is optional.
+
 :warning: If the payer and admin keys do not meet the signing requirements of the new node's fee collection account,
 there must be a key in the target network's _keys/_ directory for that account.
 
@@ -866,6 +871,60 @@ no default values.
 
 A node's gRPC proxy endpoint can also be updated with the `--grpcProxyEndpoint` option, given in the form `{<IPV4>|<FQDN>}:<PORT>`. This is optional.
 
+The `--associatedRegisteredNode` option can be used to associate one or more registered node IDs with the node. For example, `--associatedRegisteredNode 1 2 3` associates registered nodes 1, 2, and 3 with the node. Passing `--associatedRegisteredNode` with no values clears any previously associated registered nodes. This is optional.
+
+# Creating a registered node
+
+To create a new registered node, you can use the `registeredNodes create` command. The required options are:
+1. A path to a _.pem_, _.words_, or _.hex_ file containing an admin key for the registered node (`-k/--adminKey`).
+2. At least one endpoint: `--blockNodeEndpoint`, `--mirrorNodeEndpoint`, `--rpcRelayEndpoint`, or `--generalServiceEndpoint`.
+
+The optional `-d/--description` argument provides a description for the new registered node.
+
+Endpoint formats:
+- Block node endpoints are given in the form `addr:port:blockNodeApi[:tls]`.
+- Mirror node and RPC relay endpoints are given in the form `addr:port[:tls]`.
+- General service endpoints are given in the form `addr:port[:description][:tls]`.
+
+Multiple endpoints of each type can be specified by repeating the option.
+
+```
+$ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -n localhost -p 2 registeredNodes create \
+  --adminKey adminKey.pem \
+  --description 'My block node' \
+  --blockNodeEndpoint 10.0.0.1:8080:PUBLISH:tls \
+  --mirrorNodeEndpoint mirror.example.com:443:tls \
+  --generalServiceEndpoint indexer.example.com:9090:Custom indexer service:tls
+```
+
+# Updating a registered node
+
+To update a registered node, you can use the `registeredNodes update` command. The only required option is the node ID to update (`-n/--nodeId`).
+
+Optional arguments include:
+- `-d/--description` to update the description.
+- `--blockNodeEndpoint`, `--mirrorNodeEndpoint`, `--rpcRelayEndpoint`, `--generalServiceEndpoint` to update endpoints.
+- `-k/--adminKey` to provide the current admin key (can be omitted if the yahcli payer key is the same as the admin key).
+- `-nk/--newAdminKey` to rotate to a new admin key.
+
+```
+$ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -n localhost -p 2 registeredNodes update \
+  --nodeId 1 \
+  --adminKey adminKey.pem \
+  --description 'Updated description' \
+  --rpcRelayEndpoint relay.example.com:8545
+```
+
+# Deleting a registered node
+
+To delete a registered node, you can use the `registeredNodes delete` command. The only required option is the node ID to delete (`-n/--nodeId`). In general you will also want to provide the `-k/--adminKey` option with the path to the admin key for the registered node being deleted (this can be omitted if the yahcli payer key is the same as the admin key).
+
+```
+$ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG) -n localhost -p 2 registeredNodes delete \
+  --nodeId 1 \
+  --adminKey adminKey.pem
+```
+
 # Running `ivy` acceptance tests
 
 The `ivy` subcommand runs HAPI acceptance tests.
@@ -910,3 +969,68 @@ docker run -it -v $(pwd):/launch gcr.io/hedera-registry/yahcli:${TAG} -p 2 -n lo
 **Important:** Note the one important _difference_ between the original `ValidationScenarios` _config.yml_ and the
 `ivy scenarios` _scenarios/config.yml_ is that the target network is **not** specified in the latter. The yahcli
 configuration now specifies the target network(s), and the yahcli command line controls the choice of target.
+
+## Cross-Ledger Protocol (CLPR)
+
+The `clpr` subcommand family drives the full CLPR lifecycle from an operator machine.
+All subcommands inherit the standard yahcli targeting flags (`-n` network, `-i` node-account,
+`-a` operator-account), so the same binary can be pointed at two different ledgers when
+exercising a cross-ledger flow.
+
+### Channel lifecycle (two-phase commit/reveal)
+
+| Phase  |         Command         |                         Description                         |
+|--------|-------------------------|-------------------------------------------------------------|
+| Commit | `clpr register-channel` | Submits `ClprRegisterChannel` with an ownership commitment. |
+| Reveal | `clpr complete-channel` | Submits `ClprCompleteChannel` opening the commitment.       |
+| Close  | `clpr close-channel`    | Terminates the channel.                                     |
+
+`generate-channel-identity` produces a JSON identity bundle (random id, keypair,
+ownership commitment, reveal signature). Pass it back to `complete-channel` with
+`--identity <path>` and skip the per-flag arguments. The commit/reveal design is in
+[`docs/superpowers/specs/2026-04-29-connector-registration-redesign.md`](../../docs/superpowers/specs/2026-04-29-connector-registration-redesign.md).
+
+### Connector lifecycle
+
+|   Phase    |           Command           |                Description                 |
+|------------|-----------------------------|--------------------------------------------|
+| Commit     | `clpr register-connector`   | Submits `ClprRegisterConnector` (Phase 1). |
+| Reveal     | `clpr complete-connector`   | Submits `ClprCompleteConnector` (Phase 2). |
+| Deregister | `clpr deregister-connector` | Removes the connector and unlocks stake.   |
+
+`generate-connector-identity` produces the matching JSON bundle for `complete-connector`.
+
+### Bundles and messages
+
+|        Command        |                                                        Description                                                         |
+|-----------------------|----------------------------------------------------------------------------------------------------------------------------|
+| `clpr submit-bundle`  | Submits a `ClprSubmitBundle` with a hex/file bundle payload.                                                               |
+| `clpr redact-message` | Submits a `ClprRedactMessage` for a given `(channel-id, message-id)`.                                                      |
+| `clpr send-message`   | Invokes `sendMessage()` on a deployed connector wrapper contract, which forwards to the CLPR system precompile at `0x16e`. |
+
+### Ledger configuration
+
+|              Command               |                                                                                                      Description                                                                                                      |
+|------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `clpr get-ledger-configuration`    | Runs `ClprGetLedgerConfiguration` and prints the configuration as proto3 JSON (the base64 state-proof is always included as `configurationStateProof`); pass `--proof-path <file>` to also write the raw proof bytes. |
+| `clpr update-ledger-configuration` | Reads a JSON `ClprLedgerConfiguration` (`bytes` fields base64-encoded per proto3 JSON) and submits `ClprUpdateLedgerConfiguration`.                                                                                   |
+
+### Verifier deploy
+
+`contracts deploy-clpr-verifier` deploys the bundled `ClprLedgerVerifier.sol`, a thin
+Solidity wrapper around the CLPR system precompile (`0x16e`) that pins a specific peer
+ledgerId. The returned contract id is what you supply as `verifier_contract` when you
+register a channel.
+
+### End-to-end demo
+
+Two helper scripts under `hedera-node/yahcli/` drive the full happy path against a pair of
+local networks:
+
+```bash
+# Spin both networks up with the configured ledger ids, then drive
+# register → complete → message-send → bundle-sync.
+LEDGER_ID_A=<32-byte-hex> LEDGER_ID_B=<32-byte-hex> ./run-clpr-end-to-end.sh
+```
+
+`run-clpr-demo.sh` is the short variant that exercises a single happy-path bundle.

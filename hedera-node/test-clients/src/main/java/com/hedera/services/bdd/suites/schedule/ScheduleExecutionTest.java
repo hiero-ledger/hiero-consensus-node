@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.schedule;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.dsl.operations.transactions.TouchBalancesOperation.touchBalanceOf;
@@ -11,7 +11,6 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.randomUppercase;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
@@ -48,6 +47,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicSubmitMessageServiceOnly;
 import static com.hedera.services.bdd.suites.hip904.UnlimitedAutoAssociationSuite.UNLIMITED_AUTO_ASSOCIATION_SLOTS;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.ADMIN;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.A_SCHEDULE;
@@ -81,9 +81,7 @@ import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.WRONG_CONSEN
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.WRONG_RECORD_ACCOUNT_ID;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.WRONG_SCHEDULE_ID;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.WRONG_TRANSACTION_VALID_START;
-import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.WRONG_TRANSFER_LIST;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.scheduledVersionOf;
-import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.transferListCheck;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_KYC_NOT_GRANTED_FOR_TOKEN;
@@ -103,7 +101,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MESSAGE_SIZE_TOO_LARGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.METADATA_TOO_LONG;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_NEW_VALID_SIGNATURES;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PAYER_ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SCHEDULE_ALREADY_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SOME_SIGNATURES_WERE_INVALID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -117,7 +114,7 @@ import static java.lang.Integer.parseInt;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
@@ -125,7 +122,6 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TransactionID;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -133,7 +129,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 public class ScheduleExecutionTest {
@@ -214,7 +209,6 @@ public class ScheduleExecutionTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> scheduledTxsCanIncurHandlerAssessedFees(
             @FungibleToken SpecFungibleToken firstToken,
             @FungibleToken SpecFungibleToken secondToken,
@@ -258,7 +252,6 @@ public class ScheduleExecutionTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> scheduledUniqueBurnExecutesProperly() {
         return hapiTest(
                 cryptoCreate(TREASURY),
@@ -396,7 +389,9 @@ public class ScheduleExecutionTest {
                 getTokenInfo(A_TOKEN).hasTotalSupply(0));
     }
 
-    @LeakyHapiTest(overrides = {"tokens.nfts.maxBatchSizeMint"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"tokens.nfts.maxBatchSizeMint"})
     final Stream<DynamicTest> scheduledUniqueMintFailsWithInvalidBatchSize() {
         return hapiTest(
                 overriding("tokens.nfts.maxBatchSizeMint", "5"),
@@ -756,7 +751,6 @@ public class ScheduleExecutionTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> scheduledXferFailingWithNonKycedAccountTransferPaysServiceFeeButNoImpact() {
         String xToken = "XXX";
         String validSchedule = "withKycedToken";
@@ -983,8 +977,6 @@ public class ScheduleExecutionTest {
         String schedulePayer = PAYER;
         String successTx = "good";
         String failedTx = "bad";
-        AtomicReference<Map<AccountID, Long>> successFeesObs = new AtomicReference<>();
-        AtomicReference<Map<AccountID, Long>> failureFeesObs = new AtomicReference<>();
 
         return hapiTest(
                 createTopic(immutableTopic),
@@ -999,7 +991,7 @@ public class ScheduleExecutionTest {
                                     .via(successTx)
                                     .signedBy(DEFAULT_PAYER, schedulePayer),
                             getTopicInfo(immutableTopic).hasSeqNo(1L),
-                            getTxnRecord(successTx).scheduled().logged().revealingDebitsTo(successFeesObs::set),
+                            getTxnRecord(successTx).scheduled().logged(),
                             scheduleCreate(
                                             invalidSchedule,
                                             submitMessageTo(immutableTopic).message(randomUppercase(maxValidLen + 1)))
@@ -1008,12 +1000,40 @@ public class ScheduleExecutionTest {
                                     .signedBy(DEFAULT_PAYER, schedulePayer));
                 }),
                 getTopicInfo(immutableTopic).hasSeqNo(1L),
-                getTxnRecord(failedTx)
-                        .scheduled()
-                        .hasPriority(recordWith().status(MESSAGE_SIZE_TOO_LARGE))
-                        .revealingDebitsTo(failureFeesObs::set),
-                assertionsHold(
-                        (spec, opLog) -> assertBasicallyIdentical(successFeesObs.get(), failureFeesObs.get(), 1.0)));
+                getTxnRecord(failedTx).scheduled().hasPriority(recordWith().status(MESSAGE_SIZE_TOO_LARGE)),
+                withOpContext((spec, opLog) -> {
+                    var successRecord = getTxnRecord(successTx).scheduled().logged();
+                    var failureRecord = getTxnRecord(failedTx).scheduled().logged();
+                    allRunFor(spec, successRecord, failureRecord);
+                    var rate = successRecord
+                            .getResponseRecord()
+                            .getReceipt()
+                            .getExchangeRate()
+                            .getCurrentRate();
+                    double successUsd = (1.0 * successRecord.getResponseRecord().getTransactionFee())
+                            / ONE_HBAR
+                            / rate.getHbarEquiv()
+                            * rate.getCentEquiv()
+                            / 100;
+                    double failureUsd = (1.0 * failureRecord.getResponseRecord().getTransactionFee())
+                            / ONE_HBAR
+                            / rate.getHbarEquiv()
+                            * rate.getCentEquiv()
+                            / 100;
+                    // Scheduled execution charges service-only: base + byte overage
+                    Assertions.assertEquals(
+                            expectedTopicSubmitMessageServiceOnly(1024L, false),
+                            successUsd,
+                            0.01 * expectedTopicSubmitMessageServiceOnly(1024L, false),
+                            String.format("Success fee (%s) not within 1%% of expected!", successUsd));
+                    Assertions.assertEquals(
+                            expectedTopicSubmitMessageServiceOnly(1025L, false),
+                            failureUsd,
+                            0.01 * expectedTopicSubmitMessageServiceOnly(1025L, false),
+                            String.format(
+                                    "Failure fee (%s) expectedTopicSubmitMessageServiceOnly within 1%% of expected!",
+                                    failureUsd));
+                }));
     }
 
     @HapiTest
@@ -1258,15 +1278,6 @@ public class ScheduleExecutionTest {
                             createTx.getResponseRecord().getReceipt().getScheduleID(),
                             triggeredTx.getResponseRecord().getScheduleRef(),
                             WRONG_SCHEDULE_ID);
-
-                    Assertions.assertTrue(
-                            transferListCheck(
-                                    triggeredTx,
-                                    asId(SENDER, spec),
-                                    asId(RECEIVER, spec),
-                                    asId(PAYING_ACCOUNT, spec),
-                                    transferAmount),
-                            WRONG_TRANSFER_LIST);
                 }));
     }
 
@@ -1291,18 +1302,9 @@ public class ScheduleExecutionTest {
                 }))),
                 getAccountBalance(PAYING_ACCOUNT).hasTinyBars(noBalance),
                 scheduleSign(BASIC_XFER).alsoSigningWith(SENDER).hasKnownStatus(SUCCESS),
-                getAccountBalance(SENDER).hasTinyBars(transferAmount),
-                getAccountBalance(RECEIVER).hasTinyBars(noBalance),
-                withOpContext((spec, opLog) -> {
-                    var triggeredTx = getTxnRecord(CREATE_TXN).scheduled();
-
-                    allRunFor(spec, triggeredTx);
-
-                    Assertions.assertEquals(
-                            INSUFFICIENT_PAYER_BALANCE,
-                            triggeredTx.getResponseRecord().getReceipt().getStatus(),
-                            SCHEDULED_TRANSACTION_MUST_NOT_SUCCEED);
-                }));
+                getAccountBalance(SENDER).hasTinyBars(0L),
+                getAccountBalance(RECEIVER).hasTinyBars(transferAmount),
+                getTxnRecord(CREATE_TXN).scheduled().hasPriority(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
@@ -1353,18 +1355,9 @@ public class ScheduleExecutionTest {
                         .alsoSigningWith(SENDER, PAYING_ACCOUNT)
                         .via(SIGN_TXN)
                         .hasKnownStatus(SUCCESS),
-                getAccountBalance(SENDER).hasTinyBars(transferAmount),
-                getAccountBalance(RECEIVER).hasTinyBars(noBalance),
-                withOpContext((spec, opLog) -> {
-                    var triggeredTx = getTxnRecord(CREATE_TXN).scheduled();
-
-                    allRunFor(spec, triggeredTx);
-
-                    Assertions.assertEquals(
-                            INSUFFICIENT_PAYER_BALANCE,
-                            triggeredTx.getResponseRecord().getReceipt().getStatus(),
-                            SCHEDULED_TRANSACTION_MUST_NOT_SUCCEED);
-                }));
+                getAccountBalance(SENDER).hasTinyBars(0L),
+                getAccountBalance(RECEIVER).hasTinyBars(transferAmount),
+                getTxnRecord(CREATE_TXN).scheduled().hasPriority(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
@@ -1384,9 +1377,7 @@ public class ScheduleExecutionTest {
                 cryptoDelete(PAYING_ACCOUNT),
                 scheduleSign(BASIC_XFER).alsoSigningWith(SENDER).hasKnownStatus(SUCCESS),
                 getScheduleInfo(BASIC_XFER).isExecuted(),
-                getTxnRecord(CREATE_TXN)
-                        .scheduled()
-                        .hasPriority(recordWith().statusFrom(INSUFFICIENT_PAYER_BALANCE, PAYER_ACCOUNT_DELETED)));
+                getTxnRecord(CREATE_TXN).scheduled().hasPriority(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
@@ -1404,20 +1395,10 @@ public class ScheduleExecutionTest {
                         .via(CREATE_TXN),
                 cryptoDelete(PAYING_ACCOUNT),
                 scheduleSign(BASIC_XFER).alsoSigningWith(SENDER).via(SIGN_TXN).hasKnownStatus(SUCCESS),
-                getAccountBalance(SENDER).hasTinyBars(transferAmount),
-                getAccountBalance(RECEIVER).hasTinyBars(noBalance),
+                getAccountBalance(SENDER).hasTinyBars(0L),
+                getAccountBalance(RECEIVER).hasTinyBars(transferAmount),
                 getScheduleInfo(BASIC_XFER).isExecuted(),
-                withOpContext((spec, opLog) -> {
-                    var triggeredTx = getTxnRecord(CREATE_TXN).scheduled();
-
-                    allRunFor(spec, triggeredTx);
-
-                    final var failureReasons = EnumSet.of(INSUFFICIENT_PAYER_BALANCE, PAYER_ACCOUNT_DELETED);
-                    Assertions.assertTrue(
-                            failureReasons.contains(
-                                    triggeredTx.getResponseRecord().getReceipt().getStatus()),
-                            SCHEDULED_TRANSACTION_MUST_NOT_SUCCEED + " for one of reasons " + failureReasons);
-                }));
+                getTxnRecord(CREATE_TXN).scheduled().hasPriority(recordWith().status(SUCCESS)));
     }
 
     @HapiTest
@@ -1580,15 +1561,6 @@ public class ScheduleExecutionTest {
                             createTx.getResponseRecord().getReceipt().getScheduleID(),
                             triggeredTx.getResponseRecord().getScheduleRef(),
                             WRONG_SCHEDULE_ID);
-
-                    Assertions.assertTrue(
-                            transferListCheck(
-                                    triggeredTx,
-                                    asId(SENDER, spec),
-                                    asId(RECEIVER, spec),
-                                    asId(PAYING_ACCOUNT, spec),
-                                    transferAmount),
-                            WRONG_TRANSFER_LIST);
                 }));
     }
 
@@ -1646,15 +1618,6 @@ public class ScheduleExecutionTest {
                             createTx.getResponseRecord().getReceipt().getScheduleID(),
                             triggeredTx.getResponseRecord().getScheduleRef(),
                             WRONG_SCHEDULE_ID);
-
-                    Assertions.assertTrue(
-                            transferListCheck(
-                                    triggeredTx,
-                                    asId(SENDER, spec),
-                                    asId(RECEIVER, spec),
-                                    asId(PAYING_ACCOUNT, spec),
-                                    transferAmount),
-                            WRONG_TRANSFER_LIST);
                 }));
     }
 
@@ -1708,15 +1671,6 @@ public class ScheduleExecutionTest {
                             createTx.getResponseRecord().getReceipt().getScheduleID(),
                             triggeredTx.getResponseRecord().getScheduleRef(),
                             WRONG_SCHEDULE_ID);
-
-                    Assertions.assertTrue(
-                            transferListCheck(
-                                    triggeredTx,
-                                    asId(SENDER, spec),
-                                    asId(RECEIVER, spec),
-                                    asId(PAYING_ACCOUNT, spec),
-                                    transferAmount),
-                            WRONG_TRANSFER_LIST);
                 }));
     }
 

@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip551;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -189,7 +188,6 @@ class AtomicBatchKeyReqTest {
 
         @HapiTest
         @DisplayName("Token wipe requires wipe key")
-        @Tag(MATS)
         Stream<DynamicTest> wipeRequiresWipeKey() {
             return hapiTest(
                     newKeyNamed("wipeKey"),

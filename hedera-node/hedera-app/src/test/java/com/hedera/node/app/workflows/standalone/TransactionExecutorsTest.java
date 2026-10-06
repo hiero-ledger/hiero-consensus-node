@@ -35,6 +35,7 @@ import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.streams.CallOperationType;
 import com.hedera.hapi.streams.ContractAction;
 import com.hedera.hapi.streams.ContractActionType;
 import com.hedera.node.app.blocks.BlockStreamService;
@@ -77,7 +78,7 @@ import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.hedera.node.app.state.recordcache.RecordCacheService;
-import com.hedera.node.app.throttle.AppThrottleFactory;
+import com.hedera.node.app.throttle.AppScheduleThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.config.data.AccountsConfig;
@@ -92,8 +93,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -110,18 +111,21 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.tuweni.bytes.Bytes32;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hyperledger.besu.datatypes.Address;
+import org.hyperledger.besu.datatypes.Log;
 import org.hyperledger.besu.datatypes.Transaction;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
-import org.hyperledger.besu.evm.log.Log;
 import org.hyperledger.besu.evm.operation.AbstractOperation;
+import org.hyperledger.besu.evm.operation.InvalidOperation;
 import org.hyperledger.besu.evm.operation.Operation;
+import org.hyperledger.besu.evm.tracing.OpCodeTracerConfigBuilder;
+import org.hyperledger.besu.evm.tracing.OpCodeTracerConfigBuilder.OpCodeTracerConfig;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
-import org.hyperledger.besu.evm.tracing.StandardJsonTracer;
+import org.hyperledger.besu.evm.tracing.StreamingOperationTracer;
 import org.hyperledger.besu.evm.worldstate.WorldView;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -137,7 +141,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  *   <li>Executing a {@link HederaFunctionality#FILE_CREATE} to upload some contract initcode.</li>
  *   <li>Executing a {@link HederaFunctionality#CONTRACT_CREATE} to create an instance of the contract.</li>
  *   <li>Executing a {@link HederaFunctionality#CONTRACT_CALL} to call a function on the contract, and capturing
- *   the output of a {@link StandardJsonTracer} that is passed in as an extra argument.</li>
+ *   the output of a {@link StreamingOperationTracer} that is passed in as an extra argument.</li>
  * </ol>
  */
 @ExtendWith(MockitoExtension.class)
@@ -155,7 +159,7 @@ public class TransactionExecutorsTest {
     private static final com.esaulpaugh.headlong.abi.Function GET_LAST_BLOCKHASH_FUNCTION =
             new com.esaulpaugh.headlong.abi.Function("getLastBlockHash()", "(bytes32)");
     private static final String EXPECTED_TRACE_START =
-            "{\"pc\":0,\"op\":96,\"gas\":\"0x5c838\",\"gasCost\":\"0x3\",\"memSize\":0,\"depth\":1,\"refund\":0,\"opName\":\"PUSH1\"}";
+            "{\"pc\":0,\"op\":\"0x60\",\"gas\":378936,\"gasCost\":3,\"memSize\":0,\"depth\":1,\"refund\":0,\"opName\":\"PUSH1\"}";
     private static final NodeInfo DEFAULT_NODE_INFO =
             new NodeInfoImpl(0, idFactory.newAccountId(3L), 10, List.of(), Bytes.EMPTY, List.of(), true, null);
 
@@ -184,7 +188,7 @@ public class TransactionExecutorsTest {
 
     @Test
     void executesTransactionsAsExpected() {
-        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "false");
+        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101");
         // Construct a full implementation of the consensus node State API with all genesis accounts and files
         final var state = genesisState(overrides);
 
@@ -212,8 +216,15 @@ public class TransactionExecutorsTest {
         // the executor now expects ActionSidecarContentTracer instances.
         final var stringWriter = new StringWriter();
         final var printWriter = new PrintWriter(stringWriter);
-        final var jsonTracer = new StandardJsonTracer(printWriter, false, false, false, false);
-        final var addOnTracer = new OperationTracerAdapter(jsonTracer);
+        final var opCodeTracerConfig = OpCodeTracerConfigBuilder.createFrom(OpCodeTracerConfig.DEFAULT)
+                .traceMemory(false)
+                .traceStack(false)
+                .traceReturnData(false)
+                .traceStorage(false)
+                .eip3155Strict(false)
+                .build();
+        final var streamingOperationTracer = new StreamingOperationTracer(printWriter, opCodeTracerConfig);
+        final var addOnTracer = new OperationTracerAdapter(streamingOperationTracer);
         final var callOutput = executor.execute(contractCallMultipurposePickFunction(), Instant.EPOCH, addOnTracer);
         final var callRecord = callOutput.getFirst().transactionRecord();
         final var callResult = callRecord.contractCallResultOrThrow().contractCallResult();
@@ -382,7 +393,7 @@ public class TransactionExecutorsTest {
                 .transactionValidDuration(new Duration(minValidDuration));
     }
 
-    private MerkleNodeState genesisState(@NonNull final Map<String, String> overrides) {
+    private VirtualMapState genesisState(@NonNull final Map<String, String> overrides) {
         final var state = new FakeState();
         final var configBuilder = HederaTestConfigBuilder.create();
         overrides.forEach(configBuilder::withValue);
@@ -395,7 +406,7 @@ public class TransactionExecutorsTest {
                 () -> config,
                 () -> DEFAULT_NODE_INFO,
                 () -> NO_OP_METRICS,
-                new AppThrottleFactory(
+                new AppScheduleThrottleFactory(
                         () -> config, () -> state, () -> ThrottleDefinitions.DEFAULT, ThrottleAccumulator::new),
                 () -> UNIVERSAL_NOOP_FEE_CHARGING,
                 new AppEntityIdFactory(config));
@@ -435,6 +446,7 @@ public class TransactionExecutorsTest {
         final var readableStates = state.getReadableStates(AddressBookService.NAME);
         final var entityIdStore = new WritableEntityIdStoreImpl(state.getWritableStates(EntityIdService.NAME));
         entityIdStore.adjustEntityCount(EntityType.NODE, 1);
+        entityIdStore.incrementHighestNodeIdAndGet();
         final var nodeStore = new ReadableNodeStoreImpl(readableStates, entityIdStore);
         final var files = writableStates.<FileID, File>get(V0490FileSchema.FILES_STATE_ID);
         genesisContentProviders(nodeStore, config).forEach((fileNum, provider) -> {
@@ -489,7 +501,6 @@ public class TransactionExecutorsTest {
         return Map.of(
                 filesConfig.addressBook(), ignore -> genesisSchema.nodeStoreAddressBook(nodeStore),
                 filesConfig.nodeDetails(), ignore -> genesisSchema.nodeStoreNodeDetails(nodeStore),
-                filesConfig.feeSchedules(), genesisSchema::genesisFeeSchedules,
                 filesConfig.simpleFeesSchedules(), genesisSchema::genesisSimpleFeesSchedules,
                 filesConfig.exchangeRates(), genesisSchema::genesisExchangeRatesBytes,
                 filesConfig.networkProperties(), genesisSchema::genesisNetworkProperties,
@@ -641,6 +652,22 @@ public class TransactionExecutorsTest {
         @Override
         public boolean isExtendedTracing() {
             return delegate.isExtendedTracing();
+        }
+
+        @Override
+        public void tracePerOpcode(MessageFrame frame, long gas, ExceptionalHaltReason halt, Operation op) {
+            frame.setCurrentOperation(op);
+            delegate.tracePostExecution(frame, new Operation.OperationResult(gas, halt));
+        }
+
+        @Override
+        public void traceSuspended(MessageFrame parent, MessageFrame child, CallOperationType opCall) {
+            delegate.tracePostExecution(parent, InvalidOperation.INVALID_RESULT);
+        }
+
+        @Override
+        public void traceNotExecuting(MessageFrame child) {
+            delegate.tracePostExecution(child, InvalidOperation.INVALID_RESULT);
         }
     }
 }

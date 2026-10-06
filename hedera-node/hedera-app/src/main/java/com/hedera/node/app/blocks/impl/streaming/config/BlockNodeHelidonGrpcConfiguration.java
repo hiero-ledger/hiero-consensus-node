@@ -87,6 +87,16 @@ public class BlockNodeHelidonGrpcConfiguration {
         return Objects.hash(abortPollTimeExpired, heartbeatPeriod, initialBufferSize, name, pollWaitTime);
     }
 
+    @Override
+    public String toString() {
+        return "BlockNodeHelidonGrpcConfiguration{" + "abortPollTimeExpired="
+                + abortPollTimeExpired + ", heartbeatPeriod="
+                + heartbeatPeriod + ", initialBufferSize="
+                + initialBufferSize + ", name="
+                + (name == null ? null : "'" + name + "'") + ", pollWaitTime="
+                + pollWaitTime + '}';
+    }
+
     public static @NonNull Builder newBuilder() {
         return new Builder();
     }

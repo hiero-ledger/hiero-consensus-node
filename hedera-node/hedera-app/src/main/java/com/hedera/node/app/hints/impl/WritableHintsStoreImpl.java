@@ -26,7 +26,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
 import com.hedera.node.app.hints.WritableHintsStore;
-import com.hedera.node.app.service.entityid.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -59,8 +59,9 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     private final WritableKVState<NodeId, CrsPublicationTransactionBody> crsPublications;
     private final WritableSingletonState<CRSState> crsState;
 
-    public WritableHintsStoreImpl(@NonNull final WritableStates states, final WritableEntityCounters entityCounters) {
-        super(states, entityCounters);
+    public WritableHintsStoreImpl(
+            @NonNull final WritableStates states, final WritableEntityIdStore writableEntityIdStore) {
+        super(states, writableEntityIdStore);
         this.hintsKeys = states.get(HINTS_KEY_SETS_STATE_ID);
         this.nextConstruction = states.getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID);
         this.activeConstruction = states.getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID);
@@ -177,7 +178,12 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
             }
         }
         log.info("Handing off to upcoming construction #{}", upcomingConstruction.constructionId());
-        // The next construction is becoming the active one; so purge obsolete votes now
+        // The next construction is becoming the active one; so purge obsolete votes now. Its voters
+        // are the outgoing roster (fromRoster is its source roster), and the outgoing active
+        // construction is likewise done with. We key both purges off fromRoster rather than each
+        // construction's own source roster hash, which may already have been pruned from the roster
+        // store (only two rosters are retained).
+        purgeVotes(upcomingConstruction, ignore -> fromRoster);
         purgeVotes(requireNonNull(activeConstruction.get()), ignore -> fromRoster);
         // If the previous scheme's party size was different than the new one, purge the hinTS keys;
         // this is likely optional, but seems like a better default behavior than leaving them in state

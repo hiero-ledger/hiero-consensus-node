@@ -22,7 +22,12 @@ public class FakeStartupNetworks implements StartupNetworks {
     }
 
     @Override
-    public Optional<Network> overrideNetworkFor(long roundNumber, Configuration platformConfig) {
+    public Optional<Network> overrideNetworkFor(long roundNumber, @NonNull final Configuration platformConfig) {
+        return Optional.empty();
+    }
+
+    @Override
+    public Optional<Network> lastUsedOverrideNetwork(@NonNull final Configuration platformConfig) {
         return Optional.empty();
     }
 

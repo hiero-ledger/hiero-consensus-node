@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.simulator;
 
+import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
 import com.hedera.services.bdd.junit.hedera.containers.BlockNodeContainer;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -9,6 +10,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,10 +22,13 @@ import org.hiero.block.api.PublishStreamResponse.EndOfStream;
  */
 public class BlockNodeController {
     private static final Logger log = LogManager.getLogger(BlockNodeController.class);
+    private static BlockNodeNetwork blockNodeNetwork;
     private static Map<Long, SimulatedBlockNodeServer> simulatedBlockNodes = new HashMap<>();
     private static Map<Long, BlockNodeContainer> blockNodeContainers = new HashMap<>();
     // Store the ports of shutdown block nodes for restart
     private static final Map<Long, Integer> shutdownBlockNodePorts = new HashMap<>();
+    // Store the full spec of shutdown simulators, so a restart preserves their ports, latency, and TLS settings
+    private static final Map<Long, SimulatedBlockNodeServer.Spec> shutdownSimulatorSpecs = new HashMap<>();
     private static final Map<Long, Long> lastVerifiedBlockNumbers = new HashMap<>();
     private static final Set<Long> persistentStateBlockNodes = new HashSet<>();
 
@@ -33,6 +38,7 @@ public class BlockNodeController {
      * @param network the SubProcessNetwork containing simulated block nodes
      */
     public BlockNodeController(@NonNull final BlockNodeNetwork network) {
+        blockNodeNetwork = network;
         simulatedBlockNodes = network.getSimulatedBlockNodeById();
         if (simulatedBlockNodes.isEmpty()) {
             log.warn("No simulated block nodes found in the network. Make sure BlockNodeMode.SIMULATOR is set.");
@@ -254,6 +260,7 @@ public class BlockNodeController {
             blockNodeContainers.clear();
         }
         shutdownBlockNodePorts.clear();
+        shutdownSimulatorSpecs.clear();
         for (final Map.Entry<Long, SimulatedBlockNodeServer> entry : simulatedBlockNodes.entrySet()) {
             final long nodeId = entry.getKey();
             shutdownSimulator(nodeId, persistState);
@@ -273,6 +280,7 @@ public class BlockNodeController {
             final int port = server.getPort();
 
             shutdownBlockNodePorts.put(nodeId, port);
+            shutdownSimulatorSpecs.put(nodeId, server.spec());
 
             if (persistState) {
                 persistentStateBlockNodes.add(nodeId);
@@ -320,20 +328,22 @@ public class BlockNodeController {
 
         if (nodeId >= 0 && nodeId < simulatedBlockNodes.size()) {
             final int port = shutdownBlockNodePorts.get(nodeId);
+            // Recreate the server exactly as it was: same ports, same latency behaviour, same TLS settings
+            final SimulatedBlockNodeServer.Spec spec = shutdownSimulatorSpecs.get(nodeId);
 
-            // Create a new server on the same port
             final long lastVerifiedBlockNumber = persistentStateBlockNodes.contains(nodeId)
                     ? lastVerifiedBlockNumbers.getOrDefault(nodeId, -1L)
                     : -1L;
             final SimulatedBlockNodeServer newServer =
-                    new SimulatedBlockNodeServer(port, false, () -> lastVerifiedBlockNumber);
+                    new SimulatedBlockNodeServer(spec, () -> lastVerifiedBlockNumber);
             newServer.start();
 
             // Replace the old server in the list
             simulatedBlockNodes.put(nodeId, newServer);
 
-            // Remove from the shutdown map
+            // Remove from the shutdown maps
             shutdownBlockNodePorts.remove(nodeId);
+            shutdownSimulatorSpecs.remove(nodeId);
 
             log.info("Restarted simulator {} on port {}", nodeId, port);
         } else {
@@ -407,6 +417,63 @@ public class BlockNodeController {
     }
 
     /**
+     * Check whether a specific simulator has received a {@link RecordFileItem} (WRB content)
+     * for the given block number.
+     *
+     * @param index the index of the simulated block node (0-based)
+     * @param blockNumber the block number to check
+     * @return true if a RecordFileItem has been received for that block
+     * @throws IllegalArgumentException if the simulator index is invalid
+     */
+    public boolean hasReceivedRecordFileItem(final long index, final long blockNumber) {
+        if (index < 0 || index >= simulatedBlockNodes.size()) {
+            throw new IllegalArgumentException(
+                    "Invalid simulator index: " + index + ", valid range is 0-" + (simulatedBlockNodes.size() - 1));
+        }
+
+        final SimulatedBlockNodeServer server = simulatedBlockNodes.get(index);
+        return server.hasReceivedRecordFileItem(blockNumber);
+    }
+
+    /**
+     * Get the {@link RecordFileItem} received by a specific simulator for the given block number,
+     * if any.
+     *
+     * @param index the index of the simulated block node (0-based)
+     * @param blockNumber the block number to query
+     * @return an Optional containing the RecordFileItem, or empty if none received
+     * @throws IllegalArgumentException if the simulator index is invalid
+     */
+    @NonNull
+    public Optional<RecordFileItem> getRecordFileItem(final long index, final long blockNumber) {
+        if (index < 0 || index >= simulatedBlockNodes.size()) {
+            throw new IllegalArgumentException(
+                    "Invalid simulator index: " + index + ", valid range is 0-" + (simulatedBlockNodes.size() - 1));
+        }
+
+        final SimulatedBlockNodeServer server = simulatedBlockNodes.get(index);
+        return server.getRecordFileItem(blockNumber);
+    }
+
+    /**
+     * Get all {@link RecordFileItem}s received by a specific simulator, keyed by block number.
+     *
+     * @param index the index of the simulated block node (0-based)
+     * @return an unmodifiable map from block number to RecordFileItem
+     * @throws IllegalArgumentException if the simulator index is invalid
+     */
+    @NonNull
+    public Map<Long, RecordFileItem> getAllRecordFileItems(final long index) {
+        if (index < 0 || index >= simulatedBlockNodes.size()) {
+            throw new IllegalArgumentException(
+                    "Invalid simulator index: " + index + ", valid range is 0-" + (simulatedBlockNodes.size() - 1));
+        }
+
+        final SimulatedBlockNodeServer server = simulatedBlockNodes.get(index);
+        return server.getAllRecordFileItems();
+    }
+
+    /**
      * Check if a specific block node has been shut down.
      *
      * @param index the index of the block node (0-based)
@@ -445,7 +512,7 @@ public class BlockNodeController {
                 blockNodeContainer = blockNodeContainers.get(nodeIndex);
                 blockNodeContainer.resume();
             } else {
-                blockNodeContainer = new BlockNodeContainer(nodeIndex, port);
+                blockNodeContainer = new BlockNodeContainer(nodeIndex, port, blockNodeNetwork.getRsaBootstrapJson());
                 blockNodeContainer.start();
             }
 

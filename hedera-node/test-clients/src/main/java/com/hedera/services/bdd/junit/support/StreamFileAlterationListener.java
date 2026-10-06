@@ -116,7 +116,7 @@ public class StreamFileAlterationListener extends FileAlterationListenerAdaptor 
             try {
                 l.onNewBlock(block);
             } catch (Exception e) {
-                log.error("{} failed to process block file {}", l, file.getAbsolutePath(), e);
+                log.error("{} failed to process block file {}", l.name(), file.getAbsolutePath(), e);
             }
         });
     }
@@ -130,12 +130,27 @@ public class StreamFileAlterationListener extends FileAlterationListenerAdaptor 
         final var sidecarPath = Files.exists(gzPath) ? gzPath : plainPath;
 
         final var contents = StreamFileAccess.ensurePresentSidecarFile(sidecarPath.toString());
-        contents.getSidecarRecordsList().forEach(sidecar -> listeners.forEach(l -> l.onNewSidecar(sidecar)));
+        contents.getSidecarRecordsList()
+                .forEach(sidecar -> listeners.forEach(l -> {
+                    try {
+                        l.onNewSidecar(sidecar);
+                    } catch (Exception e) {
+                        log.error("{} failed to process sidecar from {}", l.name(), file.getAbsolutePath(), e);
+                    }
+                }));
     }
 
     private void exposeItems(final File file) {
         final var contents = StreamFileAccess.ensurePresentRecordFile(file.getAbsolutePath());
-        contents.getRecordStreamItemsList().forEach(item -> listeners.forEach(l -> l.onNewItem(item)));
+        contents.getRecordStreamItemsList()
+                .forEach(item -> listeners.forEach(l -> {
+                    try {
+                        l.onNewItem(item);
+                    } catch (Exception e) {
+                        log.error(
+                                "{} failed to process record stream item from {}", l.name(), file.getAbsolutePath(), e);
+                    }
+                }));
     }
 
     public int numListeners() {

@@ -1,0 +1,41 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.model.event;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import java.io.IOException;
+import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.utility.test.fixtures.io.InputOutputStream;
+import org.hiero.consensus.constructable.ConstructableRegistration;
+import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.test.fixtures.Randotron;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+public class CesEventTest {
+    @BeforeAll
+    public static void setUp() throws ConstructableRegistryException {
+        ConstructableRegistration.registerCoreConstructables();
+    }
+
+    @Test
+    public void serializeAndDeserializeConsensusEvent() throws IOException {
+        CesEvent consensusEvent = generateConsensusEvent();
+        try (final InputOutputStream io = new InputOutputStream()) {
+            io.getOutput().writeSerializable(consensusEvent, true);
+            io.startReading();
+
+            final CesEvent deserialized = io.getInput().readSerializable();
+            assertEquals(consensusEvent, deserialized);
+        }
+    }
+
+    private CesEvent generateConsensusEvent() {
+        final Randotron random = Randotron.create(68651684861L);
+        final PlatformEvent platformEvent = new TestingEventBuilder(random)
+                .setConsensusTimestamp(random.nextInstant())
+                .build();
+
+        return new CesEvent(platformEvent, random.nextPositiveLong(), random.nextBoolean());
+    }
+}

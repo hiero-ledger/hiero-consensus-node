@@ -29,8 +29,8 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
+import org.hyperledger.besu.datatypes.Log;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.log.Log;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -114,8 +114,11 @@ public class TransferEventLoggingUtilsTest {
                     log.getTopics().get(2));
             assertEquals(
                     expectedTransfer.amount(),
-                    UInt256.fromBytes(Bytes.wrap(
-                                    logs.getFirst().getTopics().get(3).toArray()))
+                    UInt256.fromBytes(Bytes.wrap(logs.getFirst()
+                                    .getTopics()
+                                    .get(3)
+                                    .getBytes()
+                                    .toArray()))
                             .toLong());
             index++;
         }

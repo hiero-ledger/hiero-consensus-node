@@ -32,6 +32,7 @@ import com.hedera.hapi.streams.ContractActions;
 import com.hedera.hapi.streams.ContractBytecode;
 import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
+import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreateStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusCreateTopicStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusSubmitMessageStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
@@ -63,12 +64,14 @@ import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
+import com.hedera.node.app.workflows.handle.record.TraceDataSizeLimiter;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 /**
@@ -102,6 +105,7 @@ public class PairedStreamBuilder
                 TokenAccountWipeStreamBuilder,
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
+                RegisteredNodeCreateStreamBuilder,
                 TokenAirdropStreamBuilder,
                 ReplayableFeeStreamBuilder,
                 HookDispatchStreamBuilder {
@@ -112,8 +116,25 @@ public class PairedStreamBuilder
             @NonNull final ReversingBehavior reversingBehavior,
             @NonNull final SignedTxCustomizer customizer,
             @NonNull final HandleContext.TransactionCategory category) {
-        recordStreamBuilder = new RecordStreamBuilder(reversingBehavior, customizer, category);
-        blockStreamBuilder = new BlockStreamBuilder(reversingBehavior, customizer, category);
+        this(reversingBehavior, customizer, category, TraceDataSizeLimiter.NO_LIMIT);
+    }
+
+    public PairedStreamBuilder(
+            @NonNull final ReversingBehavior reversingBehavior,
+            @NonNull final SignedTxCustomizer customizer,
+            @NonNull final HandleContext.TransactionCategory category,
+            final int maxSerializedTraceDataBytes) {
+        final var clippingState = new TraceDataSizeLimiter.ClippingState();
+        recordStreamBuilder = new RecordStreamBuilder(
+                reversingBehavior,
+                customizer,
+                category,
+                new TraceDataSizeLimiter(maxSerializedTraceDataBytes, clippingState));
+        blockStreamBuilder = new BlockStreamBuilder(
+                reversingBehavior,
+                customizer,
+                category,
+                new TraceDataSizeLimiter(maxSerializedTraceDataBytes, clippingState));
     }
 
     @Override
@@ -285,7 +306,23 @@ public class PairedStreamBuilder
 
     @Override
     public StreamBuilder congestionMultiplier(final long congestionMultiplier) {
-        return null;
+        recordStreamBuilder.congestionMultiplier(congestionMultiplier);
+        blockStreamBuilder.congestionMultiplier(congestionMultiplier);
+        return this;
+    }
+
+    @Override
+    public StreamBuilder highVolumePricingMultiplier(final long highVolumePricingMultiplier) {
+        recordStreamBuilder.highVolumePricingMultiplier(highVolumePricingMultiplier);
+        blockStreamBuilder.highVolumePricingMultiplier(highVolumePricingMultiplier);
+        return this;
+    }
+
+    @Override
+    public StreamBuilder blockNumber(final Long blockNumber) {
+        recordStreamBuilder.blockNumber(blockNumber);
+        blockStreamBuilder.blockNumber(blockNumber);
+        return this;
     }
 
     @NonNull
@@ -293,6 +330,14 @@ public class PairedStreamBuilder
     public NodeCreateStreamBuilder nodeID(long nodeID) {
         recordStreamBuilder.nodeID(nodeID);
         blockStreamBuilder.nodeID(nodeID);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public RegisteredNodeCreateStreamBuilder registeredNodeID(final long registeredNodeID) {
+        recordStreamBuilder.registeredNodeID(registeredNodeID);
+        blockStreamBuilder.registeredNodeID(registeredNodeID);
         return this;
     }
 
@@ -469,6 +514,23 @@ public class PairedStreamBuilder
     public ContractOperationStreamBuilder addContractSlotUsages(@NonNull final List<ContractSlotUsage> slotUsages) {
         blockStreamBuilder.addContractSlotUsages(slotUsages);
         return this;
+    }
+
+    // The record stream's sidecar data is strictly larger than the equivalent block stream trace data,
+    // so capping it individually is enough for PairedStreamBuilder.
+    @Override
+    public boolean hasTraceDataSizeLimitExceeded() {
+        return recordStreamBuilder.hasTraceDataSizeLimitExceeded();
+    }
+
+    @Override
+    public long estimatedContractBytecodeSize() {
+        return recordStreamBuilder.estimatedContractBytecodeSize();
+    }
+
+    @Override
+    public boolean ensureTraceDataSizeLimitWithAdditionalBytes(final long additionalBytes) {
+        return recordStreamBuilder.ensureTraceDataSizeLimitWithAdditionalBytes(additionalBytes);
     }
 
     @NonNull
@@ -675,6 +737,11 @@ public class PairedStreamBuilder
     @Override
     public AccountID getDeletedAccountBeneficiaryFor(@NonNull AccountID deletedAccountID) {
         return recordStreamBuilder.getDeletedAccountBeneficiaryFor(deletedAccountID);
+    }
+
+    @Override
+    public void forEachDeletedAccountBeneficiary(@NonNull final BiConsumer<AccountID, AccountID> action) {
+        recordStreamBuilder.forEachDeletedAccountBeneficiary(action);
     }
 
     @Override

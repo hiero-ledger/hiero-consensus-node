@@ -1,0 +1,266 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.gossip.impl.gossip.shadowgraph;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+
+import com.swirlds.base.test.fixtures.time.FakeTime;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
+import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.Random;
+import java.util.function.Consumer;
+import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.event.NoOpIntakeEventCounter;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
+import org.hiero.consensus.gossip.config.BroadcastConfig;
+import org.hiero.consensus.gossip.config.SyncConfig;
+import org.hiero.consensus.gossip.impl.gossip.permits.SyncGuard;
+import org.hiero.consensus.gossip.impl.gossip.permits.SyncGuardFactory;
+import org.hiero.consensus.gossip.impl.gossip.rpc.GossipRpcSender;
+import org.hiero.consensus.gossip.impl.gossip.rpc.SyncData;
+import org.hiero.consensus.gossip.impl.gossip.sync.SyncMetrics;
+import org.hiero.consensus.model.gossip.SyncProgress;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
+import org.hiero.consensus.monitoring.FallenBehindMonitor;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+
+class RpcPeerHandlerTest {
+
+    static final int NUM_NODES = 10;
+    public static final SyncData EMPTY_SYNC_MESSAGE =
+            new SyncData(EventWindow.getGenesisEventWindow(), List.of(), false);
+    public static final SyncData EMPTY_SYNC_MESSAGE_IGNORE_EVENTS =
+            new SyncData(EventWindow.getGenesisEventWindow(), List.of(), true);
+    private FakeTime time;
+    private SyncMetrics syncMetrics;
+    private RosterWrapper roster;
+    private FallenBehindMonitor fallenBehindManager;
+    private NodeId selfId;
+    private Consumer eventHandler;
+    private GossipRpcSender gossipSender;
+    private ShadowgraphSynchronizer synchronizer;
+    private Consumer<SyncProgress> syncProgressReporter;
+    private IntakeEventCounter intakeCounter;
+    private SyncGuard syncGuard;
+    private Configuration configuration;
+
+    @BeforeEach
+    void testSetup() {
+        this.configuration = ConfigurationBuilder.create()
+                .withSource(SystemEnvironmentConfigSource.getInstance())
+                .withSource(SystemPropertiesConfigSource.getInstance())
+                .autoDiscoverExtensions()
+                .withValue("reconnect.fallenBehindThreshold", "0")
+                .build();
+
+        this.time = new FakeTime(Instant.now(), Duration.ofMillis(1));
+
+        this.syncMetrics = mock(SyncMetrics.class);
+        // The value used in this test does not matter. The fallen behind manager is only used to determine if
+        // SELF or OTHER is behind based on exchanged event windows.
+        final double fallenBehindThreshold = 1.0;
+        this.roster = RosterWrapperFactory.randomRoster(new Random(), NUM_NODES);
+        this.selfId = roster.nodeIdAtIndex(0);
+        this.fallenBehindManager = new FallenBehindMonitor(roster, new NoOpMetrics(), selfId, fallenBehindThreshold);
+        this.eventHandler = mock(Consumer.class);
+        this.gossipSender = mock(GossipRpcSender.class);
+        this.syncProgressReporter = mock(Consumer.class);
+        this.intakeCounter = new NoOpIntakeEventCounter();
+        this.synchronizer = new ShadowgraphSynchronizer(
+                configuration, new NoOpMetrics(), time, NUM_NODES, syncMetrics, intakeCounter, syncProgressReporter);
+
+        this.synchronizer.updateEventWindow(EventWindow.getGenesisEventWindow());
+
+        this.syncGuard = SyncGuardFactory.create(-1, 0.3, 10);
+    }
+
+    @Test
+    void createPeerHandlerStartSync() {
+        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
+        final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
+        conversation.checkForPeriodicActions(false, false);
+        Mockito.verify(gossipSender).sendSyncData(any());
+    }
+
+    private RpcPeerHandler createPeerHandler(final GossipRpcSender gossipSender, final NodeId otherNodeId) {
+        return new RpcPeerHandler(
+                synchronizer,
+                gossipSender,
+                selfId,
+                otherNodeId,
+                syncMetrics,
+                time,
+                intakeCounter,
+                eventHandler,
+                syncGuard,
+                fallenBehindManager,
+                configuration.getConfigData(SyncConfig.class),
+                configuration.getConfigData(BroadcastConfig.class));
+    }
+
+    @Test
+    void fullEmptySync() {
+        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
+        final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
+        conversation.checkForPeriodicActions(false, false);
+        Mockito.verify(gossipSender).sendSyncData(any());
+        conversation.receiveSyncData(EMPTY_SYNC_MESSAGE);
+        Mockito.verify(gossipSender).sendTips(List.of());
+        conversation.receiveTips(List.of());
+        Mockito.verify(gossipSender).sendEvents(List.of());
+        Mockito.verify(gossipSender).sendEndOfEvents();
+        Mockito.verifyNoMoreInteractions(gossipSender);
+    }
+
+    @Test
+    void errorOnDoubleSyncData() {
+        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
+        final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
+        conversation.checkForPeriodicActions(false, false);
+        Mockito.verify(gossipSender).sendSyncData(any());
+        conversation.receiveSyncData(EMPTY_SYNC_MESSAGE);
+        assertThrows(IllegalStateException.class, () -> conversation.receiveSyncData(EMPTY_SYNC_MESSAGE));
+    }
+
+    @Test
+    void errorOnTipsWithoutSyncData() {
+        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
+        final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
+        conversation.checkForPeriodicActions(false, false);
+        Mockito.verify(gossipSender).sendSyncData(any());
+        assertThrows(IllegalStateException.class, () -> conversation.receiveTips(List.of()));
+    }
+
+    @Test
+    void errorOnDoubleTips() {
+        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
+        final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
+        conversation.checkForPeriodicActions(false, false);
+        Mockito.verify(gossipSender).sendSyncData(any());
+        conversation.receiveSyncData(EMPTY_SYNC_MESSAGE);
+        Mockito.verify(gossipSender).sendTips(List.of());
+        conversation.receiveTips(List.of());
+        Mockito.verify(gossipSender).sendEvents(List.of());
+        Mockito.verify(gossipSender).sendEndOfEvents();
+        assertThrows(IllegalStateException.class, () -> conversation.receiveTips(List.of()));
+    }
+
+    @Test
+    void disconnectInMiddleOfEventSendingNotBreakingNextSync() {
+        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
+        final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
+        conversation.checkForPeriodicActions(false, false);
+        Mockito.verify(gossipSender).sendSyncData(any());
+        conversation.receiveSyncData(EMPTY_SYNC_MESSAGE);
+        Mockito.verify(gossipSender).sendTips(List.of());
+        conversation.receiveTips(List.of());
+        Mockito.verify(gossipSender).sendEvents(List.of());
+        Mockito.verify(gossipSender).sendEndOfEvents();
+
+        // emulate disconnect
+        conversation.cleanup();
+        time.tick(Duration.ofSeconds(10));
+        Mockito.clearInvocations(gossipSender);
+
+        // try starting new sync, even if old was broken in middle of receiving events
+        conversation.checkForPeriodicActions(false, false);
+        Mockito.verify(gossipSender).sendSyncData(any());
+    }
+
+    @Test
+    void fullEmptySyncIgnoreEvents() {
+        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
+        final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
+        conversation.checkForPeriodicActions(false, true);
+        Mockito.verify(gossipSender).sendSyncData(any());
+        conversation.receiveSyncData(EMPTY_SYNC_MESSAGE_IGNORE_EVENTS);
+        Mockito.verify(gossipSender).sendTips(List.of());
+        conversation.receiveTips(List.of());
+        Mockito.verify(gossipSender).sendEndOfEvents();
+        Mockito.verifyNoMoreInteractions(gossipSender);
+    }
+
+    @Test
+    void testFallenBehind() {
+        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
+        final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
+        conversation.checkForPeriodicActions(false, false);
+        Mockito.verify(gossipSender).sendSyncData(any());
+        conversation.receiveSyncData(new SyncData(new EventWindow(100, 101, 10, 5), List.of(), false));
+        Mockito.verify(syncProgressReporter)
+                .accept(new SyncProgress(otherNodeId, new EventWindow(0, 1, 1, 1), new EventWindow(100, 101, 10, 5)));
+        Mockito.verify(gossipSender).breakConversation();
+        Mockito.verifyNoMoreInteractions(gossipSender);
+    }
+
+    @Test
+    void testSyncProgressReporting() {
+        for (int i = 2; i <= 5; i++) {
+            final NodeId otherNodeId = roster.nodeIdAtIndex(i);
+            final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
+            conversation.checkForPeriodicActions(false, false);
+            final EventWindow eventWindow = new EventWindow(20 + i, 20 + i, 10, 5);
+            conversation.receiveSyncData(new SyncData(eventWindow, List.of(), false));
+            Mockito.verify(syncProgressReporter)
+                    .accept(new SyncProgress(otherNodeId, new EventWindow(0, 1, 1, 1), eventWindow));
+        }
+    }
+
+    @Test
+    void testUnhealthyExit() {
+        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
+        final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
+        // we don't want to start sync in unhealthy state
+        assertFalse(conversation.checkForPeriodicActions(true, false));
+        Mockito.verifyNoMoreInteractions(gossipSender);
+
+        // we are now healthy, so start sync
+        assertTrue(conversation.checkForPeriodicActions(false, false));
+        Mockito.verify(gossipSender).sendSyncData(any());
+
+        // event if system is unhealthy, we need to finish sync
+        assertTrue(conversation.checkForPeriodicActions(true, false));
+        conversation.receiveSyncData(new SyncData(new EventWindow(100, 101, 10, 5), List.of(), false));
+        Mockito.verify(gossipSender).breakConversation();
+
+        // if sync is finished, we shouldn't be starting new one if system is unhealthy
+        assertFalse(conversation.checkForPeriodicActions(true, false));
+        Mockito.verifyNoMoreInteractions(gossipSender);
+    }
+
+    @Test
+    void removeFallenBehind() {
+        final NodeId otherNodeId = roster.nodeIdAtIndex(1);
+        final RpcPeerHandler conversation = createPeerHandler(gossipSender, otherNodeId);
+        synchronizer.updateEventWindow(new EventWindow(100, 101, 10, 5));
+        conversation.checkForPeriodicActions(false, false);
+        Mockito.verify(gossipSender).sendSyncData(any());
+        conversation.receiveSyncData(EMPTY_SYNC_MESSAGE);
+        time.tick(Duration.ofSeconds(10));
+        conversation.checkForPeriodicActions(false, false);
+        time.tick(Duration.ofSeconds(10));
+        conversation.checkForPeriodicActions(false, false);
+        time.tick(Duration.ofSeconds(10));
+        conversation.checkForPeriodicActions(false, false);
+        time.tick(Duration.ofSeconds(10));
+        Mockito.verifyNoMoreInteractions(gossipSender);
+        Mockito.clearInvocations(gossipSender);
+        conversation.receiveSyncData(new SyncData(new EventWindow(100, 101, 10, 5), List.of(), false));
+        time.tick(Duration.ofSeconds(10));
+        conversation.checkForPeriodicActions(false, false);
+        Mockito.verify(gossipSender).sendSyncData(any());
+    }
+}

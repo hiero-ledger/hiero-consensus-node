@@ -2,8 +2,8 @@
 package com.hedera.services.bdd.suites.crypto.batch;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -26,10 +26,10 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_RECEIVER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -49,7 +49,8 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.suites.contract.Utils;
@@ -74,9 +75,9 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of AutoAccountCreationUnlimitedAssociationsSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @Tag(ATOMIC_BATCH)
+@OrderedInIsolation
 @HapiTestLifecycle
 class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
-
     public static final String TRUE = "true";
     public static final String FALSE = "false";
     public static final String LAZY_MEMO = "";
@@ -90,7 +91,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
     private static final String AUTO_MEMO = "";
     private static final String CIVILIAN = "somebody";
     private static final String SPONSOR = "autoCreateSponsor";
-    private static final long EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE = 39_376_619L;
+    private static final long EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE_SIMPLE_FEES = 41666666L;
     private static final String HBAR_XFER = "hbarXfer";
     private static final String FT_XFER = "ftXfer";
     private static final String NFT_XFER = "nftXfer";
@@ -105,7 +106,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
     @HapiTest
     final Stream<DynamicTest> autoAccountCreationsUnlimitedAssociationHappyPath() {
         final var creationTime = new AtomicLong();
-        final long transferFee = 188608L;
+        final long simpleTransferFee = 333333L;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 newKeyNamed(VALID_ALIAS),
@@ -125,17 +126,16 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                         .has(accountWith()
                                 .balance((INITIAL_BALANCE * ONE_HBAR) - ONE_HUNDRED_HBARS)
                                 .noAlias()),
-                childRecordsCheck(
-                        TRANSFER_TXN,
-                        SUCCESS,
-                        recordWith().status(SUCCESS).fee(EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE)),
-                assertionsHold((spec, opLog) -> {
+                assertionsHold((spec, _) -> {
+                    final var childRecordsCheck = childRecordsCheck(
+                            TRANSFER_TXN,
+                            SUCCESS,
+                            recordWith().status(SUCCESS).fee(EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE_SIMPLE_FEES));
                     final var lookup = getTxnRecord(TRANSFER_TXN)
                             .andAllChildRecords()
                             .hasNonStakingChildRecordCount(1)
-                            .hasNoAliasInChildRecord(0)
-                            .logged();
-                    allRunFor(spec, lookup);
+                            .hasNoAliasInChildRecord(0);
+                    allRunFor(spec, childRecordsCheck, lookup);
                     final var sponsor = spec.registry().getAccountID(SPONSOR);
                     final var payer = spec.registry().getAccountID(PAYER);
                     final var parent = lookup.getResponseRecord();
@@ -144,7 +144,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                         child = lookup.getChildRecord(1);
                     }
                     assertAliasBalanceAndFeeInChildRecord(
-                            parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, transferFee, 0);
+                            parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, simpleTransferFee, 0);
                     creationTime.set(child.getConsensusTimestamp().getSeconds());
                 }),
                 sourcing(() -> getAliasedAccountInfo(VALID_ALIAS)
@@ -160,10 +160,12 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                         .logged()));
     }
 
-    @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"entities.unlimitedAutoAssociationsEnabled"})
     final Stream<DynamicTest> autoAccountCreationsUnlimitedAssociationsDisabled() {
         final var creationTime = new AtomicLong();
-        final long transferFee = 188608L;
+        final var simpleTransferFee = 333333L;
         return customizedHapiTest(
                 Map.of("memo.useSpecName", "false"),
                 overriding("entities.unlimitedAutoAssociationsEnabled", FALSE),
@@ -184,17 +186,16 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                         .has(accountWith()
                                 .balance((INITIAL_BALANCE * ONE_HBAR) - ONE_HUNDRED_HBARS)
                                 .noAlias()),
-                childRecordsCheck(
-                        TRANSFER_TXN,
-                        SUCCESS,
-                        recordWith().status(SUCCESS).fee(EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE)),
-                assertionsHold((spec, opLog) -> {
+                assertionsHold((spec, _) -> {
+                    final var childRecordsCheck = childRecordsCheck(
+                            TRANSFER_TXN,
+                            SUCCESS,
+                            recordWith().status(SUCCESS).fee(EXPECTED_HBAR_TRANSFER_AUTO_CREATION_FEE_SIMPLE_FEES));
                     final var lookup = getTxnRecord(TRANSFER_TXN)
                             .andAllChildRecords()
                             .hasNonStakingChildRecordCount(1)
-                            .hasNoAliasInChildRecord(0)
-                            .logged();
-                    allRunFor(spec, lookup);
+                            .hasNoAliasInChildRecord(0);
+                    allRunFor(spec, childRecordsCheck, lookup);
                     final var sponsor = spec.registry().getAccountID(SPONSOR);
                     final var payer = spec.registry().getAccountID(PAYER);
                     final var parent = lookup.getResponseRecord();
@@ -203,7 +204,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                         child = lookup.getChildRecord(1);
                     }
                     assertAliasBalanceAndFeeInChildRecord(
-                            parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, transferFee, 0);
+                            parent, child, sponsor, payer, ONE_HUNDRED_HBARS + ONE_HBAR, simpleTransferFee, 0);
                     creationTime.set(child.getConsensusTimestamp().getSeconds());
                 }),
                 sourcing(() -> getAliasedAccountInfo(VALID_ALIAS)
@@ -228,7 +229,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
         return hapiTest(
                 cryptoCreate(PARTY).maxAutomaticTokenAssociations(2),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var registry = spec.registry();
                     final var ecdsaKey = registry.getKey(SECP_256K1_SOURCE_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
@@ -238,7 +239,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                     partyAlias.set(asSolidityAddress(partyId.get()));
                     counterAlias.set(addressBytes);
                 }),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var counterAliasStr = ByteString.copyFrom(counterAlias.get());
 
                     // account create with key than delete account
@@ -343,7 +344,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                         .treasury(PARTY)
                         .initialSupply(1_000),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var registry = spec.registry();
                     final var ecdsaKey = registry.getKey(SECP_256K1_SOURCE_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
@@ -354,7 +355,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                     partyAlias.set(asSolidityAddress(partyId.get()));
                     counterAlias.set(addressBytes);
                 }),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
 
                     // account create with key than delete account
                     final var counterAliasStr = ByteString.copyFrom(counterAlias.get());
@@ -434,7 +435,6 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> transferNftToEVMAddressAliasUnlimitedAssociations() {
         final AtomicReference<AccountID> partyId = new AtomicReference<>();
         final AtomicReference<byte[]> partyAlias = new AtomicReference<>();
@@ -457,7 +457,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                 mintToken(
                         NFT_INFINITE_SUPPLY_TOKEN, List.of(ByteString.copyFromUtf8("a"), ByteString.copyFromUtf8("b"))),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var registry = spec.registry();
                     final var ecdsaKey = registry.getKey(SECP_256K1_SOURCE_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
@@ -469,7 +469,7 @@ class AtomicAutoAccountCreationUnlimitedAssociationsSuite {
                     treasuryId.set(registry.getAccountID(TOKEN_TREASURY));
                     partyAlias.set(asSolidityAddress(partyId.get()));
                 }),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
 
                     // account create with key than delete account
                     final var counterAliasStr = ByteString.copyFrom(counterAlias.get());

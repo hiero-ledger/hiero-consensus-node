@@ -3,8 +3,10 @@ package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
+import static com.hedera.node.app.service.contract.impl.exec.gas.DispatchType.ASSOCIATE;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc20TransfersTranslator.ERC_20_TRANSFER;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc20TransfersTranslator.ERC_20_TRANSFER_FROM;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ALIASED_RECEIVER;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_NEW_ACCOUNT_ID;
@@ -20,6 +22,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -34,18 +38,34 @@ import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuild
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.config.api.Configuration;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
+import org.hyperledger.besu.datatypes.Log;
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.log.Log;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 
 class Erc20TransfersCallTest extends CallTestBase {
-    private static final Address FROM_ADDRESS = ConversionUtils.asHeadlongAddress(EIP_1014_ADDRESS.toArray());
+    private static final Configuration BOTH_MODE_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BOTH")
+            .getOrCreateConfig();
+    private static final Configuration BLOCKS_MODE_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BLOCKS")
+            .getOrCreateConfig();
+    private static final Configuration NO_UNLIMITED_ASSOCIATIONS_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BOTH")
+            .withValue("entities.unlimitedAutoAssociationsEnabled", false)
+            .getOrCreateConfig();
+    private static final long CANONICAL_ASSOCIATE_GAS = 704_000L;
+    private static final Address FROM_ADDRESS =
+            ConversionUtils.asHeadlongAddress(EIP_1014_ADDRESS.getBytes().toArray());
     private static final Address TO_ADDRESS =
             ConversionUtils.asHeadlongAddress(asEvmAddress(B_NEW_ACCOUNT_ID.accountNumOrThrow()));
 
@@ -86,13 +106,14 @@ class Erc20TransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(Bytes.wrap(INVALID_TOKEN_ID.protoName().getBytes()), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(Bytes.wrap(INVALID_TOKEN_ID.protoName().getBytes()), result.output());
     }
 
     @Test
     void transferHappyPathSucceedsWithTrue() {
         givenSynthIdHelperWithoutFrom();
+        givenFrameConfig();
         given(systemContractOperations.dispatch(
                         any(TransactionBody.class),
                         eq(verificationStrategy),
@@ -111,8 +132,8 @@ class Erc20TransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(asBytesResult(ERC_20_TRANSFER.getOutputs().encode(Tuple.singleton(true))), result.getOutput());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertEquals(asBytesResult(ERC_20_TRANSFER.getOutputs().encode(Tuple.singleton(true))), result.output());
         // check that events was added
         assertEquals(1, logs.size());
         assertEquals(3, logs.getFirst().getTopics().size());
@@ -127,6 +148,7 @@ class Erc20TransfersCallTest extends CallTestBase {
     @Test
     void transferFromHappyPathSucceedsWithTrue() {
         givenSynthIdHelperWithFrom();
+        givenFrameConfig();
         given(systemContractOperations.dispatch(
                         any(TransactionBody.class),
                         eq(verificationStrategy),
@@ -143,9 +165,8 @@ class Erc20TransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(
-                asBytesResult(ERC_20_TRANSFER_FROM.getOutputs().encode(Tuple.singleton(true))), result.getOutput());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        assertEquals(asBytesResult(ERC_20_TRANSFER_FROM.getOutputs().encode(Tuple.singleton(true))), result.output());
     }
 
     @Test
@@ -163,8 +184,136 @@ class Erc20TransfersCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(readableRevertReason(INSUFFICIENT_ACCOUNT_BALANCE), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(readableRevertReason(INSUFFICIENT_ACCOUNT_BALANCE), result.output());
+    }
+
+    @Test
+    void transferHappyPathSucceedsWithTrueInBlocksMode() {
+        givenSynthIdHelperWithoutFrom();
+        givenFrameConfigBlocks();
+        given(systemContractOperations.dispatch(
+                        any(TransactionBody.class),
+                        eq(verificationStrategy),
+                        eq(SENDER_ID),
+                        eq(ContractCallStreamBuilder.class)))
+                .willReturn(streamBuilder);
+        given(streamBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
+        given(streamBuilder.evmCallTransactionResult(any())).willReturn(streamBuilder);
+        given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
+        given(readableAccountStore.getAliasedAccountById(SENDER_ID)).willReturn(OWNER_ACCOUNT);
+        given(readableAccountStore.getAliasedAccountById(B_NEW_ACCOUNT_ID)).willReturn(ALIASED_RECEIVER);
+        final List<Log> logs = new ArrayList<>();
+        Mockito.doAnswer(e -> logs.add(e.getArgument(0))).when(frame).addLog(any());
+
+        subject = subjectForTransfer(1L);
+
+        final var result = subject.execute(frame).fullResult().result();
+
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        verify(streamBuilder, never()).contractCallResult(any());
+    }
+
+    @Test
+    void transferFromHappyPathSucceedsWithTrueInBlocksMode() {
+        givenSynthIdHelperWithFrom();
+        givenFrameConfigBlocks();
+        given(systemContractOperations.dispatch(
+                        any(TransactionBody.class),
+                        eq(verificationStrategy),
+                        eq(SENDER_ID),
+                        eq(ContractCallStreamBuilder.class)))
+                .willReturn(streamBuilder);
+        given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
+        given(readableAccountStore.getAliasedAccountById(A_NEW_ACCOUNT_ID)).willReturn(OWNER_ACCOUNT);
+        given(readableAccountStore.getAliasedAccountById(B_NEW_ACCOUNT_ID)).willReturn(ALIASED_RECEIVER);
+        given(streamBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
+        given(streamBuilder.evmCallTransactionResult(any())).willReturn(streamBuilder);
+
+        subject = subjectForTransferFrom(1L);
+
+        final var result = subject.execute(frame).fullResult().result();
+
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
+        verify(streamBuilder, never()).contractCallResult(any());
+    }
+
+    @Test
+    void chargesGasForAutoAssociationsCreatedByTransfer() {
+        givenSynthIdHelperWithoutFrom();
+        givenFrameConfig();
+        givenSuccessfulDispatch();
+        given(streamBuilder.getNumAutoAssociations()).willReturn(2);
+        given(systemContractGasCalculator.canonicalGasRequirement(ASSOCIATE)).willReturn(CANONICAL_ASSOCIATE_GAS);
+
+        subject = subjectForTransfer(1L);
+
+        final var result = subject.execute(frame).fullResult();
+
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.result().state());
+        assertEquals(2 * CANONICAL_ASSOCIATE_GAS, result.gasRequirement());
+    }
+
+    @Test
+    void chargesGasForAutoAssociationsCreatedByTransferFrom() {
+        givenSynthIdHelperWithFrom();
+        givenFrameConfig();
+        givenSuccessfulDispatch();
+        given(streamBuilder.getNumAutoAssociations()).willReturn(1);
+        given(systemContractGasCalculator.canonicalGasRequirement(ASSOCIATE)).willReturn(CANONICAL_ASSOCIATE_GAS);
+
+        subject = subjectForTransferFrom(1L);
+
+        final var result = subject.execute(frame).fullResult();
+
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.result().state());
+        assertEquals(CANONICAL_ASSOCIATE_GAS, result.gasRequirement());
+    }
+
+    @Test
+    void doesNotChargeAutoAssociationGasIfUnlimitedAssociationsDisabled() {
+        givenSynthIdHelperWithoutFrom();
+        final Deque<MessageFrame> stack = new ArrayDeque<>();
+        stack.push(frame);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(NO_UNLIMITED_ASSOCIATIONS_CONFIG);
+        givenSuccessfulDispatch();
+        given(streamBuilder.getNumAutoAssociations()).willReturn(2);
+
+        subject = subjectForTransfer(1L);
+
+        final var result = subject.execute(frame).fullResult();
+
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.result().state());
+        assertEquals(0L, result.gasRequirement());
+    }
+
+    @Test
+    void doesNotConsultConfigWithoutAutoAssociations() {
+        givenSynthIdHelperWithoutFrom();
+        givenFrameConfig();
+        givenSuccessfulDispatch();
+
+        subject = subjectForTransfer(1L);
+
+        final var result = subject.execute(frame).fullResult();
+
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.result().state());
+        assertEquals(0L, result.gasRequirement());
+        verify(systemContractGasCalculator, never()).canonicalGasRequirement(ASSOCIATE);
+    }
+
+    private void givenSuccessfulDispatch() {
+        given(systemContractOperations.dispatch(
+                        any(TransactionBody.class),
+                        eq(verificationStrategy),
+                        eq(SENDER_ID),
+                        eq(ContractCallStreamBuilder.class)))
+                .willReturn(streamBuilder);
+        given(streamBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
+        given(streamBuilder.contractCallResult(any())).willReturn(streamBuilder);
+        given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
+        given(readableAccountStore.getAliasedAccountById(any())).willReturn(OWNER_ACCOUNT);
     }
 
     private void givenSynthIdHelperWithFrom() {
@@ -174,6 +323,20 @@ class Erc20TransfersCallTest extends CallTestBase {
 
     private void givenSynthIdHelperWithoutFrom() {
         given(addressIdConverter.convertCredit(TO_ADDRESS)).willReturn(B_NEW_ACCOUNT_ID);
+    }
+
+    private void givenFrameConfig() {
+        final Deque<MessageFrame> stack = new ArrayDeque<>();
+        stack.push(frame);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(BOTH_MODE_CONFIG);
+    }
+
+    private void givenFrameConfigBlocks() {
+        final Deque<MessageFrame> stack = new ArrayDeque<>();
+        stack.push(frame);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(BLOCKS_MODE_CONFIG);
     }
 
     private Erc20TransfersCall subjectForTransfer(final long amount) {

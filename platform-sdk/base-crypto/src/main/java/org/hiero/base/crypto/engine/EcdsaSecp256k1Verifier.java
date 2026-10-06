@@ -4,30 +4,38 @@ package org.hiero.base.crypto.engine;
 import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS;
 import static org.hiero.base.utility.CommonUtils.hex;
 
+import com.hedera.cryptography.libsecp256k1.ContextualLibsecp256k1;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.foreign.MemorySegment;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hyperledger.besu.nativelib.secp256k1.LibSecp256k1;
 
 /**
  * Verifies signatures created with an ECDSA(secp256k1) private key.
  */
 public class EcdsaSecp256k1Verifier {
+    private static final ContextualLibsecp256k1 LIBSECP256K1 = ContextualLibsecp256k1.getInstance();
 
     /**
      * Record for caching thread local variables to avoid allocating memory for each verification.
      */
     private record ThreadLocalCache(
-            LibSecp256k1.secp256k1_ecdsa_signature signature,
-            LibSecp256k1.secp256k1_pubkey publicKey,
-            byte[] uncompressedPublicKeyInput) {
+            MemorySegment signatureSeg,
+            MemorySegment publicKeySeg,
+            // Maintain an array ref to avoid going through MemorySegment.heapBase() Optional:
+            byte[] uncompressedPublicKeyInput,
+            MemorySegment uncompressedPublicKeyInputSeg) {
         public ThreadLocalCache() {
+            final byte[] uncompressedPublicKeyInput = new byte[ECDSA_UNCOMPRESSED_KEY_SIZE_WITH_HEADER_BYTE];
+
             this(
-                    new LibSecp256k1.secp256k1_ecdsa_signature(),
-                    new LibSecp256k1.secp256k1_pubkey(),
-                    new byte[ECDSA_UNCOMPRESSED_KEY_SIZE_WITH_HEADER_BYTE]);
+                    MemorySegment.ofArray(new byte[ECDSA_SIGNATURE_SIZE]),
+                    MemorySegment.ofArray(new byte[ECDSA_UNCOMPRESSED_KEY_SIZE]),
+                    uncompressedPublicKeyInput,
+                    MemorySegment.ofArray(uncompressedPublicKeyInput));
+
             // set the type header byte for uncompressed public keys, this is always the same
-            uncompressedPublicKeyInput[0] = 0x04;
+            this.uncompressedPublicKeyInput[0] = 0x04;
         }
     }
 
@@ -95,9 +103,9 @@ public class EcdsaSecp256k1Verifier {
         // get cached buffers so we can reuse them and avoid allocating memory for each verification
         final ThreadLocalCache cache = CACHE.get();
         // convert signature to native format
-        final LibSecp256k1.secp256k1_ecdsa_signature nativeSignature = cache.signature;
+        final MemorySegment nativeSignatureSeg = cache.signatureSeg;
         final var signatureParseResult =
-                LibSecp256k1.secp256k1_ecdsa_signature_parse_compact(LibSecp256k1.CONTEXT, nativeSignature, rawSig);
+                LIBSECP256K1.secp256k1EcdsaSignatureParseCompact(nativeSignatureSeg, MemorySegment.ofArray(rawSig));
         if (signatureParseResult != 1) {
             logger.warn(
                     TESTING_EXCEPTIONS.getMarker(), () -> "Failed to parse signature [ publicKey = %s, rawSig = %s ]"
@@ -105,14 +113,14 @@ public class EcdsaSecp256k1Verifier {
             return false;
         }
         // Normalize the signature to lower-S form. This will return 1 if the signature was normalized, 0 otherwise.
-        LibSecp256k1.secp256k1_ecdsa_signature_normalize(LibSecp256k1.CONTEXT, nativeSignature, nativeSignature);
+        LIBSECP256K1.secp256k1EcdsaSignatureNormalize(nativeSignatureSeg, nativeSignatureSeg);
         // convert public key to input format
         final byte[] publicKeyInput = cache.uncompressedPublicKeyInput;
         System.arraycopy(pubKey, 0, publicKeyInput, 1, ECDSA_UNCOMPRESSED_KEY_SIZE);
         // convert public key to native format
-        final LibSecp256k1.secp256k1_pubkey nativePublicKey = cache.publicKey;
-        final int keyParseResult = LibSecp256k1.secp256k1_ec_pubkey_parse(
-                LibSecp256k1.CONTEXT, nativePublicKey, publicKeyInput, publicKeyInput.length);
+        final MemorySegment nativePublicKeySeg = cache.publicKeySeg;
+        final int keyParseResult = LIBSECP256K1.secp256k1EcPubkeyParse(
+                nativePublicKeySeg, cache.uncompressedPublicKeyInputSeg, publicKeyInput.length);
         if (keyParseResult != 1) {
             logger.warn(
                     TESTING_EXCEPTIONS.getMarker(), () -> "Failed to parse public key [ publicKey = %s, rawSig = %s ]"
@@ -120,8 +128,8 @@ public class EcdsaSecp256k1Verifier {
             return false;
         }
         // verify signature
-        final int result =
-                LibSecp256k1.secp256k1_ecdsa_verify(LibSecp256k1.CONTEXT, nativeSignature, msgHash, nativePublicKey);
+        final int result = LIBSECP256K1.secp256k1EcdsaVerify(
+                nativeSignatureSeg, MemorySegment.ofArray(msgHash), nativePublicKeySeg);
         return result == 1;
     }
 }

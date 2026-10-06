@@ -7,7 +7,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_ALREADY_DELETE
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_ALREADY_EXECUTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SCHEDULE_IS_IMMUTABLE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
@@ -15,28 +14,18 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ScheduleID;
-import com.hedera.hapi.node.base.SubType;
-import com.hedera.hapi.node.scheduled.ScheduleDeleteTransactionBody;
 import com.hedera.hapi.node.state.schedule.Schedule;
-import com.hedera.node.app.hapi.fees.usage.SigUsage;
-import com.hedera.node.app.hapi.fees.usage.schedule.ScheduleOpsUsage;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.schedule.ScheduleStreamBuilder;
 import com.hedera.node.app.service.schedule.WritableScheduleStore;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.SchedulingConfig;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -45,8 +34,6 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class ScheduleDeleteHandler extends AbstractScheduleHandler implements TransactionHandler {
-    private final ScheduleOpsUsage scheduleOpsUsage = new ScheduleOpsUsage();
-
     @Inject
     public ScheduleDeleteHandler(@NonNull final ScheduleFeeCharging feeCharging) {
         super(feeCharging);
@@ -118,42 +105,6 @@ public class ScheduleDeleteHandler extends AbstractScheduleHandler implements Tr
             return schedule;
         } catch (final PreCheckException e) {
             throw new HandleException(e.responseCode());
-        }
-    }
-
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var scheduleStore = feeContext.readableStore(ReadableScheduleStore.class);
-        final var op = feeContext.body();
-        final var schedule = scheduleStore.get(
-                op.scheduleDeleteOrElse(ScheduleDeleteTransactionBody.DEFAULT).scheduleIDOrElse(ScheduleID.DEFAULT));
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .legacyCalculate(sigValueObj -> usageGiven(
-                        fromPbj(op),
-                        sigValueObj,
-                        schedule,
-                        feeContext
-                                .configuration()
-                                .getConfigData(LedgerConfig.class)
-                                .scheduleTxExpiryTimeSecs()));
-    }
-
-    private FeeData usageGiven(
-            @NonNull final com.hederahashgraph.api.proto.java.TransactionBody txn,
-            @NonNull final SigValueObj svo,
-            @Nullable final Schedule schedule,
-            final long scheduledTxExpiryTimeSecs) {
-        final var sigUsage = new SigUsage(svo.getTotalSigCount(), svo.getSignatureSize(), svo.getPayerAcctSigCount());
-        if (schedule != null) {
-            return scheduleOpsUsage.scheduleDeleteUsage(txn, sigUsage, schedule.calculatedExpirationSecond());
-        } else {
-            final long latestExpiry =
-                    txn.getTransactionID().getTransactionValidStart().getSeconds() + scheduledTxExpiryTimeSecs;
-            return scheduleOpsUsage.scheduleDeleteUsage(txn, sigUsage, latestExpiry);
         }
     }
 }

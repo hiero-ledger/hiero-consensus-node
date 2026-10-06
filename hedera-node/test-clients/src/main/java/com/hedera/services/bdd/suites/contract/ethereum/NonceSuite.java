@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.ethereum;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -23,6 +23,7 @@ import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -44,11 +45,13 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NEGATIVE_ALLOWANCE_AMOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hederahashgraph.api.proto.java.AccountID;
 import java.math.BigInteger;
@@ -82,7 +85,7 @@ public class NonceSuite {
     private static final String TX = "tx";
 
     @HapiTest
-    final Stream<DynamicTest> nonceNotUpdatedWhenSignerDoesExistPrecheckFailed() {
+    final Stream<DynamicTest> nonceNotUpdatedWhenSignerDoesExistHandlerCheckFailed() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
@@ -95,7 +98,7 @@ public class NonceSuite {
                         .hasRetryPrecheckFrom(BUSY)
                         .nonce(0)
                         .gasLimit(ENOUGH_GAS_LIMIT)
-                        .hasPrecheck(INVALID_ACCOUNT_ID),
+                        .hasKnownStatus(INVALID_ACCOUNT_ID),
                 getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).hasCostAnswerPrecheck(INVALID_ACCOUNT_ID));
     }
 
@@ -118,7 +121,7 @@ public class NonceSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> nonceNotUpdatedWhenNegativeMaxGasAllowancePrecheckFailed() {
+    final Stream<DynamicTest> nonceNotUpdatedWhenNegativeMaxGasAllowanceHandlerCheckFailed() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
@@ -132,7 +135,7 @@ public class NonceSuite {
                         .nonce(0)
                         .maxGasAllowance(-1L)
                         .gasLimit(ENOUGH_GAS_LIMIT)
-                        .hasPrecheck(NEGATIVE_ALLOWANCE_AMOUNT),
+                        .hasKnownStatus(NEGATIVE_ALLOWANCE_AMOUNT),
                 getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(0L)));
     }
 
@@ -155,6 +158,7 @@ public class NonceSuite {
     }
 
     @HapiTest
+    @Tag(SERIAL)
     final Stream<DynamicTest> nonceNotUpdatedWhenMaxGasPerSecPrecheckFailed() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -332,7 +336,6 @@ public class NonceSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> nonceUpdatedAfterSuccessfulInternalCall() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -376,6 +379,42 @@ public class NonceSuite {
                                 .contractCallResult(resultWith().signerNonce(1L))));
     }
 
+    @LeakyHapiTest(overrides = {"fees.simpleFeesAreFree"})
+    final Stream<DynamicTest> nonceUpdatedAfterEvmReversionWithFreeSimpleFees() {
+        // When gas fees are free there are no gas-charging events, but a reverted
+        // Ethereum transaction must still consume the sender's nonce; otherwise every
+        // subsequent transaction from the same sender fails with WRONG_NONCE
+        return hapiTest(
+                overriding("fees.simpleFeesAreFree", "true"),
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HBAR)),
+                uploadInitCode(INTERNAL_CALLEE_CONTRACT),
+                contractCreate(INTERNAL_CALLEE_CONTRACT),
+                ethereumCall(INTERNAL_CALLEE_CONTRACT, REVERT_WITH_REVERT_REASON_FUNCTION)
+                        .type(EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .nonce(0)
+                        .gasLimit(ENOUGH_GAS_LIMIT)
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                        .via(TX),
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(1L)),
+                getTxnRecord(TX)
+                        .hasPriority(recordWith()
+                                .status(CONTRACT_REVERT_EXECUTED)
+                                .contractCallResult(resultWith().signerNonce(1L))),
+                // The follow-up transaction with the next sequential nonce must be accepted
+                ethereumCall(INTERNAL_CALLEE_CONTRACT, EXTERNAL_FUNCTION)
+                        .type(EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .nonce(1)
+                        .gasLimit(ENOUGH_GAS_LIMIT)
+                        .hasKnownStatus(SUCCESS),
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(2L)));
+    }
+
     @HapiTest
     final Stream<DynamicTest> nonceUpdatedAfterEvmReversionDueInsufficientGas() {
         return hapiTest(
@@ -389,7 +428,7 @@ public class NonceSuite {
                         .signingWith(SECP_256K1_SOURCE_KEY)
                         .payingWith(RELAYER)
                         .nonce(0)
-                        .gasLimit(21_064L)
+                        .gasLimit(21_564L)
                         .hasKnownStatus(INSUFFICIENT_GAS)
                         .via(TX),
                 getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(1L)),
@@ -430,7 +469,6 @@ public class NonceSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> nonceUpdatedAfterEvmReversionDueSendingValueToEthereumPrecompile0x2() {
         AccountID eth0x2 = AccountID.newBuilder().setAccountNum(2).build();
         return hapiTest(

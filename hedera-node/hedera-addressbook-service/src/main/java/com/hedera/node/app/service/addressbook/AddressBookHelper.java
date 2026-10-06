@@ -117,4 +117,13 @@ public class AddressBookHelper {
         final var nodeConfig = requireNonNull(feeContext.configuration()).getConfigData(NodesConfig.class);
         validateTrue(nodeConfig.enableDAB(), NOT_SUPPORTED);
     }
+
+    /**
+     * Check registered nodes enable flag.
+     * @param feeContext the Fee context
+     */
+    public static void checkRegisteredNodesEnabled(@NonNull final FeeContext feeContext) {
+        final var nodeConfig = requireNonNull(feeContext.configuration()).getConfigData(NodesConfig.class);
+        validateTrue(nodeConfig.registeredNodesEnabled(), NOT_SUPPORTED);
+    }
 }

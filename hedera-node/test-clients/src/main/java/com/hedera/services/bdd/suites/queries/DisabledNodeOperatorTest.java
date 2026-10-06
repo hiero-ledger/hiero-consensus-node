@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.queries;
 
+import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.lessThan;
@@ -49,6 +50,7 @@ import org.junit.jupiter.api.Tag;
  * then restarts it again with the port re-enabled.
  */
 @Tag(TOKEN)
+@Tag(SERIAL)
 @HapiTestLifecycle
 public class DisabledNodeOperatorTest extends NodeOperatorQueriesBase implements LifecycleTest {
     @BeforeAll
@@ -73,7 +75,7 @@ public class DisabledNodeOperatorTest extends NodeOperatorQueriesBase implements
                 getAccountBalance(NODE_OPERATOR).payingWith(PAYER),
                 sleepFor(3000),
                 // assert payer is charged
-                getAccountBalance(PAYER).hasTinyBars(ONE_HUNDRED_HBARS),
+                getAccountBalance(PAYER).hasTinyBars(lessThan(ONE_HUNDRED_HBARS)),
                 withOpContext((spec, opLog) -> assertThatThrownBy(() -> {
                             final var getAccountBalanceAsNodeOperator = getAccountBalance(NODE_OPERATOR)
                                     .payingWith(PAYER)

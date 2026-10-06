@@ -2,6 +2,20 @@
   "buckets": [
     {
       "burstPeriod": 0,
+      "burstPeriodMs": 1000,
+      "name": "ClprBundles",
+      "throttleGroups": [
+        {
+          "opsPerSec": 0,
+          "milliOpsPerSec": 10000,
+          "operations": [
+            "ClprSubmitBundle"
+          ]
+        }
+      ]
+    },
+    {
+      "burstPeriod": 0,
       "burstPeriodMs": 15000,
       "name": "ThroughputLimits",
       "throttleGroups": [
@@ -43,7 +57,20 @@
             "NodeCreate",
             "NodeUpdate",
             "NodeDelete",
-            "AtomicBatch"
+            "RegisteredNodeCreate",
+            "RegisteredNodeUpdate",
+            "RegisteredNodeDelete",
+            "AtomicBatch",
+            "ClprUpdateLedgerConfiguration",
+            "ClprRegisterChannel",
+            "ClprCompleteChannel",
+            "ClprCloseChannel",
+            "ClprRegisterConnector",
+            "ClprDeregisterConnector",
+            "ClprSubmitBundle",
+            "ClprRedactMessage",
+            "ClprGetLedgerConfiguration",
+            "ClprGetEndpointManifest"
           ]
         },
         {
@@ -158,7 +185,8 @@
           "milliOpsPerSec": 2000,
           "operations": [
             "CryptoCreate",
-            "NodeCreate"
+            "NodeCreate",
+            "RegisteredNodeCreate"
           ]
         },
         {
@@ -197,20 +225,6 @@
     {
       "burstPeriod": 0,
       "burstPeriodMs": 1000,
-      "name": "BalanceQueryLimits",
-      "throttleGroups": [
-        {
-          "opsPerSec": 0,
-          "milliOpsPerSec": 40000000,
-          "operations": [
-            "CryptoGetAccountBalance"
-          ]
-        }
-      ]
-    },
-    {
-      "burstPeriod": 0,
-      "burstPeriodMs": 15000,
       "name": "HVCryptoCreateThrottles",
       "highVolume": true,
       "throttleGroups": [
@@ -225,7 +239,7 @@
     },
     {
       "burstPeriod": 0,
-      "burstPeriodMs": 15000,
+      "burstPeriodMs": 1000,
       "name": "HVCryptoApproveAllowanceThrottles",
       "highVolume": true,
       "throttleGroups": [
@@ -240,7 +254,7 @@
     },
     {
       "burstPeriod": 0,
-      "burstPeriodMs": 15000,
+      "burstPeriodMs": 1000,
       "name": "HVConsensusCreateTopicThrottles",
       "highVolume": true,
       "throttleGroups": [
@@ -255,7 +269,7 @@
     },
     {
       "burstPeriod": 0,
-      "burstPeriodMs": 15000,
+      "burstPeriodMs": 1000,
       "name": "HVScheduleCreateThrottles",
       "highVolume": true,
       "throttleGroups": [
@@ -270,7 +284,7 @@
     },
     {
       "burstPeriod": 0,
-      "burstPeriodMs": 15000,
+      "burstPeriodMs": 1000,
       "name": "HVFileCreateThrottles",
       "highVolume": true,
       "throttleGroups": [
@@ -285,7 +299,7 @@
     },
     {
       "burstPeriod": 0,
-      "burstPeriodMs": 15000,
+      "burstPeriodMs": 1000,
       "name": "HVFileAppendThrottles",
       "highVolume": true,
       "throttleGroups": [
@@ -300,7 +314,7 @@
     },
     {
       "burstPeriod": 0,
-      "burstPeriodMs": 15000,
+      "burstPeriodMs": 1000,
       "name": "HVContractCreateThrottles",
       "highVolume": true,
       "throttleGroups": [
@@ -315,7 +329,7 @@
     },
     {
       "burstPeriod": 0,
-      "burstPeriodMs": 15000,
+      "burstPeriodMs": 1000,
       "name": "HVHookStoreThrottles",
       "highVolume": true,
       "throttleGroups": [
@@ -330,7 +344,7 @@
     },
     {
       "burstPeriod": 0,
-      "burstPeriodMs": 15000,
+      "burstPeriodMs": 1000,
       "name": "HVTokenAssociateThrottles",
       "highVolume": true,
       "throttleGroups": [
@@ -345,7 +359,7 @@
     },
     {
       "burstPeriod": 0,
-      "burstPeriodMs": 15000,
+      "burstPeriodMs": 1000,
       "name": "HVTokenAirdropThrottles",
       "highVolume": true,
       "throttleGroups": [
@@ -360,7 +374,7 @@
     },
     {
       "burstPeriod": 0,
-      "burstPeriodMs": 15000,
+      "burstPeriodMs": 1000,
       "name": "HVTokenClaimAirdropThrottles",
       "highVolume": true,
       "throttleGroups": [
@@ -375,7 +389,7 @@
     },
     {
       "burstPeriod": 0,
-      "burstPeriodMs": 15000,
+      "burstPeriodMs": 1000,
       "name": "HVTokenMintThrottles",
       "highVolume": true,
       "throttleGroups": [
@@ -390,7 +404,7 @@
     },
     {
       "burstPeriod": 0,
-      "burstPeriodMs": 15000,
+      "burstPeriodMs": 1000,
       "name": "HVTokenCreateThrottles",
       "highVolume": true,
       "throttleGroups": [
@@ -405,7 +419,7 @@
     },
     {
       "burstPeriod": 0,
-      "burstPeriodMs": 15000,
+      "burstPeriodMs": 1000,
       "name": "HVTotalThrottles",
       "highVolume": true,
       "throttleGroups": [
@@ -425,7 +439,8 @@
             "TokenAirdrop",
             "TokenClaimAirdrop",
             "TokenMint",
-            "TokenCreate"
+            "TokenCreate",
+            "CryptoTransfer"
           ]
         }
       ]

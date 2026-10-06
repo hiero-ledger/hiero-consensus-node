@@ -3,7 +3,8 @@ package com.hedera.services.bdd.suites.file;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.PERMISSION_OVERRIDES;
 import static com.hedera.services.bdd.junit.ContextRequirement.UPGRADE_FILE_CONTENT;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
@@ -30,7 +31,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDissociate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
@@ -39,6 +39,7 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fix
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doSeveralWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
@@ -89,7 +90,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.suites.token.TokenAssociationSpecs;
@@ -102,7 +103,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 @SuppressWarnings("java:S1192")
 public class FileUpdateSuite {
@@ -155,7 +155,9 @@ public class FileUpdateSuite {
                         .logged()));
     }
 
-    @LeakyHapiTest(overrides = {"tokens.maxCustomFeesAllowed"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"tokens.maxCustomFeesAllowed"})
     final Stream<DynamicTest> notTooManyFeeScheduleCanBeCreated() {
         final var denom = "fungible";
         final var token = "token";
@@ -169,7 +171,7 @@ public class FileUpdateSuite {
                         .hasKnownStatus(CUSTOM_FEES_LIST_TOO_LONG));
     }
 
-    @LeakyHapiTest(requirement = UPGRADE_FILE_CONTENT)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = UPGRADE_FILE_CONTENT)
     final Stream<DynamicTest> optimisticSpecialFileUpdate() {
         final var appendsPerBurst = 128;
         final var specialFile = "159";
@@ -186,7 +188,7 @@ public class FileUpdateSuite {
                 getFileInfo(specialFile).hasMemo(CommonUtils.hex(expectedHash)));
     }
 
-    @LeakyHapiTest(requirement = PERMISSION_OVERRIDES)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS, requirement = PERMISSION_OVERRIDES)
     final Stream<DynamicTest> apiPermissionsChangeDynamically() {
         final var civilian = CIVILIAN;
         return hapiTest(
@@ -253,7 +255,10 @@ public class FileUpdateSuite {
 
         return hapiTest(
                 fileCreate("test").entityMemo(firstMemo).contents(old4K),
-                fileUpdate("test").entityMemo(ZERO_BYTE_MEMO).contents(new4k).hasPrecheck(INVALID_ZERO_BYTE_IN_STRING),
+                fileUpdate("test")
+                        .entityMemo(ZERO_BYTE_MEMO)
+                        .contents(new4k)
+                        .hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING),
                 fileUpdate("test").entityMemo(secondMemo).contents(new4k),
                 getFileContents("test").hasContents(ignore -> new4k),
                 getFileInfo("test").hasMemo(secondMemo));
@@ -281,10 +286,12 @@ public class FileUpdateSuite {
         return hapiTest(
                 fileCreate("test"), doWithStartupConfig("entities.maxLifetime", maxLifetime -> fileUpdate("test")
                         .lifetime(parseLong(maxLifetime) + 12_345L)
-                        .hasPrecheck(AUTORENEW_DURATION_NOT_IN_RANGE)));
+                        .hasKnownStatus(AUTORENEW_DURATION_NOT_IN_RANGE)));
     }
 
-    @LeakyHapiTest(overrides = {"contracts.maxRefundPercentOfGasLimit"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.maxRefundPercentOfGasLimit"})
     final Stream<DynamicTest> maxRefundIsEnforced() {
         return hapiTest(
                 overriding("contracts.maxRefundPercentOfGasLimit", "5"),
@@ -297,7 +304,10 @@ public class FileUpdateSuite {
     }
 
     // C.f. https://github.com/hashgraph/hedera-services/pull/8908
-    @LeakyHapiTest(overrides = {"contracts.maxRefundPercentOfGasLimit"})
+    //    @LeakyHapiTest(overrides = {"contracts.maxRefundPercentOfGasLimit"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.maxRefundPercentOfGasLimit"})
     final Stream<DynamicTest> allUnusedGasIsRefundedIfSoConfigured() {
         return hapiTest(
                 overriding("contracts.maxRefundPercentOfGasLimit", "100"),
@@ -309,7 +319,9 @@ public class FileUpdateSuite {
                         .has(resultWith().gasUsed(26_515)));
     }
 
-    @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.maxGasPerSec"})
     final Stream<DynamicTest> gasLimitOverMaxGasLimitFailsPrecheck() {
         return hapiTest(
                 uploadInitCode(CONTRACT),
@@ -321,7 +333,9 @@ public class FileUpdateSuite {
                         .hasCostAnswerPrecheckFrom(MAX_GAS_LIMIT_EXCEEDED, BUSY));
     }
 
-    @LeakyHapiTest(overrides = {"contracts.maxKvPairs.individual", "contracts.maxKvPairs.aggregate"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.maxKvPairs.individual", "contracts.maxKvPairs.aggregate"})
     final Stream<DynamicTest> kvLimitsEnforced() {
         final var contract = "User";
         final var gasToOffer = 1_000_000;
@@ -369,8 +383,9 @@ public class FileUpdateSuite {
     }
 
     @SuppressWarnings("java:S5960")
-    @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
-    @Tag(MATS)
+    @LeakyEmbeddedHapiTest(
+            reason = {MUST_SKIP_INGEST, NEEDS_STATE_ACCESS},
+            overrides = {"contracts.maxGasPerSec"})
     final Stream<DynamicTest> serviceFeeRefundedIfConsGasExhausted() {
         final var contract = "User";
         final var gasToOffer = 15_000_000;
@@ -396,14 +411,16 @@ public class FileUpdateSuite {
                         .gas(gasToOffer)
                         .hasAnyStatusAtAll()
                         .deferStatusResolution(),
-                uncheckedSubmit(ethereumCall(contract, INSERT_ABI, BigInteger.valueOf(3), BigInteger.valueOf(4))
-                                .gasLimit(gasToOffer)
-                                .signingWith(SECP_256K1_SOURCE_KEY)
-                                .payingWith(civilian)
-                                .txnId(refundedTxn))
-                        .payingWith(GENESIS),
+                ethereumCall(contract, INSERT_ABI, BigInteger.valueOf(3), BigInteger.valueOf(4))
+                        .gasLimit(gasToOffer)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(civilian)
+                        .txnId(refundedTxn)
+                        .setNode("4") // for skipping ingest
+                        .hasAnyStatusAtAll()
+                        .deferStatusResolution(),
                 sleepFor(6_000L),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var unrefundedOp = getTxnRecord(unrefundedTxn);
                     final var refundedOp = getTxnRecord(refundedTxn).assertingNothingAboutHashes();
                     allRunFor(spec, refundedOp, unrefundedOp);
@@ -427,8 +444,9 @@ public class FileUpdateSuite {
                 }));
     }
 
-    @LeakyHapiTest(overrides = {"contracts.chainId"})
-    @Tag(MATS)
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.chainId"})
     final Stream<DynamicTest> chainIdChangesDynamically() {
         final var chainIdUser = "ChainIdUser";
         final var otherChainId = 0xABCDL;
@@ -461,7 +479,8 @@ public class FileUpdateSuite {
                         .has(resultWith().contractCallResult(bigIntResult(otherChainId))));
     }
 
-    @LeakyHapiTest(
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
             overrides = {
                 "accounts.maxNumber",
                 "contracts.maxNumber",
@@ -490,7 +509,9 @@ public class FileUpdateSuite {
                 createTopic(notToBe).hasKnownStatus(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED));
     }
 
-    @LeakyHapiTest(overrides = {"consensus.message.maxBytesAllowed"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"consensus.message.maxBytesAllowed"})
     final Stream<DynamicTest> messageSubmissionSizeChange() {
         final var defaultMaxBytesAllowed = 1024;
         final var longMessage = TxnUtils.randomUtf8Bytes(defaultMaxBytesAllowed);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.listeners;
 
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -12,7 +13,9 @@ import com.hedera.node.config.ConfigProvider;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteNotification;
 import com.swirlds.state.State;
+import java.time.Duration;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,11 +47,19 @@ class WriteStateToDiskListenerTest {
     private BlockBufferService blockBufferService;
 
     private WriteStateToDiskListener subject;
+    private AtomicInteger externalizeFreezeIfUpgradePendingCalls;
 
     @BeforeEach
     void setUp() {
-        subject = new WriteStateToDiskListener(
-                stateAccessor, executor, configProvider, startupNetworks, entityIdFactory, blockBufferService);
+        externalizeFreezeIfUpgradePendingCalls = new AtomicInteger();
+        subject =
+                new WriteStateToDiskListener(
+                        stateAccessor, executor, configProvider, startupNetworks, entityIdFactory, blockBufferService) {
+                    @Override
+                    void externalizeFreezeIfUpgradePending() {
+                        externalizeFreezeIfUpgradePendingCalls.incrementAndGet();
+                    }
+                };
     }
 
     @Test
@@ -60,5 +71,39 @@ class WriteStateToDiskListenerTest {
 
         verify(startupNetworks, times(1)).archiveStartupNetworks();
         verify(blockBufferService, times(2)).persistBuffer();
+    }
+
+    @Test
+    void respondsImmediatelyToFreezeStateNotification() {
+        given(notification.isFreezeState()).willReturn(true);
+        given(notification.getRoundNumber()).willReturn(1L);
+
+        subject.notify(notification);
+
+        assertFreezeExternalizedOnce();
+        verify(startupNetworks).archiveStartupNetworks();
+        verify(blockBufferService).persistBuffer();
+    }
+
+    @Test
+    void freezeExternalizationDoesNotWaitForAsyncWork() {
+        given(notification.isFreezeState()).willReturn(true);
+        given(notification.getRoundNumber()).willReturn(1L);
+
+        subject.notify(notification);
+
+        assertTimeoutPreemptively(Duration.ofSeconds(1), () -> {
+            while (externalizeFreezeIfUpgradePendingCalls.get() == 0) {
+                Thread.sleep(1L);
+            }
+        });
+        assertFreezeExternalizedOnce();
+        verify(startupNetworks).archiveStartupNetworks();
+        verify(blockBufferService).persistBuffer();
+    }
+
+    private void assertFreezeExternalizedOnce() {
+        org.assertj.core.api.Assertions.assertThat(externalizeFreezeIfUpgradePendingCalls)
+                .hasValue(1);
     }
 }

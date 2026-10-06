@@ -3,6 +3,7 @@ package com.hedera.services.bdd.junit.support.validators.block;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
+import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.spec.TargetNetworkType.SUBPROCESS_NETWORK;
 import static java.util.Objects.requireNonNull;
@@ -17,6 +18,8 @@ import com.hedera.node.app.hapi.utils.forensics.DifferingEntries;
 import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.node.app.hapi.utils.forensics.TransactionParts;
 import com.hedera.node.app.state.SingleTransactionRecord;
+import com.hedera.services.bdd.junit.TestTags;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.StreamFileAccess;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionalUnitTranslator;
@@ -27,17 +30,25 @@ import com.hedera.services.bdd.utils.RcDiff;
 import com.hedera.services.stream.proto.TransactionSidecarRecord;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
 
 /**
  * A validator that asserts the block stream contains all information previously exported in the record stream
@@ -48,7 +59,11 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
     private static final int DIFF_INTERVAL_SECONDS = 300;
     private static final Logger logger = LogManager.getLogger(TransactionRecordParityValidator.class);
 
-    private final BlockTransactionalUnitTranslator translator;
+    @Nullable
+    private BlockTransactionalUnitTranslator translator;
+
+    @Nullable
+    private Path preservedPreviewBlocksDir;
 
     public static final Factory FACTORY = new Factory() {
         @Override
@@ -60,14 +75,62 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
 
         @Override
         public @NonNull TransactionRecordParityValidator create(@NonNull final HapiSpec spec) {
-            return new TransactionRecordParityValidator(
-                    spec.targetNetworkOrThrow().shard(),
-                    spec.targetNetworkOrThrow().realm());
+            final var validator = new TransactionRecordParityValidator()
+                    .withTargetNetwork(
+                            spec.targetNetworkOrThrow().shard(),
+                            spec.targetNetworkOrThrow().realm());
+            if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
+                final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
+                final var preservedDir = node0.metadata()
+                        .workingDir()
+                        .resolve("data")
+                        .resolve("cutover")
+                        .resolve("preservedPreviewBlocks");
+                if (Files.isDirectory(preservedDir)) {
+                    validator.preservedPreviewBlocksDir = preservedDir;
+                }
+            }
+            return validator;
         }
     };
 
-    public TransactionRecordParityValidator(final long shard, final long realm) {
+    public TransactionRecordParityValidator withTargetNetwork(final long shard, final long realm) {
         translator = new BlockTransactionalUnitTranslator(shard, realm);
+        return this;
+    }
+
+    /**
+     * Temporary alternative to {@link #main(String[])} for running a standalone validation of the block stream against
+     * the record stream, until IntelliJ fixes running bespoke main methods in our build setup.
+     * <p>
+     * Enable and configure {@code customNode0Data} as needed to use.
+     * @throws IOException if there is an error reading the block or record streams
+     */
+    @Test
+    @Tag(TestTags.INTEGRATION)
+    @Disabled
+    public void testBlockVsRecordParity() throws IOException {
+        // Change if needed
+        final long shard = 11L;
+        final long realm = 12L;
+        // Set to non-null node0 data/ path if e.g. triaging a mismatch in streams downloaded from CI
+        final Path customNode0Data = null;
+        final var node0Data = Optional.ofNullable(customNode0Data).orElseGet(() -> Paths.get("hedera-node/test-clients")
+                .resolve(workingDirFor(0, "hapi").resolve("data"))
+                .toAbsolutePath()
+                .normalize());
+        final var blocksLoc = node0Data
+                .resolve("blockStreams/block-" + shard + "." + realm + ".3")
+                .toAbsolutePath()
+                .normalize();
+        final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocksIgnoringMarkers(blocksLoc);
+        final var recordsLoc = node0Data
+                .resolve("recordStreams/record" + shard + "." + realm + ".3")
+                .toAbsolutePath()
+                .normalize();
+        final var records = StreamFileAccess.STREAM_FILE_ACCESS.readStreamDataFrom(recordsLoc.toString(), "sidecar");
+        final var validator = new TransactionRecordParityValidator().withTargetNetwork(shard, realm);
+        validator.validateBlockVsRecords(blocks, records);
     }
 
     /**
@@ -90,7 +153,7 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                 .normalize();
         final var records = StreamFileAccess.STREAM_FILE_ACCESS.readStreamDataFrom(recordsLoc.toString(), "sidecar");
 
-        final var validator = new TransactionRecordParityValidator(11L, 12L);
+        final var validator = new TransactionRecordParityValidator().withTargetNetwork(11L, 12L);
         validator.validateBlockVsRecords(blocks, records);
     }
 
@@ -100,11 +163,23 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
         requireNonNull(blocks);
         requireNonNull(data);
         logger.info("Starting TransactionRecordParityValidator");
-        final var baseTranslator = translator.getBaseTranslator();
+        final List<Block> allBlocks;
+        if (preservedPreviewBlocksDir != null) {
+            logger.info("Reading preserved preview blocks from {}", preservedPreviewBlocksDir);
+            final var previewBlocks =
+                    BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocksIgnoringMarkers(preservedPreviewBlocksDir);
+            logger.info("Prepending {} preview blocks to {} post-cutover blocks", previewBlocks.size(), blocks.size());
+            allBlocks = new ArrayList<>(previewBlocks.size() + blocks.size());
+            allBlocks.addAll(previewBlocks);
+            allBlocks.addAll(blocks);
+        } else {
+            allBlocks = blocks;
+        }
+        final var baseTranslator = requireNonNull(translator).getBaseTranslator();
         final var rfTranslator =
                 new BlockTransactionalUnitTranslator(baseTranslator.getShard(), baseTranslator.getRealm());
         var foundGenesisBlock = false;
-        for (final var block : blocks) {
+        for (final var block : allBlocks) {
             if (translator.scanBlockForGenesis(block)) {
                 rfTranslator.scanBlockForGenesis(block);
                 foundGenesisBlock = true;
@@ -120,7 +195,7 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                 .toList();
         final var numStateChanges = new AtomicInteger();
         final var roleFreeSplit = new RoleFreeBlockUnitSplit();
-        final var roleFreeRecords = blocks.stream()
+        final var roleFreeRecords = allBlocks.stream()
                 .flatMap(block ->
                         roleFreeSplit.split(block).stream().map(BlockTransactionalUnit::withBatchTransactionParts))
                 .peek(unit -> numStateChanges.getAndAdd(unit.stateChanges().size()))
@@ -133,7 +208,7 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
         final var rfValidatorSummary = new SummaryBuilder(
                         MAX_DIFFS_TO_REPORT,
                         DIFF_INTERVAL_SECONDS,
-                        blocks.size(),
+                        allBlocks.size(),
                         expectedEntries.size(),
                         actualEntries.size(),
                         numStateChanges.get(),
@@ -177,17 +252,16 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
         if (expectedSidecars.size() != actualSidecars.size()) {
             final var expectedMap = byTime(expectedSidecars);
             final var actualMap = byTime(actualSidecars);
-            expectedMap.entrySet().forEach(entry -> {
-                final var consensusTimestamp = entry.getKey();
+            expectedMap.forEach((consensusTimestamp, value) -> {
                 if (!actualMap.containsKey(consensusTimestamp)) {
                     logger.error(
                             "Expected sidecar {} missing for timestamp",
                             readableBytecodesFrom(expectedMap.get(consensusTimestamp)));
-                } else if (!entry.getValue().equals(actualMap.get(consensusTimestamp))) {
+                } else if (!value.equals(actualMap.get(consensusTimestamp))) {
                     logger.error(
                             "Mismatch in sidecar for timestamp {}: expected {}, found {}",
                             consensusTimestamp,
-                            readableBytecodesFrom(entry.getValue()),
+                            readableBytecodesFrom(value),
                             readableBytecodesFrom(actualMap.get(consensusTimestamp)));
                 }
             });
@@ -255,29 +329,26 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
             int numStateChanges,
             List<DifferingEntries> result) {
         String build() {
-            final var summary = new StringBuilder("\n")
-                    .append("Max diffs used: ")
-                    .append(maxDiffs)
-                    .append("\n")
-                    .append("Length of diff seconds used: ")
-                    .append(lenOfDiffSecs)
-                    .append("\n")
-                    .append("Number of block items processed: ")
-                    .append(numParsedBlockItems)
-                    .append("\n")
-                    .append("Number of record items processed: ")
-                    .append(numExpectedRecords)
-                    .append("\n")
-                    .append("Number of (non-null) transaction items processed: ")
-                    .append(numInputTxns)
-                    .append("\n")
-                    .append("Number of state changes processed: ")
-                    .append(numStateChanges)
-                    .append("\n")
-                    .append("Number of errors: ")
-                    .append(result.size()); // Report the count of errors (if any)
-
-            return summary.toString();
+            return "\n" + "Max diffs used: "
+                    + maxDiffs
+                    + "\n"
+                    + "Length of diff seconds used: "
+                    + lenOfDiffSecs
+                    + "\n"
+                    + "Number of block items processed: "
+                    + numParsedBlockItems
+                    + "\n"
+                    + "Number of record items processed: "
+                    + numExpectedRecords
+                    + "\n"
+                    + "Number of (non-null) transaction items processed: "
+                    + numInputTxns
+                    + "\n"
+                    + "Number of state changes processed: "
+                    + numStateChanges
+                    + "\n"
+                    + "Number of errors: "
+                    + result.size();
         }
     }
 }

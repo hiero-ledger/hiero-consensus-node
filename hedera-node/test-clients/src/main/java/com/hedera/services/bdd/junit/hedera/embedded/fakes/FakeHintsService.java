@@ -6,40 +6,50 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
-import com.hedera.node.app.hints.impl.HintsContext;
+import com.hedera.node.app.hints.impl.BlockHashSigning;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.hints.impl.OnHintsFinished;
+import com.hedera.node.app.hints.impl.RsaContext;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.tss.TssSubmissions;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
+import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Queue;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import java.util.concurrent.ConcurrentMap;
+import java.util.function.Supplier;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 
 public class FakeHintsService implements HintsService {
     private final HintsService delegate;
     private final Queue<Runnable> pendingHintsSubmissions = new ArrayDeque<>();
 
-    public FakeHintsService(@NonNull final AppContext appContext, @NonNull final Configuration bootstrapConfig) {
+    public FakeHintsService(
+            @NonNull final AppContext appContext,
+            @NonNull final Configuration bootstrapConfig,
+            @NonNull final RsaContext rsaContext,
+            @NonNull final ConcurrentMap<Bytes, BlockHashSigning> rsaSignings,
+            @NonNull final Supplier<Network> genesisNetworkSupplier) {
         delegate = new HintsServiceImpl(
                 new NoOpMetrics(),
                 pendingHintsSubmissions::offer,
                 appContext,
                 new HintsLibraryImpl(),
-                bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod());
-    }
-
-    @Override
-    public void initCurrentRoster(@NonNull final Roster roster) {
-        delegate.initCurrentRoster(roster);
+                bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod(),
+                rsaContext,
+                rsaSignings,
+                genesisNetworkSupplier);
     }
 
     @Override
@@ -58,8 +68,18 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public HintsContext.Signing sign(@NonNull final Bytes blockHash) {
+    public @NonNull SigningResult sign(@NonNull final Bytes blockHash) {
         return delegate.sign(blockHash);
+    }
+
+    @Override
+    public void onBlockStarted(final long blockNumber) {
+        delegate.onBlockStarted(blockNumber);
+    }
+
+    @Override
+    public @NonNull TssSubmissions submissions() {
+        return delegate.submissions();
     }
 
     @Override
@@ -73,13 +93,13 @@ public class FakeHintsService implements HintsService {
     }
 
     @Override
-    public void handoff(
+    public boolean handoff(
             @NonNull final WritableHintsStore hintsStore,
             @NonNull final Roster previousRoster,
             @NonNull final Roster adoptedRoster,
             @NonNull final Bytes adoptedRosterHash,
             final boolean forceHandoff) {
-        delegate.handoff(hintsStore, previousRoster, adoptedRoster, adoptedRosterHash, forceHandoff);
+        return delegate.handoff(hintsStore, previousRoster, adoptedRoster, adoptedRosterHash, forceHandoff);
     }
 
     @Override
@@ -94,8 +114,19 @@ public class FakeHintsService implements HintsService {
 
     @Override
     public void executeCrsWork(
-            @NonNull final WritableHintsStore hintsStore, @NonNull final Instant now, final boolean isActive) {
-        delegate.executeCrsWork(hintsStore, now, isActive);
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final Instant now,
+            final boolean isActive,
+            @NonNull final NetworkInfo networkInfo) {
+        delegate.executeCrsWork(hintsStore, now, isActive, networkInfo);
+    }
+
+    @Override
+    public boolean doGenesisSetup(
+            @NonNull final WritableStates writableStates,
+            @NonNull final Configuration configuration,
+            final int networkSize) {
+        return delegate.doGenesisSetup(writableStates, configuration, networkSize);
     }
 
     @Override
@@ -106,5 +137,10 @@ public class FakeHintsService implements HintsService {
     @Override
     public @Nullable HintsConstruction activeConstruction() {
         return delegate.activeConstruction();
+    }
+
+    @Override
+    public void setActiveConstruction(@NonNull final HintsConstruction construction) {
+        delegate.setActiveConstruction(construction);
     }
 }

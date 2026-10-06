@@ -34,13 +34,13 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
+/**
+ * Manages the throttling service for the node.
+ * This is a service orchestrator for rebuild/reset/snapshot operations.
+ */
 @Singleton
 public class ThrottleServiceManager {
-    private static final Logger log = LogManager.getLogger(ThrottleServiceManager.class);
-
     private final ThrottleParser throttleParser;
     private final ThrottleAccumulator ingestThrottle;
     private final ThrottleAccumulator backendThrottle;
@@ -155,7 +155,7 @@ public class ThrottleServiceManager {
     }
 
     private void saveThrottleSnapshotsTo(@NonNull final WritableStates serviceStates) {
-        final var hapiThrottles = backendThrottle.allActiveThrottles();
+        final var hapiThrottles = backendThrottle.allActiveThrottlesIncludingHighVolume();
         final List<ThrottleUsageSnapshot> hapiThrottleSnapshots;
         if (hapiThrottles.isEmpty()) {
             hapiThrottleSnapshots = emptyList();
@@ -225,7 +225,10 @@ public class ThrottleServiceManager {
         final ReadableSingletonState<ThrottleUsageSnapshots> usageSnapshotsState =
                 serviceStates.getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_ID);
         final var usageSnapshots = requireNonNull(usageSnapshotsState.get());
-        safeResetThrottles(backendThrottle.allActiveThrottles(), usageSnapshots.tpsThrottles());
+        ThrottleAccumulator.restoreThrottleUsage(
+                ThrottleAccumulator.selectedThrottlesFor(backendThrottle, usageSnapshots.tpsThrottles()),
+                usageSnapshots.tpsThrottles(),
+                ThrottleAccumulator.SnapshotMismatchPolicy.SKIP);
         if (usageSnapshots.hasGasThrottle()) {
             backendThrottle.gasLimitThrottle().resetUsageTo(usageSnapshots.gasThrottleOrThrow());
         }
@@ -238,7 +241,9 @@ public class ThrottleServiceManager {
         final ReadableSingletonState<ThrottleUsageSnapshots> usageSnapshotsState =
                 serviceStates.getSingleton(THROTTLE_USAGE_SNAPSHOTS_STATE_ID);
         final var usageSnapshots = requireNonNull(usageSnapshotsState.get());
-        resetUnconditionally(backendThrottle.allActiveThrottles(), usageSnapshots.tpsThrottles());
+        resetUnconditionally(
+                ThrottleAccumulator.selectedThrottlesFor(backendThrottle, usageSnapshots.tpsThrottles()),
+                usageSnapshots.tpsThrottles());
         if (usageSnapshots.hasGasThrottle()) {
             backendThrottle.gasLimitThrottle().resetUsageTo(usageSnapshots.gasThrottleOrThrow());
         }
@@ -252,14 +257,35 @@ public class ThrottleServiceManager {
      * on the frontend.
      *
      * @param numCapacity the number of implicit creations or auto associations
+     * @param hederaFunctionality the functionality whose bucket the capacity was claimed against
+     * @param useHighVolumeBucket whether the capacity was claimed against the high-volume bucket, so it is
+     * leaked back into the same bucket it was charged to
      */
-    public void reclaimFrontendThrottleCapacity(final int numCapacity, final HederaFunctionality hederaFunctionality) {
+    public void reclaimFrontendThrottleCapacity(
+            final int numCapacity, final HederaFunctionality hederaFunctionality, final boolean useHighVolumeBucket) {
         try {
-            ingestThrottle.leakCapacityForNOfUnscaled(numCapacity, hederaFunctionality);
+            ingestThrottle.leakCapacityForNOfUnscaled(numCapacity, hederaFunctionality, useHighVolumeBucket);
         } catch (Exception ignore) {
             // Ignore if the frontend bucket has already leaked all the capacity
             // used for throttling the transaction on the frontend
         }
+    }
+
+    /**
+     * Returns whether the implicit-creation capacity for the given transaction was claimed against the
+     * high-volume frontend bucket, so the reclaim can leak it back into the same bucket it was charged to.
+     *
+     * @param body the transaction body
+     * @param function the functionality of the transaction
+     * @param implicitCreationsCount the number of implicit creations
+     * @return whether the high-volume bucket was used
+     */
+    public boolean usesHighVolumeBucketForImplicitCreations(
+            @NonNull final TransactionBody body,
+            @NonNull final HederaFunctionality function,
+            final int implicitCreationsCount) {
+        return ingestThrottle.usesHighVolumeBucketForImplicitCreations(
+                function, body.highVolume(), implicitCreationsCount);
     }
 
     // override hashCode()/equals() for array fields
@@ -280,29 +306,6 @@ public class ThrottleServiceManager {
             list.add(startTime == null ? EPOCH : new Timestamp(startTime.getEpochSecond(), startTime.getNano()));
         }
         return list;
-    }
-
-    private static void safeResetThrottles(
-            final List<DeterministicThrottle> throttles, final List<ThrottleUsageSnapshot> snapshots) {
-        // No-op if we don't have a snapshot for every throttle
-        if (throttles.size() != snapshots.size()) {
-            return;
-        }
-        final var currentSnapshots =
-                throttles.stream().map(DeterministicThrottle::usageSnapshot).toList();
-        for (int i = 0, n = throttles.size(); i < n; i++) {
-            try {
-                throttles.get(i).resetUsageTo(snapshots.get(i));
-            } catch (final Exception e) {
-                log.warn(
-                        "Saved usage snapshot @ index {} was not compatible with the corresponding"
-                                + " active throttle ({}), not performing a reset !",
-                        i,
-                        e.getMessage());
-                resetUnconditionally(throttles, currentSnapshots);
-                break;
-            }
-        }
     }
 
     private static void resetUnconditionally(

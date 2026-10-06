@@ -14,6 +14,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_TOKEN_NAME;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_TOKEN_SYMBOL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NAME_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_SYMBOL_TOO_LONG;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.A_COMPLEX_KEY;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -155,6 +156,22 @@ class TokenAttributesValidatorTest {
                         tokensConfig))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(TOKEN_NAME_TOO_LONG));
+    }
+
+    @Test
+    void acceptsImmutabilitySentinelForAllKeys() {
+        // The empty-KeyList sentinel is accepted for every key at create (stored verbatim, treated as
+        // "no key" downstream), so validation skips it rather than rejecting it.
+        assertThatNoException()
+                .isThrownBy(() -> subject.validateTokenKeys(
+                        true, IMMUTABILITY_SENTINEL_KEY, // admin
+                        true, IMMUTABILITY_SENTINEL_KEY, // kyc
+                        true, IMMUTABILITY_SENTINEL_KEY, // wipe
+                        true, IMMUTABILITY_SENTINEL_KEY, // supply
+                        true, IMMUTABILITY_SENTINEL_KEY, // freeze
+                        true, IMMUTABILITY_SENTINEL_KEY, // feeSchedule
+                        true, IMMUTABILITY_SENTINEL_KEY, // pause
+                        true, IMMUTABILITY_SENTINEL_KEY)); // metadata
     }
 
     @Test

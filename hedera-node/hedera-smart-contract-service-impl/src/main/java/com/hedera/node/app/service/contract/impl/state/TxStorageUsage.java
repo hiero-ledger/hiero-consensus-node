@@ -13,7 +13,8 @@ import java.util.Set;
  * @param accesses the list of storage accesses made by the transaction
  * @param changedKeys if requested, the set of slot keys whose logical values changed (not just prev/next pointers)
  */
-public record TxStorageUsage(List<StorageAccesses> accesses, @Nullable Set<SlotKey> changedKeys) {
+public record TxStorageUsage(
+        List<StorageAccesses> accesses, @Nullable Set<SlotKey> changedKeys) {
     /**
      * Checks if the transaction has changed keys.
      * @return true if the transaction has changed keys, false otherwise

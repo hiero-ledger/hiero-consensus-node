@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.file.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
@@ -27,6 +26,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
@@ -37,13 +37,13 @@ import org.junit.jupiter.api.Tag;
 // This test cases are direct copies of SysDelSysUndelSpec. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @Tag(ATOMIC_BATCH)
+@OrderedInIsolation
 class AtomicSysDelSysUndelSpec {
 
     byte[] ORIG_FILE = "SOMETHING".getBytes();
     private static final String BATCH_OPERATOR = "batchOperator";
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> sysDelIdVariantsTreatedAsExpected() {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),

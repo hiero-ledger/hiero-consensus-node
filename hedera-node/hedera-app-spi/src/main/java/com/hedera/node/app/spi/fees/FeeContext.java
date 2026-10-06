@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fees;
 
-import static com.hedera.node.app.hapi.fees.calc.OverflowCheckingCalc.tinycentsToTinybars;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.tinycentsToTinybars;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.authorization.Authorizer;
@@ -30,15 +31,6 @@ public interface FeeContext {
      */
     @NonNull
     TransactionBody body();
-
-    /**
-     * Returns the {@link FeeCalculatorFactory} which can be used to create {@link FeeCalculator} for a specific
-     * {@link com.hedera.hapi.node.base.SubType}
-     *
-     * @return the {@code FeeCalculatorFactory}
-     */
-    @NonNull
-    FeeCalculatorFactory feeCalculatorFactory();
 
     SimpleFeeCalculator getSimpleFeeCalculator();
 
@@ -114,6 +106,8 @@ public interface FeeContext {
      */
     long getGasPriceInTinycents();
 
+    HederaFunctionality functionality();
+
     /**
      * Gets the number of tinybars equivalent to the given number of tinycents.
      *
@@ -123,4 +117,16 @@ public interface FeeContext {
     default long tinybarsFromTinycents(final long amount) {
         return tinycentsToTinybars(amount, fromPbj(activeRate()));
     }
+
+    /**
+     * Returns the current utilization percentage of the high-volume throttle for the given functionality.
+     * The utilization is expressed in hundredths of one percent (basis points, 0 to 10,000), where 10,000 = 100%.
+     *
+     * <p>This is used for HIP-1313 high-volume pricing curve calculation.
+     *
+     * @param functionality the functionality to get the utilization for
+     * @return the utilization percentage in hundredths of one percent (basis points, 0 to 10,000),
+     * or 0 if no high-volume throttle exists for the functionality or if not available
+     */
+    int getHighVolumeThrottleUtilization(HederaFunctionality functionality);
 }

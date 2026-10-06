@@ -52,7 +52,7 @@ class TssSubmissionsTest {
     }
 
     @Test
-    void submitsAsExpectedWithActiveGossip() {
+    void submitsAsExpectedWithAvailableGossip() {
         given(selfNodeInfo.accountId()).willReturn(AccountID.DEFAULT);
         given(appContext.selfNodeInfoSupplier()).willReturn(() -> selfNodeInfo);
         given(appContext.instantSource()).willReturn(() -> Instant.EPOCH);

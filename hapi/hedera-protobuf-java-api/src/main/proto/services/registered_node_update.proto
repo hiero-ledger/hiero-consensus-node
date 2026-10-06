@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.addressbook;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.addressbook">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "google/protobuf/wrappers.proto";
+import "services/basic_types.proto";
+import "services/registered_service_endpoint.proto";
+
+/**
+ * A transaction body to update an existing registered node in the network
+ * address book.
+ *
+ * This transaction, once complete, SHALL modify the identified registered
+ * node state as requested.
+ *
+ * ### Block Stream Effects
+ * None.
+ */
+message RegisteredNodeUpdateTransactionBody {
+    /**
+     * A registered node identifier in the network state.
+     * <p>
+     * The node identified MUST exist in the registered address book.<br/>
+     * The node identified MUST NOT be deleted.<br/>
+     * This value is REQUIRED.
+     * <p>
+     * A given value for `registered_node_id` SHALL be unique within a given
+     * shard or realm.<br/>
+     * A given value for `registered_node_id` SHALL NOT be reused, even if the
+     * corresponding entry is deleted.
+     */
+    uint64 registered_node_id = 1;
+
+    /**
+     * An administrative key controlled by the node operator.
+     * <p>
+     * This field is OPTIONAL.<br/>
+     * If set, this key MUST sign this transaction.<br/>
+     * If set, this key MUST sign each subsequent transaction to
+     * update this node.<br/>
+     * If set, this field MUST contain a valid `Key` value.<br/>
+     * If set, this field MUST NOT be set to an empty `KeyList`.<br/>
+     * It is RECOMMENDED that this key be composed of one or more unique public
+     * keys that are not associated with any network account.<br/>
+     * This key MAY be a complex key containing `KeyList` or `ThresholdKey`
+     * elements, but SHOULD NOT be a contract ID key.
+     */
+    proto.Key admin_key = 2;
+
+    /**
+     * A short description of the node.
+     * <p>
+     * This field is OPTIONAL.<br/>
+     * This value, if set, MUST NOT exceed 100 bytes when encoded as UTF-8.<br/>
+     * If set, this value SHALL replace the previous value.
+     */
+    google.protobuf.StringValue description = 3;
+
+    /**
+     * A list of service endpoints for client calls.
+     * <p>
+     * This field is OPTIONAL.<br/>
+     * These endpoints SHALL represent the published endpoints to which
+     * clients may submit requests.<br/>
+     * Endpoints in this list MAY supply either IP address or FQDN, but MUST
+     * NOT supply both values for the same endpoint.<br/>
+     * One Registered Node MAY expose endpoints for multiple service types.<br/>
+     * If set, this list MUST NOT be empty.<br/>
+     * If set, this list MUST NOT contain more than `50` entries.<br/>
+     * If set, this list SHALL _replace_ the previous list.
+     */
+    repeated RegisteredServiceEndpoint service_endpoint = 4;
+}

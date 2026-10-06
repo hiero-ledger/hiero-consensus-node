@@ -8,8 +8,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.stream.Stream;
-import org.hiero.base.crypto.Hash;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Defines a data source, used with {@code VirtualMap}, to implement a virtual tree. Both in-memory and
@@ -37,18 +36,7 @@ public interface VirtualDataSource {
      * @throws IOException
      * 		If there was a problem closing the data source
      */
-    default void close() throws IOException {
-        close(false);
-    }
-
-    /**
-     * Close the data source.
-     *
-     * @param keepData Indicates whether to keep data source data or not
-     * @throws IOException
-     * 		If there was a problem closing the data source
-     */
-    void close(boolean keepData) throws IOException;
+    void close() throws IOException;
 
     /**
      * Save a batch of data to data store.
@@ -64,8 +52,8 @@ public interface VirtualDataSource {
      *      the tree path for first leaf
      * @param lastLeafPath
      *      the tree path for last leaf
-     * @param pathHashRecordsToUpdate
-     * 		stream of dirty hash records to update
+     * @param hashChunksToUpdate
+     * 		stream of dirty hash chunks to update
      * @param leafRecordsToAddOrUpdate
      * 		stream of new and updated leaf node bytes
      * @param leafRecordsToDelete
@@ -77,7 +65,7 @@ public interface VirtualDataSource {
     void saveRecords(
             final long firstLeafPath,
             final long lastLeafPath,
-            @NonNull final Stream<VirtualHashRecord> pathHashRecordsToUpdate,
+            @NonNull final Stream<VirtualHashChunk> hashChunksToUpdate,
             @NonNull final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
             @NonNull final Stream<VirtualLeafBytes> leafRecordsToDelete,
             final boolean isReconnectContext)
@@ -114,40 +102,14 @@ public interface VirtualDataSource {
     long findKey(final Bytes keyBytes) throws IOException;
 
     /**
-     * Load a virtual node hash by path. If the path is outside [0, last leaf path] range, this
-     * method returns {@code null}.
+     * Load a virtual node hash chunk with the given ID.
      *
-     * @param path virtual node path
-     * @return The node's record if one was stored for the given path; {@code null} if not stored or
-     * 	  		deserialization is not requested
-     * @throws IOException
-     * 		If there was a problem loading the leaf's hash from data source
+     * @param chunkId The chunk ID
+     * @return The hash chunk, or {@code null} if no chunk was stored for the given ID
+     * @throws IOException If there was a problem loading the hash chunk from data source
      */
     @Nullable
-    Hash loadHash(final long path) throws IOException;
-
-    /**
-     * Load a virtual node hash by path and, if found, write it to the specified output stream. This
-     * method helps avoid (de)serialization overhead during reconnects on the teacher side. Instead of
-     * loading bytes from disk, then deserializing them into {@link Hash} objects, and then serializing
-     * again to socket output stream, this method can write the bytes directly to the stream.
-     *
-     * <p>Written bytes must be 100% identical to how hashes are serialized using {@link
-     * Hash#serialize(SerializableDataOutputStream)} method.
-     *
-     * @param path Virtual node path
-     * @param out Output stream to write the hash, if found
-     * @return If the hash was found and written to the stream
-     * @throws IOException If an I/O error occurred
-     */
-    default boolean loadAndWriteHash(final long path, final SerializableDataOutputStream out) throws IOException {
-        final Hash hash = loadHash(path);
-        if (hash == null) {
-            return false;
-        }
-        hash.serialize(out);
-        return true;
-    }
+    VirtualHashChunk loadHashChunk(final long chunkId) throws IOException;
 
     /**
      * Write a snapshot of the current state of the database at this moment in time. This will need to be called between
@@ -186,12 +148,36 @@ public interface VirtualDataSource {
      */
     void enableBackgroundCompaction();
 
-    /**
-     * Cancels all compactions that are currently running and disables background compaction process.
-     */
-    void stopAndDisableBackgroundCompaction();
+    ///
+    /// Disables background compaction and interrupts all compactions that are currently running.
+    ///
+    /// @param waitForTasksToComplete whether to wait, up to the implementation's shutdown timeout,
+    ///     for all current background compaction tasks, including scanner tasks, to complete
+    ///
+    void stopAndDisableBackgroundCompaction(boolean waitForTasksToComplete);
 
+    /**
+     * Returns the first leaf path stored in this data source.
+     */
     long getFirstLeafPath();
 
+    /**
+     * Returns the last leaf path stored in this data source.
+     */
     long getLastLeafPath();
+
+    /**
+     * Returns the height of hash chunks stored in this data source.
+     */
+    int getHashChunkHeight();
+
+    ///
+    /// If this data source is loaded from a snapshot, returns the digest type of all
+    /// hashes stored in the data source, e.g. SHA-384.
+    ///
+    /// If this data source is created from scratch, this method always returns the default
+    /// digest type. See [org.hiero.base.crypto.Cryptography#DEFAULT_DIGEST_TYPE] for details.
+    ///
+    @NonNull
+    DigestType getLoadedHashDigestType();
 }

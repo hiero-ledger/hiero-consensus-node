@@ -11,5 +11,4 @@ useLoopbackIp,                                 false
 waitAtStartup,                                 false
 state.mainClassNameOverride,                   com.hedera.services.ServicesMain
 maxEventQueueForCons,                          1000
-merkleDb.hashesRamToDiskThreshold,             8388608
 event.creation.maxCreationRate,                20

@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.hapi;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
@@ -20,11 +19,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedQueryIds;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -79,7 +78,6 @@ public class ContractCallLocalSuite {
     private static final int DECIMALS = 13;
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> htsOwnershipCheckWorksWithAliasAddress() {
         final AtomicReference<AccountID> ecdsaAccountId = new AtomicReference<>();
         final AtomicReference<ByteString> ecdsaAccountIdLongZeroAddress = new AtomicReference<>();
@@ -104,7 +102,7 @@ public class ContractCallLocalSuite {
                 // Send some HBAR to the aliased account, it will need it to pay for the query
                 cryptoTransfer(TokenMovement.movingHbar(ONE_HUNDRED_HBARS).between(GENESIS, SECP_256K1_SOURCE_KEY)),
                 // Calculate and log the aliased account addresses
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     updateSpecFor(spec, SECP_256K1_SOURCE_KEY);
                     final var registry = spec.registry();
                     final var ecdsaKey = registry.getKey(SECP_256K1_SOURCE_KEY);
@@ -124,7 +122,7 @@ public class ContractCallLocalSuite {
                 // Deploy the OwnershipCheck contract
                 uploadInitCode(OWNERSHIP_CHECK_CONTRACT),
                 contractCreate(OWNERSHIP_CHECK_CONTRACT),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     // Make the contract query with the Aliased account
                     var callLocal = contractCallLocal(
                                     OWNERSHIP_CHECK_CONTRACT,
@@ -142,7 +140,7 @@ public class ContractCallLocalSuite {
                 }),
                 // Assert that the address of the query sender and the address of the nft owner returned by the
                 // HTS precompiled contract are the same
-                withOpContext((spec, opLog) -> assertEquals(
+                doingContextual(spec -> assertEquals(
                         senderAddress.get(), nftOwnerAddress.get(), "Sender address should match the owner address.")));
     }
 
@@ -274,13 +272,12 @@ public class ContractCallLocalSuite {
 
     // https://github.com/hashgraph/hedera-services/pull/5485
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> callLocalDoesNotCheckSignaturesNorPayer() {
         return hapiTest(
                 uploadInitCode(CONTRACT),
                 contractCreate(CONTRACT).adminKey(THRESHOLD),
                 contractCall(CONTRACT, "create").gas(785_000),
-                withOpContext((spec, opLog) -> IntStream.range(0, 2000).forEach(i -> {
+                doingContextual(spec -> IntStream.range(0, 2000).forEach(i -> {
                     final var create = cryptoCreate("account #" + i).deferStatusResolution();
                     final var callLocal = contractCallLocal(CONTRACT, "getIndirect")
                             .nodePayment(ONE_HBAR)

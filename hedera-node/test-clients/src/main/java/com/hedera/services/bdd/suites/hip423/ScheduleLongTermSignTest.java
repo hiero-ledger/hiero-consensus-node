@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip423;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -34,7 +34,6 @@ public class ScheduleLongTermSignTest {
     private static final String SENDER = "sender";
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> scheduleSignWhenAllSigPresent() {
         return hapiTest(
                 cryptoCreate("receiver").balance(0L).receiverSigRequired(true),
@@ -73,6 +72,7 @@ public class ScheduleLongTermSignTest {
                         .lasting(90, TimeUnit.SECONDS));
     }
 
+    @Tag(SERIAL)
     @HapiTest
     final Stream<DynamicTest> ensureUnExecutedScheduleIsPurgedDuringCi() {
         return hapiTest(

@@ -52,7 +52,7 @@ public class MetricKeyTest {
         MetricKey<LongCounter> key = MetricKey.of("requests", LongCounter.class);
         MetricKey<LongCounter> categorizedKey = key.addCategory("http");
 
-        assertThat(categorizedKey.name()).isEqualTo("http:requests");
+        assertThat(categorizedKey.name()).isEqualTo("http_requests");
         assertThat(categorizedKey.type()).isEqualTo(LongCounter.class);
     }
 
@@ -71,7 +71,7 @@ public class MetricKeyTest {
         MetricKey<LongCounter> key =
                 MetricKey.of("requests", LongCounter.class).addCategory("api").addCategory("http");
 
-        assertThat(key.name()).isEqualTo("http:api:requests");
+        assertThat(key.name()).isEqualTo("http_api_requests");
     }
 
     @Test
@@ -113,7 +113,7 @@ public class MetricKeyTest {
         String name = "any_name";
         MetricKey<LongCounter> key = MetricKey.of(name, LongCounter.class).addCategory(categoryName);
 
-        assertThat(key.name()).isEqualTo(categoryName + ":" + name);
+        assertThat(key.name()).isEqualTo(categoryName + "_" + name);
     }
 
     @Test

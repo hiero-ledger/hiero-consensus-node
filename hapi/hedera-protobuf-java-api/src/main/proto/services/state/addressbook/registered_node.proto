@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.addressbook;
+
+// SPDX-License-Identifier: Apache-2.0
+import "services/basic_types.proto";
+import "services/registered_service_endpoint.proto";
+
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.addressbook">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+/**
+ * A single registered node in the network state.
+ *
+ * Each registered node in the network state SHALL represent a single
+ * non-consensus node that is registered on the network.
+ *
+ * Registered node identifiers SHALL only be unique within a single
+ * realm and shard combination.
+ */
+message RegisteredNode {
+    /**
+     * A registered node identifier.
+     * <p>
+     * This value SHALL be set.<br/>
+     * This value SHALL be unique within a given network.<br/>
+     * This value SHALL NOT match any consensus node ID in the same network.
+     * <p>
+     * A given value for `registered_node_id` MUST be unique within a given
+     * shard or realm.<br/>
+     * A given value for `registered_node_id` MUST NOT be reused, even if the
+     * corresponding entry is later deleted.
+     */
+    uint64 registered_node_id = 1;
+
+    /**
+     * An administrative key controlled by the node operator.
+     * <p>
+     * This key MUST sign each transaction to update this node.<br/>
+     * This field SHALL contain a valid `Key` value.<br/>
+     * This field SHALL NOT be set to an empty `KeyList`.<br/>
+     * It is RECOMMENDED that this key be composed of one or more unique public
+     * keys that are not associated with any network account.<br/>
+     * This key MAY be a complex key containing `KeyList` or `ThresholdKey`
+     * elements, but SHOULD NOT be a contract ID key.
+     */
+    proto.Key admin_key = 2;
+
+    /**
+     * A short description of the node.
+     * <p>
+     * This value SHALL NOT exceed 100 bytes when encoded as UTF-8.
+     */
+    string description = 3;
+
+    /**
+     * A list of service endpoints for client calls.
+     * <p>
+     * These endpoints SHALL represent the published endpoints to which
+     * clients may submit requests.<br/>
+     * One Registered Node MAY expose endpoints for multiple service types.<br/>
+     * This list SHALL NOT be empty.<br/>
+     * This list SHALL NOT contain more than `50` entries.
+     */
+    repeated com.hedera.hapi.node.addressbook.RegisteredServiceEndpoint service_endpoint = 4;
+}

@@ -36,6 +36,15 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.queries.crypto.ReferenceType;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCloseChannel;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCompleteChannel;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprCompleteConnector;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprDeregisterConnector;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprRedactMessage;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprRegisterChannel;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprRegisterConnector;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprSubmitBundle;
+import com.hedera.services.bdd.spec.transactions.clpr.HapiClprUpdateLedgerConfiguration;
 import com.hedera.services.bdd.spec.transactions.consensus.HapiMessageSubmit;
 import com.hedera.services.bdd.spec.transactions.consensus.HapiTopicCreate;
 import com.hedera.services.bdd.spec.transactions.consensus.HapiTopicDelete;
@@ -57,10 +66,12 @@ import com.hedera.services.bdd.spec.transactions.file.HapiFileAppend;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileCreate;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileDelete;
 import com.hedera.services.bdd.spec.transactions.file.HapiFileUpdate;
-import com.hedera.services.bdd.spec.transactions.network.HapiUncheckedSubmit;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeCreate;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeDelete;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeUpdate;
+import com.hedera.services.bdd.spec.transactions.node.HapiRegisteredNodeCreate;
+import com.hedera.services.bdd.spec.transactions.node.HapiRegisteredNodeDelete;
+import com.hedera.services.bdd.spec.transactions.node.HapiRegisteredNodeUpdate;
 import com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleCreate;
 import com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleDelete;
 import com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleSign;
@@ -114,6 +125,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -223,6 +235,43 @@ public class TxnVerbs {
         return new HapiCryptoDeleteAllowance();
     }
 
+    /* CLPR */
+    public static HapiClprUpdateLedgerConfiguration clprUpdateLedgerConfiguration() {
+        return new HapiClprUpdateLedgerConfiguration();
+    }
+
+    public static HapiClprRegisterChannel clprRegisterChannel() {
+        return new HapiClprRegisterChannel();
+    }
+
+    public static HapiClprCompleteChannel clprCompleteChannel() {
+        return new HapiClprCompleteChannel();
+    }
+
+    public static HapiClprCloseChannel clprCloseChannel() {
+        return new HapiClprCloseChannel();
+    }
+
+    public static HapiClprRegisterConnector clprRegisterConnector() {
+        return new HapiClprRegisterConnector();
+    }
+
+    public static HapiClprCompleteConnector clprCompleteConnector() {
+        return new HapiClprCompleteConnector();
+    }
+
+    public static HapiClprDeregisterConnector clprDeregisterConnector() {
+        return new HapiClprDeregisterConnector();
+    }
+
+    public static HapiClprRedactMessage clprRedactMessage() {
+        return new HapiClprRedactMessage();
+    }
+
+    public static HapiClprSubmitBundle clprSubmitBundle() {
+        return new HapiClprSubmitBundle();
+    }
+
     /* CONSENSUS */
     public static HapiTopicCreate createTopic(String topic) {
         return new HapiTopicCreate(topic);
@@ -284,6 +333,27 @@ public class TxnVerbs {
 
     public static HapiNodeDelete nodeDelete(String node) {
         return new HapiNodeDelete(node);
+    }
+
+    /* REGISTERED NODE */
+    public static HapiRegisteredNodeCreate registeredNodeCreate(@NonNull final String name) {
+        return new HapiRegisteredNodeCreate(name);
+    }
+
+    public static HapiRegisteredNodeUpdate registeredNodeUpdate(@NonNull final LongSupplier idSupplier) {
+        return new HapiRegisteredNodeUpdate(idSupplier);
+    }
+
+    public static HapiRegisteredNodeUpdate registeredNodeUpdate(@NonNull final String name) {
+        return new HapiRegisteredNodeUpdate(name);
+    }
+
+    public static HapiRegisteredNodeDelete registeredNodeDelete(@NonNull final LongSupplier idSupplier) {
+        return new HapiRegisteredNodeDelete(idSupplier);
+    }
+
+    public static HapiRegisteredNodeDelete registeredNodeDelete(@NonNull final String name) {
+        return new HapiRegisteredNodeDelete(name);
     }
 
     /* TOKEN */
@@ -493,11 +563,6 @@ public class TxnVerbs {
         return new HapiSysUndelete().contract(target);
     }
 
-    /* NETWORK */
-    public static <T extends HapiTxnOp<T>> HapiUncheckedSubmit<T> uncheckedSubmit(HapiTxnOp<T> subOp) {
-        return new HapiUncheckedSubmit<>(subOp);
-    }
-
     /* SMART CONTRACT */
     public static HapiContractCall contractCallFrom(String details) {
         return HapiContractCall.fromDetails(details);
@@ -610,10 +675,10 @@ public class TxnVerbs {
     }
 
     public static HapiContractCall contractCall(
-            String contract, String functionName, Supplier<Object> parmeterSupplier) {
+            String contract, String functionName, Supplier<Object> parameterSupplier) {
         final var abi = getABIFor(FUNCTION, functionName, contract);
         return new HapiContractCall(
-                abi, contract, spec -> List.of(parmeterSupplier.get()).toArray());
+                abi, contract, spec -> List.of(parameterSupplier.get()).toArray());
     }
 
     public static HapiContractCall contractCallWithTuple(String contract, String abi, Function<HapiSpec, Tuple> fn) {

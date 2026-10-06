@@ -88,8 +88,16 @@ public class MetricSnapshotVerifier {
         }
     }
 
+    public static void verifMetricHasNoSnapshot(Metric metric) {
+        assertThat(metric.snapshot())
+                .as("Snapshot should be null for metric " + metric.name())
+                .isNull();
+    }
+
     public void verify() {
         MetricSnapshot snapshot = metric.snapshot();
+        assertThat(snapshot).isNotNull();
+
         snapshot.update();
 
         verify(snapshot);

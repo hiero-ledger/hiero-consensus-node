@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.throttles;
 
-/** A bucket of discrete capacity.
+/** A bucket of discrete capacity. This is the raw “used vs capacity” container.
  * It simultaneously keeps track of two limits:
  *  - the nominal capacity ("soft limit"): can be used for checking if the bucket is full or
  *    calculating the amount to leak. No error is thrown when the nominal capacity is exceeded.

@@ -2,10 +2,10 @@
 package com.hedera.services.bdd.junit.hedera.embedded;
 
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
-import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
 import static com.swirlds.platform.system.transaction.TransactionWrapperUtils.createAppPayloadWrapper;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -182,7 +182,7 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
         /**
          * Simulates a round of events coming to consensus and being handled by the Hedera node.
          *
-         * <p>We advance consensus time by 1 second in fake time for each round, unless some other
+         * <p>We advance consensus time by 1 milli second in fake time for each round, unless some other
          * event like a synthetic "sleep" has already advanced the time.
          */
         private void handleTransactions() {

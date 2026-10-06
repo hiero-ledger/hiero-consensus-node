@@ -2,6 +2,7 @@
 package com.hedera.node.app.workflows.standalone;
 
 import com.hedera.node.app.authorization.AuthorizerInjectionModule;
+import com.hedera.node.app.blocks.BlockStreamModule;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.AppFeeCharging;
@@ -10,6 +11,7 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
+import com.hedera.node.app.service.clpr.impl.ClprServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
@@ -53,12 +55,16 @@ import javax.inject.Singleton;
             HederaStateInjectionModule.class,
             ThrottleServiceModule.class,
             FacilityInitModule.class,
+            BlockStreamModule.class
         })
 public interface ExecutorComponent {
     @Component.Builder
     interface Builder {
         @BindsInstance
         Builder tokenServiceImpl(TokenServiceImpl tokenService);
+
+        @BindsInstance
+        Builder clprServiceImpl(ClprServiceImpl clprService);
 
         @BindsInstance
         Builder consensusServiceImpl(ConsensusServiceImpl consensusServiceImpl);
@@ -128,4 +134,6 @@ public interface ExecutorComponent {
     TransactionChecker transactionChecker();
 
     FeeManager feeManager();
+
+    ConfigProviderImpl configProvider();
 }

@@ -53,7 +53,7 @@ public class TokenCreateFeeCalculator implements ServiceFeeCalculator {
         }
         addExtraFee(feeResult, serviceDef, Extra.KEYS, feeSchedule, keys);
 
-        if (!op.customFees().isEmpty()) {
+        if (!op.customFees().isEmpty() || op.hasFeeScheduleKey()) {
             addExtraFee(feeResult, serviceDef, Extra.TOKEN_CREATE_WITH_CUSTOM_FEE, feeSchedule, 1);
         }
     }

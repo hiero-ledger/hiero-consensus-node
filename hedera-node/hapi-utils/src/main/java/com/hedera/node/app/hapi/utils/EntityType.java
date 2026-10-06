@@ -20,4 +20,5 @@ public enum EntityType {
     STAKING_INFO,
     HOOK,
     EVM_HOOK_STORAGE,
+    REGISTERED_NODE,
 }

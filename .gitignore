@@ -70,6 +70,12 @@ local.properties
 .loadpath
 .recommenders
 
+### Emacs
+TAGS
+#*
+.dir-locals.el
+
+
 # External tool builders
 .externalToolBuilders/
 
@@ -968,6 +974,7 @@ FodyWeavers.xsd
 
 ### Gradle template
 .gradle
+.gradle-local/
 **/build/
 !src/**/build/
 
@@ -1076,6 +1083,9 @@ hedera-node/test-clients/rcdiff/diff.txt
 ### Ignore binary files in Test-Clients root
 hedera-node/test-clients/*.bin
 
+### CLPR node-local runtime cache (default clpr.peerEndpointsFile); regenerated per run
+/hedera-node/test-clients/data/clpr/
+
 ### Ignore validator files
 hedera-state-validator/slack_report.json
 hedera-state-validator/validator.log
@@ -1086,3 +1096,16 @@ hedera-state-validator/state-analysis.log
 snyk-code.html
 snyk-code.json
 snyk/
+
+### AI Helpers Code
+/.codex/
+**/ai.local
+/.claude/*
+!/.claude/skills/
+
+### Embedded HAPI Test Runtime Artifacts
+/hedera-node/test-clients/data/keys/tss/
+
+### Solo Testing Output
+/hedera-node/test-clients/scripts/solo/wrapped-record-block-jumpstart/generated/
+/hedera-node/test-clients/scripts/solo/e2e-block-stream-cutover/generated/

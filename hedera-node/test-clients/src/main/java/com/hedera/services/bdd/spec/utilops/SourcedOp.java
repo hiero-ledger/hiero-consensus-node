@@ -4,13 +4,13 @@ package com.hedera.services.bdd.spec.utilops;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.HapiSpecOperation;
+import com.hedera.services.bdd.spec.SpecOperation;
 import java.util.function.Supplier;
 
 public class SourcedOp extends UtilOp {
-    private final Supplier<HapiSpecOperation> source;
+    private final Supplier<? extends SpecOperation> source;
 
-    public SourcedOp(Supplier<HapiSpecOperation> source) {
+    public SourcedOp(Supplier<? extends SpecOperation> source) {
         this.source = source;
     }
 

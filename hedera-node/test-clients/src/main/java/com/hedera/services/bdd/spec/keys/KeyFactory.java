@@ -2,13 +2,14 @@
 package com.hedera.services.bdd.spec.keys;
 
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
-import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.UNIQUE_PREFIXES;
+import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asContractId;
 import static java.util.Map.Entry;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toList;
 
 import com.hedera.node.app.hapi.utils.CommonUtils;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.SignatureGenerator;
 import com.hedera.node.app.hapi.utils.keys.Ed25519Utils;
 import com.hedera.node.app.hapi.utils.keys.KeyUtils;
@@ -40,7 +41,6 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import org.apache.commons.lang3.tuple.Pair;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.junit.jupiter.api.Assertions;
 
 /**
@@ -80,9 +80,15 @@ public class KeyFactory {
      */
     private final Map<Key, SigControl> controlMap = new ConcurrentHashMap<>();
     /**
-     * The default {@link SigMapGenerator}, uses unique prefixes for all signatures in the {@link SignatureMap}.
+     * The default {@link SigMapGenerator}, uses full prefixes for all signatures in the {@link SignatureMap}.
+     *
+     * <p>FULL_PREFIXES matches production SDK behavior and ensures deterministic transaction sizes
+     * for fee validation tests. UNIQUE_PREFIXES generates variable-length prefixes depending on
+     * random key material, causing non-deterministic numTxnBytes() and affecting numTxnSignatures()
+     * through Phase 1 expansion in SignatureExpanderImpl (which only processes full-length prefixes).
+     * See TokenOpsShortPrefixTest for explicit short-prefix coverage.
      */
-    private final SigMapGenerator defaultSigMapGen = TrieSigMapGenerator.withNature(UNIQUE_PREFIXES);
+    private final SigMapGenerator defaultSigMapGen = TrieSigMapGenerator.withNature(FULL_PREFIXES);
     /**
      * The {@link HapiSpecSetup} to use to customize key generation.
      */
@@ -682,7 +688,7 @@ public class KeyFactory {
                 final byte[] sig;
                 if (privateKey instanceof ECPrivateKey) {
                     if (keccak256Digest == null) {
-                        keccak256Digest = new Keccak.Digest256().digest(data);
+                        keccak256Digest = MiscCryptoUtils.keccak256DigestOf(data);
                     }
                     sig = SignatureGenerator.signBytes(keccak256Digest, privateKey);
                 } else {

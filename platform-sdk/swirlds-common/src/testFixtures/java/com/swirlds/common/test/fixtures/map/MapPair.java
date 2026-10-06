@@ -4,10 +4,10 @@ package com.swirlds.common.test.fixtures.map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.FastCopyable;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import org.hiero.base.FastCopyable;
 
 /**
  * Holds a pair of maps, one that is being tested and another to use for checks

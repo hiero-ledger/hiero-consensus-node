@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb;
 
-import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFIGURATION;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.assertVmsAreEqual;
-import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
@@ -18,11 +16,14 @@ import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Stream;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
+import org.hiero.consensus.constructable.ConstructableRegistration;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,26 +31,23 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 @DisplayName("VirtualMap Serialization Test")
-class VirtualMapSerializationTests {
+class VirtualMapSerializationTests extends AbstractFileManagerAwareTest {
 
     @BeforeAll
     static void setUp() throws ConstructableRegistryException {
-        final ConstructableRegistry registry = ConstructableRegistry.getInstance();
-        registry.registerConstructables("com.swirlds.merkledb");
-        registry.registerConstructables("com.swirlds.virtualmap");
-        registry.registerConstructables("com.swirlds.common");
-        registry.registerConstructables("org.hiero");
+        ConstructableRegistration.registerAllConstructables();
     }
 
     /**
      * Create a new virtual map data source builder.
      */
     public static MerkleDbDataSourceBuilder constructBuilder() {
-        return constructBuilder(CONFIGURATION);
+        return constructBuilder(DEFAULT_CONFIGURATION, fileSystemManager);
     }
 
-    public static MerkleDbDataSourceBuilder constructBuilder(final Configuration configuration) {
-        return new MerkleDbDataSourceBuilder(configuration, 10_000, Long.MAX_VALUE);
+    public static MerkleDbDataSourceBuilder constructBuilder(
+            final Configuration configuration, final FileSystemManager fileSystemManager) {
+        return new MerkleDbDataSourceBuilder(configuration, fileSystemManager, 10_000);
     }
 
     /**
@@ -84,7 +82,7 @@ class VirtualMapSerializationTests {
      */
     @SuppressWarnings("SameParameterValue")
     private VirtualMap generateRandomMap(final long seed, final int count) {
-        final VirtualMap map = new VirtualMap(constructBuilder(), CONFIGURATION);
+        final VirtualMap map = new VirtualMap(constructBuilder(), DEFAULT_CONFIGURATION);
         addRandomEntries(map, count, 0, seed);
         return map;
     }
@@ -114,18 +112,19 @@ class VirtualMapSerializationTests {
             map1.release();
             map2.release();
 
-            assertTrue(map2.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
+            assertTrue(map0.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
+            assertTrue(map1.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
+            assertTrue(map2.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
         }
     }
 
     /**
      * Test serialization of a map. Does not release any resources created by caller.
      */
-    @SuppressWarnings("resource")
     private void testMapSerialization(final VirtualMap map) throws IOException {
 
-        final Path savedStateDirectory =
-                LegacyTemporaryFileBuilder.buildTemporaryDirectory("saved-state", CONFIGURATION);
+        final Path savedStateDirectory = fileSystemManager.resolveNewTemp("saved-state");
+        Files.createDirectories(savedStateDirectory);
 
         // Make sure the map is hashed
         map.getHash();
@@ -138,8 +137,10 @@ class VirtualMapSerializationTests {
             assertFalse(list.isEmpty(), "there should be a non-zero number of files created");
         }
 
-        final VirtualMap deserializedMap =
-                VirtualMap.loadFromDirectory(savedStateDirectory, CONFIGURATION, () -> constructBuilder(CONFIGURATION));
+        final VirtualMap deserializedMap = VirtualMap.loadFromDirectory(
+                savedStateDirectory,
+                DEFAULT_CONFIGURATION,
+                () -> constructBuilder(DEFAULT_CONFIGURATION, fileSystemManager));
 
         assertVmsAreEqual(map, deserializedMap);
 
@@ -163,7 +164,8 @@ class VirtualMapSerializationTests {
         } finally {
             map.release();
             copy.release();
-            assertTrue(map.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
+
+            assertTrue(map.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Maps should be destroyed");
         }
     }
 
@@ -189,7 +191,8 @@ class VirtualMapSerializationTests {
         } finally {
             serializedCopy.release();
             mutableCopy.release();
-            assertTrue(map.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
+
+            assertTrue(map.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
         }
     }
 
@@ -219,7 +222,8 @@ class VirtualMapSerializationTests {
         } finally {
             copy0.release();
             copy1.release();
-            assertTrue(map.getPipeline().awaitTermination(10, SECONDS), "Pipeline termination timed out");
+
+            assertTrue(map.waitUntilFamilyDestroyed(Duration.ofSeconds(3)), "Map family should be destroyed");
         }
     }
 }

@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.hip551;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -52,7 +51,6 @@ class AtomicBatchCustomFeesTest {
 
     @HapiTest
     @DisplayName("FT transfer with custom fee rollback")
-    @Tag(MATS)
     Stream<DynamicTest> fungibleTokenTransferCustomFeeRollback() {
         final var successfulTransfer = cryptoTransfer(
                         moving(1, FT_WITH_FIXED_HBAR_FEE).between(SENDER, RECEIVER))

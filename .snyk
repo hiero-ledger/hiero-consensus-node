@@ -2,6 +2,17 @@
 version: v1.25.0
 # ignores vulnerabilities until expiry date; change duration by modifying expiry date
 ignore:
+  SNYK-JAVA-ORGXERIALSNAPPY-19778376:
+    - '*':
+        reason: No fixed snappy-java version is available at this time (transitive via besu-evm)
+        expires: 2026-10-16T00:00:00.000Z
+        created: 2026-09-16T00:00:00.000Z
+  SNYK-JAVA-ORGXERIALSNAPPY-19964087:
+    - '*':
+
+        reason: No fixed release available; transitive via besu-evm/besu-util. Revisit upstream snappy-java PR 733 before expiry.
+        expires: 2026-10-16T00:00:00.000Z
+        created: 2026-09-21T00:00:00.000Z
 patch: {}
 exclude:
   global:
@@ -15,3 +26,9 @@ exclude:
       platform-sdk/consensus-otter-docker-app/src/testFixtures/java/org/hiero/consensus/otter/docker/app/DockerManager.java
     - >-
       platform-sdk/consensus-otter-docker-app/src/testFixtures/java/org/hiero/consensus/otter/docker/app/platform/NodeCommunicationService.java
+    - >-
+      platform-sdk/consensus-sloth/src/testFixtures/java/org/hiero/sloth/fixtures/container/docker/DockerManager.java
+    - >-
+      platform-sdk/consensus-sloth/src/testFixtures/java/org/hiero/sloth/fixtures/container/docker/platform/NodeCommunicationService.java
+    - >-
+      platform-sdk/consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/PeerConnectionServer.java

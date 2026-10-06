@@ -41,8 +41,8 @@ class BalanceOfCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_TOKEN_ID), result.output());
     }
 
     @Test
@@ -51,13 +51,13 @@ class BalanceOfCallTest extends CallTestBase {
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(),
                         DEFAULT_HEDERA_CONFIG.realm(),
-                        tuweniToPbjBytes(EIP_1014_ADDRESS)))
+                        tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes())))
                 .willReturn(MISSING_ENTITY_NUMBER);
         given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_ACCOUNT_ID), result.getOutput());
+        assertEquals(MessageFrame.State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_ACCOUNT_ID), result.output());
     }
 
     @Test
@@ -66,20 +66,20 @@ class BalanceOfCallTest extends CallTestBase {
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(),
                         DEFAULT_HEDERA_CONFIG.realm(),
-                        tuweniToPbjBytes(EIP_1014_ADDRESS)))
+                        tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes())))
                 .willReturn(A_NEW_ACCOUNT_ID.accountNumOrThrow());
         given(nativeOperations.getAccount(any(AccountID.class))).willReturn(ALIASED_SOMEBODY);
         given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(BalanceOfTranslator.BALANCE_OF
                         .getOutputs()
                         .encode(Tuple.singleton(BigInteger.ZERO))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -88,7 +88,7 @@ class BalanceOfCallTest extends CallTestBase {
         given(nativeOperations.resolveAlias(
                         DEFAULT_HEDERA_CONFIG.shard(),
                         DEFAULT_HEDERA_CONFIG.realm(),
-                        tuweniToPbjBytes(EIP_1014_ADDRESS)))
+                        tuweniToPbjBytes(EIP_1014_ADDRESS.getBytes())))
                 .willReturn(A_NEW_ACCOUNT_ID.accountNumOrThrow());
         given(nativeOperations.getTokenRelation(A_NEW_ACCOUNT_ID, FUNGIBLE_TOKEN_ID))
                 .willReturn(A_FUNGIBLE_RELATION);
@@ -97,12 +97,12 @@ class BalanceOfCallTest extends CallTestBase {
         given(nativeOperations.configuration()).willReturn(HederaTestConfigBuilder.createConfig());
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(BalanceOfTranslator.BALANCE_OF
                         .getOutputs()
                         .encode(Tuple.singleton(BigInteger.valueOf(A_FUNGIBLE_RELATION.balance())))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 }

@@ -2,23 +2,18 @@
 package com.hedera.services.bdd.suites.fees;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.royaltyFeeNoFallback;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -28,12 +23,8 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -42,7 +33,6 @@ import org.junit.jupiter.api.Tag;
  * Test suite for CryptoTransfer simple fees (HIP-1261).
  * Validates the simple fee model for various transfer scenarios.
  */
-@Tag(MATS)
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class CryptoTransferSimpleFeesSuite {
@@ -53,14 +43,8 @@ public class CryptoTransferSimpleFeesSuite {
 
     // Extras
     private static final double ADDITIONAL_ACCOUNT_FEE = 0.0001;
-    private static final double ADDITIONAL_TOKEN_FEE = 0.0001;
+    private static final double TOKEN_TYPES_EXTRA_FEE = 0.0001;
     private static final double ADDITIONAL_NFT_SERIAL_FEE = 0.0001;
-
-    private static final double HOOK_INVOCATION_USD = 0.005;
-    private static final long HOOK_GAS_LIMIT = 25000;
-    private static final double HBAR_TRANSFER_BASE_USD = 0.0001;
-    private static final double NFT_TRANSFER_BASE_USD = 0.001;
-    private static final double NFT_TRANSFER_WITH_CUSTOM_BASE_USD = 0.002;
 
     // Entity names
     private static final String PAYER = "payer";
@@ -72,14 +56,7 @@ public class CryptoTransferSimpleFeesSuite {
     private static final String FUNGIBLE_TOKEN_2 = "fungibleToken2";
     private static final String FUNGIBLE_TOKEN_WITH_FEES = "fungibleTokenWithFees";
     private static final String NFT_TOKEN = "nftToken";
-    private static final String NFT_TOKEN_2 = "nftToken2";
     private static final String NFT_TOKEN_WITH_FEES = "nftTokenWithFees";
-    private static final String HOOK_CONTRACT = "TruePreHook";
-
-    @BeforeAll
-    public static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
-    }
 
     // ==================== FEE TIER TESTS ====================
 
@@ -195,8 +172,8 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
                         .via("mixedFtNftTxn"),
-                // Single charge, NOT $0.002 (double)!
-                validateChargedUsd("mixedFtNftTxn", TOKEN_TRANSFER_FEE));
+                // Charge for base token transfer and extra token type!
+                validateChargedUsd("mixedFtNftTxn", TOKEN_TRANSFER_FEE + TOKEN_TYPES_EXTRA_FEE));
     }
 
     @HapiTest
@@ -230,8 +207,8 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(10 * ONE_HBAR)
                         .via("mixedCustomTxn"),
-                // Single custom fee tier charge
-                validateChargedUsd("mixedCustomTxn", TOKEN_TRANSFER_CUSTOM_FEE));
+                // Charge for token transfer with custom fee and extra token type
+                validateChargedUsd("mixedCustomTxn", TOKEN_TRANSFER_CUSTOM_FEE + TOKEN_TYPES_EXTRA_FEE));
     }
 
     // ==================== EXTRAS TESTS ====================
@@ -282,7 +259,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
                         .via("multiTokenTxn"),
-                validateChargedUsd("multiTokenTxn", TOKEN_TRANSFER_FEE + ADDITIONAL_TOKEN_FEE));
+                validateChargedUsd("multiTokenTxn", TOKEN_TRANSFER_FEE + TOKEN_TYPES_EXTRA_FEE));
     }
 
     @HapiTest
@@ -337,7 +314,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .fee(10 * ONE_HBAR)
                         .via("mixedStandardCustomTxn"),
                 // Custom fee tier + 1 extra token
-                validateChargedUsd("mixedStandardCustomTxn", TOKEN_TRANSFER_CUSTOM_FEE + ADDITIONAL_TOKEN_FEE));
+                validateChargedUsd("mixedStandardCustomTxn", TOKEN_TRANSFER_CUSTOM_FEE + TOKEN_TYPES_EXTRA_FEE));
     }
 
     // ==================== COMPLEX SCENARIO ====================
@@ -404,99 +381,9 @@ public class CryptoTransferSimpleFeesSuite {
                         .fee(10 * ONE_HBAR)
                         .via("complexTxn"),
                 // Custom fee tier (since custom fees present)
-                // + 2 extra fungible tokens (3 total - 1 included)
-                // + 2 extra NFT serials (3 total - 1 included)
-                validateChargedUsd(
-                        "complexTxn",
-                        TOKEN_TRANSFER_CUSTOM_FEE + 2 * ADDITIONAL_TOKEN_FEE + 2 * ADDITIONAL_NFT_SERIAL_FEE));
-    }
-
-    // ==================== HOOK TESTS ====================
-
-    @HapiTest
-    @DisplayName("HOOKS: HBAR transfer with single hook")
-    final Stream<DynamicTest> hbarTransferWithHook() {
-        return hapiTest(
-                uploadInitCode(HOOK_CONTRACT),
-                contractCreate(HOOK_CONTRACT).gas(5_000_000),
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS).withHook(accountAllowanceHook(1L, HOOK_CONTRACT)),
-                cryptoCreate(RECEIVER).balance(0L),
-                cryptoTransfer(movingHbar(ONE_HBAR).between(PAYER, RECEIVER))
-                        .withPreHookFor(PAYER, 1L, 5_000_000L, "")
-                        .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(50 * ONE_HBAR)
-                        .via("hbarWithHookTxn"),
-                sourcingContextual(spec -> {
-                    final long tinybarGasCost =
-                            5_000_000L * spec.ratesProvider().currentTinybarGasPrice();
-                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
-                    return validateChargedUsd("hbarWithHookTxn", HBAR_TRANSFER_FEE + HOOK_INVOCATION_USD + usdGasCost);
-                }));
-    }
-
-    @HapiTest
-    @DisplayName("HOOKS: Token transfer with single hook")
-    final Stream<DynamicTest> tokenTransferWithHook() {
-        return hapiTest(
-                uploadInitCode(HOOK_CONTRACT),
-                contractCreate(HOOK_CONTRACT).gas(5_000_000),
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS).withHook(accountAllowanceHook(1L, HOOK_CONTRACT)),
-                cryptoCreate(RECEIVER).balance(0L),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .initialSupply(1000L)
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                tokenAssociate(RECEIVER, FUNGIBLE_TOKEN),
-                cryptoTransfer(moving(100, FUNGIBLE_TOKEN).between(PAYER, RECEIVER))
-                        .withPreHookFor(PAYER, 1L, 5_000_000L, "")
-                        .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(50 * ONE_HBAR)
-                        .via("tokenWithHookTxn"),
-                sourcingContextual(spec -> {
-                    final long tinybarGasCost =
-                            5_000_000L * spec.ratesProvider().currentTinybarGasPrice();
-                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
-                    return validateChargedUsd(
-                            "tokenWithHookTxn", TOKEN_TRANSFER_FEE + HOOK_INVOCATION_USD + usdGasCost);
-                }));
-    }
-
-    @HapiTest
-    @DisplayName("HOOKS: NFT transfer with multiple hooks (sender + receiver)")
-    final Stream<DynamicTest> nftTransferWithMultipleHooks() {
-        return hapiTest(
-                uploadInitCode(HOOK_CONTRACT),
-                contractCreate(HOOK_CONTRACT).gas(5_000_000),
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS).withHook(accountAllowanceHook(1L, HOOK_CONTRACT)),
-                cryptoCreate(RECEIVER).balance(ONE_HUNDRED_HBARS).withHook(accountAllowanceHook(2L, HOOK_CONTRACT)),
-                tokenCreate(NFT_TOKEN)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0L)
-                        .supplyKey(PAYER)
-                        .treasury(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .payingWith(PAYER),
-                mintToken(NFT_TOKEN, List.of(metadata(1))),
-                tokenAssociate(RECEIVER, NFT_TOKEN),
-                cryptoTransfer(movingUnique(NFT_TOKEN, 1L).between(PAYER, RECEIVER))
-                        .withNftSenderPreHookFor(PAYER, 1L, 5_000_000L, "")
-                        .withNftReceiverPreHookFor(RECEIVER, 2L, 5_000_000L, "")
-                        .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(50 * ONE_HBAR)
-                        .via("nftWithHooksTxn"),
-                // 2 hooks (sender + receiver)
-                sourcingContextual(spec -> {
-                    final long tinybarGasCost =
-                            5_000_000L * 2 * spec.ratesProvider().currentTinybarGasPrice();
-                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
-                    return validateChargedUsd(
-                            "nftWithHooksTxn", NFT_TRANSFER_BASE_USD + 2 * HOOK_INVOCATION_USD + usdGasCost);
-                }));
+                // + 3 fungible tokens
+                // + 3 NFT serials (6 total - 1 included)
+                validateChargedUsd("complexTxn", TOKEN_TRANSFER_CUSTOM_FEE + 5 * TOKEN_TYPES_EXTRA_FEE));
     }
 
     private static ByteString metadata(final int idNumber) {

@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRS_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PREPROCESSING_VOTE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HISTORY_PROOF_VOTE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SERIALIZED_TX_MESSAGE_HASH_ALGORITHM;
@@ -51,6 +54,7 @@ import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.BufferUnderflowException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -75,8 +79,8 @@ public class TransactionChecker {
 
     private static final int USER_TRANSACTION_NONCE = 0;
     // These are inner transactions that are not jumbo but sometimes are bigger than 6kb.
-    private static final List<HederaFunctionality> NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB =
-            List.of(CRS_PUBLICATION, HISTORY_PROOF_VOTE);
+    private static final List<HederaFunctionality> NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB = List.of(
+            CRS_PUBLICATION, HISTORY_PROOF_VOTE, HINTS_PREPROCESSING_VOTE, CLPR_COMPLETE_CHANNEL, CLPR_SUBMIT_BUNDLE);
 
     // Metric config for keeping track of the number of deprecated transactions received
     private static final String COUNTER_DEPRECATED_TXNS_NAME = "DeprTxnsRcv";
@@ -89,12 +93,34 @@ public class TransactionChecker {
     private static final String NON_GOVERNANCE_OVERSIZED_TXNS_DESC =
             "number of oversized txns received from a non-governance payer";
 
+    // Metric config for tracking parse failures by cause type
+    private static final String COUNTER_PARSE_ERR_UNKNOWN_FIELD_NAME = "ParseErrUnknownFieldRcv";
+    private static final String COUNTER_PARSE_ERR_UNKNOWN_FIELD_DESC =
+            "number of txns rejected due to unknown protobuf fields (newer client on older network)";
+    private static final String COUNTER_PARSE_ERR_BUF_UNDERFLOW_NAME = "ParseErrBufUnderflowRcv";
+    private static final String COUNTER_PARSE_ERR_BUF_UNDERFLOW_DESC =
+            "number of txns rejected due to protobuf BufferUnderflowException (truncated bytes)";
+    private static final String COUNTER_PARSE_ERR_STRUCTURAL_NAME = "ParseErrStructuralRcv";
+    private static final String COUNTER_PARSE_ERR_STRUCTURAL_DESC =
+            "number of txns rejected due to structural protobuf violations (max depth or field size exceeded)";
+    private static final String COUNTER_PARSE_ERR_OTHER_NAME = "ParseErrOtherRcv";
+    private static final String COUNTER_PARSE_ERR_OTHER_DESC =
+            "number of txns rejected due to other unexpected protobuf parse failures";
+
     /** The {@link Counter} used to track the number of deprecated transactions (bodyBytes, sigMap) received. */
     private final Counter deprecatedCounter;
     /** The {@link Counter} used to track the number of super deprecated transactions (body, sigs) received. */
     private final Counter superDeprecatedCounter;
     /** The {@link Counter} used to track the number of oversized transactions from a non-governance payer. */
     private final Counter nonGovernanceOversizedTransactionsCounter;
+    /** The {@link Counter} used to track parse failures caused by {@link UnknownFieldException}. */
+    private final Counter parseErrUnknownFieldCounter;
+    /** The {@link Counter} used to track parse failures caused by {@link BufferUnderflowException}. */
+    private final Counter parseErrBufferUnderflowCounter;
+    /** The {@link Counter} used to track parse failures from direct structural violations (max depth, field size). */
+    private final Counter parseErrStructuralCounter;
+    /** The {@link Counter} used to track parse failures from other unexpected causes. */
+    private final Counter parseErrOtherCounter;
 
     private final ConfigProvider configProvider;
 
@@ -121,6 +147,17 @@ public class TransactionChecker {
         this.nonGovernanceOversizedTransactionsCounter =
                 metrics.getOrCreate(new Counter.Config("app", COUNTER_NON_GOVERNANCE_OVERSIZED_TXNS)
                         .withDescription(NON_GOVERNANCE_OVERSIZED_TXNS_DESC));
+        this.parseErrUnknownFieldCounter =
+                metrics.getOrCreate(new Counter.Config("app", COUNTER_PARSE_ERR_UNKNOWN_FIELD_NAME)
+                        .withDescription(COUNTER_PARSE_ERR_UNKNOWN_FIELD_DESC));
+        this.parseErrBufferUnderflowCounter =
+                metrics.getOrCreate(new Counter.Config("app", COUNTER_PARSE_ERR_BUF_UNDERFLOW_NAME)
+                        .withDescription(COUNTER_PARSE_ERR_BUF_UNDERFLOW_DESC));
+        this.parseErrStructuralCounter =
+                metrics.getOrCreate(new Counter.Config("app", COUNTER_PARSE_ERR_STRUCTURAL_NAME)
+                        .withDescription(COUNTER_PARSE_ERR_STRUCTURAL_DESC));
+        this.parseErrOtherCounter = metrics.getOrCreate(
+                new Counter.Config("app", COUNTER_PARSE_ERR_OTHER_NAME).withDescription(COUNTER_PARSE_ERR_OTHER_DESC));
     }
 
     /**
@@ -361,9 +398,10 @@ public class TransactionChecker {
      */
     private void checkTransactionBody(@NonNull final TransactionBody txBody, HederaFunctionality functionality)
             throws PreCheckException {
+        final var hederaConfig = hederaConfig();
         checkTransactionID(txBody.transactionIDOrThrow());
-        checkMemo(txBody.memo(), hederaConfig().transactionMaxMemoUtf8Bytes());
-        checkMaxCustomFees(txBody.maxCustomFees(), functionality);
+        checkMemo(txBody.memo(), hederaConfig.transactionMaxMemoUtf8Bytes());
+        checkMaxCustomFees(txBody.maxCustomFees(), functionality, hederaConfig.shard(), hederaConfig.realm());
 
         // You cannot have a negative transaction fee!! We're not paying you, buddy.
         if (txBody.transactionFee() < 0) {
@@ -489,7 +527,7 @@ public class TransactionChecker {
      * @return true if the account is a governance account
      */
     private boolean isGovernanceAccount(@NonNull final AccountID accountId) {
-        return governanceTransactionsConfig().accountsRange().contains(accountId.accountNumOrThrow());
+        return governanceTransactionsConfig().accountsRange().contains(accountId.accountNumOrElse(-1L));
     }
 
     public enum RequireMinValidLifetimeBuffer {
@@ -624,13 +662,23 @@ public class TransactionChecker {
         try {
             return codec.parse(data, true, false, DEFAULT_MAX_DEPTH, maxSize);
         } catch (ParseException e) {
+            recordParseErrorMetric(e);
             if (e.getCause() instanceof UnknownFieldException) {
                 // We do not allow newer clients to send transactions to older networks.
                 throw new PreCheckException(TRANSACTION_HAS_UNKNOWN_FIELDS);
             }
-            // Either the protobuf was malformed, or something else failed during parsing
-            logger.warn("ParseException while parsing protobuf", e);
+            logger.debug("ParseException while parsing protobuf: ", e);
             throw new PreCheckException(parseErrorCode);
+        }
+    }
+
+    private void recordParseErrorMetric(@NonNull final ParseException e) {
+        final var cause = e.getCause();
+        switch (cause) {
+            case UnknownFieldException _ -> parseErrUnknownFieldCounter.increment();
+            case BufferUnderflowException _ -> parseErrBufferUnderflowCounter.increment();
+            case null -> parseErrStructuralCounter.increment();
+            default -> parseErrOtherCounter.increment();
         }
     }
 
@@ -681,8 +729,7 @@ public class TransactionChecker {
                 final var curr = sortedList.get(i);
                 final var p1 = prev.pubKeyPrefix();
                 final var p2 = curr.pubKeyPrefix();
-                // NOTE: Length equality check is a workaround for a bug in Bytes in PBJ
-                if ((p1.length() == 0 && p2.length() == 0) || p2.matchesPrefix(p1)) {
+                if (p2.matchesPrefix(p1)) {
                     throw new PreCheckException(KEY_PREFIX_MISMATCH);
                 }
                 prev = curr;
@@ -708,9 +755,15 @@ public class TransactionChecker {
     }
 
     /**
-     * Sorts the list of signature pairs by the prefix of the public key. Sort them such that shorter prefixes come
-     * before longer prefixes, and if two prefixes are the same length then sort them lexicographically (lower bytes
-     * before higher bytes).
+     * Sorts the list of signature pairs lexicographically by the prefix of the public key, comparing bytes as
+     * unsigned values and treating a shorter prefix as coming before any prefix that extends it.
+     *
+     * <p>The sort order matters for correctness, not just tidiness. {@link #checkPrefixMismatch(List)} only compares
+     * <em>adjacent</em> entries, which is sufficient precisely because lexicographic order places a prefix
+     * immediately before the run of entries that extend it: if {@code P} is a prefix of {@code E}, then every entry
+     * sorting between them must also begin with {@code P}, so the collision cannot be straddled. Sorting by length
+     * first would break that property, because an unrelated prefix of an intermediate length can sort between
+     * {@code P} and {@code E} and hide the collision.
      *
      * @param sigPairs The list of signature pairs to sort. Cannot be null.
      * @return the sorted list of signature pairs
@@ -721,19 +774,18 @@ public class TransactionChecker {
         sortedList.sort((s1, s2) -> {
             final var p1 = s1.pubKeyPrefix();
             final var p2 = s2.pubKeyPrefix();
-            if (p1.length() != p2.length()) {
-                return (int) (p1.length() - p2.length());
-            }
+            final long commonLength = Math.min(p1.length(), p2.length());
 
-            for (int i = 0; i < p1.length(); i++) {
-                final var b1 = p1.getByte(i);
-                final var b2 = p2.getByte(i);
+            for (long i = 0; i < commonLength; i++) {
+                // Compare as unsigned, since a prefix is an opaque byte string rather than a sequence of numbers
+                final int b1 = p1.getByte(i) & 0xFF;
+                final int b2 = p2.getByte(i) & 0xFF;
                 if (b1 != b2) {
                     return b1 - b2;
                 }
             }
 
-            return 0;
+            return Long.compare(p1.length(), p2.length());
         });
         return sortedList;
     }

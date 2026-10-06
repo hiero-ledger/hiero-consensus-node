@@ -1,0 +1,240 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.reconnect.impl;
+
+import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
+import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
+import static org.hiero.consensus.reconnect.impl.ReconnectStateLearner.endReconnectHandshake;
+
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
+import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.virtualmap.sync.TeachingSynchronizer;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.net.SocketException;
+import java.time.Duration;
+import java.util.Objects;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.manager.ThreadManager;
+import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.gossip.impl.network.Connection;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.state.signed.SigSet;
+import org.hiero.consensus.state.signed.SignedState;
+
+/**
+ * This class encapsulates logic for transmitting the up-to-date state to a peer that has an out-of-date state.
+ */
+public class ReconnectStateTeacher {
+
+    /** use this for all logging, as controlled by the optional data/log4j2.xml file */
+    private static final Logger logger = LogManager.getLogger(ReconnectStateTeacher.class);
+
+    private final Connection connection;
+    private final Duration reconnectSocketTimeout;
+
+    private final SigSet signatures;
+    private final long signingWeight;
+    private final Roster roster;
+    private final Hash hash;
+
+    private final NodeId selfId;
+    private final NodeId otherId;
+    private final long lastRoundReceived;
+    private final TeachingSynchronizer synchronizer;
+
+    private final ReconnectMetrics statistics;
+
+    /**
+     * After reconnect is finished, restore the socket timeout to the original value.
+     */
+    private int originalSocketTimeout;
+
+    /**
+     * @param configuration the platform context
+     * @param threadManager responsible for managing thread lifecycles
+     * @param connection the connection to be used for the reconnect
+     * @param reconnectSocketTimeout the socket timeout to use during the reconnect
+     * @param selfId this node's ID
+     * @param otherId the learner's ID
+     * @param lastRoundReceived the round of the state
+     * @param signedState the state used for teaching; must be a signed VirtualMapStateImpl
+     * @param statistics reconnect metrics
+     */
+    public ReconnectStateTeacher(
+            @NonNull final Configuration configuration,
+            @NonNull final ThreadManager threadManager,
+            @NonNull final Connection connection,
+            @NonNull final Duration reconnectSocketTimeout,
+            @NonNull final NodeId selfId,
+            @NonNull final NodeId otherId,
+            final long lastRoundReceived,
+            @NonNull final SignedState signedState,
+            @NonNull final ReconnectMetrics statistics) {
+
+        Objects.requireNonNull(configuration);
+        Objects.requireNonNull(threadManager);
+
+        this.connection = Objects.requireNonNull(connection);
+        this.reconnectSocketTimeout = reconnectSocketTimeout;
+
+        this.selfId = Objects.requireNonNull(selfId);
+        this.otherId = Objects.requireNonNull(otherId);
+        this.lastRoundReceived = lastRoundReceived;
+        this.statistics = Objects.requireNonNull(statistics);
+
+        signatures = signedState.getSigSet();
+        signingWeight = signedState.getSigningWeight();
+        roster = signedState.getRoster();
+        final VirtualMapState virtualMapState = signedState.getState();
+        hash = virtualMapState.getHash();
+
+        synchronizer = new TeachingSynchronizer(virtualMapState.getRoot(), threadManager, configuration);
+
+        logReconnectStart(signedState);
+    }
+
+    /**
+     * increase socketTimout before performing reconnect
+     *
+     * @throws ReconnectStateException thrown when there is an error in the underlying protocol
+     */
+    private void increaseSocketTimeout() throws ReconnectStateException {
+        try {
+            originalSocketTimeout = connection.getTimeout();
+            connection.setTimeout(reconnectSocketTimeout.toMillis());
+        } catch (final SocketException e) {
+            throw new ReconnectStateException(e);
+        }
+    }
+
+    /**
+     * Reset socketTimeout to original value
+     *
+     * @throws ReconnectStateException thrown when there is an error in the underlying protocol
+     */
+    private void resetSocketTimeout() throws ReconnectStateException {
+        if (!connection.connected()) {
+            logger.debug(
+                    RECONNECT.getMarker(),
+                    "{} connection to {} is no longer connected. Returning.",
+                    connection.getSelfId(),
+                    connection.getOtherId());
+            return;
+        }
+
+        try {
+            connection.setTimeout(originalSocketTimeout);
+        } catch (final SocketException e) {
+            throw new ReconnectStateException(e);
+        }
+    }
+
+    /**
+     * Perform the reconnect operation.
+     *
+     * @throws ReconnectStateException thrown when current thread is interrupted, or when any I/O related errors occur, or
+     *                            when there is an error in the underlying protocol
+     */
+    public void execute() throws ReconnectStateException {
+        // If the connection object to be used here has been disconnected on another thread, we can
+        // not reconnect with this connection.
+        if (!connection.connected()) {
+            logger.debug(
+                    RECONNECT.getMarker(),
+                    "{} connection to {} is no longer connected. Returning.",
+                    connection.getSelfId(),
+                    connection.getOtherId());
+            return;
+        }
+        increaseSocketTimeout();
+
+        try {
+            sendSignatures();
+            reconnect();
+            endReconnectHandshake(connection);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new ReconnectStateException(e);
+        } catch (final IOException e) {
+            throw new ReconnectStateException(e);
+        } finally {
+            resetSocketTimeout();
+        }
+        logReconnectFinish();
+    }
+
+    private void logReconnectStart(final SignedState signedState) {
+        logger.info(
+                RECONNECT.getMarker(),
+                () -> new ReconnectStartPayload(
+                        "Starting reconnect in the role of the sender",
+                        false,
+                        selfId.id(),
+                        otherId.id(),
+                        lastRoundReceived));
+        logger.info(RECONNECT.getMarker(), """
+                        The following state will be sent to the learner:
+                        {}""", () -> getInfoString(signedState.getState()));
+    }
+
+    private void logReconnectFinish() {
+        logger.info(
+                RECONNECT.getMarker(),
+                () -> new ReconnectFinishPayload(
+                        "Finished reconnect in the role of the sender",
+                        false,
+                        selfId.id(),
+                        otherId.id(),
+                        lastRoundReceived));
+    }
+
+    /**
+     * Copy the signed state from this node to the other node.
+     *
+     * @throws InterruptedException thrown if the current thread is interrupted
+     */
+    private void reconnect() throws InterruptedException, IOException {
+        statistics.incrementSenderStartTimes();
+
+        connection.getDis().byteCounter().getAndReset();
+
+        synchronizer.synchronize(
+                new DataInputStream(connection.getDis()),
+                new DataOutputStream(connection.getDos()),
+                connection::disconnect);
+        connection.getDos().flush();
+
+        statistics.incrementSenderEndTimes();
+    }
+
+    /**
+     * Copy the signatures on the signed state from this node to the other node.
+     *
+     * @throws IOException thrown when any I/O related errors occur
+     */
+    private void sendSignatures() throws IOException {
+        final StringBuilder sb = new StringBuilder();
+        sb.append("Sending signatures from nodes ");
+        formattedList(sb, signatures.iterator());
+        sb.append(" (signing weight = ")
+                .append(signingWeight)
+                .append("/")
+                .append(RosterUtils.computeTotalWeight(roster))
+                .append(") for state hash ")
+                .append(hash);
+
+        logger.info(RECONNECT.getMarker(), sb);
+        final WritableStreamingData wsd = new WritableStreamingData(connection.getDos());
+        signatures.serialize(wsd);
+        connection.getDos().flush();
+    }
+}

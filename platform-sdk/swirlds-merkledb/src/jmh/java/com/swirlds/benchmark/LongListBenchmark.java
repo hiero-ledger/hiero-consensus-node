@@ -4,6 +4,7 @@ package com.swirlds.benchmark;
 import com.swirlds.merkledb.collections.LongList;
 import com.swirlds.merkledb.collections.LongListHeap;
 import com.swirlds.merkledb.collections.LongListOffHeap;
+import com.swirlds.merkledb.collections.LongListSegment;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryPoolMXBean;
 import java.lang.management.MemoryType;
@@ -37,7 +38,7 @@ public class LongListBenchmark {
     private LongList list;
     private int nextIndex = INITIAL_DATA_SIZE;
 
-    @Param({"LongListHeap", "LongListOffHeap"})
+    @Param({"LongListHeap", "LongListOffHeap", "LongListSegment"})
     public String listImpl;
 
     @Setup(Level.Trial)
@@ -45,7 +46,9 @@ public class LongListBenchmark {
         random = new Random(1234);
         list = switch (listImpl) {
             default -> new LongListHeap(1024 * 1024, INITIAL_DATA_SIZE, 256 * 1024);
-            case "LongListOffHeap" -> new LongListOffHeap(1024 * 1024, INITIAL_DATA_SIZE, 256 * 1024);};
+            case "LongListOffHeap" -> new LongListOffHeap(1024 * 1024, INITIAL_DATA_SIZE, 256 * 1024);
+            case "LongListSegment" -> new LongListSegment(1024 * 1024, INITIAL_DATA_SIZE, 256 * 1024);
+        };
         // fill with some data
         for (int i = 0; i < INITIAL_DATA_SIZE; i++) {
             list.put(i, i + 1);

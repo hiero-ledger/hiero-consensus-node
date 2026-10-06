@@ -5,17 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.consensus.TestIntake;
-import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
-import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterFactory;
-import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
-import com.swirlds.platform.test.fixtures.graph.OtherParentMatrixFactory;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -24,8 +19,16 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusOutput;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.TestIntake;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.EventEmitterFactory;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.emitter.StandardEventEmitter;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.OtherParentMatrixFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.Test;
@@ -40,8 +43,6 @@ import org.junit.jupiter.api.Test;
  */
 public class ConsensusEngineContractTest {
     private static final int NUMBER_OF_EVENTS_PER_TEST = 10_000;
-    private static final PlatformContext CONTEXT =
-            TestPlatformContextBuilder.create().build();
 
     /**
      * Tests that the consensus engine can restart from a snapshot and still fulfill its event contract.
@@ -54,13 +55,11 @@ public class ConsensusEngineContractTest {
 
         // setup
         final Randotron random = Randotron.create();
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withSize(random.nextInt(minNodes, maxNodes))
-                .build();
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, random.nextInt(minNodes, maxNodes));
         final List<PlatformEvent> generatedEvents = generateEvents(random, roster);
 
         // start from genesis, validate the output
-        final TestIntake genesisIntake = new TestIntake(CONTEXT, roster);
+        final TestIntake genesisIntake = new TestIntake(roster);
         addToIntake(generatedEvents, random, genesisIntake);
         validateOutputContract(genesisIntake.getOutput());
 
@@ -68,7 +67,7 @@ public class ConsensusEngineContractTest {
         final ConsensusSnapshot snapshot = getMiddleSnapshot(genesisIntake);
 
         // load the snapshot into a new intake and validate that the output is consistent
-        final TestIntake restartIntake = new TestIntake(CONTEXT, roster);
+        final TestIntake restartIntake = new TestIntake(roster);
         restartIntake.loadSnapshot(snapshot);
         addToIntake(generatedEvents, random, restartIntake);
 
@@ -92,22 +91,21 @@ public class ConsensusEngineContractTest {
 
         // setup
         final Randotron random = Randotron.create();
-        final Roster roster =
-                RandomRosterBuilder.create(random).withSize(numNodes).build();
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, numNodes);
         final List<PlatformEvent> generatedEvents = generateEvents(random, roster);
 
         // first part
-        final TestIntake genesisIntake = new TestIntake(CONTEXT, roster);
+        final TestIntake genesisIntake = new TestIntake(roster);
         addToIntake(generatedEvents, random, genesisIntake);
 
         validateOutputContract(genesisIntake.getOutput());
 
         // change roster
-        final Roster modifiedRoster = allWeightToOneNode(roster);
+        final RosterWrapper modifiedRoster = allWeightToOneNode(roster);
 
         // second part
         final ConsensusSnapshot snapshot = getMiddleSnapshot(genesisIntake);
-        final TestIntake restartIntake = new TestIntake(CONTEXT, modifiedRoster);
+        final TestIntake restartIntake = new TestIntake(modifiedRoster);
         restartIntake.loadSnapshot(snapshot);
         addToIntake(generatedEvents, random, restartIntake);
         validateOutputContract(restartIntake.getOutput());
@@ -122,20 +120,22 @@ public class ConsensusEngineContractTest {
         final int shunnedNodeIndex = 0; // the first node will be shunned
 
         // setup
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
         final Randotron random = Randotron.create();
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightGenerator(WeightGenerators.BALANCED)
-                .withSize(random.nextInt(minNodes, maxNodes))
-                .build();
-        final StandardEventEmitter eventEmitter = new EventEmitterFactory(CONTEXT, random, roster).newStandardEmitter();
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(
+                random, random.nextInt(minNodes, maxNodes), WeightGenerators.BALANCED);
+        final StandardEventEmitter eventEmitter =
+                new EventEmitterFactory(configuration, metrics, time, random, roster).newStandardEmitter();
         eventEmitter
                 .getGraphGenerator()
                 .setOtherParentAffinity(OtherParentMatrixFactory.createShunnedNodeOtherParentAffinityMatrix(
-                        roster.rosterEntries().size(), shunnedNodeIndex));
+                        roster.size(), shunnedNodeIndex));
         final List<PlatformEvent> generatedEvents = eventEmitter.emitEvents(NUMBER_OF_EVENTS_PER_TEST);
 
         // start from genesis, validate the output
-        final TestIntake genesisIntake = new TestIntake(CONTEXT, roster);
+        final TestIntake genesisIntake = new TestIntake(configuration, metrics, time, roster);
         addToIntake(generatedEvents, random, genesisIntake);
         validateOutputContract(genesisIntake.getOutput());
 
@@ -146,7 +146,7 @@ public class ConsensusEngineContractTest {
         final ConsensusSnapshot snapshot = getMiddleSnapshot(genesisIntake);
 
         // load the snapshot into a new intake and validate that the output is consistent
-        final TestIntake restartIntake = new TestIntake(CONTEXT, roster);
+        final TestIntake restartIntake = new TestIntake(configuration, metrics, time, roster);
         restartIntake.loadSnapshot(snapshot);
         addToIntake(generatedEvents, random, restartIntake);
 
@@ -165,23 +165,23 @@ public class ConsensusEngineContractTest {
      * @return a modified roster with all weight assigned to the first node
      */
     @NonNull
-    private static Roster allWeightToOneNode(@NonNull final Roster originalRoster) {
+    private static RosterWrapper allWeightToOneNode(@NonNull final RosterWrapper originalRoster) {
         final List<RosterEntry> modifiedEntries = new ArrayList<>();
         modifiedEntries.add(originalRoster
-                .rosterEntries()
-                .getFirst()
+                .rosterEntryAtIndex(0)
+                .toPbj()
                 .copyBuilder()
                 .weight(1)
                 .build());
-        for (int i = 1; i < originalRoster.rosterEntries().size(); i++) {
+        for (int i = 1; i < originalRoster.size(); i++) {
             modifiedEntries.add(originalRoster
-                    .rosterEntries()
-                    .get(i)
+                    .rosterEntryAtIndex(i)
+                    .toPbj()
                     .copyBuilder()
                     .weight(0)
                     .build());
         }
-        return originalRoster.copyBuilder().rosterEntries(modifiedEntries).build();
+        return RosterWrapperFactory.createRosterWrapper(modifiedEntries);
     }
 
     /**
@@ -205,8 +205,13 @@ public class ConsensusEngineContractTest {
      * @return a list of generated events
      */
     @NonNull
-    private static List<PlatformEvent> generateEvents(@NonNull final Random random, @NonNull final Roster roster) {
-        final StandardEventEmitter eventEmitter = new EventEmitterFactory(CONTEXT, random, roster).newStandardEmitter();
+    private static List<PlatformEvent> generateEvents(
+            @NonNull final Random random, @NonNull final RosterWrapper roster) {
+        final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
+        final StandardEventEmitter eventEmitter =
+                new EventEmitterFactory(configuration, metrics, time, random, roster).newStandardEmitter();
         return eventEmitter.emitEvents(NUMBER_OF_EVENTS_PER_TEST);
     }
 
@@ -250,7 +255,7 @@ public class ConsensusEngineContractTest {
                         """
                                 Event %s is an ancient pre-consensus event, but has not been returned as a consensus\s
                                 or stale event. Every ancient pre-consensus event added should have either reached\s
-                                consensus or become stale, but not both.""".formatted(preConsensusEvent.getDescriptor().shortString()));
+                                consensus or become stale, but not both.""".formatted(preConsensusEvent.getDescriptor()));
             }
         }
 

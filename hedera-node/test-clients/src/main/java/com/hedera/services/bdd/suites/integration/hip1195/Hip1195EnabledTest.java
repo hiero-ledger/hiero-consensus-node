@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.integration.hip1195;
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
-import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -150,8 +149,7 @@ public class Hip1195EnabledTest {
         testLifecycle.doAdhoc(STATIC_CALL_HOOK.getInfo());
         testLifecycle.doAdhoc(TOKEN_REDIRECT_HOOK.getInfo());
 
-        testLifecycle.doAdhoc(withOpContext(
-                (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))));
+        testLifecycle.doAdhoc(withOpContext((spec, opLog) -> GLOBAL_WATCHER.set(SidecarWatcher.forSpec(spec))));
     }
 
     @HapiTest
@@ -291,20 +289,20 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 15000000000000L, "")
                         .payingWith(PAYER)
+                        .fee(15000 * ONE_HBAR)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("payerTxnGasLimitExceeded"),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 15000000000000L, "")
+                        .fee(15000 * ONE_HBAR)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("defaultPayerMaxGasLimitExceededTxn"),
                 getTxnRecord("payerTxnGasLimitExceeded")
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED))
-                        .logged(),
+                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED)),
                 getTxnRecord("defaultPayerMaxGasLimitExceededTxn")
                         .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED))
-                        .logged());
+                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED)));
     }
 
     @HapiTest
@@ -1306,13 +1304,13 @@ public class Hip1195EnabledTest {
     /**
      * Verifies that when the requested gas limit exceeds numHookInvocations * maxGasPerSec,
      * the effective gas charged is capped at numHookInvocations * maxGasPerSec.
-     *
+     * <p>
      * The formula is: effectiveGasLimit = min(numHookInvocations * maxGasPerSec, totalGasLimitOfHooks)
-     *
+     * <p>
      * This test creates two transfers:
      * 1. One with gas limit below the cap (should charge the requested gas)
      * 2. One with gas limit above the cap (should charge numHookInvocations * maxGasPerSec)
-     *
+     * <p>
      * Both should have similar fees since the second one's gas is capped.
      */
     @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})

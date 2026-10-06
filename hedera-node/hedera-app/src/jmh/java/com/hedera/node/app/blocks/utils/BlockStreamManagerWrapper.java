@@ -11,6 +11,7 @@ import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.service.entityid.EntityIdService;
@@ -20,10 +21,10 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
-import com.swirlds.state.MerkleNodeState;
-import com.swirlds.state.MerkleProof;
-import com.swirlds.state.QueueState;
+import com.swirlds.state.binary.MerkleProof;
+import com.swirlds.state.binary.QueueState;
 import com.swirlds.state.lifecycle.StateMetadata;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableQueueState;
@@ -46,6 +47,7 @@ import java.util.function.Supplier;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
+import org.hiero.consensus.platformstate.V0540PlatformStateSchema;
 
 /**
  * Wrapper around BlockStreamManagerImpl that provides a simpler API for benchmarking.
@@ -102,8 +104,8 @@ public class BlockStreamManagerWrapper {
                 }
 
                 @Override
-                public void jumpToBlockAfterFreeze(long blockNumber) {
-                    original.jumpToBlockAfterFreeze(blockNumber);
+                public void flushIncompleteBlock() {
+                    original.flushIncompleteBlock();
                 }
             };
         };
@@ -124,9 +126,11 @@ public class BlockStreamManagerWrapper {
                 SemanticVersion.DEFAULT,
                 new NoOpDependencies.NoOpLifecycle(),
                 NoOpDependencies.createBenchmarkQuiescedHeartbeat(quiescenceController),
-                new NoOpDependencies.NoOpMetrics());
+                new NoOpDependencies.NoOpMetrics(),
+                null,
+                new BlockStreamingObs(configProvider));
 
-        manager.init(state, BlockStreamManager.ZERO_BLOCK_HASH);
+        manager.init(state, BlockStreamManager.HASH_OF_ZERO);
     }
 
     public void startBlock(long blockNumber, BlockItem header) {
@@ -205,19 +209,14 @@ public class BlockStreamManagerWrapper {
         }
     }
 
-    // Minimal MerkleNodeState implementation
-    private static class BenchmarkState implements MerkleNodeState<VirtualMap> {
+    // Minimal VirtualMapState implementation
+    private static class BenchmarkState implements VirtualMapState {
         private Hash hash;
         private final AtomicReference<BlockStreamInfo> blockStreamInfoRef;
         private long blockNumber = 0;
 
         BenchmarkState(AtomicReference<BlockStreamInfo> blockStreamInfoRef) {
             this.blockStreamInfoRef = blockStreamInfoRef;
-        }
-
-        @Override
-        public @NonNull MerkleNodeState copy() {
-            return this; // No-op for benchmark
         }
 
         @Override
@@ -245,7 +244,7 @@ public class BlockStreamManagerWrapper {
                     .build());
         }
 
-        // MerkleNodeState required methods - minimal stub implementations for benchmarking
+        // VirtualMapState required methods - minimal stub implementations for benchmarking
         @Override
         public void commitSingletons() {
             // No-op for benchmark
@@ -440,9 +439,7 @@ public class BlockStreamManagerWrapper {
 
                         @Override
                         public @NonNull Set<Integer> stateIds() {
-                            return Set.of(
-                                    com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema
-                                            .PLATFORM_STATE_STATE_ID);
+                            return Set.of(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID);
                         }
                     };
                 case EntityIdService.NAME ->
@@ -450,7 +447,7 @@ public class BlockStreamManagerWrapper {
                         @Override
                         @SuppressWarnings("deprecation")
                         public @NonNull <T> ReadableSingletonState<T> getSingleton(int stateId) {
-                            return new ReadableSingletonState<T>() {
+                            return new ReadableSingletonState<>() {
                                 @Override
                                 @SuppressWarnings("deprecation")
                                 public @NonNull T get() {
@@ -545,7 +542,11 @@ public class BlockStreamManagerWrapper {
     /** WritableStates implementation that also implements CommittableWritableStates */
     private static class CommittableBlockStreamWritableStates implements WritableStates, CommittableWritableStates {
         private final AtomicReference<BlockStreamInfo> blockStreamInfoRef;
+
+        @SuppressWarnings({"FieldCanBeLocal", "unused"})
         private Bytes lastStateReadHash = Bytes.EMPTY; // Prevent Dead Code Elimination of state read simulation
+
+        @SuppressWarnings({"FieldCanBeLocal", "unused"})
         private Bytes lastStateCommitHash = Bytes.EMPTY; // Prevent Dead Code Elimination of state commit simulation
 
         CommittableBlockStreamWritableStates(AtomicReference<BlockStreamInfo> blockStreamInfoRef) {
@@ -629,7 +630,7 @@ public class BlockStreamManagerWrapper {
 
         @Override
         public @NonNull <T> WritableSingletonState<T> getSingleton(int stateId) {
-            return new WritableSingletonState<T>() {
+            return new WritableSingletonState<>() {
                 @Override
                 public @NonNull T get() {
                     // SIMULATE state read cost (VirtualMap.get() path traversal)

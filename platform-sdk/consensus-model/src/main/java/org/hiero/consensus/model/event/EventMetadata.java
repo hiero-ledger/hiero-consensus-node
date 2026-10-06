@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.event;
 
-import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -99,7 +98,9 @@ public class EventMetadata extends AbstractHashable {
         this(
                 NodeId.of(Objects.requireNonNull(gossipEvent.eventCore(), "The eventCore must not be null")
                         .creatorNodeId()),
-                gossipEvent.parents().stream().map(EventDescriptorWrapper::new).toList(),
+                gossipEvent.parents().stream()
+                        .map(EventDescriptorWrapper::fromPbj)
+                        .toList(),
                 HapiUtils.asInstant(Objects.requireNonNull(
                         gossipEvent.eventCore().timeCreated(), "The timeCreated must not be null")),
                 gossipEvent.transactions(),
@@ -186,9 +187,7 @@ public class EventMetadata extends AbstractHashable {
             if (getHash() == null) {
                 throw new IllegalStateException("The hash of the event must be set before creating the descriptor");
             }
-
-            descriptor = new EventDescriptorWrapper(
-                    new EventDescriptor(getHash().getBytes(), creatorId.id(), getBirthRound()));
+            descriptor = new EventDescriptorWrapper(getHash(), creatorId, getBirthRound());
         }
 
         return descriptor;

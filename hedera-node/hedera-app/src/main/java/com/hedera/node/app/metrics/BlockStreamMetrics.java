@@ -3,6 +3,8 @@ package com.hedera.node.app.metrics;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.internal.PublishStreamRequestBytes;
+import com.hedera.node.app.blocks.impl.streaming.CloseReason;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.LongGauge;
@@ -28,6 +30,7 @@ public class BlockStreamMetrics {
     private static final String GROUP_CONN_SEND = "connSend";
     private static final String GROUP_CONN_RECV = "connRecv";
     private static final String GROUP_BUFFER = "buffer";
+    private static final String GROUP_RECORD_HASHES = "recordHashes";
 
     private final Metrics metrics;
 
@@ -44,8 +47,8 @@ public class BlockStreamMetrics {
     private RunningAverageMetric buffer_blockBytes;
     private RunningAverageMetric connSend_requestBytes;
     private RunningAverageMetric connSend_requestBlockItemCount;
-    private final Map<PublishStreamRequest.RequestOneOfType, Counter> connSend_counters =
-            new EnumMap<>(PublishStreamRequest.RequestOneOfType.class);
+    private final Map<PublishStreamRequestBytes.RequestOneOfType, Counter> connSend_counters =
+            new EnumMap<>(PublishStreamRequestBytes.RequestOneOfType.class);
     private final Map<PublishStreamRequest.EndStream.Code, Counter> connSend_endStreamCounters =
             new EnumMap<>(PublishStreamRequest.EndStream.Code.class);
 
@@ -75,6 +78,8 @@ public class BlockStreamMetrics {
     private RunningAverageMetric conn_blockEndSentToAckLatency;
     private RunningAverageMetric conn_blockClosedToAckLatency;
     private RunningAverageMetric conn_headerSentToBlockEndSentLatency;
+    private LongGauge conn_activeConnectionCount;
+    private final Map<CloseReason, Counter> conn_closeReasonCounters = new EnumMap<>(CloseReason.class);
 
     // buffer metrics
     private static final long BACK_PRESSURE_ACTIVE = 3;
@@ -91,6 +96,15 @@ public class BlockStreamMetrics {
     private Counter buffer_numBlocksMissingCounter;
     private LongGauge buffer_oldestBlockGauge;
     private LongGauge buffer_newestBlockGauge;
+    private LongGauge buffer_totBytesGauge;
+    private LongGauge buffer_numBlocksGauge;
+    private LongGauge buffer_numBlocksPendingAckGauge;
+
+    // wrapped record hashes (record stream) metrics
+    // (FUTURE) Remove after cutover
+    private LongGauge recordHashes_lowestBlockGauge;
+    private LongGauge recordHashes_highestBlockGauge;
+    private LongGauge recordHashes_hasGapsGauge;
 
     /**
      * Constructor of this class.
@@ -105,6 +119,7 @@ public class BlockStreamMetrics {
         registerConnectionRecvMetrics();
         registerConnectivityMetrics();
         registerBufferMetrics();
+        registerWrappedRecordHashesMetrics();
     }
 
     // Buffer metrics --------------------------------------------------------------------------------------------------
@@ -167,6 +182,71 @@ public class BlockStreamMetrics {
                 .withDescription("The average size in bytes of a Block in the buffer")
                 .withFormat("%,.2f");
         buffer_blockBytes = metrics.getOrCreate(blockBytesCfg);
+
+        final LongGauge.Config bufferTotBytes = newLongGauge(GROUP_BUFFER, "totalBytes")
+                .withDescription("The total size of the serialized data held by the block buffer (in bytes)");
+        buffer_totBytesGauge = metrics.getOrCreate(bufferTotBytes);
+
+        final LongGauge.Config numBlocksBuffered = newLongGauge(GROUP_BUFFER, "numBlocks")
+                .withDescription("The number of blocks currently held in the block buffer");
+        buffer_numBlocksGauge = metrics.getOrCreate(numBlocksBuffered);
+
+        final LongGauge.Config numBlocksPendingAck = newLongGauge(GROUP_BUFFER, "numBlocksPendingAck")
+                .withDescription("The number of blocks buffered that are pending acknowledgement");
+        buffer_numBlocksPendingAckGauge = metrics.getOrCreate(numBlocksPendingAck);
+    }
+
+    private void registerWrappedRecordHashesMetrics() {
+        final LongGauge.Config lowestCfg = newLongGauge(GROUP_RECORD_HASHES, "lowestBlock")
+                .withDescription("Lowest record block number present in wrapped record hashes file (-1 if empty)");
+        recordHashes_lowestBlockGauge = metrics.getOrCreate(lowestCfg);
+
+        final LongGauge.Config highestCfg = newLongGauge(GROUP_RECORD_HASHES, "highestBlock")
+                .withDescription("Highest record block number present in wrapped record hashes file (-1 if empty)");
+        recordHashes_highestBlockGauge = metrics.getOrCreate(highestCfg);
+
+        final LongGauge.Config hasGapsCfg = newLongGauge(GROUP_RECORD_HASHES, "hasGaps")
+                .withDescription("Whether there are gaps between lowest and highest (0=no gaps, 1=gaps)");
+        recordHashes_hasGapsGauge = metrics.getOrCreate(hasGapsCfg);
+    }
+
+    public void recordWrappedRecordHashesLowestBlock(final long blockNumber) {
+        recordHashes_lowestBlockGauge.set(blockNumber);
+    }
+
+    public void recordWrappedRecordHashesHighestBlock(final long blockNumber) {
+        recordHashes_highestBlockGauge.set(blockNumber);
+    }
+
+    public void recordWrappedRecordHashesHasGaps(final boolean hasGaps) {
+        recordHashes_hasGapsGauge.set(hasGaps ? 1 : 0);
+    }
+
+    /**
+     * Record the number of buffered blocks currently pending acknowledgements.
+     *
+     * @param numBlocks the number of blocks
+     */
+    public void recordBufferedBlocksPendingAck(final int numBlocks) {
+        buffer_numBlocksPendingAckGauge.set(numBlocks);
+    }
+
+    /**
+     * Record the number of blocks currently held by the block buffer.
+     *
+     * @param numBlocks the number of blocks
+     */
+    public void recordBufferedBlocks(final int numBlocks) {
+        buffer_numBlocksGauge.set(numBlocks);
+    }
+
+    /**
+     * Record the size of the block buffer (in bytes).
+     *
+     * @param bytes the total number of bytes consumed by the block buffer
+     */
+    public void recordBufferSizeInBytes(final long bytes) {
+        buffer_totBytesGauge.set(bytes);
     }
 
     /**
@@ -309,35 +389,35 @@ public class BlockStreamMetrics {
         final RunningAverageMetric.Config headerAckLatencyCfg = new RunningAverageMetric.Config(
                         CATEGORY, GROUP_CONN + "_headerSentToAckLatency")
                 .withDescription(
-                        "The average latency (ms) between streaming a BlockHeader and receiving its BlockAcknowledgement")
+                        "The average latency (µs) between streaming a BlockHeader and receiving its BlockAcknowledgement")
                 .withFormat("%,.2f");
         conn_headerSentToAckLatency = metrics.getOrCreate(headerAckLatencyCfg);
 
         final RunningAverageMetric.Config headerProducedAckLatencyCfg = new RunningAverageMetric.Config(
                         CATEGORY, GROUP_CONN + "_headerProducedToAckLatency")
                 .withDescription(
-                        "The average latency (ms) between producing a BlockHeader and receiving its BlockAcknowledgement")
+                        "The average latency (µs) between producing a BlockHeader and receiving its BlockAcknowledgement")
                 .withFormat("%,.2f");
         conn_headerProducedToAckLatency = metrics.getOrCreate(headerProducedAckLatencyCfg);
 
         final RunningAverageMetric.Config blockEndSentAckLatencyCfg = new RunningAverageMetric.Config(
                         CATEGORY, GROUP_CONN + "_blockEndSentToAckLatency")
                 .withDescription(
-                        "The average latency (ms) between streaming a BlockEnd and receiving its BlockAcknowledgement")
+                        "The average latency (µs) between streaming a BlockEnd and receiving its BlockAcknowledgement")
                 .withFormat("%,.2f");
         conn_blockEndSentToAckLatency = metrics.getOrCreate(blockEndSentAckLatencyCfg);
 
         final RunningAverageMetric.Config blockClosedAckLatencyCfg = new RunningAverageMetric.Config(
                         CATEGORY, GROUP_CONN + "_blockClosedToAckLatency")
                 .withDescription(
-                        "The average latency (ms) between the block being complete and receiving its BlockAcknowledgement")
+                        "The average latency (µs) between the block being complete and receiving its BlockAcknowledgement")
                 .withFormat("%,.2f");
         conn_blockClosedToAckLatency = metrics.getOrCreate(blockClosedAckLatencyCfg);
 
         final RunningAverageMetric.Config headerToBlockEndLatencyCfg = new RunningAverageMetric.Config(
                         CATEGORY, GROUP_CONN + "_headerSentToBlockEndSentLatency")
                 .withDescription(
-                        "The average latency (ms) between streaming a BlockHeader and streaming the corresponding BlockEnd")
+                        "The average latency (µs) between streaming a BlockHeader and streaming the corresponding BlockEnd")
                 .withFormat("%,.2f");
 
         conn_headerSentToBlockEndSentLatency = metrics.getOrCreate(headerToBlockEndLatencyCfg);
@@ -346,6 +426,27 @@ public class BlockStreamMetrics {
                 .withDescription(
                         "Number of times a pipeline onNext() or onComplete() operation timed out on a block node connection");
         conn_pipelineOperationTimeoutCounter = metrics.getOrCreate(pipelineTimeoutCfg);
+
+        final LongGauge.Config activeConnectionCountCfg = new LongGauge.Config(
+                        CATEGORY, GROUP_CONN + "_activeConnectionCount")
+                .withDescription("Current number of active streaming connections to block nodes");
+        conn_activeConnectionCount = metrics.getOrCreate(activeConnectionCountCfg);
+
+        for (final CloseReason closeReason : CloseReason.values()) {
+            final String metricName = "connClose_" + toCamelCase(closeReason.name());
+            final Counter.Config cfg = newCounter(GROUP_CONN, metricName)
+                    .withDescription("Number of connections closed with reason " + closeReason.name());
+            conn_closeReasonCounters.put(closeReason, metrics.getOrCreate(cfg));
+        }
+    }
+
+    /**
+     * Record the number of active connections that are streaming to block nodes.
+     *
+     * @param connectionCount the latest connection count
+     */
+    public void recordActiveConnectionCount(final long connectionCount) {
+        conn_activeConnectionCount.set(connectionCount);
     }
 
     /**
@@ -378,9 +479,13 @@ public class BlockStreamMetrics {
 
     /**
      * Record that a connection to a block node was closed.
+     *
+     * @param closeReason the reason why the connection was closed
      */
-    public void recordConnectionClosed() {
+    public void recordConnectionClosed(@NonNull final CloseReason closeReason) {
+        requireNonNull(closeReason, "Close reason is required");
         conn_closedCounter.increment();
+        conn_closeReasonCounters.get(closeReason).increment();
     }
 
     /**
@@ -408,42 +513,42 @@ public class BlockStreamMetrics {
 
     /**
      * Record the latency between sending a block header and receiving the corresponding acknowledgement.
-     * @param latencyMs the latency in milliseconds
+     * @param latencyMicros the latency in microseconds
      */
-    public void recordHeaderSentAckLatency(final long latencyMs) {
-        conn_headerSentToAckLatency.update(latencyMs);
+    public void recordHeaderSentAckLatency(final long latencyMicros) {
+        conn_headerSentToAckLatency.update(latencyMicros);
     }
 
     /**
      * Record the latency between producing a block header (added to block state) and receiving the acknowledgement.
-     * @param latencyMs the latency in milliseconds
+     * @param latencyMicros the latency in microseconds
      */
-    public void recordHeaderProducedToAckLatency(final long latencyMs) {
-        conn_headerProducedToAckLatency.update(latencyMs);
+    public void recordHeaderProducedToAckLatency(final long latencyMicros) {
+        conn_headerProducedToAckLatency.update(latencyMicros);
     }
 
     /**
      * Record the latency between sending a block header and sending the corresponding BlockEnd.
-     * @param latencyMs the latency in milliseconds
+     * @param latencyMicros the latency in microseconds
      */
-    public void recordHeaderSentToBlockEndSentLatency(final long latencyMs) {
-        conn_headerSentToBlockEndSentLatency.update(latencyMs);
+    public void recordHeaderSentToBlockEndSentLatency(final long latencyMicros) {
+        conn_headerSentToBlockEndSentLatency.update(latencyMicros);
     }
 
     /**
      * Record the latency between sending EndOfBlock and receiving the acknowledgement.
-     * @param latencyMs the latency in milliseconds
+     * @param latencyMicros the latency in microseconds
      */
-    public void recordBlockEndSentToAckLatency(final long latencyMs) {
-        conn_blockEndSentToAckLatency.update(latencyMs);
+    public void recordBlockEndSentToAckLatency(final long latencyMicros) {
+        conn_blockEndSentToAckLatency.update(latencyMicros);
     }
 
     /**
      * Record the latency between the BlockState closed timestamp and receiving the acknowledgement.
-     * @param latencyMs the latency in milliseconds
+     * @param latencyMicros the latency in microseconds
      */
-    public void recordBlockClosedToAckLatency(final long latencyMs) {
-        conn_blockClosedToAckLatency.update(latencyMs);
+    public void recordBlockClosedToAckLatency(final long latencyMicros) {
+        conn_blockClosedToAckLatency.update(latencyMicros);
     }
 
     /**
@@ -575,7 +680,8 @@ public class BlockStreamMetrics {
     // Connection SEND metrics -----------------------------------------------------------------------------------------
 
     private void registerConnectionSendMetrics() {
-        for (final PublishStreamRequest.RequestOneOfType reqType : PublishStreamRequest.RequestOneOfType.values()) {
+        for (final PublishStreamRequestBytes.RequestOneOfType reqType :
+                PublishStreamRequestBytes.RequestOneOfType.values()) {
             final String reqTypeName = toCamelCase(reqType.protoName());
             switch (reqType) {
                 case UNSET -> {
@@ -621,7 +727,8 @@ public class BlockStreamMetrics {
 
         final RunningAverageMetric.Config publishStreamRequestLatencyCfg = new RunningAverageMetric.Config(
                         CATEGORY, GROUP_CONN_SEND + "_requestSendLatency")
-                .withDescription("The average latency (ms) for a PublishStreamRequest to be sent to a block node")
+                .withDescription(
+                        "The average latency (microseconds) for a PublishStreamRequest to be sent to a block node")
                 .withFormat("%,.2f");
         this.connSend_publishStreamRequestLatency = metrics.getOrCreate(publishStreamRequestLatencyCfg);
 
@@ -650,7 +757,7 @@ public class BlockStreamMetrics {
      * Record that a request was sent to a block node.
      * @param requestType the type of request sent
      */
-    public void recordRequestSent(final PublishStreamRequest.RequestOneOfType requestType) {
+    public void recordRequestSent(final PublishStreamRequestBytes.RequestOneOfType requestType) {
         final Counter counter = connSend_counters.get(requestType);
         if (counter != null) {
             counter.increment();
@@ -680,10 +787,10 @@ public class BlockStreamMetrics {
 
     /**
      * Record the latency for a request to be sent to a block node.
-     * @param latencyMs the latency in milliseconds
+     * @param latencyMicros the latency in microseconds
      */
-    public void recordRequestLatency(final long latencyMs) {
-        connSend_publishStreamRequestLatency.update(latencyMs);
+    public void recordRequestLatency(final long latencyMicros) {
+        connSend_publishStreamRequestLatency.update(latencyMicros);
     }
 
     /**

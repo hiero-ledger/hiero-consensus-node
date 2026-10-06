@@ -3,7 +3,10 @@ package com.hedera.node.app.spi.workflows;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
+import com.hedera.node.app.spi.fees.FeeCharging;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 
 class HandleExceptionTest {
@@ -38,5 +41,15 @@ class HandleExceptionTest {
     @Test
     void falseIsOkFromOtherPerspective() {
         assertDoesNotThrow(() -> HandleException.validateFalse(false, MEMO_TOO_LONG));
+    }
+
+    @Test
+    void replaysWhenRollbackCallbackIsPresent() {
+        final var replayed = new AtomicBoolean(false);
+        final var ex = new HandleException(MEMO_TOO_LONG, (_, _) -> replayed.set(true));
+        final var handleContext = mock(HandleContext.class);
+        ex.maybeReplay(mock(FeeCharging.Context.class), handleContext);
+
+        assertTrue(replayed.get());
     }
 }

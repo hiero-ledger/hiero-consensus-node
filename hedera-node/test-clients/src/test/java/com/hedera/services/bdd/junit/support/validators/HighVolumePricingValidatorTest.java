@@ -74,6 +74,82 @@ class HighVolumePricingValidatorTest {
     }
 
     @Test
+    @DisplayName("Fails validation when max multiplier is below 1000")
+    void failsValidationWhenMaxMultiplierBelowMinimum(@TempDir Path tempDir) throws IOException {
+        String invalidMaxMultiplierJson = """
+            {
+              "services": [
+                {
+                  "name": "Crypto",
+                  "schedule": [
+                    {
+                      "name": "CryptoCreate",
+                      "baseFee": 499000000,
+                      "highVolumeRates": {
+                        "maxMultiplier": 999,
+                        "pricingCurve": {
+                          "piecewiseLinear": {
+                            "points": [
+                              { "utilizationBasisPoints": 2, "multiplier": 1000 }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+            """;
+
+        Path invalidFile = tempDir.resolve("invalid-max-multiplier.json");
+        Files.writeString(invalidFile, invalidMaxMultiplierJson);
+
+        HighVolumePricingValidator validator = new HighVolumePricingValidator(invalidFile);
+        assertThrows(
+                AssertionError.class, validator::validate, "Validation should fail when max multiplier is below 1000");
+    }
+
+    @Test
+    @DisplayName("Fails validation when a point multiplier is below 1000")
+    void failsValidationWhenPointMultiplierBelowMinimum(@TempDir Path tempDir) throws IOException {
+        String invalidPointMultiplierJson = """
+            {
+              "services": [
+                {
+                  "name": "Crypto",
+                  "schedule": [
+                    {
+                      "name": "CryptoCreate",
+                      "baseFee": 499000000,
+                      "highVolumeRates": {
+                        "maxMultiplier": 200000,
+                        "pricingCurve": {
+                          "piecewiseLinear": {
+                            "points": [
+                              { "utilizationBasisPoints": 2, "multiplier": 999 }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+            """;
+
+        Path invalidFile = tempDir.resolve("invalid-point-multiplier.json");
+        Files.writeString(invalidFile, invalidPointMultiplierJson);
+
+        HighVolumePricingValidator validator = new HighVolumePricingValidator(invalidFile);
+        assertThrows(
+                AssertionError.class,
+                validator::validate,
+                "Validation should fail when point multiplier is below 1000");
+    }
+
+    @Test
     @DisplayName("Fails validation when transaction type is missing")
     void failsValidationWhenTransactionTypeIsMissing(@TempDir Path tempDir) throws IOException {
         // Create a simpleFeesSchedules.json missing a required transaction type

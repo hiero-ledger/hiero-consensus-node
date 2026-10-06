@@ -73,4 +73,9 @@ class LegacyListRecordSourceTest {
                 List.of(),
                 subject.childReceiptsOf(TransactionID.newBuilder().nonce(3).build()));
     }
+
+    @Test
+    void returnsProvidedReceipts() {
+        assertEquals(RECEIPTS, subject.identifiedReceipts());
+    }
 }

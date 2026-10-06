@@ -182,8 +182,7 @@ public class SocketConnection implements Connection {
         }
 
         /* track the number of bytes written and read during a sync */
-        getDis().getSyncByteCounter().resetCount();
-        getDos().getSyncByteCounter().resetCount();
+        getDis().byteCounter().getAndReset();
         final SocketConfig socketConfig = configuration.getConfigData(SocketConfig.class);
         this.setTimeout(socketConfig.timeoutSyncClientSocket());
     }

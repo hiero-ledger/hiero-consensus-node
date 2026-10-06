@@ -3,6 +3,7 @@ package com.hedera.services.bdd.junit.hedera.utils;
 
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator.generateKeysAndCerts;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -10,7 +11,7 @@ import com.hedera.node.config.converter.SemanticVersionConverter;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.props.JutilPropertySource;
-import com.swirlds.platform.crypto.CryptoStatic;
+import com.swirlds.platform.crypto.EnhancedKeyStoreLoader;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -32,12 +33,14 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.node.NodeUtilities;
 
 public class WorkingDirUtils {
     private static final Path BASE_WORKING_LOC = Path.of("./build");
     private static final String DEFAULT_SCOPE = "hapi";
     private static final String KEYS_FOLDER = "keys";
     private static final String CONFIG_FOLDER = "config";
+    private static final String CLPR_FOLDER = "clpr";
     private static final String LOG4J2_XML = "log4j2.xml";
     private static final String PROJECT_BOOTSTRAP_ASSETS_LOC = "hedera-node/configuration/dev";
     private static final String TEST_CLIENTS_BOOTSTRAP_ASSETS_LOC = "../configuration/dev";
@@ -48,7 +51,7 @@ public class WorkingDirUtils {
         final var selfId = NodeId.of(1);
         final Map<NodeId, KeysAndCerts> sigAndCerts;
         try {
-            sigAndCerts = CryptoStatic.generateKeysAndCerts(List.of(selfId));
+            sigAndCerts = generateKeysAndCerts(List.of(selfId));
         } catch (ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException(e);
         }
@@ -73,7 +76,8 @@ public class WorkingDirUtils {
     public static final String CANDIDATE_ROSTER_JSON = "candidate-roster.json";
     public static final String APPLICATION_PROPERTIES = "application.properties";
 
-    private static final List<String> WORKING_DIR_DATA_FOLDERS = List.of(KEYS_FOLDER, CONFIG_FOLDER, UPGRADE_DIR);
+    private static final List<String> WORKING_DIR_DATA_FOLDERS =
+            List.of(KEYS_FOLDER, CONFIG_FOLDER, UPGRADE_DIR, CLPR_FOLDER);
 
     private static final String LOG4J2_DATE_FORMAT = "%d{yyyy-MM-dd HH:mm:ss.SSS}";
 
@@ -82,7 +86,19 @@ public class WorkingDirUtils {
     }
 
     /**
+     * System property key whose value, when set, is inserted as a subdirectory
+     * beneath the scope-level directory so that each Gradle subtask writes its
+     * logs into an isolated location (e.g. {@code build/hapi-test/hapiTestMisc/node0}).
+     */
+    public static final String SUBTASK_NAME_PROPERTY = "hapi.spec.subtask.name";
+
+    /**
      * Returns the path to the working directory for the given node ID.
+     *
+     * <p>When the {@value #SUBTASK_NAME_PROPERTY} system property is set, the
+     * subtask name is inserted as an intermediate directory between the scope
+     * and the node directory, giving every Gradle subtask its own isolated log
+     * directory.
      *
      * @param nodeId the ID of the node
      * @param scope if non-null, an additional scope to use for the working directory
@@ -90,10 +106,16 @@ public class WorkingDirUtils {
      */
     public static Path workingDirFor(final long nodeId, @Nullable String scope) {
         scope = scope == null ? DEFAULT_SCOPE : scope;
-        return BASE_WORKING_LOC
-                .resolve(scope + "-test")
-                .resolve("node" + nodeId)
-                .normalize();
+        Path base = BASE_WORKING_LOC.resolve(scope + "-test");
+        final String subtask = System.getProperty(SUBTASK_NAME_PROPERTY);
+        if (subtask != null && !subtask.isBlank()) {
+            // Guard against path traversal; subtask names must be simple directory names
+            if (subtask.contains("/") || subtask.contains("\\") || subtask.contains("..")) {
+                throw new IllegalArgumentException("Invalid subtask name: " + subtask);
+            }
+            base = base.resolve(subtask);
+        }
+        return base.resolve("node" + nodeId).normalize();
     }
 
     /**
@@ -103,11 +125,16 @@ public class WorkingDirUtils {
      * @param workingDir the path to the working directory
      * @param network genesis network
      * @param nodeId own nodeId
+     * @param networkName the name of the network owning this node
      */
     public static void recreateWorkingDir(
-            @NonNull final Path workingDir, @NonNull final Network network, final long nodeId) {
+            @NonNull final Path workingDir,
+            @NonNull final Network network,
+            final long nodeId,
+            @NonNull final String networkName) {
         requireNonNull(workingDir);
         requireNonNull(network);
+        requireNonNull(networkName);
 
         // Clean up any existing directory structure
         rm(workingDir);
@@ -124,7 +151,30 @@ public class WorkingDirUtils {
         // Copy the bootstrap assets into the working directory
         copyBootstrapAssets(bootstrapAssetsLoc(), workingDir);
         // Update the log4j2.xml file with the correct output directory
-        updateLog4j2XmlOutputDir(workingDir, nodeId);
+        updateLog4j2XmlOutputDir(workingDir, nodeId, networkName);
+    }
+
+    /**
+     * Writes the signing private key PEM file for the given node into the working directory's
+     * {@code data/keys/} folder, using the naming convention expected by
+     * {@code EnhancedKeyStoreLoader}: {@code s-private-node{nodeId+1}.pem}.
+     *
+     * @param workingDir the node's working directory
+     * @param nodeId the node ID
+     * @param kac the keys and certs for the node
+     */
+    public static void writeSigningKey(
+            @NonNull final Path workingDir, final long nodeId, @NonNull final KeysAndCerts kac) {
+        requireNonNull(workingDir);
+        requireNonNull(kac);
+        final String pemFileName = "s-private-" + NodeUtilities.formatNodeName(nodeId) + ".pem";
+        final Path pemPath = workingDir.resolve(DATA_DIR).resolve(KEYS_FOLDER).resolve(pemFileName);
+        try {
+            EnhancedKeyStoreLoader.writePemFile(
+                    true, pemPath, kac.sigKeyPair().getPrivate().getEncoded());
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**
@@ -189,7 +239,8 @@ public class WorkingDirUtils {
                 : Path.of(TEST_CLIENTS_BOOTSTRAP_ASSETS_LOC);
     }
 
-    private static void updateLog4j2XmlOutputDir(@NonNull final Path workingDir, long nodeId) {
+    private static void updateLog4j2XmlOutputDir(
+            @NonNull final Path workingDir, long nodeId, @NonNull final String networkName) {
         final var path = workingDir.resolve(LOG4J2_XML);
         final var log4j2Xml = readStringUnchecked(path);
         final var updatedLog4j2Xml = log4j2Xml
@@ -222,8 +273,8 @@ public class WorkingDirUtils {
                 .replace(
                         "output/",
                         workingDir.resolve(OUTPUT_DIR).toAbsolutePath().normalize() + "/")
-                // Differentiate between node outputs in combined logging
-                .replace(LOG4J2_DATE_FORMAT, LOG4J2_DATE_FORMAT + " &lt;" + "n" + nodeId + "&gt;");
+                // Differentiate between node outputs in combined logging (e.g. <ledgerA-n0>)
+                .replace(LOG4J2_DATE_FORMAT, LOG4J2_DATE_FORMAT + " &lt;" + networkName + "-n" + nodeId + "&gt;");
         writeStringUnchecked(path, updatedLog4j2Xml, StandardOpenOption.WRITE);
     }
 
@@ -328,6 +379,13 @@ public class WorkingDirUtils {
                             workingDir
                                     .resolve(DATA_DIR)
                                     .resolve(CONFIG_FOLDER)
+                                    .resolve(file.getFileName().toString()));
+                } else if (assetDir.resolve(KEYS_FOLDER).equals(file.getParent())) {
+                    copyUnchecked(
+                            file,
+                            workingDir
+                                    .resolve(DATA_DIR)
+                                    .resolve(CLPR_FOLDER)
                                     .resolve(file.getFileName().toString()));
                 } else {
                     copyUnchecked(file, workingDir.resolve(file.getFileName().toString()));

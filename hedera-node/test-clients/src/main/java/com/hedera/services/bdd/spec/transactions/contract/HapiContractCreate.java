@@ -411,13 +411,6 @@ public class HapiContractCreate extends HapiBaseContractCreate<HapiContractCreat
     }
 
     @Override
-    protected long feeFor(HapiSpec spec, Transaction txn, int numPayerSigs) throws Throwable {
-        return spec.fees()
-                .forActivityBasedOp(
-                        HederaFunctionality.ContractCreate, scFees::getContractCreateTxFeeMatrices, txn, numPayerSigs);
-    }
-
-    @Override
     protected MoreObjects.ToStringHelper toStringHelper() {
         MoreObjects.ToStringHelper helper = super.toStringHelper().add("contract", contract);
         bytecodeFile.ifPresent(f -> helper.add("bytecode", f));

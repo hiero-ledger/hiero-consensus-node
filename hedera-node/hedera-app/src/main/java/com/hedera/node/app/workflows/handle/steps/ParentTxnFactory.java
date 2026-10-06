@@ -12,9 +12,11 @@ import static com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory
 import static com.hedera.node.app.workflows.handle.dispatch.ChildDispatchFactory.getTxnInfoFrom;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.PRE_HANDLE_FAILURE;
 import static com.hedera.node.app.workflows.prehandle.PreHandleResult.Status.SO_FAR_SO_GOOD;
+import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.HIGH_VOLUME_PRICING_FUNCTIONS;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
@@ -71,6 +73,7 @@ import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.swirlds.config.api.Configuration;
@@ -160,6 +163,7 @@ public class ParentTxnFactory {
 
     /**
      * Returns whether a {@link PreHandleResult} should be categorized as a node or user transaction.
+     *
      * @param preHandleResult the pre-handle result
      * @return the transaction category
      */
@@ -289,7 +293,7 @@ public class ParentTxnFactory {
                 parentTxn.config().getConfigData(HederaConfig.class), preHandleResult.getVerificationResults());
         final var category = getTxnCategory(preHandleResult);
         final var baseBuilder = parentTxn.initBaseBuilder(exchangeRates);
-        return createDispatch(parentTxn, baseBuilder, keyVerifier, category);
+        return createDispatch(parentTxn, baseBuilder, keyVerifier, category, DispatchMetadata.EMPTY_METADATA);
     }
 
     /**
@@ -308,11 +312,33 @@ public class ParentTxnFactory {
             @NonNull final HandleContext.TransactionCategory category) {
         final var config = parentTxn.config();
         final var keyVerifier = getKeyVerifier(keyVerifierCallback, config, emptySet());
-        return createDispatch(parentTxn, baseBuilder, keyVerifier, category);
+        return createDispatch(parentTxn, baseBuilder, keyVerifier, category, DispatchMetadata.EMPTY_METADATA);
+    }
+
+    /**
+     * Creates a new {@link Dispatch} instance for a transaction in the given context with provided dispatch metadata.
+     *
+     * @param parentTxn
+     * @param baseBuilder
+     * @param keyVerifierCallback
+     * @param category
+     * @param dispatchMetadata
+     * @return the new dispatch instance
+     */
+    public Dispatch createDispatch(
+            @NonNull final ParentTxn parentTxn,
+            @NonNull final StreamBuilder baseBuilder,
+            @NonNull final Predicate<Key> keyVerifierCallback,
+            @NonNull final HandleContext.TransactionCategory category,
+            @NonNull final DispatchMetadata dispatchMetadata) {
+        final var config = parentTxn.config();
+        final var keyVerifier = getKeyVerifier(keyVerifierCallback, config, emptySet());
+        return createDispatch(parentTxn, baseBuilder, keyVerifier, category, dispatchMetadata);
     }
 
     /**
      * Creates the root dispatch for the given parent transaction.
+     *
      * @param parentTxn the parent transaction
      * @param baseBuilder the base stream builder
      * @param keyVerifier the key verifier to use for the dispatch
@@ -323,7 +349,8 @@ public class ParentTxnFactory {
             @NonNull final ParentTxn parentTxn,
             @NonNull final StreamBuilder baseBuilder,
             @NonNull final AppKeyVerifier keyVerifier,
-            @NonNull final HandleContext.TransactionCategory transactionCategory) {
+            @NonNull final HandleContext.TransactionCategory transactionCategory,
+            @NonNull final DispatchMetadata dispatchMetadata) {
         final var config = parentTxn.config();
         final var txnInfo = parentTxn.txnInfo();
         final var preHandleResult = parentTxn.preHandleResult();
@@ -350,7 +377,7 @@ public class ParentTxnFactory {
                 txnInfo,
                 config,
                 authorizer,
-                streamMode != RECORDS ? blockStreamManager : blockRecordManager,
+                streamMode == BLOCKS ? blockStreamManager : blockRecordManager,
                 priceCalculator,
                 feeManager,
                 appFeeCharging,
@@ -368,18 +395,25 @@ public class ParentTxnFactory {
                 dispatchProcessor,
                 throttleAdvisor,
                 feeAccumulator,
-                DispatchMetadata.EMPTY_METADATA,
+                dispatchMetadata,
                 transactionChecker,
                 preHandleResult.innerResults(),
                 preHandleWorkflow,
                 transactionCategory);
         final var fees = dispatcher.dispatchComputeFees(dispatchHandleContext);
-        if (streamMode != RECORDS) {
+        final boolean isHighVolumePriced =
+                txnInfo.txBody().highVolume() && HIGH_VOLUME_PRICING_FUNCTIONS.contains(txnInfo.functionality());
+        // High-volume pricing and congestion multipliers are mutually exclusive; only record the
+        // one that was actually applied to the fee so the block stream is not misleading.
+        if (streamMode != RECORDS && !isHighVolumePriced) {
             final var congestionMultiplier = feeManager.congestionMultiplierFor(
                     txnInfo.txBody(), txnInfo.functionality(), storeFactory.asReadOnly());
             if (congestionMultiplier > 1) {
                 baseBuilder.congestionMultiplier(congestionMultiplier);
             }
+        }
+        if (isHighVolumePriced) {
+            baseBuilder.highVolumePricingMultiplier(fees.highVolumeMultiplier());
         }
         return new RecordDispatch(
                 baseBuilder,
@@ -409,6 +443,7 @@ public class ParentTxnFactory {
      * Creates a new root savepoint stack for the given state and transaction type, where genesis and
      * post-upgrade transactions have the maximum number of preceding records; and other transaction
      * types only support the number of preceding records specified in the network configuration.
+     *
      * @param state the state the stack is based on
      * @return the new root savepoint stack
      */
@@ -416,24 +451,27 @@ public class ParentTxnFactory {
         final var config = configProvider.getConfiguration();
         final var consensusConfig = config.getConfigData(ConsensusConfig.class);
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+        final var contractsConfig = config.getConfigData(ContractsConfig.class);
         return SavepointStackImpl.newRootStack(
                 state,
                 consensusConfig.handleMaxPrecedingRecords(),
                 consensusConfig.handleMaxFollowingRecords(),
                 boundaryStateChangeListener,
                 immediateStateChangeListener,
-                blockStreamConfig.streamMode());
+                blockStreamConfig.streamMode(),
+                contractsConfig.maxSerializedTraceDataBytes(),
+                blockStreamManager::isSavepointOutputSuppressed);
     }
 
     /**
      * Creates the {@link PreHandleResult} for a system transaction, which never has additional cryptographic
      * signatures that need to be verified; hence the pre-handle process is much simpler.
      *
-     * @param body                 the system transaction body
-     * @param payerId              the payer of the transaction
-     * @param config               the current configuration
+     * @param body the system transaction body
+     * @param payerId the payer of the transaction
+     * @param config the current configuration
      * @param readableStoreFactory the readable store factory
-     * @param type               the type of the transaction
+     * @param type the type of the transaction
      * @return the pre-handle result
      */
     private PreHandleResult preHandleSystemTransaction(
@@ -443,20 +481,12 @@ public class ParentTxnFactory {
             @NonNull final ReadableStoreFactory readableStoreFactory,
             @NonNull final NodeInfo creatorInfo,
             @NonNull final TransactionType type) {
+
+        final var txInfo = getTxnInfoFrom(payerId, body);
         // Internal transactions are synthetic and do not require pre-handle checks.
         if (type == INTERNAL_TRANSACTION) {
             return new PreHandleResult(
-                    payerId,
-                    null,
-                    SO_FAR_SO_GOOD,
-                    OK,
-                    getTxnInfoFrom(payerId, body),
-                    Set.of(),
-                    Set.of(),
-                    Set.of(),
-                    Map.of(),
-                    null,
-                    0);
+                    payerId, null, SO_FAR_SO_GOOD, OK, txInfo, Set.of(), Set.of(), Set.of(), Map.of(), null, 0);
         }
         try {
             final var pureChecksContext = new PureChecksContextImpl(body, dispatcher);
@@ -464,7 +494,6 @@ public class ParentTxnFactory {
             final var preHandleContext = new PreHandleContextImpl(
                     readableStoreFactory, body, payerId, config, dispatcher, transactionChecker, creatorInfo);
             dispatcher.dispatchPreHandle(preHandleContext);
-            final var txInfo = getTxnInfoFrom(payerId, body);
             return new PreHandleResult(
                     null,
                     null,
@@ -483,7 +512,7 @@ public class ParentTxnFactory {
                     null,
                     PRE_HANDLE_FAILURE,
                     e.responseCode(),
-                    null,
+                    txInfo,
                     emptySet(),
                     null,
                     emptySet(),

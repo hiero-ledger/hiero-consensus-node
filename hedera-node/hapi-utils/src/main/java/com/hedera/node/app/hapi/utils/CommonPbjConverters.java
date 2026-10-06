@@ -20,6 +20,7 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ResponseType;
+import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.Timestamp;
@@ -153,10 +154,12 @@ public class CommonPbjConverters {
      *
      * @param responseType the PBJ {@link ResponseType} to convert
      * @return the converted {@link com.hederahashgraph.api.proto.java.ResponseType} if valid
+     * @throws IllegalArgumentException if UNRECOGNIZED
      */
     public static @NonNull com.hederahashgraph.api.proto.java.ResponseType fromPbjResponseType(
             @NonNull final ResponseType responseType) {
         return switch (requireNonNull(responseType)) {
+            case UNRECOGNIZED -> throw new IllegalArgumentException("Unrecognized responseType");
             case ANSWER_ONLY -> com.hederahashgraph.api.proto.java.ResponseType.ANSWER_ONLY;
             case ANSWER_STATE_PROOF -> com.hederahashgraph.api.proto.java.ResponseType.ANSWER_STATE_PROOF;
             case COST_ANSWER -> com.hederahashgraph.api.proto.java.ResponseType.COST_ANSWER;
@@ -241,6 +244,15 @@ public class CommonPbjConverters {
                 .build();
     }
 
+    public static @NonNull ScheduleID toPbj(@NonNull com.hederahashgraph.api.proto.java.ScheduleID tokenID) {
+        requireNonNull(tokenID);
+        return ScheduleID.newBuilder()
+                .shardNum(tokenID.getShardNum())
+                .realmNum(tokenID.getRealmNum())
+                .scheduleNum(tokenID.getScheduleNum())
+                .build();
+    }
+
     public static @NonNull AccountID toPbj(@NonNull com.hederahashgraph.api.proto.java.AccountID accountID) {
         requireNonNull(accountID);
         final var builder =
@@ -270,7 +282,7 @@ public class CommonPbjConverters {
             final var bytes = requireNonNull(proto).toByteArray();
             final var codecField = requireNonNull(pbjClass).getDeclaredField("PROTOBUF");
             final var codec = (Codec<R>) codecField.get(null);
-            return codec.parse(BufferedData.wrap(bytes));
+            return codec.parseStrict(BufferedData.wrap(bytes));
         } catch (NoSuchFieldException | IllegalAccessException | ParseException e) {
             // Should be impossible, so just propagate an exception
             throw new RuntimeException("Invalid conversion to PBJ for " + pbjClass.getSimpleName(), e);
@@ -405,7 +417,7 @@ public class CommonPbjConverters {
         requireNonNull(keyValue);
         try {
             final var bytes = keyValue.toByteArray();
-            return Key.PROTOBUF.parse(BufferedData.wrap(bytes));
+            return Key.PROTOBUF.parseStrict(BufferedData.wrap(bytes));
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }
@@ -430,8 +442,9 @@ public class CommonPbjConverters {
         requireNonNull(txBody);
         try {
             final var bytes = txBody.toByteArray();
+            // Reject unknown fields while retaining the custom record-size limit.
             return TransactionBody.PROTOBUF.parse(
-                    BufferedData.wrap(bytes), false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
+                    BufferedData.wrap(bytes), true, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
+import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_KEYS;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -30,21 +31,26 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfigNow;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.ADMIN_KEY;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_UPDATE_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ADMIN_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -53,7 +59,9 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ZERO_B
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
+import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyLabels;
@@ -157,7 +165,6 @@ public class CryptoUpdateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> updateStakingFieldsWorks() {
         final var stakedAccountId = 20;
         return hapiTest(
@@ -191,11 +198,12 @@ public class CryptoUpdateSuite {
                 getAccountInfo("user").has(accountWith().stakedNodeId(1L).isDeclinedReward(true)));
     }
 
-    @LeakyHapiTest(overrides = {"entities.maxLifetime", "ledger.maxAutoAssociations"})
-    @Tag(MATS)
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"entities.maxLifetime", "ledger.maxAutoAssociations"})
     final Stream<DynamicTest> usdFeeAsExpectedCryptoUpdate() {
-        double baseFee = 0.000214;
-        double baseFeeWithExpiry = 0.00022;
+        double baseFee = 0.000214952;
+        double baseFeeWithExpiry = 0.000221485;
 
         final var baseTxn = "baseTxn";
         final var plusOneTxn = "plusOneTxn";
@@ -204,7 +212,6 @@ public class CryptoUpdateSuite {
         final var plusFiveKAndOneTxn = "plusFiveKAndOneTxn";
         final var invalidNegativeTxn = "invalidNegativeTxn";
         final var validNegativeTxn = "validNegativeTxn";
-        final var allowedPercentDiff = 1.5;
 
         AtomicLong expiration = new AtomicLong();
         return hapiTest(
@@ -273,14 +280,12 @@ public class CryptoUpdateSuite {
                         .blankMemo()
                         .maxAutomaticAssociations(-1)
                         .via(validNegativeTxn),
-                getAccountInfo("autoAssocTarget")
-                        .hasMaxAutomaticAssociations(-1)
-                        .logged(),
-                validateChargedUsd(baseTxn, baseFeeWithExpiry, allowedPercentDiff),
-                validateChargedUsd(plusOneTxn, baseFee, allowedPercentDiff),
-                validateChargedUsd(plusTenTxn, baseFee, allowedPercentDiff),
-                validateChargedUsd(plusFiveKTxn, baseFee, allowedPercentDiff),
-                validateChargedUsd(validNegativeTxn, baseFee, allowedPercentDiff));
+                getAccountInfo("autoAssocTarget").hasMaxAutomaticAssociations(-1),
+                validateChargedUsdWithin(baseTxn, CRYPTO_UPDATE_FEE, 0.1),
+                validateChargedUsdWithin(plusOneTxn, CRYPTO_UPDATE_FEE, 0.1),
+                validateChargedUsdWithin(plusTenTxn, CRYPTO_UPDATE_FEE, 0.1),
+                validateChargedUsdWithin(plusFiveKTxn, CRYPTO_UPDATE_FEE, 0.1),
+                validateChargedUsdWithin(validNegativeTxn, CRYPTO_UPDATE_FEE, 0.1));
     }
 
     @HapiTest
@@ -313,7 +318,7 @@ public class CryptoUpdateSuite {
                         .key(secondKey)
                         .signedBy(firstKey)
                         .payingWith(GENESIS)
-                        .hasPrecheck(INVALID_SIGNATURE));
+                        .hasKnownStatus(INVALID_SIGNATURE));
     }
 
     @HapiTest
@@ -322,7 +327,7 @@ public class CryptoUpdateSuite {
         String secondMemo = "Second";
         return hapiTest(
                 cryptoCreate(TARGET_ACCOUNT).balance(0L).entityMemo(firstMemo),
-                cryptoUpdate(TARGET_ACCOUNT).entityMemo(ZERO_BYTE_MEMO).hasPrecheck(INVALID_ZERO_BYTE_IN_STRING),
+                cryptoUpdate(TARGET_ACCOUNT).entityMemo(ZERO_BYTE_MEMO).hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING),
                 cryptoUpdate(TARGET_ACCOUNT).entityMemo(secondMemo),
                 getAccountDetails(TARGET_ACCOUNT)
                         .payingWith(GENESIS)
@@ -358,7 +363,6 @@ public class CryptoUpdateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> updateWithOverlappingSigs() {
         return hapiTest(
                 newKeyNamed(TARGET_KEY).shape(twoLevelThresh).labels(overlappingKeys),
@@ -370,7 +374,6 @@ public class CryptoUpdateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> updateFailsWithContractKey() {
         final var id = new AtomicReference<ContractID>();
         final var CONTRACT = "Multipurpose";
@@ -425,7 +428,40 @@ public class CryptoUpdateSuite {
                 newKeyNamed(ORIG_KEY).shape(KeyShape.SIMPLE),
                 newKeyNamed(UPD_KEY).shape(updKeySigs),
                 cryptoCreate(TEST_ACCOUNT).key(ORIG_KEY),
-                cryptoUpdate(TEST_ACCOUNT).key(UPD_KEY).hasPrecheck(INVALID_ADMIN_KEY));
+                cryptoUpdate(TEST_ACCOUNT).key(UPD_KEY).hasKnownStatus(INVALID_ADMIN_KEY));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> updateToEmptyKeyListFailsForRegularAccount() {
+        return hapiTest(
+                newKeyNamed(ORIG_KEY),
+                cryptoCreate(TEST_ACCOUNT).key(ORIG_KEY).balance(ONE_HUNDRED_HBARS),
+                cryptoUpdate(TEST_ACCOUNT)
+                        .protoKey(EMPTY_KEY)
+                        .payingWith(TEST_ACCOUNT)
+                        .signedBy(TEST_ACCOUNT)
+                        .hasKnownStatus(INVALID_ADMIN_KEY),
+                getAccountInfo(TEST_ACCOUNT).has(accountWith().key(ORIG_KEY)));
+    }
+
+    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_KEYS)
+    final Stream<DynamicTest> systemAdminCanSetSystemAccountKeyToEmptyKeyList() {
+        final var systemAccount = "96";
+        final var originalKey = new AtomicReference<Key>();
+        return hapiTest(
+                getAccountInfo(systemAccount).exposingKeyTo(originalKey::set),
+                cryptoUpdate(systemAccount)
+                        .protoKey(EMPTY_KEY)
+                        .payingWith(SYSTEM_ADMIN)
+                        .signedBy(SYSTEM_ADMIN)
+                        .hasKnownStatus(SUCCESS),
+                getAccountInfo(systemAccount).has(accountWith().hasEmptyKey()),
+                // Restore the original key
+                sourcing(() -> cryptoUpdate(systemAccount)
+                        .protoKey(originalKey.get())
+                        .payingWith(SYSTEM_ADMIN)
+                        .signedBy(SYSTEM_ADMIN)),
+                sourcing(() -> getAccountInfo(systemAccount).has(accountWith().key(originalKey.get()))));
     }
 
     @HapiTest
@@ -503,5 +539,31 @@ public class CryptoUpdateSuite {
         return hapiTest(
                 cryptoCreate(account).declinedReward(false),
                 cryptoUpdate(account).payingWith(DEFAULT_PAYER).expiring(-1).hasKnownStatus(INVALID_EXPIRATION_TIME));
+    }
+
+    @LeakyHapiTest(overrides = {"contracts.codeDelegations.enabled"})
+    final Stream<DynamicTest> updateAccountWithDelegationAddress() {
+        final var accountTotest = "accountToTest";
+        final var longZeroAddress = ByteString.fromHex("0000000000000000000000000000000fffffffff");
+        final var zeroAddress = ByteString.fromHex("0000000000000000000000000000000000000000");
+        final var emptyAddress = ByteString.empty();
+        final var badAddress = ByteString.fromHex("0fffffffff");
+        return hapiTest(
+                overriding("contracts.codeDelegations.enabled", "true"),
+                cryptoCreate(accountTotest).balance(ONE_HUNDRED_HBARS),
+                // Delegation is initially empty
+                getAccountInfo(accountTotest).has(accountWith().delegationAddress(emptyAddress)),
+                // Submitting a regular address (here long-zero) works as expected
+                cryptoUpdate(accountTotest).delegationAddress(longZeroAddress),
+                getAccountInfo(accountTotest).has(accountWith().delegationAddress(longZeroAddress)),
+
+                // Submitting empty delegationAddress is a no-op
+                cryptoUpdate(accountTotest).delegationAddress(emptyAddress),
+                getAccountInfo(accountTotest).has(accountWith().delegationAddress(longZeroAddress)),
+
+                // Submitting 0x00..00 clears the delegation (sets to empty)
+                cryptoUpdate(accountTotest).delegationAddress(zeroAddress),
+                getAccountInfo(accountTotest).has(accountWith().delegationAddress(emptyAddress)),
+                cryptoUpdate(accountTotest).delegationAddress(badAddress).hasPrecheck(INVALID_CONTRACT_ID));
     }
 }

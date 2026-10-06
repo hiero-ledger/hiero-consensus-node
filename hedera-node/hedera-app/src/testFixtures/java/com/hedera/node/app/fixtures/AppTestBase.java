@@ -8,6 +8,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
@@ -52,7 +54,7 @@ import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Service;
-import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateImpl;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
@@ -63,6 +65,7 @@ import com.swirlds.state.test.fixtures.TestBase;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -71,14 +74,18 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.metrics.SpeedometerMetric;
 import org.hiero.consensus.metrics.config.MetricsConfig;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Most of the components in this module have rich and interesting dependencies. While we can (and at times must) mock
@@ -114,7 +121,18 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
     protected MapWritableKVState<EntityNumber, Node> nodesState;
     protected WritableSingletonState<EntityCounts> entityCountsState;
     protected WritableSingletonState<EntityNumber> entityIdState;
+    protected WritableSingletonState<NodeId> highestNodeIdState;
     protected State state;
+
+    @TempDir
+    Path appTestBaseTempDir;
+
+    protected FileSystemManager fileSystemManager;
+
+    @BeforeEach
+    void setupAppTestBaseFileSystemManager() {
+        fileSystemManager = new TestFileSystemManager(appTestBaseTempDir);
+    }
 
     protected void setupStandardStates() {
         accountsState = new MapWritableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL);
@@ -130,6 +148,8 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                 new FunctionWritableSingletonState<>(ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> null, (a) -> {});
         entityCountsState = new FunctionWritableSingletonState<>(
                 ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, (a) -> {});
+        highestNodeIdState = new FunctionWritableSingletonState<>(
+                HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> null, (a) -> {});
         nodesState = new MapWritableKVState<>(NODES_STATE_ID, NODES_STATE_LABEL);
         nodesState.put(
                 EntityNumber.newBuilder().number(nodeSelfId.id()).build(),
@@ -142,12 +162,13 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                 .state(aliasesState)
                 .state(entityIdState)
                 .state(entityCountsState)
+                .state(highestNodeIdState)
                 .state(nodesState)
                 .build();
 
-        final var virtualMap = VirtualMapUtils.createVirtualMap();
+        final var virtualMap = VirtualMapUtils.createVirtualMap(fileSystemManager);
 
-        state = new VirtualMapState(virtualMap, new NoOpMetrics()) {
+        state = new VirtualMapStateImpl(virtualMap, new NoOpMetrics()) {
             @NonNull
             @Override
             public ReadableStates getReadableStates(@NonNull String serviceName) {

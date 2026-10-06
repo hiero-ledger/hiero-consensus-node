@@ -9,6 +9,7 @@ import static com.hedera.node.app.state.logging.TransactionStateLogger.logEndTra
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.hapi.fees.HighVolumePricingCalculator.DEFAULT_HIGH_VOLUME_MULTIPLIER;
 
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
@@ -47,6 +48,7 @@ import com.hedera.hapi.streams.ContractStateChanges;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
+import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreateStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusCreateTopicStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusSubmitMessageStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
@@ -94,6 +96,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import org.hiero.base.crypto.DigestType;
 
@@ -138,6 +141,7 @@ public class RecordStreamBuilder
                 TokenAccountWipeStreamBuilder,
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
+                RegisteredNodeCreateStreamBuilder,
                 TokenAirdropStreamBuilder,
                 ReplayableFeeStreamBuilder,
                 HookDispatchStreamBuilder {
@@ -179,6 +183,8 @@ public class RecordStreamBuilder
 
     private List<AbstractMap.SimpleEntry<ContractActions, Boolean>> contractActions = new LinkedList<>();
     private List<AbstractMap.SimpleEntry<ContractBytecode, Boolean>> contractBytecodes = new LinkedList<>();
+    private final TraceDataSizeLimiter traceDataSizeLimiter;
+    private long estimatedContractBytecodeSize;
 
     // Fields that are not in TransactionRecord, but are needed for computing staking rewards
     // These are not persisted to the record file
@@ -228,14 +234,33 @@ public class RecordStreamBuilder
      */
     private Long nextHookId;
 
+    private long highVolumePricingMultiplier;
+
     public RecordStreamBuilder(
             @NonNull final ReversingBehavior reversingBehavior,
             @NonNull final SignedTxCustomizer customizer,
             @NonNull final TransactionCategory category) {
+        this(reversingBehavior, customizer, category, TraceDataSizeLimiter.NO_LIMIT);
+    }
+
+    public RecordStreamBuilder(
+            @NonNull final ReversingBehavior reversingBehavior,
+            @NonNull final SignedTxCustomizer customizer,
+            @NonNull final TransactionCategory category,
+            final int maxSerializedTraceDataBytes) {
+        this(reversingBehavior, customizer, category, new TraceDataSizeLimiter(maxSerializedTraceDataBytes));
+    }
+
+    public RecordStreamBuilder(
+            @NonNull final ReversingBehavior reversingBehavior,
+            @NonNull final SignedTxCustomizer customizer,
+            @NonNull final TransactionCategory category,
+            @NonNull final TraceDataSizeLimiter traceDataSizeLimiter) {
         this.consensusNow = Instant.EPOCH;
         this.reversingBehavior = requireNonNull(reversingBehavior, "reversingBehavior must not be null");
         this.customizer = requireNonNull(customizer, "customizer must not be null");
         this.category = requireNonNull(category, "category must not be null");
+        this.traceDataSizeLimiter = requireNonNull(traceDataSizeLimiter);
     }
 
     /**
@@ -296,6 +321,9 @@ public class RecordStreamBuilder
             newPendingAirdropRecords = new ArrayList<>(pendingAirdropRecords);
             newPendingAirdropRecords.sort(PENDING_AIRDROP_RECORD_COMPARATOR);
         }
+        if (highVolumePricingMultiplier > DEFAULT_HIGH_VOLUME_MULTIPLIER) {
+            transactionRecordBuilder.highVolumePricingMultiplier(highVolumePricingMultiplier);
+        }
 
         final var transactionRecord = transactionRecordBuilder
                 .transactionID(transactionID)
@@ -311,46 +339,32 @@ public class RecordStreamBuilder
                 .paidStakingRewards(paidStakingRewards)
                 .build();
 
-        // create list of sidecar records
-        List<TransactionSidecarRecord> transactionSidecarRecords = new ArrayList<>();
-        if (contractStateChanges != null) {
-            if (status == REVERTED_SUCCESS) {
-                contractStateChanges = contractStateChanges.stream()
-                        .map(entry -> {
-                            final var changes = new ContractStateChanges(entry.getKey().contractStateChanges().stream()
-                                    .map(change -> change.copyBuilder()
-                                            .storageChanges(change.storageChanges().stream()
-                                                    .map(sc -> sc.copyBuilder()
-                                                            .valueWritten(null)
-                                                            .build())
-                                                    .toList())
-                                            .build())
-                                    .toList());
-                            return new AbstractMap.SimpleEntry<>(changes, entry.getValue());
-                        })
-                        .toList();
+        final List<TransactionSidecarRecord> transactionSidecarRecords = new ArrayList<>();
+        if (!traceDataSizeLimiter.hasExceededTraceDataSizeLimit()) {
+            if (contractStateChanges != null && status != REVERTED_SUCCESS) {
+                contractStateChanges.stream()
+                        .map(pair -> new TransactionSidecarRecord(
+                                transactionRecord.consensusTimestamp(),
+                                pair.getValue(),
+                                new OneOf<>(
+                                        TransactionSidecarRecord.SidecarRecordsOneOfType.STATE_CHANGES, pair.getKey())))
+                        .forEach(transactionSidecarRecords::add);
             }
-            contractStateChanges.stream()
+            contractActions.stream()
                     .map(pair -> new TransactionSidecarRecord(
                             transactionRecord.consensusTimestamp(),
                             pair.getValue(),
-                            new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.STATE_CHANGES, pair.getKey())))
+                            new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.ACTIONS, pair.getKey())))
                     .forEach(transactionSidecarRecords::add);
-        }
-        contractActions.stream()
-                .map(pair -> new TransactionSidecarRecord(
-                        transactionRecord.consensusTimestamp(),
-                        pair.getValue(),
-                        new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.ACTIONS, pair.getKey())))
-                .forEach(transactionSidecarRecords::add);
-        // Any bytecodes created inside a batch and then reverted should not be streamed
-        if (status != REVERTED_SUCCESS) {
-            contractBytecodes.stream()
-                    .map(pair -> new TransactionSidecarRecord(
-                            transactionRecord.consensusTimestamp(),
-                            pair.getValue(),
-                            new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.BYTECODE, pair.getKey())))
-                    .forEach(transactionSidecarRecords::add);
+            // Any bytecodes created inside a batch and then reverted should not be streamed
+            if (status != REVERTED_SUCCESS) {
+                contractBytecodes.stream()
+                        .map(pair -> new TransactionSidecarRecord(
+                                transactionRecord.consensusTimestamp(),
+                                pair.getValue(),
+                                new OneOf<>(TransactionSidecarRecord.SidecarRecordsOneOfType.BYTECODE, pair.getKey())))
+                        .forEach(transactionSidecarRecords::add);
+            }
         }
 
         // Log end of user transaction to transaction state log
@@ -374,8 +388,11 @@ public class RecordStreamBuilder
         transactionFee = 0L;
 
         if (contractFunctionResult != null) {
-            final var clearLogs =
-                    contractFunctionResult.copyBuilder().logInfo(emptyList()).bloom(Bytes.EMPTY);
+            final var clearLogs = contractFunctionResult
+                    .copyBuilder()
+                    .logInfo(emptyList())
+                    .bloom(Bytes.EMPTY)
+                    .createdContractIDs(emptyList());
             if (isContractCreate) {
                 transactionRecordBuilder.contractCreateResult(clearLogs);
             } else {
@@ -404,6 +421,9 @@ public class RecordStreamBuilder
         transactionReceiptBuilder.topicSequenceNumber(0L);
         transactionRecordBuilder.alias(Bytes.EMPTY);
         transactionRecordBuilder.evmAddress(Bytes.EMPTY);
+        if (traceDataSizeLimiter.hasExceededTraceDataSizeLimit()) {
+            clearContractTraceData();
+        }
     }
 
     @Override
@@ -970,7 +990,9 @@ public class RecordStreamBuilder
         return exchangeRate;
     }
 
-    /**{@inheritDoc}*/
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     public RecordStreamBuilder exchangeRate(@Nullable final ExchangeRateSet exchangeRate) {
@@ -982,6 +1004,21 @@ public class RecordStreamBuilder
     @Override
     public StreamBuilder congestionMultiplier(long congestionMultiplier) {
         // No-op
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public StreamBuilder highVolumePricingMultiplier(long highVolumePricingMultiplier) {
+        this.highVolumePricingMultiplier = highVolumePricingMultiplier;
+        transactionRecordBuilder.highVolumePricingMultiplier(highVolumePricingMultiplier);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public StreamBuilder blockNumber(@Nullable final Long blockNumber) {
+        // No op for stream mode records
         return this;
     }
 
@@ -1068,6 +1105,13 @@ public class RecordStreamBuilder
     @NonNull
     public RecordStreamBuilder nodeID(long nodeId) {
         transactionReceiptBuilder.nodeId(nodeId);
+        return this;
+    }
+
+    @Override
+    @NonNull
+    public RecordStreamBuilder registeredNodeID(final long registeredNodeID) {
+        transactionReceiptBuilder.registeredNodeId(registeredNodeID);
         return this;
     }
 
@@ -1200,6 +1244,9 @@ public class RecordStreamBuilder
     public RecordStreamBuilder addContractStateChanges(
             @NonNull final ContractStateChanges contractStateChanges, final boolean isMigration) {
         requireNonNull(contractStateChanges, "contractStateChanges must not be null");
+        if (!tryAddTraceData(ContractStateChanges.PROTOBUF.measureRecord(contractStateChanges))) {
+            return this;
+        }
         if (this.contractStateChanges == null) {
             this.contractStateChanges = new LinkedList<>();
         }
@@ -1236,6 +1283,9 @@ public class RecordStreamBuilder
     public RecordStreamBuilder addContractActions(
             @NonNull final ContractActions contractActions, final boolean isMigration) {
         requireNonNull(contractActions, "contractActions must not be null");
+        if (!tryAddTraceData(ContractActions.PROTOBUF.measureRecord(contractActions))) {
+            return this;
+        }
         this.contractActions.add(new AbstractMap.SimpleEntry<>(contractActions, isMigration));
         return this;
     }
@@ -1252,11 +1302,54 @@ public class RecordStreamBuilder
     public RecordStreamBuilder addContractBytecode(
             @NonNull final ContractBytecode contractBytecode, final boolean isMigration) {
         requireNonNull(contractBytecode, "contractBytecode must not be null");
+        if (traceDataSizeLimiter.hasExceededTraceDataSizeLimit()) {
+            return this;
+        }
         final var entry = new AbstractMap.SimpleEntry<>(contractBytecode, isMigration);
         if (!contractBytecodes.contains(entry)) {
             contractBytecodes.add(entry);
+            estimatedContractBytecodeSize = saturatedAdd(
+                    estimatedContractBytecodeSize, ContractBytecode.PROTOBUF.measureRecord(contractBytecode));
         }
         return this;
+    }
+
+    private boolean tryAddTraceData(final int serializedBytes) {
+        if (traceDataSizeLimiter.tryAdd(serializedBytes)) {
+            return true;
+        }
+        clearContractTraceData();
+        return false;
+    }
+
+    @Override
+    public boolean hasTraceDataSizeLimitExceeded() {
+        return traceDataSizeLimiter.hasExceededTraceDataSizeLimit();
+    }
+
+    private void clearContractTraceData() {
+        contractStateChanges = null;
+        contractActions.clear();
+        contractBytecodes.clear();
+        estimatedContractBytecodeSize = 0L;
+    }
+
+    @Override
+    public long estimatedContractBytecodeSize() {
+        return estimatedContractBytecodeSize;
+    }
+
+    @Override
+    public boolean ensureTraceDataSizeLimitWithAdditionalBytes(final long additionalBytes) {
+        return traceDataSizeLimiter.ensureWithinLimitWith(additionalBytes);
+    }
+
+    private static long saturatedAdd(final long current, final int additional) {
+        if (current == Long.MAX_VALUE || additional < 0) {
+            return Long.MAX_VALUE;
+        }
+        final var total = current + additional;
+        return total < 0 ? Long.MAX_VALUE : total;
     }
 
     // ------------- Information needed by token service for redirecting staking rewards to appropriate accounts
@@ -1297,6 +1390,12 @@ public class RecordStreamBuilder
         return deletedAccountBeneficiaries.get(deletedAccountID);
     }
 
+    @Override
+    public void forEachDeletedAccountBeneficiary(@NonNull final BiConsumer<AccountID, AccountID> action) {
+        requireNonNull(action);
+        deletedAccountBeneficiaries.forEach(action);
+    }
+
     /**
      * Returns the in-progress {@link ContractFunctionResult}.
      *
@@ -1318,7 +1417,7 @@ public class RecordStreamBuilder
      */
     private TransactionBody inProgressBody() {
         try {
-            return TransactionBody.PROTOBUF.parse(signedTx.bodyBytes());
+            return TransactionBody.PROTOBUF.parseStrict(signedTx.bodyBytes().toReadableSequentialData());
         } catch (Exception e) {
             throw new IllegalStateException("Record being built for unparseable transaction", e);
         }
@@ -1337,6 +1436,7 @@ public class RecordStreamBuilder
 
     /**
      * Returns the {@link TransactionRecord.Builder} of the record. It can be PRECEDING, CHILD, USER or SCHEDULED.
+     *
      * @return the {@link TransactionRecord.Builder} of the record
      */
     @Override

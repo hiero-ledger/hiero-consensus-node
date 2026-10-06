@@ -1,0 +1,19 @@
+FROM eclipse-temurin:25
+
+# Create non-root user and group
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Create app directories and set ownership
+RUN mkdir -p /opt/DockerApp/apps /opt/DockerApp/lib \
+    && chown -R appuser:appuser /opt/DockerApp
+
+# Copy app artifacts with proper ownership
+COPY --chown=appuser:appuser apps/* /opt/DockerApp/apps/
+COPY --chown=appuser:appuser lib/* /opt/DockerApp/lib/
+
+# Run as non-root user
+USER appuser
+
+# --sun-misc-unsafe-memory-access=allow silences protobuf's UnsafeUtil deprecation warning on JDK 25.
+# The netty System.loadLibrary warning is silenced via the JAR's Enable-Native-Access manifest entry.
+CMD ["java", "--sun-misc-unsafe-memory-access=allow", "-jar", "/opt/DockerApp/apps/DockerApp.jar"]

@@ -22,7 +22,6 @@ import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
-import com.hedera.node.app.blocks.impl.ConcurrentStreamingTreeHasher;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.blocks.utils.TransactionGeneratorUtil;
 import com.hedera.node.app.hapi.utils.CommonUtils;
@@ -192,16 +191,17 @@ public class BlockProductionMicrobenchmarks {
      * Measures: How many leaves can we process per second?
      */
     @Benchmark
-    public void merkleTreeHashing_Concurrent(MerkleTreeState state, Blackhole bh) {
-        ConcurrentStreamingTreeHasher hasher = new ConcurrentStreamingTreeHasher(state.executor);
+    public void merkleTreeHashing_Incremental(MerkleTreeState state, Blackhole bh) {
+        final IncrementalStreamingHasher hasher =
+                new IncrementalStreamingHasher(sha384DigestOrThrow(), new ArrayList<>(), 0L);
 
         // Add all leaves
         for (ByteBuffer hash : state.precomputedHashes) {
-            hasher.addLeaf(hash.duplicate()); // duplicate to allow reuse
+            hasher.addLeaf(hash.duplicate().array()); // duplicate to allow reuse
         }
 
         // Compute root hash (parallel computation)
-        Bytes rootHash = hasher.rootHash().join();
+        Bytes rootHash = Bytes.wrap(hasher.computeRootHash());
         bh.consume(rootHash);
     }
 

@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.hips.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SECP256K1;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
@@ -78,7 +77,6 @@ class AtomicCreateWithAliasDisabledTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> etx026AccountWithoutAliasCanMakeEthTxnsDueToAutomaticAliasCreation() {
         final String ACCOUNT = "account";
         return hapiTest(

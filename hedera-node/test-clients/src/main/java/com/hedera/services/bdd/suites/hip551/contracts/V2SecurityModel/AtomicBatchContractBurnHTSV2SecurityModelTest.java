@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.hip551.contracts.V2SecurityModel;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
@@ -233,7 +232,6 @@ class AtomicBatchContractBurnHTSV2SecurityModelTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> V2Security004FungibleTokenBurnPositiveCase4() {
         final var amountToBurn = 5L;
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
@@ -704,7 +702,6 @@ class AtomicBatchContractBurnHTSV2SecurityModelTest {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> V2SecurityBurnTokenWithFullPrefixAndPartialPrefixKeys() {
         final AtomicReference<Address> fungibleAddress = new AtomicReference<>();
         final AtomicReference<Address> fungibleAddress2 = new AtomicReference<>();
@@ -721,25 +718,24 @@ class AtomicBatchContractBurnHTSV2SecurityModelTest {
                 createFungibleAndExposeAdr(FUNGIBLE_TOKEN, fungibleAddress),
                 createFungibleAndExposeAdr(FUNGIBLE_TOKEN_2, fungibleAddress2),
                 tokenUpdate(FUNGIBLE_TOKEN).supplyKey(THRESHOLD_KEY).signedByPayerAnd(TOKEN_TREASURY),
-                sourcing(() -> atomicBatchDefaultOperator(
-                        contractCall(
-                                        ORDINARY_CALLS_CONTRACT,
-                                        "burnTokenCall",
-                                        fungibleAddress2.get(),
-                                        BigInteger.ONE,
-                                        new long[0])
-                                .via(firstBurnTxn)
-                                .payingWith(ACCOUNT_NAME)
-                                .signedBy(SIGNER),
-                        contractCall(
-                                        ORDINARY_CALLS_CONTRACT,
-                                        "burnTokenCall",
-                                        fungibleAddress.get(),
-                                        BigInteger.ONE,
-                                        new long[0])
-                                .via(secondBurnTxn)
-                                .payingWith(ACCOUNT_NAME)
-                                .alsoSigningWithFullPrefix(SIGNER, THRESHOLD_KEY, ACCOUNT_NAME))),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                ORDINARY_CALLS_CONTRACT,
+                                "burnTokenCall",
+                                fungibleAddress2.get(),
+                                BigInteger.ONE,
+                                new long[0])
+                        .via(firstBurnTxn)
+                        .payingWith(ACCOUNT_NAME)
+                        .signedBy(SIGNER))),
+                sourcing(() -> atomicBatchDefaultOperator(contractCall(
+                                ORDINARY_CALLS_CONTRACT,
+                                "burnTokenCall",
+                                fungibleAddress.get(),
+                                BigInteger.ONE,
+                                new long[0])
+                        .via(secondBurnTxn)
+                        .payingWith(ACCOUNT_NAME)
+                        .alsoSigningWithFullPrefix(SIGNER, THRESHOLD_KEY, ACCOUNT_NAME))),
                 childRecordsCheck(
                         firstBurnTxn,
                         SUCCESS,

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.consensus;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
@@ -41,7 +40,6 @@ import com.hedera.services.bdd.spec.keys.SigControl;
 import java.util.Arrays;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class SubmitMessageSuite {
     private static final int CHUNK_SIZE = 1024;
@@ -51,8 +49,8 @@ public class SubmitMessageSuite {
         return hapiTest(
                 cryptoCreate("nonTopicId"),
                 submitMessageTo(spec -> asTopicId(spec.registry().getAccountID("nonTopicId")))
-                        .hasPrecheck(INVALID_TOPIC_ID),
-                submitMessageTo((String) null).hasPrecheck(INVALID_TOPIC_ID));
+                        .hasKnownStatus(INVALID_TOPIC_ID),
+                submitMessageTo((String) null).hasKnownStatus(INVALID_TOPIC_ID));
     }
 
     @HapiTest
@@ -160,7 +158,6 @@ public class SubmitMessageSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> messageSubmissionCorrectlyUpdatesRunningHash() {
         String topic = "testTopic";
         String message1 = "Hello world!";
@@ -257,7 +254,6 @@ public class SubmitMessageSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> longMessageIsFragmentedIntoChunks() {
         String fileForLongMessage = "src/main/resources/RandomLargeBinary.bin";
         return hapiTest(flattened(

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
@@ -18,9 +19,11 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -43,6 +46,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fixtures.AppTestBase;
+import com.hedera.node.app.spi.fixtures.util.LogCaptor;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -58,6 +62,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.logging.log4j.LogManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Named;
@@ -275,6 +280,91 @@ final class TransactionCheckerTest extends AppTestBase {
             assertThatThrownBy(() -> checker.check(transaction, Integer.MAX_VALUE))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_TRANSACTION_BODY));
+        }
+
+        @Test
+        @DisplayName("Malformed protobuf does not emit WARN logs")
+        void malformedProtobufDoesNotWarn() {
+            final var logCaptor = new LogCaptor(LogManager.getLogger(TransactionChecker.class));
+            try {
+                assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(100)))
+                        .isInstanceOf(PreCheckException.class)
+                        .has(responseCode(INVALID_TRANSACTION));
+                assertTrue(logCaptor.warnLogs().isEmpty(), "Malformed ingest input must not emit WARN logs");
+            } finally {
+                logCaptor.stopCapture();
+            }
+        }
+
+        @Test
+        @DisplayName("Truncated protobuf increments the BufferUnderflow parse error counter")
+        void parseErrorBufferUnderflowCounterIncrements() {
+            // A single valid field-1 tag byte with no following length varint causes
+            // BufferUnderflowException when the codec tries to read the message length.
+            final var truncatedBytes = Bytes.wrap(new byte[] {0x0A}); // field 1, wire type 2
+            assertThatThrownBy(() -> checker.parseAndCheck(truncatedBytes))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(INVALID_TRANSACTION));
+            assertThat(counterMetric("ParseErrBufUnderflowRcv").get()).isEqualTo(1);
+            assertThat(counterMetric("ParseErrUnknownFieldRcv").get()).isZero();
+            assertThat(counterMetric("ParseErrStructuralRcv").get()).isZero();
+            assertThat(counterMetric("ParseErrOtherRcv").get()).isZero();
+        }
+
+        @Test
+        @DisplayName("Protobuf with oversized field declaration increments the structural parse error counter")
+        void parseErrorStructuralCounterIncrements() {
+            // Disable governance and jumbo so maxIngestParseSize() == MAX_TX_SIZE (6144).
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", false)
+                            .withValue("jumboTransactions.isEnabled", false)
+                            .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE)
+                            .getOrCreateConfig(),
+                    1);
+            checker = new TransactionChecker(props, metrics);
+
+            // field 5 (signedTransactionBytes, tag=0x2A) followed by varint(100000) as the
+            // declared byte-field length. 100000 > 6144 triggers a direct ParseException with
+            // no cause from ProtoParserTools.readBytes. Total buffer is 4 bytes, well under
+            // the 6144 limit, so TRANSACTION_OVERSIZE is never thrown.
+            final var craftedBytes = Bytes.wrap(new byte[] {0x2A, (byte) 0xA0, (byte) 0x8D, 0x06});
+            assertThatThrownBy(() -> checker.parseAndCheck(craftedBytes))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(INVALID_TRANSACTION));
+            assertThat(counterMetric("ParseErrStructuralRcv").get()).isEqualTo(1);
+            assertThat(counterMetric("ParseErrUnknownFieldRcv").get()).isZero();
+            assertThat(counterMetric("ParseErrBufUnderflowRcv").get()).isZero();
+            assertThat(counterMetric("ParseErrOtherRcv").get()).isZero();
+        }
+
+        @Test
+        @DisplayName("Protobuf with unknown fields increments the unknown field parse error counter")
+        void parseErrorUnknownFieldCounterIncrements() {
+            // appendUnknownField appends a field number not defined in the Transaction proto
+            inputBuffer = Bytes.wrap(appendUnknownField(asByteArray(tx)));
+            assertThatThrownBy(() -> checker.parseAndCheck(inputBuffer))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(TRANSACTION_HAS_UNKNOWN_FIELDS));
+            assertThat(counterMetric("ParseErrUnknownFieldRcv").get()).isEqualTo(1);
+            assertThat(counterMetric("ParseErrBufUnderflowRcv").get()).isZero();
+            assertThat(counterMetric("ParseErrStructuralRcv").get()).isZero();
+            assertThat(counterMetric("ParseErrOtherRcv").get()).isZero();
+        }
+
+        @Test
+        @DisplayName("Protobuf with invalid field number and wire type increments the other parse error counter")
+        void parseErrorOtherCounterIncrements() {
+            // field=0 and wire type=7 are both invalid; the codec throws a plain IOException (not
+            // UnknownFieldException or BufferUnderflowException), which is wrapped as the ParseException
+            // cause and hits the default branch.
+            assertThatThrownBy(() -> checker.parseAndCheck(Bytes.wrap(invalidProtobuf())))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(INVALID_TRANSACTION));
+            assertThat(counterMetric("ParseErrOtherRcv").get()).isEqualTo(1);
+            assertThat(counterMetric("ParseErrUnknownFieldRcv").get()).isZero();
+            assertThat(counterMetric("ParseErrBufUnderflowRcv").get()).isZero();
+            assertThat(counterMetric("ParseErrStructuralRcv").get()).isZero();
         }
 
         /**
@@ -818,7 +908,22 @@ final class TransactionCheckerTest extends AppTestBase {
                         Arguments.of(Named.of("Little prefix of prefix P, unique prefix, then prefix P", (Object)
                                 new byte[][] {{1, 2}, {6, 7, 8}, {1, 2, 3}})),
                         Arguments.of(Named.of(
-                                "Empty Prefix followed by non-empty Prefix", (Object) new byte[][] {{}, {6, 7, 8}})));
+                                "Empty Prefix followed by non-empty Prefix", (Object) new byte[][] {{}, {6, 7, 8}})),
+                        Arguments.of(Named.of("Empty Prefix between two non-empty Prefixes", (Object)
+                                new byte[][] {{6, 7, 8}, {}, {1}})),
+                        // The cases below all place an unrelated prefix "between" P and its extension, so they are
+                        // only detected when the sort is purely lexicographic rather than length-first.
+                        Arguments.of(Named.of("Prefix P, same-length decoy after P, then extension of P", (Object)
+                                new byte[][] {{1, 2}, {1, 3}, {1, 2, 3}})),
+                        Arguments.of(Named.of("Two one-byte prefixes followed by an extension of the first", (Object)
+                                new byte[][] {{1}, {2}, {1, 2}})),
+                        Arguments.of(Named.of("Prefix P, decoy of intermediate length, then extension of P", (Object)
+                                new byte[][] {{1}, {(byte) 0x99, (byte) 0x99}, {1, 2, 3}})),
+                        Arguments.of(
+                                Named.of("Extension listed before P, with a decoy between them once sorted", (Object)
+                                        new byte[][] {{1, 2, 3}, {1, 3}, {1, 2}})),
+                        Arguments.of(Named.of("High-bit prefixes, decoy sorting between P and its extension", (Object)
+                                new byte[][] {{(byte) 0x80}, {(byte) 0x81}, {(byte) 0x80, 1}})));
             }
 
             @ParameterizedTest
@@ -841,6 +946,38 @@ final class TransactionCheckerTest extends AppTestBase {
                 assertThatThrownBy(() -> checker.check(localTx, Integer.MAX_VALUE))
                         .isInstanceOf(PreCheckException.class)
                         .has(responseCode(KEY_PREFIX_MISMATCH));
+            }
+
+            static Stream<Arguments> goodPrefixesInSigMap() {
+                return Stream.of(
+                        Arguments.of(Named.of("A single empty prefix", (Object) new byte[][] {{}})),
+                        Arguments.of(Named.of("Distinct one-byte prefixes", (Object) new byte[][] {{1}, {2}, {3}})),
+                        Arguments.of(Named.of("Prefixes sharing a leading run but neither extending the other", (Object)
+                                new byte[][] {{1, 2, 3}, {1, 2, 4}})),
+                        Arguments.of(Named.of("Longer prefix sorting before a shorter, unrelated one", (Object)
+                                new byte[][] {{1, 2, 3}, {2}})),
+                        Arguments.of(Named.of("High-bit prefixes with no collisions", (Object)
+                                new byte[][] {{(byte) 0x80}, {0x7F}, {(byte) 0x81}, {(byte) 0x82, 1, 2}})));
+            }
+
+            @ParameterizedTest
+            @DisplayName("Unambiguous prefixes are accepted")
+            @MethodSource("goodPrefixesInSigMap")
+            void goodPrefixes(byte[]... prefixes) {
+                // Given a signature map in which no prefix is a prefix of any other
+                final var localSignatureMap = SignatureMap.newBuilder()
+                        .sigPair(Arrays.stream(prefixes)
+                                .map(prefix -> SignaturePair.newBuilder()
+                                        .pubKeyPrefix(Bytes.wrap(prefix))
+                                        .ed25519(randomBytes(64))
+                                        .build())
+                                .collect(toList()))
+                        .build();
+                final var localTx =
+                        txBuilder(signedTxBuilder(txBody, localSignatureMap)).build();
+
+                // When we check the transaction, then it is accepted
+                assertThatNoException().isThrownBy(() -> checker.check(localTx, Integer.MAX_VALUE));
             }
         }
 
@@ -1206,6 +1343,31 @@ final class TransactionCheckerTest extends AppTestBase {
                     .has(responseCode(TRANSACTION_OVERSIZE));
 
             assertThat(counterMetric("NonGovernanceOversizedTxnsRcv").get()).isEqualTo(2L);
+        }
+
+        @Test
+        void oversizedClprCompleteChannelIsExemptForNonGovernancePayer() throws PreCheckException {
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", true)
+                            .withValue("governanceTransactions.maxTxnSize", MAX_LARGE_TX_SIZE)
+                            .withValue("governanceTransactions.accountsRange", GOVERNANCE_ACCOUNTS_RANGE)
+                            .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE)
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(props, metrics);
+            final var txInfo = mock(TransactionInfo.class);
+            when(txInfo.signedTx())
+                    .thenReturn(SignedTransaction.newBuilder()
+                            .bodyBytes(Bytes.wrap(new byte[25 * 1024]))
+                            .build());
+            when(txInfo.functionality()).thenReturn(CLPR_COMPLETE_CHANNEL);
+            final var nonGovernancePayer =
+                    AccountID.newBuilder().accountNum(1000).build();
+
+            checker.checkTransactionSize(txInfo);
+            assertDoesNotThrow(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, nonGovernancePayer));
         }
 
         private static Stream<Arguments> governanceAccountNumbers() {

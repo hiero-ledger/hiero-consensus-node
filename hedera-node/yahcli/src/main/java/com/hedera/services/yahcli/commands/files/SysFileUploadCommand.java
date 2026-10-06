@@ -58,9 +58,9 @@ public class SysFileUploadCommand implements Callable<Integer> {
             arity = "1",
             paramLabel = "<sysfile>",
             description = "one of "
-                    + "{ address-book, node-details, fees, rates, props, "
+                    + "{ address-book, node-details, simpleFees, rates, props, "
                     + "permissions, throttles, software-zip, telemetry-zip } (or "
-                    + "{ 101, 102, 111, 112, 121, 122, 123, 150, 159 })")
+                    + "{ 101, 102, 112, 113, 121, 122, 123, 150, 159 })")
     private String sysFile;
 
     @Override
@@ -110,12 +110,46 @@ public class SysFileUploadCommand implements Callable<Integer> {
             if (finalSpecs.getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {
                 config.output().info("SUCCESS - Uploaded all requested system files");
             } else {
-                config.output().warn("FAILED Uploading requested system files");
+                config.output().warn(failureWarning(finalSpecs.getFirst().getCause()));
                 return 1;
             }
         }
 
         return 0;
+    }
+
+    static String failureWarning(final HapiSpec.Failure cause) {
+        return "FAILED Uploading requested system files" + describeFailure(cause);
+    }
+
+    static String describeFailure(final HapiSpec.Failure cause) {
+        if (cause == null) {
+            return "";
+        }
+        final var summary = summarizeCauseChain(cause.cause());
+        return summary.isEmpty() ? "" : " - " + summary;
+    }
+
+    static String summarizeCauseChain(final Throwable t) {
+        if (t == null) {
+            return "";
+        }
+        Throwable best = t;
+        Throwable cur = t;
+        int depth = 0;
+        while (cur != null && depth < 8) {
+            final var msg = cur.getMessage();
+            if (msg != null && !msg.isBlank()) {
+                best = cur;
+            }
+            if (cur.getCause() == cur) {
+                break;
+            }
+            cur = cur.getCause();
+            depth++;
+        }
+        final var msg = best.getMessage();
+        return best.getClass().getSimpleName() + (msg == null || msg.isBlank() ? "" : ": " + msg);
     }
 
     private boolean isSpecialFile(ConfigManager config) {

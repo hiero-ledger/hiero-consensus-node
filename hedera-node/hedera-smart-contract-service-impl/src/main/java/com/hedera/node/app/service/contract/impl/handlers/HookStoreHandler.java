@@ -24,7 +24,6 @@ import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.hooks.EvmHookMappingEntry;
 import com.hedera.hapi.node.hooks.EvmHookStorageSlot;
@@ -33,8 +32,6 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.ReadableEvmHookStore;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -163,17 +160,6 @@ public class HookStoreHandler implements TransactionHandler {
                 delta,
                 // But if the user expected a contract, enforce that here
                 op.hookIdOrThrow().entityIdOrThrow().hasContractId());
-    }
-
-    @Override
-    public @NonNull Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var calculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
-        calculator.resetUsage();
-        final var op = feeContext.body().hookStoreOrThrow();
-        final int n = slotCount(op.storageUpdates());
-        // Simple trick within legacy fee context to ensure ~$0.005 per update, regardless of gas price
-        final long p = feeContext.getGasPriceInTinycents();
-        return calculator.addGas((n * TINYCENTS_PER_UPDATE + (p - 1)) / p).calculate();
     }
 
     private static int slotCount(@NonNull final List<EvmHookStorageUpdate> storageUpdates) {

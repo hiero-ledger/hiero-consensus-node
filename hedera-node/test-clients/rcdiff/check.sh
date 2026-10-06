@@ -11,4 +11,6 @@ fi
 
 # Change -m value to limit the number of diffs written to file
 # Change -l value to diff a length other than 300 secs at a time
-java -jar rcdiff.jar -e $EXPECTED_LOC -a $ACTUAL_LOC -m 1000 -l 300
+# Silence protobuf's UnsafeUtil sun.misc.Unsafe deprecation warnings on JDK 25.
+# The netty System.loadLibrary warning is handled via the JAR's Enable-Native-Access manifest.
+java --sun-misc-unsafe-memory-access=allow -jar rcdiff.jar -e $EXPECTED_LOC -a $ACTUAL_LOC -m 1000 -l 300

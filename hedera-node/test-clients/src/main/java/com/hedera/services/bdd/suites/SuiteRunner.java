@@ -21,7 +21,6 @@ import com.hedera.services.bdd.suites.freeze.SimpleFreezeOnly;
 import com.hedera.services.bdd.suites.freeze.UpdateFileForUpgrade;
 import com.hedera.services.bdd.suites.jrs.NodeOpsForUpgrade;
 import com.hedera.services.bdd.suites.meta.VersionInfoSpec;
-import com.hedera.services.bdd.suites.perf.AdjustFeeScheduleSuite;
 import com.hedera.services.bdd.suites.perf.crypto.*;
 import com.hedera.services.bdd.suites.perf.topic.SubmitMessageLoadTest;
 import com.hedera.services.bdd.suites.reconnect.CreateAccountsBeforeReconnect;
@@ -76,7 +75,6 @@ public class SuiteRunner {
             put("CreateTopicsBeforeReconnect", aof(CreateTopicsBeforeReconnect::new));
             put("CreateFilesBeforeReconnect", aof(CreateFilesBeforeReconnect::new));
             put("SubmitMessageLoadTest", aof(SubmitMessageLoadTest::new));
-            put("AdjustFeeSchedule", aof(AdjustFeeScheduleSuite::new));
             put("NodeOpsForUpgrade", aof(NodeOpsForUpgrade::new));
         }
     };

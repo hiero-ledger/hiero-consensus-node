@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
 
+import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -14,9 +17,8 @@ import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.workflows.standalone.TransactionExecutors;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.state.State;
-import org.hiero.base.exceptions.NotImplementedException;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.hapi.fees.FeeResult;
 
 public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
@@ -42,59 +44,97 @@ public class StandaloneFeeCalculatorImpl implements StandaloneFeeCalculator {
 
     @Override
     public FeeResult calculateIntrinsic(Transaction transaction) throws ParseException {
-        StandaloneFeeContextImpl context = new StandaloneFeeContextImpl();
-        final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(
-                BufferedData.wrap(transaction.signedTransactionBytes().toByteArray()));
-        if (signedTransaction.hasSigMap()) {
-            final var sigMap = signedTransaction.sigMapOrThrow();
-            context.setNumTxnSignatures(sigMap.sigPair().size());
-        } else {
-            context.setNumTxnSignatures(0);
-        }
-        if (transaction.hasBody()) {
-            return calc.calculateTxFee(transaction.bodyOrThrow(), context);
-        } else {
-            final TransactionBody transactionBody = TransactionBody.PROTOBUF.parse(
-                    BufferedData.wrap(signedTransaction.bodyBytes().toByteArray()));
-            return calc.calculateTxFee(transactionBody, context);
-        }
+        final var context = new StandaloneFeeContextImpl(transaction, null, null);
+        return calc.calculateTxFee(context.body(), context);
     }
 
     @Override
-    public FeeResult calculateStateful(Transaction transaction) throws ParseException {
-        throw new NotImplementedException();
+    public FeeResult calculateStateful(Transaction transaction, FeeContext feeContext, QueryContext queryContext)
+            throws ParseException {
+        final var context = new StandaloneFeeContextImpl(transaction, feeContext, queryContext);
+        return calc.calculateTxFee(context.body(), context);
     }
 
     private class StandaloneFeeContextImpl implements SimpleFeeContext {
 
-        private int _numTxnSignatures;
+        private final int numTxnSignatures;
+        private final TransactionBody body;
+        private final Transaction transaction;
+        private final FeeContext feeContext;
+        private final QueryContext queryContext;
 
-        public StandaloneFeeContextImpl() {
-            this._numTxnSignatures = 0;
+        public StandaloneFeeContextImpl(
+                final Transaction transaction, final FeeContext feeContext, final QueryContext queryContext)
+                throws ParseException {
+            this.feeContext = feeContext;
+            this.queryContext = queryContext;
+            this.transaction = transaction;
+            if (transaction.hasBody()) {
+                this.body = transaction.bodyOrThrow();
+                numTxnSignatures =
+                        transaction.sigMapOrElse(SignatureMap.DEFAULT).sigPair().size();
+            } else {
+                final var signedBytes = transaction.signedTransactionBytes();
+                // If there are not signed bytes and no regular transaction body,
+                // try the bodyBytes(). Even though it is deprecated some tests and
+                // transactions still use it.
+                if (signedBytes.length() == 0) {
+                    this.body = TransactionBody.PROTOBUF.parseStrict(transaction.bodyBytes());
+                    if (transaction.hasSigMap()) {
+                        var sigmap = transaction.sigMap();
+                        numTxnSignatures = sigmap.sigPair().size();
+                    } else {
+                        numTxnSignatures = 0;
+                    }
+                } else {
+                    final var signedTransaction =
+                            SignedTransaction.PROTOBUF.parseStrict(transaction.signedTransactionBytes());
+                    this.body = TransactionBody.PROTOBUF.parseStrict(signedTransaction.bodyBytes());
+                    numTxnSignatures = signedTransaction
+                            .sigMapOrElse(SignatureMap.DEFAULT)
+                            .sigPair()
+                            .size();
+                }
+            }
         }
 
         @Override
         public int numTxnSignatures() {
-            return this._numTxnSignatures;
+            return this.numTxnSignatures;
         }
 
         @Override
         public int numTxnBytes() {
+            return Transaction.PROTOBUF.measureRecord(transaction);
+        }
+
+        @Override
+        public HederaFunctionality functionality() {
+            try {
+                return functionOf(body);
+            } catch (com.hedera.hapi.util.UnknownHederaFunctionality e) {
+                throw new IllegalArgumentException(e);
+            }
+        }
+
+        @Override
+        public int getHighVolumeThrottleUtilization(final HederaFunctionality functionality) {
             return 0;
         }
 
         @Override
         public FeeContext feeContext() {
-            return null;
+            return this.feeContext;
         }
 
         @Override
         public QueryContext queryContext() {
-            return null;
+            return this.queryContext;
         }
 
-        public void setNumTxnSignatures(int sigcount) {
-            this._numTxnSignatures = sigcount;
+        @NonNull
+        public TransactionBody body() {
+            return this.body;
         }
     }
 }

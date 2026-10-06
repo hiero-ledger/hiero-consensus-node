@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.tipset;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
+import static com.swirlds.metrics.api.FloatFormats.FORMAT_4_2;
+
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.Map;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.SpeedometerMetric;
+import org.hiero.consensus.metrics.statistics.AverageStat;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**
  * Encapsulates metrics for the tipset event creator.
@@ -32,19 +35,28 @@ public class TipsetMetrics {
     private final Map<NodeId, SpeedometerMetric> tipsetParentMetrics = new HashMap<>();
     private final Map<NodeId, SpeedometerMetric> pityParentMetrics = new HashMap<>();
 
+    private final AverageStat mopMetric;
+
     /**
      * Create metrics for the tipset event creator.
      *
      * @param metrics the metrics instance to use
      * @param roster  the roster of nodes in the network
      */
-    public TipsetMetrics(@NonNull final Metrics metrics, @NonNull final Roster roster) {
+    public TipsetMetrics(@NonNull final Metrics metrics, @NonNull final RosterWrapper roster) {
 
         tipsetAdvancementMetric = metrics.getOrCreate(TIPSET_ADVANCEMENT_CONFIG);
         selfishnessMetric = metrics.getOrCreate(SELFISHNESS_CONFIG);
+        mopMetric = new AverageStat(
+                metrics,
+                "platform",
+                "createdEventParents",
+                "Amount of parents newly created events have",
+                FORMAT_4_2,
+                AverageStat.WEIGHT_VOLATILE);
 
-        for (final RosterEntry address : roster.rosterEntries()) {
-            final NodeId nodeId = NodeId.of(address.nodeId());
+        for (final RosterEntryWrapper address : roster.rosterEntries()) {
+            final NodeId nodeId = address.nodeId();
 
             final SpeedometerMetric.Config parentConfig = new SpeedometerMetric.Config(
                             "platform", "tipsetParent" + nodeId.id())
@@ -105,5 +117,15 @@ public class TipsetMetrics {
     @NonNull
     public SpeedometerMetric getPityParentMetric(@NonNull final NodeId nodeId) {
         return pityParentMetrics.get(nodeId);
+    }
+
+    /**
+     * Get the metric which tracks how many other parents on average events created on this node have
+     *
+     * @return Multiple other parents metric
+     */
+    @NonNull
+    public AverageStat getMopMetric() {
+        return mopMetric;
     }
 }

@@ -1,41 +1,46 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.gossip.impl.gossip.sync;
 
-import static org.hiero.consensus.io.extendable.ExtendableInputStream.extendInputStream;
-
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
-import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
 import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
-import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.consensus.gossip.config.SocketConfig;
-import org.hiero.consensus.io.extendable.extensions.CountingStreamExtension;
+import org.hiero.consensus.io.counting.ByteCounter;
+import org.hiero.consensus.io.counting.CounterType;
+import org.hiero.consensus.io.counting.CountingInputStream;
 
+/**
+ * A {@link SerializableDataInputStream} that counts the number of bytes read from it and optionally decompresses
+ * the data using gzip compression.
+ */
 public class SyncInputStream extends SerializableDataInputStream {
 
-    /** The maximum number of tips allowed per node. */
-    private static final int MAX_TIPS_PER_NODE = 1000;
+    private final ByteCounter byteCounter;
 
-    private final CountingStreamExtension syncByteCounter;
-
-    private SyncInputStream(InputStream in, CountingStreamExtension syncByteCounter) {
+    private SyncInputStream(@NonNull final InputStream in, @NonNull final ByteCounter byteCounter) {
         super(in);
-        this.syncByteCounter = syncByteCounter;
+        this.byteCounter = byteCounter;
     }
 
+    /**
+     * Create a new {@link SyncInputStream} that optionally decompresses the data using gzip compression and
+     * counts the number of bytes read from it.
+     *
+     * @param configuration the configuration to use to determine whether to use gzip compression
+     * @param in the input stream to read from
+     * @param bufferSize the buffer size to use when reading from the input stream
+     * @return a new {@link SyncInputStream}
+     */
     public static SyncInputStream createSyncInputStream(
             @NonNull final Configuration configuration, @NonNull final InputStream in, final int bufferSize) {
 
-        final CountingStreamExtension syncCounter = new CountingStreamExtension();
-
         final boolean compress = configuration.getConfigData(SocketConfig.class).gzipCompression();
 
-        final InputStream meteredStream = extendInputStream(in, syncCounter);
+        final CountingInputStream meteredStream = new CountingInputStream(in, CounterType.THREAD_SAFE);
 
         final InputStream wrappedStream;
         if (compress) {
@@ -44,19 +49,15 @@ public class SyncInputStream extends SerializableDataInputStream {
             wrappedStream = new BufferedInputStream(meteredStream, bufferSize);
         }
 
-        return new SyncInputStream(wrappedStream, syncCounter);
-    }
-
-    public CountingStreamExtension getSyncByteCounter() {
-        return syncByteCounter;
+        return new SyncInputStream(wrappedStream, meteredStream.byteCounter());
     }
 
     /**
-     * Read the other node's tip hashes
+     * Get the byte counter that counts the number of bytes read from this stream.
      *
-     * @throws IOException is a stream exception occurs
+     * @return the {@link ByteCounter}
      */
-    public List<Hash> readTipHashes(final int numberOfNodes) throws IOException {
-        return readSerializableList(numberOfNodes * MAX_TIPS_PER_NODE, false, Hash::new);
+    public ByteCounter byteCounter() {
+        return byteCounter;
     }
 }

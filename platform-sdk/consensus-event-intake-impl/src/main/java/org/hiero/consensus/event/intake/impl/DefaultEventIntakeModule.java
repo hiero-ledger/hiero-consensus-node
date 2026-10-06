@@ -1,47 +1,57 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.intake.impl;
 
-import static com.swirlds.component.framework.wires.SolderType.INJECT;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.wiring.framework.wires.SolderType.INJECT;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.component.ComponentWiring;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.transformers.WireTransformer;
-import com.swirlds.component.framework.wires.input.InputWire;
-import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.function.UnaryOperator;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig;
+import org.hiero.consensus.event.intake.impl.branching.BranchDetector;
+import org.hiero.consensus.event.intake.impl.branching.BranchReporter;
+import org.hiero.consensus.event.intake.impl.branching.DefaultBranchDetector;
+import org.hiero.consensus.event.intake.impl.branching.DefaultBranchReporter;
 import org.hiero.consensus.event.intake.impl.deduplication.EventDeduplicator;
 import org.hiero.consensus.event.intake.impl.deduplication.StandardEventDeduplicator;
 import org.hiero.consensus.event.intake.impl.signature.DefaultEventSignatureValidator;
 import org.hiero.consensus.event.intake.impl.signature.EventSignatureValidator;
 import org.hiero.consensus.event.intake.impl.validation.DefaultInternalEventValidator;
 import org.hiero.consensus.event.intake.impl.validation.InternalEventValidator;
+import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
 import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
-import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.transaction.TransactionLimits;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.transformers.WireTransformer;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
 
 /**
  * The default implementation of the {@link EventIntakeModule}.
  */
 public class DefaultEventIntakeModule implements EventIntakeModule {
 
-    /** Transformer to dispatch event windows to components that need them. */
+    @Nullable
+    private WireTransformer<ConsensusRound, EventWindow> eventWindowExtractor;
+
     @Nullable
     private WireTransformer<EventWindow, EventWindow> eventWindowDispatcher;
 
@@ -63,6 +73,12 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
     @Nullable
     private ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring;
 
+    @Nullable
+    private ComponentWiring<BranchDetector, PlatformEvent> branchDetectorWiring;
+
+    @Nullable
+    private ComponentWiring<BranchReporter, Void> branchReporterWiring;
+
     /**
      * {@inheritDoc}
      */
@@ -72,7 +88,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final RosterHistory rosterHistory,
+            @NonNull final RosterWrapperHistory rosterHistory,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final TransactionLimits transactionLimits,
             @Nullable final EventPipelineTracker pipelineTracker) {
@@ -82,6 +98,8 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         }
 
         // Set up wiring
+        this.eventWindowExtractor = new WireTransformer<>(
+                model, "EventIntake_EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow);
         this.eventWindowDispatcher =
                 new WireTransformer<>(model, "EventWindowDispatcher", "event window", UnaryOperator.identity());
         this.clearCommandDispatcher =
@@ -96,8 +114,11 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         this.eventSignatureValidatorWiring =
                 new ComponentWiring<>(model, EventSignatureValidator.class, wiringConfig.eventSignatureValidator());
         this.orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, wiringConfig.orphanBuffer());
+        this.branchDetectorWiring = new ComponentWiring<>(model, BranchDetector.class, wiringConfig.branchDetector());
+        this.branchReporterWiring = new ComponentWiring<>(model, BranchReporter.class, wiringConfig.branchReporter());
 
         // Wire components
+        eventWindowExtractor.getOutputWire().solderTo(eventWindowDispatcher.getInputWire(), INJECT);
         eventHasherWiring
                 .getOutputWire()
                 .solderTo(eventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
@@ -106,75 +127,89 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
                 .solderTo(eventDeduplicatorWiring.getInputWire(EventDeduplicator::handleEvent));
         eventWindowDispatcher
                 .getOutputWire()
-                .solderTo(this.eventDeduplicatorWiring.getInputWire(EventDeduplicator::setEventWindow), INJECT);
+                .solderTo(eventDeduplicatorWiring.getInputWire(EventDeduplicator::setEventWindow), INJECT);
         clearCommandDispatcher
                 .getOutputWire()
-                .solderTo(this.eventDeduplicatorWiring.getInputWire(EventDeduplicator::clear), INJECT);
+                .solderTo(eventDeduplicatorWiring.getInputWire(EventDeduplicator::clear), INJECT);
         eventDeduplicatorWiring
                 .getOutputWire()
-                .solderTo(this.eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::validateSignature));
+                .solderTo(eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::validateSignature));
         eventWindowDispatcher
                 .getOutputWire()
-                .solderTo(
-                        this.eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::setEventWindow),
-                        INJECT);
+                .solderTo(eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::setEventWindow), INJECT);
         eventSignatureValidatorWiring
                 .getOutputWire()
-                .solderTo(this.orphanBufferWiring.getInputWire(OrphanBuffer::handleEvent, "unordered events"));
+                .solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::handleEvent, "unordered events"));
         eventWindowDispatcher
                 .getOutputWire()
-                .solderTo(this.orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow, "event window"), INJECT);
+                .solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow, "event window"), INJECT);
+        clearCommandDispatcher.getOutputWire().solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::clear), INJECT);
+        orphanBufferWiring
+                .<PlatformEvent>getSplitOutput()
+                .solderTo(branchDetectorWiring.getInputWire(BranchDetector::checkForBranches));
+        eventWindowDispatcher
+                .getOutputWire()
+                .solderTo(branchDetectorWiring.getInputWire(BranchDetector::updateEventWindow, "event window"), INJECT);
         clearCommandDispatcher
                 .getOutputWire()
-                .solderTo(this.orphanBufferWiring.getInputWire(OrphanBuffer::clear), INJECT);
+                .solderTo(branchDetectorWiring.getInputWire(BranchDetector::clear), INJECT);
+        branchDetectorWiring.getOutputWire().solderTo(branchReporterWiring.getInputWire(BranchReporter::reportBranch));
+        eventWindowDispatcher
+                .getOutputWire()
+                .solderTo(branchReporterWiring.getInputWire(BranchReporter::updateEventWindow, "event window"), INJECT);
+        clearCommandDispatcher
+                .getOutputWire()
+                .solderTo(branchReporterWiring.getInputWire(BranchReporter::clear), INJECT);
 
         // Wire metrics
         if (pipelineTracker != null) {
-            pipelineTracker.registerMetric("hashing");
-            this.eventHasherWiring
+            pipelineTracker.registerMetric("hashing", EventOrigin.GOSSIP, EventOrigin.STORAGE);
+            eventHasherWiring
                     .getOutputWire()
-                    .solderForMonitoring(
-                            platformEvent -> pipelineTracker.recordEvent("hashing", platformEvent.getTimeReceived()));
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("hashing", platformEvent));
             pipelineTracker.registerMetric("validation");
-            this.eventValidatorWiring
+            eventValidatorWiring
                     .getOutputWire()
-                    .solderForMonitoring(platformEvent ->
-                            pipelineTracker.recordEvent("validation", platformEvent.getTimeReceived()));
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("validation", platformEvent));
             pipelineTracker.registerMetric("deduplication");
-            this.eventDeduplicatorWiring
+            eventDeduplicatorWiring
                     .getOutputWire()
-                    .solderForMonitoring(platformEvent ->
-                            pipelineTracker.recordEvent("deduplication", platformEvent.getTimeReceived()));
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("deduplication", platformEvent));
             pipelineTracker.registerMetric("verification");
-            this.eventSignatureValidatorWiring
+            eventSignatureValidatorWiring
                     .getOutputWire()
-                    .solderForMonitoring(platformEvent ->
-                            pipelineTracker.recordEvent("verification", platformEvent.getTimeReceived()));
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("verification", platformEvent));
             pipelineTracker.registerMetric("orphanBuffer");
-            this.orphanBufferWiring
-                    .getSplitOutput()
-                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent(
-                            "orphanBuffer", ((PlatformEvent) platformEvent).getTimeReceived()));
+            orphanBufferWiring
+                    .<PlatformEvent>getSplitOutput()
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("orphanBuffer", platformEvent));
         }
 
         // Force not soldered wires to be built
-        this.eventDeduplicatorWiring.getInputWire(EventDeduplicator::clear);
-        this.eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::updateRosterHistory);
-        this.orphanBufferWiring.getInputWire(OrphanBuffer::clear);
+        eventDeduplicatorWiring.getInputWire(EventDeduplicator::clear);
+        eventSignatureValidatorWiring.getInputWire(EventSignatureValidator::updateRosterHistory);
+        orphanBufferWiring.getInputWire(OrphanBuffer::clear);
+        branchDetectorWiring.getInputWire(BranchDetector::clear);
+        branchReporterWiring.getInputWire(BranchReporter::clear);
 
         // Create and bind components
+        final RosterWrapper activeRoster = rosterHistory.activeRoster();
         final EventHasher eventHasher = new DefaultEventHasher();
         eventHasherWiring.bind(eventHasher);
-        final InternalEventValidator internalEventValidator =
-                new DefaultInternalEventValidator(metrics, time, intakeEventCounter, transactionLimits);
+        final InternalEventValidator internalEventValidator = new DefaultInternalEventValidator(
+                new DefaultEventFieldValidator(metrics, time, transactionLimits), intakeEventCounter);
         eventValidatorWiring.bind(internalEventValidator);
         final EventDeduplicator eventDeduplicator = new StandardEventDeduplicator(metrics, intakeEventCounter);
         eventDeduplicatorWiring.bind(eventDeduplicator);
         final EventSignatureValidator eventSignatureValidator = new DefaultEventSignatureValidator(
-                metrics, time, ConsensusCryptoUtils::verifySignature, rosterHistory, intakeEventCounter);
+                metrics, time, CryptoUtils::verifySignature, rosterHistory, intakeEventCounter);
         eventSignatureValidatorWiring.bind(eventSignatureValidator);
         final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
         orphanBufferWiring.bind(orphanBuffer);
+        final BranchDetector branchDetector = new DefaultBranchDetector(activeRoster);
+        branchDetectorWiring.bind(branchDetector);
+        final BranchReporter branchReporter = new DefaultBranchReporter(metrics, time, activeRoster);
+        branchReporterWiring.bind(branchReporter);
     }
 
     /**
@@ -210,7 +245,16 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
      */
     @Override
     @NonNull
-    public InputWire<EventWindow> eventWindowInputWire() {
+    public InputWire<ConsensusRound> consensusRoundInputWire() {
+        return requireNonNull(eventWindowExtractor, "Not initialized").getInputWire();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public InputWire<EventWindow> initialEventWindowInputWire() {
         return requireNonNull(eventWindowDispatcher, "Not initialized").getInputWire();
     }
 
@@ -219,7 +263,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
      */
     @Override
     @NonNull
-    public InputWire<RosterHistory> rosterHistoryInputWire() {
+    public InputWire<RosterWrapperHistory> rosterHistoryInputWire() {
         return requireNonNull(eventSignatureValidatorWiring, "Not initialized")
                 .getInputWire(EventSignatureValidator::updateRosterHistory);
     }
@@ -243,6 +287,8 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         requireNonNull(eventDeduplicatorWiring, "Not initialized").flush();
         requireNonNull(eventSignatureValidatorWiring, "Not initialized").flush();
         requireNonNull(orphanBufferWiring, "Not initialized").flush();
+        requireNonNull(branchDetectorWiring, "Not initialized").flush();
+        requireNonNull(branchReporterWiring, "Not initialized").flush();
     }
 
     /**

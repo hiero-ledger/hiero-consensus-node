@@ -15,25 +15,17 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.file.FileGetInfoQuery;
 import com.hedera.hapi.node.file.FileGetInfoResponse;
 import com.hedera.hapi.node.file.FileGetInfoResponse.FileInfo;
-import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.node.app.hapi.fees.usage.file.ExtantFileContext;
-import com.hedera.node.app.hapi.fees.usage.file.FileOpsUsage;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.file.FileMetadata;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.file.impl.base.FileQueryBase;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.data.FilesConfig;
-import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hederahashgraph.api.proto.java.FeeData;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Optional;
@@ -47,16 +39,13 @@ import org.hiero.base.crypto.CryptographyProvider;
  */
 @Singleton
 public class FileGetInfoHandler extends FileQueryBase {
-    private final FileOpsUsage fileOpsUsage;
     private final Cryptography cryptography;
 
     /**
-     * Constructs a {@link FileGetInfoHandler} with the given {@link FileOpsUsage}.
-     * @param fileOpsUsage the file operations usage to be used for fee calculation
+     * Constructs a {@link FileGetInfoHandler}.
      */
     @Inject
-    public FileGetInfoHandler(final FileOpsUsage fileOpsUsage) {
-        this.fileOpsUsage = fileOpsUsage;
+    public FileGetInfoHandler() {
         cryptography = CryptographyProvider.getInstance();
     }
 
@@ -83,25 +72,11 @@ public class FileGetInfoHandler extends FileQueryBase {
     }
 
     @Override
-    public @NonNull Fees computeFees(@NonNull QueryContext queryContext) {
-        final var query = queryContext.query();
-        final var fileStore = queryContext.createStore(ReadableFileStore.class);
-        final var op = query.fileGetInfoOrThrow();
-        final var fileId = op.fileIDOrElse(FileID.DEFAULT);
-        final File file = fileStore.getFileLeaf(fileId);
-
-        return queryContext
-                .feeCalculator()
-                .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(query), file));
-    }
-
-    @Override
     public @NonNull Response findResponse(@NonNull final QueryContext context, @NonNull final ResponseHeader header) {
         requireNonNull(header);
         final var query = context.query();
         final var fileStore = context.createStore(ReadableFileStore.class);
         final var upgradeFileStore = context.createStore(ReadableUpgradeFileStore.class);
-        final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
         final var fileServiceConfig = context.configuration().getConfigData(FilesConfig.class);
         final var op = query.fileGetInfoOrThrow();
         final var responseBuilder = FileGetInfoResponse.newBuilder();
@@ -112,7 +87,7 @@ public class FileGetInfoHandler extends FileQueryBase {
         if (header.nodeTransactionPrecheckCode() == OK && responseType != COST_ANSWER) {
             final Optional<FileInfo> optionalInfo;
             try {
-                optionalInfo = infoForFile(file, fileStore, ledgerConfig, upgradeFileStore, fileServiceConfig);
+                optionalInfo = infoForFile(file, fileStore, context.ledgerId(), upgradeFileStore, fileServiceConfig);
             } catch (IOException e) {
                 throw new UncheckedIOException("Unable to read file contents", e);
             }
@@ -133,14 +108,14 @@ public class FileGetInfoHandler extends FileQueryBase {
      * Provides information about a file.
      * @param fileID the file to get information about
      * @param fileStore the file store
-     * @param ledgerConfig Ledger configuration properties
+     * @param ledgerId the ledger id to surface in the query response
      * @return the information about the file
      */
     @SuppressWarnings("java:S5738") // Suppress the warning that we are using deprecated class(CryptographyHolder)
     private Optional<FileInfo> infoForFile(
             @NonNull final FileID fileID,
             @NonNull final ReadableFileStore fileStore,
-            @NonNull final LedgerConfig ledgerConfig,
+            @NonNull final Bytes ledgerId,
             @NonNull final ReadableUpgradeFileStore upgradeFileStore,
             @NonNull final FilesConfig fileServiceConfig)
             throws IOException {
@@ -182,24 +157,8 @@ public class FileGetInfoHandler extends FileQueryBase {
             info.expirationTime(meta.expirationTimestamp());
             info.deleted(meta.deleted());
             info.keys(meta.keys());
-            info.ledgerId(ledgerConfig.id());
+            info.ledgerId(ledgerId);
             return Optional.of(info.build());
         }
-    }
-
-    private FeeData usageGiven(
-            @NonNull final com.hederahashgraph.api.proto.java.Query query, @Nullable final File file) {
-        requireNonNull(query);
-        if (file == null) {
-            return FeeData.getDefaultInstance();
-        }
-        final com.hederahashgraph.api.proto.java.File details = CommonPbjConverters.fromPbj(file);
-        final var ctx = ExtantFileContext.newBuilder()
-                .setCurrentSize(details.getContents().toByteArray().length)
-                .setCurrentWacl(details.getKeys())
-                .setCurrentMemo(details.getMemo())
-                .setCurrentExpiry(details.getExpirationSecond())
-                .build();
-        return fileOpsUsage.fileInfoUsage(query, ctx);
     }
 }

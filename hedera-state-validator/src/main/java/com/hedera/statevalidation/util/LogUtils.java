@@ -3,10 +3,8 @@ package com.hedera.statevalidation.util;
 
 import static com.swirlds.merkledb.files.DataFileCommon.dataLocationToString;
 
-import com.swirlds.merkledb.files.DataFileCollection;
-import com.swirlds.merkledb.files.DataFileReader;
+import com.hedera.statevalidation.validator.model.DiskDataItem;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
 import org.apache.logging.log4j.Logger;
 
 // Misc log ops
@@ -15,18 +13,15 @@ public final class LogUtils {
     private LogUtils() {}
 
     public static void printFileDataLocationError(
-            @NonNull final Logger logger,
-            @NonNull final String message,
-            @NonNull final DataFileCollection dfc,
-            long dataLocation) {
-        final List<DataFileReader> dataFiles = dfc.getAllCompletedFiles();
+            @NonNull final Logger logger, @NonNull final String message, long dataLocation) {
         logger.error("Error! Details: {}", message);
         logger.error("Data location: {}", dataLocationToString(dataLocation));
-        logger.error("Data file collection: ");
-        dataFiles.forEach(a -> {
-            logger.error("File: {}", a.getPath());
-            logger.error("Size: {}", a.getSize());
-            logger.error("Metadata: {}", a.getMetadata());
-        });
+    }
+
+    public static void printFileDataLocationError(
+            @NonNull final Logger logger, @NonNull final String message, @NonNull final DiskDataItem diskDataItem) {
+        logger.error("Error! Details: {}", message);
+        logger.error("Item Data: {}", diskDataItem.type());
+        logger.error("Item Data Location: {}", diskDataItem.location());
     }
 }

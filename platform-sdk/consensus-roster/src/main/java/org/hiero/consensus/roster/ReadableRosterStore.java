@@ -5,11 +5,10 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.roster.RosterUtils.isWeightRotation;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.List;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 
 /**
  * Read-only implementation for accessing rosters states.
@@ -41,6 +40,9 @@ public interface ReadableRosterStore {
 
     /**
      * Returns if there is a pending candidate roster that changes at most the weights from the active roster.
+     *
+     * @return {@code true} if there is a pending candidate roster that changes at most the weights from the active roster,
+     *         {@code false} otherwise.
      */
     default boolean candidateIsWeightRotation() {
         final Roster candidateRoster = getCandidateRoster();
@@ -61,33 +63,33 @@ public interface ReadableRosterStore {
     Roster get(@NonNull Bytes rosterHash);
 
     /**
-     * Gets the roster history.
-     * Returns the active roster history iff:
-     *      the roster state singleton is not null
-     *      the list of round roster pairs is not empty
-     *      the active roster hashes are present in the roster map
-     * otherwise returns null.
-     * @return the active rosters
+     * Gets the raw roster data wrapped in {@link ConsensusLayerRosterInputs}.
+     *
+     * @return the {@code ConsensusLayerRosterInputs}
      */
     @NonNull
-    List<RoundRosterPair> getRosterHistory();
+    ConsensusLayerRosterInputs getConsensusLayerRosterInputs();
 
     /**
-     * Get the current roster hash.
-     * @return The current roster hash.
+     * Get the active roster hash.
+     * @return The active roster hash.
      */
     @Nullable
-    Bytes getCurrentRosterHash();
+    Bytes getActiveRosterHash();
 
     /**
-     * Get the previous roster hash, if present. If the current roster is the genesis
-     * roster, returns null.
+     * Get the previous roster hash, if present. If the active roster is the genesis
+     * roster, returns {@code null}.
+     *
+     * @return the previous roster hash, or {@code null} if the active roster is the genesis roster.
      */
     @Nullable
     Bytes getPreviousRosterHash();
 
     /**
-     * Gets the candidate roster hash, if present. If none is set, returns null;
+     * Gets the candidate roster hash, if present. If none is set, returns {@code null}.
+     *
+     * @return the candidate roster hash, or {@code null} if no candidate roster is set.
      */
     @Nullable
     Bytes getCandidateRosterHash();

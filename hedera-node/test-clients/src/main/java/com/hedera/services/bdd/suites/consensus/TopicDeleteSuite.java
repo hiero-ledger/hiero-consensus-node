@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.consensus;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTopicId;
@@ -10,16 +9,19 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedTopicDeleteFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOPIC_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNAUTHORIZED;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class TopicDeleteSuite {
     @HapiTest
@@ -35,8 +37,8 @@ public class TopicDeleteSuite {
         return hapiTest(
                 cryptoCreate("nonTopicId"),
                 deleteTopic(spec -> asTopicId(spec.registry().getAccountID("nonTopicId")))
-                        .hasPrecheck(INVALID_TOPIC_ID),
-                deleteTopic((String) null).hasPrecheck(INVALID_TOPIC_ID));
+                        .hasKnownStatus(INVALID_TOPIC_ID),
+                deleteTopic((String) null).hasKnownStatus(INVALID_TOPIC_ID));
     }
 
     @HapiTest
@@ -61,7 +63,6 @@ public class TopicDeleteSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> deleteWithAdminKey() {
         return hapiTest(
                 newKeyNamed("adminKey"),
@@ -85,12 +86,15 @@ public class TopicDeleteSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> feeAsExpected() {
         return hapiTest(
                 cryptoCreate("payer"),
                 createTopic("testTopic").adminKeyName("payer"),
                 deleteTopic("testTopic").blankMemo().payingWith("payer").via("topicDelete"),
-                validateChargedUsd("topicDelete", 0.005));
+                validateChargedUsdWithinWithTxnSize(
+                        "topicDelete",
+                        txnSize ->
+                                expectedTopicDeleteFullFeeUsd(Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                        0.001));
     }
 }

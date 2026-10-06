@@ -22,6 +22,7 @@ import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.SpeedometerMetric;
 import org.hiero.consensus.metrics.statistics.AverageStat;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.Transaction;
@@ -95,6 +96,13 @@ public class ConsensusEngineMetrics {
             .withDescription("number of transactions in stale self events");
     private final LongAccumulator staleTransactionCount;
 
+    private static final RunningAverageMetric.Config AVG_GOSSIP_ROUNDTRIP_CONFIG = new RunningAverageMetric.Config(
+                    PLATFORM_CATEGORY, "secGossipRoundtrip")
+            .withDescription("gossip roundtrip: time from creating a self event to receiving an event from another "
+                    + "node that uses it as a parent (in seconds)")
+            .withFormat(FORMAT_10_3);
+    private final RunningAverageMetric avgGossipRoundtrip;
+
     /**
      * The constructor of {@code AddedEventMetrics}
      *
@@ -122,6 +130,7 @@ public class ConsensusEngineMetrics {
         numTrans = metrics.getOrCreate(NUM_TRANS_CONFIG);
         staleEventCount = metrics.getOrCreate(STALE_EVENTS_CONFIG);
         staleTransactionCount = metrics.getOrCreate(STALE_APP_TRANSACTIONS_CONFIG);
+        avgGossipRoundtrip = metrics.getOrCreate(AVG_GOSSIP_ROUNDTRIP_CONFIG);
     }
 
     /**
@@ -135,7 +144,7 @@ public class ConsensusEngineMetrics {
             if (!event.getBaseEvent().getOtherParents().isEmpty()) {
                 averageOtherParentAgeDiff.update(event.getBirthRound()
                         - event.getBaseEvent().getOtherParents().stream()
-                                .map(ed -> ed.eventDescriptor().birthRound())
+                                .map(EventDescriptorWrapper::birthRound)
                                 .max(Long::compareTo)
                                 .orElse(0L));
             }
@@ -143,6 +152,18 @@ public class ConsensusEngineMetrics {
             avgCreatedReceivedTime.update(
                     event.getTimeCreated().until(event.getBaseEvent().getTimeReceived(), ChronoUnit.NANOS)
                             * NANOSECONDS_TO_SECONDS);
+
+            // Gossip roundtrip: if this received event uses one of our self events as a parent,
+            // measure the time from when we created that self event to when we received this response.
+            for (final EventImpl otherParent : event.getOtherParents()) {
+                if (Objects.equals(otherParent.getCreatorId(), selfId)) {
+                    avgGossipRoundtrip.update(otherParent
+                                    .getTimeCreated()
+                                    .until(event.getBaseEvent().getTimeReceived(), ChronoUnit.NANOS)
+                            * NANOSECONDS_TO_SECONDS);
+                    break;
+                }
+            }
         }
 
         // count the unique events in the hashgraph

@@ -4,12 +4,10 @@ package com.hedera.node.app.state.listeners;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
-import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.ReadableFreezeStore;
 import com.hedera.node.app.service.networkadmin.impl.handlers.ReadableFreezeUpgradeActions;
-import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
@@ -72,31 +70,31 @@ public class WriteStateToDiskListener implements StateWriteToDiskCompleteListene
                     notification.getConsensusTimestamp(),
                     notification.getRoundNumber(),
                     notification.getSequence());
-            try (final var wrappedState = stateAccessor.get()) {
-                final var readableStoreFactory = new ReadableStoreFactoryImpl(wrappedState.get());
-                final var readableFreezeStore = readableStoreFactory.readableStore(ReadableFreezeStore.class);
-                final var readableUpgradeFileStore = readableStoreFactory.readableStore(ReadableUpgradeFileStore.class);
-                final var readableNodeStore = readableStoreFactory.readableStore(ReadableNodeStore.class);
-                final var readableStakingInfoStore = readableStoreFactory.readableStore(ReadableStakingInfoStore.class);
-
-                final var upgradeActions = new ReadableFreezeUpgradeActions(
-                        configProvider.getConfiguration(),
-                        readableFreezeStore,
-                        executor,
-                        readableUpgradeFileStore,
-                        readableNodeStore,
-                        readableStakingInfoStore,
-                        entityIdFactory);
-                log.info("Externalizing freeze if upgrade is pending");
-                upgradeActions.externalizeFreezeIfUpgradePending();
-            } catch (final Exception e) {
-                log.error("Error while responding to freeze state notification", e);
-            }
+            externalizeFreezeIfUpgradePending();
         }
         // We don't archive genesis startup assets until at least one round has actually been handled,
         // since we need these assets to create genesis entities at the beginning of the first round
         if (notification.getRoundNumber() > 0) {
             startupNetworks.archiveStartupNetworks();
+        }
+    }
+
+    void externalizeFreezeIfUpgradePending() {
+        try (final var wrappedState = stateAccessor.get()) {
+            final var readableStoreFactory = new ReadableStoreFactoryImpl(wrappedState.get());
+            final var readableFreezeStore = readableStoreFactory.readableStore(ReadableFreezeStore.class);
+            final var readableUpgradeFileStore = readableStoreFactory.readableStore(ReadableUpgradeFileStore.class);
+
+            final var upgradeActions = new ReadableFreezeUpgradeActions(
+                    configProvider.getConfiguration(),
+                    readableFreezeStore,
+                    executor,
+                    readableUpgradeFileStore,
+                    entityIdFactory);
+            log.info("Externalizing freeze if upgrade is pending");
+            upgradeActions.externalizeFreezeIfUpgradePending();
+        } catch (final Exception e) {
+            log.error("Error while responding to freeze state notification", e);
         }
     }
 }

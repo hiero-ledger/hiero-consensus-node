@@ -20,6 +20,10 @@ class AddressBookServiceDefinitionTest {
                 .containsExactlyInAnyOrder(
                         new RpcMethodDefinition<>("createNode", Transaction.class, TransactionResponse.class),
                         new RpcMethodDefinition<>("updateNode", Transaction.class, TransactionResponse.class),
-                        new RpcMethodDefinition<>("deleteNode", Transaction.class, TransactionResponse.class));
+                        new RpcMethodDefinition<>("deleteNode", Transaction.class, TransactionResponse.class),
+                        new RpcMethodDefinition<>("createRegisteredNode", Transaction.class, TransactionResponse.class),
+                        new RpcMethodDefinition<>("updateRegisteredNode", Transaction.class, TransactionResponse.class),
+                        new RpcMethodDefinition<>(
+                                "deleteRegisteredNode", Transaction.class, TransactionResponse.class));
     }
 }

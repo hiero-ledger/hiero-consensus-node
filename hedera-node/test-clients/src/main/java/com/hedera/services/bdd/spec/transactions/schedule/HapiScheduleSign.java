@@ -1,26 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.schedule;
 
-import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asScheduleId;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleCreate.correspondingScheduledTxnId;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ScheduleSign;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.common.base.MoreObjects;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.fees.FeeCalculator;
 import com.hedera.services.bdd.spec.infrastructure.RegistryNotFound;
-import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
-import com.hedera.services.bdd.suites.HapiSuite;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.ScheduleID;
-import com.hederahashgraph.api.proto.java.ScheduleInfo;
 import com.hederahashgraph.api.proto.java.ScheduleSignTransactionBody;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -41,7 +34,6 @@ public class HapiScheduleSign extends HapiTxnOp<HapiScheduleSign> {
 
     public HapiScheduleSign(String schedule) {
         this.schedule = schedule;
-        sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES));
     }
 
     public HapiScheduleSign alsoSigningWith(String... keys) {
@@ -99,18 +91,6 @@ public class HapiScheduleSign extends HapiTxnOp<HapiScheduleSign> {
         }
         if (saveScheduledTxnId) {
             spec.registry().saveTxnId(correspondingScheduledTxnId(schedule), lastReceipt.getScheduledTransactionID());
-        }
-    }
-
-    @Override
-    protected long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) throws Throwable {
-        try {
-            final ScheduleInfo info = ScheduleFeeUtils.lookupInfo(spec, schedule, true);
-            FeeCalculator.ActivityMetrics metricsCalc = (_txn, svo) -> scheduleOpsUsage.scheduleSignUsage(
-                    _txn, suFrom(svo), info.getExpirationTime().getSeconds());
-            return spec.fees().forActivityBasedOp(HederaFunctionality.ScheduleSign, metricsCalc, txn, numPayerKeys);
-        } catch (Throwable ignore) {
-            return HapiSuite.ONE_HBAR;
         }
     }
 

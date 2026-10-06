@@ -16,6 +16,7 @@ import static org.hyperledger.besu.evm.frame.ExceptionalHaltReason.INSUFFICIENT_
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations;
@@ -128,7 +129,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      * {@inheritDoc}
      */
     @Override
-    public @Nullable HederaEvmAccount getHederaAccount(@NonNull AccountID accountId) {
+    public @Nullable AbstractMutableEvmAccount getHederaAccount(@NonNull AccountID accountId) {
         final Address address;
         if (accountId.hasAlias()) {
             address = pbjToBesuAddress(accountId.aliasOrThrow());
@@ -139,7 +140,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
                 return null;
             }
         }
-        return address == null ? null : (HederaEvmAccount) get(address);
+        return address == null ? null : get(address);
     }
 
     /**
@@ -148,7 +149,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     @Override
     public ContractID getHederaContractId(@NonNull final Address address) {
         requireNonNull(address);
-        final var account = (HederaEvmAccount) get(address);
+        final var account = get(address);
         if (account == null) {
             // Also return ids for pending creations
             if (pendingCreation != null && pendingCreation.address().equals(address)) {
@@ -165,13 +166,28 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
         return account.hederaContractId();
     }
 
+    public ContractID getHederaContractIdNotThrowing(Address address) {
+        var account = get(address);
+        if (account != null) return account.hederaContractId();
+        // Also return ids for pending creations
+        if (pendingCreation != null && pendingCreation.address().equals(address))
+            return entityIdFactory().newContractId(pendingCreation.number());
+
+        if (!contractMustBePresent) {
+            return isLongZero(address)
+                    ? asNumberedContractId(entityIdFactory(), address)
+                    : asEvmContractId(entityIdFactory(), address);
+        }
+        return null; // Instead of throwing IAE
+    }
+
     @Override
     public @NonNull Bytes entropy() {
         return pbjToTuweniBytes(enhancement.operations().entropy());
     }
 
     @Override
-    public @Nullable HederaEvmAccount getHederaAccount(@NonNull ContractID contractId) {
+    public @Nullable AbstractMutableEvmAccount getHederaAccount(@NonNull ContractID contractId) {
         requireNonNull(contractId);
         contractId = enhancement.operations().shardAndRealmValidated(contractId);
         final Address address;
@@ -184,7 +200,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
                 return null;
             }
         }
-        return address == null ? null : (HederaEvmAccount) get(address);
+        return address == null ? null : get(address);
     }
 
     @Override
@@ -226,9 +242,8 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
 
         final var opsDurationCounter = FrameUtils.opsDurationCounter(frame);
         final var opsDurationSchedule = opsDurationCounter.schedule();
-        final var opsDurationCost = gasCost
-                * opsDurationSchedule.accountLazyCreationOpsDurationMultiplier()
-                / opsDurationSchedule.multipliersDenominator();
+        final var opsDurationCost = opsDurationSchedule.gasBasedOpsDuration(
+                gasCost, opsDurationSchedule.accountLazyCreationOpsDurationMultiplier());
         opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationCost);
 
         return Optional.empty();
@@ -323,7 +338,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      * {@inheritDoc}
      */
     @Override
-    public @Nullable Account get(@NonNull final Address address) {
+    public @Nullable AbstractMutableEvmAccount get(@NonNull Address address) {
         return evmFrameState.getAccount(address);
     }
 
@@ -331,7 +346,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      * {@inheritDoc}
      */
     @Override
-    public MutableAccount getAccount(@NonNull final Address address) {
+    public AbstractMutableEvmAccount getAccount(@NonNull final Address address) {
         return evmFrameState.getMutableAccount(address);
     }
 
@@ -478,6 +493,45 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     @NonNull
     public ExchangeRate currentExchangeRate() {
         return enhancement().systemOperations().currentExchangeRate();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean setAccountCodeDelegation(
+            @NonNull final AccountID accountID, @NonNull final Address delegationAddress) {
+        return enhancement.operations().setAccountCodeDelegation(accountID, delegationAddress);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean createAccountWithKeyAndCodeDelegation(
+            @NonNull final Address authority,
+            @NonNull final byte[] ecdsaPublicKey,
+            @NonNull final Address delegationAddress) {
+        final var maybeHaltReason =
+                evmFrameState.tryCreateAccountWithKeyAndCodeDelegation(authority, ecdsaPublicKey, delegationAddress);
+        return maybeHaltReason.isEmpty();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long lazyCreationCostInGas(@NonNull Address recipient) {
+        return enhancement.operations().lazyCreationCostInGas(recipient);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public <T> T createNewChildRecordBuilder(
+            @NonNull Class<T> recordBuilderClass, @NonNull HederaFunctionality functionality) {
+        return enhancement().nativeOperations().createNewChildRecordBuilder(recordBuilderClass, functionality);
     }
 
     private long getValidatedCreationNumber(

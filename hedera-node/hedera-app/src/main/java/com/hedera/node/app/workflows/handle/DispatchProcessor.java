@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_UPDATE;
@@ -22,6 +23,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
+import com.hedera.node.app.fees.FeeAccumulator;
 import com.hedera.node.app.service.contract.impl.handlers.EthereumTransactionHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.FeeCharging;
@@ -34,6 +36,8 @@ import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.handle.dispatch.DispatchValidator;
 import com.hedera.node.app.workflows.handle.dispatch.RecordFinalizer;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
+import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions;
+import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions.Details;
 import com.hedera.node.app.workflows.handle.steps.PlatformStateUpdates;
 import com.hedera.node.app.workflows.handle.steps.SystemFileUpdates;
 import com.hedera.node.app.workflows.handle.throttle.DispatchUsageManager;
@@ -112,14 +116,34 @@ public class DispatchProcessor {
      * @param dispatch the dispatch to be processed
      */
     public void processDispatch(@NonNull final Dispatch dispatch) {
+        processDispatch(dispatch, null);
+    }
+
+    /**
+     * This method is responsible for charging the fees and tries to execute the
+     * business logic for the given dispatch, guaranteeing that the changes committed
+     * to its stack are exactly reflected in its recordBuilder. At the end, it will
+     * finalize the record and commit the stack.
+     *
+     * @param dispatch the dispatch to be processed
+     * @param hollowAccountCompletionsDetails optional hollow-account setup dispatches to replay after rollback
+     */
+    public void processDispatch(
+            @NonNull final Dispatch dispatch, @Nullable final Details hollowAccountCompletionsDetails) {
         requireNonNull(dispatch);
         final var validation = validator.validateFeeChargingScenario(dispatch);
         if (!validation.creatorDidDueDiligence()) {
+            if (isClprSubmitBundle(dispatch)) {
+                logger.warn(
+                        "[CLPR-DISPATCH] creator due diligence failed; charging creator txId={} status={}",
+                        dispatch.txnInfo().transactionID(),
+                        validation.errorStatusOrThrow());
+            }
             chargeCreator(dispatch, validation);
         } else {
             final var fees = chargePayer(dispatch, validation, false);
             if (!alreadyFailed(dispatch, validation)) {
-                tryHandle(dispatch, validation, fees);
+                tryHandle(dispatch, validation, fees, hollowAccountCompletionsDetails);
             }
         }
         dispatchUsageManager.finalizeAndSaveUsage(dispatch);
@@ -141,8 +165,10 @@ public class DispatchProcessor {
     private void tryHandle(
             @NonNull final Dispatch dispatch,
             @NonNull final FeeCharging.Validation validation,
-            @NonNull final Fees fees) {
+            @NonNull final Fees fees,
+            @Nullable final HollowAccountCompletions.Details details) {
         final var functionality = dispatch.txnInfo().functionality();
+        boolean success = false;
         try {
             dispatchUsageManager.screenForCapacity(dispatch);
             dispatcher.dispatchHandle(dispatch.handleContext());
@@ -155,19 +181,47 @@ public class DispatchProcessor {
                 }
             }
             handleSystemUpdates(dispatch);
+            success = true;
         } catch (HandleException e) {
-            rollback(e.getStatus(), dispatch.stack(), dispatch.streamBuilder());
+            if (isClprSubmitBundle(dispatch)) {
+                logger.warn(
+                        "[CLPR-DISPATCH] HandleException txId={} status={} message={}",
+                        dispatch.txnInfo().transactionID(),
+                        e.getStatus(),
+                        e.getMessage());
+            }
+            final var feeCharging = dispatch.feeChargingOrElse(appFeeCharging);
+            feeCharging.rollback();
+            rollback(e.getStatus(), dispatch.stack(), dispatch.streamBuilder(), dispatch.feeAccumulator());
             chargePayer(dispatch, validation, false);
-            e.maybeReplayFees(dispatch);
-        } catch (final ThrottleException e) {
+            e.maybeReplay(feeCharging.customized(dispatch), dispatch.handleContext());
+        } catch (ThrottleException e) {
+            if (isClprSubmitBundle(dispatch)) {
+                logger.warn(
+                        "[CLPR-DISPATCH] throttled txId={} status={} message={}",
+                        dispatch.txnInfo().transactionID(),
+                        e.getStatus(),
+                        e.getMessage());
+            }
             workflowMetrics.incrementThrottled(functionality);
             rollbackAndRechargeFee(dispatch, validation, e.getStatus());
             if (functionality == ETHEREUM_TRANSACTION) {
                 ethereumTransactionHandler.handleThrottled(dispatch.handleContext());
             }
-        } catch (final Exception e) {
+        } catch (Exception e) {
+            if (isClprSubmitBundle(dispatch)) {
+                logger.error(
+                        "[CLPR-DISPATCH] unexpected exception txId={} category={} payer={}",
+                        dispatch.txnInfo().transactionID(),
+                        dispatch.txnCategory(),
+                        dispatch.payerId(),
+                        e);
+            }
             logger.error("{} - exception thrown while handling dispatch", ALERT_MESSAGE, e);
             rollbackAndRechargeFee(dispatch, validation, FAIL_INVALID);
+        }
+        if (!success && details != null) {
+            details.replay(dispatch.handleContext()::dispatch);
         }
     }
 
@@ -208,7 +262,8 @@ public class DispatchProcessor {
             @NonNull final Dispatch dispatch,
             @NonNull final FeeCharging.Validation validation,
             @NonNull final ResponseCodeEnum status) {
-        rollback(status, dispatch.stack(), dispatch.streamBuilder());
+        dispatch.feeChargingOrElse(appFeeCharging).rollback();
+        rollback(status, dispatch.stack(), dispatch.streamBuilder(), dispatch.feeAccumulator());
         chargePayer(dispatch, validation, true);
         dispatchUsageManager.trackFeePayments(dispatch);
     }
@@ -221,6 +276,14 @@ public class DispatchProcessor {
      */
     private void chargeCreator(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
         dispatch.streamBuilder().status(validation.errorStatusOrThrow());
+        if (isClprSubmitBundle(dispatch)) {
+            logger.warn(
+                    "[CLPR-DISPATCH] charge creator txId={} creator={} networkFee={} status={}",
+                    dispatch.txnInfo().transactionID(),
+                    dispatch.creatorInfo().accountId(),
+                    dispatch.fees().networkFee(),
+                    validation.errorStatusOrThrow());
+        }
         // If the transaction is a batch inner transaction, we don't charge the creator
         if (dispatch.category() == BATCH_INNER) {
             return;
@@ -259,15 +322,24 @@ public class DispatchProcessor {
 
     /**
      * Rolls back the stack and sets the status of the transaction in case of a failure.
-     * @param status        the status to set
-     * @param stack         the save point stack to rollback
+     * @param status the status to set
+     * @param stack the save point stack to rollback
+     * @param builder the stream builder
+     * @param feeAccumulator the fee accumulator to reset after rollback
      */
     private void rollback(
             @NonNull final ResponseCodeEnum status,
             @NonNull final SavepointStackImpl stack,
-            @NonNull final StreamBuilder builder) {
+            @NonNull final StreamBuilder builder,
+            @NonNull final FeeAccumulator feeAccumulator) {
         builder.status(status);
         stack.rollbackFullStack();
+        // The full-stack rollback reverts the ledger effects of the discarded charge (payer debit and
+        // fee collection credit) and the savepoint's node-fee reward counter, but it cannot reach the
+        // block-scoped node-payments accumulator. Reverse that accumulation here, before the tracked
+        // amounts are cleared, so the payer re-charge that follows does not double-count the node fee.
+        feeAccumulator.reverseAccumulatedNodeFees();
+        feeAccumulator.resetRefundableFees();
     }
 
     /**
@@ -281,19 +353,47 @@ public class DispatchProcessor {
      */
     private boolean alreadyFailed(@NonNull final Dispatch dispatch, @NonNull final FeeCharging.Validation validation) {
         if (validation.maybeErrorStatus() != null) {
+            if (isClprSubmitBundle(dispatch)) {
+                logger.warn(
+                        "[CLPR-DISPATCH] skipping handler due to validation error txId={} status={}",
+                        dispatch.txnInfo().transactionID(),
+                        validation.errorStatusOrThrow());
+            }
             dispatch.streamBuilder().status(validation.errorStatusOrThrow());
             return true;
         }
         final var authorizationFailure = maybeAuthorizationFailure(dispatch);
         if (authorizationFailure != null) {
+            if (isClprSubmitBundle(dispatch)) {
+                logger.warn(
+                        "[CLPR-DISPATCH] skipping handler due to authorization failure txId={} status={} "
+                                + "category={} payer={}",
+                        dispatch.txnInfo().transactionID(),
+                        authorizationFailure,
+                        dispatch.txnCategory(),
+                        dispatch.payerId());
+            }
             dispatch.streamBuilder().status(authorizationFailure);
             return true;
         }
         if (failsSignatureVerification(dispatch)) {
+            if (isClprSubmitBundle(dispatch)) {
+                logger.warn(
+                        "[CLPR-DISPATCH] skipping handler due to signature verification failure txId={} "
+                                + "requiredKeys={} hollowAccounts={}",
+                        dispatch.txnInfo().transactionID(),
+                        dispatch.requiredKeys().size(),
+                        dispatch.hollowAccounts().size());
+            }
             dispatch.streamBuilder().status(INVALID_SIGNATURE);
             return true;
         }
         return false;
+    }
+
+    private static boolean isClprSubmitBundle(@NonNull final Dispatch dispatch) {
+        final var txnInfo = dispatch.txnInfo();
+        return txnInfo != null && txnInfo.functionality() == CLPR_SUBMIT_BUNDLE;
     }
 
     /**

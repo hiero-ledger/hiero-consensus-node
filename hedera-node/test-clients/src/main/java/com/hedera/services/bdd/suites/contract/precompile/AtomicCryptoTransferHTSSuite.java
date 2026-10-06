@@ -2,12 +2,12 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.resultWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.including;
+import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.SUPPLY_KEY;
 import static com.hedera.services.bdd.spec.keys.KeyShape.DELEGATE_CONTRACT;
 import static com.hedera.services.bdd.spec.keys.KeyShape.sigs;
 import static com.hedera.services.bdd.spec.keys.SigControl.ON;
@@ -33,13 +33,20 @@ import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fix
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fractionalFee;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.royaltyFeeWithFallback;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingHbar;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.accountAmount;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.accountAmountAlias;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertCloseEnough;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.nftTransfer;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.nftTransferToAlias;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.tokenTransferList;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.tokenTransferLists;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.transferList;
@@ -50,6 +57,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.parsedToByteString;
+import static com.hedera.services.bdd.suites.utils.MiscEETUtils.genRandomBytes;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AMOUNT_EXCEEDS_ALLOWANCE;
@@ -63,10 +71,17 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.node.app.hapi.utils.ByteStringUtils;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.assertions.NonFungibleTransfers;
 import com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers;
+import com.hedera.services.bdd.spec.dsl.annotations.Contract;
+import com.hedera.services.bdd.spec.dsl.annotations.FungibleToken;
+import com.hedera.services.bdd.spec.dsl.annotations.NonFungibleToken;
+import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
+import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.suites.contract.precompile.token.TransferTokenTest;
@@ -80,6 +95,7 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(ATOMIC_BATCH)
+@HapiTestLifecycle
 public class AtomicCryptoTransferHTSSuite {
     private static final long GAS_FOR_AUTO_ASSOCIATING_CALLS = 2_000_000;
     private static final Tuple[] EMPTY_TUPLE_ARRAY = new Tuple[] {};
@@ -103,6 +119,106 @@ public class AtomicCryptoTransferHTSSuite {
     private static final String BASE_APPROVAL_TXN = "baseApproveTxn";
 
     public static final String SECP_256K1_SOURCE_KEY = "secp256k1Alias";
+
+    @HapiTest
+    final Stream<DynamicTest> hollowAccountCreationFeesAsExpected(
+            @Contract(creationGas = 2_000_000, contract = "AtomicCryptoTransfer", maxAutoAssociations = 2)
+                    SpecContract contract,
+            @FungibleToken SpecFungibleToken fungibleToken,
+            @NonFungibleToken(
+                            keys = {SUPPLY_KEY},
+                            numPreMints = 1)
+                    SpecNonFungibleToken nonFungibleToken) {
+        final AtomicLong hbarAutoCreationGas = new AtomicLong();
+        final AtomicLong ftAutoCreationGas = new AtomicLong();
+        final AtomicLong nftAutoCreationGas = new AtomicLong();
+        return hapiTest(
+                contract.getInfo(),
+                fungibleToken.getInfo(),
+                nonFungibleToken.getInfo(),
+                // Give the contract assets to use in creating hollow accounts
+                cryptoTransfer(
+                                movingHbar(10 * ONE_HUNDRED_HBARS).between(GENESIS, contract.name()),
+                                moving(1, fungibleToken.name())
+                                        .between(fungibleToken.treasury().name(), contract.name()),
+                                movingUnique(nonFungibleToken.name(), 1)
+                                        .between(nonFungibleToken.treasury().name(), contract.name()))
+                        .signedBy(
+                                GENESIS,
+                                fungibleToken.treasury().name(),
+                                nonFungibleToken.treasury().name()),
+                // First auto-create a hollow account with HBAR
+                sourcingContextual(spec -> contractCall(
+                                contract.name(),
+                                "transferMultipleTokens",
+                                transferList()
+                                        .withAccountAmounts(
+                                                accountAmount(
+                                                        spec.registry().getAccountID(contract.name()), -1L, false),
+                                                accountAmountAlias(genRandomBytes(20), +1L))
+                                        .build(),
+                                EMPTY_TUPLE_ARRAY)
+                        .payingWith(GENESIS)
+                        .via("hbarAutoCreation")
+                        .gas(2_000_000L)),
+                getTxnRecord("hbarAutoCreation")
+                        .exposingTo(r -> hbarAutoCreationGas.set(
+                                r.getContractCallResult().getGasUsed())),
+                // Then auto-create a hollow account with a fungible token
+                sourcingContextual(spec -> contractCall(
+                                contract.name(),
+                                "transferMultipleTokens",
+                                transferList()
+                                        .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                        .build(),
+                                wrapIntoTupleArray(tokenTransferList()
+                                        .forToken(spec.registry().getTokenID(fungibleToken.name()))
+                                        .withAccountAmounts(
+                                                accountAmount(
+                                                        spec.registry().getAccountID(contract.name()), -1L, false),
+                                                accountAmountAlias(genRandomBytes(20), +1L))
+                                        .build()))
+                        .payingWith(GENESIS)
+                        .via("ftAutoCreation")
+                        .gas(2_000_000L)),
+                getTxnRecord("ftAutoCreation")
+                        .exposingTo(r ->
+                                ftAutoCreationGas.set(r.getContractCallResult().getGasUsed())),
+                // And finally auto-create a hollow account with a non-fungible token
+                sourcingContextual(spec -> contractCall(
+                                contract.name(),
+                                "transferMultipleTokens",
+                                transferList()
+                                        .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                        .build(),
+                                wrapIntoTupleArray(tokenTransferList()
+                                        .forToken(spec.registry().getTokenID(nonFungibleToken.name()))
+                                        .withNftTransfers(nftTransferToAlias(
+                                                spec.registry().getAccountID(contract.name()), genRandomBytes(20), 1L))
+                                        .build()))
+                        .payingWith(GENESIS)
+                        .via("nftAutoCreation")
+                        .gas(2_000_000L)),
+                getTxnRecord("nftAutoCreation")
+                        .exposingTo(r ->
+                                nftAutoCreationGas.set(r.getContractCallResult().getGasUsed())),
+                assertionsHold((spec, opLog) -> {
+                    // The HTS auto-creations should be almost exactly the same
+                    assertCloseEnough(
+                            1.0,
+                            1.0 * ftAutoCreationGas.get() / nftAutoCreationGas.get(),
+                            1.0,
+                            "ratio of FT to NFT auto-creation gas",
+                            "via IHederaTokenService");
+                    // The HBAR auto-creation should be ~1/2 of them, since it doesn't require an auto-association
+                    assertCloseEnough(
+                            0.5,
+                            1.0 * hbarAutoCreationGas.get() / ftAutoCreationGas.get(),
+                            5.0,
+                            "ratio of HBAR to FT auto-creation gas",
+                            "via IHederaTokenService");
+                }));
+    }
 
     @HapiTest
     final Stream<DynamicTest> cryptoTransferForHbarOnly() {
@@ -484,7 +600,6 @@ public class AtomicCryptoTransferHTSSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> cryptoTransferForNFTWithFees() {
         final var cryptoTransferTxnForNonFungible = "cryptoTransferTxnForNonFungible";
         final var FEE_TOKEN = "FeeToken";
@@ -1228,20 +1343,6 @@ public class AtomicCryptoTransferHTSSuite {
 
                     allRunFor(
                             spec,
-                            // trying to transfer NFT that is not approved
-                            contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(EMPTY_TUPLE_ARRAY)
-                                                    .build(),
-                                            wrapIntoTupleArray(tokenTransferList()
-                                                    .forToken(token)
-                                                    .withNftTransfers(nftTransfer(owner, receiver, 1L, true))
-                                                    .build()))
-                                    .via(revertingTransferFromTxnNft)
-                                    .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
-                                    .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
                             // transfer allowed NFT
                             contractCall(
                                             CONTRACT,
@@ -1255,36 +1356,8 @@ public class AtomicCryptoTransferHTSSuite {
                                                     .build()))
                                     .via(successfulTransferFromTxn)
                                     .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
-                                    .hasKnownStatus(SUCCESS),
-                            // check there is ERC721 event
-                            TransferTokenTest.validateErcEvent(
-                                            getTxnRecord(successfulTransferFromTxn),
-                                            new TransferTokenTest.ErcEventRecord(
-                                                    token::getTokenNum,
-                                                    true,
-                                                    () -> parsedToByteString(owner),
-                                                    () -> parsedToByteString(receiver),
-                                                    2L))
-                                    .andAllChildRecords());
-                }),
-                childRecordsCheck(
-                        revertingTransferFromTxnNft,
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(SPENDER_DOES_NOT_HAVE_ALLOWANCE)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE)))),
-                childRecordsCheck(
-                        successfulTransferFromTxn,
-                        SUCCESS,
-                        recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(SUCCESS)))
-                                .tokenTransfers(NonFungibleTransfers.changingNFTBalances()
-                                        .including(NFT_TOKEN, OWNER, RECEIVER, 2L))));
+                                    .hasKnownStatus(SUCCESS));
+                }));
     }
 
     @HapiTest
@@ -1433,7 +1506,6 @@ public class AtomicCryptoTransferHTSSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> cryptoTransferSpecialAccounts() {
         final var cryptoTransferTxn = "cryptoTransferTxn";
         return hapiTest(

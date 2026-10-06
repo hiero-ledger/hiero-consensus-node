@@ -3,20 +3,26 @@ package com.hedera.services.bdd.junit.hedera.simulator;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.RecordFileItem;
 import com.hedera.pbj.grpc.helidon.PbjRouting;
 import com.hedera.pbj.grpc.helidon.config.PbjConfig;
 import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.services.bdd.junit.hedera.BlockNodeTlsMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.helidon.common.tls.Tls;
 import io.helidon.webserver.ConnectionConfig;
 import io.helidon.webserver.WebServer;
+import io.helidon.webserver.WebServerConfig;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
@@ -30,6 +36,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.block.api.BlockNodeServiceInterface;
 import org.hiero.block.api.BlockStreamPublishServiceInterface;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
@@ -38,6 +45,9 @@ import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
 import org.hiero.block.api.PublishStreamResponse.ResendBlock;
 import org.hiero.block.api.PublishStreamResponse.SkipBlock;
+import org.hiero.block.api.ServerStatusDetailResponse;
+import org.hiero.block.api.ServerStatusRequest;
+import org.hiero.block.api.ServerStatusResponse;
 
 /**
  * A simulated block node server that implements the block streaming gRPC service.
@@ -70,9 +80,13 @@ public class SimulatedBlockNodeServer {
     private static final int MAX_MESSAGE_SIZE_BYTES = 4_194_304; // 4 MBs
     private static final int BUFFER_SIZE = 32768;
 
-    private final WebServer webServer;
+    private final Spec spec;
+    private final WebServer streamingServer;
+    private final WebServer serviceServer;
     private final int port;
-    private final MockBlockStreamServiceImpl serviceImpl;
+    private final int servicePort;
+    private final MockBlockStreamServiceImpl streamingImpl;
+    private final MockBlockNodeServiceImpl serviceImpl;
     private final boolean highLatency;
 
     // Configuration for EndOfStream responses
@@ -86,6 +100,13 @@ public class SimulatedBlockNodeServer {
 
     // Track all block numbers for which we have received end of block
     private final Set<Long> endedBlocks = ConcurrentHashMap.newKeySet();
+
+    // Store block items per block number for later retrieval (e.g., by StreamValidationOp)
+    private static final int MAX_STORED_BLOCKS = 10_000;
+    private final Map<Long, List<BlockItem>> storedBlockItems = new ConcurrentHashMap<>();
+
+    // Store RecordFileItems per block number, populated as they arrive (before block is closed)
+    private final Map<Long, RecordFileItem> storedRecordFileItems = new ConcurrentHashMap<>();
 
     // Track all block numbers for which we have received headers but not yet end of block
     private final Set<Long> blocksWithHeadersOnly = ConcurrentHashMap.newKeySet();
@@ -104,20 +125,61 @@ public class SimulatedBlockNodeServer {
     private final AtomicBoolean sendingAcksEnabled = new AtomicBoolean(true);
 
     /**
-     * Creates a new simulated block node server on the specified port.
+     * Everything needed to (re)create a simulated block node. Held so that a simulator can be restarted on the same
+     * ports, with the same behaviour, after being shut down mid-test.
      *
-     * @param port the port to listen on
+     * @param streamingPort the port serving the streaming (publish) API
+     * @param servicePort the port serving the service API
      * @param highLatency whether to simulate high-latency responses
+     * @param tlsMode which of the two APIs are served over TLS
+     */
+    public record Spec(
+            int streamingPort,
+            int servicePort,
+            boolean highLatency,
+            @NonNull BlockNodeTlsMode tlsMode) {
+        public Spec {
+            requireNonNull(tlsMode, "tlsMode must not be null");
+            if (streamingPort == servicePort) {
+                throw new IllegalArgumentException("The streaming and service APIs must be served on separate ports");
+            }
+        }
+    }
+
+    /**
+     * Creates a new simulated block node server from the given spec.
+     * <p>
+     * The two APIs a consensus node calls are served by separate {@link WebServer}s on separate ports, so that each
+     * can be secured independently.
+     *
+     * @param spec the ports, latency behaviour, and TLS settings for this block node
      * @param lastVerifiedBlockNumberSupplier an optional supplier that provides the last verified block number
      * from an external source, can be null if not needed
      */
     public SimulatedBlockNodeServer(
-            final int port, final boolean highLatency, @Nullable final Supplier<Long> lastVerifiedBlockNumberSupplier) {
-        this.port = port;
-        this.highLatency = highLatency;
-        this.serviceImpl = new MockBlockStreamServiceImpl();
+            @NonNull final Spec spec, @Nullable final Supplier<Long> lastVerifiedBlockNumberSupplier) {
+        this.spec = requireNonNull(spec, "spec must not be null");
+        this.port = spec.streamingPort();
+        this.servicePort = spec.servicePort();
+        this.highLatency = spec.highLatency();
+        this.streamingImpl = new MockBlockStreamServiceImpl();
+        this.serviceImpl = new MockBlockNodeServiceImpl();
         this.externalLastVerifiedBlockNumberSupplier = lastVerifiedBlockNumberSupplier;
 
+        this.streamingServer = newWebServer(
+                spec.streamingPort(), PbjRouting.builder().service(streamingImpl), streamingTls(spec.tlsMode()));
+        this.serviceServer =
+                newWebServer(spec.servicePort(), PbjRouting.builder().service(serviceImpl), serviceTls(spec.tlsMode()));
+    }
+
+    /**
+     * @param port the port the server listens on
+     * @param routing the services this server exposes
+     * @param tls the TLS settings, or null to serve plaintext
+     * @return a configured, unstarted web server
+     */
+    private static @NonNull WebServer newWebServer(
+            final int port, @NonNull final PbjRouting.Builder routing, @Nullable final Tls tls) {
         final PbjConfig pbjConfig = PbjConfig.builder()
                 .name("pbj")
                 .maxMessageSizeBytes(MAX_MESSAGE_SIZE_BYTES)
@@ -127,12 +189,39 @@ public class SimulatedBlockNodeServer {
                 .receiveBufferSize(BUFFER_SIZE)
                 .build();
 
-        this.webServer = WebServer.builder()
+        final WebServerConfig.Builder builder = WebServer.builder()
                 .port(port)
-                .addRouting(PbjRouting.builder().service(serviceImpl))
+                .addRouting(routing)
                 .addProtocol(pbjConfig)
-                .connectionConfig(connectionConfig)
-                .build();
+                .connectionConfig(connectionConfig);
+        if (tls != null) {
+            builder.tls(tls);
+        }
+        return builder.build();
+    }
+
+    /**
+     * @param tlsMode the TLS mode of this block node
+     * @return the TLS settings for the streaming API, or null if it is served in plaintext
+     */
+    private static @Nullable Tls streamingTls(@NonNull final BlockNodeTlsMode tlsMode) {
+        return switch (tlsMode) {
+            case NONE, SERVICE_ONLY -> null;
+            case PUBLISH_ONLY, ALL, ALL_BAD_FINGERPRINT, ALL_NO_FINGERPRINT ->
+                SelfSignedCert.shared().serverTls();
+        };
+    }
+
+    /**
+     * @param tlsMode the TLS mode of this block node
+     * @return the TLS settings for the service API, or null if it is served in plaintext
+     */
+    private static @Nullable Tls serviceTls(@NonNull final BlockNodeTlsMode tlsMode) {
+        return switch (tlsMode) {
+            case NONE, PUBLISH_ONLY -> null;
+            case SERVICE_ONLY, ALL, ALL_BAD_FINGERPRINT, ALL_NO_FINGERPRINT ->
+                SelfSignedCert.shared().serverTls();
+        };
     }
 
     /**
@@ -141,8 +230,20 @@ public class SimulatedBlockNodeServer {
      * @throws IOException if the server cannot be started
      */
     public void start() throws IOException {
-        webServer.start();
-        log.info("Simulated block node server started on port {}", port);
+        streamingServer.start();
+        try {
+            serviceServer.start();
+        } catch (final Exception e) {
+            // The streaming server is already listening. Leaving it bound would strand its port for the rest of the
+            // JVM, because the caller only records this server once both halves have started.
+            stopQuietly(streamingServer, port);
+            throw e;
+        }
+        log.info(
+                "Simulated block node server started on streaming port {}, service port {} (tls={})",
+                port,
+                servicePort,
+                spec.tlsMode());
     }
 
     /**
@@ -151,25 +252,48 @@ public class SimulatedBlockNodeServer {
      * If interrupted, the current thread's interrupt flag will be set.
      */
     public void stop() {
-        if (webServer != null) {
-            try {
+        stopQuietly(streamingServer, port);
+        stopQuietly(serviceServer, servicePort);
+        this.hasEverBeenShutdown = true;
+    }
 
-                webServer.stop();
-                log.info("Simulated block node server on port {} stopped", port);
-            } catch (final Exception e) {
-                log.error("Error stopping simulated block node server on port {}", port, e);
-            }
-            this.hasEverBeenShutdown = true;
+    /**
+     * Stops a server, logging rather than propagating any failure.
+     *
+     * @param server the server to stop
+     * @param serverPort the port the server listens on, for logging
+     */
+    private static void stopQuietly(@NonNull final WebServer server, final int serverPort) {
+        try {
+            server.stop();
+            log.info("Simulated block node server on port {} stopped", serverPort);
+        } catch (final Exception e) {
+            log.error("Error stopping simulated block node server on port {}", serverPort, e);
         }
     }
 
     /**
-     * Gets the port this server is listening on.
+     * Gets the port this server serves the streaming (publish) API on. This is the port that identifies the block
+     * node throughout the test harness.
      *
-     * @return the port number this server is bound to
+     * @return the port number the streaming API is bound to
      */
     public int getPort() {
         return port;
+    }
+
+    /**
+     * @return the port this server serves the service API on
+     */
+    public int getServicePort() {
+        return servicePort;
+    }
+
+    /**
+     * @return the spec this server was created from, suitable for recreating it on the same ports
+     */
+    public @NonNull Spec spec() {
+        return spec;
     }
 
     public void setSendingBlockAcknowledgementsEnabled(final boolean sendingBlockAcksEnabled) {
@@ -201,7 +325,7 @@ public class SimulatedBlockNodeServer {
      */
     public long sendEndOfStreamImmediately(@NonNull final EndOfStream.Code responseCode, final long blockNumber) {
         requireNonNull(responseCode, "responseCode cannot be null");
-        serviceImpl.sendEndOfStreamToAllStreams(responseCode, blockNumber);
+        streamingImpl.sendEndOfStreamToAllStreams(responseCode, blockNumber);
         log.info(
                 "Sent immediate EndOfStream response with code {} for block {} on port {}",
                 responseCode,
@@ -217,7 +341,7 @@ public class SimulatedBlockNodeServer {
      * @param blockNumber the block number to skip
      */
     public void sendSkipBlockImmediately(final long blockNumber) {
-        serviceImpl.sendSkipBlockToAllStreams(blockNumber);
+        streamingImpl.sendSkipBlockToAllStreams(blockNumber);
         log.info("Sent immediate SkipBlock response for block {} on port {}", blockNumber, port);
     }
 
@@ -228,7 +352,7 @@ public class SimulatedBlockNodeServer {
      * @param blockNumber the block number to resend
      */
     public void sendResendBlockImmediately(final long blockNumber) {
-        serviceImpl.sendResendBlockToAllStreams(blockNumber);
+        streamingImpl.sendResendBlockToAllStreams(blockNumber);
         log.info("Sent immediate ResendBlock response for block {} on port {}", blockNumber, port);
     }
 
@@ -239,7 +363,7 @@ public class SimulatedBlockNodeServer {
      * @param blockNumber the last verified block number to include in the response
      */
     public void sendNodeBehindPublisherImmediately(final long blockNumber) {
-        serviceImpl.sendNodeBehindPublisherToAllStreams(blockNumber);
+        streamingImpl.sendNodeBehindPublisherToAllStreams(blockNumber);
         log.info("Sent immediate NodeBehindPublisher response for block {} on port {}", blockNumber, port);
     }
 
@@ -287,6 +411,55 @@ public class SimulatedBlockNodeServer {
     }
 
     /**
+     * Gets the RecordFileItem received for the specified block number, if any.
+     * This returns the item as soon as it arrives, even before the block is closed.
+     *
+     * @param blockNumber the block number to query
+     * @return an Optional containing the RecordFileItem, or empty if none received for that block
+     */
+    @NonNull
+    public Optional<RecordFileItem> getRecordFileItem(final long blockNumber) {
+        blockTrackingLock.readLock().lock();
+        try {
+            return Optional.ofNullable(storedRecordFileItems.get(blockNumber));
+        } finally {
+            blockTrackingLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Checks if a RecordFileItem has been received for the specified block number.
+     * Returns true as soon as the item arrives, even before the block is closed.
+     *
+     * @param blockNumber the block number to check
+     * @return true if a RecordFileItem has been received for this block
+     */
+    public boolean hasReceivedRecordFileItem(final long blockNumber) {
+        blockTrackingLock.readLock().lock();
+        try {
+            return storedRecordFileItems.containsKey(blockNumber);
+        } finally {
+            blockTrackingLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Gets all RecordFileItems received so far, keyed by block number.
+     * Includes items from blocks that have not yet been closed.
+     *
+     * @return an unmodifiable copy of the map from block number to RecordFileItem
+     */
+    @NonNull
+    public Map<Long, RecordFileItem> getAllRecordFileItems() {
+        blockTrackingLock.readLock().lock();
+        try {
+            return Map.copyOf(storedRecordFileItems);
+        } finally {
+            blockTrackingLock.readLock().unlock();
+        }
+    }
+
+    /**
      * @return whether this server has ever been shutdown.
      */
     public boolean hasEverBeenShutdown() {
@@ -322,6 +495,29 @@ public class SimulatedBlockNodeServer {
     }
 
     /**
+     * Mock implementation of the {@link BlockNodeServiceInterface} that also implements the get server status
+     * functionality. The response will include the latest block verified by the mock Block Node for both the first and
+     * last available block.
+     */
+    private class MockBlockNodeServiceImpl implements BlockNodeServiceInterface {
+        @Override
+        public @NonNull ServerStatusResponse serverStatus(@NonNull final ServerStatusRequest ignored) {
+            final long lastBlock = lastVerifiedBlockNumber.get();
+
+            return ServerStatusResponse.newBuilder()
+                    .firstAvailableBlock(lastBlock)
+                    .lastAvailableBlock(lastBlock)
+                    .nextExpectedBlock(lastBlock == -1 ? -1 : (lastBlock + 1))
+                    .build();
+        }
+
+        @Override
+        public @NonNull ServerStatusDetailResponse serverStatusDetail(@NonNull final ServerStatusRequest ignored) {
+            return ServerStatusDetailResponse.newBuilder().build();
+        }
+    }
+
+    /**
      * Implementation of the BlockStreamService that can be configured to respond
      * with different response codes. This class handles the gRPC streaming interactions
      * with clients and manages block state tracking.
@@ -329,7 +525,7 @@ public class SimulatedBlockNodeServer {
     private class MockBlockStreamServiceImpl implements BlockStreamPublishServiceInterface {
         @Override
         public @NonNull Pipeline<? super org.hiero.block.api.PublishStreamRequest> publishBlockStream(
-                @NonNull Pipeline<? super PublishStreamResponse> replies) {
+                @NonNull final Pipeline<? super PublishStreamResponse> replies) {
             requireNonNull(replies, "replies cannot be null");
 
             // Add the new stream pipeline to the list of active streams
@@ -363,7 +559,7 @@ public class SimulatedBlockNodeServer {
 
                         if (request.hasEndStream()) {
                             log.debug("Received end of stream from stream {}", replies.hashCode());
-                            serviceImpl.removeStreamFromTracking(replies);
+                            streamingImpl.removeStreamFromTracking(replies);
                         } else if (request.hasBlockItems()) {
                             // Iterate through each BlockItem in the request
                             for (final BlockItem item : request.blockItems().blockItems()) {
@@ -386,8 +582,6 @@ public class SimulatedBlockNodeServer {
                                         return;
                                     }
 
-                                    // Set the current block number being processed by THIS stream instance
-                                    currentBlockNumber = blockNumber;
                                     log.info(
                                             "Received BlockHeader for block {} on port {} from stream {}",
                                             blockNumber,
@@ -436,10 +630,11 @@ public class SimulatedBlockNodeServer {
                                     }
 
                                     // If block doesn't exist and no one else is streaming it, mark it as
-                                    // header-received
-                                    // and associate this stream with it.
+                                    // header-received and associate this stream with it.
+                                    currentBlockNumber = blockNumber;
                                     blocksWithHeadersOnly.add(blockNumber);
                                     streamingBlocks.put(blockNumber, replies);
+                                    storeBlockItem(item, currentBlockNumber);
                                     log.info(
                                             "Accepted BlockHeader for block {}. Stream {} is now sending parts on port {}.",
                                             blockNumber,
@@ -449,8 +644,10 @@ public class SimulatedBlockNodeServer {
                                 } else if (item.hasBlockProof()) {
                                     final var proof = item.blockProof();
                                     final long blockNumber = proof.block();
+                                    final var proofType = proof.proof().kind();
                                     log.info(
-                                            "Received BlockProof for block {} on port {} from stream {}",
+                                            "Received BlockProof ({}) for block {} on port {} from stream {}",
+                                            proofType,
                                             blockNumber,
                                             port,
                                             replies.hashCode());
@@ -461,7 +658,8 @@ public class SimulatedBlockNodeServer {
                                             || !streamingBlocks.containsKey(blockNumber)
                                             || streamingBlocks.get(blockNumber) != replies) {
                                         log.error(
-                                                "Received BlockProof for block {} from stream {} on port {}, but stream state is inconsistent (currentBlockNumber={}, expectedStream={}). Ignoring proof.",
+                                                "Received BlockProof ({}) for block {} from stream {} on port {}, but stream state is inconsistent (currentBlockNumber={}, expectedStream={}). Ignoring proof.",
+                                                proofType,
                                                 blockNumber,
                                                 replies.hashCode(),
                                                 port,
@@ -473,9 +671,29 @@ public class SimulatedBlockNodeServer {
                                                         : "none");
                                     }
                                 }
+
+                                // Store non-header items only if this stream is authorized for the current block
+                                if (!item.hasBlockHeader()
+                                        && currentBlockNumber != null
+                                        && streamingBlocks.get(currentBlockNumber) == replies) {
+                                    storeBlockItem(item, currentBlockNumber);
+                                }
                             } // End of loop through BlockItems
                         } else if (request.hasEndOfBlock()) {
                             final var blockNumber = request.endOfBlockOrThrow().blockNumber();
+
+                            // Only accept EndOfBlock from the stream that won the BlockHeader race
+                            final Pipeline<? super PublishStreamResponse> owningStream =
+                                    streamingBlocks.get(blockNumber);
+                            if (owningStream != replies) {
+                                log.warn(
+                                        "Received EndOfBlock for block {} from stream {} on port {}, but block is owned by stream {}. Ignoring.",
+                                        blockNumber,
+                                        replies.hashCode(),
+                                        port,
+                                        owningStream != null ? owningStream.hashCode() : "none");
+                                return;
+                            }
 
                             // Mark block as fully received
                             blocksWithHeadersOnly.remove(blockNumber);
@@ -796,7 +1014,7 @@ public class SimulatedBlockNodeServer {
                         port,
                         e);
                 // Clean up the stream on error
-                serviceImpl.removeStreamFromTracking(pipeline);
+                streamingImpl.removeStreamFromTracking(pipeline);
             }
         }
 
@@ -954,6 +1172,74 @@ public class SimulatedBlockNodeServer {
     }
 
     /**
+     * Stores a block item for the given block number. If the item is a block header, it initializes
+     * storage for that block. For all other items, they are appended to the current block's storage.
+     * Evicts oldest blocks if the storage limit is exceeded.
+     *
+     * @param item the block item to store
+     * @param currentBlockNumber the block number currently being processed, may be null
+     */
+    private void storeBlockItem(@NonNull final BlockItem item, @Nullable final Long currentBlockNumber) {
+        if (item.hasBlockHeader()) {
+            final long blockNumber = item.blockHeader().number();
+            storedBlockItems
+                    .computeIfAbsent(blockNumber, k -> new ArrayList<>())
+                    .add(item);
+            // Evict oldest blocks if we exceed the limit
+            while (storedBlockItems.size() > MAX_STORED_BLOCKS) {
+                storedBlockItems.keySet().stream().min(Long::compareTo).ifPresent(storedBlockItems::remove);
+            }
+            while (storedRecordFileItems.size() > MAX_STORED_BLOCKS) {
+                storedRecordFileItems.keySet().stream().min(Long::compareTo).ifPresent(storedRecordFileItems::remove);
+            }
+        } else if (currentBlockNumber != null) {
+            final var items = storedBlockItems.get(currentBlockNumber);
+            if (items != null) {
+                items.add(item);
+            }
+        }
+        // Track RecordFileItems separately for WRB comparison in tests
+        if (item.hasRecordFile() && currentBlockNumber != null) {
+            storedRecordFileItems.put(currentBlockNumber, item.recordFile());
+        }
+    }
+
+    /**
+     * Returns all verified blocks (those for which both header and end-of-block were received)
+     * as {@link Block} objects, sorted by block number in ascending order.
+     *
+     * @return list of verified blocks
+     */
+    @NonNull
+    public List<Block> getAllVerifiedBlocks() {
+        blockTrackingLock.readLock().lock();
+        try {
+            return endedBlocks.stream()
+                    .sorted()
+                    .map(this::getBlock)
+                    .filter(Objects::nonNull)
+                    .toList();
+        } finally {
+            blockTrackingLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Returns a single block by number, constructed from the stored block items.
+     *
+     * @param blockNumber the block number to retrieve
+     * @return the block, or null if no items are stored for this block number
+     */
+    @Nullable
+    private Block getBlock(final long blockNumber) {
+        final var items = storedBlockItems.get(blockNumber);
+        if (items == null || items.isEmpty()) {
+            return null;
+        }
+        return new Block(List.copyOf(items));
+    }
+
+    /**
      * This method acknowledges receipt of a block and indicates whether the block was already processed.
      * If the acknowledgment cannot be sent, the stream is removed from tracking.
      *
@@ -990,7 +1276,7 @@ public class SimulatedBlockNodeServer {
                     port,
                     e);
             // If we can't send an ack, the stream is likely broken. Remove it.
-            serviceImpl.removeStreamFromTracking(pipeline);
+            streamingImpl.removeStreamFromTracking(pipeline);
         }
     }
 }

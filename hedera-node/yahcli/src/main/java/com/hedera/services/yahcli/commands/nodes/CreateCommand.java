@@ -21,6 +21,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import picocli.CommandLine;
@@ -92,6 +93,13 @@ public class CreateCommand implements Callable<Integer> {
             paramLabel = "a web proxy endpoint for gRPC from non-gRPC clients, e.g. 10.0.0.1:50051,my.fqdn.com:50051")
     String grpcProxyEndpoint;
 
+    @CommandLine.Option(
+            names = {"--associatedRegisteredNode"},
+            paramLabel = "associated registered node id(s), e.g. 1 2 3",
+            arity = "0..*")
+    @Nullable
+    List<Long> associatedRegisteredNode;
+
     @Override
     public Integer call() throws Exception {
         final var yahcli = nodesCommand.getYahcli();
@@ -124,7 +132,8 @@ public class CreateCommand implements Callable<Integer> {
                 adminKeyPath,
                 maybeFeeAccountKeyPath,
                 parsedDeclineRewards,
-                grpcProxyEndpoint == null ? null : asTypedServiceEndpoint(grpcProxyEndpoint));
+                grpcProxyEndpoint == null ? null : asTypedServiceEndpoint(grpcProxyEndpoint),
+                associatedRegisteredNode);
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {

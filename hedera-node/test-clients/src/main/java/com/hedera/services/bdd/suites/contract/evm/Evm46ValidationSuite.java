@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.evm;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
@@ -99,7 +98,8 @@ public class Evm46ValidationSuite {
     private static final String INNER_TXN = "innerTx";
     private static final Long INTRINSIC_GAS_COST = 21000L;
     private static final Long GAS_LIMIT_FOR_CALL = 26000L;
-    private static final Long EXTRA_GAS_FOR_FUNCTION_SELECTOR = 64L;
+    // calculated according to https://eips.ethereum.org/EIPS/eip-7623 e.g. 16 * 10 (TOTAL_COST_FLOOR_PER_TOKEN) = 160
+    private static final Long EXTRA_GAS_FOR_FUNCTION_SELECTOR = 160L;
     private static final Long NOT_ENOUGH_GAS_LIMIT_FOR_CREATION = 500_000L;
     private static final Long ENOUGH_GAS_LIMIT_FOR_CREATION = 900_000L;
     private static final String RECEIVER = "receiver";
@@ -367,7 +367,6 @@ public class Evm46ValidationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> directCallWithValueToExistingCryptoAccountResultsInSuccess() {
 
         AtomicReference<AccountID> mirrorAccountID = new AtomicReference<>();
@@ -965,7 +964,6 @@ public class Evm46ValidationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> internalDelegateCallExistingMirrorAddressResultsInSuccess() {
         AtomicReference<AccountID> receiverId = new AtomicReference<>();
         return hapiTest(
@@ -1156,7 +1154,6 @@ public class Evm46ValidationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> internalCallWithValueToEthereumPrecompile0x2ResultsInRevert() {
         AtomicReference<AccountID> targetId = new AtomicReference<>();
         targetId.set(AccountID.newBuilder().setAccountNum(2L).build());
@@ -1384,7 +1381,6 @@ public class Evm46ValidationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> testStaticCallOperationsForSystemAccounts() {
         final var contract = "CallOperationsCheckerSuccess";
         final var functionName = "staticcall";

@@ -28,7 +28,7 @@ class TokenCustomFeesCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(TokenCustomFeesTranslator.TOKEN_CUSTOM_FEES
                         .getOutputs()
@@ -39,7 +39,7 @@ class TokenCustomFeesCallTest extends CallTestBase {
                                         new Tuple[EXPECTED_FRACTIONAL_CUSTOM_FEES.size()]),
                                 EXPECTED_ROYALTY_CUSTOM_FEES.toArray(new Tuple[EXPECTED_ROYALTY_CUSTOM_FEES.size()])))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -48,7 +48,7 @@ class TokenCustomFeesCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(TokenCustomFeesTranslator.TOKEN_CUSTOM_FEES
                         .getOutputs()
@@ -58,7 +58,7 @@ class TokenCustomFeesCallTest extends CallTestBase {
                                 Collections.emptyList().toArray(new Tuple[0]),
                                 Collections.emptyList().toArray(new Tuple[0])))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -67,7 +67,7 @@ class TokenCustomFeesCallTest extends CallTestBase {
 
         final var result = subject.execute().fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 Bytes.wrap(TokenCustomFeesTranslator.TOKEN_CUSTOM_FEES
                         .getOutputs()
@@ -77,6 +77,6 @@ class TokenCustomFeesCallTest extends CallTestBase {
                                 Collections.emptyList().toArray(new Tuple[0]),
                                 Collections.emptyList().toArray(new Tuple[0])))
                         .array()),
-                result.getOutput());
+                result.output());
     }
 }

@@ -63,7 +63,7 @@ which contains metric name and class of the metric interface, used to validate m
 `MetricsRegistry.Builder` is used to create instances of Metric Registry.
 Its `discoverMetricProviders` method allows to discover all available `MetricsRegistrationProvider` implementations via Service Loader and register provided metrics.
 To be discovered by SPI mechanism implementations of this interface should be registered either in
-`META-INF/services/org.hiero.metrics.api.core.MetricsRegistrationProvider` or `module-info.java` file of the module.
+`META-INF/services/org.hiero.metrics.core.MetricsRegistrationProvider` or `module-info.java` file of the module.
 
 [MetricsBinder](../src/main/java/org/hiero/metrics/core/MetricsBinder.java) can be used to bind/propagate metrics registry to any application class.
 Application classes can implement this interface to register metrics in the registry or retrieve metrics by `MetricKey`s for observations.
@@ -75,7 +75,7 @@ Metrics exporting is done via exporter that implements [MetricsExporter](../src/
 It can be set programmatically in `MetricsRegistry.Builder` or discovered via SPI using [MetricsExporterFactory](../src/main/java/org/hiero/metrics/core/MetricsExporterFactory.java) when `discoverMetricsExporter` method is called on `MetricsRegistry.Builder`.
 
 To be discovered by SPI mechanism implementations of `MetricsExporterFactory` should be registered either in
-`META-INF/services/org.hiero.metrics.api.export.MetricsExporterFactory` or `module-info.java` file of the module.
+`META-INF/services/org.hiero.metrics.core.MetricsExporterFactory` or `module-info.java` file of the module.
 
 Snapshots provided to exporter contain all registered metrics in the registry with their measurements and values at the moment of snapshot.
 Snapshots internally are reusable objects and values are added/updates during each registry snapshot, which is **synchronous** operation.

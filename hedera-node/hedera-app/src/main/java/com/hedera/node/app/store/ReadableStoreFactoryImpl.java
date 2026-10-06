@@ -14,8 +14,21 @@ import com.hedera.node.app.records.ReadableBlockRecordStore;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.ReadableAccountNodeRelStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
+import com.hedera.node.app.service.addressbook.impl.ReadableRegisteredNodeStoreImpl;
+import com.hedera.node.app.service.clpr.ClprService;
+import com.hedera.node.app.service.clpr.ReadableChannelStore;
+import com.hedera.node.app.service.clpr.ReadableConnectorStore;
+import com.hedera.node.app.service.clpr.ReadableEndpointManifestStore;
+import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
+import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
+import com.hedera.node.app.service.clpr.impl.ReadableChannelStoreImpl;
+import com.hedera.node.app.service.clpr.impl.ReadableConnectorStoreImpl;
+import com.hedera.node.app.service.clpr.impl.ReadableEndpointManifestStoreImpl;
+import com.hedera.node.app.service.clpr.impl.ReadableLedgerConfigurationStoreImpl;
+import com.hedera.node.app.service.clpr.impl.ReadableMessageQueueStoreImpl;
 import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.ReadableTopicStoreImpl;
@@ -25,7 +38,6 @@ import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.ReadableContractStateStore;
 import com.hedera.node.app.service.contract.impl.state.ReadableEvmHookStoreImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
-import com.hedera.node.app.service.entityid.ReadableEntityCounters;
 import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.file.FileService;
@@ -60,8 +72,6 @@ import com.hedera.node.app.service.token.impl.ReadableStakingInfoStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -70,6 +80,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 
@@ -135,6 +147,9 @@ public class ReadableStoreFactoryImpl implements ReadableStoreFactory {
         // Address book
         newMap.put(ReadableNodeStore.class, new StoreEntry(AddressBookService.NAME, ReadableNodeStoreImpl::new));
         newMap.put(
+                ReadableRegisteredNodeStore.class,
+                new StoreEntry(AddressBookService.NAME, ReadableRegisteredNodeStoreImpl::new));
+        newMap.put(
                 ReadableAccountNodeRelStore.class,
                 new StoreEntry(
                         AddressBookService.NAME,
@@ -153,15 +168,31 @@ public class ReadableStoreFactoryImpl implements ReadableStoreFactory {
                 new StoreEntry(
                         EntityIdService.NAME, (states, entityCounters) -> new ReadableEntityIdStoreImpl(states)));
         // Hints service
-        newMap.put(
-                ReadableHintsStore.class,
-                new StoreEntry(
-                        HintsService.NAME,
-                        (states, entityCounters) -> new ReadableHintsStoreImpl(states, entityCounters)));
+        newMap.put(ReadableHintsStore.class, new StoreEntry(HintsService.NAME, ReadableHintsStoreImpl::new));
         // History service
         newMap.put(
                 ReadableHistoryStore.class,
                 new StoreEntry(HistoryService.NAME, (states, entityCounters) -> new ReadableHistoryStoreImpl(states)));
+        // CLPR service
+        newMap.put(
+                ReadableChannelStore.class,
+                new StoreEntry(ClprService.NAME, (states, entityCounters) -> new ReadableChannelStoreImpl(states)));
+        newMap.put(
+                ReadableLedgerConfigurationStore.class,
+                new StoreEntry(
+                        ClprService.NAME,
+                        (states, entityCounters) -> new ReadableLedgerConfigurationStoreImpl(states)));
+        newMap.put(
+                ReadableEndpointManifestStore.class,
+                new StoreEntry(
+                        ClprService.NAME, (states, entityCounters) -> new ReadableEndpointManifestStoreImpl(states)));
+        newMap.put(
+                ReadableMessageQueueStore.class,
+                new StoreEntry(
+                        ClprService.NAME, (states, entityCounters) -> new ReadableMessageQueueStoreImpl(states)));
+        newMap.put(
+                ReadableConnectorStore.class,
+                new StoreEntry(ClprService.NAME, (states, entityCounters) -> new ReadableConnectorStoreImpl(states)));
         return Collections.unmodifiableMap(newMap);
     }
 
@@ -205,7 +236,7 @@ public class ReadableStoreFactoryImpl implements ReadableStoreFactory {
     }
 
     private record StoreEntry(
-            @NonNull String name, @Nullable BiFunction<ReadableStates, ReadableEntityCounters, ?> fromStates) {
+            @NonNull String name, @Nullable BiFunction<ReadableStates, ReadableEntityIdStore, ?> fromStates) {
         private StoreEntry {
             requireNonNull(name);
             requireNonNull(fromStates);
@@ -213,9 +244,9 @@ public class ReadableStoreFactoryImpl implements ReadableStoreFactory {
 
         @SuppressWarnings("unchecked")
         public <T> T createFrom(
-                @NonNull final ReadableStates readableStates, @NonNull ReadableEntityCounters entityCounters) {
+                @NonNull final ReadableStates readableStates, @NonNull final ReadableEntityIdStore entityIdStore) {
             requireNonNull(readableStates);
-            return (T) fromStates.apply(readableStates, entityCounters);
+            return (T) fromStates.apply(readableStates, entityIdStore);
         }
     }
 }

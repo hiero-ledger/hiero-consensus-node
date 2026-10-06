@@ -41,7 +41,10 @@ abstract class RandomOperationSignedBy<T extends HapiTxnOp<T>> implements OpProv
     }
 
     private Optional<String> randomHollowAccountKey() {
-        return accounts.getQualifying().filter(a -> a.endsWith(ACCOUNT_SUFFIX)).map(this::keyFromAccount);
+        return accounts.getQualifying()
+                .filter(a -> a.endsWith(ACCOUNT_SUFFIX))
+                .filter(a -> registry.hasAccountId(a))
+                .map(this::keyFromAccount);
     }
 
     private String keyFromAccount(String account) {

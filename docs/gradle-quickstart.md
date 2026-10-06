@@ -34,11 +34,10 @@ There are several Gradle tasks you can use. Most notably:
 
 You may run `./gradlew` (without arguments) for a detailed overview
 
-## Running a services instance or example apps
+## Running a services instance
 
 - `./gradlew :app:modrun` runs a services instance
 - `./gradlew :test-clients:runTestClient -PtestClient=com.hedera.services.bdd.suites.crypto.HelloWorldSpec`
-- `./gradlew :swirlds-platform-base-example:run` runs Platform-base Example App
 
 ## Using Gradle during Development
 
@@ -110,6 +109,28 @@ nightly, and we record the results, so we can do trend analysis over time.
 
 We use the [Java Micro-benchmarking Harness](https://github.com/openjdk/jmh), or JMH, for writing
 and executing our micro-benchmarks.
+
+#### Identifying flaky tests
+
+One common action when identifying or fixing flaky tests is re-running the test several times until
+either the failure happens or we are confident enough to claim the test as non-flaky.
+
+To support this flow, we added a custom Gradle argument to the test task (including the custom test
+tasks like `testRepeatable`). To run test(s) until it fails or a maximum amount of attempts is
+reached, use the `PrunUntilFailure=<max_attempts>` parameter. Examples:
+
+```bash
+# with a sub module, retrying 50 times
+./gradlew :app-service-roster:test  -PrunUntilFailure=50
+
+# with a custom test task and specifying tests
+./gradlew :test-clients:testRepeatable \
+   --tests "com.hedera.services.bdd.suites.integration.RepeatableHip1064Tests" \
+   --tests "com.hedera.services.bdd.suites.integration.BlockNodeRewardsTests" \
+   -PrunUntilFailure=3
+```
+
+Note: the `P` prefix is a Gradle convention for custom parameters.
 
 ### Cleaning
 

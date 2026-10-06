@@ -2,6 +2,16 @@
 package com.hedera.node.app.workflows.ingest;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CLOSE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_ENDPOINT_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REDACT_MESSAGE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_ADD_LIVE_HASH;
@@ -15,7 +25,9 @@ import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_UNDELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
+import static com.hedera.hapi.node.base.HederaFunctionality.UNCHECKED_SUBMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CREATING_SYSTEM_ENTITIES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOKS_NOT_ENABLED;
@@ -33,6 +45,8 @@ import static com.hedera.node.app.workflows.InnerTransaction.YES;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.INGEST;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZE_COMPLETE;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SignaturePair;
@@ -43,8 +57,8 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
 import com.hedera.node.app.blocks.BlockHashSigner;
-import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.fees.context.IngestFeeContext;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.signature.DefaultKeyVerifier;
@@ -60,6 +74,7 @@ import com.hedera.node.app.state.DeduplicationCache;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.throttle.ThrottleUsage;
+import com.hedera.node.app.workflows.AuthorizationChecker;
 import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
@@ -68,6 +83,7 @@ import com.hedera.node.app.workflows.TransactionChecker.RequireMinValidLifetimeB
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
@@ -94,7 +110,7 @@ import org.apache.logging.log4j.Logger;
 @Singleton
 public final class IngestChecker {
     private static final Logger logger = LogManager.getLogger(IngestChecker.class);
-    private static final Set<HederaFunctionality> FEATURE_FLAGGED_TRANSACTIONS = EnumSet.of(
+    private static final Set<HederaFunctionality> HOOK_TRANSACTIONS = EnumSet.of(
             HOOK_STORE,
             CRYPTO_CREATE,
             CONTRACT_CREATE,
@@ -103,8 +119,19 @@ public final class IngestChecker {
             CRYPTO_TRANSFER,
             SCHEDULE_CREATE,
             TOKEN_AIRDROP);
+    private static final Set<HederaFunctionality> CLPR_TRANSACTIONS = EnumSet.of(
+            CLPR_UPDATE_LEDGER_CONFIGURATION,
+            CLPR_REGISTER_CHANNEL,
+            CLPR_COMPLETE_CHANNEL,
+            CLPR_CLOSE_CHANNEL,
+            CLPR_REGISTER_CONNECTOR,
+            CLPR_COMPLETE_CONNECTOR,
+            CLPR_DEREGISTER_CONNECTOR,
+            CLPR_SUBMIT_BUNDLE,
+            CLPR_REDACT_MESSAGE,
+            CLPR_ENDPOINT_PUBLICATION);
     private static final Set<HederaFunctionality> UNSUPPORTED_TRANSACTIONS =
-            EnumSet.of(CRYPTO_ADD_LIVE_HASH, CRYPTO_DELETE_LIVE_HASH);
+            EnumSet.of(CRYPTO_ADD_LIVE_HASH, CRYPTO_DELETE_LIVE_HASH, UNCHECKED_SUBMIT);
     private static final Set<HederaFunctionality> PRIVILEGED_TRANSACTIONS =
             EnumSet.of(FREEZE, SYSTEM_DELETE, SYSTEM_UNDELETE);
 
@@ -119,6 +146,7 @@ public final class IngestChecker {
     private final FeeManager feeManager;
     private final NetworkInfo networkInfo;
     private final Authorizer authorizer;
+    private final AuthorizationChecker authorizationChecker;
     private final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
     private final InstantSource instantSource;
     private final OpWorkflowMetrics workflowMetrics;
@@ -182,6 +210,7 @@ public final class IngestChecker {
             @NonNull final TransactionDispatcher dispatcher,
             @NonNull final FeeManager feeManager,
             @NonNull final Authorizer authorizer,
+            @NonNull final AuthorizationChecker authorizationChecker,
             @NonNull final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator,
             @NonNull final InstantSource instantSource,
             @NonNull final OpWorkflowMetrics workflowMetrics,
@@ -197,6 +226,7 @@ public final class IngestChecker {
         this.dispatcher = requireNonNull(dispatcher, "dispatcher must not be null");
         this.feeManager = requireNonNull(feeManager, "feeManager must not be null");
         this.authorizer = requireNonNull(authorizer, "authorizer must not be null");
+        this.authorizationChecker = requireNonNull(authorizationChecker, "authorizationChecker must not be null");
         this.synchronizedThrottleAccumulator =
                 requireNonNull(synchronizedThrottleAccumulator, "synchronizedThrottleAccumulator must not be null");
         this.instantSource = requireNonNull(instantSource, "instantSource must not be null");
@@ -211,6 +241,17 @@ public final class IngestChecker {
      */
     public void verifyPlatformActive() throws PreCheckException {
         if (currentPlatformStatus.get() != ACTIVE) {
+            throw new PreCheckException(PLATFORM_NOT_ACTIVE);
+        }
+    }
+
+    /**
+     * Throws if the platform is not in a state where we can guarantee that free queries will be processed correctly.
+     * @throws PreCheckException if the response might be unreliable due to platform disruptions
+     */
+    public void verifyFreeQueryable() throws PreCheckException {
+        final var status = currentPlatformStatus.get();
+        if (status != ACTIVE && status != FREEZING && status != FREEZE_COMPLETE) {
             throw new PreCheckException(PLATFORM_NOT_ACTIVE);
         }
     }
@@ -314,6 +355,12 @@ public final class IngestChecker {
         // (governance accounts may submit larger transactions)
         transactionChecker.checkTransactionSizeLimitBasedOnPayer(txInfo, payerAccountId);
 
+        // 5b. Enforce, at ingest, the payer privileges required by operations whose authorization is decidable from
+        //     the payer and body (today, file operations) — failing fast instead of gossiping a transaction we
+        //     already know will fail at consensus. A no-op for every other functionality. Applies to inner batch
+        //     transactions too, like the checks above.
+        authorizationChecker.enforce(payerAccountId, functionality, txBody);
+
         final var payerKey = payer.key();
         // There should, absolutely, be a key for this account. If there isn't, then something is wrong in
         // state. So we will log this with a warning. We will also have to do something about the fact that
@@ -329,7 +376,7 @@ public final class IngestChecker {
 
         // 7. Check payer solvency
         final var numSigs = txInfo.signatureMap().sigPair().size();
-        final FeeContext feeContext = new FeeContextImpl(
+        final FeeContext feeContext = new IngestFeeContext(
                 consensusTime,
                 txInfo,
                 payerKey,
@@ -339,7 +386,8 @@ public final class IngestChecker {
                 configuration,
                 authorizer,
                 numSigs,
-                dispatcher);
+                dispatcher,
+                synchronizedThrottleAccumulator);
         final var fees = dispatcher.dispatchComputeFees(feeContext);
         solvencyPreCheck.checkSolvency(txInfo, payer, fees, INGEST);
 
@@ -360,7 +408,8 @@ public final class IngestChecker {
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         final var hooksConfig = configuration.getConfigData(HooksConfig.class);
         final var networkAdminConfig = configuration.getConfigData(NetworkAdminConfig.class);
-        assertThrottlingPreconditions(txInfo, hederaConfig, hooksConfig, networkAdminConfig);
+        final var clprConfig = configuration.getConfigData(ClprConfig.class);
+        assertThrottlingPreconditions(txInfo, hederaConfig, hooksConfig, networkAdminConfig, clprConfig);
         if (hederaConfig.ingestThrottleEnabled()
                 && synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages)) {
             workflowMetrics.incrementThrottled(txInfo.functionality());
@@ -372,10 +421,11 @@ public final class IngestChecker {
             @NonNull final TransactionInfo txInfo,
             @NonNull final HederaConfig hederaConfig,
             @NonNull final HooksConfig hooksConfig,
-            @NonNull final NetworkAdminConfig networkAdminConfig)
+            @NonNull final NetworkAdminConfig networkAdminConfig,
+            @NonNull final ClprConfig clprConfig)
             throws PreCheckException {
         final var function = txInfo.functionality();
-        // Reject transactions with highVolume=true if the feature is not enabled
+        // Reject transactions with highVolume=true if the high-volume feature is not enabled.
         if (txInfo.txBody().highVolume() && !networkAdminConfig.highVolumeThrottlesEnabled()) {
             throw new PreCheckException(NOT_SUPPORTED);
         }
@@ -394,7 +444,7 @@ public final class IngestChecker {
                 throw new PreCheckException(NOT_SUPPORTED);
             }
         }
-        if (FEATURE_FLAGGED_TRANSACTIONS.contains(function)) {
+        if (HOOK_TRANSACTIONS.contains(function)) {
             if (!hooksConfig.hooksEnabled()) {
                 switch (function) {
                     case HOOK_STORE -> throw new PreCheckException(HOOKS_NOT_ENABLED);
@@ -477,6 +527,10 @@ public final class IngestChecker {
                     }
                 }
             }
+        }
+        if (!clprConfig.enabled() && CLPR_TRANSACTIONS.contains(function)) {
+            logger.debug("Cannot submit CLPR transaction {} because clpr.enabled is false", function);
+            throw new PreCheckException(CLPR_NOT_ENABLED);
         }
     }
 
@@ -563,7 +617,7 @@ public final class IngestChecker {
         } else {
             keyVerification = verifier.verificationFor(account.alias());
         }
-        // This can happen if the signature map was missing a signature for the account account.
+        // This can happen if the signature map was missing a signature for the account.
         if (keyVerification.failed()) {
             throw new PreCheckException(INVALID_SIGNATURE);
         }

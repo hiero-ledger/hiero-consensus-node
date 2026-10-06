@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecTokenKey.ADMIN_KEY;
@@ -30,6 +29,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSO
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableReason;
@@ -197,7 +197,6 @@ public class UpdateTokenFeeScheduleTest {
     @HapiTest
     @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("non fungible token with royalty fee ℏ fallback")
-    @Tag(MATS)
     public Stream<DynamicTest> updateNonFungibleTokenWithRoyaltyFeeHbarFallback() {
         return hapiTest(
                 updateTokenFeeSchedules.call(
@@ -229,7 +228,6 @@ public class UpdateTokenFeeScheduleTest {
 
     @HapiTest
     @DisplayName("fungible token with n fixed ℏ fee")
-    @Tag(MATS)
     public Stream<DynamicTest> updateFungibleTokenWithNHbarFixedFee() {
         return hapiTest(
                 updateTokenFeeSchedules.call("updateFungibleFixedHbarFees", fungibleToken, 3, 10L, feeCollector),
@@ -388,7 +386,7 @@ public class UpdateTokenFeeScheduleTest {
                 .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, FRACTION_DIVIDES_BY_ZERO)));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = "tokens.maxCustomFeesAllowed")
     @DisplayName("update token fees with more than max allowed fees")
     public Stream<DynamicTest> updateTokenFeesAboveMaxAllowed() {
         return hapiTest(

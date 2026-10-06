@@ -30,4 +30,9 @@ public interface ThrottleAdviser {
      * the available amount and returns (does not fail).
      */
     void consumeOpsDurationThrottleCapacity(long opsDurationUnitsToConsume);
+    /**
+     * Returns the current utilization percentage of the high-volume throttle for the given functionality.
+     * The utilization is expressed in hundredths of one percent (0 to 10,000), where 10,000 = 100%.
+     */
+    int highVolumeThrottleUtilization(HederaFunctionality function);
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.hapi;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -46,6 +46,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertCreationMaxAs
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertCreationViaCallMaxAssociations;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.contractListWithPropertiesInheritedFrom;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.createLargeFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getEcdsaPrivateKeyFromSpec;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
@@ -73,6 +74,7 @@ import static com.hedera.services.bdd.suites.contract.hapi.ContractUpdateSuite.A
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_BYTECODE_EMPTY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ERROR_DECODING_BYTESTRING;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -99,7 +101,6 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
-import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
@@ -136,7 +137,7 @@ public class ContractCreateSuite {
 
     public static final String EMPTY_CONSTRUCTOR_CONTRACT = "EmptyConstructor";
     public static final String PARENT_INFO = "parentInfo";
-    private static final String PAYER = "payer";
+    private static final String PAYER = "contractCreatePayer";
 
     private static final Logger log = LogManager.getLogger(ContractCreateSuite.class);
 
@@ -170,7 +171,6 @@ public class ContractCreateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> createContractWithStakingFields() {
         final var contract = "CreateTrivial";
         return hapiTest(
@@ -223,13 +223,13 @@ public class ContractCreateSuite {
                         .adminKey(THRESHOLD)
                         .declinedReward(false)
                         .stakedAccountId("0.0.0")
-                        .hasPrecheck(INVALID_STAKING_ID)
+                        .hasKnownStatus(INVALID_STAKING_ID)
                         .refusingEthConversion(),
                 contractCreate(contract)
                         .adminKey(THRESHOLD)
                         .declinedReward(false)
                         .stakedNodeId(-1L)
-                        .hasPrecheck(INVALID_STAKING_ID)
+                        .hasKnownStatus(INVALID_STAKING_ID)
                         .refusingEthConversion());
     }
 
@@ -241,6 +241,19 @@ public class ContractCreateSuite {
                 contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                         .payingWith("bankrupt")
                         .hasPrecheck(INSUFFICIENT_PAYER_BALANCE));
+    }
+
+    // Regression for #26402: an initial balance exceeding the payer's balance used to reach the EVM
+    // value-transfer invariant and throw IllegalArgumentException, which was caught as FAIL_INVALID and
+    // logged as a "Possibly CATASTROPHIC failure". It now fails cleanly with INSUFFICIENT_PAYER_BALANCE.
+    @HapiTest
+    final Stream<DynamicTest> contractCreateWithInitialBalanceOverPayerBalanceFailsCleanly() {
+        return hapiTest(
+                uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
+                contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
+                        .balance(Long.MAX_VALUE)
+                        .refusingEthConversion()
+                        .hasKnownStatus(INSUFFICIENT_PAYER_BALANCE));
     }
 
     @HapiTest
@@ -286,7 +299,7 @@ public class ContractCreateSuite {
                                     placeholderEthTx(), getEcdsaPrivateKeyFromSpec(spec, SECP_256K1_SOURCE_KEY));
                             b.setCallData(systemFileId).setEthereumData(ByteString.copyFrom(signedEthTx.encodeTx()));
                         })
-                        .hasPrecheck(INVALID_FILE_ID));
+                        .hasKnownStatus(INVALID_FILE_ID));
     }
 
     @HapiTest
@@ -350,7 +363,7 @@ public class ContractCreateSuite {
                         .maxFeePerGas(50L)
                         .maxPriorityGas(2L)
                         .gasLimit(1_000_000L)
-                        .hasKnownStatus(ResponseCodeEnum.SUCCESS),
+                        .hasKnownStatus(SUCCESS),
                 getContractInfo(initCreateContract)
                         .has(contractWith().maxAutoAssociations(0))
                         .logged(),
@@ -367,7 +380,6 @@ public class ContractCreateSuite {
     }
 
     @LeakyHapiTest(overrides = {"contracts.evm.version"})
-    @Tag(MATS)
     final Stream<DynamicTest> childCreationsHaveExpectedKeysWithOmittedAdminKey() {
         final AtomicLong firstStickId = new AtomicLong();
         final AtomicLong secondStickId = new AtomicLong();
@@ -500,17 +512,56 @@ public class ContractCreateSuite {
                         .refusingEthConversion());
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
     final Stream<DynamicTest> rejectsNegativeGas() {
         return hapiTest(
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
                 cryptoCreate(PAYER), // need to use a payer that is not throttle_exempt
+                overriding("contracts.maxGasPerSec", "300000"),
                 // refuse eth conversion because ethereum transaction fails in IngestChecker with precheck status
                 // INSUFFICIENT_GAS
+                // fill the gas throttle bucket and defer so the next tx arrives before it refills
+                contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
+                        .gas(300_000L)
+                        .payingWith(PAYER)
+                        .deferStatusResolution()
+                        .refusingEthConversion(),
                 contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                         .gas(-50L)
                         .payingWith(PAYER)
                         .hasPrecheck(BUSY)
+                        .refusingEthConversion());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> rejectsInitcodeExceedingDefaultMaxSize() {
+        // Per EIP-3860 MAX_INITCODE_SIZE = 2 * MAX_CODE_SIZE = 49152 bytes (the default of
+        // contracts.maxInitcodeSize). File contents are hex, so "00" repeated 49153 times decodes to
+        // 49153 bytes of init code - one byte over the limit - and must be rejected.
+        final var oversizeInitcode = ByteString.copyFromUtf8("00".repeat(49153));
+        return hapiTest(
+                createLargeFile(GENESIS, "oversizeInitcode", oversizeInitcode),
+                contractCreate("oversizeInitcode")
+                        .bytecode("oversizeInitcode")
+                        .hasKnownStatus(CONTRACT_SIZE_LIMIT_EXCEEDED)
+                        .refusingEthConversion());
+    }
+
+    @LeakyHapiTest(overrides = {"contracts.maxInitcodeSize"})
+    final Stream<DynamicTest> enforcesConfiguredMaxInitcodeSizeLimit() {
+        return hapiTest(
+                uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
+                // A limit below the contract's init code size rejects the creation...
+                overriding("contracts.maxInitcodeSize", "32"),
+                contractCreate("belowLimit")
+                        .bytecode(EMPTY_CONSTRUCTOR_CONTRACT)
+                        .hasKnownStatus(CONTRACT_SIZE_LIMIT_EXCEEDED)
+                        .refusingEthConversion(),
+                // ...while the default limit accepts the same init code.
+                overriding("contracts.maxInitcodeSize", "49152"),
+                contractCreate("withinLimit")
+                        .bytecode(EMPTY_CONSTRUCTOR_CONTRACT)
+                        .hasKnownStatus(SUCCESS)
                         .refusingEthConversion());
     }
 
@@ -520,10 +571,10 @@ public class ContractCreateSuite {
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
                 contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                         .entityMemo(TxnUtils.nAscii(101))
-                        .hasPrecheck(MEMO_TOO_LONG),
+                        .hasKnownStatus(MEMO_TOO_LONG),
                 contractCreate(EMPTY_CONSTRUCTOR_CONTRACT)
                         .entityMemo(ZERO_BYTE_MEMO)
-                        .hasPrecheck(INVALID_ZERO_BYTE_IN_STRING));
+                        .hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING));
     }
 
     @HapiTest
@@ -538,7 +589,6 @@ public class ContractCreateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> rejectsInvalidBytecode() {
         final var contract = "InvalidBytecode";
         return hapiTest(
@@ -557,14 +607,15 @@ public class ContractCreateSuite {
     }
 
     @HapiTest
+    @Tag(SERIAL)
     final Stream<DynamicTest> delegateContractIdRequiredForTransferInDelegateCall() {
         final var justSendContract = "JustSend";
         final var sendInternalAndDelegateContract = "SendInternalAndDelegate";
 
         final var beneficiary = "civilian";
         final var totalToSend = 1_000L;
-        final var origKey = KeyShape.threshOf(1, SIMPLE, CONTRACT);
-        final var revisedKey = KeyShape.threshOf(1, SIMPLE, DELEGATE_CONTRACT);
+        final var origKey = threshOf(1, SIMPLE, CONTRACT);
+        final var revisedKey = threshOf(1, SIMPLE, DELEGATE_CONTRACT);
         final var newKey = "delegateContractKey";
 
         final AtomicReference<ContractID> justSendContractId = new AtomicReference<>();
@@ -963,7 +1014,9 @@ public class ContractCreateSuite {
                 new byte[] {1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4},
                 BigInteger.ONE,
                 new byte[] {},
-                new byte[] {},
+                null,
+                null,
+                null,
                 null,
                 0,
                 null,

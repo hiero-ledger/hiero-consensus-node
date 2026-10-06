@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
@@ -28,9 +27,9 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordedChildBodyWithId;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.contract.Utils.idAsHeadlongAddress;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.PAY_RECEIVABLE_CONTRACT;
@@ -50,6 +49,7 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenType;
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -68,7 +68,7 @@ public class ContractKeysStillWorkAsExpectedSuite {
         final AtomicReference<Address> bReceiverAddr = new AtomicReference<>();
 
         return hapiTest(
-                recordStreamMustIncludePassFrom(
+                streamMustIncludePassFrom(
                         recordedChildBodyWithId(TOKEN_UNIT_FROM_TO_OTHERS_TXN, 1, (spec, txn) -> {
                             if (txn.hasNodeStakeUpdate()) {
                                 // Avoid asserting something about an end-of-staking-period NodeStakeUpdate in CI
@@ -83,7 +83,8 @@ public class ContractKeysStillWorkAsExpectedSuite {
                                     assertTrue(adjust.getIsApproval());
                                 }
                             }
-                        })),
+                        }),
+                        Duration.ofSeconds(15)),
                 someWellKnownTokensAndAccounts(
                         fungibleTokenMirrorAddr,
                         nonFungibleTokenMirrorAddr,
@@ -284,7 +285,6 @@ public class ContractKeysStillWorkAsExpectedSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> canStillTransferByVirtueOfContractIdInEOAThreshold() {
         final var fungibleToken = "token";
         final var managementContract = "DoTokenManagement";
@@ -333,7 +333,6 @@ public class ContractKeysStillWorkAsExpectedSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> contractKeysStillHaveSpecificityNoMatterTopLevelSignatures() {
         final var fungibleToken = "token";
         final var managementContract = "DoTokenManagement";

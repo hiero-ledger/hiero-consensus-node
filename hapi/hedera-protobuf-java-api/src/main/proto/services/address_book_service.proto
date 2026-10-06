@@ -134,4 +134,35 @@ service AddressBookService {
      * This transaction is authorized by the node operator
      */
     rpc updateNode (proto.Transaction) returns (proto.TransactionResponse);
+
+    /**
+     * A transaction to create a new registered node in the network
+     * address book.
+     * <p>
+     * This transaction, once complete, SHALL add a new registered node to the
+     * network state.<br/>
+     * The new registered node SHALL be visible and discoverable upon
+     * completion of this transaction.
+     */
+    rpc createRegisteredNode (proto.Transaction) returns (proto.TransactionResponse);
+
+    /**
+     * A transaction to remove a registered node from the network address
+     * book.
+     * <p>
+     * This transaction, once complete, SHALL remove the identified registered
+     * node from the network state.<br/>
+     * This transaction MUST be signed by the existing entry `admin_key` or
+     * authorized by the Hiero network governance structure.
+     */
+    rpc deleteRegisteredNode (proto.Transaction) returns (proto.TransactionResponse);
+
+    /**
+     * A transaction to update an existing registered node in the network
+     * address book.
+     * <p>
+     * This transaction, once complete, SHALL modify the identified registered
+     * node state as requested.
+     */
+    rpc updateRegisteredNode (proto.Transaction) returns (proto.TransactionResponse);
 }

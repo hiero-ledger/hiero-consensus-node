@@ -96,8 +96,8 @@ class ScheduleNativeCallTest extends CallTestBase {
                 Tuple.of((long) SUCCESS.protoOrdinal(), headlongAddressOf(CALLED_SCHEDULE_ID)));
         final var expectedOutput = gasPlus(successResult(encodedResponse, 100L, recordBuilder), SUCCESS, false, 1100L)
                 .fullResult();
-        assertEquals(State.COMPLETED_SUCCESS, result.result().getState());
-        assertEquals(expectedOutput.result().getOutput(), result.result().getOutput());
+        assertEquals(State.COMPLETED_SUCCESS, result.result().state());
+        assertEquals(expectedOutput.result().output(), result.result().output());
     }
 
     @Test
@@ -116,7 +116,7 @@ class ScheduleNativeCallTest extends CallTestBase {
         final var result = subject.execute(frame).fullResult();
 
         // then
-        assertEquals(State.REVERT, result.result().getState());
+        assertEquals(State.REVERT, result.result().state());
         verify(recordBuilder, never()).scheduleID();
     }
 

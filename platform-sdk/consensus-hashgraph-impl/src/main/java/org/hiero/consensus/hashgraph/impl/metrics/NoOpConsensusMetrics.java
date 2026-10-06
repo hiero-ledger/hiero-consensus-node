@@ -20,7 +20,7 @@ public class NoOpConsensusMetrics implements ConsensusMetrics {
     }
 
     @Override
-    public void consensusReachedOnRound() {
+    public void consensusReachedOnRound(final long round) {
         // no-op
     }
 
@@ -32,16 +32,6 @@ public class NoOpConsensusMetrics implements ConsensusMetrics {
     @Override
     public void dotProductTime(final long nanoTime) {
         // no-op
-    }
-
-    @Override
-    public double getAvgSelfCreatedTimestamp() {
-        return 0;
-    }
-
-    @Override
-    public double getAvgOtherReceivedTimestamp() {
-        return 0;
     }
 
     @Override

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.test.fixtures.event;
 
+import static org.hiero.base.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
 import static org.hiero.consensus.model.event.EventConstants.MINIMUM_ROUND_CREATED;
 
 import com.hedera.hapi.platform.event.EventConsensusData;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
@@ -24,6 +26,8 @@ import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.EventHashFactory;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
@@ -137,12 +141,19 @@ public class TestingEventBuilder {
 
     /**
      * The non-deterministic generation of the event. This value is calculated by the orphan buffer in production.
-     * Defaults to {@link EventConstants#GENERATION_UNDEFINED}
+     * Defaults to {@link NonDeterministicGeneration#GENERATION_UNDEFINED}
      */
     private long nGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
 
     /** The hash to use for the event */
     private Hash hash = null;
+
+    /** The origin of this events */
+    private EventOrigin origin = EventOrigin.GOSSIP;
+
+    private long sequenceNumberOverride = EventConstants.SEQUENCE_NUMBER_UNDEFINED;
+
+    private static final AtomicLong sequenceNumber = new AtomicLong(EventConstants.SEQUENCE_NUMBER_UNDEFINED + 1);
 
     /**
      * Constructor
@@ -168,13 +179,24 @@ public class TestingEventBuilder {
     }
 
     /**
-     * Set the non-deterministic generation to use. If not set, default to {@link EventConstants#GENERATION_UNDEFINED}
+     * Set the non-deterministic generation to use. If not set, default to {@link NonDeterministicGeneration#GENERATION_UNDEFINED}
      *
      * @param nGen the ngen
      * @return this instance
      */
     public @NonNull TestingEventBuilder setNGen(final long nGen) {
         this.nGen = nGen;
+        return this;
+    }
+
+    /**
+     * If set to positive number, override default, automatic, always-increasing event sequence number to one specified
+     *
+     * @param sequenceNumberOverride sequence number to use for the next generated event
+     * @return this instance
+     */
+    public @NonNull TestingEventBuilder setSequenceNumberOverride(final long sequenceNumberOverride) {
+        this.sequenceNumberOverride = sequenceNumberOverride;
         return this;
     }
 
@@ -380,12 +402,22 @@ public class TestingEventBuilder {
      */
     public @NonNull TestingEventBuilder setHash(@NonNull final String hexString) {
         final byte[] parsedHex = HexFormat.of().parseHex(hexString.toLowerCase());
-        if (parsedHex.length > DigestType.SHA_384.digestLength()) {
+        if (parsedHex.length > DEFAULT_DIGEST_TYPE.digestLength()) {
             throw new IllegalArgumentException("Hash length is too long");
         }
-        final byte[] hash = new byte[DigestType.SHA_384.digestLength()];
+        final byte[] hash = new byte[DEFAULT_DIGEST_TYPE.digestLength()];
         System.arraycopy(parsedHex, 0, hash, 0, parsedHex.length);
-        this.hash = new Hash(hash);
+        this.hash = new Hash(hash, DEFAULT_DIGEST_TYPE);
+        return this;
+    }
+
+    /**
+     * Set a custom origin for the event.
+     * @param origin the origin of the event
+     * @return this instance
+     */
+    public @NonNull TestingEventBuilder setOrigin(@NonNull final EventOrigin origin) {
+        this.origin = origin;
         return this;
     }
 
@@ -445,15 +477,12 @@ public class TestingEventBuilder {
             }
             return null;
         }
+        final EventDescriptorWrapper descriptor = parent.getDescriptor();
         if (birthRoundOverride == null) {
-            return parent.getDescriptor();
+            return descriptor;
         }
 
-        return new EventDescriptorWrapper(parent.getDescriptor()
-                .eventDescriptor()
-                .copyBuilder()
-                .birthRound(birthRoundOverride)
-                .build());
+        return new EventDescriptorWrapper(descriptor.hash(), descriptor.creator(), birthRoundOverride);
     }
 
     /**
@@ -515,11 +544,17 @@ public class TestingEventBuilder {
         final byte[] signature = new byte[SignatureType.RSA.signatureLength()];
         random.nextBytes(signature);
 
-        final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, Bytes.wrap(signature));
+        final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, Bytes.wrap(signature), origin);
 
-        platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random));
+        final DigestType digestType = EventHashFactory.getTypeForBirthRound(birthRound);
+        platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random, digestType));
 
         platformEvent.setNGen(nGen);
+        if (sequenceNumberOverride > EventConstants.SEQUENCE_NUMBER_UNDEFINED) {
+            platformEvent.setSequenceNumber(sequenceNumberOverride);
+        } else {
+            platformEvent.setSequenceNumber(sequenceNumber.getAndIncrement());
+        }
 
         if (consensusTimestamp != null || consensusOrder != null) {
             platformEvent.setConsensusData(new EventConsensusData.Builder()

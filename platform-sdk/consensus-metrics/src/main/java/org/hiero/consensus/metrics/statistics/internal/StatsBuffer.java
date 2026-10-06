@@ -384,7 +384,16 @@ public class StatsBuffer {
      * @param y the value to be recorded
      */
     public void recordValue(final double y) {
-        final double x = xNow();
+        recordValue(y, xNow());
+    }
+
+    /**
+     * record the given y value, associated with an x value provided explicitly
+     *
+     * @param y the value to be recorded
+     * @param x the place to record value at
+     */
+    public void recordValue(final double y, final double x) {
         if (start == -1) { // remember when record() is called for the first time.
             start = x;
         }

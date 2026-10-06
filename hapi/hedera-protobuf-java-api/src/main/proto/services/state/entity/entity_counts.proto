@@ -79,4 +79,8 @@ message EntityCounts {
    * The number of EVM hook storage slots in the network.
    */
   uint64 num_evm_hook_storage_slots = 15;
+  /**
+   * The number of registered nodes in the network.
+   */
+  uint64 num_registered_nodes = 16;
 }

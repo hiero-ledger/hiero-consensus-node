@@ -14,6 +14,7 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Token;
@@ -108,6 +109,26 @@ class TokenDeleteHandlerTest extends ParityTestBase {
                     .build());
 
             // Create the context and transaction
+            final var context = mockContext();
+            final var txn = newDissociateTxn(TOKEN_987_ID);
+            given(context.body()).willReturn(txn);
+
+            Assertions.assertThatThrownBy(() -> subject.handle(context))
+                    .isInstanceOf(HandleException.class)
+                    .has(responseCode(TOKEN_IS_IMMUTABLE));
+        }
+
+        @Test
+        void rejectsTokenWithEmptyKeyListAdminKey() {
+            // An empty key list admin key (the HIP-540 removal sentinel) means the token is immutable;
+            // it must be treated as "no admin key" rather than a key that requires no signature.
+            writableTokenStore = newWritableStoreWithTokens(Token.newBuilder()
+                    .tokenId(TOKEN_987_ID)
+                    .deleted(false)
+                    .paused(false)
+                    .adminKey(Key.newBuilder().keyList(KeyList.DEFAULT).build())
+                    .build());
+
             final var context = mockContext();
             final var txn = newDissociateTxn(TOKEN_987_ID);
             given(context.body()).willReturn(txn);

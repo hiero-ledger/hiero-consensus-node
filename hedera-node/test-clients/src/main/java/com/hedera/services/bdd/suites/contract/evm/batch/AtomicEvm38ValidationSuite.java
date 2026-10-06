@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.evm.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
@@ -34,17 +33,17 @@ import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_DELETED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.LOCAL_CALL_MODIFICATION_EXCEPTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
@@ -57,7 +56,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
-import org.hyperledger.besu.crypto.Hash;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -67,6 +65,7 @@ import org.junit.jupiter.api.Tag;
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
+@OrderedInIsolation
 class AtomicEvm38ValidationSuite {
 
     private static final String CREATE_TRIVIAL = "CreateTrivial";
@@ -121,7 +120,7 @@ class AtomicEvm38ValidationSuite {
                                         .sending(ONE_HBAR)
                                         .payingWith(TOKEN_TREASURY)
                                         .via(internalViolation)
-                                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                        .hasKnownStatus(INVALID_CONTRACT_ID)
                                         .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED)),
@@ -130,7 +129,7 @@ class AtomicEvm38ValidationSuite {
                                 .payingWith(TOKEN_TREASURY)
                                 .refusingEthConversion()
                                 .via(externalViolation)
-                                .hasKnownStatus(LOCAL_CALL_MODIFICATION_EXCEPTION)
+                                .hasKnownStatus(INVALID_CONTRACT_ID)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED))),
@@ -300,7 +299,7 @@ class AtomicEvm38ValidationSuite {
         final var contract = "ExtCodeOperationsChecker";
         final var invalidAddress = "0x0000000000000000000000000000000000123456";
         final var expectedAccountHash =
-                ByteString.copyFrom(Hash.keccak256(Bytes.EMPTY).toArray());
+                ByteString.copyFrom(MiscCryptoUtils.keccak256DigestOf(Bytes.EMPTY.toArrayUnsafe()));
         final var hashOf = "hashOf";
 
         final String account = "account";
@@ -342,7 +341,7 @@ class AtomicEvm38ValidationSuite {
                     final var contractCodeResult = spec.registry().getBytes("contractCodeHash");
                     final var contractBytecode = spec.registry().getBytes("contractBytecode");
                     final var expectedContractCodeHash = ByteString.copyFrom(
-                                    Hash.keccak256(Bytes.of(contractBytecode)).toArray())
+                                    MiscCryptoUtils.keccak256DigestOf(contractBytecode))
                             .toByteArray();
 
                     Assertions.assertEquals(expectedAccountHash, recordResult.getContractCallResult());
@@ -352,7 +351,6 @@ class AtomicEvm38ValidationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> verifiesExistenceForStaticCall() {
         final var contract = "CallOperationsChecker";
         final var INVALID_ADDRESS = "0x0000000000000000000000000000000000123456";
@@ -404,7 +402,6 @@ class AtomicEvm38ValidationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> factoryAndSelfDestructInConstructorContract() {
         final var contract = "FactorySelfDestructConstructor";
 

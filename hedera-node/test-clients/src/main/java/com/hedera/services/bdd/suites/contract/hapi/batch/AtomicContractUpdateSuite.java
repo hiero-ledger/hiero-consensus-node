@@ -2,7 +2,7 @@
 package com.hedera.services.bdd.suites.contract.hapi.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.listOf;
@@ -80,7 +80,6 @@ class AtomicContractUpdateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> updateStakingFieldsWorks() {
         return hapiTest(
                 uploadInitCode(CONTRACT),
@@ -311,6 +310,7 @@ class AtomicContractUpdateSuite {
     }
 
     @HapiTest
+    @Tag(SERIAL)
     final Stream<DynamicTest> fridayThe13thSpec() {
         final var contract = "SimpleStorage";
         final var suffix = "Clone";
@@ -434,7 +434,6 @@ class AtomicContractUpdateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> updateDoesNotChangeBytecode() {
         // HSCS-DCPR-001
         final var simpleStorageContract = "SimpleStorage";

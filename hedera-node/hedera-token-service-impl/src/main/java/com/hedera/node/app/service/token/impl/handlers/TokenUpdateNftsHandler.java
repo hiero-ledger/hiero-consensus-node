@@ -8,13 +8,13 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_NFT_SERIA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MISSING_SERIAL_NUMBERS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_METADATA_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_METADATA_OR_SUPPLY_KEY;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.NftID;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.token.TokenUpdateNftsTransactionBody;
@@ -22,8 +22,6 @@ import com.hedera.node.app.service.token.ReadableNftStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.validators.TokenAttributesValidator;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -75,19 +73,23 @@ public class TokenUpdateNftsHandler implements TransactionHandler {
         validateTruePreCheck(token != null, INVALID_TOKEN_ID);
 
         final var nftStore = context.createStore(ReadableNftStore.class);
+        // An empty key list (the HIP-540 removal sentinel) means the role function is disabled; such
+        // a key must be treated as absent rather than as a key that requires no signature.
+        final var hasMetadataKey = !isEmpty(token.metadataKey());
+        final var hasSupplyKey = !isEmpty(token.supplyKey());
         if (serialNumbersInTreasury(
                 token.treasuryAccountIdOrThrow(), op.serialNumbers(), nftStore, token.tokenIdOrThrow())) {
-            validateTruePreCheck(token.hasMetadataKey() || token.hasSupplyKey(), TOKEN_HAS_NO_METADATA_OR_SUPPLY_KEY);
+            validateTruePreCheck(hasMetadataKey || hasSupplyKey, TOKEN_HAS_NO_METADATA_OR_SUPPLY_KEY);
 
-            if (token.hasMetadataKey() && token.hasSupplyKey()) {
+            if (hasMetadataKey && hasSupplyKey) {
                 context.requireKey(TokenUpdateHandler.oneOf(token.metadataKeyOrThrow(), token.supplyKeyOrThrow()));
-            } else if (token.hasMetadataKey()) {
+            } else if (hasMetadataKey) {
                 context.requireKey(token.metadataKeyOrThrow());
-            } else if (token.hasSupplyKey()) {
+            } else if (hasSupplyKey) {
                 context.requireKey(token.supplyKeyOrThrow());
             }
         } else {
-            validateTruePreCheck(token.hasMetadataKey(), TOKEN_HAS_NO_METADATA_KEY);
+            validateTruePreCheck(hasMetadataKey, TOKEN_HAS_NO_METADATA_KEY);
             context.requireKey(token.metadataKeyOrThrow());
         }
     }
@@ -127,21 +129,6 @@ public class TokenUpdateNftsHandler implements TransactionHandler {
                 nftStore.put(updatedNft);
             }
         }
-    }
-
-    /**
-     * The total price should be N * $0.001, where N is the number of NFTs in the transaction body.
-     * @param feeContext the {@link FeeContext} with all information needed for the calculation
-     * @return the total Fee
-     */
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var op = feeContext.body();
-        final var serials = op.tokenUpdateNftsOrThrow().serialNumbers();
-        final var feeCalculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.TOKEN_NON_FUNGIBLE_UNIQUE);
-        feeCalculator.resetUsage();
-        return feeCalculator.addBytesPerTransaction(serials.size()).calculate();
     }
 
     private void validateSemantics(

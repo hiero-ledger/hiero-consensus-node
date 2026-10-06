@@ -6,8 +6,6 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALLOWANCE_OWNER
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SENDER_DOES_NOT_OWN_NFT_SERIAL_NO;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.NFT_DELETE_ALLOWANCE_SIZE;
 import static com.hedera.node.app.service.token.impl.validators.AllowanceValidator.isValidOwner;
 import static com.hedera.node.app.service.token.impl.validators.ApproveAllowanceValidator.getEffectiveOwner;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
@@ -18,7 +16,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.NftID;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.NftRemoveAllowance;
@@ -28,8 +25,6 @@ import com.hedera.node.app.service.token.impl.WritableNftStore;
 import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.validators.DeleteAllowanceValidator;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -85,6 +80,7 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
                 final var store = context.createStore(ReadableAccountStore.class);
                 final var ownerId = allowance.ownerOrThrow();
                 final var owner = store.getAccountById(ownerId);
+                validateTruePreCheck(owner != null, INVALID_ALLOWANCE_OWNER_ID);
                 final var approvedForAll = owner.approveForAllNftAllowances().stream()
                         .anyMatch(approveForAll -> approveForAll.tokenId().equals(allowance.tokenId())
                                 && approveForAll.spenderId().equals(context.payer()));
@@ -198,19 +194,6 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
         final var nftAllowances = op.nftAllowances();
 
         deleteAllowanceValidator.validate(context, nftAllowances, payerAccount, accountStore);
-    }
-
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        final var body = feeContext.body();
-        final var op = body.cryptoDeleteAllowanceOrThrow();
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .addBytesPerTransaction((long) op.nftAllowances().size() * NFT_DELETE_ALLOWANCE_SIZE
-                        + (long) countNftDeleteSerials(op.nftAllowances()) * LONG_SIZE)
-                .calculate();
     }
 
     private int countNftDeleteSerials(final List<NftRemoveAllowance> nftAllowancesList) {

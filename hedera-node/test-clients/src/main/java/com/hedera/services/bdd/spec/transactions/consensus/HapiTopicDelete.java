@@ -5,7 +5,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTopicId;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusDeleteTopic;
 
 import com.google.common.base.MoreObjects;
-import com.hedera.node.app.hapi.utils.fee.ConsensusServiceFeeBuilder;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
@@ -13,7 +12,6 @@ import com.hederahashgraph.api.proto.java.ConsensusDeleteTopicTransactionBody;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.TopicID;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import java.util.ArrayList;
 import java.util.List;
@@ -62,16 +60,6 @@ public class HapiTopicDelete extends HapiTxnOp<HapiTopicDelete> {
             return asTopicId(topic.get(), spec);
         }
         return TopicID.getDefaultInstance();
-    }
-
-    @Override
-    protected long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) throws Throwable {
-        return spec.fees()
-                .forActivityBasedOp(
-                        ConsensusDeleteTopic,
-                        ConsensusServiceFeeBuilder::getConsensusDeleteTopicFee,
-                        txn,
-                        numPayerKeys);
     }
 
     @Override

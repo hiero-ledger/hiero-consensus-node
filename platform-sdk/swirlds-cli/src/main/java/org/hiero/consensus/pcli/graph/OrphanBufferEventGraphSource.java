@@ -1,19 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli.graph;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedList;
 import java.util.List;
 import org.hiero.consensus.crypto.PbjStreamHasher;
-import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
+import org.hiero.consensus.event.EventGraphSource;
+import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 
 /**
- * A wrapper source that processes events from an underlying source through the hasher and orphan buffer,
- * but does NOT run them through consensus.
+ * A wrapper source that processes events from an underlying source through the hasher and orphan buffer, but does NOT
+ * run them through consensus.
  *
  * <p>This source processes events lazily through:
  * <ol>
@@ -32,20 +33,19 @@ public class OrphanBufferEventGraphSource implements EventGraphSource {
     private final DefaultOrphanBuffer orphanBuffer;
 
     /** Buffer of events released from orphan buffer ready to be returned. */
-    private final LinkedList<PlatformEvent> releasedEventsBuffer;
+    private LinkedList<PlatformEvent> releasedEventsBuffer;
 
     /**
      * Creates a source that wraps an underlying source and processes events through hasher and orphan buffer.
      *
-     * @param underlyingSource  the underlying source providing raw events
-     * @param context           platform context for configuration and metrics
+     * @param underlyingSource the underlying source providing raw events
+     * @param metrics          metrics instance
      */
     public OrphanBufferEventGraphSource(
-            @NonNull final EventGraphSource underlyingSource, @NonNull final PlatformContext context) {
-
+            @NonNull final EventGraphSource underlyingSource, @NonNull final Metrics metrics) {
         this.underlyingSource = underlyingSource;
         this.eventHasher = new PbjStreamHasher();
-        this.orphanBuffer = new DefaultOrphanBuffer(context.getMetrics(), new NoOpIntakeEventCounter());
+        this.orphanBuffer = new DefaultOrphanBuffer(metrics, new NoOpIntakeEventCounter());
         this.releasedEventsBuffer = new LinkedList<>();
     }
 
@@ -70,9 +70,16 @@ public class OrphanBufferEventGraphSource implements EventGraphSource {
         return !releasedEventsBuffer.isEmpty();
     }
 
+    @Override
+    public void reset() {
+        this.orphanBuffer.clear();
+        this.releasedEventsBuffer = new LinkedList<>();
+        underlyingSource.reset();
+    }
+
     /**
-     * Processes events from the underlying source until at least one event is released to the buffer,
-     * or the underlying source is exhausted. This ensures a consistent contract for EventSource.
+     * Processes events from the underlying source until at least one event is released to the buffer, or the underlying
+     * source is exhausted. This ensures a consistent contract for EventSource.
      */
     private void storeOneIntoBufferIfPossible() {
         while (releasedEventsBuffer.isEmpty() && underlyingSource.hasNext()) {
@@ -81,8 +88,8 @@ public class OrphanBufferEventGraphSource implements EventGraphSource {
     }
 
     /**
-     * Processes one event from the underlying source through the hasher and orphan buffer.
-     * Any released events are added to the buffer.
+     * Processes one event from the underlying source through the hasher and orphan buffer. Any released events are
+     * added to the buffer.
      */
     private void processNextEvent() {
         final PlatformEvent event = underlyingSource.next();
@@ -96,8 +103,8 @@ public class OrphanBufferEventGraphSource implements EventGraphSource {
     }
 
     /**
-     * Updates the event window in the underlying orphan buffer.
-     * This allows the orphan buffer to filter out ancient events.
+     * Updates the event window in the underlying orphan buffer. This allows the orphan buffer to filter out ancient
+     * events.
      *
      * <p>Any events released by the orphan buffer as a result of the event window update
      * are added to the internal buffer and will be returned by subsequent calls to {@link #next()}.

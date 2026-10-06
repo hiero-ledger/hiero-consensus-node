@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.airdrops;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.*;
@@ -329,7 +328,7 @@ public class AirdropToContractSystemContractTest {
                                 .via("pendingAirdrop"),
                         checkForBalances(receiverContract, List.of(token1), List.of()),
                         checkForEmptyBalance(receiverContract, List.of(token2), List.of()),
-                        validateChargedUsd("pendingAirdrop", 0.124),
+                        validateChargedUsd("pendingAirdrop", 0.0049904196),
                         // have ERC20 event for token1
                         TransferTokenTest.validateErcEvent(
                                 getTxnRecord("pendingAirdrop"),
@@ -730,7 +729,6 @@ public class AirdropToContractSystemContractTest {
 
         @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Airdrop to Contract that has filled all its maxAutoAssociation slots")
-        @Tag(MATS)
         public Stream<DynamicTest> airdropToContractWithFilledMaxAutoAssoc(
                 @Contract(contract = "EmptyOne", isImmutable = true, maxAutoAssociations = 1)
                         SpecContract receiverContract,
@@ -784,7 +782,6 @@ public class AirdropToContractSystemContractTest {
 
         @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Can airdrop multiple tokens to contract that has free auto association slots")
-        @Tag(MATS)
         public Stream<DynamicTest> airdropTokensToContractWithFreeSlots(
                 @Contract(
                                 contract = "AssociateContract",
@@ -1073,7 +1070,7 @@ public class AirdropToContractSystemContractTest {
                         receiverContract
                                 .getInfo()
                                 .andAssert(info -> info.has(contractWith().hasAlreadyUsedAutomaticAssociations(1))),
-                        validateChargedUsdWithChild(TXN_NAME, (0.123 + 0.05), 1.0),
+                        validateChargedUsdWithChild(TXN_NAME, (0.05403), 1.0),
                         // check ERC20 events
                         TransferTokenTest.validateErcEvent(
                                 getTxnRecord(TXN_NAME),
@@ -1101,7 +1098,7 @@ public class AirdropToContractSystemContractTest {
                             .via("pendingAirdrops")
                             .gas(1_750_000L),
                     // airdrop fee + association fees
-                    validateChargedUsdWithChild("pendingAirdrops", (0.125 + (6 * 0.05)), 1.0),
+                    validateChargedUsdWithChild("pendingAirdrops", 0.30601997, 1.0),
                     // check ERC20 events
                     TransferTokenTest.validateErcEvent(
                             getTxnRecord("pendingAirdrops"),
@@ -1147,7 +1144,7 @@ public class AirdropToContractSystemContractTest {
                             .gas(1_750_000L)
                             .via("pendingAirdrops"),
                     // airdrop fee + association fees
-                    validateChargedUsdWithChild("pendingAirdrops", (0.125 + (5 * 0.05)), 1.0),
+                    validateChargedUsdWithChild("pendingAirdrops", (0.25747), 1.0),
                     checkForBalances(receiverContract, tokens, List.of()),
                     // check ERC20 events
                     TransferTokenTest.validateErcEvent(
@@ -1187,7 +1184,7 @@ public class AirdropToContractSystemContractTest {
                             .gas(1_750_000L)
                             .via("pendingAirdropsMulti"),
                     // airdrop fee + association fees
-                    validateChargedUsdWithChild("pendingAirdropsMulti", (0.125 + (5 * 0.05)), 1.0),
+                    validateChargedUsdWithChild("pendingAirdropsMulti", 0.257957, 1.0),
                     // check ERC20 events
                     TransferTokenTest.validateErcEvent(
                             getTxnRecord("pendingAirdropsMulti"),
@@ -1232,7 +1229,6 @@ public class AirdropToContractSystemContractTest {
         @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName(
                 "Airdrop frozen token that is already associated to the receiving contract should result in failed airdrop")
-        @Tag(MATS)
         public Stream<DynamicTest> airdropFrozenToken(
                 @Contract(contract = "AssociateContract", isImmutable = true, creationGas = 3_000_000)
                         SpecContract receiverContract,
@@ -1319,7 +1315,6 @@ public class AirdropToContractSystemContractTest {
         @LeakyHapiTest(overrides = {"entities.unlimitedAutoAssociationsEnabled"})
         @DisplayName(
                 "Airdrop token to a hollow account that would create pending airdrop then deploy a contract on the same address")
-        @Tag(MATS)
         public Stream<DynamicTest> airdropToHollowAccThenCreate2OnSameAddress(
                 @FungibleToken(initialSupply = 1_000_000L) SpecFungibleToken token) {
             final var create2Contract = "Create2Factory";

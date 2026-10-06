@@ -69,7 +69,7 @@ public class StandaloneNetworkInfo implements NetworkInfo {
         final var filesConfig = config.getConfigData(FilesConfig.class);
         final var nodeDetails = getFileContent(state, createFileID(filesConfig.nodeDetails(), config));
         try {
-            final var nodeAddressBook = NodeAddressBook.PROTOBUF.parse(nodeDetails);
+            final var nodeAddressBook = NodeAddressBook.PROTOBUF.parseStrict(nodeDetails.toReadableSequentialData());
             nodeInfos = nodeAddressBook.nodeAddress().stream()
                     .<NodeInfo>map(address -> new NodeInfoImpl(
                             address.nodeId(),

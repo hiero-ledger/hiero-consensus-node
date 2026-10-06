@@ -9,7 +9,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 
 public class TestValueCodec implements Codec<TestValue> {
 
-    public static final TestValueCodec INSTANCE = new TestValueCodec();
+    public static final Codec<TestValue> INSTANCE = new TestValueCodec();
 
     private static final TestValue DEFAULT_VALUE = new TestValue("");
 
@@ -35,7 +35,7 @@ public class TestValueCodec implements Codec<TestValue> {
     }
 
     @Override
-    public int measure(@NonNull ReadableSequentialData in) throws ParseException {
+    public int measure(@NonNull ReadableSequentialData in) {
         throw new UnsupportedOperationException("TestValueCodec.measure() not implemented");
     }
 

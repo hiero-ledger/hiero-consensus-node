@@ -21,44 +21,58 @@ testing {
     }
 
     suites.register<JvmTestSuite>("testOtter") {
+        targets.configureEach {
+            // Forwards e.g. -Dfalcon.repetitions=10 to the test JVM
+            testTask { systemProperties(providers.systemPropertiesPrefixedBy("falcon.").get()) }
+        }
+
+        targets.named("testOtter") {
+            testTask { dependsOn(":consensus-otter-docker-app:assemble") }
+        }
+
         // Runs tests against the Container environment
-        targets.register("testContainer") { testTask { systemProperty("otter.env", "container") } }
+        targets.register("testContainer") {
+            testTask {
+                systemProperty("otter.env", "container")
+                useJUnitPlatform { excludeTags("falcon") }
+                dependsOn(":consensus-otter-docker-app:assemble")
+            }
+        }
 
         // Runs tests against the Turtle environment
-        targets.register("testTurtle") { testTask { systemProperty("otter.env", "turtle") } }
+        targets.register("testTurtle") {
+            testTask {
+                systemProperty("otter.env", "turtle")
+                useJUnitPlatform { excludeTags("falcon") }
+            }
+        }
 
-        targets.configureEach { testTask { dependsOn(":consensus-otter-docker-app:assemble") } }
+        // Runs tests against the Falcon environment
+        targets.register("testFalcon") { testTask { useJUnitPlatform { includeTags("falcon") } } }
     }
 
     suites.register<JvmTestSuite>("testChaos") {
         targets.configureEach { testTask { dependsOn(":consensus-otter-docker-app:assemble") } }
-    }
-
-    suites.register<JvmTestSuite>("testPerformance") {
-        // Runs performance benchmarks against the container environment
-        targets.configureEach {
-            testTask {
-                systemProperty("otter.env", "container")
-                dependsOn(":consensus-otter-docker-app:assemble")
-            }
-        }
     }
 }
 
 testModuleInfo {
     requires("com.swirlds.base")
     requires("com.swirlds.base.test.fixtures")
-    requires("com.swirlds.component.framework")
     requires("com.swirlds.metrics.api")
-    requires("com.swirlds.platform.core.test.fixtures")
+    requires("org.hiero.consensus.event.stream")
+    requires("org.hiero.consensus.fakes")
+    requires("org.hiero.consensus.roster")
+    requires("org.hiero.consensus.roster.test.fixtures")
+    requires("org.hiero.consensus.utility")
+    requires("org.hiero.consensus.wiring.framework")
     requires("org.apache.logging.log4j")
     requires("org.assertj.core")
-    requires("org.hiero.consensus.utility")
-    requires("org.hiero.consensus.metrics")
-    requires("org.hiero.consensus.roster")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requiresStatic("com.github.spotbugs.annotations")
+
+    runtimeOnly("org.hiero.consensus.event.intake.concurrent")
 }
 
 testIntegrationModuleInfo { //
@@ -66,6 +80,7 @@ testIntegrationModuleInfo { //
 }
 
 extensions.getByName<GradleOnlyDirectives>("testOtterModuleInfo").apply {
+    runtimeOnly("org.hiero.consensus.event.intake.concurrent")
     runtimeOnly("io.grpc.netty.shaded")
 }
 
@@ -73,29 +88,20 @@ extensions.getByName<GradleOnlyDirectives>("testChaosModuleInfo").apply {
     runtimeOnly("io.grpc.netty.shaded")
 }
 
-extensions.getByName<GradleOnlyDirectives>("testPerformanceModuleInfo").apply {
-    runtimeOnly("io.grpc.netty.shaded")
-}
-
-// Fix testcontainers module system access to commons libraries
-// testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
-// We need to grant it access to the commons modules via JVM arguments
-// Note: automatic modules are named from their package names (org.apache.commons.io for commons-io
-// JAR)
 // This is applied to all Test tasks to work across all execution methods (local, CI, etc.)
-tasks.withType<Test>().configureEach {
-    maxHeapSize = "8g"
-    jvmArgs(
-        "--add-reads=org.testcontainers=org.apache.commons.lang3",
-        "--add-reads=org.testcontainers=org.apache.commons.compress",
-        "--add-reads=org.testcontainers=org.apache.commons.io",
-        "--add-reads=org.testcontainers=org.apache.commons.codec",
-    )
-}
+tasks.withType<Test>().configureEach { maxHeapSize = "8g" }
 
 // This should probably not be necessary (Log4j issue?)
 // https://github.com/apache/logging-log4j2/pull/3053
 tasks.compileTestFixturesJava {
     options.compilerArgs.add("-Alog4j.graalvm.groupId=${project.group}")
     options.compilerArgs.add("-Alog4j.graalvm.artifactId=${project.name}")
+}
+
+// Task to generate saved states for otter tests
+tasks.register<JavaExec>("generateSavedState") {
+    group = "otter"
+    description = "Generate a saved state for use in otter tests"
+    classpath = sourceSets.testFixtures.get().runtimeClasspath
+    mainClass = "org.hiero.otter.fixtures.tools.GenerateStateTool"
 }

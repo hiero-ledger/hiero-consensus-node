@@ -11,8 +11,6 @@ import static com.hedera.hapi.node.base.TokenFreezeStatus.UNFROZEN;
 import static com.hedera.hapi.node.base.TokenKycStatus.GRANTED;
 import static com.hedera.hapi.node.base.TokenKycStatus.KYC_NOT_APPLICABLE;
 import static com.hedera.hapi.node.base.TokenKycStatus.REVOKED;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
 import static com.hedera.node.app.spi.validation.Validations.mustExist;
 import static java.util.Objects.requireNonNull;
 
@@ -37,19 +35,15 @@ import com.hedera.hapi.node.token.GrantedNftAllowance;
 import com.hedera.hapi.node.token.GrantedTokenAllowance;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage;
-import com.hedera.node.app.hapi.fees.usage.crypto.ExtantCryptoContext;
 import com.hedera.node.app.service.networkadmin.impl.utils.NetworkAdminServiceUtil;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
-import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
-import com.hederahashgraph.api.proto.java.FeeData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -63,12 +57,9 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class NetworkGetAccountDetailsHandler extends PaidQueryHandler {
-    private final CryptoOpsUsage cryptoOpsUsage;
 
     @Inject
-    public NetworkGetAccountDetailsHandler(final CryptoOpsUsage cryptoOpsUsage) {
-        this.cryptoOpsUsage = cryptoOpsUsage;
-    }
+    public NetworkGetAccountDetailsHandler() {}
 
     @Override
     @NonNull
@@ -111,7 +102,6 @@ public class NetworkGetAccountDetailsHandler extends PaidQueryHandler {
         final var op = query.accountDetailsOrThrow();
         final var responseBuilder = GetAccountDetailsResponse.newBuilder();
         final var account = op.accountIdOrElse(AccountID.DEFAULT);
-        final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
 
         final var responseType = op.headerOrElse(QueryHeader.DEFAULT).responseType();
         responseBuilder.header(header);
@@ -120,7 +110,7 @@ public class NetworkGetAccountDetailsHandler extends PaidQueryHandler {
             final var readableTokenStore = context.createStore(ReadableTokenStore.class);
             final var tokenRelationStore = context.createStore(ReadableTokenRelationStore.class);
             final var optionalInfo = infoForAccount(
-                    account, accountStore, tokensConfig, readableTokenStore, tokenRelationStore, ledgerConfig);
+                    account, accountStore, tokensConfig, readableTokenStore, tokenRelationStore, context.ledgerId());
 
             if (optionalInfo.isEmpty()) {
                 responseBuilder.header(header.copyBuilder()
@@ -146,14 +136,14 @@ public class NetworkGetAccountDetailsHandler extends PaidQueryHandler {
             @NonNull final TokensConfig tokensConfig,
             @NonNull final ReadableTokenStore readableTokenStore,
             @NonNull final ReadableTokenRelationStore tokenRelationStore,
-            @NonNull final LedgerConfig ledgerConfig) {
+            @NonNull final Bytes ledgerId) {
         final var account = accountStore.getAliasedAccountById(accountID);
         if (account == null) {
             return Optional.empty();
         } else {
             final var info = AccountDetails.newBuilder();
             info.accountId(account.accountId());
-            info.contractAccountId(NetworkAdminServiceUtil.asHexedEvmAddress(accountID));
+            info.contractAccountId(NetworkAdminServiceUtil.asHexedEvmAddress(account.accountId()));
             info.deleted(account.deleted());
             info.key(account.key());
             info.balance(account.tinybarBalance());
@@ -166,7 +156,7 @@ public class NetworkGetAccountDetailsHandler extends PaidQueryHandler {
             info.ownedNfts(account.numberOwnedNfts());
             info.maxAutomaticTokenAssociations(account.maxAutoAssociations());
             info.alias(account.alias());
-            info.ledgerId(ledgerConfig.id());
+            info.ledgerId(ledgerId);
             info.grantedCryptoAllowances(getCryptoGrantedAllowancesList(account));
             info.grantedNftAllowances(getNftGrantedAllowancesList(account));
             info.grantedTokenAllowances(getFungibleGrantedTokenAllowancesList(account));
@@ -300,34 +290,5 @@ public class NetworkGetAccountDetailsHandler extends PaidQueryHandler {
             return cryptoAllowances;
         }
         return Collections.emptyList();
-    }
-
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull final QueryContext queryContext) {
-        final var query = queryContext.query();
-        final var accountStore = queryContext.createStore(ReadableAccountStore.class);
-        final var op = query.accountDetailsOrThrow();
-        final var accountId = op.accountIdOrElse(AccountID.DEFAULT);
-        final var account = accountStore.getAliasedAccountById(accountId);
-
-        return queryContext.feeCalculator().legacyCalculate(sigValueObj -> usageGiven(query, account));
-    }
-
-    private FeeData usageGiven(final com.hedera.hapi.node.transaction.Query query, final Account account) {
-        if (account == null) {
-            return CONSTANT_FEE_DATA;
-        }
-        final var ctx = ExtantCryptoContext.newBuilder()
-                .setCurrentKey(fromPbj(account.key()))
-                .setCurrentMemo(account.memo())
-                .setCurrentExpiry(account.expirationSecond())
-                .setCurrentNumTokenRels(account.numberAssociations())
-                .setCurrentMaxAutomaticAssociations(account.maxAutoAssociations())
-                .setCurrentCryptoAllowances(Collections.emptyMap())
-                .setCurrentTokenAllowances(Collections.emptyMap())
-                .setCurrentApproveForAllNftAllowances(Collections.emptySet())
-                .build();
-        return cryptoOpsUsage.cryptoInfoUsage(fromPbj(query), ctx);
     }
 }

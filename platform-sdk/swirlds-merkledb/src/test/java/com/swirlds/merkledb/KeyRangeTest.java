@@ -41,7 +41,7 @@ class KeyRangeTest {
         final var keyRange1 = new KeyRange(10, 20);
         final var keyRange2 = new KeyRange(10, 20);
         assertEquals(keyRange1, keyRange2, "Keys should be equal");
-        assertNotEquals(keyRange1, new KeyRange(9, 19), "Keys should not be equal");
+        assertNotEquals(new KeyRange(9, 19), keyRange1, "Keys should not be equal");
     }
 
     @Test

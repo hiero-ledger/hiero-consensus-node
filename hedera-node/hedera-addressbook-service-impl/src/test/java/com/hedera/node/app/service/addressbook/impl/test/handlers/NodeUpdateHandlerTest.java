@@ -22,13 +22,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
 
+import com.hedera.hapi.node.addressbook.AssociatedRegisteredNodeList;
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
@@ -36,20 +34,18 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.hapi.node.state.addressbook.RegisteredNode;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.handlers.NodeUpdateHandler;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.AttributeValidator;
@@ -62,7 +58,10 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import java.security.cert.CertificateEncodingException;
+import java.security.cert.CertificateExpiredException;
 import java.security.cert.X509Certificate;
+import java.time.Instant;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeAll;
@@ -89,11 +88,15 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     private ReadableAccountStore accountStore;
 
     @Mock
+    private ReadableRegisteredNodeStore registeredNodeStore;
+
+    @Mock
     private AttributeValidator validator;
 
     private final AccountID newAccountId = idFactory.newAccountId(53);
     private TransactionBody txn;
     private NodeUpdateHandler subject;
+    private static final Instant VALID_CERT_TIME = Instant.parse("2010-01-01T00:00:00Z");
     private static List<X509Certificate> certList;
 
     @BeforeAll
@@ -169,8 +172,39 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
+    @DisplayName("pureChecks fail when gossipCaCertificate cannot be parsed")
+    void pureChecksFailsWhenGossipCaCertificateCannotBeParsed() {
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1)
+                .withGossipCaCertificate(Bytes.wrap("not a cert"))
+                .build();
+        given(pureChecksContext.body()).willReturn(txn);
+
+        final var msg = assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+        assertThat(msg.responseCode()).isEqualTo(INVALID_GOSSIP_CA_CERTIFICATE);
+    }
+
+    @Test
+    void pureChecksDoesNotValidateGossipCaCertificateExpiration() throws CertificateEncodingException {
+        final var cert = certList.getFirst();
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1)
+                .withGossipCaCertificate(Bytes.wrap(cert.getEncoded()))
+                .build();
+        given(pureChecksContext.body()).willReturn(txn);
+
+        final var afterCertificateExpiry =
+                Date.from(cert.getNotAfter().toInstant().plusSeconds(1));
+        assertThrows(CertificateExpiredException.class, () -> cert.checkValidity(afterCertificateExpiry));
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
+    }
+
+    @Test
     void nodeIdMustInState() {
-        txn = new NodeUpdateBuilder().withNodeId(2L).build();
+        txn = new NodeUpdateBuilder()
+                .withNodeId(2L)
+                .withGossipCaCertificate(Bytes.wrap("not a cert"))
+                .build();
         given(handleContext.body()).willReturn(txn);
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.nodeMaxDescriptionUtf8Bytes", 10)
@@ -182,6 +216,33 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.INVALID_NODE_ID, msg.getStatus());
+    }
+
+    @Test
+    void handleFailsWhenGossipCaCertificateExpiredAtConsensusTime() throws CertificateEncodingException {
+        final var cert = certList.getFirst();
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1L)
+                .withGossipCaCertificate(Bytes.wrap(cert.getEncoded()))
+                .build();
+        setupMinimalHandle();
+        given(handleContext.consensusNow())
+                .willReturn(cert.getNotAfter().toInstant().plusSeconds(1));
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(INVALID_GOSSIP_CA_CERTIFICATE, msg.getStatus());
+    }
+
+    @Test
+    void handleFailsWhenGossipCaCertificateIsInvalid() {
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1L)
+                .withGossipCaCertificate(Bytes.wrap("not a cert"))
+                .build();
+        setupMinimalHandle();
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(INVALID_GOSSIP_CA_CERTIFICATE, msg.getStatus());
     }
 
     @Test
@@ -542,25 +603,6 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    @DisplayName("check that fees are 1 for delete node trx")
-    void testCalculateFeesInvocations() {
-        final var feeCtx = mock(FeeContext.class);
-        final var feeCalcFact = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
-        given(feeCalcFact.feeCalculator(any())).willReturn(feeCalc);
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("nodes.enableDAB", true)
-                .getOrCreateConfig();
-        given(feeCtx.configuration()).willReturn(config);
-
-        given(feeCalc.addVerificationsPerTransaction(anyLong())).willReturn(feeCalc);
-        given(feeCalc.calculate()).willReturn(new Fees(1, 0, 0));
-
-        assertThat(subject.calculateFees(feeCtx)).isEqualTo(new Fees(1, 0, 0));
-    }
-
-    @Test
     void preHandleSpecialCaseWhenOnlyUpdatingAccountId() throws PreCheckException {
         // Setup existing node with an account ID
         givenValidNode();
@@ -721,29 +763,6 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
     }
 
     @Test
-    void testCalculateFeesWithDifferentNumSignatures() {
-        // Test with 3 signatures
-        FeeContext feeCtx = mock(FeeContext.class);
-        FeeCalculatorFactory feeCalcFact = mock(FeeCalculatorFactory.class);
-        FeeCalculator feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFact);
-        given(feeCalcFact.feeCalculator(any())).willReturn(feeCalc);
-        given(feeCtx.configuration())
-                .willReturn(HederaTestConfigBuilder.create()
-                        .withValue("nodes.enableDAB", true)
-                        .getOrCreateConfig());
-        given(feeCtx.numTxnSignatures()).willReturn(3);
-        given(feeCalc.addVerificationsPerTransaction(2L)).willReturn(feeCalc);
-        given(feeCalc.calculate()).willReturn(new Fees(3, 0, 0));
-
-        Fees result = subject.calculateFees(feeCtx);
-
-        // Verify that addVerificationsPerTransaction was called with 2 (3-1)
-        verify(feeCalc).addVerificationsPerTransaction(2L);
-        assertThat(result).isEqualTo(new Fees(3, 0, 0));
-    }
-
-    @Test
     void testOneOfHelperCreatesThresholdKey() throws PreCheckException {
         // Setup existing node with an account ID
         givenValidNode();
@@ -899,6 +918,122 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         assertThrowsPreCheck(() -> subject.preHandle(context), UPDATE_NODE_ACCOUNT_NOT_ALLOWED);
     }
 
+    @Test
+    void handleUpdatesAssociatedRegisteredNodes() {
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1L)
+                .withAssociatedRegisteredNodeList(List.of(10L, 20L))
+                .build();
+        setupMinimalHandle();
+        given(registeredNodeStore.get(10L)).willReturn(RegisteredNode.DEFAULT);
+        given(registeredNodeStore.get(20L)).willReturn(RegisteredNode.DEFAULT);
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        final var updatedNode = writableStore.get(1L);
+        assertNotNull(updatedNode);
+        assertThat(updatedNode.associatedRegisteredNode()).containsExactly(10L, 20L);
+    }
+
+    @Test
+    void handleFailsWhenAssociatedRegisteredNodeNotFound() {
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1L)
+                .withAssociatedRegisteredNodeList(List.of(99L))
+                .build();
+        setupMinimalHandle();
+        given(registeredNodeStore.get(99L)).willReturn(null);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.INVALID_REGISTERED_NODE_ID, msg.getStatus());
+    }
+
+    @Test
+    void handleFailsWhenTooManyAssociatedRegisteredNodes() {
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1L)
+                .withAssociatedRegisteredNodeList(List.of(
+                        1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L))
+                .build();
+        setupMinimalHandle();
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.MAX_REGISTERED_NODES_EXCEEDED, msg.getStatus());
+    }
+
+    @Test
+    void handleFailsWhenNegativeAssociatedRegisteredNodeId() {
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1L)
+                .withAssociatedRegisteredNodeList(List.of(-1L))
+                .build();
+        setupMinimalHandle();
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.INVALID_REGISTERED_NODE_ID, msg.getStatus());
+    }
+
+    @Test
+    void handleClearsAssociatedRegisteredNodesWithEmptyList() {
+        // Set up a node that already has associated registered nodes
+        Node nodeWithAssoc = Node.newBuilder()
+                .nodeId(nodeId.number())
+                .associatedRegisteredNode(List.of(10L, 20L))
+                .build();
+        setupWritableNodeStore(nodeWithAssoc);
+
+        txn = new NodeUpdateBuilder()
+                .withNodeId(nodeId.number())
+                .withAssociatedRegisteredNodeList(List.of())
+                .build();
+        setupMinimalHandle();
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        final var updatedNode = writableStore.get(nodeId.number());
+        assertNotNull(updatedNode);
+        assertThat(updatedNode.associatedRegisteredNode()).isEmpty();
+    }
+
+    @Test
+    void handleSucceedsWithExactlyMaxAssociatedRegisteredNodes() {
+        final var ids =
+                List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L);
+        txn = new NodeUpdateBuilder()
+                .withNodeId(1L)
+                .withAssociatedRegisteredNodeList(ids)
+                .build();
+        setupMinimalHandle();
+        for (final var id : ids) {
+            given(registeredNodeStore.get(id)).willReturn(RegisteredNode.DEFAULT);
+        }
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        final var updatedNode = writableStore.get(1L);
+        assertNotNull(updatedNode);
+        assertThat(updatedNode.associatedRegisteredNode()).hasSize(20);
+    }
+
+    @Test
+    void handlePreservesAssociatedRegisteredNodesWhenFieldNotSet() {
+        // Set up a node that already has associated registered nodes
+        Node nodeWithAssoc = Node.newBuilder()
+                .nodeId(nodeId.number())
+                .associatedRegisteredNode(List.of(10L, 20L))
+                .build();
+        setupWritableNodeStore(nodeWithAssoc);
+
+        // Update only description, without setting associatedRegisteredNodeList
+        txn = new NodeUpdateBuilder()
+                .withNodeId(nodeId.number())
+                .withDescription("updated-desc")
+                .build();
+        setupMinimalHandle();
+
+        assertDoesNotThrow(() -> subject.handle(handleContext));
+        final var updatedNode = writableStore.get(nodeId.number());
+        assertNotNull(updatedNode);
+        assertThat(updatedNode.associatedRegisteredNode()).containsExactly(10L, 20L);
+    }
+
     private void setupWritableNodeStore(final Node node) {
         // Create a node with existing proxy endpoint
         final var entityNum = EntityNumber.newBuilder().number(node.nodeId()).build();
@@ -914,6 +1049,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
 
     private void setupMinimalHandle() {
         given(handleContext.body()).willReturn(txn);
+        given(handleContext.consensusNow()).willReturn(VALID_CERT_TIME);
         final var config = HederaTestConfigBuilder.create()
                 .withValue("nodes.maxGossipEndpoint", 2)
                 .getOrCreateConfig();
@@ -921,6 +1057,7 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         given(handleContext.storeFactory()).willReturn(storeFactory);
         given(storeFactory.writableStore(WritableNodeStore.class)).willReturn(writableStore);
         given(storeFactory.readableStore(ReadableAccountStore.class)).willReturn(accountStore);
+        given(storeFactory.readableStore(ReadableRegisteredNodeStore.class)).willReturn(registeredNodeStore);
     }
 
     private void setupHandle() {
@@ -958,6 +1095,8 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
         private Key adminKey = null;
         private AccountID contextPayerId = payerId;
         private Optional<Boolean> declineReward = Optional.empty();
+        private List<Long> associatedRegisteredNodeList = null;
+        private boolean hasAssociatedRegisteredNodeList = false;
 
         private NodeUpdateBuilder() {}
 
@@ -991,6 +1130,12 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
                 op.adminKey(adminKey);
             }
             declineReward.ifPresent(op::declineReward);
+            if (hasAssociatedRegisteredNodeList) {
+                op.associatedRegisteredNodeList(AssociatedRegisteredNodeList.newBuilder()
+                        .associatedRegisteredNode(
+                                associatedRegisteredNodeList != null ? associatedRegisteredNodeList : List.of())
+                        .build());
+            }
 
             return TransactionBody.newBuilder()
                     .transactionID(txnId)
@@ -1050,6 +1195,12 @@ class NodeUpdateHandlerTest extends AddressBookTestBase {
 
         public NodeUpdateBuilder withDeclineReward(final boolean declineReward) {
             this.declineReward = Optional.of(declineReward);
+            return this;
+        }
+
+        public NodeUpdateBuilder withAssociatedRegisteredNodeList(final List<Long> nodeIds) {
+            this.associatedRegisteredNodeList = nodeIds;
+            this.hasAssociatedRegisteredNodeList = true;
             return this;
         }
     }

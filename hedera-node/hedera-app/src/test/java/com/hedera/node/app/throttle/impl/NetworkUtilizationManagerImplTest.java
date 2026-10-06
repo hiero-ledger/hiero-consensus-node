@@ -2,6 +2,8 @@
 package com.hedera.node.app.throttle.impl;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -75,5 +77,14 @@ class NetworkUtilizationManagerImplTest {
         verify(throttleAccumulator)
                 .checkAndEnforceThrottle(expectedTxnToBeChargedFor, consensusNow, state, null, false);
         verify(congestionMultipliers).updateMultiplier(consensusNow);
+    }
+
+    @Test
+    void delegatesHighVolumeThrottleUtilization() {
+        given(throttleAccumulator.getHighVolumeThrottleInstantaneousUtilizationBps(CRYPTO_TRANSFER, consensusNow))
+                .willReturn(7_500);
+
+        assertEquals(7_500, subject.highVolumeThrottleUtilization(CRYPTO_TRANSFER, consensusNow));
+        verify(throttleAccumulator).getHighVolumeThrottleInstantaneousUtilizationBps(CRYPTO_TRANSFER, consensusNow);
     }
 }

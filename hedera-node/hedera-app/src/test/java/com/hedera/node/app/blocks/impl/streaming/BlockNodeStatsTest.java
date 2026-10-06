@@ -3,8 +3,12 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodHandles.Lookup;
+import java.lang.invoke.VarHandle;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.concurrent.ConcurrentMap;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,6 +16,19 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class BlockNodeStatsTest {
+
+    private static final VarHandle blockProofSendTimestampsHandle;
+
+    static {
+        try {
+            final Class<BlockNodeStats> cls = BlockNodeStats.class;
+            final Lookup lookup = MethodHandles.privateLookupIn(cls, MethodHandles.lookup());
+
+            blockProofSendTimestampsHandle = lookup.findVarHandle(cls, "blockProofSendTimestamps", ConcurrentMap.class);
+        } catch (final Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     private BlockNodeStats blockNodeStats;
 
@@ -30,6 +47,55 @@ class BlockNodeStatsTest {
         assertThat(blockNodeStats.addEndOfStreamAndCheckLimit(now.minusSeconds(1), 2, Duration.ofSeconds(10L)))
                 .isTrue();
         assertThat(blockNodeStats.getEndOfStreamCount()).isEqualTo(3);
+    }
+
+    @Test
+    void test_behindPublisher_exceededMaxPermitted() {
+        final Instant now = Instant.now();
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(3), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(2), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(1), 2, Duration.ofSeconds(10L)))
+                .isTrue();
+        assertThat(blockNodeStats.getBehindPublisherCount()).isEqualTo(3);
+    }
+
+    @Test
+    void test_behindPublisher_expiredTimestampsPruned() {
+        final Instant now = Instant.now();
+        // Add timestamps that will be outside the time window
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(15), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(12), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        // Add a recent timestamp - the old ones should be pruned
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(1), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        // Only the recent timestamp should remain
+        assertThat(blockNodeStats.getBehindPublisherCount()).isEqualTo(1);
+    }
+
+    @Test
+    void test_behindPublisher_independentOfEndOfStream() {
+        final Instant now = Instant.now();
+        // Add EndOfStream events
+        assertThat(blockNodeStats.addEndOfStreamAndCheckLimit(now.minusSeconds(3), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        assertThat(blockNodeStats.addEndOfStreamAndCheckLimit(now.minusSeconds(2), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        // EndOfStream count should be 2
+        assertThat(blockNodeStats.getEndOfStreamCount()).isEqualTo(2);
+
+        // Add BehindPublisher events
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(3), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        assertThat(blockNodeStats.addBehindPublisherAndCheckLimit(now.minusSeconds(2), 2, Duration.ofSeconds(10L)))
+                .isFalse();
+        // BehindPublisher count should be 2 (independent of EndOfStream)
+        assertThat(blockNodeStats.getBehindPublisherCount()).isEqualTo(2);
+        // EndOfStream count should still be 2
+        assertThat(blockNodeStats.getEndOfStreamCount()).isEqualTo(2);
     }
 
     @Test
@@ -69,5 +135,95 @@ class BlockNodeStatsTest {
         assertThat(res.isHighLatency()).isFalse();
         assertThat(res.consecutiveHighLatencyEvents()).isGreaterThanOrEqualTo(0);
         assertThat(res.shouldSwitch()).isFalse();
+    }
+
+    @Test
+    void test_shouldIgnoreBehindPublisher_firstMessageInNewWindow() {
+        final Instant now = Instant.now();
+        final Duration ignorePeriod = Duration.ofSeconds(5);
+        final Duration timeFrame = Duration.ofSeconds(30);
+
+        // First message in new window (queue is empty) should NOT be ignored
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now, ignorePeriod, timeFrame))
+                .isFalse();
+
+        // Add the timestamp to the queue (simulating what happens after ignore check in real code)
+        blockNodeStats.addBehindPublisherAndCheckLimit(now, 1, timeFrame);
+
+        // Second message within ignore period should be ignored
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now.plusSeconds(2), ignorePeriod, timeFrame))
+                .isTrue();
+    }
+
+    @Test
+    void test_shouldIgnoreBehindPublisher_afterIgnorePeriodExpires() {
+        final Instant now = Instant.now();
+        final Duration ignorePeriod = Duration.ofSeconds(5);
+        final Duration timeFrame = Duration.ofSeconds(30);
+
+        // First message - should not be ignored
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now, ignorePeriod, timeFrame))
+                .isFalse();
+
+        // Add the timestamp to the queue
+        blockNodeStats.addBehindPublisherAndCheckLimit(now, 1, timeFrame);
+
+        // Message after 5 seconds (ignore period expired) - should NOT be ignored, starts new period
+        // Note: The queue still has the first timestamp so it's not a new window
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now.plusSeconds(6), ignorePeriod, timeFrame))
+                .isFalse();
+    }
+
+    @Test
+    void test_shouldIgnoreBehindPublisher_newWindowResetsIgnorePeriod() {
+        final Instant now = Instant.now();
+        final Duration ignorePeriod = Duration.ofSeconds(5);
+        final Duration timeFrame = Duration.ofSeconds(30);
+
+        // First message - should not be ignored
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now, ignorePeriod, timeFrame))
+                .isFalse();
+
+        // Add the timestamp to the queue
+        blockNodeStats.addBehindPublisherAndCheckLimit(now, 1, timeFrame);
+
+        // Second message within ignore period - should be ignored
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now.plusSeconds(2), ignorePeriod, timeFrame))
+                .isTrue();
+
+        // Third message in new window (after timeframe expires, queue empty due to pruning) - should NOT be ignored
+        assertThat(blockNodeStats.shouldIgnoreBehindPublisher(now.plusSeconds(35), ignorePeriod, timeFrame))
+                .isFalse();
+    }
+
+    @Test
+    void testRecordBlockProofSent_pruneOldEntries() {
+        final int numBlocksToPrime = BlockNodeStats.MAX_BLOCK_PROOF_TRACKING_ENTRIES - 1;
+        final ConcurrentMap<Long, Instant> blockProofSendTimestamps = blockProofSendTimestamps();
+        long blockNumber = 0;
+
+        for (; blockNumber < numBlocksToPrime; ++blockNumber) {
+            blockProofSendTimestamps.put(blockNumber, Instant.now());
+        }
+
+        assertThat(blockProofSendTimestamps).hasSize(numBlocksToPrime);
+
+        // we should now be at MAX_SIZE - 1, so adding another entry should prune anything
+        blockNodeStats.recordBlockProofSent(++blockNumber, Instant.now());
+        assertThat(blockProofSendTimestamps)
+                .hasSize(BlockNodeStats.MAX_BLOCK_PROOF_TRACKING_ENTRIES)
+                .containsKey(0L); // make sure the oldest key exists
+
+        // now if we add another entry, the oldest should be removed and the new one should exist
+        blockNodeStats.recordBlockProofSent(++blockNumber, Instant.now());
+        assertThat(blockProofSendTimestamps)
+                .hasSize(BlockNodeStats.MAX_BLOCK_PROOF_TRACKING_ENTRIES)
+                .containsKey(blockNumber) // make sure the new entry exists
+                .doesNotContainKey(0L); // make sure the oldest entry is now removed
+    }
+
+    @SuppressWarnings("unchecked")
+    private ConcurrentMap<Long, Instant> blockProofSendTimestamps() {
+        return (ConcurrentMap<Long, Instant>) blockProofSendTimestampsHandle.get(blockNodeStats);
     }
 }

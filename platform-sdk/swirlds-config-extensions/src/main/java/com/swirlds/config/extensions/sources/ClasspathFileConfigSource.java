@@ -42,7 +42,8 @@ public class ClasspathFileConfigSource extends AbstractFileConfigSource {
     @NonNull
     @Override
     protected BufferedReader getReader() {
-        final InputStream inputStream = this.getClass().getClassLoader().getResourceAsStream(filePath.toString());
+        final InputStream inputStream =
+                Thread.currentThread().getContextClassLoader().getResourceAsStream(filePath.toString());
         Objects.requireNonNull(inputStream, "Could not load properties from classpath resource " + filePath);
         return new BufferedReader(new InputStreamReader(inputStream));
     }

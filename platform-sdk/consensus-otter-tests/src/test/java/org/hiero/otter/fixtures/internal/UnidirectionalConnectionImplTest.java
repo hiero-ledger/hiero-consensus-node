@@ -11,6 +11,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import org.assertj.core.data.Percentage;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -22,6 +23,7 @@ import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.BandwidthLimit;
 import org.hiero.otter.fixtures.network.Topology;
+import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 import org.hiero.otter.fixtures.network.UnidirectionalConnection;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -221,7 +223,7 @@ class UnidirectionalConnectionImplTest {
     private static class TestableNetwork extends AbstractNetwork {
 
         TestableNetwork() {
-            super(new java.util.Random(42), false);
+            super(new Random(42), false);
         }
 
         @Override
@@ -257,10 +259,13 @@ class UnidirectionalConnectionImplTest {
         }
 
         @Override
-        protected void doSendQuiescenceCommand(
-                @NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {
+        protected void recreateConnections(@NonNull final Map<ConnectionKey, ConnectionState> connections) {
             throw new UnsupportedOperationException("Not needed for this test");
         }
+
+        @Override
+        protected void doSendQuiescenceCommand(
+                @NonNull final QuiescenceCommand command, @NonNull final Duration timeout) {}
 
         @Override
         protected void preStartHook(@NonNull final Roster roster) {

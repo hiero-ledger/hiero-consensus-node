@@ -105,6 +105,13 @@ public class UpdateCommand implements Callable<Integer> {
                     "updated web proxy endpoint for gRPC from non-gRPC clients, e.g. 10.0.0.1:50051,my.fqdn.com:50051")
     String grpcProxyEndpoint;
 
+    @CommandLine.Option(
+            names = {"--associatedRegisteredNode"},
+            paramLabel = "updated associated registered node id(s); pass with no values to clear",
+            arity = "0..*")
+    @Nullable
+    List<Long> associatedRegisteredNode;
+
     @Override
     public Integer call() throws Exception {
         final var yahcli = nodesCommand.getYahcli();
@@ -190,7 +197,8 @@ public class UpdateCommand implements Callable<Integer> {
                 newGossipCaCertificate,
                 newHapiCertificateHash,
                 declineReward,
-                newGrpcProxyEndpoint);
+                newGrpcProxyEndpoint,
+                associatedRegisteredNode);
         delegate.runSuiteSync();
 
         if (delegate.getFinalSpecs().getFirst().getStatus() == HapiSpec.SpecStatus.PASSED) {

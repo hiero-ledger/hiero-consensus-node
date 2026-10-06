@@ -13,7 +13,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
 import java.util.function.BiPredicate;
 import java.util.stream.Stream;
-import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;

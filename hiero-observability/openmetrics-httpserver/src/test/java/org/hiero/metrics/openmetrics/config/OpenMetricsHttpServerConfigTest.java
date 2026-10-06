@@ -33,9 +33,9 @@ public class OpenMetricsHttpServerConfigTest {
                 .as("Open Metrics HTTP server default path must be '/metrics'.")
                 .isEqualTo("/metrics");
 
-        assertThat(endpointConfig.backlog())
-                .as("Open Metrics HTTP server default backlog must be 0.")
-                .isEqualTo(0);
+        assertThat(endpointConfig.bufferSize())
+                .as("Open Metrics HTTP server default buffer size must be 1024.")
+                .isEqualTo(1024);
 
         assertThat(endpointConfig.decimalFormat())
                 .as("Open Metrics HTTP server default decimal format must be #.###")
@@ -49,7 +49,7 @@ public class OpenMetricsHttpServerConfigTest {
                 .withValue("metrics.exporter.openmetrics.http.hostname", "127.0.0.1")
                 .withValue("metrics.exporter.openmetrics.http.port", "1234")
                 .withValue("metrics.exporter.openmetrics.http.path", "/custom-metrics")
-                .withValue("metrics.exporter.openmetrics.http.backlog", "5")
+                .withValue("metrics.exporter.openmetrics.http.bufferSize", "111")
                 .withValue("metrics.exporter.openmetrics.http.decimalFormat", "#.#")
                 .build()
                 .getConfigData(OpenMetricsHttpServerConfig.class);
@@ -58,7 +58,7 @@ public class OpenMetricsHttpServerConfigTest {
         assertThat(endpointConfig.hostname()).isEqualTo("127.0.0.1");
         assertThat(endpointConfig.port()).isEqualTo(1234);
         assertThat(endpointConfig.path()).isEqualTo("/custom-metrics");
-        assertThat(endpointConfig.backlog()).isEqualTo(5);
+        assertThat(endpointConfig.bufferSize()).isEqualTo(111);
         assertThat(endpointConfig.decimalFormat()).isEqualTo("#.#");
     }
 
@@ -86,26 +86,26 @@ public class OpenMetricsHttpServerConfigTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {Integer.MIN_VALUE, -10, -1, 11, 50, 100, Integer.MAX_VALUE})
-    void testNonAllowedBacklogs(int backlog) {
+    @ValueSource(ints = {Integer.MIN_VALUE, -10, -1, 2097153, 12345678, Integer.MAX_VALUE})
+    void testNonAllowedBufferSizes(int bufferSize) {
         assertThatThrownBy(() -> configBuilder()
-                        .withValue("metrics.exporter.openmetrics.http.backlog", String.valueOf(backlog))
+                        .withValue("metrics.exporter.openmetrics.http.bufferSize", String.valueOf(bufferSize))
                         .build())
-                .as("Invalid backlog " + backlog + " must cause a ConfigViolationException.")
+                .as("Invalid bufferSize " + bufferSize + " must cause a ConfigViolationException.")
                 .isInstanceOf(ConfigViolationException.class);
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {0, 1, 2, 5, 10})
-    void testAllowedBacklogs(int backlog) {
+    @ValueSource(ints = {0, 1, 1024, 2048, 65536, 2097152})
+    void testAllowedBufferSizes(int bufferSize) {
         OpenMetricsHttpServerConfig endpointConfig = configBuilder()
-                .withValue("metrics.exporter.openmetrics.http.backlog", String.valueOf(backlog))
+                .withValue("metrics.exporter.openmetrics.http.bufferSize", String.valueOf(bufferSize))
                 .build()
                 .getConfigData(OpenMetricsHttpServerConfig.class);
 
-        assertThat(endpointConfig.backlog())
-                .as("Open Metrics HTTP endpoint backlog must be set to " + backlog)
-                .isEqualTo(backlog);
+        assertThat(endpointConfig.bufferSize())
+                .as("Open Metrics HTTP endpoint bufferSize must be set to " + bufferSize)
+                .isEqualTo(bufferSize);
     }
 
     private ConfigurationBuilder configBuilder() {

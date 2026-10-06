@@ -14,12 +14,24 @@ class OpsDurationScheduleTest {
 
         assertEquals(123, opsDurationSchedule.opCodeCost(1));
         assertEquals(105, opsDurationSchedule.opCodeCost(2));
-        assertEquals(26552, opsDurationSchedule.opCodeCost(240));
+        assertEquals(0, opsDurationSchedule.opCodeCost(32)); // KECCAK256
+        assertEquals(0, opsDurationSchedule.opCodeCost(55)); // CALLDATACOPY
+        assertEquals(0, opsDurationSchedule.opCodeCost(57)); // CODECOPY
+        assertEquals(0, opsDurationSchedule.opCodeCost(60)); // EXTCODECOPY
+        assertEquals(0, opsDurationSchedule.opCodeCost(62)); // RETURNDATACOPY
+        assertEquals(0, opsDurationSchedule.opCodeCost(160)); // LOG0
+        assertEquals(0, opsDurationSchedule.opCodeCost(161)); // LOG1
+        assertEquals(0, opsDurationSchedule.opCodeCost(162)); // LOG2
+        assertEquals(0, opsDurationSchedule.opCodeCost(163)); // LOG3
+        assertEquals(0, opsDurationSchedule.opCodeCost(164)); // LOG4
+        assertEquals(0, opsDurationSchedule.opCodeCost(240)); // CREATE
         assertEquals(98859, opsDurationSchedule.opCodeCost(241));
         assertEquals(2011, opsDurationSchedule.opCodeCost(242));
+        assertEquals(0, opsDurationSchedule.opCodeCost(243)); // RETURN
         assertEquals(1596, opsDurationSchedule.opCodeCost(244));
-        assertEquals(11291, opsDurationSchedule.opCodeCost(245));
+        assertEquals(0, opsDurationSchedule.opCodeCost(245)); // CREATE2
         assertEquals(2091, opsDurationSchedule.opCodeCost(250));
+        assertEquals(0, opsDurationSchedule.opCodeCost(253)); // REVERT
 
         assertEquals(3332, opsDurationSchedule.accountLazyCreationOpsDurationMultiplier());
         assertEquals(1575, opsDurationSchedule.opsGasBasedDurationMultiplier());

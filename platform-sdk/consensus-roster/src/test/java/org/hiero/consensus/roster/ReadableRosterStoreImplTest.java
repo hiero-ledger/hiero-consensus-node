@@ -1,17 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.roster;
 
+import static org.hiero.consensus.roster.ConsensusRosterInputAssertion.assertConsensusLayerRosterInputs;
+import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
+import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.BDDMockito.given;
 
+import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterState;
+import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.test.fixtures.MapReadableKVState;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
+import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.BDDMockito;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -23,28 +39,74 @@ class ReadableRosterStoreImplTest {
     @Mock
     private ReadableSingletonState<RosterState> rosterState;
 
+    private final Map<ProtoBytes, Roster> rosterMap = new HashMap<>();
+
     private ReadableRosterStoreImpl subject;
 
     @BeforeEach
     void setUp() {
-        BDDMockito.given(readableStates.<RosterState>getSingleton(RosterStateId.ROSTER_STATE_STATE_ID))
+        given(readableStates.<RosterState>getSingleton(RosterStateId.ROSTER_STATE_STATE_ID))
                 .willReturn(rosterState);
+        final ReadableKVState<ProtoBytes, Roster> rosterKVState =
+                new MapReadableKVState<>(ROSTERS_STATE_ID, ROSTERS_STATE_LABEL, rosterMap);
+        given(readableStates.<ProtoBytes, Roster>get(RosterStateId.ROSTERS_STATE_ID))
+                .willReturn(rosterKVState);
         subject = new ReadableRosterStoreImpl(readableStates);
     }
 
     @Test
     void nullCandidateRosterCasesPass() {
         assertNull(subject.getCandidateRosterHash());
-        BDDMockito.given(rosterState.get()).willReturn(RosterState.DEFAULT);
+        given(rosterState.get()).willReturn(RosterState.DEFAULT);
         assertNull(subject.getCandidateRosterHash());
     }
 
     @Test
     void nonNullCandidateRosterIsReturned() {
         final var fakeHash = Bytes.wrap("PRETEND");
-        BDDMockito.given(rosterState.get())
+        given(rosterState.get())
                 .willReturn(
                         RosterState.newBuilder().candidateRosterHash(fakeHash).build());
         assertEquals(fakeHash, subject.getCandidateRosterHash());
+    }
+
+    @Test
+    void testCreateRosterHistory() {
+        final Random random = new Random();
+        final Roster activeRoster = RosterFactory.randomRoster(random, 4);
+        final Roster previousRoster = RosterFactory.randomRoster(random, 3);
+
+        setup(activeRoster, 16L, previousRoster);
+
+        final ConsensusLayerRosterInputs rosterInputs = subject.getConsensusLayerRosterInputs();
+
+        assertConsensusLayerRosterInputs(rosterInputs, List.of(16L, 0L), List.of(activeRoster, previousRoster));
+    }
+
+    @Test
+    void testCreateRosterHistoryNoRosters() {
+        assertThrows(NullPointerException.class, () -> subject.getConsensusLayerRosterInputs());
+    }
+
+    private void setup(@NonNull final Roster activeRoster, final long round, @NonNull final Roster previousRoster) {
+        final Bytes activeRosterHash = RosterUtils.hash(activeRoster).getBytes();
+        final Bytes previousRosterHash = RosterUtils.hash(previousRoster).getBytes();
+
+        rosterMap.put(new ProtoBytes(activeRosterHash), activeRoster);
+        rosterMap.put(new ProtoBytes(previousRosterHash), previousRoster);
+
+        final List<RoundRosterPair> roundRosterPairs = List.of(
+                RoundRosterPair.newBuilder()
+                        .activeRosterHash(activeRosterHash)
+                        .roundNumber(round)
+                        .build(),
+                RoundRosterPair.newBuilder()
+                        .activeRosterHash(previousRosterHash)
+                        .roundNumber(0L)
+                        .build());
+        given(rosterState.get())
+                .willReturn(RosterState.newBuilder()
+                        .roundRosterPairs(roundRosterPairs)
+                        .build());
     }
 }

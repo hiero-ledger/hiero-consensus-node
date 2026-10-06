@@ -3,29 +3,39 @@ package com.hedera.node.app.blocks;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
+import com.hedera.node.app.blocks.impl.streaming.BlockNode;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeClientFactory;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeConfigService;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionHelper;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeStats;
+import com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection;
 import com.hedera.node.app.blocks.impl.streaming.ConnectionState;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonGrpcConfiguration;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonHttpConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
 import com.hedera.node.app.blocks.utils.BlockGeneratorUtil;
 import com.hedera.node.app.blocks.utils.FakeGrpcServer;
 import com.hedera.node.app.blocks.utils.SimulatedNetworkProxy;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.metrics.api.Metrics;
 import java.io.IOException;
+import java.nio.file.FileSystems;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.List;
@@ -33,13 +43,26 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import jdk.jfr.Recording;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.node.NodeId;
-import org.openjdk.jmh.annotations.*;
+import org.openjdk.jmh.annotations.Benchmark;
+import org.openjdk.jmh.annotations.BenchmarkMode;
+import org.openjdk.jmh.annotations.Fork;
+import org.openjdk.jmh.annotations.Level;
+import org.openjdk.jmh.annotations.Measurement;
+import org.openjdk.jmh.annotations.Mode;
+import org.openjdk.jmh.annotations.OutputTimeUnit;
+import org.openjdk.jmh.annotations.Param;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
+import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 /**
@@ -201,6 +224,7 @@ public class BlockStreamingBenchmark {
     private ScheduledExecutorService scheduler;
     private ExecutorService pipelineExecutor;
     private ScheduledExecutorService metricsScheduler;
+    private BlockNodeConfigService bnConfigService;
 
     // --- Metrics ---
     private long benchmarkStartTime;
@@ -307,8 +331,9 @@ public class BlockStreamingBenchmark {
                         "blockNode.highLatencyEventsBeforeSwitching", String.valueOf(highLatencyEventsBeforeSwitching))
                 .withValue("blockNode.maxBackoffDelay", maxBackoffDelayMs + "ms")
                 .withValue("blockNode.grpcOverallTimeout", grpcOverallTimeoutMs + "ms")
-                .withValue("blockNode.pipelineOperationTimeout", pipelineOperationTimeoutMs + "ms")
+                .withValue("blockNode.connectionManagementTimeout", pipelineOperationTimeoutMs + "ms")
                 .withValue("blockNode.minRetryIntervalMs", "5000")
+                .withValue("blockStream.enhancedObservabilityEnabled", "false")
                 .build();
 
         final ConfigProvider configProvider = () -> new VersionedConfigImpl(config, 1L);
@@ -326,13 +351,90 @@ public class BlockStreamingBenchmark {
                 new PlatformMetricsFactoryImpl(config.getConfigData(MetricsConfig.class)),
                 config.getConfigData(MetricsConfig.class));
         final BlockStreamMetrics blockStreamMetrics = new BlockStreamMetrics(metrics);
+        final BlockStreamingObs streamingObs = new BlockStreamingObs(configProvider);
 
         // 4. Services
-        bufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        bufferService = new BlockBufferService(configProvider, blockStreamMetrics, streamingObs);
         bufferService.start();
 
-        connectionManager = new BlockNodeConnectionManager(configProvider, bufferService, blockStreamMetrics);
-        bufferService.setBlockNodeConnectionManager(connectionManager);
+        bnConfigService = new BlockNodeConfigService(configProvider);
+        bnConfigService.start();
+
+        final NetworkInfo networkInfo = new NetworkInfo() {
+            private final NodeInfo selfNode = new NodeInfo() {
+                @Override
+                public long nodeId() {
+                    return 0L;
+                }
+
+                @Override
+                public AccountID accountId() {
+                    return AccountID.newBuilder().build();
+                }
+
+                @Override
+                public long weight() {
+                    return 0L;
+                }
+
+                @Override
+                public Bytes sigCertBytes() {
+                    return Bytes.EMPTY;
+                }
+
+                @Override
+                public List<com.hedera.hapi.node.base.ServiceEndpoint> gossipEndpoints() {
+                    return List.of();
+                }
+
+                @Override
+                public List<com.hedera.hapi.node.base.ServiceEndpoint> hapiEndpoints() {
+                    return List.of();
+                }
+
+                @Override
+                public boolean declineReward() {
+                    return false;
+                }
+            };
+
+            @Override
+            public Bytes ledgerId() {
+                return Bytes.EMPTY;
+            }
+
+            @Override
+            public NodeInfo selfNodeInfo() {
+                return selfNode;
+            }
+
+            @Override
+            public List<NodeInfo> addressBook() {
+                return List.of(selfNode);
+            }
+
+            @Override
+            public NodeInfo nodeInfo(final long nodeId) {
+                return nodeId == selfNode.nodeId() ? selfNode : null;
+            }
+
+            @Override
+            public boolean containsNode(final long nodeId) {
+                return nodeId == selfNode.nodeId();
+            }
+
+            @Override
+            public void updateFrom(final com.swirlds.state.State state) {}
+        };
+
+        connectionManager = new BlockNodeConnectionManager(
+                configProvider,
+                bufferService,
+                blockStreamMetrics,
+                networkInfo,
+                () -> pipelineExecutor,
+                bnConfigService,
+                streamingObs);
         connectionManager.start();
 
         // 5. Connection Setup (CONNECT TO PROXY PORT) with parametrized HTTP/2 and gRPC
@@ -364,22 +466,37 @@ public class BlockStreamingBenchmark {
                 .clientGrpcConfig(grpcConfig)
                 .build();
 
-        final BlockNodeConnection connection = new BlockNodeConnection(
+        final BlockNodeStreamingConnection connection = new BlockNodeStreamingConnection(
                 configProvider,
-                nodeConfig,
+                new BlockNode(configProvider, nodeConfig, new AtomicInteger(), new BlockNodeStats()),
                 connectionManager,
                 bufferService,
                 blockStreamMetrics,
-                scheduler,
                 pipelineExecutor,
                 0L,
-                new BlockNodeClientFactory());
+                new BlockNodeClientFactory(),
+                0L,
+                streamingObs);
 
         connection.initialize();
         BlockNodeConnectionHelper.updateConnectionState(connection, ConnectionState.ACTIVE);
 
         // 6. Writer
-        writer = new GrpcBlockItemWriter(bufferService, connectionManager);
+        final var selfNodeAccountIdManager = new SelfNodeAccountIdManager() {
+            @Override
+            public AccountID getSelfNodeAccountId() {
+                return AccountID.newBuilder()
+                        .shardNum(0)
+                        .realmNum(0)
+                        .accountNum(3)
+                        .build();
+            }
+
+            @Override
+            public void setSelfNodeAccountId(final AccountID accountId) {}
+        };
+        writer = new GrpcBlockItemWriter(
+                configProvider, selfNodeAccountIdManager, FileSystems.getDefault(), bufferService);
     }
 
     /**

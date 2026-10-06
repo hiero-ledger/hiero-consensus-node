@@ -6,10 +6,13 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_CUSTOM_FEES
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ZERO_BYTE_IN_STRING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_CUSTOM_FEES_IS_NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
+import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.transaction.CustomFeeLimit;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -48,13 +51,21 @@ public class PreCheckValidator {
     /**
      * Checks if the maximum custom fee limits are valid for the given functionality.
      *
+     * <p>Every entity id in the list is validated, including the entries that fee assessment will ignore because
+     * they do not name the transaction payer.
+     *
      * @param maxCustomFeeList The list of custom fee limits to validate
      * @param functionality The transaction functionality being executed
+     * @param shard This network's shard
+     * @param realm This network's realm
      * @throws PreCheckException if the max custom fees are not supported for the given functionality,
      *         or if the custom fee limits contain invalid values
      */
     public static void checkMaxCustomFees(
-            final List<CustomFeeLimit> maxCustomFeeList, final HederaFunctionality functionality)
+            final List<CustomFeeLimit> maxCustomFeeList,
+            final HederaFunctionality functionality,
+            final long shard,
+            final long realm)
             throws PreCheckException {
         if (!FUNCTIONALITIES_WITH_MAX_CUSTOM_FEES.contains(functionality) && !maxCustomFeeList.isEmpty()) {
             throw new PreCheckException(MAX_CUSTOM_FEES_IS_NOT_SUPPORTED);
@@ -62,14 +73,25 @@ public class PreCheckValidator {
 
         // check required fields
         for (final var maxCustomFee : maxCustomFeeList) {
-            if (maxCustomFee.accountId() == null || maxCustomFee.fees().isEmpty()) {
+            if (maxCustomFee.fees().isEmpty()) {
+                throw new PreCheckException(INVALID_MAX_CUSTOM_FEES);
+            }
+            final var accountId = validateAccountID(maxCustomFee.accountId(), INVALID_MAX_CUSTOM_FEES);
+            if (accountId.shardNum() != shard || accountId.realmNum() != realm) {
                 throw new PreCheckException(INVALID_MAX_CUSTOM_FEES);
             }
             for (final var fee : maxCustomFee.fees()) {
                 if (fee.amount() < 0) {
                     throw new PreCheckException(INVALID_MAX_CUSTOM_FEES);
                 }
+                if (fee.hasDenominatingTokenId() && !isPlausibleToken(fee.denominatingTokenIdOrThrow(), shard, realm)) {
+                    throw new PreCheckException(INVALID_MAX_CUSTOM_FEES);
+                }
             }
         }
+    }
+
+    private static boolean isPlausibleToken(@NonNull final TokenID tokenId, final long shard, final long realm) {
+        return tokenId.shardNum() == shard && tokenId.realmNum() == realm && tokenId.tokenNum() > 0;
     }
 }

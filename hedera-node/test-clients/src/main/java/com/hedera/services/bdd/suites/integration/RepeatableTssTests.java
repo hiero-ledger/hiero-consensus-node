@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration;
 
+import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.SIGNED_BLOCK_SIBLING_COUNT;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_TSS_CONTROL;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
@@ -10,9 +11,9 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.TssVerbs.startIgnoringTssSignatureRequests;
 import static com.hedera.services.bdd.spec.utilops.TssVerbs.stopIgnoringTssSignatureRequests;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -69,7 +70,7 @@ public class RepeatableTssTests {
                         doAdhoc(() -> spec.repeatableEmbeddedHederaOrThrow().setRoundDuration(Duration.ofSeconds(2))),
                         sleepForSeconds(3L),
                         startIgnoringTssSignatureRequests(),
-                        blockStreamMustIncludePassFrom(ignore -> indirectProofsAssertion),
+                        streamMustIncludePassFrom(ignore -> indirectProofsAssertion),
                         // Each transaction is placed into its own round and hence block
                         cryptoCreate("somebody").yahcliLogging(),
                         sleepForSeconds(3L),
@@ -177,9 +178,8 @@ public class RepeatableTssTests {
 
         // 3. The first merkle path is a leaf with the block's consensus timestamp
         final var mp1 = merklePaths.getFirst();
-        assertTrue(mp1.hasLeaf(), "Expected first Merkle path to have a timestamp");
-        assertTrue(mp1.leafOrThrow().hasBlockConsensusTimestamp());
-        assertNotNull(mp1.leafOrThrow().blockConsensusTimestampOrThrow());
+        assertTrue(mp1.hasTimestampLeaf(), "Expected first Merkle path to have a timestamp");
+        assertNotNull(mp1.timestampLeaf());
         final var mp1NextPath = mp1.nextPathIndex();
         assertTrue(
                 mp1NextPath >= 0 && mp1NextPath < merklePaths.size(),
@@ -188,15 +188,15 @@ public class RepeatableTssTests {
         // 4. The first path's next index correctly points to the third merkle path, which should be immediately
         // preceded by the corresponding second merkle path
         final var mp2 = merklePaths.get(mp1NextPath - 1);
-        assertFalse(mp2.hasLeaf());
+        assertFalse(mp2.hasTimestampLeaf());
         assertTrue(mp2.hasHash());
-        assertEquals(4, mp2.siblings().size());
+        assertEquals(SIGNED_BLOCK_SIBLING_COUNT, mp2.siblings().size());
 
         // 5. As above, the first path's next index points directly to path 3, which should be either an internal node
         // or the root
         final var mp3 = merklePaths.get(mp1NextPath);
         assertTrue(mp3.siblings().isEmpty());
-        assertFalse(mp3.hasLeaf());
+        assertFalse(mp3.hasTimestampLeaf());
         final var mp3NextPath = mp3.nextPathIndex();
         assertTrue(
                 mp3NextPath == -1 || (mp3NextPath >= 0 && mp3NextPath < merklePaths.size()),
@@ -205,7 +205,7 @@ public class RepeatableTssTests {
         // 6. The final path should be the block's root hash
         final var rootMp3 = merklePaths.getLast();
         assertTrue(rootMp3.siblings().isEmpty(), "Expected root Merkle path to have no siblings");
-        assertFalse(rootMp3.hasLeaf());
+        assertFalse(rootMp3.hasTimestampLeaf());
         assertEquals(MerklePath.ContentOneOfType.UNSET, rootMp3.content().kind());
         assertEquals(-1, rootMp3.nextPathIndex(), "Expected final Merkle path to terminate with -1");
     }

@@ -15,6 +15,7 @@ import com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUti
 import com.hedera.services.stream.proto.RecordStreamFile;
 import com.hedera.services.stream.proto.SidecarFile;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -23,6 +24,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
@@ -130,7 +132,7 @@ public enum StreamFileAccess {
      * @throws IOException if there is an error reading the files
      */
     public RecordStreamData readStreamDataFrom(String loc, final String relativeSidecarLoc) throws IOException {
-        return readStreamDataFrom(loc, relativeSidecarLoc, f -> true);
+        return readStreamDataFrom(loc, relativeSidecarLoc, f -> true, false);
     }
 
     /**
@@ -140,13 +142,15 @@ public enum StreamFileAccess {
      * @param loc the directory to read from
      * @param relativeSidecarLoc the relative location of the sidecar files
      * @param inclusionTest a predicate to filter the record files
+     * @param ignoreUnexpectedEof whether to ignore unexpected EOF errors when reading record files
      * @return the list of record and sidecar files
      * @throws IOException if there is an error reading the files
      */
     public RecordStreamData readStreamDataFrom(
             @NonNull String loc,
             @NonNull final String relativeSidecarLoc,
-            @NonNull final Predicate<String> inclusionTest)
+            @NonNull final Predicate<String> inclusionTest,
+            boolean ignoreUnexpectedEof)
             throws IOException {
         final var fAtLoc = relocatedIfNotPresentWithCurrentPathPrefix(new File(loc), "..", TEST_CLIENTS_PREFIX);
         loc = fAtLoc.getAbsolutePath();
@@ -163,22 +167,37 @@ public enum StreamFileAccess {
                         f -> parseSidecarFileConsensusTimeAndSequenceNo(f).getLeft(), Collectors.toList()));
         final List<RecordStreamFile> fullRecordFiles = new ArrayList<>();
         final var recordsWithSideCars = recordFiles.stream()
-                .map(f -> {
-                    final var recordFile = ensurePresentRecordFile(f);
-                    fullRecordFiles.add(recordFile);
-                    return new RecordWithSidecars(
-                            recordFile,
-                            sidecarFilesByRecordFile.getOrDefault(parseRecordFileConsensusTime(f), emptyList()).stream()
-                                    .map(StreamFileAccess::ensurePresentSidecarFile)
-                                    .toList());
+                .<Optional<RecordWithSidecars>>map(f -> {
+                    try {
+                        final var recordFile = ensurePresentRecordFile(f);
+                        fullRecordFiles.add(recordFile);
+                        return Optional.of(new RecordWithSidecars(
+                                recordFile,
+                                sidecarFilesByRecordFile
+                                        .getOrDefault(parseRecordFileConsensusTime(f), emptyList())
+                                        .stream()
+                                        .map(StreamFileAccess::ensurePresentSidecarFile)
+                                        .toList()));
+                    } catch (UncheckedIOException e) {
+                        if (e.getCause() instanceof IOException x
+                                && x.getCause() instanceof EOFException
+                                && ignoreUnexpectedEof) {
+                            return Optional.empty();
+                        }
+                        throw new RuntimeException(e);
+                    }
                 })
+                .filter(Optional::isPresent)
+                .map(Optional::orElseThrow)
                 .toList();
         return new RecordStreamData(recordsWithSideCars, fullRecordFiles);
     }
 
     public static RecordStreamFile ensurePresentRecordFile(final String f) {
         try {
-            final var contents = readMaybeCompressedRecordStreamFile(f);
+            final var parent = new File(f).getParentFile();
+            final var authorizedDir = parent == null ? Path.of("") : parent.toPath();
+            final var contents = readMaybeCompressedRecordStreamFile(authorizedDir, f);
             if (contents.getRight().isEmpty()) {
                 throw new IllegalArgumentException("No record found in " + f);
             }
@@ -190,7 +209,9 @@ public enum StreamFileAccess {
 
     public static SidecarFile ensurePresentSidecarFile(final String f) {
         try {
-            return RecordStreamingUtils.readMaybeCompressedSidecarFile(f);
+            final var parent = new File(f).getParentFile();
+            final var authorizedDir = parent == null ? Path.of("") : parent.toPath();
+            return RecordStreamingUtils.readMaybeCompressedSidecarFile(authorizedDir, f);
         } catch (IOException e) {
             throw new UncheckedIOException("Could not read record stream file " + f, e);
         }

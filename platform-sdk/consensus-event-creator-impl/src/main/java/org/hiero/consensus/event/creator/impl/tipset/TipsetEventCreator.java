@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.tipset;
 
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.INVALID_EVENT_ERROR;
+import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.config.api.Configuration;
@@ -25,20 +25,21 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.throttle.RateLimitedLogger;
 import org.hiero.base.crypto.BytesSigner;
-import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.event.UnsignedEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
-import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Responsible for creating new events using the tipset algorithm.
@@ -63,7 +64,7 @@ public class TipsetEventCreator implements EventCreator {
     /**
      * The address book for the current network.
      */
-    private final Roster roster;
+    private final RosterWrapper roster;
 
     /**
      * The size of the current address book.
@@ -113,7 +114,7 @@ public class TipsetEventCreator implements EventCreator {
      * @param time                provides the time source for the event creator
      * @param random              a source of randomness that must be cryptographically secure
      * @param signer              used for signing things with this node's private key
-     * @param roster              the current roster
+     * @param roster              the active roster
      * @param selfId              this node's ID
      * @param transactionSupplier provides transactions to be included in new events
      */
@@ -123,16 +124,16 @@ public class TipsetEventCreator implements EventCreator {
             @NonNull final Time time,
             @NonNull final SecureRandom random,
             @NonNull final BytesSigner signer,
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final NodeId selfId,
             @NonNull final EventTransactionSupplier transactionSupplier) {
 
-        this.time = Objects.requireNonNull(time);
-        this.random = Objects.requireNonNull(random);
-        this.signer = Objects.requireNonNull(signer);
-        this.selfId = Objects.requireNonNull(selfId);
-        this.transactionSupplier = Objects.requireNonNull(transactionSupplier);
-        this.roster = Objects.requireNonNull(roster);
+        this.time = requireNonNull(time);
+        this.random = requireNonNull(random);
+        this.signer = requireNonNull(signer);
+        this.selfId = requireNonNull(selfId);
+        this.transactionSupplier = requireNonNull(transactionSupplier);
+        this.roster = requireNonNull(roster);
 
         final EventCreationConfig eventCreationConfig = configuration.getConfigData(EventCreationConfig.class);
 
@@ -142,7 +143,7 @@ public class TipsetEventCreator implements EventCreator {
         childlessOtherEventTracker = new ChildlessEventTracker();
         tipsetWeightCalculator = new TipsetWeightCalculator(
                 configuration, time, roster, selfId, tipsetTracker, childlessOtherEventTracker);
-        networkSize = roster.rosterEntries().size();
+        networkSize = roster.size();
 
         zeroAdvancementWeightLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
         noParentFoundLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
@@ -155,6 +156,10 @@ public class TipsetEventCreator implements EventCreator {
 
     /**
      * {@inheritDoc}
+     *
+     * <p>Advancing {@code lastSelfEvent} relies on self events arriving in topological order, so that the child of the
+     * held event is offered before any of its own descendants. Nothing here enforces that; it is a property of the
+     * intake pipeline, which the orphan buffer establishes and the stages below it preserve.
      */
     @Override
     public void registerEvent(@NonNull final PlatformEvent event) {
@@ -163,25 +168,25 @@ public class TipsetEventCreator implements EventCreator {
         }
 
         final NodeId eventCreator = event.getCreatorId();
-        if (RosterUtils.getIndex(roster, eventCreator.id()) == -1) {
+        if (!roster.contains(eventCreator)) {
             return;
         }
         final boolean selfEvent = eventCreator.equals(selfId);
 
         if (selfEvent) {
-            if (this.lastSelfEvent == null
-                    || (this.lastSelfEvent.hasNGen() && this.lastSelfEvent.getNGen() < event.getNGen())) {
-                // Normally we will ingest self events before we get to this point, but it's possible
-                // to learn of self events for the first time here if we are loading from a restart (via PCES)
-                // or reconnect (via gossip). In either of these cases, the self event passed to this method
-                // will have an nGen value assigned by the orphan buffer.
-                lastSelfEvent = event;
-                childlessOtherEventTracker.registerSelfEventParents(event.getOtherParents());
-                tipsetTracker.addSelfEvent(event.getDescriptor(), event.getAllParents());
-            } else {
-                // We already ingested this self event (when it was created),
-                // or it is older than the event we are already tracking.
-                return;
+            if (lastSelfEvent == null) {
+                updateLastSelfEvent(event);
+            } else if (event.getBirthRound() > lastSelfEvent.getBirthRound()) {
+                // The incoming self event has a higher birth round than lastSelfEvent, therefore it is
+                // either higher in the hashgraph as a non-branched event, or it is a branched event.
+                // In the first case, it must be adopted. In the second case, it might not be as higher
+                // as lastSelfEvent structurally, but since it has a higher birth round it was created
+                // at a later point in consensus and there is no downside in adopting it.
+                updateLastSelfEvent(event);
+            } else if (event.getSelfParent() != null && event.getSelfParent().equals(lastSelfEvent.getDescriptor())) {
+                // If we ingest a self event that is a child of lastSelfEvent, it is by definition higher
+                // in the hashgraph and must be adopted.
+                updateLastSelfEvent(event);
             }
         } else {
             tipsetTracker.addPeerEvent(event);
@@ -189,12 +194,18 @@ public class TipsetEventCreator implements EventCreator {
         }
     }
 
+    private void updateLastSelfEvent(@NonNull final PlatformEvent selfEvent) {
+        lastSelfEvent = selfEvent;
+        childlessOtherEventTracker.registerSelfEventParents(selfEvent.getOtherParents());
+        tipsetTracker.addSelfEvent(selfEvent.getDescriptor(), selfEvent.getAllParents());
+    }
+
     /**
      * {@inheritDoc}
      */
     @Override
     public void setEventWindow(@NonNull final EventWindow eventWindow) {
-        this.eventWindow = Objects.requireNonNull(eventWindow);
+        this.eventWindow = requireNonNull(eventWindow);
         this.lastReceivedEventWindow = time.now();
         tipsetTracker.setEventWindow(eventWindow);
         childlessOtherEventTracker.pruneOldEvents(eventWindow);
@@ -202,7 +213,7 @@ public class TipsetEventCreator implements EventCreator {
 
     @Override
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
-        this.quiescenceCommand = Objects.requireNonNull(quiescenceCommand);
+        this.quiescenceCommand = requireNonNull(quiescenceCommand);
     }
 
     /**
@@ -220,10 +231,7 @@ public class TipsetEventCreator implements EventCreator {
         } else if (quiescenceCommand == QuiescenceCommand.BREAK_QUIESCENCE && !breakQuiescenceEventCreated) {
             event = createQuiescenceBreakEvent();
             breakQuiescenceEventCreated = true;
-            logger.info(
-                    LogMarker.STARTUP.getMarker(),
-                    "Created quiescence breaking event ({})",
-                    event.getDescriptor()::shortString);
+            logger.info(LogMarker.STARTUP.getMarker(), "Created quiescence breaking event ({})", event.getDescriptor());
         }
         if (event != null) {
             lastSelfEvent = signEvent(event);
@@ -255,7 +263,10 @@ public class TipsetEventCreator implements EventCreator {
     }
 
     private PlatformEvent signEvent(final UnsignedEvent event) {
-        return new PlatformEvent(event, signer.sign(event.getHash().getBytes()));
+        final PlatformEvent platformEvent =
+                new PlatformEvent(event, signer.sign(event.getHash().getBytes()), EventOrigin.RUNTIME);
+        platformEvent.setTimeReceived(time.now());
+        return platformEvent;
     }
 
     /**
@@ -318,17 +329,21 @@ public class TipsetEventCreator implements EventCreator {
         if (beNiceChance > 0 && random.nextDouble() < beNiceChance) {
             // replace one of the best parents with the one chosen to reduce selfishness
             final PlatformEvent selflessParent = selectParentToReduceSelfishness();
-            // if we already contain that event, everything is good
-            if (!contains(chosenBestParents, selflessParent)) {
-                // otherwise, replace the least important parent with one we have chosen to reduce selfishness
-                // please note in case of single-parent events, this will replace the only parent
-                chosenBestParents[chosenBestParents.length - 1] = selflessParent;
-                replacedBestParentForSelfishness = true;
+            // in ideal case, it shouldn't be null, but there is certain chance of tipset indices getting corrupted
+            // so we want to fall back to weight advancement
+            if (selflessParent != null) {
+                // if we already contain that event, everything is good
+                if (!contains(chosenBestParents, selflessParent)) {
+                    // otherwise, replace the least important parent with one we have chosen to reduce selfishness
+                    // please note in case of single-parent events, this will replace the only parent
+                    chosenBestParents[0] = selflessParent;
+                    replacedBestParentForSelfishness = true;
+                }
             }
         }
 
         for (int i = 0; i < chosenBestParents.length; i++) {
-            if (replacedBestParentForSelfishness && i == chosenBestParents.length - 1) {
+            if (replacedBestParentForSelfishness && i == 0) {
                 tipsetMetrics
                         .getPityParentMetric(chosenBestParents[i].getCreatorId())
                         .cycle();
@@ -362,7 +377,7 @@ public class TipsetEventCreator implements EventCreator {
      *
      * @return parent to reduce selfishness
      */
-    private @NonNull PlatformEvent selectParentToReduceSelfishness() {
+    private @Nullable PlatformEvent selectParentToReduceSelfishness() {
         final Collection<PlatformEvent> possibleOtherParents = childlessOtherEventTracker.getChildlessEvents();
         final List<PlatformEvent> ignoredNodes = new ArrayList<>(possibleOtherParents.size());
 
@@ -395,8 +410,8 @@ public class TipsetEventCreator implements EventCreator {
                     // for the advancement score to be zero. But in the interest in extreme caution,
                     // we check anyway, since it is very important never to create events with
                     // an advancement score of zero.
-                    zeroAdvancementWeightLogger.error(
-                            EXCEPTION.getMarker(),
+                    zeroAdvancementWeightLogger.warn(
+                            INVALID_EVENT_ERROR.getMarker(),
                             "selfishness score is {} but advancement score is zero for {}.\n{}",
                             selfishness,
                             possibleIgnoredNode,
@@ -409,8 +424,8 @@ public class TipsetEventCreator implements EventCreator {
             // Note: this should be impossible, since we will not enter this method in the first
             // place if there are no ignored nodes. But better to be safe than sorry, and returning null
             // is an acceptable way of saying "I can't create an event right now".
-            noParentFoundLogger.error(
-                    EXCEPTION.getMarker(), "failed to locate eligible ignored node to use as a parent");
+            noParentFoundLogger.warn(
+                    INVALID_EVENT_ERROR.getMarker(), "failed to locate eligible ignored node to use as a parent");
             return null;
         }
 
@@ -453,6 +468,7 @@ public class TipsetEventCreator implements EventCreator {
         final double weightRatio = advancementWeight.advancementWeight()
                 / (double) tipsetWeightCalculator.getMaximumPossibleAdvancementWeight();
         tipsetMetrics.getTipsetAdvancementMetric().update(weightRatio);
+        tipsetMetrics.getMopMetric().update(otherParents.length);
 
         childlessOtherEventTracker.registerSelfEventParents(otherParentDescriptors);
 
@@ -479,7 +495,7 @@ public class TipsetEventCreator implements EventCreator {
                 eventWindow.newEventBirthRound(),
                 calculateNewEventCreationTime(lastSelfEvent, allParents, transactions),
                 transactions.stream().map(TimestampedTransaction::transaction).toList(),
-                random.nextLong(0, roster.rosterEntries().size() + 1));
+                random.nextLong(0, roster.size() + 1));
         eventHasher.hashUnsignedEvent(event);
 
         return event;
@@ -494,7 +510,6 @@ public class TipsetEventCreator implements EventCreator {
         childlessOtherEventTracker.clear();
         tipsetWeightCalculator.clear();
         eventWindow = EventWindow.getGenesisEventWindow();
-        lastSelfEvent = null;
     }
 
     @NonNull
@@ -545,7 +560,7 @@ public class TipsetEventCreator implements EventCreator {
             @NonNull final List<PlatformEvent> allParents,
             @NonNull final List<TimestampedTransaction> transactions) {
         final Instant maxReceivedTime = Stream.of(
-                        allParents.stream().map(PlatformEvent::getTimeReceived),
+                        allParents.stream().map(p -> p == selfParent ? p.getTimeCreated() : p.getTimeReceived()),
                         transactions.stream().map(TimestampedTransaction::receivedTime),
                         Stream.of(lastReceivedEventWindow))
                 // flatten the stream of streams

@@ -31,6 +31,8 @@ public class HighVolumePricingValidator {
     private static final Logger logger = LogManager.getLogger(HighVolumePricingValidator.class);
 
     private static final String EXPECTED_PRICING_RESOURCE = "/testSystemFiles/expected-high-volume-pricing.json";
+    private static final String SIMPLE_FEES_PATH =
+            "hedera-node/hedera-file-service-impl/src/main/resources/genesis/simpleFeesSchedules.json";
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -126,13 +128,32 @@ public class HighVolumePricingValidator {
                 if (highVolumeRates != null) {
                     final var maxMultiplier =
                             highVolumeRates.get("maxMultiplier").asInt();
+                    assertTrue(
+                            maxMultiplier >= MULTIPLIER_SCALE,
+                            name + ": maxMultiplier must be at least " + MULTIPLIER_SCALE);
                     final var points = new ArrayList<ActualPoint>();
                     final var piecewiseLinear =
                             highVolumeRates.get("pricingCurve").get("piecewiseLinear");
+                    int lastUtilization = -1;
+                    int pointIndex = 0;
                     for (JsonNode point : piecewiseLinear.get("points")) {
-                        points.add(new ActualPoint(
-                                point.get("utilizationBasisPoints").asInt(),
-                                point.get("multiplier").asInt()));
+                        final var utilizationBasisPoints =
+                                point.get("utilizationBasisPoints").asInt();
+                        if (pointIndex > 0) {
+                            assertTrue(
+                                    utilizationBasisPoints > lastUtilization,
+                                    name + " point " + pointIndex
+                                            + ": utilizationBasisPoints must be strictly ascending (prev "
+                                            + lastUtilization + ", current " + utilizationBasisPoints + ")");
+                        }
+                        lastUtilization = utilizationBasisPoints;
+                        pointIndex++;
+
+                        final var multiplier = point.get("multiplier").asInt();
+                        assertTrue(
+                                multiplier >= MULTIPLIER_SCALE,
+                                name + ": point multiplier must be at least " + MULTIPLIER_SCALE);
+                        points.add(new ActualPoint(utilizationBasisPoints, multiplier));
                     }
                     curves.put(name, new ActualPricingCurve(maxMultiplier, points));
                 }
@@ -249,10 +270,9 @@ public class HighVolumePricingValidator {
      * @throws AssertionError if validation fails
      */
     public static void validateGenesisFeeSchedule() {
-        final Path genesisFeesPath =
-                Path.of("hedera-node/hedera-file-service-impl/src/main/resources/genesis/simpleFeesSchedules.json");
+        final Path genesisFeesPath = Path.of(SIMPLE_FEES_PATH);
         if (!Files.exists(genesisFeesPath)) {
-            logger.warn(
+            logger.error(
                     "Genesis simpleFeesSchedules.json not found at {}, skipping high-volume pricing validation",
                     genesisFeesPath);
             return;

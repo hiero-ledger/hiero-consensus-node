@@ -36,7 +36,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class MetricRegistry implements Closeable {
 
     /** Configuration property to disable metrics exporter discovery.*/
-    private static final String PROPERTY_EXPORT_DISCOVERY_DISABLED = "hiero.metrics.export.discovery.diasbled";
+    private static final String PROPERTY_EXPORT_DISCOVERY_DISABLED = "hiero.metrics.export.discovery.disabled";
 
     private static final System.Logger logger = System.getLogger(MetricRegistry.class.getName());
 
@@ -45,24 +45,25 @@ public final class MetricRegistry implements Closeable {
 
     private final Map<String, Metric> metrics = new ConcurrentHashMap<>();
     private final Collection<Metric> metricsView = Collections.unmodifiableCollection(metrics.values());
-    private final MetricRegistrySnapshot snapshot = new MetricRegistrySnapshot();
+
+    @Nullable
+    private final MetricRegistrySnapshot snapshot;
 
     private MetricRegistry(@NonNull List<Label> globalLabels, @Nullable MetricsExporter exporter) {
         this.globalLabels = List.copyOf(globalLabels);
         this.exporter = exporter;
 
         if (exporter != null) {
+            snapshot = new MetricRegistrySnapshot();
             exporter.setSnapshotSupplier(snapshot::update);
             logger.log(
                     INFO,
-                    "Created metric registry with global labels {} and metrics exporter {}.",
+                    "Created metric registry. globalLabels={0}, exporter={1}",
                     this.globalLabels,
                     exporter.getClass());
         } else {
-            logger.log(
-                    INFO,
-                    "Created metric registry with global labels {} and without metrics exporter.",
-                    this.globalLabels);
+            snapshot = null;
+            logger.log(INFO, "Created metric registry without exporter. globalLabels={0}", this.globalLabels);
         }
     }
     /**
@@ -98,7 +99,8 @@ public final class MetricRegistry implements Closeable {
     /**
      * Creates and registers a metric using the given metric builder.
      * <p>
-     * This method is <b>not idempotent</b> and throws an exception, if metric with the same name already registered.
+     * This method is <b>not idempotent</b> and throws an exception, if metric with the same name already registered. <br>
+     * Additionally, same builder <b>must not be reused</b>, because registration <b>may modify</b> passed builder (add registry global labels, etc.).
      *
      * @param builder the metric builder, must not be {@code null}
      * @param <M>     the type of the metric to be created and registered
@@ -119,11 +121,17 @@ public final class MetricRegistry implements Closeable {
                         "Duplicate metric name: " + metricKey + ". Existing metric: " + existingMetric.name());
             }
 
-            M metric =
-                    builder.addStaticLabels(globalLabels.toArray(Label[]::new)).build();
-            logger.log(DEBUG, "Registered metric: {}", metric.name());
+            builder.addStaticLabels(globalLabels.toArray(Label[]::new));
+            if (snapshot == null) {
+                builder.doNotSnapshot();
+            }
 
-            snapshot.addMetricSnapshot(metric.snapshot());
+            M metric = builder.build();
+            logger.log(DEBUG, "Registered metric. name={0}", metric.name());
+
+            if (snapshot != null) {
+                snapshot.addMetricSnapshot(metric.snapshot());
+            }
 
             return metric;
         }));
@@ -141,7 +149,7 @@ public final class MetricRegistry implements Closeable {
      * Metric to be found has to have the same name as the provided key and be of compatible type.
      *
      * @param key the metric key, must not be {@code null}
-     * @return {@code true} if a metric with the given key is registered, {@code false} otherwise
+     * @return {@code true} if a metric with the given key is registered (name and type match), {@code false} otherwise
      * @throws NullPointerException if the key is {@code null}
      */
     public boolean containsMetric(@NonNull MetricKey<?> key) {
@@ -174,7 +182,7 @@ public final class MetricRegistry implements Closeable {
     @Override
     public void close() throws IOException {
         if (exporter != null) {
-            logger.log(INFO, "Closing metrics exporter: {}", exporter.getClass());
+            logger.log(INFO, "Closing metrics exporter: {0}", exporter.getClass());
             exporter.close();
         }
     }
@@ -281,14 +289,14 @@ public final class MetricRegistry implements Closeable {
                 if (exporterDiscoveryDisabled != null && exporterDiscoveryDisabled) {
                     logger.log(
                             INFO,
-                            "Exporter discovery is disabled by configuration property: {}",
+                            "Exporter discovery is disabled by configuration property: {0}",
                             PROPERTY_EXPORT_DISCOVERY_DISABLED);
                 } else {
                     List<MetricsExporterFactory> factories = MetricUtils.load(MetricsExporterFactory.class);
                     if (factories.size() > 1) {
                         logger.log(
                                 WARNING,
-                                "Multiple metrics exporter factories found {}. "
+                                "Multiple metrics exporter factories found: {0}. "
                                         + "Expected at most one. Ignoring discovered exporter factories.",
                                 factories);
                     } else if (factories.size() == 1) {
@@ -299,7 +307,7 @@ public final class MetricRegistry implements Closeable {
                         if (exporter != null) {
                             this.metricsExporter = exporter;
                         } else {
-                            logger.log(INFO, "Exporter factory did not create an exporter: {}", factory.getClass());
+                            logger.log(INFO, "Exporter factory did not create an exporter: {0}", factory.getClass());
                         }
                     }
                 }
@@ -317,7 +325,7 @@ public final class MetricRegistry implements Closeable {
 
                 for (MetricsRegistrationProvider provider : providers) {
                     Objects.requireNonNull(provider, "metrics registration provider must not be null");
-                    logger.log(INFO, "Registering metrics from provider: {}", provider.getClass());
+                    logger.log(INFO, "Registering metrics from provider: {0}", provider.getClass());
 
                     Collection<Metric.Builder<?, ?>> metricsToRegister = provider.getMetricsToRegister();
                     Objects.requireNonNull(metricsToRegister, "metrics collection must not be null");

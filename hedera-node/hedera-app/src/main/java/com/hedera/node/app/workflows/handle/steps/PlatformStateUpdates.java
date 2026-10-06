@@ -18,8 +18,6 @@ import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableStakingInfoStoreImpl;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.WritablePlatformStateStore;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -33,6 +31,8 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.WritablePlatformStateStore;
 import org.hiero.consensus.roster.WritableRosterStore;
 
 /**
@@ -147,8 +147,20 @@ public class PlatformStateUpdates {
     }
 
     private void doExport(@NonNull final Roster candidateRoster, @NonNull final NetworkAdminConfig networkAdminConfig) {
-        final var exportPath = Paths.get(networkAdminConfig.candidateRosterExportFile());
-        logger.info("Exporting candidate roster after PREPARE_UPGRADE to '{}'", exportPath.toAbsolutePath());
-        rosterExportHelper.accept(candidateRoster, exportPath);
+        // The candidate-roster export is a best-effort operator convenience and is NOT consensus state. It must
+        // never let a node-local failure (e.g. a malformed configured path throwing InvalidPathException, or an
+        // export error) escape the handle path: if it did, the enclosing dispatch would roll back the stack and
+        // discard the candidate roster already applied above, diverging this node's committed state from peers
+        // whose export succeeded. So we log and swallow any failure here.
+        try {
+            final var exportPath = Paths.get(networkAdminConfig.candidateRosterExportFile());
+            logger.info("Exporting candidate roster after PREPARE_UPGRADE to '{}'", exportPath.toAbsolutePath());
+            rosterExportHelper.accept(candidateRoster, exportPath);
+        } catch (final Exception e) {
+            logger.error(
+                    "Failed to export candidate roster after PREPARE_UPGRADE (best-effort, non-consensus); "
+                            + "candidate roster remains committed",
+                    e);
+        }
     }
 }

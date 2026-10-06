@@ -10,7 +10,7 @@ import java.util.Objects;
 
 public final class TestValue {
 
-    private String s;
+    private final String s;
 
     public TestValue(long path) {
         this("Value " + path);
@@ -20,7 +20,7 @@ public final class TestValue {
         this.s = s;
     }
 
-    public TestValue(ReadableSequentialData in) {
+    public TestValue(final ReadableSequentialData in) {
         final int len = in.readInt();
         final byte[] value = new byte[len];
         in.readBytes(value);

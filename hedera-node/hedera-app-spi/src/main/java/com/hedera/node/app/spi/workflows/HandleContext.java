@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.spi.authorization.SystemPrivilege;
@@ -20,6 +21,8 @@ import com.hedera.node.app.spi.throttle.ThrottleAdviser;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.config.data.LedgerConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -27,6 +30,8 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
+import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
  * Represents the context of a single {@code handle()}-call.
@@ -127,7 +132,7 @@ public interface HandleContext {
          * @param type the metadata key
          * @param value the metadata value
          */
-        public void putMetadata(@NonNull final Type type, @NonNull final Object value) {
+        public <T> void putMetadata(@NonNull final Type type, @NonNull final T value) {
             metadata.put(type, value);
         }
 
@@ -179,14 +184,40 @@ public interface HandleContext {
              */
             EXPLICIT_WRITE_TRACING,
             /**
+             * Signals that the dispatched contract call must execute in a static EVM frame. State-modifying
+             * opcodes (SSTORE, LOG*, CREATE*, SELFDESTRUCT, value-bearing CALL) halt with ILLEGAL_STATE_CHANGE.
+             * Used by system-contract sub-calls that must not mutate state.
+             */
+            STATIC_CALL,
+            /**
              * Batch inner transaction bytes. Used to pre-handle inner transaction while dispatching them.
              */
             INNER_TRANSACTION_BYTES,
             /**
-             * A callback to be invoked to increment the nonce of the payer account.
-             * This is used to ensure that the nonce is incremented when ethereum transaction fails inside a batch.
+             * A consumer of a callback to be invoked when a previously successful transaction is to be reverted because
+             * a following transaction failed inside a batch.
+             * This is used to ensure that all needed side effects (nonce updates, code delegations) are kept.
              */
-            ETHEREUM_NONCE_INCREMENT_CALLBACK
+            BATCH_ROLLBACK_CALLBACK_CONSUMER,
+            /**
+             * Metadata for a contract child dispatch executed by the native CLPR service.
+             */
+            CLPR_DISPATCH,
+            /**
+             * Boolean marker set by the app when dispatching a trusted internal system transaction.
+             * Never populate this from a submitted transaction or propagate it to child dispatches.
+             */
+            INTERNAL_SYSTEM_TRANSACTION,
+            /**
+             * An entity num to be created by transplant system transactions.
+             */
+            SYSTEM_TXN_CREATION_ENTITY_NUM,
+            /**
+             * The {@link com.hedera.hapi.node.base.TransactionID} of the atomic batch inner transaction a dispatch
+             * belongs to, when that cannot be inferred from the dispatching stack; used to attribute the side effects
+             * an inner transaction is replayed with after the batch has already unwound its savepoints.
+             */
+            ATTRIBUTED_BATCH_INNER_ID
         }
     }
 
@@ -258,6 +289,17 @@ public interface HandleContext {
      */
     @NonNull
     Configuration configuration();
+
+    /**
+     * Returns the ledger id to surface in responses produced during this handle. By default this is the configured
+     * ledger id, but implementations may override it with an externalized ledger id from state when one is available.
+     *
+     * @return the ledger id to surface from this handle
+     */
+    @NonNull
+    default Bytes ledgerId() {
+        return configuration().getConfigData(LedgerConfig.class).id();
+    }
 
     /**
      * Returns information on current block and record file
@@ -351,7 +393,10 @@ public interface HandleContext {
     NetworkInfo networkInfo();
 
     /**
-     * Dispatches the fee calculation for a child transaction (that might then be dispatched).
+     * Dispatches the fee calculation for a child transaction (that might then be dispatched), with
+     * an optional override {@link SignatureMap} whose serialized size replaces the context-derived
+     * value when computing fees. Pass {@code null} for {@code overrideSignatureMap} to preserve
+     * existing behavior.
      *
      * <p>The override payer id still matters for this purpose, because a transaction can add
      * state whose lifetime is scoped to a payer account (the main current example is a
@@ -360,12 +405,15 @@ public interface HandleContext {
      * @param txBody the {@link TransactionBody} of the child transaction to compute fees for
      * @param syntheticPayerId the child payer
      * @param computeDispatchFeesAsTopLevel for mono fidelity, whether to compute fees as a top-level transaction
+     * @param overrideSignatureMap when non-null, the serialized size of this map is used instead of the
+     *                             context-derived signature map size
      * @return the calculated fees
      */
     Fees dispatchComputeFees(
             @NonNull TransactionBody txBody,
             @NonNull AccountID syntheticPayerId,
-            @NonNull ComputeDispatchFeesAsTopLevel computeDispatchFeesAsTopLevel);
+            @NonNull ComputeDispatchFeesAsTopLevel computeDispatchFeesAsTopLevel,
+            @Nullable SignatureMap overrideSignatureMap);
 
     /**
      * Dispatches a child transaction with the given options.
@@ -471,6 +519,16 @@ public interface HandleContext {
         @NonNull
         <T> T addRemovableChildRecordBuilder(
                 @NonNull Class<T> recordBuilderClass, @NonNull HederaFunctionality functionality);
+
+        /**
+         * For each stream builder in this stack other than the base builder, invokes the given consumer
+         * with the builder cast to the given type.
+         *
+         * @param builderClass the type to cast the builders to
+         * @param consumer     the consumer to invoke
+         * @param <T>          the type to cast the builders to
+         */
+        <T> void forEachNonBaseBuilder(@NonNull Class<T> builderClass, @NonNull Consumer<T> consumer);
     }
 
     /**
@@ -511,4 +569,11 @@ public interface HandleContext {
      * @return the gas price in tiny cents
      */
     long getGasPriceInTinycents();
+
+    /**
+     * Returns the simple fees schedule.
+     * @return the simple fees schedule
+     */
+    @NonNull
+    FeeSchedule simpleFeesSchedule();
 }

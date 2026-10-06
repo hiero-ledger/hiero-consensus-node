@@ -3,23 +3,23 @@ package com.hedera.node.app.fixtures.state;
 
 import static com.hedera.node.app.fixtures.AppTestBase.METRIC_EXECUTOR;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Random;
 import org.hiero.base.crypto.Signature;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.PathsConfig;
+import org.hiero.consensus.fakes.noop.NoOpRecycleBin;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
@@ -72,18 +72,17 @@ public final class FakePlatform implements Platform {
     private PlatformContext createPlatformContext() {
         final Configuration configuration = HederaTestConfigBuilder.createConfig();
         final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
-        final var metrics = new DefaultPlatformMetrics(
+        final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
+        final FileSystemManager fileSystemManager =
+                new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
+        final Metrics metrics = new DefaultPlatformMetrics(
                 selfNodeId,
                 new MetricKeyRegistry(),
                 METRIC_EXECUTOR,
                 new PlatformMetricsFactoryImpl(metricsConfig),
                 metricsConfig);
         return PlatformContext.create(
-                configuration,
-                Time.getCurrent(),
-                metrics,
-                FileSystemManager.create(configuration),
-                new NoOpRecycleBin());
+                configuration, Time.getCurrent(), metrics, fileSystemManager, new NoOpRecycleBin());
     }
 
     @Override
@@ -112,12 +111,6 @@ public final class FakePlatform implements Platform {
     @Override
     public NodeId getSelfId() {
         return selfNodeId;
-    }
-
-    @Override
-    @NonNull
-    public <T extends State> AutoCloseableWrapper<T> getLatestImmutableState(String reason) {
-        return null;
     }
 
     @Override

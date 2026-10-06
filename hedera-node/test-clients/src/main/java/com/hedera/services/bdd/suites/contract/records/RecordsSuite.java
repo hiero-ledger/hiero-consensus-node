@@ -3,11 +3,13 @@ package com.hedera.services.bdd.suites.contract.records;
 
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.ADHOC;
+import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -18,6 +20,7 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludeNoFailuresFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilNextBlock;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -29,6 +32,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SOURCE_KEY;
 import static com.hedera.services.bdd.suites.contract.Utils.asInstant;
 import static com.hedera.services.bdd.suites.contract.leaky.LeakyContractTestsSuite.RECEIVER;
 import static com.hedera.services.bdd.suites.crypto.CryptoCreateSuite.ACCOUNT;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -41,15 +46,22 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.RecordStreamAssertion;
+import com.hedera.services.stream.proto.RecordStreamItem;
+import com.hedera.services.stream.proto.TransactionSidecarRecord;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.Timestamp;
+import com.hederahashgraph.api.proto.java.TransactionID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes32;
 import org.junit.jupiter.api.Assertions;
@@ -62,9 +74,9 @@ import org.junit.jupiter.api.Tag;
 public class RecordsSuite {
     public static final String LOG_NOW = "logNow";
     public static final String AUTO_ACCOUNT = "autoAccount";
+    public static final String OVERSIZED_CONTRACT_ACTIONS_MEMO = "RecordsSuite.oversizedContractActionsAreClipped";
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> bigCall() {
         final var contract = "BigBig";
         final var txName = "BigCall";
@@ -79,6 +91,53 @@ public class RecordsSuite {
                         .gas(400_000L)
                         .via(txName),
                 getTxnRecord(txName));
+    }
+
+    @HapiTest
+    @Tag(ADHOC)
+    final Stream<DynamicTest> oversizedContractActionsAreClipped() {
+        final var contract = "ClipCandidate";
+        final var txName = "clipCandidateLargeCalldata";
+
+        return hapiTest(
+                streamMustIncludeNoFailuresFrom(noContractActionSidecarFor(txName)),
+                uploadInitCode(contract),
+                contractCreate(contract),
+                contractCall(contract, "loopLargeCalldata", BigInteger.valueOf(5), BigInteger.valueOf(131_072))
+                        .gas(14_000_000L)
+                        .hasKnownStatus(INSUFFICIENT_GAS)
+                        .via(txName),
+                getTxnRecord(txName));
+    }
+
+    @HapiTest
+    @Tag(ADHOC)
+    @Tag(ATOMIC_BATCH)
+    @DisplayName("Oversized contract actions are clipped for a batch-inner call, just as for a top-level call")
+    final Stream<DynamicTest> oversizedContractActionsAreClippedInsideAtomicBatch() {
+        final var contract = "ClipCandidate";
+        final var innerTxn = "clipCandidateBatchInnerLargeCalldata";
+        final var batchOperator = "batchOperator";
+
+        // The identical call is rejected at the trace-data cap as a top-level transaction; wrapping it in an
+        // atomic batch must not let it bypass the cap, so the inner call fails and the whole batch rolls back.
+        return hapiTest(
+                streamMustIncludeNoFailuresFrom(noContractActionSidecarFor(innerTxn)),
+                cryptoCreate(batchOperator).balance(ONE_HUNDRED_HBARS),
+                uploadInitCode(contract),
+                contractCreate(contract),
+                atomicBatch(contractCall(
+                                        contract,
+                                        "loopLargeCalldata",
+                                        BigInteger.valueOf(5),
+                                        BigInteger.valueOf(131_072))
+                                .gas(14_000_000L)
+                                .hasKnownStatus(INSUFFICIENT_GAS)
+                                .batchKey(batchOperator)
+                                .via(innerTxn))
+                        .payingWith(batchOperator)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                getTxnRecord(innerTxn));
     }
 
     @HapiTest
@@ -125,7 +184,6 @@ public class RecordsSuite {
 
     @SuppressWarnings("java:S5960")
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> blck003ReturnsTimestampOfTheBlock() {
         final var contract = "EmitBlockTimestamp";
         final var firstCall = "firstCall";
@@ -209,6 +267,12 @@ public class RecordsSuite {
                 uploadInitCode(contract),
                 contractCreate(contract),
                 waitUntilNextBlock().withBackgroundTraffic(true),
+                // Do NOT defer status resolution on the first call: if we do, the
+                // submission op returns before the tx has reached consensus, which
+                // means the subsequent waitUntilNextBlock() can observe the next
+                // block's marker file while this tx is still pending - so the tx
+                // can end up in the SAME block as the second call below, making
+                // the assertNotEquals on block.timestamp below flake
                 ethereumCall(contract, LOG_NOW)
                         .type(EthTxData.EthTransactionType.EIP1559)
                         .signingWith(SECP_256K1_SOURCE_KEY)
@@ -217,7 +281,6 @@ public class RecordsSuite {
                         .maxFeePerGas(50L)
                         .gasLimit(1_000_000L)
                         .via(firstBlock)
-                        .deferStatusResolution()
                         .hasKnownStatus(ResponseCodeEnum.SUCCESS),
                 // Make sure we submit the next transaction in the next block
                 waitUntilNextBlock().withBackgroundTraffic(true),
@@ -373,5 +436,59 @@ public class RecordsSuite {
             sumToReturn += currAccAmount.getAmount();
         }
         return sumToReturn;
+    }
+
+    private static Function<HapiSpec, RecordStreamAssertion> noContractActionSidecarFor(@NonNull final String txnName) {
+        return spec -> new RecordStreamAssertion() {
+            private final Set<Timestamp> observedActionSidecarTimestamps = new HashSet<>();
+            private Timestamp targetConsensusTimestamp;
+
+            @Override
+            public boolean isApplicableTo(@NonNull final RecordStreamItem item) {
+                final var maybeTxnId = spec.registry().getMaybeTxnId(txnName);
+                if (maybeTxnId.isEmpty()) {
+                    return false;
+                }
+                final var observedTxnId = item.getRecord().getTransactionID();
+                return isTopLevelMatch(maybeTxnId.get(), observedTxnId);
+            }
+
+            @Override
+            public boolean test(@NonNull final RecordStreamItem item) throws AssertionError {
+                targetConsensusTimestamp = item.getRecord().getConsensusTimestamp();
+                if (observedActionSidecarTimestamps.contains(targetConsensusTimestamp)) {
+                    Assertions.fail("Observed clipped contract action sidecar for " + txnName);
+                }
+                return false;
+            }
+
+            @Override
+            public boolean isApplicableToSidecar(@NonNull final TransactionSidecarRecord sidecar) {
+                return sidecar.getSidecarRecordsCase() == TransactionSidecarRecord.SidecarRecordsCase.ACTIONS;
+            }
+
+            @Override
+            public boolean testSidecar(@NonNull final TransactionSidecarRecord sidecar) throws AssertionError {
+                final var sidecarTimestamp = sidecar.getConsensusTimestamp();
+                if (targetConsensusTimestamp != null && targetConsensusTimestamp.equals(sidecarTimestamp)) {
+                    Assertions.fail("Observed clipped contract action sidecar for " + txnName);
+                }
+                observedActionSidecarTimestamps.add(sidecarTimestamp);
+                return false;
+            }
+
+            @Override
+            public String toString() {
+                return "NoContractActionSidecarFor{txnName='" + txnName + "'}";
+            }
+        };
+    }
+
+    private static boolean isTopLevelMatch(
+            @NonNull final TransactionID expectedTxnId, @NonNull final TransactionID observedTxnId) {
+        return observedTxnId.getNonce() == 0
+                && !observedTxnId.getScheduled()
+                && expectedTxnId.getTransactionValidStart().equals(observedTxnId.getTransactionValidStart())
+                && expectedTxnId.getAccountID().equals(observedTxnId.getAccountID());
     }
 }

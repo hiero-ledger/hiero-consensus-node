@@ -13,6 +13,7 @@ import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.TransferList;
@@ -161,12 +162,7 @@ public class ClassicTransfersCall extends AbstractCall {
         } else {
             recordBuilder.status(callStatusStandardizer.codeForFailure(recordBuilder.status(), frame, op));
         }
-        if (recordBuilder.getNumAutoAssociations() > 0) {
-            if (configOf(frame).getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled()) {
-                gasRequirement +=
-                        recordBuilder.getNumAutoAssociations() * gasCalculator.canonicalGasRequirement(ASSOCIATE);
-            }
-        }
+        gasRequirement += autoAssociationGasRequirement(frame, recordBuilder, gasCalculator);
         return completionWith(gasRequirement, recordBuilder, encodedRc(recordBuilder.status()));
     }
 
@@ -213,7 +209,35 @@ public class ClassicTransfersCall extends AbstractCall {
         return systemContractGasCalculator.gasRequirementWithTinycents(body, payerId, minimumTinycentPrice);
     }
 
-    private static long minimumTinycentPriceGiven(
+    /**
+     * Returns the extra gas to charge for any auto-associations created by a dispatched transfer.
+     *
+     * <p>The token service does not charge auto-association fees inline for internal dispatches, precisely because
+     * the contract service is expected to take those costs from the remaining EVM gas here; so every transfer call
+     * that dispatches a synthetic body must apply this top-up. Note it can only be computed after the dispatch,
+     * since the number of auto-associations is not derivable from the synthetic body alone.
+     *
+     * @param frame                       the frame of the transfer call
+     * @param recordBuilder               the stream builder of the dispatched transfer
+     * @param systemContractGasCalculator the gas calculator to use
+     * @return the extra gas to charge, zero if there were no auto-associations
+     */
+    public static long autoAssociationGasRequirement(
+            @NonNull final MessageFrame frame,
+            @NonNull final ContractCallStreamBuilder recordBuilder,
+            @NonNull final SystemContractGasCalculator systemContractGasCalculator) {
+        final var numAutoAssociations = recordBuilder.getNumAutoAssociations();
+        // The "sender pays" fee model only applies when using unlimited auto-associations; note we check the
+        // association count first so that we only need the frame's configuration when there is something to charge
+        if (numAutoAssociations > 0
+                && configOf(frame).getConfigData(EntitiesConfig.class).unlimitedAutoAssociationsEnabled()) {
+            return numAutoAssociations * systemContractGasCalculator.canonicalGasRequirement(ASSOCIATE);
+        }
+        return 0L;
+    }
+
+    @VisibleForTesting
+    public static long minimumTinycentPriceGiven(
             @NonNull final CryptoTransferTransactionBody op,
             final long baseUnitAdjustTinyCentPrice,
             final long baseAdjustTinyCentsPrice,
@@ -251,6 +275,17 @@ public class ClassicTransfersCall extends AbstractCall {
                     if (extantAccount == null) {
                         aliasesToLazyCreate.add(alias);
                     }
+                }
+            }
+        }
+        for (final var adjust : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
+            if (adjust.amount() > 0 && adjust.accountIDOrElse(AccountID.DEFAULT).hasAlias()) {
+                final var accountId = adjust.accountIDOrThrow();
+                final var alias = accountId.aliasOrThrow();
+                final var extantAccount =
+                        extantAccounts.getAccountIDByAlias(accountId.shardNum(), accountId.realmNum(), alias);
+                if (extantAccount == null) {
+                    aliasesToLazyCreate.add(alias);
                 }
             }
         }

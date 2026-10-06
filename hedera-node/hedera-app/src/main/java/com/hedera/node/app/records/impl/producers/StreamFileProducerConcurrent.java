@@ -3,6 +3,7 @@ package com.hedera.node.app.records.impl.producers;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.completedFuture;
+import static java.util.concurrent.CompletableFuture.failedFuture;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
@@ -16,6 +17,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -37,6 +39,15 @@ import org.apache.logging.log4j.Logger;
 public final class StreamFileProducerConcurrent implements BlockRecordStreamProducer {
     /** Simple pair class */
     record TwoResults<A, B>(A a, B b) {}
+
+    /**
+     * The result of closing a record file writer. Includes the last running hash so the next writer can still be
+     * opened with the correct starting hash even if closing the previous writer failed.
+     */
+    record CloseResult(
+            @NonNull Bytes lastRunningHash,
+            @Nullable Bytes recordFileHash,
+            @Nullable Throwable failure) {}
 
     /** The logger */
     private static final Logger logger = LogManager.getLogger(StreamFileProducerConcurrent.class);
@@ -131,7 +142,7 @@ public final class StreamFileProducerConcurrent implements BlockRecordStreamProd
 
     /** {@inheritDoc} */
     @Override
-    public void switchBlocks(
+    public CompletableFuture<Bytes> switchBlocks(
             final long lastBlockNumber,
             final long newBlockNumber,
             @NonNull final Instant newBlockFirstTransactionConsensusTime) {
@@ -152,26 +163,68 @@ public final class StreamFileProducerConcurrent implements BlockRecordStreamProd
                 // one which creates a new file and writes initializes it in the background
                 currentRecordFileWriter = lastRecordHashingResult.thenApply(lastRunningHash -> createBlockRecordWriter(
                         lastRunningHash, newBlockFirstTransactionConsensusTime, newBlockNumber));
+                return completedFuture(Bytes.EMPTY);
             } else {
                 // Reassign our fileWriter future to a future that will complete once:
                 //   (1) The running hash of the last record in the current block is available; and,
                 //   (2) We have finished writing and closed the current block's record file.
                 // The VALUE of this future, when it completes, will be the writer for the file of
                 // the new block we are just starting.
-                currentRecordFileWriter = currentRecordFileWriter
-                        .thenCombine(lastRecordHashingResult, TwoResults::new)
+                final var closingRecordHashingResult = lastRecordHashingResult;
+                final var closeResult = currentRecordFileWriter
+                        .thenCombine(closingRecordHashingResult, TwoResults::new)
                         .thenApplyAsync(
                                 twoResults -> {
                                     final var writer = twoResults.a();
                                     final var lastRunningHash = twoResults.b();
-                                    closeWriter(writer, lastRunningHash);
-                                    return createBlockRecordWriter(
-                                            lastRunningHash, newBlockFirstTransactionConsensusTime, newBlockNumber);
+                                    return closeWriter(writer, lastRunningHash);
                                 },
-                                executorService);
+                                executorService)
+                        .exceptionally(t -> {
+                            final var cause =
+                                    t instanceof CompletionException && t.getCause() != null ? t.getCause() : t;
+                            return new CloseResult(closingRecordHashingResult.join(), null, cause);
+                        });
+                currentRecordFileWriter = closeResult.thenApplyAsync(
+                        result -> {
+                            if (result.failure() != null) {
+                                logger.error(
+                                        "Error closing record file writer for block {}",
+                                        lastBlockNumber,
+                                        result.failure());
+                            }
+                            return createBlockRecordWriter(
+                                    result.lastRunningHash(), newBlockFirstTransactionConsensusTime, newBlockNumber);
+                        },
+                        executorService);
+                return recordFileHashFuture(closeResult);
             }
         } finally {
             lock.unlock(); // Always unlock.
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public CompletableFuture<Bytes> finishCurrentBlock() {
+        lock.lock();
+        try {
+            if (currentRecordFileWriter == null) {
+                return completedFuture(Bytes.EMPTY);
+            }
+            final var writerFuture = currentRecordFileWriter;
+            final var runningHashFuture = lastRecordHashingResult;
+            currentRecordFileWriter = null;
+            final var closeResultFuture = writerFuture
+                    .thenCombine(runningHashFuture, TwoResults::new)
+                    .thenApplyAsync(twoResults -> closeWriter(twoResults.a(), twoResults.b()), executorService)
+                    .exceptionally(t -> {
+                        final var cause = t instanceof CompletionException && t.getCause() != null ? t.getCause() : t;
+                        return new CloseResult(runningHashFuture.join(), null, cause);
+                    });
+            return recordFileHashFuture(closeResultFuture);
+        } finally {
+            lock.unlock();
         }
     }
 
@@ -258,7 +311,13 @@ public final class StreamFileProducerConcurrent implements BlockRecordStreamProd
                         .thenAccept(aVoid -> {
                             final var writer = currentRecordFileWriter.join();
                             final var lastRunningHash = lastRecordHashingResult.join();
-                            closeWriter(writer, lastRunningHash);
+                            final var result = closeWriter(writer, lastRunningHash);
+                            if (result.failure() != null) {
+                                logger.error(
+                                        "Error closing record file writer for block {}",
+                                        currentBlockNumber,
+                                        result.failure());
+                            }
                         })
                         .join();
 
@@ -290,17 +349,27 @@ public final class StreamFileProducerConcurrent implements BlockRecordStreamProd
         }
     }
 
-    private void closeWriter(BlockRecordWriter writer, Bytes lastRunningHash) {
+    private CloseResult closeWriter(BlockRecordWriter writer, Bytes lastRunningHash) {
         // An error here is bad news. But at least, let us catch this error and log it, and
         // move forward with the next block.
         try {
-            writer.close(asHashObject(lastRunningHash));
+            return new CloseResult(lastRunningHash, writer.close(asHashObject(lastRunningHash)), null);
         } catch (final Exception e) {
-            logger.error("Error closing record file writer", e);
+            return new CloseResult(lastRunningHash, null, e);
         }
     }
 
     private HashObject asHashObject(@NonNull final Bytes hash) {
         return new HashObject(HashAlgorithm.SHA_384, (int) hash.length(), hash);
+    }
+
+    private static CompletableFuture<Bytes> recordFileHashFuture(@NonNull final CompletableFuture<CloseResult> future) {
+        requireNonNull(future);
+        return future.thenCompose(result -> {
+            if (result.failure() != null) {
+                return failedFuture(result.failure());
+            }
+            return completedFuture(requireNonNull(result.recordFileHash()));
+        });
     }
 }

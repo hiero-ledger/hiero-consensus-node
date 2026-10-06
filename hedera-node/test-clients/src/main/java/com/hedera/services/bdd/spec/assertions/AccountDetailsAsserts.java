@@ -3,6 +3,7 @@ package com.hedera.services.bdd.spec.assertions;
 
 import static com.hederahashgraph.api.proto.java.GetAccountDetailsResponse.AccountDetails;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hederahashgraph.api.proto.java.GrantedCryptoAllowance;
@@ -78,12 +79,26 @@ public class AccountDetailsAsserts extends BaseErroringAssertsProvider<AccountDe
     }
 
     public AccountDetailsAsserts nftApprovedAllowancesContaining(String token, String spender) {
+        return nftApprovedAllowances(token, spender, true);
+    }
+
+    public AccountDetailsAsserts nftApprovedAllowancesNotContaining(String token, String spender) {
+        return nftApprovedAllowances(token, spender, false);
+    }
+
+    private AccountDetailsAsserts nftApprovedAllowances(String token, String spender, boolean shouldContain) {
         registerProvider((spec, o) -> {
-            var nftAllowance = GrantedNftAllowance.newBuilder()
+            final var nftAllowance = GrantedNftAllowance.newBuilder()
                     .setTokenId(spec.registry().getTokenID(token))
                     .setSpender(spec.registry().getAccountID(spender))
                     .build();
-            assertTrue(((AccountDetails) o).getGrantedNftAllowancesList().contains(nftAllowance), "Bad NftAllowances!");
+            final var present =
+                    ((AccountDetails) o).getGrantedNftAllowancesList().contains(nftAllowance);
+            if (shouldContain) {
+                assertTrue(present, "Bad NftAllowances!");
+            } else {
+                assertFalse(present, "Unexpected NftAllowance!");
+            }
         });
         return this;
     }

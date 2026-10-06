@@ -1,7 +1,21 @@
 # Hedera State Validator
 
 The **Hedera State Validator** is a comprehensive tool for working with the persisted state of Hedera nodes, providing capabilities to validate state integrity, introspect state contents, export state data,
-compact state files, and apply block streams to advance state.
+compact state files, apply block streams to advance state, reconstruct and replay PCES streams, and diagnose differences between an original and a re-minted block stream.
+
+### GCP Support
+
+All commands accept a GCS URI (`gs://...`) as the state directory, eliminating the need to manually download state files. When a GCS path is provided, the tool downloads the state to a local cache directory using the `gcloud storage` CLI.
+
+**Prerequisites:** The `gcloud` CLI must be installed and authenticated with access to the target bucket. See [Google Cloud SDK installation](https://cloud.google.com/sdk/docs/install).
+
+**Caching:** Downloaded state files are cached in a deterministic directory (`./state-validator-cache-<round>/`) in the current working directory. Subsequent runs with the same state path reuse the cached copy without re-downloading.
+
+### Global Options
+
+These options apply to all subcommands:
+
+- `--cleanup-temp` - Delete cached directories created for GCP downloads after execution. Default = `false` (cache is preserved for reuse).
 
 ## Validate
 
@@ -14,20 +28,170 @@ Can also be used for development purposes, such as verifying that the node's sta
 2. Run the following command to execute the validation:
 
 ```shell
-java -jar ./validator-<version>.jar {path-to-state-round} validate {tag} [{tag}...]
+java -jar ./validator-.jar {path-to-state-round} validate {group} [{group}...] [options]
 ```
 
 ### Parameters
 
-- `{path-to-state-round}` - Location of the state files (required).
-- `{tag}` - Validation that should be run, multiple tags can be specified, separated by spaces (at least one required). Current supported tags:
-  - [`internal`](/src/main/java/com/hedera/statevalidation/validator/merkledb/ValidateInternalIndex.java) - Validates the consistency of the indices of internal nodes.
-  - [`leaf`](/src/main/java/com/hedera/statevalidation/validator/merkledb/ValidateLeafIndex.java) - Validates the consistency of the indices of leaf nodes.
-  - [`hdhm`](/src/main/java/com/hedera/statevalidation/validator/merkledb/ValidateLeafIndexHalfDiskHashMap.java) - Validates the consistency of the indices of leaf nodes in the half-disk hashmap.
-  - [`rehash`](/src/main/java/com/hedera/statevalidation/validator/state/Rehash.java) - Runs a full rehash of the state.
-  - [`account`](/src/main/java/com/hedera/statevalidation/validator/service/AccountValidator.java) - Ensures all accounts have a positive balance, calculates the total HBAR supply,
-    and verifies it totals exactly 50 billion HBAR.
-  - [`tokenRelations`](/src/main/java/com/hedera/statevalidation/validator/service/TokenRelationsIntegrity.java) - Verifies that the accounts and tokens for every token relationship exist.
+- `{path-to-state-round}` - Location of the state files (required). Accepts a local path or a GCS URI (e.g. `gs://bucket/node00/round`) (required).
+- `{group}` - Validation group that should be run, multiple groups can be specified, separated by spaces (at least one required). Current supported groups:
+  - [`all`](/src/main/java/com/hedera/statevalidation/validator/Validator.java) - Runs all validators.
+  - [`internal`](/src/main/java/com/hedera/statevalidation/validator/HashRecordIntegrityValidator.java) - Validates hash record integrity for internal nodes.
+  - [`leaf`](/src/main/java/com/hedera/statevalidation/validator/LeafBytesIntegrityValidator.java) - Validates leaf bytes integrity.
+  - [`hdhm`](/src/main/java/com/hedera/statevalidation/validator/HdhmBucketIntegrityValidator.java) - Validates HDHM bucket integrity in the half-disk hashmap.
+  - [`account`](/src/main/java/com/hedera/statevalidation/validator/AccountAndSupplyValidator.java) - Ensures all accounts have a positive balance and verifies total HBAR supply.
+  - [`tokenRelations`](/src/main/java/com/hedera/statevalidation/validator/TokenRelationsIntegrityValidator.java) - Verifies that the accounts and tokens for every token relationship exist.
+  - `entityIds` - Verifies entity IDs are valid and unique. Validators:
+    - [`entityIdCount`](/src/main/java/com/hedera/statevalidation/validator/EntityIdCountValidator.java) - Validates entity ID counts match expected values.
+    - [`entityIdUniqueness`](/src/main/java/com/hedera/statevalidation/validator/EntityIdUniquenessValidator.java) - Verifies entity IDs are unique across entity types.
+  - `rehash` - Compare root hashes. Validators:
+    - [`rehash`](/src/main/java/com/hedera/statevalidation/validator/RehashValidator.java) - Runs a full rehash of the state and compares against the original hash from the `DeserializedSignedState`.
+    - [`rootHash`](/src/main/java/com/hedera/statevalidation/validator/RootHashValidator.java) - Validates the root hash against a `hashInfo.txt`.
+
+### Options
+
+- `--io-threads` (or `-io`) - Number of IO threads for reading data files from disk and memory. Default: `4`.
+- `--process-threads` (or `-p`) - Number of CPU threads for processing data segments. These threads parse and validate data items read by IO threads. Default: `6`.
+- `--queue-capacity` (or `-q`) - Maximum number of batches that can be queued between IO and processor threads. Controls memory usage and provides backpressure when processors are slower than readers. Default: `100`.
+- `--batch-size` (or `-b`) - Number of data items grouped together before being placed in the queue. Larger batches reduce queue contention but increase memory per batch. Default: `10`.
+- `--min-segment-size-mib` (or `-mss`) - Minimum size in mebibytes (MiB) for file segments. Each data file is divided into segments for parallel reading; this sets the floor for segment size to avoid excessive overhead from too many small segments. Default: `128`.
+- `--segment-multiplier` (or `-s`) - Multiplier applied to IO thread count to determine the target number of segments per file collection. Higher values create more, smaller segments for better load balancing across threads. Default: `2`.
+- `--buffer-size-kib` (or `-bs`) - Buffer size in kibibytes (KiB) for file reading operations and segment boundary detection. Default: `128`.
+
+### Architecture
+
+The validator employs a **two-phase execution model**. First, **individual validators** (those implementing only the base [Validator](src/main/java/com/hedera/statevalidation/validator/Validator.java) interface) run sequentially — each with its own custom execution logic (e.g., full tree rehash, external file comparison). Then, a **parallel pipeline** performs a single-pass traversal of all MerkleDB data files, dispatching items to multiple pipeline validators concurrently — avoiding redundant full-state scans. The architecture is orchestrated by [ValidatorRegistry](src/main/java/com/hedera/statevalidation/validator/ValidatorRegistry.java) and [ValidationPipelineExecutor](src/main/java/com/hedera/statevalidation/validator/pipeline/ValidationPipelineExecutor.java).
+
+```mermaid
+graph TD
+CLI["ValidateCommand (CLI)"]
+REG[ValidatorRegistry]
+IND["Individual Validators<br/>(RehashValidator, RootHashValidator)"]
+PIPE[ValidationPipelineExecutor]
+IO["IO Threads<br/>(ChunkedFileIterator + Memory Readers)"]
+Q["Bounded Queue<br/>(backpressure)"]
+PROC["Processor Threads<br/>(ProcessorTask)"]
+PV_P2H["P2H Validators<br/>(HashRecordIntegrityValidator)"]
+PV_P2KV["P2KV Validators<br/>(LeafBytesIntegrityValidator,<br/>AccountAndSupplyValidator,<br/>TokenRelationsIntegrityValidator,<br/>EntityIdCountValidator,<br/>EntityIdUniquenessValidator)"]
+PV_K2P["K2P Validators<br/>(HdhmBucketIntegrityValidator)"]
+LISTEN[ValidationListener]
+REPORT[SlackReportBuilder]
+
+    CLI --> REG
+    REG -->|individual| IND
+    REG -->|pipeline, grouped by Type| PIPE
+    PIPE --> IO
+    IO -->|batches| Q
+    Q --> PROC
+    PROC --> PV_P2H
+    PROC --> PV_P2KV
+    PROC --> PV_K2P
+
+    IND -.->|events| LISTEN
+    PV_P2H -.->|events| LISTEN
+    PV_P2KV -.->|events| LISTEN
+    PV_K2P -.->|events| LISTEN
+    LISTEN --> REPORT
+```
+
+### Validator Type Hierarchy
+
+Validators are categorized by the interface they implement. The [ValidatorRegistry](src/main/java/com/hedera/statevalidation/validator/ValidatorRegistry.java) automatically routes data to the correct validators based on this hierarchy.
+
+```mermaid
+classDiagram
+    class Validator {
+        <<interface>>
+        +getGroup() String
+        +getName() String
+        +initialize(VirtualMapState)
+        +validate()
+    }
+
+    class HashRecordValidator {
+        <<interface>>
+        +processHashRecord(VirtualHashRecord)
+    }
+
+    class LeafBytesValidator {
+        <<interface>>
+        +processLeafBytes(long, VirtualLeafBytes)
+    }
+
+    class HdhmBucketValidator {
+        <<interface>>
+        +processBucket(long, ParsedBucket)
+    }
+
+    Validator <|-- HashRecordValidator
+    Validator <|-- LeafBytesValidator
+    Validator <|-- HdhmBucketValidator
+
+    HashRecordValidator <|.. HashRecordIntegrityValidator
+    LeafBytesValidator <|.. LeafBytesIntegrityValidator
+    LeafBytesValidator <|.. AccountAndSupplyValidator
+    LeafBytesValidator <|.. TokenRelationsIntegrityValidator
+    LeafBytesValidator <|.. EntityIdCountValidator
+    LeafBytesValidator <|.. EntityIdUniquenessValidator
+    HdhmBucketValidator <|.. HdhmBucketIntegrityValidator
+    Validator <|.. RehashValidator
+    Validator <|.. RootHashValidator
+```
+
+### Validator Lifecycle
+
+Every validator follows a three-phase lifecycle:
+
+|     Phase      |                           Method                           |                                                                      Description                                                                      |
+|----------------|------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Initialize** | `initialize(VirtualMapState)`                              | Extract state references, set up atomic counters.                                                                                                     |
+| **Process**    | `processHashRecord` / `processLeafBytes` / `processBucket` | Receive streamed data items (pipeline validators only).                                                                                               |
+| **Validate**   | `validate()`                                               | Assert accumulated results; throw [ValidationException](src/main/java/com/hedera/statevalidation/validator/util/ValidationException.java) on failure. |
+
+Individual validators (those implementing only the base [Validator](src/main/java/com/hedera/statevalidation/validator/Validator.java) interface) skip the process phase and perform their own logic directly in `validate()`.
+
+### Execution Flow
+
+1. **State loading** — [ValidateCommand](src/main/java/com/hedera/statevalidation/ValidateCommand.java) initializes the state directory and obtains the `VirtualMapState`.
+2. **Individual validators** — [ValidatorRegistry](src/main/java/com/hedera/statevalidation/validator/ValidatorRegistry.java) filters, initializes, and runs individual validators sequentially (e.g., [RehashValidator](src/main/java/com/hedera/statevalidation/validator/RehashValidator.java) performs a full task-based tree rehash, [RootHashValidator](src/main/java/com/hedera/statevalidation/validator/RootHashValidator.java) compares the root hash against a reference file).
+3. **Pipeline execution** — [ValidationPipelineExecutor](src/main/java/com/hedera/statevalidation/validator/pipeline/ValidationPipelineExecutor.java) orchestrates the parallel pipeline:
+
+- **Segmentation** — Partitions data sources into segments for parallel reading; in-memory hash ranges are partitioned as well.
+- **IO threads** read segments via [ChunkedFileIterator](src/main/java/com/hedera/statevalidation/validator/pipeline/ChunkedFileIterator.java) (disk) or directly from `HashList` (memory), producing batches into a bounded queue.
+- **Processor threads** ([ProcessorTask](src/main/java/com/hedera/statevalidation/validator/pipeline/ProcessorTask.java)) consume batches, check liveness against location indexes, and dispatch live items to the appropriate validators by data type.
+- After all data is consumed, `validate()` is called on each pipeline validator.
+
+4. **Reporting** — [ValidationExecutionListener](src/main/java/com/hedera/statevalidation/validator/listener/ValidationExecutionListener.java) tracks failures. On failure, [SlackReportBuilder](src/main/java/com/hedera/statevalidation/report/SlackReportBuilder.java) generates a report.
+
+### Pipeline Data Types
+
+|   Type   |                 Source                 |       Content       |                                              Dispatched To                                               |
+|----------|----------------------------------------|---------------------|----------------------------------------------------------------------------------------------------------|
+| **P2KV** | Leaf data files                        | `VirtualLeafBytes`  | [LeafBytesValidator](src/main/java/com/hedera/statevalidation/validator/LeafBytesValidator.java) impls   |
+| **P2H**  | Hash data files + in-memory `HashList` | `VirtualHashRecord` | [HashRecordValidator](src/main/java/com/hedera/statevalidation/validator/HashRecordValidator.java) impls |
+| **K2P**  | HDHM bucket files                      | `ParsedBucket`      | [HdhmBucketValidator](src/main/java/com/hedera/statevalidation/validator/HdhmBucketValidator.java) impls |
+
+### Thread Safety
+
+- State is **read-only** during validation.
+- All validator counters must use `AtomicLong` / `AtomicInteger`.
+- The bounded queue provides backpressure between IO and processor threads.
+- [ValidationListener](src/main/java/com/hedera/statevalidation/validator/listener/ValidationListener.java) implementations must be thread-safe (callbacks arrive from multiple threads).
+
+### Adding a New Validator
+
+1. Create a class implementing [HashRecordValidator](src/main/java/com/hedera/statevalidation/validator/HashRecordValidator.java), [LeafBytesValidator](src/main/java/com/hedera/statevalidation/validator/LeafBytesValidator.java), [HdhmBucketValidator](src/main/java/com/hedera/statevalidation/validator/HdhmBucketValidator.java), or base [Validator](src/main/java/com/hedera/statevalidation/validator/Validator.java).
+2. Add an instance to [ValidatorRegistry.ALL_VALIDATORS](src/main/java/com/hedera/statevalidation/validator/ValidatorRegistry.java).
+3. *(Optional)* Define a new group constant and add it to [ValidateCommand](src/main/java/com/hedera/statevalidation/ValidateCommand.java)'s parameters.
+
+The registry automatically categorizes validators by their interface type.
+
+### Performance Model
+
+- **Pipeline validators:** Single traversal shared by all validators of the same data type → **O(T)** instead of **O(T × N)**.
+- **Individual validators:** Each performs its own traversal → **O(T × M)**.
+
+Where `T` = time for one full traversal, `N` = pipeline validators, `M` = individual validators.
 
 ## Introspect
 
@@ -46,7 +210,7 @@ java -jar ./validator-<version>.jar {path-to-state-round} introspect --service-n
 
 ### Parameters
 
-- `{path-to-state-round}` - Location of the state files (required).
+- `{path-to-state-round}` - Location of the state files (required). Accepts a local path or a GCS URI (e.g. `gs://bucket/node00/round`) (required).
 
 ### Options
 
@@ -73,7 +237,7 @@ java -jar ./validator-<version>.jar {path-to-state-round} analyze [--path-to-kv]
 
 ### Parameters
 
-- `{path-to-state-round}` - Location of the state files (required).
+- `{path-to-state-round}` - Location of the state files (required). Accepts a local path or a GCS URI (e.g. `gs://bucket/node00/round`) (required).
 
 ### Options
 
@@ -146,7 +310,7 @@ java -jar [-DmaxObjPerFile=<number>] [-DprettyPrint=true] ./validator-<version>.
 
 ### Parameters
 
-- `{path-to-state-round}` - Location of the state files (required).
+- `{path-to-state-round}` - Location of the state files (required). Accepts a local path or a GCS URI (e.g. `gs://bucket/node00/round`) (required).
 
 ### Options
 
@@ -271,7 +435,8 @@ The [DiffCommand](src/main/java/com/hedera/statevalidation/DiffCommand.java) cla
 ```shell
 java -jar ./validator-<version>.jar {path-to-state1} diff {path-to-state2} \
   --out=<output-directory> \
-  [--service-name=<service-name> --state-key=<state-key>]
+  [--service-name=<service-name> --state-key=<state-key>] \
+  [--ignore-field=<path> ...]
 ```
 
 ### Parameters
@@ -284,6 +449,33 @@ java -jar ./validator-<version>.jar {path-to-state1} diff {path-to-state2} \
 - `--out` (or `-o`) - Directory where the resulting json files are written (required).
 - `--service-name` (or `-s`) - Name of the service to diff. If omitted along with `--state-key`, diffs all states.
 - `--state-key` (or `-k`) - Name of the state to diff. If omitted along with `--service-name`, diffs all states.
+- `--ignore-field` (or `-i`) - Value field path(s) to ignore when comparing entries. Entries that differ only in the ignored fields are treated as identical and suppressed from the diff output. The option is repeatable; a comma-separated list is also accepted. Paths use dotted notation with an explicit array wildcard `[*]`:
+  - `expirationSecond` - a top-level field
+  - `accountId.accountNum` - a nested object field
+  - `transfers[*].amount` - a field on every element of an array
+  - `tokens[*]` - all elements of an array
+    Only value fields are supported; key fields are never masked. Paths that do not match a given value are silently ignored, so one set of ignore paths can be applied across heterogeneous state values.
+
+### Example
+
+Diff two states, ignoring expected differences in account expiration and stake metadata:
+
+```shell
+java -jar ./validator-<version>.jar {path-to-state1} diff {path-to-state2} \
+  --out=./out \
+  --service-name=TokenService --state-key=ACCOUNTS \
+  --ignore-field=expirationSecond \
+  --ignore-field=stakeAtStartOfLastRewardedPeriod
+```
+
+Or equivalently with comma separation:
+
+```shell
+java -jar ./validator-<version>.jar {path-to-state1} diff {path-to-state2} \
+  --out=./out \
+  --service-name=TokenService --state-key=ACCOUNTS \
+  --ignore-field=expirationSecond,stakeAtStartOfLastRewardedPeriod
+```
 
 ### Notes
 
@@ -291,6 +483,78 @@ java -jar ./validator-<version>.jar {path-to-state1} diff {path-to-state2} \
 - `state1-diff.json` contains entries that were either deleted in the second state or modified (showing the old value).
 - `state2-diff.json` contains entries that were either added in the second state or modified (showing the new value).
 - Service name and state key should both be either omitted or specified.
+- When `--ignore-field` is used, the fast byte-level comparison is still performed first. Parsing and field masking only runs on entries whose raw bytes already differ, so there is no performance impact on identical entries.
+
+## Sorted Diff
+
+[SortedDiffCommand](src/main/java/com/hedera/statevalidation/SortedDiffCommand.java) compares two states and produces sorted diff output grouped by service and state key — the same layout as `sorted-export`, but containing only the entries that differ.
+
+### Usage
+
+1. Download the state files for both rounds.
+2. Run the following command to execute the sorted diff:
+
+```shell
+java -jar [-DmaxObjPerFile=<number>] ./validator-<version>.jar {path-to-state1} sorted-diff {path-to-state2} \
+  --out=<output-directory> \
+  [--service-name=<service-name> --state-key=<state-key>]
+```
+
+### Parameters
+
+- `{path-to-state1}` - Location of the first state files (required).
+- `{path-to-state2}` - Location of the second state files (required).
+
+### Options
+
+- `--out` (or `-o`) - Directory where the resulting diff files are written (required). Must exist before invocation.
+- `--service-name` (or `-s`) - Name of the service to diff. If omitted along with `--state-key`, diffs all states.
+- `--state-key` (or `-k`) - Name of the state to diff. If omitted along with `--service-name`, diffs all states.
+
+### Output Structure
+
+The command creates two subdirectories under the output directory:
+
+```
+<out>/
+  state1/
+    TokenService_ACCOUNTS_1.json
+    ContractService_STORAGE_1.json
+    ...
+  state2/
+    TokenService_ACCOUNTS_1.json
+    ContractService_STORAGE_1.json
+    ...
+```
+
+- `state1/` - entries deleted in the second state or modified (old value), as `{service}_{stateKey}_X.json`.
+- `state2/` - entries added in the second state or modified (new value), as `{service}_{stateKey}_X.json`.
+
+Each file uses the same `{"k":..., "v":...}` JSON-lines format as `sorted-export`, sorted by key bytes. Files under `state1/` and `state2/` are directly comparable file by file (e.g. `diff state1/TokenService_ACCOUNTS_1.json state2/TokenService_ACCOUNTS_1.json`).
+
+### Examples
+
+Diff all states between two rounds:
+
+```shell
+java -jar ./validator-<version>.jar /path/to/round1 sorted-diff /path/to/round2 --out=/path/to/result
+```
+
+Diff only accounts between two rounds:
+
+```shell
+java -jar ./validator-<version>.jar /path/to/round1 sorted-diff /path/to/round2 --out=/path/to/result \
+  --service-name=TokenService --state-key=ACCOUNTS
+```
+
+### Notes
+
+- Files are chunked by the sorted union of differing keys, so file `X` in `state1/` and file `X` in `state2/` cover the same key range. A modified key always lands in the same file number on both sides.
+- Because of this alignment, entry counts per file are uneven and one side's file may be empty for an add- or delete-only range.
+- Service name and state key should both be either omitted or specified.
+- The data is sorted by the **byte representation of the key** (same ordering and caveats as `sorted-export`).
+- The exporter limits the number of objects per file to 1 million; to customize the limit, use VM parameter `-DmaxObjPerFile`.
+- As with `sorted-export`, ordering is stable across state versions, which is what makes the output usable for differential testing.
 
 ## Compact
 
@@ -307,7 +571,7 @@ java -jar ./validator-<version>.jar {path-to-state-round} compact
 
 ### Parameters
 
-- `{path-to-state-round}` - Location of the state files (required).
+- `{path-to-state-round}` - Location of the state files (required). Accepts a local path or a GCS URI (e.g. `gs://bucket/node00/round`) (required).
 
 ## Updating State with a Block Stream
 
@@ -318,22 +582,392 @@ java -jar ./validator-<version>.jar {path-to-state-round} compact
 ```shell
 java -jar ./validator-<version>.jar {path-to-state-round} apply-blocks --block-stream-dir=<path-to-block-stream-files> \
  --node-id=<self-id> \
- [--out=<path to output directory>] [--expected-hash=<hash of the target state>] [--target-round=<target round>]
+ [--out=<path to output directory>] [--expected-hash=<hash of the target state>] [--target-round=<target round>] \
+ [--rate=<rounds per second>]
+```
+
+#### Using GCS paths:
+
+Both the state directory and block stream directory accept GCS URIs:
+
+```shell
+java -jar ./validator-<version>.jar gs://bucket/prefix/4971437 apply-blocks \
+ --block-stream-dir=gs://bucket/block-stream/0/1 \
+ --node-id=0 \
+ --target-round=5013136 \
+ --out=./out \
+ --billing-project=my-gcp-project
 ```
 
 ### Parameters
 
-- `{path-to-state-round}` - Location of the state files (required).
+- `{path-to-state-round}` - Location of the state files (required). Accepts a local path or a GCS URI (e.g. `gs://bucket/node00/round`).
 
 ### Options
 
-- `--block-stream-dir` (or `-d`) - Location of the block stream files (required).
+- `--block-stream-dir` (or `-d`) - Location of the block stream files (required). Accepts a local path or a GCS URI (`gs://...`). When a GCS path is provided, `--target-round` is required.
 - `--out` (or `-o`) - The location where the resulting snapshot is written. Must not exist prior to invocation. Default = `./out`.
 - `--node-id` (or `-id`) - The ID of the node that is being used to recover the state. This node's keys should be available locally.
-- `--target-round` (or `-t`) - The last round that should be applied to the state, any higher rounds are ignored. If a target round is specified, the command will not apply rounds beyond it, even if additional block files exist.
-- `--expected-hash` (or `-h`) - Expected hash of the resulting state. If specified, the command can validate the hash of the resulting state against it.
+- `--target-round` (or `-t`) - The last round that should be applied to the state, any higher rounds are ignored. Required when `--block-stream-dir` is a GCS path.
+- `--expected-hash` (or `-h`) - Expected hash of the resulting state. If specified, the command validates the hash of the resulting state against it.
+- `--rate` (or `-r`) - Maximum rounds to apply per second (integer, ≥ 1). Controls CPU/IO load independently of state size. For example, `10` means at most 10 rounds/s. Default = unlimited (apply as fast as possible).
+- `--billing-project` (or `-bp`) - GCP billing project for requester-pays buckets. Applies to block stream downloads only.
+- `--download-threads` (or `-dt`) - Number of parallel workers for downloading block files from GCP. Default = `32`.
+
+### GCS Block Stream Download
+
+When `--block-stream-dir` is a GCS path, the tool performs the following steps:
+
+1. **Left boundary**: Reads `BlockStreamInfo.blockNumber` from the loaded state to determine the first block file to download.
+2. **Right boundary**: Uses a scatter-gather binary search over the GCS block files — probes individual `.blk.gz` files, parses `RoundHeader` items, and narrows the range until the block containing the target round is found.
+3. **Download**: Downloads the resolved block range in parallel using batched `gcloud storage cp` invocations.
+4. **Validation**: Verifies all expected files are present and non-empty, with up to 3 retry passes for any missing files.
+   Downloaded block files are cached in a deterministic directory (`./state-validator-blocks-<source-round>-to-<target-round>/`). Subsequent runs with the same state and target round reuse the cached files without re-downloading.
 
 ### Notes:
 
 - The command checks if the block stream contains the next round relative to the initial round to ensure continuity. It fails if the next round is not found.
 - The command also verifies that the corresponding blocks are present. It will fail if a block is missing or if the final round in the stream does not match the target round.
+- When using GCS paths, progress is reported to stdout: state download percentage, block range probing status, and block file download percentage.
+
+## Reconstructing a PCES Stream from Block Files (`blocks-to-pces`)
+
+[BlocksToPcesCommand](src/main/java/com/hedera/statevalidation/BlocksToPcesCommand.java)
+reconstructs an unsigned preconsensus event stream (PCES) from a set of block stream files.
+The resulting PCES files can be fed into `replay-pces` to replay the original consensus traffic
+on top of a matching state snapshot — the first step of the block stream equivalence validation
+experiment.
+
+Block stream files encode all events and their transactions in consensus order. This command
+reconstructs the original event DAG (without signatures — the block stream does not carry
+per-event creator signatures) and writes it as a set of `.pces` files compatible with the
+platform's `PcesFileTracker`.
+
+### Usage
+
+```shell
+java -jar ./validator-<version>.jar blocks-to-pces \
+  --block-stream-dir <path-or-gs://...> \
+  --origin-round <round> \
+  --target-round <round> \
+  [--out <output-dir>] \
+  [--rounds-non-ancient <n>] \
+  [--billing-project <project>]
+```
+
+#### Example (GCS)
+
+```shell
+java -jar ./validator-<version>.jar blocks-to-pces \
+  --block-stream-dir gs://hedera-mainnet-streams/block/0/0 \
+  --origin-round 211155071 \
+  --target-round 211422945 \
+  --out ./out \
+  --billing-project my-gcp-project
+```
+
+#### Example (local)
+
+```shell
+java -jar ./validator-<version>.jar blocks-to-pces \
+  --block-stream-dir ./blocks/0/0 \
+  --origin-round 211155071 \
+  --target-round 211422945 \
+  --out ./out
+```
+
+### Options
+
+- `--block-stream-dir` (or `-d`) — Directory containing `.blk.gz` block stream files (required).
+  Accepts a local path or a GCS URI (`gs://...`). When a GCS URI is provided, `--target-round`
+  is required and the blocks are downloaded to a local cache directory before conversion.
+- `--origin-round` (or `-or`) — The round of the state snapshot these PCES files will be
+  replayed against (required). Stamped as the PCES stream origin. Also used as the right
+  anchor for the GCS left-boundary search (extended backward by `--rounds-non-ancient`).
+- `--target-round` (or `-tr`) — Identifies the last block to extract: the block that _contains_
+  this round. The entire block is extracted (all its rounds, including any after this round) - it
+  is not truncated at this round. Required when `--block-stream-dir` is a GCS URI.
+- `--out` (or `-o`) — Output directory. PCES files are written under a
+  `pces-<originRound>-<targetRound>` subdirectory. Default = `./out`.
+- `--rounds-non-ancient` (or `-rna`) — Number of rounds to extend the extraction window
+  backward before `--origin-round`. Required so that the earliest extracted events' parents
+  are present in the stream (see Notes). Should be ≥ the replaying node's
+  `consensus.roundsNonAncient`. Default = 26.
+- `--billing-project` (or `-bp`) — GCP billing project for requester-pays buckets.
+- `--download-threads` (or `-dt`) — Number of parallel threads for downloading block files
+  from GCS. Default = 32.
+- `--decode-threads` (or `-ct`) — Number of parallel worker threads for block decoding and
+  event reconstruction. Default = number of available processors.
+
+### Notes
+
+- The reconstructed events are **unsigned** (`signature = Bytes.EMPTY`, `origin = STORAGE`).
+  The replaying node must have the unsigned-event intake path enabled
+  (`event.preconsensus.intake.allowUnsignedPcesEvents=true`), which `replay-pces` sets
+  automatically.
+- The `--rounds-non-ancient` extension is critical for replay correctness. The replaying
+  node's orphan buffer holds events until their parents ar seen or become ancient. Without
+  the non-ancient tail, the earliest extracted events reference parents that are above the
+  ancient threshold (non-ancient) but absent from the stream — the buffer waits forever and
+  consensus never advances. The default is  configured to 26 rounds.
+- The PCES stream origin stamp (`--origin-round`) must match the round of the state snapshot
+  passed to `replay-pces`, or the platform's `resolveDiscontinuities` will purge the files.
+
+## Replaying a PCES Stream (`replay-pces`)
+
+[ReplayPcesCommand](src/main/java/com/hedera/statevalidation/ReplayPcesCommand.java)
+loads a saved state snapshot, replays a PCES stream on top of it through the consensus
+node's **real** production replay mechanism, and writes the resulting state to disk.
+
+> **Important:** The `replay-pces` command requires a production platform code change from commit
+> [`140f94f`](https://github.com/hiero-ledger/hiero-consensus-node/commit/140f94fff19a3a6f809df339ed17349ef5ae3426)
+> to work properly. This commit introduces the `allowUnsignedPcesEvents` intake flag
+> which allows reconstructed (unsigned) PCES events produced by `blocks-to-pces` to pass the
+> intake signature validator. Without it, every replayed event is silently dropped at signature
+> validation and no rounds reach consensus
+
+This command builds and starts a genuine `SwirldsPlatform` — the same one `ServicesMain`
+constructs — and drives the body of `SwirldsPlatform.start()` minus gossip. The production
+`PcesModule.replayPcesEvents` path is exercised: events flow through the full
+intake → orphan buffer → hashgraph → consensus → transaction handling → block production
+pipeline before gossip starts. This is the same mechanism used for PCES disaster recovery
+(documented in `ADR-003-remove-pces-recovery-method`).
+
+Combined with `blocks-to-pces`, this enables end-to-end block stream equivalence validation:
+reconstruct PCES from a production block stream, replay it on the matching state, and compare
+the resulting state and block hashes against the originals.
+
+### Prerequisites
+
+- A saved state snapshot from the round the PCES stream was generated against
+  (`--origin-round` in `blocks-to-pces`).
+- PCES files produced by `blocks-to-pces` for that origin round.
+- The state round must match the PCES stream origin, or the platform will discard the files.
+- The `--rounds-non-ancient` extension must have been used in `blocks-to-pces` (default 26),
+  or the earliest events will be stuck in the orphan buffer and consensus will not advance.
+
+### Usage
+
+```shell
+java -jar ./validator-<version>.jar <path-to-state-round> replay-pces \
+     --pces-dir <path-to-pces-files> \
+     --target-round <round> \
+     [--out <output-dir>] \
+     [--self-id <id>] \
+     [--event-stream-name <name>] \
+     [--force-mock-signatures=<true|false>]
+```
+
+#### Example
+
+```shell
+java -jar ./validator-<version>.jar ./211155071 replay-pces \
+      --pces-dir ./out/pces-211155071-211422945 \
+      --target-round 211422945 \
+      --out ./replay-out \
+      --self-id 0
+```
+
+### Options
+
+- `<path-to-state-round>` — Directory containing the saved state snapshot to load (required).
+  Must point to the round directory directly (e.g. `./211155071/`, the directory that contains
+  `stateMetadata.txt`).
+- `--pces-dir` (or `-p`) — Directory containing the PCES files to replay (required). The
+  output of `blocks-to-pces`. Accepts either a flat directory of `.pces` files or the
+  node-id-subdirectory layout produced by `blocks-to-pces` — the command locates the files
+  automatically and stages them into the database directory the platform scans at startup.
+- `--out` (or `-o`) — Output directory for the resulting state snapshot. The snapshot is written
+  to `<out>/<round>/`, where `<round>` is the retained round. This directory can be passed directly
+  as `--state-dir` to a subsequent `replay-pces` run, or to `diff` / `sorted-diff`. Default = `./replay-out`.
+- `--self-id` (or `-id`) — Node id to run as. Must match the node id the PCES files were
+  generated for (default 0 in `blocks-to-pces`). Default = 0.
+- `--event-stream-name` (or `-es`) — Consensus event stream name (e.g. `0.0.3`). Internal platform
+  label only; does not affect replay correctness or the output path. Default = `0.0.3`.
+- `--force-mock-signatures` — Use deterministic mock TSS proofs (Tier 1 signing) instead of
+  real hinTS. No live TSS network required. Default = `true`.
+- `--target-round` (or `-t`) — The round whose state is retained as the output snapshot (required).
+  The full PCES stream is still replayed and may generate blocks for later rounds; only this round's
+  state is kept. A freeze within the replayed range halts the platform at the freeze round — if the
+  target is before the freeze it is captured when reached; if the target is at or after the freeze it
+  is never reached (replay to the freeze round and resume from the freeze state).
+
+### Output
+
+The output snapshot contains the state produced at `--target-round`, written to `<out>/<round>/`.
+Replay continues through the remaining PCES events so the complete expected block set is generated
+(block files land under `<out>/blockStreams/block-<nodeAccount>/`). To validate, compare the output
+snapshot against the original production state from the same target round (e.g. `diff` /
+`sorted-diff`, or compare `hashInfo.txt`).
+
+### Notes
+
+- The command sets `event.preconsensus.intake.allowUnsignedPcesEvents=true` automatically.
+  The reconstructed events from `blocks-to-pces` are unsigned; without this flag the intake
+  pipeline drops every event at signature validation and consensus never advances.
+- Replay uses ephemeral generated keys rather than on-disk PKCS12 keystores. Gossip is never
+  started, so real per-node keys are not needed.
+- The resulting block files will differ slightly in size from the original production blocks:
+  mock TSS proofs (Tier 1) are a different size than production hinTS signatures, and the
+  first block after a state-load boundary carries extra restart metadata. The transactions,
+  state changes, and consensus ordering are equivalent; the size delta is confined to the
+  block proof field.
+- The snapshot round in the output equals the round PCES advanced the state to. Compare the
+  `hashInfo.txt` from the output state against the original production state at that round to
+  verify equivalence.
+- If the replay ever encounters FREEZE transaction, it will be halted by the platform, and if the FREEZE round is not
+  the same as the target round, the replay will fail.
+
+## Comparing Output Records (`output-record-compare`)
+
+[OutputRecordCompareCommand](src/main/java/com/hedera/statevalidation/OutputRecordCompareCommand.java) compares two block streams transaction by transaction — typically the original production blocks and the blocks re-minted by `replay-pces` — and reports where they diverge.
+
+For each transaction it compares the full `TransactionResult`, the `TransactionOutput`s, and the net state changes of the round per state. This catches differences that a status or gas comparison misses, such as a different consensus timestamp or different state changes with the same `SUCCESS` status. Transactions are matched by their position in the round, so repeated synthetic transaction IDs (e.g. `10@0.0`) cannot be mismatched.
+
+The command does not load a state.
+
+### Usage
+
+```shell
+java -jar ./validator-<version>.jar output-record-compare \
+  --original=<original-block-dir> \
+  --reminted=<reminted-block-dir> \
+  [--from-round=<round>] [--to-round=<round>] [--all] \
+  [--round=<round> [--dump-tx=<txId>]] \
+  [--ignore-states=<service>[,<service>...]] \
+  [--threads=<n>] [--window=<n>]
+```
+
+### Options
+
+- `--original` - Directory with the original (production) block files (required).
+- `--reminted` - Directory with the re-minted block files (required). For `replay-pces` output, point it at the node's block directory (the one ending in `block-<nodeAccount>/`, e.g. `block-0.0.3/`).
+- `--from-round` - Range mode: lowest round to compare. Default = start of the block range.
+- `--to-round` - Range mode: highest round to compare. Default = end of the block range.
+- `--all` - Range mode: report every divergent block instead of stopping at the first one.
+- `--round` - Single-round mode: report every divergent transaction in this round. Cannot be combined with `--from-round`, `--to-round` or `--all`.
+- `--dump-tx` - With `--round`: print the original and re-minted values for this transaction ID.
+- `--ignore-states` - Comma-separated services whose state changes are not compared. Use `BlockStreamService,PlatformStateService,BlockRecordService` to skip the running-hash and block-hash fields, which are expected to differ after replay.
+- `--threads` - Worker threads for range mode. Default = number of available processors.
+- `--window` - Number of blocks compared per parallel batch in range mode. Default = `threads × 8`.
+
+### Modes
+
+- **Range (default):** compares only the blocks present in both directories, in ascending order, and stops at the first block that contains a divergent transaction. That transaction is the earliest divergence; everything after it is usually a consequence of it.
+- **Range with `--all`:** keeps scanning and prints one line per divergent block (the first divergent transaction in each).
+- **Single round (`--round`):** lists every divergent transaction in that round. Add `--dump-tx` to see the differing values.
+
+### Output
+
+Range mode prints progress and then either the earliest divergence or a clean result:
+
+```
+Scanning blocks [106484401, 106493184], rounds [260911703, 260933615], threads=32, window=256, ignoreStates=[...]
+... 256 blocks clean (through block 106484656)
+...
+No output-record divergence found across 8784 blocks.
+```
+
+For each divergent transaction, `diff=` shows what differs (`RESULT`, `OUTPUT`, `STATE`) and `states=` lists the affected states by name, e.g. `TokenService.ACCOUNTS`.
+
+### Examples
+
+Find the first divergence across a replayed range:
+
+```shell
+java -jar ./validator-<version>.jar output-record-compare \
+  --original=./state-validator-blocks-260911703-to-260933615-rna26-s1/ \
+  --reminted=<reminted-block-dir> \
+  --from-round=260911703 --to-round=260933615 \
+  --ignore-states=BlockStreamService,PlatformStateService,BlockRecordService \
+  --threads=32
+```
+
+List every divergent block:
+
+```shell
+java -jar ./validator-<version>.jar output-record-compare \
+  --original=<original-block-dir> --reminted=<reminted-block-dir> --all \
+  --ignore-states=BlockStreamService,PlatformStateService,BlockRecordService
+```
+
+Inspect one round and dump a transaction:
+
+```shell
+java -jar ./validator-<version>.jar output-record-compare \
+  --original=<original-block-dir> --reminted=<reminted-block-dir> \
+  --round=256533930 --dump-tx=33@1785749400.871996395
+```
+
+### Notes
+
+- Only block numbers present in both directories are compared, so the re-minted directory may be a subset of the original one.
+- `--dump-tx` looks transactions up by ID. When an ID is ambiguous (synthetic IDs such as `10@0.0`), use `tx-dump --pos` instead.
+- The exit code is `0` whether or not a divergence is found; read the output to tell the two apart.
+
+## Inspecting Block Transactions (`tx-dump`)
+
+[TxDumpCommand](src/main/java/com/hedera/statevalidation/TxDumpCommand.java) prints the block-stream content of a round: a summary of all its transactions, or the full content of one transaction. Run it against both the original and the re-minted blocks and compare the output to find the exact field that differs.
+
+The command does not load a state.
+
+### Usage
+
+```shell
+java -jar ./validator-<version>.jar tx-dump \
+  --blocks=<block-file-or-dir> \
+  --round=<round> \
+  [--tx=<txId> | --pos=<position>]
+```
+
+### Options
+
+- `--blocks` - A block file, or a directory of block files (required). For a directory, the block containing `--round` is located automatically.
+- `--round` - Round to inspect (required).
+- `--tx` - Print every transaction in the round with this ID. Synthetic IDs can match more than one transaction; each match is labelled with its position.
+- `--pos` - Print the transaction at this 0-based position in the round. Cannot be combined with `--tx`.
+  Without `--tx` or `--pos`, the command prints a summary of the round.
+
+### Output
+
+Summary mode prints one line per transaction:
+
+```
+Round 260911704 — 9 transaction(s) in 000000000000000000000000000106484401.blk.gz
+
+  pos=  0  txId=50@1788652800.974893106.n1            status=SUCCESS    outputs=0  stateChanges=36
+  pos=  1  txId=50@1788652800.974893108.n2            status=SUCCESS    outputs=0  stateChanges=20
+  ...
+```
+
+With `--tx` or `--pos`, it prints the transaction body, the transaction result, any transaction outputs, and every state change with its state name.
+
+### Examples
+
+Summary of a round:
+
+```shell
+java -jar ./validator-<version>.jar tx-dump --blocks=./state-validator-blocks-260911703-to-260933615-rna26-s1/ --round=260911704
+```
+
+Compare one transaction between the original and the re-minted blocks:
+
+```shell
+java -jar ./validator-<version>.jar tx-dump --blocks=<original-block-dir> --round=260911704 --pos=0 > orig_pos0.txt
+java -jar ./validator-<version>.jar tx-dump --blocks=<reminted-block-dir> --round=260911704 --pos=0 > reminted_pos0.txt
+diff orig_pos0.txt reminted_pos0.txt
+```
+
+### Notes
+
+- Prefer `--pos` over `--tx`: positions are unique within a round, transaction IDs are not always.
+- Comparing the two summaries first shows quickly whether both runs have the same transactions, in the same order, with the same timestamps.
+
+## Investigating a Replay Divergence
+
+When the state diff after `replay-pces` contains more than the expected hash fields:
+
+1. Run `output-record-compare` over the replayed range with `--ignore-states=BlockStreamService,PlatformStateService,BlockRecordService` to find the earliest divergent transaction.
+2. Run `tx-dump` in summary mode for that round against both block directories to check that the transactions, their order, and their timestamps match.
+3. Run `tx-dump --pos=<n>` for the divergent transaction against both directories and `diff` the output to find the exact field.
+4. Use `introspect` on the origin state to check the inputs that field depends on.

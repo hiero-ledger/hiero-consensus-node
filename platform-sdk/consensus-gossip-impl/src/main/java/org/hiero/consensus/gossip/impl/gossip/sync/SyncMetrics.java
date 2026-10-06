@@ -4,12 +4,12 @@ package org.hiero.consensus.gossip.impl.gossip.sync;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_0;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_3;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_15_3;
+import static com.swirlds.metrics.api.FloatFormats.FORMAT_4_2;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_8_1;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.base.units.UnitConstants;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -20,22 +20,18 @@ import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
-import org.hiero.consensus.concurrent.framework.internal.MeasuredBlockingQueue;
-import org.hiero.consensus.concurrent.framework.internal.MeasuredBlockingQueue.Config;
+import org.hiero.base.concurrent.framework.queue.MeasuredBlockingQueue;
+import org.hiero.base.concurrent.framework.queue.MeasuredBlockingQueue.Config;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.ShadowgraphSynchronizer;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncPhase;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncResult;
-import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncTiming;
-import org.hiero.consensus.gossip.impl.network.Connection;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.extensions.CountPerSecond;
 import org.hiero.consensus.metrics.extensions.PhaseTimer;
 import org.hiero.consensus.metrics.extensions.PhaseTimerBuilder;
 import org.hiero.consensus.metrics.statistics.AverageAndMax;
-import org.hiero.consensus.metrics.statistics.AverageAndMaxTimeStat;
 import org.hiero.consensus.metrics.statistics.AverageStat;
-import org.hiero.consensus.metrics.statistics.AverageTimeStat;
 import org.hiero.consensus.metrics.statistics.MaxStat;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -44,11 +40,6 @@ import org.hiero.consensus.model.node.NodeId;
  * Interface to update relevant sync statistics
  */
 public class SyncMetrics {
-
-    private static final RunningAverageMetric.Config AVG_BYTES_PER_SEC_SYNC_CONFIG = new RunningAverageMetric.Config(
-                    PLATFORM_CATEGORY, "bytes_per_sec_sync")
-            .withDescription("average number of bytes per second transferred during a sync");
-    private final RunningAverageMetric avgBytesPerSecSync;
 
     private static final RunningAverageMetric.Config TIPS_PER_SYNC_CONFIG = new RunningAverageMetric.Config(
                     INTERNAL_CATEGORY, "tips_per_sync")
@@ -64,11 +55,6 @@ public class SyncMetrics {
                     PLATFORM_CATEGORY, "acceptedSyncRequests_per_sec")
             .withDescription("Incoming sync requests accepted per second");
     private final CountPerSecond acceptedSyncRequestsPerSec;
-
-    private static final CountPerSecond.Config OPPORTUNITIES_TO_INITIATE_SYNC_CONFIG = new CountPerSecond.Config(
-                    PLATFORM_CATEGORY, "opportunitiesToInitiateSync_per_sec")
-            .withDescription("Opportunities to initiate an outgoing sync per second");
-    private final CountPerSecond opportunitiesToInitiateSyncPerSec;
 
     private static final CountPerSecond.Config OUTGOING_SYNC_REQUESTS_CONFIG = new CountPerSecond.Config(
                     PLATFORM_CATEGORY, "outgoingSyncRequests_per_sec")
@@ -156,6 +142,19 @@ public class SyncMetrics {
             .withDescription("Number of times per second we do not sync because of the fair selector");
     private final CountPerSecond doNotSyncFairSelector;
 
+    private static final CountPerSecond.Config BROADCAST_EVENTS_SENT_COUNTER_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "broadcastEventsSent")
+            .withUnit("hz")
+            .withDescription(
+                    "Number of times per second an event was considered being eligible for being sent over broadcast (once per event, not per peer)");
+    private final CountPerSecond broadcastEventsSentCounter;
+
+    private static final CountPerSecond.Config BROADCAST_EVENTS_RECEIVED_COUNTER_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "broadcastEventsReceived")
+            .withUnit("hz")
+            .withDescription("Number of times per second an event was received by broadcast from the remote nodes");
+    private final CountPerSecond broadcastEventsReceivedCounter;
+
     private final IntegerGauge.Config RPC_READ_THREAD_RUNNING_CONFIG = new IntegerGauge.Config(
                     Metrics.PLATFORM_CATEGORY, "rpcReadThreadRunning")
             .withDescription("number of rpc thread running in read mode");
@@ -174,14 +173,26 @@ public class SyncMetrics {
 
     private final RunningAverageMetric tipsPerSync;
 
+    private static final IntegerGauge.Config BROADCAST_DISABLED_DUE_TO_LAG_CONFIG = new IntegerGauge.Config(
+                    Metrics.PLATFORM_CATEGORY, "broadcastDisabledDueToLag")
+            .withDescription("For how many peers broadcast is disabled due to the too large ping");
+
+    private static final IntegerGauge.Config BROADCAST_DISABLED_DUE_TO_OVERLOAD_CONFIG = new IntegerGauge.Config(
+                    Metrics.PLATFORM_CATEGORY, "broadcastDisabledDueToOverload")
+            .withDescription("For how many peers broadcast is disabled due to the output queue being too large");
+
+    private final IntegerGauge broadcastDisabledDueToLag;
+
+    private final IntegerGauge broadcastDisabledDueToOverload;
+
+    private static final CountPerSecond.Config RPC_READ_THROTTLED_CONFIG = new CountPerSecond.Config(
+                    PLATFORM_CATEGORY, "rpcReadThrottled")
+            .withUnit("hz")
+            .withDescription("Number of times per second reading from a peer was paused by the byte shaper");
+    private final CountPerSecond rpcReadThrottled;
+
     private final AverageStat syncIndicatorDiff;
     private final AverageStat eventRecRate;
-    private final AverageTimeStat avgSyncDuration1;
-    private final AverageTimeStat avgSyncDuration2;
-    private final AverageTimeStat avgSyncDuration3;
-    private final AverageTimeStat avgSyncDuration4;
-    private final AverageTimeStat avgSyncDuration5;
-    private final AverageAndMaxTimeStat avgSyncDuration;
     private final AverageStat knownSetSize;
     private final AverageAndMax avgEventsPerSyncSent;
     private final AverageAndMax avgEventsPerSyncRec;
@@ -190,6 +201,8 @@ public class SyncMetrics {
     private final ConcurrentHashMap<NodeId, PhaseTimer<SyncPhase>> syncPhasePerNode = new ConcurrentHashMap<>();
     private final Metrics metrics;
     private final AverageAndMax outputQueuePollTime;
+    private final ConcurrentHashMap<NodeId, AverageAndMax> shaperOccupancy = new ConcurrentHashMap<>();
+    private final AverageAndMax readThrottleTime;
     private final Time time;
     private final IntegerGauge rpcReadThreadRunning;
     private final IntegerGauge rpcWriteThreadRunning;
@@ -207,14 +220,12 @@ public class SyncMetrics {
     public SyncMetrics(final Metrics metrics, final Time time, final List<PeerInfo> peers) {
         this.metrics = Objects.requireNonNull(metrics);
         this.time = Objects.requireNonNull(time);
-        avgBytesPerSecSync = metrics.getOrCreate(AVG_BYTES_PER_SEC_SYNC_CONFIG);
         callSyncsPerSecond = new CountPerSecond(metrics, CALL_SYNCS_PER_SECOND_CONFIG);
         recSyncsPerSecond = new CountPerSecond(metrics, REC_SYNCS_PER_SECOND_CONFIG);
         tipsPerSync = metrics.getOrCreate(TIPS_PER_SYNC_CONFIG);
 
         incomingSyncRequestsPerSec = new CountPerSecond(metrics, INCOMING_SYNC_REQUESTS_CONFIG);
         acceptedSyncRequestsPerSec = new CountPerSecond(metrics, ACCEPTED_SYNC_REQUESTS_CONFIG);
-        opportunitiesToInitiateSyncPerSec = new CountPerSecond(metrics, OPPORTUNITIES_TO_INITIATE_SYNC_CONFIG);
         outgoingSyncRequestsPerSec = new CountPerSecond(metrics, OUTGOING_SYNC_REQUESTS_CONFIG);
         syncsPerSec = new CountPerSecond(metrics, SYNCS_PER_SECOND_CONFIG);
         syncFilterTime = metrics.getOrCreate(SYNC_FILTER_TIME_CONFIG);
@@ -229,18 +240,15 @@ public class SyncMetrics {
         doNotSyncNoPermits = new CountPerSecond(metrics, DO_NOT_SYNC_NO_PERMITS_CONFIG);
         doNotSyncIntakeCounter = new CountPerSecond(metrics, DO_NOT_SYNC_INTAKE_COUNTER_CONFIG);
         doNotSyncFairSelector = new CountPerSecond(metrics, DO_NOT_SYNC_FAIR_SELECTOR_CONFIG);
+        broadcastEventsSentCounter = new CountPerSecond(metrics, BROADCAST_EVENTS_SENT_COUNTER_CONFIG);
+        broadcastEventsReceivedCounter = new CountPerSecond(metrics, BROADCAST_EVENTS_RECEIVED_COUNTER_CONFIG);
 
         rpcReadThreadRunning = metrics.getOrCreate(RPC_READ_THREAD_RUNNING_CONFIG);
         rpcWriteThreadRunning = metrics.getOrCreate(RPC_WRITE_THREAD_RUNNING_CONFIG);
         rpcDispatchThreadRunning = metrics.getOrCreate(RPC_DISPATCH_THREAD_RUNNING_CONFIG);
         syncsInProgress = metrics.getOrCreate(SYNCS_IN_PROGRESS_CONFIG);
-
-        avgSyncDuration = new AverageAndMaxTimeStat(
-                metrics,
-                ChronoUnit.SECONDS,
-                INTERNAL_CATEGORY,
-                "sec_per_sync",
-                "duration of average successful sync (in seconds)");
+        broadcastDisabledDueToLag = metrics.getOrCreate(BROADCAST_DISABLED_DUE_TO_LAG_CONFIG);
+        broadcastDisabledDueToOverload = metrics.getOrCreate(BROADCAST_DISABLED_DUE_TO_OVERLOAD_CONFIG);
 
         avgEventsPerSyncSent = new AverageAndMax(
                 metrics, PLATFORM_CATEGORY, "ev_per_syncS", "number of events sent per successful sync", FORMAT_8_1);
@@ -266,37 +274,6 @@ public class SyncMetrics {
                 FORMAT_8_1,
                 AverageStat.WEIGHT_VOLATILE);
 
-        avgSyncDuration1 = new AverageTimeStat(
-                metrics,
-                ChronoUnit.SECONDS,
-                INTERNAL_CATEGORY,
-                "sec_per_sync1",
-                "duration of step 1 of average successful sync (in seconds)");
-        avgSyncDuration2 = new AverageTimeStat(
-                metrics,
-                ChronoUnit.SECONDS,
-                INTERNAL_CATEGORY,
-                "sec_per_sync2",
-                "duration of step 2 of average successful sync (in seconds)");
-        avgSyncDuration3 = new AverageTimeStat(
-                metrics,
-                ChronoUnit.SECONDS,
-                INTERNAL_CATEGORY,
-                "sec_per_sync3",
-                "duration of step 3 of average successful sync (in seconds)");
-        avgSyncDuration4 = new AverageTimeStat(
-                metrics,
-                ChronoUnit.SECONDS,
-                INTERNAL_CATEGORY,
-                "sec_per_sync4",
-                "duration of step 4 of average successful sync (in seconds)");
-        avgSyncDuration5 = new AverageTimeStat(
-                metrics,
-                ChronoUnit.SECONDS,
-                INTERNAL_CATEGORY,
-                "sec_per_sync5",
-                "duration of step 5 of average successful sync (in seconds)");
-
         knownSetSize = new AverageStat(
                 metrics,
                 PLATFORM_CATEGORY,
@@ -318,6 +295,14 @@ public class SyncMetrics {
                 "rpc_output_queue_poll_time",
                 "amount of us spent sleeping waiting for poll to happen or timeout on rpc output queue",
                 FORMAT_10_0);
+        rpcReadThrottled = new CountPerSecond(metrics, RPC_READ_THROTTLED_CONFIG);
+
+        readThrottleTime = new AverageAndMax(
+                metrics,
+                PLATFORM_CATEGORY,
+                "rpc_read_throttle_time",
+                "amount of microseconds the rpc read thread was paused by the per-peer byte shaper",
+                FORMAT_10_0);
 
         precreateDynamicMetrics(peers);
     }
@@ -331,6 +316,7 @@ public class SyncMetrics {
         for (final PeerInfo peer : peers) {
             final NodeId nodeId = peer.nodeId();
             reportSyncPhase(nodeId, SyncPhase.OUTSIDE_OF_RPC);
+            reportShaperOccupancy(nodeId, 0);
         }
     }
 
@@ -357,30 +343,6 @@ public class SyncMetrics {
         final double nanos = ((double) System.nanoTime()) - nanosStart;
         final double seconds = nanos / ChronoUnit.SECONDS.getDuration().toNanos();
         eventRecRate.update(Math.round(numberReceived / seconds));
-    }
-
-    /**
-     * Record all stats related to sync timing
-     *
-     * @param timing object that holds the timing data
-     * @param conn   the sync connections
-     */
-    public void recordSyncTiming(final SyncTiming timing, final Connection conn) {
-        avgSyncDuration1.update(timing.getTimePoint(0), timing.getTimePoint(1));
-        avgSyncDuration2.update(timing.getTimePoint(1), timing.getTimePoint(2));
-        avgSyncDuration3.update(timing.getTimePoint(2), timing.getTimePoint(3));
-        avgSyncDuration4.update(timing.getTimePoint(3), timing.getTimePoint(4));
-        avgSyncDuration5.update(timing.getTimePoint(4), timing.getTimePoint(5));
-
-        avgSyncDuration.update(timing.getTimePoint(0), timing.getTimePoint(5));
-        final double syncDurationSec = timing.getPointDiff(5, 0) * UnitConstants.NANOSECONDS_TO_SECONDS;
-        final double speed = Math.max(
-                        conn.getDis().getSyncByteCounter().getCount(),
-                        conn.getDos().getSyncByteCounter().getCount())
-                / syncDurationSec;
-
-        // set the bytes/sec speed of the sync currently measured
-        avgBytesPerSecSync.update(speed);
     }
 
     /**
@@ -447,13 +409,6 @@ public class SyncMetrics {
      */
     public void acceptedSyncRequest() {
         acceptedSyncRequestsPerSec.count();
-    }
-
-    /**
-     * Indicate that there was an opportunity to sync with a peer. The protocol may or may not take the opportunity
-     */
-    public void opportunityToInitiateSync() {
-        opportunitiesToInitiateSyncPerSec.count();
     }
 
     /**
@@ -540,6 +495,20 @@ public class SyncMetrics {
      */
     public void doNotSyncFairSelector() {
         doNotSyncFairSelector.count();
+    }
+
+    /**
+     * Event was sent over broadcast to remote nodes (as opposed to sending events over sync)
+     */
+    public void broadcastEventSent() {
+        broadcastEventsSentCounter.count();
+    }
+
+    /**
+     * Event was received over broadcast from remote nodes (as opposed to receiving events over sync)
+     */
+    public void broadcastEventReceived() {
+        broadcastEventsReceivedCounter.count();
     }
 
     /**
@@ -633,5 +602,53 @@ public class SyncMetrics {
                 new Config(metrics, PLATFORM_CATEGORY, name)
                         .withMaxSizeMetricEnabled(true)
                         .withMinSizeMetricEnabled(true));
+    }
+
+    /**
+     * Broadcast was disabled or enabled due to ping lag between the nodes
+     *
+     * @param disabled is broadcast disabled
+     */
+    public void disabledBroadcastDueToLag(final boolean disabled) {
+        broadcastDisabledDueToLag.add(disabled ? 1 : -1);
+    }
+
+    /**
+     * Broadcast was disabled or enabled due to rpc queue size for a peer
+     *
+     * @param disabled is broadcast disabled
+     */
+    public void disabledBroadcastDueToOverload(final boolean disabled) {
+        broadcastDisabledDueToOverload.add(disabled ? 1 : -1);
+    }
+
+    /**
+     * Report how much of a peer's inbound byte budget is currently consumed. The max across peers is what the
+     * shadow-mode rollout gate is read from.
+     *
+     * @param occupancy fraction of the burst budget consumed, from 0.0 to 1.0
+     */
+    public void reportShaperOccupancy(NodeId nodeId, final double occupancy) {
+        shaperOccupancy
+                .computeIfAbsent(
+                        nodeId,
+                        (id) -> new AverageAndMax(
+                                metrics,
+                                PLATFORM_CATEGORY,
+                                String.format("rpc_shaper_occupancy_%02d", nodeId.id()),
+                                "fraction of the per-peer inbound byte budget consumed, scale 0-1000 per-mille",
+                                FORMAT_4_2))
+                .update(Math.round(occupancy * 1000));
+    }
+
+    /**
+     * Reading from a peer was paused because the peer was over its byte budget. Note that nanos are passed in but
+     * microseconds are reported.
+     *
+     * @param nanos length of the pause in nanoseconds
+     */
+    public void rpcReadThrottled(final long nanos) {
+        rpcReadThrottled.count();
+        readThrottleTime.update(nanos / 1000);
     }
 }

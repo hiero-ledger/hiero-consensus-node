@@ -7,6 +7,7 @@ import static java.util.stream.Collectors.toList;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.infrastructure.OpProvider;
+import com.hedera.services.bdd.spec.keys.SigMapGenerator;
 import com.hedera.services.bdd.spec.queries.HapiQueryOp;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import java.util.ArrayList;
@@ -39,6 +40,7 @@ public class BiasedDelegatingProvider implements OpProvider {
 
     private boolean shouldAlwaysDefer = true;
     private boolean shouldLogNormalFlow = false;
+    private SigMapGenerator sigMapGen;
 
     public BiasedDelegatingProvider withOp(OpProvider delegate, int bias) {
         if (bias != 0) {
@@ -66,6 +68,11 @@ public class BiasedDelegatingProvider implements OpProvider {
 
     public BiasedDelegatingProvider shouldLogNormalFlow(boolean flag) {
         shouldLogNormalFlow = flag;
+        return this;
+    }
+
+    public BiasedDelegatingProvider withSigMapGen(SigMapGenerator gen) {
+        this.sigMapGen = gen;
         return this;
     }
 
@@ -125,6 +132,10 @@ public class BiasedDelegatingProvider implements OpProvider {
             } else if (isQueryOp(op)) {
                 ((HapiQueryOp) op).payingWith(UNIQUE_PAYER_ACCOUNT);
             }
+        }
+
+        if (sigMapGen != null && isTxnOp) {
+            ((HapiTxnOp) op).sigMapPrefixes(sigMapGen);
         }
 
         if (!shouldLogNormalFlow) {

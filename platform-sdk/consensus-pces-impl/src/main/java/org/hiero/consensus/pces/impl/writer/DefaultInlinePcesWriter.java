@@ -15,7 +15,6 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pces.config.FileSyncOption;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.impl.common.CommonPcesWriter;
-import org.hiero.consensus.pces.impl.common.PcesFileManager;
 
 public class DefaultInlinePcesWriter implements InlinePcesWriter {
 
@@ -25,25 +24,37 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
     private final PcesWriterPerEventMetrics pcesWriterPerEventMetrics;
 
     /**
+     * Are we in the middle of component shutdown? If yes, ignore incoming events
+     */
+    private volatile boolean beingDestroyed;
+
+    /**
+     * Set to true while we are in the middle of processing events, to synchronize with destruction logic
+     */
+    private volatile boolean processingEvent;
+
+    /**
      * Constructor
      *
-     * @param configuration  the configuration of the platform
-     * @param metrics        the metrics system of the platform
-     * @param time           the time source of the platform
-     * @param fileManager     manages all preconsensus event stream files currently on disk
+     * @param configuration    the configuration of the platform
+     * @param metrics          the metrics system of the platform
+     * @param time             the time source of the platform
+     * @param commonPcesWriter the common writer that manages file I/O
+     * @param selfId           the ID of this node
      */
     public DefaultInlinePcesWriter(
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final PcesFileManager fileManager,
+            @NonNull final CommonPcesWriter commonPcesWriter,
             @NonNull final NodeId selfId) {
-        requireNonNull(fileManager, "fileManager is required");
-        this.commonPcesWriter = new CommonPcesWriter(configuration, fileManager);
+        this.commonPcesWriter = requireNonNull(commonPcesWriter, "commonPcesWriter is required");
         this.selfId = requireNonNull(selfId, "selfId is required");
         this.fileSyncOption = configuration.getConfigData(PcesConfig.class).inlinePcesSyncOption();
 
         this.pcesWriterPerEventMetrics = new PcesWriterPerEventMetrics(metrics, time);
+
+        Runtime.getRuntime().addShutdownHook(new Thread(this::destroy, "pces-shutdown-sync"));
     }
 
     @Override
@@ -57,7 +68,6 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
     @NonNull
     @Override
     public PlatformEvent writeEvent(@NonNull final PlatformEvent event) {
-        pcesWriterPerEventMetrics.startWriteEvent();
 
         // if we aren't streaming new events yet, assume that the given event is already durable
         if (!commonPcesWriter.isStreamingNewEvents()) {
@@ -69,7 +79,20 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
             return event;
         }
 
+        // we need to check first time, as we don't want end up missing processingEvent==false gap
+        // in destroy() method
+        if (beingDestroyed) {
+            return event;
+        }
+
         try {
+            pcesWriterPerEventMetrics.startWriteEvent();
+            processingEvent = true;
+            if (beingDestroyed) {
+                // we need to check second time, it might have changed in between
+                return event;
+            }
+
             commonPcesWriter.prepareOutputStream(event);
             pcesWriterPerEventMetrics.startFileWrite();
             final long size = commonPcesWriter.getCurrentMutableFile().writeEvent(event);
@@ -89,6 +112,7 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
         } finally {
             pcesWriterPerEventMetrics.endWriteEvent();
             pcesWriterPerEventMetrics.clear();
+            processingEvent = false;
         }
     }
 
@@ -109,7 +133,19 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
     }
 
     @Override
-    public void setMinimumAncientIdentifierToStore(@NonNull final Long minimumAncientIdentifierToStore) {
-        commonPcesWriter.setMinimumAncientIdentifierToStore(minimumAncientIdentifierToStore);
+    public void setMinimumBirthRoundToStore(@NonNull final Long minimumBirthRoundToStore) {
+        commonPcesWriter.setMinimumBirthRoundToStore(minimumBirthRoundToStore);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void destroy() {
+        this.beingDestroyed = true;
+        while (this.processingEvent) {
+            Thread.yield();
+        }
+        this.commonPcesWriter.destroy();
     }
 }

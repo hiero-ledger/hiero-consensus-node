@@ -58,26 +58,26 @@ public class Application {
 
         // create metrics registry without global labels
         MetricRegistry metricRegistry = MetricRegistry.builder()
-                .discoverMetricProviders() // discover all metrics providers via SPI
+                .discoverMetricProviders() // discover all metric providers via SPI
                 .discoverMetricsExporter(configuration) // discover single exporter factory via SPI
                 //.setMetricsExporter(myDefaultExporter) // or set default exporter programmatically
                 .build();
 
         // pass metrics registry to required classes to retrieve or register metrics
         MyModuleService service = new MyModuleService();
-        service.bindMetrics(metricRegistry);
+        service.bind(metricRegistry);
 
         // Application logic...
     }
 }
 
 // Each module can register some metrics by implementing MetricsRegistrationProvider SPI
-class MyModuleMetricsProvider implements MetricsRegistrationProvider {
+class MyModuleMetrics implements MetricsRegistrationProvider {
 
     public static final MetricKey<LongCounter> REQUESTS_COUNTER_KEY = MetricKey.of("requests", LongCounter.class);
 
     @Override
-    public Collection<Metric.Builder<?, ?>> getMetricsToRegister(Configuration configuration) {
+    public Collection<Metric.Builder<?, ?>> getMetricsToRegister() {
         // provide metrics to register
         return List.of(
                 LongCounter.builder(REQUESTS_COUNTER_KEY)
@@ -93,9 +93,10 @@ class MyModuleService implements MetricsBinder {
     private LongCounter requestsCounter;
 
     @Override
-    public void bindMetrics(MetricRegistry registry) {
+    public void bind(MetricRegistry registry) {
         // retrieve existing metric by its key
         this.requestsCounter = registry.getMetric(MyModuleMetrics.REQUESTS_COUNTER_KEY);
+        // bind metrics to other downstream/dependency services if needed
     }
 
     public void handleRequest(HttpMethod method, String path) {
@@ -110,7 +111,7 @@ class MyModuleService implements MetricsBinder {
 module my.module {
     requires org.hiero.metrics.core;
 
-    provides org.hiero.metrics.api.core.MetricsRegistrationProvider with
-            org.hiero.metrics.MyModuleMetricsProvider;
+    provides org.hiero.metrics.core.MetricsRegistrationProvider with
+            org.hiero.metrics.MyModuleMetrics;
 }
 ```

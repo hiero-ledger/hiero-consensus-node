@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.records;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.SERIAL;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileAppend;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.safeValidateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.takeBalanceSnapshots;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateRecordTransactionFees;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateTransferListForBalances;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withStrictCostAnswerValidation;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATE_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.FEE_COLLECTOR;
@@ -33,6 +33,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@Tag(SERIAL)
 @HapiTestLifecycle
 public class FileRecordsSanityCheckSuite {
     @BeforeAll
@@ -41,7 +42,6 @@ public class FileRecordsSanityCheckSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> fileAppendRecordSanityChecks() {
         return hapiTest(flattened(
                 fileCreate("test"),
@@ -53,7 +53,6 @@ public class FileRecordsSanityCheckSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> fileCreateRecordSanityChecks() {
         return hapiTest(flattened(
                 takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, FEE_COLLECTOR),
@@ -83,7 +82,8 @@ public class FileRecordsSanityCheckSuite {
                         .contents("Here are some new contents!")
                         .via("txn")
                         .fee(95_000_000L),
-                withStrictCostAnswerValidation(() -> getFileInfo("test").payingWith(EXCHANGE_RATE_CONTROL)),
+                getFileInfo("test").payingWith(EXCHANGE_RATE_CONTROL).via("fileInfoTxn"),
+                safeValidateChargedUsd("fileInfoTxn", 0.0001014, 0.0001),
                 validateTransferListForBalances(
                         "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, FEE_COLLECTOR)),
                 withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));

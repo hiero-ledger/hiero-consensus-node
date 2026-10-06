@@ -70,12 +70,12 @@ public class ClassicGrantApprovalCallTest extends CallTestBase {
         given(recordBuilder.status()).willReturn(ResponseCodeEnum.SUCCESS);
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 asBytesResult(GrantApprovalTranslator.GRANT_APPROVAL
                         .getOutputs()
                         .encode(Tuple.of(ResponseCodeEnum.SUCCESS.protoOrdinal(), true))),
-                result.getOutput());
+                result.output());
     }
 
     @Test
@@ -95,11 +95,11 @@ public class ClassicGrantApprovalCallTest extends CallTestBase {
         given(nativeOperations.getToken(NON_FUNGIBLE_TOKEN_ID)).willReturn(token);
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
+        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.state());
         assertEquals(
                 asBytesResult(
                         GrantApprovalTranslator.GRANT_APPROVAL_NFT.getOutputs().encode(Tuple.singleton((long)
                                 ResponseCodeEnum.SUCCESS.protoOrdinal()))),
-                result.getOutput());
+                result.output());
     }
 }

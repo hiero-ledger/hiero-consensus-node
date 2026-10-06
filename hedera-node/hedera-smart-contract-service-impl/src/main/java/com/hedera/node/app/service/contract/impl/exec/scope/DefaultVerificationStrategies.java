@@ -35,7 +35,7 @@ public class DefaultVerificationStrategies implements VerificationStrategies {
         }
         return new ActiveContractVerificationStrategy(
                 nativeOperations.entityIdFactory().newContractId(contractNum),
-                tuweniToPbjBytes(sender),
+                tuweniToPbjBytes(sender.getBytes()),
                 requiresDelegatePermission,
                 ActiveContractVerificationStrategy.UseTopLevelSigs.NO);
     }

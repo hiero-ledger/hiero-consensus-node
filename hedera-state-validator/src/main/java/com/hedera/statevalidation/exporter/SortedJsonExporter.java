@@ -4,20 +4,21 @@ package com.hedera.statevalidation.exporter;
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.hedera.statevalidation.util.ConfigUtils.MAX_OBJ_PER_FILE;
 import static com.hedera.statevalidation.util.ConfigUtils.PRETTY_PRINT_ENABLED;
+import static com.hedera.statevalidation.util.ConfigUtils.getVirtualMapValueParseMaxSizeBytes;
 
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.util.JsonUtils;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.base.utility.Pair;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedWriter;
@@ -50,7 +51,7 @@ public class SortedJsonExporter {
     public static final String SINGLE_STATE_TMPL = "%s_%s_%d.json";
 
     private final File resultDir;
-    private final MerkleNodeState state;
+    private final VirtualMapState state;
     private final long suppliedFirstLeafPath;
     private final long suppliedLastLeafPath;
     private final ExecutorService executorService;
@@ -62,7 +63,7 @@ public class SortedJsonExporter {
 
     public SortedJsonExporter(
             @NonNull final File resultDir,
-            @NonNull final MerkleNodeState state,
+            @NonNull final VirtualMapState state,
             @Nullable final String serviceName,
             @Nullable final String stateKey,
             long suppliedFirstLeafPath,
@@ -72,7 +73,7 @@ public class SortedJsonExporter {
 
     public SortedJsonExporter(
             @NonNull final File resultDir,
-            @NonNull final MerkleNodeState state,
+            @NonNull final VirtualMapState state,
             @NonNull final List<Pair<String, String>> serviceNameStateKeyList,
             long suppliedFirstLeafPath,
             long suppliedLastLeafPath) {
@@ -86,40 +87,7 @@ public class SortedJsonExporter {
 
         serviceNameStateKeyList.forEach(p -> {
             final int stateId = StateUtils.stateIdFor(p.left(), p.right());
-            final Comparator<Pair<Long, Bytes>> comparator;
-            if (stateId < StateKey.KeyOneOfType.RECORDCACHE_I_TRANSACTION_RECEIPTS.protoOrdinal()) {
-                comparator = (key1, key2) -> {
-                    ReadableSequentialData keyData1 = key1.right().toReadableSequentialData();
-                    keyData1.readVarInt(false); // read tag
-                    keyData1.readVarInt(false); // read value
-
-                    ReadableSequentialData keyData2 = key2.right().toReadableSequentialData();
-                    keyData2.readVarInt(false); // read tag
-                    keyData2.readVarInt(false); // read value
-
-                    return keyData1.readBytes((int) keyData1.remaining())
-                            .compareTo(keyData2.readBytes((int) keyData2.remaining()));
-                };
-            } else {
-                comparator = (key1, key2) -> {
-                    try {
-                        final StateKey stateKey1 = StateKey.PROTOBUF.parse(key1.right());
-                        final StateKey stateKey2 = StateKey.PROTOBUF.parse(key2.right());
-                        // queue metadata
-                        if (stateKey1.key().value() instanceof SingletonType) {
-                            return -1;
-                        }
-                        if (stateKey2.key().value() instanceof SingletonType) {
-                            return 1;
-                        }
-                        final Long index1 = (Long) stateKey1.key().value();
-                        final Long index2 = (Long) stateKey2.key().value();
-                        return index1.compareTo(index2);
-                    } catch (ParseException e) {
-                        throw new RuntimeException(e);
-                    }
-                };
-            }
+            final Comparator<Pair<Long, Bytes>> comparator = keyComparatorFor(stateId);
             keysByExpectedStateIds.computeIfAbsent(stateId, k -> new ConcurrentSkipListSet<>(comparator));
             nameByStateId.put(stateId, p);
         });
@@ -127,7 +95,7 @@ public class SortedJsonExporter {
 
     public void export() {
         final long startTimestamp = System.currentTimeMillis();
-        final VirtualMap vm = (VirtualMap) state.getRoot();
+        final VirtualMap vm = state.getRoot();
         totalNumber = vm.size();
         log.debug("Collecting keys from the state...");
         collectKeys(vm);
@@ -145,7 +113,7 @@ public class SortedJsonExporter {
     }
 
     private void collectKeys(@NonNull final VirtualMap vm) {
-        final VirtualMapMetadata metadata = vm.getMetadata();
+        final VirtualMap.Metadata metadata = vm.getMetadata();
 
         // define the first path and last path
         long firstLeafPath;
@@ -223,47 +191,17 @@ public class SortedJsonExporter {
 
     private void processRange(
             @NonNull final List<Pair<Long, Bytes>> keys, @NonNull final String fileName, int start, int end) {
-        final VirtualMap vm = (VirtualMap) state.getRoot();
+        final VirtualMap vm = state.getRoot();
         final File file = new File(resultDir, fileName);
         boolean emptyFile = true;
         try (final BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
             for (int i = start; i <= end; i++) {
                 final long path = keys.get(i).left();
                 final Bytes keyBytes = keys.get(i).right();
-                final Bytes valueBytes = vm.getRecords().findLeafRecord(path).valueBytes();
-                final StateKey stateKey;
-                final StateValue stateValue;
-                try {
-                    stateKey = StateKey.PROTOBUF.parse(keyBytes);
-                    stateValue = StateValue.PROTOBUF.parse(valueBytes);
-                    if (stateKey.key().kind().equals(StateKey.KeyOneOfType.SINGLETON)) {
-                        JsonUtils.write(
-                                writer,
-                                "{\"v\":%s}\n".formatted(StateUtils.valueToJson(stateValue.value())),
-                                PRETTY_PRINT_ENABLED);
-                    } else if (stateKey.key().value() instanceof Long) { // queue
-                        JsonUtils.write(
-                                writer,
-                                "{\"i\":%s, \"v\":%s}\n"
-                                        .formatted(stateKey.key().value(), StateUtils.valueToJson(stateValue.value())),
-                                PRETTY_PRINT_ENABLED);
-                    } else { // kv
-                        JsonUtils.write(
-                                writer,
-                                "{\"k\":\"%s\", \"v\":\"%s\"}\n"
-                                        .formatted(
-                                                StateUtils.keyToJson(stateKey.key())
-                                                        .replace("\\", "\\\\")
-                                                        .replace("\"", "\\\""),
-                                                StateUtils.valueToJson(stateValue.value())
-                                                        .replace("\\", "\\\\")
-                                                        .replace("\"", "\\\"")),
-                                PRETTY_PRINT_ENABLED);
-                    }
-                    emptyFile = false;
-                } catch (ParseException e) {
-                    throw new RuntimeException(e);
-                }
+                final VirtualLeafBytes<?> leafRecord = vm.getRecords().findLeafRecord(path);
+                final Bytes valueBytes = leafRecord == null ? Bytes.EMPTY : leafRecord.valueBytes();
+                writeEntry(writer, keyBytes, valueBytes);
+                emptyFile = false;
                 long currentObjCount = objectsProcessed.incrementAndGet();
                 if (currentObjCount % MAX_OBJ_PER_FILE == 0) {
                     log.debug("{} objects of {} are processed", currentObjCount, totalNumber);
@@ -275,6 +213,83 @@ public class SortedJsonExporter {
 
         if (emptyFile) {
             file.delete();
+        }
+    }
+
+    public static Comparator<Pair<Long, Bytes>> keyComparatorFor(final int stateId) {
+        if (stateId < StateKey.KeyOneOfType.RECORDCACHE_I_TRANSACTION_RECEIPTS.protoOrdinal()) {
+            return (key1, key2) -> {
+                final ReadableSequentialData keyData1 = key1.right().toReadableSequentialData();
+                keyData1.readVarInt(false); // tag
+                keyData1.readVarInt(false); // value length
+                final ReadableSequentialData keyData2 = key2.right().toReadableSequentialData();
+                keyData2.readVarInt(false);
+                keyData2.readVarInt(false);
+                return keyData1.readBytes((int) keyData1.remaining())
+                        .compareTo(keyData2.readBytes((int) keyData2.remaining()));
+            };
+        }
+        return (key1, key2) -> {
+            try {
+                final StateKey stateKey1 = StateKey.PROTOBUF.parse(key1.right());
+                final StateKey stateKey2 = StateKey.PROTOBUF.parse(key2.right());
+                final Object v1 = stateKey1.key().value();
+                final Object v2 = stateKey2.key().value();
+                final boolean s1 = v1 instanceof SingletonType;
+                final boolean s2 = v2 instanceof SingletonType;
+                if (s1 && s2) {
+                    return 0; // queue metadata singleton is one key; required for union alignment
+                }
+                if (s1) {
+                    return -1;
+                }
+                if (s2) {
+                    return 1;
+                }
+                return ((Long) v1).compareTo((Long) v2);
+            } catch (final ParseException e) {
+                throw new RuntimeException(e);
+            }
+        };
+    }
+
+    public static void writeEntry(
+            @NonNull final BufferedWriter writer, @NonNull final Bytes keyBytes, @NonNull final Bytes valueBytes)
+            throws IOException {
+        final StateKey stateKey;
+        final StateValue stateValue;
+        try {
+            stateKey = StateKey.PROTOBUF.parse(keyBytes);
+            stateValue = StateValue.PROTOBUF.parse(
+                    valueBytes.toReadableSequentialData(),
+                    false,
+                    false,
+                    Codec.DEFAULT_MAX_DEPTH,
+                    getVirtualMapValueParseMaxSizeBytes());
+        } catch (final ParseException e) {
+            throw new RuntimeException(e);
+        }
+        if (stateKey.key().kind().equals(StateKey.KeyOneOfType.SINGLETON)) {
+            JsonUtils.write(
+                    writer, "{\"v\":%s}\n".formatted(StateUtils.valueToJson(stateValue.value())), PRETTY_PRINT_ENABLED);
+        } else if (stateKey.key().value() instanceof Long) { // queue
+            JsonUtils.write(
+                    writer,
+                    "{\"i\":%s, \"v\":%s}\n"
+                            .formatted(stateKey.key().value(), StateUtils.valueToJson(stateValue.value())),
+                    PRETTY_PRINT_ENABLED);
+        } else { // kv
+            JsonUtils.write(
+                    writer,
+                    "{\"k\":\"%s\", \"v\":\"%s\"}\n"
+                            .formatted(
+                                    StateUtils.keyToJson(stateKey.key())
+                                            .replace("\\", "\\\\")
+                                            .replace("\"", "\\\""),
+                                    StateUtils.valueToJson(stateValue.value())
+                                            .replace("\\", "\\\\")
+                                            .replace("\"", "\\\"")),
+                    PRETTY_PRINT_ENABLED);
         }
     }
 }

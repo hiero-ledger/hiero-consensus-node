@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
-import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.FEE_DIVISOR_FACTOR;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.OfferedFeeCheck;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.OfferedFeeCheck.CHECK_OFFERED_FEE;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck;
@@ -17,7 +14,6 @@ import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.util.HapiUtils;
@@ -212,12 +208,11 @@ public class SolvencyPreCheck {
             case CONTRACT_CREATE -> {
                 final var contractCreate = txBody.contractCreateInstanceOrThrow();
                 yield contractCreate.initialBalance()
-                        + contractCreate.gas() * estimatedGasPriceInTinybars(CONTRACT_CREATE, consensusTime);
+                        + contractCreate.gas() * estimatedGasPriceInTinybars(consensusTime);
             }
             case CONTRACT_CALL -> {
                 final var contractCall = txBody.contractCallOrThrow();
-                yield contractCall.amount()
-                        + contractCall.gas() * estimatedGasPriceInTinybars(CONTRACT_CALL, consensusTime);
+                yield contractCall.amount() + contractCall.gas() * estimatedGasPriceInTinybars(consensusTime);
             }
             case ETHEREUM_TRANSACTION -> {
                 final var ethTxn = txBody.ethereumTransactionOrThrow();
@@ -227,10 +222,8 @@ public class SolvencyPreCheck {
         };
     }
 
-    private long estimatedGasPriceInTinybars(
-            @NonNull final HederaFunctionality functionality, @NonNull final Instant consensusTime) {
-        final var feeData = feeManager.getFeeData(functionality, consensusTime, SubType.DEFAULT);
-        final long priceInTinyCents = feeData.servicedataOrThrow().gas() / FEE_DIVISOR_FACTOR;
+    private long estimatedGasPriceInTinybars(@NonNull final Instant consensusTime) {
+        final long priceInTinyCents = feeManager.getGasPriceInTinyCents(consensusTime);
         final long priceInTinyBars = exchangeRateManager.getTinybarsFromTinycents(priceInTinyCents, consensusTime);
         return Math.max(priceInTinyBars, 1L);
     }

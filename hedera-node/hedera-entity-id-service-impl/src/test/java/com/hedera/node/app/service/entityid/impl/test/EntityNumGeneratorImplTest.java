@@ -29,11 +29,11 @@ class EntityNumGeneratorImplTest {
 
     @Test
     void testNewEntityNumWithInitialState() {
-        when(entityIdStore.incrementAndGet()).thenReturn(1L);
+        when(entityIdStore.incrementEntityNumAndGet()).thenReturn(1L);
         final var actual = subject.newEntityNum();
 
         assertThat(actual).isEqualTo(1L);
-        verify(entityIdStore).incrementAndGet();
+        verify(entityIdStore).incrementEntityNumAndGet();
     }
 
     @Test
@@ -48,12 +48,12 @@ class EntityNumGeneratorImplTest {
 
     @Test
     void testNewEntityNum() {
-        when(entityIdStore.incrementAndGet()).thenReturn(43L);
+        when(entityIdStore.incrementEntityNumAndGet()).thenReturn(43L);
 
         final var actual = subject.newEntityNum();
 
         assertThat(actual).isEqualTo(43L);
-        verify(entityIdStore).incrementAndGet();
+        verify(entityIdStore).incrementEntityNumAndGet();
         verify(entityIdStore, never()).peekAtNextNumber();
     }
 
@@ -65,6 +65,6 @@ class EntityNumGeneratorImplTest {
 
         assertThat(actual).isEqualTo(43L);
         verify(entityIdStore).peekAtNextNumber();
-        verify(entityIdStore, never()).incrementAndGet();
+        verify(entityIdStore, never()).incrementEntityNumAndGet();
     }
 }

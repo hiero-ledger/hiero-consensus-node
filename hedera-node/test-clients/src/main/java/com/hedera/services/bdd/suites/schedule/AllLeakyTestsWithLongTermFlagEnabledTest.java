@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.schedule;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.suites.utils.DynamicTestUtils.extractAllTestAnnotatedMethods;
 
-import com.hedera.services.bdd.junit.ContextRequirement;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -15,11 +13,9 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 // Running all leaky test methods that are specified in ALL_TESTS constant with scheduling.longTermEnabled enabled
 @HapiTestLifecycle
-@Tag(MATS)
 public class AllLeakyTestsWithLongTermFlagEnabledTest {
 
     private static final Supplier<?>[] ALL_TESTS = new Supplier<?>[] {
@@ -55,8 +51,7 @@ public class AllLeakyTestsWithLongTermFlagEnabledTest {
                 "ledger.transfers.maxLen",
                 "ledger.tokenTransfers.maxLen",
                 "scheduling.whitelist"
-            },
-            requirement = ContextRequirement.FEE_SCHEDULE_OVERRIDES)
+            })
     final Stream<DynamicTest> runAllTests() {
         var allDynamicTests = extractAllTestAnnotatedMethods(ALL_TESTS, IGNORED_TESTS, LeakyHapiTest.class);
         return allDynamicTests.stream().flatMap(s -> s);

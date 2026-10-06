@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.throttle;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BUCKET_HAS_NO_THROTTLE_GROUPS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OPERATION_REPEATED_IN_BUCKET_GROUPS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
@@ -20,6 +21,8 @@ import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.ThrottleGroup;
 import com.hedera.node.app.hapi.utils.sysfiles.validation.ExpectedCustomThrottles;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -37,17 +40,25 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class ThrottleParser {
-    public static final Set<HederaFunctionality> EXPECTED_OPS = ExpectedCustomThrottles.ACTIVE_OPS.stream()
-            .map(protoOp -> HederaFunctionality.fromProtobufOrdinal(protoOp.getNumber()))
+    public static final Set<HederaFunctionality> EXPECTED_OPS = toPbjOps(ExpectedCustomThrottles.ACTIVE_OPS);
+    private static final Set<HederaFunctionality> CLPR_OPS = toPbjOps(ExpectedCustomThrottles.CLPR_OPS);
+    /**
+     * The expected operations while CLPR is disabled; CLPR operations are only expected once CLPR is enabled.
+     */
+    public static final Set<HederaFunctionality> EXPECTED_OPS_WITHOUT_CLPR = EXPECTED_OPS.stream()
+            .filter(op -> !CLPR_OPS.contains(op))
             .collect(Collectors.toCollection(() -> EnumSet.noneOf(HederaFunctionality.class)));
 
+    private final ConfigProvider configProvider;
+
     @Inject
-    public ThrottleParser() {
-        // Dagger2
+    public ThrottleParser(@NonNull final ConfigProvider configProvider) {
+        this.configProvider = requireNonNull(configProvider);
     }
 
     public record ValidatedThrottles(
-            @NonNull ThrottleDefinitions throttleDefinitions, @NonNull ResponseCodeEnum successStatus) {
+            @NonNull ThrottleDefinitions throttleDefinitions,
+            @NonNull ResponseCodeEnum successStatus) {
         public ValidatedThrottles {
             requireNonNull(successStatus);
             requireNonNull(throttleDefinitions);
@@ -66,7 +77,7 @@ public class ThrottleParser {
      */
     public ValidatedThrottles parse(@NonNull final Bytes bytes) {
         try {
-            final var throttleDefinitions = ThrottleDefinitions.PROTOBUF.parse(bytes.toReadableSequentialData());
+            final var throttleDefinitions = ThrottleDefinitions.PROTOBUF.parseStrict(bytes.toReadableSequentialData());
             validate(throttleDefinitions);
             final var successStatus =
                     allExpectedOperations(throttleDefinitions) ? SUCCESS : SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
@@ -80,9 +91,21 @@ public class ThrottleParser {
      * Checks if the throttle definitions are valid.
      */
     private void validate(ThrottleDefinitions throttleDefinitions) {
+        checkForEmptyBuckets(throttleDefinitions);
         checkForZeroOpsPerSec(throttleDefinitions);
         checkForRepeatedOperations(throttleDefinitions);
         validateLeastCommonMultipleDoesNotOverflow(throttleDefinitions);
+    }
+
+    /**
+     * Checks if there are throttle buckets defined with no throttle groups.
+     */
+    private void checkForEmptyBuckets(ThrottleDefinitions throttleDefinitions) {
+        for (var bucket : throttleDefinitions.throttleBuckets()) {
+            if (bucket.throttleGroups().isEmpty()) {
+                throw new HandleException(BUCKET_HAS_NO_THROTTLE_GROUPS);
+            }
+        }
     }
 
     /**
@@ -95,7 +118,18 @@ public class ThrottleParser {
                 customizedOps.addAll(group.operations());
             }
         }
-        return customizedOps.containsAll(EXPECTED_OPS);
+        final boolean clprEnabled = configProvider
+                .getConfiguration()
+                .getConfigData(ClprConfig.class)
+                .enabled();
+        return customizedOps.containsAll(clprEnabled ? EXPECTED_OPS : EXPECTED_OPS_WITHOUT_CLPR);
+    }
+
+    private static Set<HederaFunctionality> toPbjOps(
+            @NonNull final Set<com.hederahashgraph.api.proto.java.HederaFunctionality> protoOps) {
+        return protoOps.stream()
+                .map(protoOp -> HederaFunctionality.fromProtobufOrdinal(protoOp.getNumber()))
+                .collect(Collectors.toCollection(() -> EnumSet.noneOf(HederaFunctionality.class)));
     }
 
     /**
@@ -137,7 +171,8 @@ public class ThrottleParser {
         try {
             for (var bucket : throttleDefinitions.throttleBuckets()) {
                 var lcm = leastCommonMultiple(bucket.throttleGroups());
-                final var unscaledCapacity = lcm * NTPS_PER_MTPS * CAPACITY_UNITS_PER_NANO_TXN / 1_000;
+                final var unscaledCapacity =
+                        Math.multiplyExact(Math.multiplyExact(lcm, NTPS_PER_MTPS), CAPACITY_UNITS_PER_NANO_TXN) / 1_000;
                 if (productWouldOverflow(unscaledCapacity, bucket.burstPeriodMs())) {
                     throw new ArithmeticException();
                 }

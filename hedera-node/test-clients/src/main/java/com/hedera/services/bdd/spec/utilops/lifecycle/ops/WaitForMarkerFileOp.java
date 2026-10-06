@@ -46,7 +46,8 @@ public class WaitForMarkerFileOp extends AbstractLifecycleOp {
         node.mfFuture(markerFile).orTimeout(timeout.toMillis(), MILLISECONDS).join();
         log.info("Node '{}' wrote marker file '{}'", node.getName(), markerFile.fileName());
         if (markerFile == EXEC_IMMEDIATE_MF) {
-            // Since the node writes the marker file last, the fake upgrade file and config.txt should be present
+            // Since the node writes the marker file last, the fake upgrade file and candidate-roster.json should be
+            // present
             final var fakeUpgradeFile = node.getExternalPath(UPGRADE_ARTIFACTS_DIR)
                     .resolve(FAKE_UPGRADE_FILE_NAME)
                     .toFile();

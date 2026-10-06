@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.assertions.TransferListAsserts.including;
@@ -22,6 +22,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
+import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.assertions.AssertUtils;
 import java.util.stream.Stream;
@@ -36,7 +37,6 @@ public class CryptoGetRecordsRegression {
     private static final String PAYER = "payer";
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> succeedsNormally() {
         String memo = "Dim galleries, dusky corridors got past...";
 
@@ -81,7 +81,7 @@ public class CryptoGetRecordsRegression {
                         .hasAnswerOnlyPrecheck(INSUFFICIENT_PAYER_BALANCE));
     }
 
-    @HapiTest
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> failsForInsufficientPayment() {
         return hapiTest(
                 cryptoCreate(PAYER),
@@ -108,7 +108,6 @@ public class CryptoGetRecordsRegression {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> getAccountRecords_testForDuplicates() {
         return hapiTest(
                 cryptoCreate(ACCOUNT_1).balance(5000000000000L).sendThreshold(1L),

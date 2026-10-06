@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.test.handlers;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_PAUSE_KEY;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.TOKENS_STATE_LABEL;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
@@ -12,16 +13,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
@@ -35,9 +33,6 @@ import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.handlers.TokenPauseHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.TokenHandlerTestBase;
 import com.hedera.node.app.service.token.records.TokenBaseStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -48,7 +43,6 @@ import com.swirlds.state.test.fixtures.MapReadableKVState;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -119,23 +113,6 @@ class TokenPauseHandlerTest extends TokenHandlerTestBase {
     }
 
     @Test
-    public void testCalculateFeesInvocations() {
-        FeeContext feeContext = mock(FeeContext.class);
-        FeeCalculatorFactory feeCalculatorFactory = mock(FeeCalculatorFactory.class);
-        FeeCalculator feeCalculator = mock(FeeCalculator.class);
-        when(feeContext.feeCalculatorFactory()).thenReturn(feeCalculatorFactory);
-        when(feeCalculatorFactory.feeCalculator(SubType.DEFAULT)).thenReturn(feeCalculator);
-        when(feeCalculator.addBytesPerTransaction(anyLong())).thenReturn(feeCalculator);
-
-        subject.calculateFees(feeContext);
-
-        InOrder inOrder = inOrder(feeCalculatorFactory, feeCalculator);
-        inOrder.verify(feeCalculatorFactory).feeCalculator(SubType.DEFAULT);
-        inOrder.verify(feeCalculator).addBytesPerTransaction(anyLong());
-        inOrder.verify(feeCalculator).calculate();
-    }
-
-    @Test
     void pausesUnPausedToken() {
         unPauseKnownToken();
         assertFalse(writableTokenStore.get(tokenId).paused());
@@ -144,6 +121,18 @@ class TokenPauseHandlerTest extends TokenHandlerTestBase {
 
         final var unpausedToken = writableTokenStore.get(tokenId);
         assertTrue(unpausedToken.paused());
+    }
+
+    @Test
+    void tokenHasEmptyKeyListPauseKey() {
+        // An empty key list is the HIP-540 key-removal sentinel and must be treated as "no key"
+        final var sentinelToken = token.copyBuilder()
+                .pauseKey(Key.newBuilder().keyList(KeyList.DEFAULT).build())
+                .build();
+        writableTokenStore.put(sentinelToken);
+
+        final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(TOKEN_HAS_NO_PAUSE_KEY, msg.getStatus());
     }
 
     @Test

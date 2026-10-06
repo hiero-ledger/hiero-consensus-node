@@ -13,10 +13,10 @@ import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomBalanceOperation;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.InvalidAddressContext;
+import com.hedera.node.app.service.contract.impl.state.AbstractMutableEvmAccount;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.evm.EVM;
-import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -51,7 +51,7 @@ class CustomBalanceOperationTest {
     private ProxyWorldUpdater updater;
 
     @Mock
-    private Account account;
+    private AbstractMutableEvmAccount account;
 
     private CustomBalanceOperation subject;
 
@@ -74,7 +74,7 @@ class CustomBalanceOperationTest {
     void systemAccountBalanceHardCodedToZero() {
         setupWarmGasCost();
         given(frame.getRemainingGas()).willReturn(1L);
-        given(frame.getStackItem(0)).willReturn(SYSTEM_ADDRESS);
+        given(frame.getStackItem(0)).willReturn(SYSTEM_ADDRESS.getBytes());
         given(addressChecks.isSystemAccount(SYSTEM_ADDRESS)).willReturn(true);
         final var expected = new Operation.OperationResult(1L, null);
         final var actual = subject.execute(frame, evm);
@@ -88,7 +88,7 @@ class CustomBalanceOperationTest {
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
             setupWarmGasCost();
             given(frame.getRemainingGas()).willReturn(1L);
-            given(frame.getStackItem(0)).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
+            given(frame.getStackItem(0)).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS.getBytes());
             frameUtils.when(() -> FrameUtils.invalidAddressContext(frame)).thenReturn(new InvalidAddressContext());
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);
             frameUtils
@@ -116,8 +116,8 @@ class CustomBalanceOperationTest {
         try (MockedStatic<FrameUtils> frameUtils = Mockito.mockStatic(FrameUtils.class)) {
             setupWarmGasCost();
             given(frame.getRemainingGas()).willReturn(1L);
-            given(frame.getStackItem(0)).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
-            given(frame.popStackItem()).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS);
+            given(frame.getStackItem(0)).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS.getBytes());
+            given(frame.popStackItem()).willReturn(NON_SYSTEM_LONG_ZERO_ADDRESS.getBytes());
             given(frame.warmUpAddress(NON_SYSTEM_LONG_ZERO_ADDRESS)).willReturn(true);
             given(frame.getWorldUpdater()).willReturn(updater);
             frameUtils.when(() -> FrameUtils.proxyUpdaterFor(frame)).thenReturn(updater);

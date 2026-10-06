@@ -165,7 +165,31 @@ message EventMessage {
     LogEntry log_entry = 2;
     // Consensus rounds event.
     ProtoConsensusRound consensus_round = 3;
+    // Synchronization point sent at the start of a subscription.
+    SyncPoint sync_point = 5;
   }
+  // Monotonically increasing sequence number stamped by the server when the message is published.
+  // A value of 0 indicates a message that is not part of the ordered stream (e.g. a sync point).
+  uint64 sequence = 4;
+}
+
+// Snapshot of the server's event stream state, sent as the first message of every subscription.
+// A sync point lets a reconnecting client learn the current status and detect gaps without
+// injecting a phantom status transition.
+message SyncPoint {
+  // The platform's current status at the time of subscription, or empty if unknown.
+  string current_status = 1;
+  // The sequence number of the oldest message still buffered, or 0 if the buffer is empty.
+  uint64 oldest_buffered = 2;
+  // The sequence number of the most recently published message.
+  uint64 latest_sequence = 3;
+}
+
+// Request to subscribe to the stream of event messages.
+message SubscribeRequest {
+  // Only messages with a sequence number strictly greater than this value are replayed. Use 0 to
+  // request the full buffer.
+  uint64 after_sequence = 1;
 }
 
 // Wrapper for a transaction submission request.
@@ -202,8 +226,11 @@ message QuiescenceRequest {
 // Service definition for communicating with the consensus node.
 service NodeCommunicationService {
 
-  // RPC to start the platform and stream event messages.
-  rpc Start(StartRequest) returns (stream EventMessage);
+  // RPC to start the platform. Returns once the platform has been started.
+  rpc Start(StartRequest) returns (google.protobuf.Empty);
+
+  // RPC to subscribe to the stream of event messages produced by the platform.
+  rpc Subscribe(SubscribeRequest) returns (stream EventMessage);
 
   // RPC used by the test harness to submit a transaction to the running
   // platform. Returns an TransactionRequestAnswer weather the platform accepted the transaction or not.

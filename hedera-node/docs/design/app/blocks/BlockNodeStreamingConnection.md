@@ -1,0 +1,394 @@
+# BlockNodeStreamingConnection.md
+
+## Table of Contents
+
+1. [Abstract](#abstract)
+2. [Definitions](#definitions)
+3. [Component Responsibilities](#component-responsibilities)
+4. [Component Interaction](#component-interaction)
+5. [Lifecycle](#lifecycle)
+6. [State Machine Diagrams](#state-machine-diagrams)
+7. [gRPC Metadata Correlation IDs](#grpc-metadata-correlation-ids)
+8. [Error Handling](#error-handling)
+   - [Consensus Node Behavior on EndOfStream Response Codes](#consensus-node-behavior-on-endofstream-response-codes)
+   - [Consensus Node Behavior on BehindPublisher Response](#consensus-node-behavior-on-behindpublisher-response)
+   - [EndOfStream Rate Limiting](#endofstream-rate-limiting)
+   - [Pipeline Operation Timeout](#pipeline-operation-timeout)
+
+## Abstract
+
+`BlockNodeStreamingConnection` represents a single connection between a consensus node and a block node.
+It manages connection state, handles communication, and reports errors to the `BlockNodeConnectionManager`.
+
+## Definitions
+
+<dl>
+<dt>BlockNodeStreamingConnection</dt>
+<dd>A connection instance managing communication and state with a block node.</dd>
+
+<dt>ConnectionState</dt>
+<dd>Represents current connection status: UNINITIALIZED, READY, ACTIVE, CLOSING, CLOSED.</dd>
+</dl>
+
+## Component Responsibilities
+
+- Establish and maintain the connection transport.
+- Handle incoming and outgoing message flow.
+- Detect unresponsive block nodes via configurable timeouts on pipeline operations.
+- Report connection errors promptly.
+- Coordinate with `BlockNodeConnectionManager` on lifecycle events.
+- Notify the block buffer when a block has been acknowledged and therefore eligible to be pruned.
+
+## Component Interaction
+
+- Communicates bi-directionally with `BlockNodeConnectionManager`.
+
+## Lifecycle
+
+A block node connection gets spawned by the `BlockNodeConnectionManager`. There are multiple ways in which a connection
+may get created, such as:
+- Initial consensus node startup, which randomly selects a node with the highest priority
+- Periodic connection reset
+- Connection failure (e.g. `EndStream` response received) that causes the connection to restart
+
+When the connection is created, it starts in the `UNINITIALIZED` state. This state signals that the connection object is
+created, but the underlying gRPC connection between the consensus node and the block node is not yet established. When
+the connection was created, optionally a specific block number to begin streaming with can be passed in. If one is not
+specified, then the connection will pick a block based on the state of the block buffer.
+
+The next transitional state is `READY`. When the underlying gRPC connection is established (by invoking
+`#createRequestPipeline`) the state will transition to `READY` indicating that the connection was successfully created.
+No traffic is occurring over the connection in this state, merely this state indicates that the connection is _ready_ to
+start handling traffic.
+
+Once the connection manager has established that a connection is to become the new active connection, the connection's
+state will get updated to `ACTIVE`. This state signals that the connection is actively processing requests and responses
+to and from the block node.
+
+Once the state transitions to `ACTIVE`, a worker thread is spawned for the connection. This worker is responsible for
+sending requests to the block node. The worker operates in a loop, sleeping for a short period of time - determined by
+the configuration property `blockNode.connectionWorkerSleepDuration`. When not sleeping, the worker will first check if
+the current streaming block needs to be updated. If this is the first time the worker has performed this check, one of
+the following will happen:
+- If the connection was initialized with an explicit block to start with, then that block will be loaded from the block buffer.
+- If the connection wasn't initialized with an explicit block, then the most recent block produced is chosen as the block to start streaming.
+- If at any point during the lifespan of the connection a `SkipBlock`, `ResendBlock` or `BehindPublisher` response is received, then the
+worker will detect this and switch to that block.
+
+If the block is not available yet (e.g. no items yet) then the worker will go back to sleep and try again later. If the
+block does exist, then the worker thread will start collecting one or more block items to form a "pending" request that
+will ultimately be sent to the block node. If there are multiple block items to send, but they are found - in aggregate -
+that they are too large to send in one request, then multiple requests will be sent. In general, sending a request will
+happen in one of three scenarios:
+- The pending request cannot support more block items because it would be too large, so the current pending request will be sent.
+- If the pending request contains the last item(s) - including the proof - and the block is marked as closed, send the request.
+- If a request hasn't been sent recently (determined by the configuration property `blockNode.maxRequestDelay`) and there
+is a pending request with at least one block item, it will get sent.
+
+If none of these conditions are met, the worker will sleep and try again the next time it wakes up. If a block item is
+found that would exceed the maximum request size (as measured in bytes) supported, then an error will be recorded and
+the connection will be closed after sending an `EndStream` request to the block node, which the error code `ERROR`. Such
+a scenario is considered a fatal, unrecoverable error condition. Manual intervention would be needed to recover from this
+(for example: increasing the maximum size allowed, if possible.)
+
+When the final items of a block are sent (including all of the `BlockProof`s), the worker ensures to send a `EndOfBlock` `PublishStreamRequest`.
+This `EndOfBlock` request signals the completion of the current block's transmission to the block node. After sending the
+`EndOfBlock` request, the worker will proceed to process the next block if available.
+
+Under normal situations, the worker will continue advancing to the next block after it has successfully sent all items
+associated with the current block. This process will repeat until the connection is terminated for any reason. (A
+conditional check is performed each time the worker wakes up ensuring the connection is not in a terminal state.)
+
+For cases where an `EndOfStream` response is received from the block node or some other internal error condition is encountered
+\- e.g. transient network error - then the connection will transition to a `CLOSING` state. This state signals that the connection
+has entered a terminal state and is in the process of stopping and being cleaned up. Once final cleanup processes complete,
+the connection will transition to the final end state: `CLOSED`. Once a connection enters a terminal state, no further
+actions - such as sending requests - should be performed on the connection. Likewise, once the connection worker detects
+the transition to a terminal state, it too will cease operations.
+
+To establish a connection back to the block node, a new connection object will need to be created.
+
+### Request Timeouts
+
+Each request that gets sent to a block node has a timeout associated with it. These timeouts are based on the size of
+the request being sent.
+
+For each request, the total size of the request is determined (as a number of bytes). Then, a calculation is performed
+that multiplies the number of kilobytes (1024 bytes) that make up the request by a number of microseconds
+(`blockNode.operationTimeout.microsPerKilobyte`). This value is then converted to milliseconds and added to the base
+milliseconds (`blockNode.operationTimeout.baseMillis`). If the total exceeds the maximum timeout
+(`blockNode.operationTimeout.maxMillis`) then the timeout clamped to the max allowed. This is the amount of time the
+consensus node will wait for a request to complete before timing it out.
+
+If the number of times a timeout has been encountered exceeds the max allowed (`blockNode.operationTimeout.maxTimeoutsPerWindow`)
+within a given window of time (`blockNode.operationTimeout.timeoutWindowDuration`) - for example, a max of 3 timeouts in
+a 60 second window, then the connection will be closed. The connection will have a close reason of `TIMEOUT`.
+If the number of timeouts does not exceed the max allowed, then the block may be resent. Regardless of what progress has
+been successfully made in sending parts of the block, if a retry is attempted, the requests will start with the block
+header and re-send the full block.
+
+### Request Sizing
+
+There are two configurations that govern the size of a `PublishStreamRequest` that gets sent to a block node.
+These configurations are `messageSizeSoftLimitBytes` and `messageSizeHardLimitBytes`. These configurations can be
+customized for each block node via the `block-nodes.json` file.
+
+Under normal circumstances, requests are packed with multiple block items such that they get as close to the soft
+limit message size as possible. If a block item is large and would cause the request to exceed the soft limit, then
+the large item will be sent in its own request. The absolute maximum size a request can be is defined by the hard
+limit message size. If an item (or serialized request) exceeds this hard limit, then the consensus node cannot send
+the item/request to the block node.
+
+The default soft limit size is 2 MB. The default hard limit size is 125 MB. If an item is handled by the consensus node
+that exceeds the hard limit - whether the default or custom configuration - then the item will not be sent to the block
+node. This will effectively prevent the block from being sent and will halt sending additional blocks (we can't send the
+block so it will never get acknowledged.) If this happens, the connection to the block node will be closed after the
+consensus node sends an EndStream(ERROR) message. On the consensus node side, the connection will have a close reason of
+`INTERNAL_ERROR`.
+
+## gRPC Metadata Correlation IDs
+
+To support traceability between CN and BN logs, CN sends a correlation ID in gRPC metadata.
+
+- Header name: `hiero-correlation-id`
+- Applied on both streaming and service gRPC clients
+
+### Correlation ID format
+
+Connection-level IDs:
+
+- `N#-STR#` for block streaming connections
+- `N#-SVC#` for block node service/status connections
+
+Where:
+
+- `N#` is the consensus node **node ID** (`NodeInfo.nodeId()`)
+- `STR#` and `SVC#` are monotonically increasing connection sequence numbers per type
+
+Block request IDs (streaming requests only):
+
+- `N#-STR#-BLK#-BAN#-REQ#`
+
+Where:
+
+- `BLK#` is the block number being sent
+- `BAN#` is the number of times this block has been tried
+- `REQ#` is the request number within that block
+
+### Logging format
+
+When sending requests to a block node, all requests have a correlation ID that is unique to the connection. The format
+of the correlation ID is:
+
+```
+N{NodeId}-STR{ConnectionId}-BLK{BlockNumber}-BAN{BlockAttemptNumber}-REQ{BlockRequestNumber}-CRN{ConnectionRequestNumber}
+```
+
+- Node ID: the ID of the current consensus node where the request originated from
+- Connection ID: the unique ID of the stream/connection established (unique within the lifespan of the JVM)
+- Block Number: the block number associated with the request
+- Block Attempt Number: the number of times the block has been attempted (happy path will be '1', but if a block is being retried then this number will increment for each retry)
+- Block Request Number: the request number unique to the block
+- Connection Request Number: unique ID for the request (unique within the lifespan of the connection)
+
+An example of this correlation ID is:
+`[N3-STR1-BLK0-BAN1-REQ2-CRN1391/localhost:37753/ACTIVE] ...`
+
+Some requests are not associated with a block, such as sending an EndStream request, and therefore they will lack
+block-specific details. These will have a format of:
+
+```
+N{NodeId}-[STR|SVC]{ConnectionId}-CRN{ConnectionRequestNumber}
+```
+
+An example of this correlation ID is:
+`[N3-SVC1-CRN12/localhost:37753/ACTIVE] ...`
+
+For general purpose logging, all logs should be identified by the node and stream with the format:
+
+```
+N{NodeId}-[STR|SVC]{ConnectionId}
+```
+
+An example of the correlation ID:
+`[N3-SVC1/localhost:37753/ACTIVE] ...`
+
+### Notes
+
+- The metadata value is attached via PBJ `RequestOptions.metadata()`.
+- For service/status requests, metadata uses the connection-level ID (`N#-SVC#`) without `REQ#`.
+- For streaming block-item sends, logs carry `BLK#` and `REQ#` to make searching for a specific block/request straightforward.
+
+### Graceful Connection Close
+
+When a connection is closed, a best effort attempt to gracefully close the connection will be performed. There are two
+aspects to this "graceful close":
+1. Unless the connection is unstable, or we are notifying the block node it is too far behind, before closing an attempt
+will be made to send an EndStream request to the block with the code `RESET`. If a different EndStream code has already
+been sent or the block node sent the consensus node its own EndStream message, then this final EndStream(RESET) message
+will NOT be sent upon close.
+2. If the connection is actively streaming a block, a best effort to stream the rest of the block will be performed
+before closing the connection.
+
+A caveat to this is if the connection manager is being shutdown, then the connections will NOT be closed gracefully.
+
+### Connection States
+
+- **UNINITIALIZED**: Initial state when a connection object is created. The bidi RequestObserver needs to be created.
+- **READY**: The bidi RequestObserver is established, but this connection has not been chosen as the active one (priority-based selection).
+- **ACTIVE**: Connection is active and the Block Stream Worker Thread is sending `PublishStreamRequest`s to the block node through the async bidirectional stream. Only one connection can be ACTIVE at a time.
+- **CLOSING**: The connection is being closed. This is a terminal state where only cleanup operations are permitted. No more requests can be sent.
+- **CLOSED**: Connection has been fully closed and the pipeline terminated. This is a terminal state. No more requests can be sent and no more responses will be received.
+
+## State Machine Diagrams
+
+```mermaid
+stateDiagram-v2
+    [*] --> UNINITIALIZED : New Connection Created
+    UNINITIALIZED --> READY : Request pipeline established<br/>gRPC stream opened
+    READY --> ACTIVE : Manager promotes to active<br/>based on priority
+    READY --> CLOSING : Higher priority connection selected<br/>or connection error
+    ACTIVE --> CLOSING : Too many EndOfStream responses<br/>(rate limit exceeded)
+    ACTIVE --> CLOSING : EndOfStream ERROR
+    ACTIVE --> CLOSING : EndOfStream PERSISTENCE_FAILED
+    ACTIVE --> CLOSING : EndOfStream SUCCESS
+    ACTIVE --> CLOSING : EndOfStream UNKNOWN
+    ACTIVE --> CLOSING : Block not found in buffer
+    ACTIVE --> CLOSING : ResendBlock unavailable
+    ACTIVE --> CLOSING : BehindPublisher unavailable
+    ACTIVE --> CLOSING : gRPC onError
+    ACTIVE --> CLOSING : Stream failure
+    ACTIVE --> CLOSING : Pipeline operation timeout
+    ACTIVE --> CLOSING : Manual close
+    ACTIVE --> ACTIVE : BlockAcknowledgement
+    ACTIVE --> ACTIVE : SkipBlock
+    ACTIVE --> ACTIVE : ResendBlock available
+    ACTIVE --> ACTIVE : BehindPublisher available
+    ACTIVE --> ACTIVE : Normal streaming
+    ACTIVE --> CLOSING : EndOfStream TIMEOUT<br/>restart at next block
+    ACTIVE --> CLOSING : EndOfStream DUPLICATE_BLOCK<br/>restart at next block
+    ACTIVE --> CLOSING : EndOfStream BAD_BLOCK_PROOF<br/>restart at next block
+    ACTIVE --> CLOSING : EndOfStream INVALID_REQUEST<br/>restart at next block
+    ACTIVE --> CLOSING : Periodic stream reset
+    CLOSING --> CLOSED : Pipeline closed<br/>resources released
+    CLOSED --> [*] : Instance destroyed
+    note right of ACTIVE
+        Only one connection can be
+        ACTIVE at any time
+    end note
+    note left of PENDING
+        Multiple connections can
+        be PENDING simultaneously
+    end note
+    note right of CLOSING
+        Terminal state for cleanup
+        No new requests permitted
+    end note
+    note right of CLOSED
+        When a connection reaches CLOSED,
+        the manager may create a new
+        BlockNodeStreamingConnection instance that
+        starts at UNINITIALIZED
+    end note
+```
+
+### Connection Initialization
+
+```mermaid
+sequenceDiagram
+    participant Connection as BlockNodeStreamingConnection
+    participant Manager as BlockNodeConnectionManager
+
+    Connection->>Connection: initialize transport
+    Connection-->>Manager: notify connected
+```
+
+## Error Handling
+
+- Detects and reports connection errors.
+- Cleans up resources on disconnection.
+
+```mermaid
+sequenceDiagram
+    participant Connection as BlockNodeStreamingConnection
+    participant Manager as BlockNodeConnectionManager
+
+    Connection-->>Manager: reportError(error)
+```
+
+### Consensus Node Behavior on BehindPublisher Response
+
+The `BehindPublisher` response indicates that the block node is behind the publisher (consensus node) and needs earlier blocks. This is a separate response type from `EndOfStream`, and crucially **does not close the stream** when the consensus node can help.
+
+| Condition                            | Connection Behavior | Stream Closed | Resume at Block | Special Behaviour                                                                             |
+|:-------------------------------------|:--------------------|:--------------|:----------------|:----------------------------------------------------------------------------------------------|
+| Block available in buffer            | Stay connected      | No            | blockNumber + 1 | Connection remains open; streaming resumes from the earlier block                             |
+| Block not available (too far behind) | Close               | Yes           | Latest          | CN sends `EndStream.TOO_FAR_BEHIND` to indicate the BN should catch up from other Block Nodes |
+| Block not available (future block)   | Close               | Yes           | Latest          | CN sends `EndStream.ERROR` - this indicates an unexpected state                               |
+
+**Key Behavioral Notes:**
+- If the consensus node has the requested block in its buffer, it simply updates the streaming block and continues on the same connection.
+- The connection is only closed when the consensus node cannot provide the requested block.
+
+### EndOfStream Rate Limiting
+
+The connection implements a configurable rate limiting mechanism for EndOfStream responses to prevent rapid reconnection cycles and manage system resources effectively.
+
+### Configuration Parameters
+
+<dl>
+<dt>blockNode.maxEndOfStreamsAllowed</dt>
+<dd>The maximum number of EndOfStream responses permitted within the configured time window.</dd>
+
+<dt>blockNode.endOfStreamTimeFrame</dt>
+<dd>The duration of the sliding window in which EndOfStream responses are counted.</dd>
+
+<dt>blockNode.connectionWorkerSleepDuration</dt>
+<dd>The amount of time the connection worker thread will sleep between attempts to send block items to the block node.</dd>
+
+<dt>blockNode.maxRequestDelay</dt>
+<dd>The maximum amount of time between attempting to send block items to a block node, regardless of the number of items ready to send.</dd>
+
+<dt>pipelineOperationTimeout</dt>
+<dd>The maximum duration allowed for pipeline onNext() and onComplete() operations before considering the block node unresponsive. Default: 30 seconds.</dd>
+</dl>
+
+### Pipeline Operation Timeout
+
+To detect unresponsive block nodes during message transmission and connection establishment, the connection implements configurable timeouts for pipeline operations.
+
+#### Timeout Behavior
+
+Pipeline operations (`onNext()`, `onComplete()`, and pipeline creation) are potentially blocking I/O operations that are executed on a dedicated virtual thread executor with timeout enforcement using `Future.get(timeout)`. The executor is provided via dependency injection through the constructor, allowing for flexible configuration and easier testing.
+
+- **Pipeline creation timeout**: When establishing the gRPC connection via `createRequestPipeline()`, both the gRPC client creation and bidirectional stream setup are executed with timeout protection. If the operation does not complete within the configured timeout period:
+  - The Future is cancelled to interrupt the blocked operation
+  - The timeout metric is incremented
+  - A `RuntimeException` is thrown with the underlying `TimeoutException`
+  - The connection remains in UNINITIALIZED state
+- **onNext() timeout**: When sending block items via `sendRequest()`, the operation is submitted to the connection's dedicated executor and the calling thread blocks waiting for completion with a timeout. If the operation does not complete within the configured timeout period:
+  - The Future is cancelled to interrupt the blocked operation
+  - The timeout metric is incremented
+  - `handleStreamFailure()` is triggered (only if connection is still ACTIVE)
+  - The connection manager will select a different block node for the next attempt if one is available
+  - `TimeoutException` is caught and handled internally
+- **onComplete() timeout**: When closing the stream via `closePipeline()`, the operation is submitted to the same dedicated executor with the same timeout mechanism. If the operation does not complete within the configured timeout period:
+  - The Future is cancelled to interrupt the blocked operation
+  - The timeout metric is incremented
+  - Since the connection is already in CLOSING state, only the timeout is logged
+  - The connection completes the close operation normally
+
+**Note**: The dedicated executor (typically a virtual thread executor in production) is provided during construction and properly shut down when the connection closes with a 5-second grace period for termination, ensuring no resource leaks. If tasks don't complete within the grace period, `shutdownNow()` is called to forcefully terminate them.
+
+#### Exception Handling
+
+The implementation handles multiple exception scenarios across all timeout-protected operations:
+- **TimeoutException**: Pipeline operation exceeded the timeout - triggers failure handling for `onNext()` and pipeline creation, logged for `onComplete()`
+- **InterruptedException**: Thread was interrupted while waiting - interrupt status is restored via `Thread.currentThread().interrupt()` before propagating the exception (for `onNext()` and pipeline creation) or logging it (for `onComplete()` and executor shutdown)
+- **ExecutionException**: Error occurred during pipeline operation execution - the underlying cause is unwrapped and re-thrown (for `onNext()` and pipeline creation) or logged (for `onComplete()`)
+
+All exception scenarios include appropriate DEBUG-level logging with context information to aid in troubleshooting.
+
+#### Metrics
+
+A new metric `conn_pipelineOperationTimeout` tracks the total number of timeout events for pipeline creation, `onNext()`, and `onComplete()` operations, enabling operators to monitor block node responsiveness and connection establishment issues.

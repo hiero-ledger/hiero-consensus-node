@@ -7,6 +7,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
@@ -34,6 +36,7 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
@@ -107,7 +110,10 @@ class TokenServiceApiImplTest {
                     ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.DEFAULT, c -> {}),
             ENTITY_COUNTS_STATE_ID,
             new FunctionWritableSingletonState<>(
-                    ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, c -> {})));
+                    ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, c -> {}),
+            HIGHEST_NODE_ID_STATE_ID,
+            new FunctionWritableSingletonState<>(
+                    HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> NodeId.DEFAULT, c -> {})));
     private WritableAccountStore accountStore;
 
     @Mock
@@ -195,7 +201,7 @@ class TokenServiceApiImplTest {
     }
 
     @Test
-    void refusesToUpdateKvCountsForNonContract() {
+    void allowsToUpdateKvCountsForNonContract() {
         accountStore.put(Account.newBuilder()
                 .accountId(CONTRACT_ACCOUNT_ID)
                 .contractKvPairsNumber(3)
@@ -855,6 +861,57 @@ class TokenServiceApiImplTest {
 
             // And accumulated node fees are reduced
             assertThat(nodeFeeAccumulator.getAccumulatedFees(NODE_ACCOUNT_ID)).isZero();
+        }
+
+        @Test
+        void reverseNodeFeeDissipatesWhenFeeCollectionEnabled() {
+            // Given fee collection is enabled and a node fee was accumulated (as chargeFees would do)
+            final var config = configBuilder.getOrCreateConfig();
+            final var nodeFeeAccumulator = new TestNodeFeeAccumulator();
+            nodeFeeAccumulator.accumulate(NODE_ACCOUNT_ID, 2L);
+            subject =
+                    new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters, nodeFeeAccumulator);
+
+            // When we reverse the accumulated node fee
+            subject.reverseNodeFee(NODE_ACCOUNT_ID, 2L);
+
+            // Then the accumulation is undone (no ledger movement is involved)
+            assertThat(nodeFeeAccumulator.getAccumulatedFees(NODE_ACCOUNT_ID)).isZero();
+        }
+
+        @Test
+        void reverseNodeFeeIsNoopWhenFeeCollectionDisabled() {
+            // Given fee collection is disabled - node fees are credited directly to the node account in
+            // state (and rolled back by the savepoint), so there is nothing accumulated to reverse
+            final var config = configBuilder
+                    .withValue("nodes.feeCollectionAccountEnabled", false)
+                    .getOrCreateConfig();
+            final var nodeFeeAccumulator = new TestNodeFeeAccumulator();
+            nodeFeeAccumulator.accumulate(NODE_ACCOUNT_ID, 2L);
+            subject =
+                    new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters, nodeFeeAccumulator);
+
+            // When we reverse the accumulated node fee
+            subject.reverseNodeFee(NODE_ACCOUNT_ID, 2L);
+
+            // Then nothing is dissipated - the guard mirrors the accumulate guard in chargeFees()
+            assertThat(nodeFeeAccumulator.getAccumulatedFees(NODE_ACCOUNT_ID)).isEqualTo(2L);
+        }
+
+        @Test
+        void reverseNodeFeeIsNoopWhenAmountIsZero() {
+            // Given fee collection is enabled and a node fee was accumulated
+            final var config = configBuilder.getOrCreateConfig();
+            final var nodeFeeAccumulator = new TestNodeFeeAccumulator();
+            nodeFeeAccumulator.accumulate(NODE_ACCOUNT_ID, 2L);
+            subject =
+                    new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters, nodeFeeAccumulator);
+
+            // When we reverse a zero amount (the guard short-circuits before checking config)
+            subject.reverseNodeFee(NODE_ACCOUNT_ID, 0L);
+
+            // Then nothing is dissipated
+            assertThat(nodeFeeAccumulator.getAccumulatedFees(NODE_ACCOUNT_ID)).isEqualTo(2L);
         }
 
         private static class TestNodeFeeAccumulator implements NodeFeeAccumulator {

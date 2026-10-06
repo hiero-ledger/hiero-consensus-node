@@ -39,9 +39,6 @@ public class V059HintsSchema extends Schema<SemanticVersion> {
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().minor(59).build();
 
-    private static final long MAX_HINTS = 1L << 10;
-    private static final long MAX_PREPROCESSING_VOTES = 1L << 10;
-
     public static final String HINTS_KEY_SETS_KEY = "HINTS_KEY_SETS";
     public static final int HINTS_KEY_SETS_STATE_ID =
             StateKey.KeyOneOfType.HINTSSERVICE_I_HINTS_KEY_SETS.protoOrdinal();
@@ -76,17 +73,12 @@ public class V059HintsSchema extends Schema<SemanticVersion> {
                         ACTIVE_HINTS_CONSTRUCTION_STATE_ID, ACTIVE_HINTS_CONSTRUCTION_KEY, HintsConstruction.PROTOBUF),
                 StateDefinition.singleton(
                         NEXT_HINTS_CONSTRUCTION_STATE_ID, NEXT_HINTS_CONSTRUCTION_KEY, HintsConstruction.PROTOBUF),
-                StateDefinition.onDisk(
-                        HINTS_KEY_SETS_STATE_ID,
-                        HINTS_KEY_SETS_KEY,
-                        HintsPartyId.PROTOBUF,
-                        HintsKeySet.PROTOBUF,
-                        MAX_HINTS),
-                StateDefinition.onDisk(
+                StateDefinition.keyValue(
+                        HINTS_KEY_SETS_STATE_ID, HINTS_KEY_SETS_KEY, HintsPartyId.PROTOBUF, HintsKeySet.PROTOBUF),
+                StateDefinition.keyValue(
                         PREPROCESSING_VOTES_STATE_ID,
                         PREPROCESSING_VOTES_KEY,
                         PreprocessingVoteId.PROTOBUF,
-                        PreprocessingVote.PROTOBUF,
-                        MAX_PREPROCESSING_VOTES));
+                        PreprocessingVote.PROTOBUF));
     }
 }

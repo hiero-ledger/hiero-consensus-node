@@ -1,27 +1,79 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.record;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
+import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
+import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.FILES_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INTERNAL_SYSTEM_TRANSACTION;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.FileID;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
-import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.blockrecords.NodeMigrationRootHashVote;
+import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.file.File;
+import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.platform.state.NodeId;
+import com.hedera.hapi.services.auxiliary.blockrecords.MigrationRootHashVoteTransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
+import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
+import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
+import com.hedera.node.app.service.token.NodeRewardActivity;
+import com.hedera.node.app.service.token.NodeRewardAmounts;
+import com.hedera.node.app.service.token.NodeRewardGroups;
+import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
+import com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata;
+import com.hedera.node.app.spi.workflows.SystemContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.app.state.HederaRecordCache;
+import com.hedera.node.app.state.recordcache.BlockRecordSource;
+import com.hedera.node.app.workflows.TransactionInfo;
+import com.hedera.node.app.workflows.handle.Dispatch;
 import com.hedera.node.app.workflows.handle.DispatchProcessor;
+import com.hedera.node.app.workflows.handle.HandleOutput;
+import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
+import com.hedera.node.app.workflows.handle.steps.ParentTxn;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
@@ -30,11 +82,21 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
+import com.swirlds.state.spi.ReadableKVState;
+import com.swirlds.state.spi.ReadableStates;
+import com.swirlds.state.spi.WritableSingletonState;
+import com.swirlds.state.spi.WritableStates;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -43,6 +105,11 @@ class SystemTransactionsTest {
     private static final Instant NOW = Instant.ofEpochSecond(1234567L);
     private static final AccountID NODE_ACCOUNT_ID =
             AccountID.newBuilder().accountNum(3L).build();
+    private static final AccountID PAYER_ID =
+            AccountID.newBuilder().accountNum(800L).build();
+    private static final long CLPR_STAKING_ACCOUNT_NUM = 803L;
+    private static final AccountID CLPR_STAKING_ACCOUNT_ID =
+            AccountID.newBuilder().accountNum(CLPR_STAKING_ACCOUNT_NUM).build();
 
     @Mock(strictness = Mock.Strictness.LENIENT)
     private InitTrigger initTrigger;
@@ -93,10 +160,19 @@ class SystemTransactionsTest {
     private SelfNodeAccountIdManager selfNodeAccountIdManager;
 
     @Mock
+    private WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration;
+
+    @Mock
+    private MigrationRootHashSubmissions migrationRootHashSubmissions;
+
+    @Mock
     private State state;
 
     @Mock(strictness = Mock.Strictness.LENIENT)
     private NodeInfo creatorNodeInfo;
+
+    @Mock
+    private SystemTransactions.StateChangeStreaming stateChangeStreaming;
 
     private SystemTransactions subject;
 
@@ -119,7 +195,6 @@ class SystemTransactionsTest {
         given(creatorNodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
         given(creatorNodeInfo.sigCertBytes()).willReturn(Bytes.EMPTY);
         given(networkInfo.addressBook()).willReturn(List.of(creatorNodeInfo));
-
         subject = new SystemTransactions(
                 initTrigger,
                 parentTxnFactory,
@@ -135,16 +210,71 @@ class SystemTransactionsTest {
                 recordCache,
                 startupNetworks,
                 stakePeriodChanges,
-                selfNodeAccountIdManager);
+                selfNodeAccountIdManager,
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
     }
 
     @Test
     void testResetNextDispatchNonce() {
         // The nonce starts at 1 and should reset to 1
         subject.resetNextDispatchNonce();
-        // No exception means success - the nonce is private so we can't directly verify
+        // No exception means success - the nonce is private so we can't directly verify,
         // but we can verify the method doesn't throw
         assertDoesNotThrow(() -> subject.resetNextDispatchNonce());
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0, 1005})
+    void marksInternalAdminAndCreationDispatchesAsTrusted(final long entityNum) {
+        final var adminId = AccountID.newBuilder().accountNum(50).build();
+        given(entityIdFactory.newAccountId(50)).willReturn(adminId);
+        final var parentTxn = mock(ParentTxn.class);
+        final var stack = mock(SavepointStackImpl.class);
+        final var builder = mock(StreamBuilder.class);
+        final var dispatch = mock(Dispatch.class);
+        final var txnInfo = mock(TransactionInfo.class);
+        final var writableStates = mock(WritableStates.class);
+        final WritableSingletonState<EntityNumber> entityNumber = mock(WritableSingletonState.class);
+        final var records = new BlockRecordSource(List.of());
+        final var output = new HandleOutput(records, null, NOW);
+        given(parentTxnFactory.createSystemTxn(any(), any(), any(), any(), any(), any()))
+                .willReturn(parentTxn);
+        given(parentTxn.baseBuilder()).willReturn(builder);
+        given(parentTxn.stack()).willReturn(stack);
+        given(parentTxn.consensusNow()).willReturn(NOW);
+        given(parentTxn.txnInfo()).willReturn(txnInfo);
+        given(txnInfo.transactionID()).willReturn(TransactionID.DEFAULT);
+        given(exchangeRateManager.exchangeRates()).willReturn(ExchangeRateSet.DEFAULT);
+        given(parentTxnFactory.createDispatch(eq(parentTxn), eq(builder), any(), eq(NODE), any()))
+                .willReturn(dispatch);
+        given(dispatch.stack()).willReturn(stack);
+        given(dispatch.streamBuilder()).willReturn(builder);
+        given(builder.status()).willReturn(SUCCESS);
+        given(stack.getWritableStates(EntityIdService.NAME)).willReturn(writableStates);
+        given(writableStates.<EntityNumber>getSingleton(ENTITY_ID_STATE_ID)).willReturn(entityNumber);
+        given(entityNumber.get()).willReturn(new EntityNumber(1000));
+        given(stack.buildHandleOutput(NOW, ExchangeRateSet.DEFAULT, 0L)).willReturn(output);
+        final var context = subject.newSystemContext(
+                NOW,
+                state,
+                _ -> {},
+                SystemTransactions.UseReservedConsensusTimes.NO,
+                SystemTransactions.TriggerStakePeriodSideEffects.NO);
+
+        if (entityNum == 0) {
+            context.dispatchAdmin(body -> body.memo("internal admin transaction"));
+        } else {
+            context.dispatchCreation(body -> body.memo("internal creation transaction"), entityNum);
+        }
+
+        final var metadata = ArgumentCaptor.forClass(DispatchMetadata.class);
+        verify(parentTxnFactory).createDispatch(eq(parentTxn), eq(builder), any(), eq(NODE), metadata.capture());
+        assertEquals(
+                Boolean.TRUE, metadata.getValue().getMetadataIfPresent(INTERNAL_SYSTEM_TRANSACTION, Boolean.class));
+        assertEquals(entityNum, metadata.getValue().getMetadataIfPresent(SYSTEM_TXN_CREATION_ENTITY_NUM, Long.class));
+        verify(dispatchProcessor).processDispatch(dispatch);
+        verify(stack).commitFullStack();
     }
 
     @Test
@@ -191,7 +321,9 @@ class SystemTransactionsTest {
                 recordCache,
                 startupNetworks,
                 stakePeriodChanges,
-                selfNodeAccountIdManager);
+                selfNodeAccountIdManager,
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 
@@ -242,130 +374,97 @@ class SystemTransactionsTest {
     }
 
     @Test
-    void testDispatchNodeRewardsWithEmptyActiveNodes() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
-        final var rosterEntries = List.of(
-                RosterEntry.newBuilder().nodeId(0L).build(),
-                RosterEntry.newBuilder().nodeId(1L).build());
+    void testDispatchNodeRewardsWithEmptyAmounts() {
+        final var rewardAmounts = new NodeRewardAmounts(PAYER_ID);
 
-        // All nodes are inactive (not in activeNodeIds)
-        // And minNodeReward is 0, so no rewards should be dispatched
-        subject.dispatchNodeRewards(state, NOW, List.of(), 100L, nodeRewardsAccountId, 1000L, 0L, rosterEntries);
+        subject.dispatchNodeRewards(state, NOW, rewardAmounts);
 
-        // Should not dispatch anything when no active nodes and minNodeReward is 0
+        // Should not dispatch anything when rewardAmounts is empty
         verifyNoInteractions(parentTxnFactory);
         verifyNoInteractions(dispatchProcessor);
     }
 
     @Test
     void testDispatchNodeRewardsWithNullState() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
+        final var rewardAmounts = new NodeRewardAmounts(PAYER_ID);
 
-        assertThrows(
-                NullPointerException.class,
-                () -> subject.dispatchNodeRewards(
-                        null, NOW, List.of(0L), 100L, nodeRewardsAccountId, 1000L, 0L, List.of()));
+        assertThrows(NullPointerException.class, () -> subject.dispatchNodeRewards(null, NOW, rewardAmounts));
     }
 
     @Test
     void testDispatchNodeRewardsWithNullNow() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
+        final var rewardAmounts = new NodeRewardAmounts(PAYER_ID);
 
-        assertThrows(
-                NullPointerException.class,
-                () -> subject.dispatchNodeRewards(
-                        state, null, List.of(0L), 100L, nodeRewardsAccountId, 1000L, 0L, List.of()));
+        assertThrows(NullPointerException.class, () -> subject.dispatchNodeRewards(state, null, rewardAmounts));
     }
 
     @Test
-    void testDispatchNodeRewardsWithNullActiveNodeIds() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
-
-        assertThrows(
-                NullPointerException.class,
-                () -> subject.dispatchNodeRewards(state, NOW, null, 100L, nodeRewardsAccountId, 1000L, 0L, List.of()));
+    void testDispatchNodeRewardsWithNullRewardAmounts() {
+        assertThrows(NullPointerException.class, () -> subject.dispatchNodeRewards(state, NOW, null));
     }
 
     @Test
-    void testDispatchNodeRewardsWithNullNodeRewardsAccountId() {
-        assertThrows(
-                NullPointerException.class,
-                () -> subject.dispatchNodeRewards(state, NOW, List.of(0L), 100L, null, 1000L, 0L, List.of()));
+    void testDispatchNodeRewardsSuccess() {
+        final var rewardAmounts = new NodeRewardAmounts(PAYER_ID);
+        rewardAmounts.addConsensusNodeReward(
+                3L, AccountID.newBuilder().accountNum(3L).build(), 100L);
+
+        final var mockSystemContext = mock(SystemContext.class);
+        final var spySubject = spy(subject);
+        doReturn(mockSystemContext).when(spySubject).newSystemContext(any(), any(), any(), any(), any());
+
+        spySubject.dispatchNodeRewards(state, NOW, rewardAmounts);
+
+        verify(mockSystemContext).dispatchAdmin(any());
     }
 
     @Test
-    void testDispatchNodeRewardsWithActiveNodesButAllDeclineReward() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
-        final var rosterEntries = List.of(RosterEntry.newBuilder().nodeId(0L).build());
+    @SuppressWarnings("unchecked")
+    void genesisSetupSkipsClprStakingAccountWhileClprIsDisabled() {
+        final var systemContext = doGenesisSetup(false);
 
-        // Mock node info that declines reward
-        final var nodeInfo = mock(NodeInfo.class);
-        given(nodeInfo.declineReward()).willReturn(true);
-        given(networkInfo.nodeInfo(0L)).willReturn(nodeInfo);
-
-        subject.dispatchNodeRewards(state, NOW, List.of(0L), 100L, nodeRewardsAccountId, 1000L, 0L, rosterEntries);
-
-        // Should not dispatch anything when all active nodes decline reward
-        verifyNoInteractions(parentTxnFactory);
-        verifyNoInteractions(dispatchProcessor);
+        verify(systemContext, never()).dispatchCreation(any(Consumer.class), eq(CLPR_STAKING_ACCOUNT_NUM));
     }
 
     @Test
-    void testDispatchNodeRewardsWithNullNodeInfo() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
-        final var rosterEntries = List.of(RosterEntry.newBuilder().nodeId(0L).build());
+    void genesisSetupCreatesClprStakingAccountWhenClprIsEnabled() {
+        final var systemContext = doGenesisSetup(true);
 
-        // Mock null node info
-        given(networkInfo.nodeInfo(0L)).willReturn(null);
-
-        subject.dispatchNodeRewards(state, NOW, List.of(0L), 100L, nodeRewardsAccountId, 1000L, 0L, rosterEntries);
-
-        // Should not dispatch anything when node info is null
-        verifyNoInteractions(parentTxnFactory);
-        verifyNoInteractions(dispatchProcessor);
+        final var body = capturedClprStakingAccountCreation(systemContext);
+        assertEquals("CLPR staking account creation record", body.memo());
+        assertEquals(
+                IMMUTABILITY_SENTINEL_KEY, body.cryptoCreateAccountOrThrow().key());
     }
 
     @Test
-    void testDispatchNodeRewardsWithNullRosterEntries() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
+    @SuppressWarnings("unchecked")
+    void postUpgradeSkipsClprStakingAccountWhileClprIsDisabled() {
+        final var systemContext = doPostUpgradeSetupWithMockContext(false);
 
-        assertThrows(
-                NullPointerException.class,
-                () -> subject.dispatchNodeRewards(
-                        state, NOW, List.of(0L), 100L, nodeRewardsAccountId, 1000L, 0L, null));
+        verify(systemContext, never()).dispatchCreation(any(Consumer.class), eq(CLPR_STAKING_ACCOUNT_NUM));
+        verify(state, never()).getReadableStates(TokenService.NAME);
     }
 
     @Test
-    void testDispatchNodeRewardsWithEmptyRosterEntriesAndEmptyActiveNodes() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
+    void postUpgradeCreatesMissingClprStakingAccountWhenClprIsEnabled() {
+        givenAccountsState();
 
-        // Empty active nodes and empty roster entries - no rewards to distribute
-        subject.dispatchNodeRewards(state, NOW, List.of(), 100L, nodeRewardsAccountId, 1000L, 0L, List.of());
+        final var systemContext = doPostUpgradeSetupWithMockContext(true);
 
-        // Should not dispatch anything
-        verifyNoInteractions(parentTxnFactory);
-        verifyNoInteractions(dispatchProcessor);
+        final var body = capturedClprStakingAccountCreation(systemContext);
+        assertEquals("CLPR staking account creation record", body.memo());
+        assertEquals(
+                IMMUTABILITY_SENTINEL_KEY, body.cryptoCreateAccountOrThrow().key());
     }
 
     @Test
-    void testDispatchNodeRewardsWithInactiveNodesAndMinRewardZero() {
-        final var nodeRewardsAccountId = AccountID.newBuilder().accountNum(801L).build();
-        // Node 1 is in roster but not in active list
-        final var rosterEntries = List.of(RosterEntry.newBuilder().nodeId(1L).build());
+    @SuppressWarnings("unchecked")
+    void postUpgradeDoesNotRecreateExistingClprStakingAccount() {
+        given(givenAccountsState().get(CLPR_STAKING_ACCOUNT_ID)).willReturn(Account.DEFAULT);
 
-        // Mock node info for inactive node
-        final var inactiveNodeInfo = mock(NodeInfo.class);
-        given(inactiveNodeInfo.declineReward()).willReturn(false);
-        given(inactiveNodeInfo.accountId())
-                .willReturn(AccountID.newBuilder().accountNum(4L).build());
-        given(networkInfo.nodeInfo(1L)).willReturn(inactiveNodeInfo);
+        final var systemContext = doPostUpgradeSetupWithMockContext(true);
 
-        // minNodeReward is 0, so inactive nodes should not receive rewards
-        subject.dispatchNodeRewards(state, NOW, List.of(), 100L, nodeRewardsAccountId, 1000L, 0L, rosterEntries);
-
-        // Should not dispatch anything when no active nodes and minNodeReward is 0
-        verifyNoInteractions(parentTxnFactory);
-        verifyNoInteractions(dispatchProcessor);
+        verify(systemContext, never()).dispatchCreation(any(Consumer.class), eq(CLPR_STAKING_ACCOUNT_NUM));
     }
 
     @Test
@@ -397,7 +496,9 @@ class SystemTransactionsTest {
                 recordCache,
                 startupNetworks,
                 stakePeriodChanges,
-                selfNodeAccountIdManager);
+                selfNodeAccountIdManager,
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 
@@ -438,7 +539,9 @@ class SystemTransactionsTest {
                 recordCache,
                 startupNetworks,
                 stakePeriodChanges,
-                selfNodeAccountIdManager);
+                selfNodeAccountIdManager,
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 
@@ -468,5 +571,293 @@ class SystemTransactionsTest {
         // Should not dispatch anything when account amounts are empty
         verifyNoInteractions(parentTxnFactory);
         verifyNoInteractions(dispatchProcessor);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void testPostUpgradeCreatesSimpleFeesFileWhenMissing() {
+        // Reconfigure with nodes.enableDAB=false
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("consensus.handleMaxPrecedingRecords", 3)
+                .withValue("scheduling.reservedSystemTxnNanos", 1000)
+                .withValue("hedera.firstUserEntity", 1001)
+                .withValue("hedera.transactionMaxValidDuration", 180)
+                .withValue("accounts.systemAdmin", 50)
+                .withValue("nodes.enableDAB", "false")
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+
+        // Mock selfNodeInfo for setSelfNodeAccountId call
+        final var selfNodeInfo = mock(NodeInfo.class);
+        given(selfNodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
+        given(networkInfo.selfNodeInfo()).willReturn(selfNodeInfo);
+
+        // Mock state to return empty files state (file 0.0.113 not present)
+        final ReadableStates readableStates = mock(ReadableStates.class);
+        final ReadableKVState<FileID, File> filesState = mock(ReadableKVState.class);
+        given(state.getReadableStates(FileService.NAME)).willReturn(readableStates);
+        given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
+        given(filesState.get(any())).willReturn(null);
+
+        // Mock fileService.fileSchema() to return a mock schema
+        final var fileSchema = mock(V0490FileSchema.class);
+        given(fileService.fileSchema()).willReturn(fileSchema);
+
+        // Recreate subject with updated config
+        subject = new SystemTransactions(
+                initTrigger,
+                parentTxnFactory,
+                fileService,
+                networkInfo,
+                configProvider,
+                dispatchProcessor,
+                appContext,
+                servicesRegistry,
+                blockRecordManager,
+                blockStreamManager,
+                exchangeRateManager,
+                recordCache,
+                startupNetworks,
+                stakePeriodChanges,
+                selfNodeAccountIdManager,
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
+
+        subject.doPostUpgradeSetup(NOW, state);
+
+        // Verify createGenesisSimpleFeesSchedule was called since file was missing
+        verify(fileSchema).createGenesisSimpleFeesSchedule(any());
+        verify(startupNetworks).clearCachedNetworks();
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void testPostUpgradeSkipsSimpleFeesFileCreationWhenPresent() {
+        // Reconfigure with nodes.enableDAB=false
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("consensus.handleMaxPrecedingRecords", 3)
+                .withValue("scheduling.reservedSystemTxnNanos", 1000)
+                .withValue("hedera.firstUserEntity", 1001)
+                .withValue("hedera.transactionMaxValidDuration", 180)
+                .withValue("accounts.systemAdmin", 50)
+                .withValue("nodes.enableDAB", "false")
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+
+        // Mock selfNodeInfo for setSelfNodeAccountId call
+        final var selfNodeInfo = mock(NodeInfo.class);
+        given(selfNodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
+        given(networkInfo.selfNodeInfo()).willReturn(selfNodeInfo);
+
+        // Mock state to return files state WITH file 0.0.113 present
+        final ReadableStates readableStates = mock(ReadableStates.class);
+        final ReadableKVState<FileID, File> filesState = mock(ReadableKVState.class);
+        given(state.getReadableStates(FileService.NAME)).willReturn(readableStates);
+        given(readableStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
+        given(filesState.get(any())).willReturn(File.DEFAULT);
+        // Recreate subject with updated config
+        subject = new SystemTransactions(
+                initTrigger,
+                parentTxnFactory,
+                fileService,
+                networkInfo,
+                configProvider,
+                dispatchProcessor,
+                appContext,
+                servicesRegistry,
+                blockRecordManager,
+                blockStreamManager,
+                exchangeRateManager,
+                recordCache,
+                startupNetworks,
+                stakePeriodChanges,
+                selfNodeAccountIdManager,
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
+
+        subject.doPostUpgradeSetup(NOW, state);
+
+        // Verify fileSchema() was never accessed since file already exists
+        verify(fileService, never()).fileSchema();
+    }
+
+    @Test
+    void maybeSubmitStartupMigrationVoteSubmitsWhenSelfVoteAbsent() {
+        final var migrationResult = new WrappedRecordBlockHashMigration.Result(
+                Bytes.wrap(new byte[] {1}), List.of(Bytes.wrap(new byte[] {2})), 3L);
+        given(wrappedRecordBlockHashMigration.result()).willReturn(migrationResult);
+        given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
+        given(creatorNodeInfo.nodeId()).willReturn(0L);
+
+        final WritableStates blockRecordStates = mock(WritableStates.class);
+        @SuppressWarnings("unchecked")
+        final WritableSingletonState<BlockInfo> blockInfoSingleton = mock(WritableSingletonState.class);
+        given(state.getWritableStates(BlockRecordService.NAME)).willReturn(blockRecordStates);
+        given(blockRecordStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoSingleton);
+        given(blockInfoSingleton.get())
+                .willReturn(BlockInfo.newBuilder().votingComplete(false).build());
+
+        given(migrationRootHashSubmissions.submitStartupVoteIfActive(any())).willReturn(true);
+        subject.maybeSubmitStartupMigrationRootHashVote(state);
+        subject.maybeSubmitStartupMigrationRootHashVote(state);
+
+        verify(migrationRootHashSubmissions, times(1)).submitStartupVoteIfActive(any());
+    }
+
+    @Test
+    void maybeSubmitStartupMigrationVoteSkipsWhenSelfVotePresent() {
+        final var migrationResult = new WrappedRecordBlockHashMigration.Result(
+                Bytes.wrap(new byte[] {1}), List.of(Bytes.wrap(new byte[] {2})), 3L);
+        given(wrappedRecordBlockHashMigration.result()).willReturn(migrationResult);
+        given(networkInfo.selfNodeInfo()).willReturn(creatorNodeInfo);
+        given(creatorNodeInfo.nodeId()).willReturn(0L);
+
+        final WritableStates blockRecordStates = mock(WritableStates.class);
+        @SuppressWarnings("unchecked")
+        final WritableSingletonState<BlockInfo> blockInfoSingleton = mock(WritableSingletonState.class);
+        given(state.getWritableStates(BlockRecordService.NAME)).willReturn(blockRecordStates);
+        given(blockRecordStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoSingleton);
+        given(blockInfoSingleton.get())
+                .willReturn(BlockInfo.newBuilder()
+                        .votingComplete(false)
+                        .migrationRootHashVotes(List.of(NodeMigrationRootHashVote.newBuilder()
+                                .nodeId(new NodeId(0L))
+                                .vote(MigrationRootHashVoteTransactionBody.newBuilder()
+                                        .build())
+                                .build()))
+                        .build());
+
+        subject.maybeSubmitStartupMigrationRootHashVote(state);
+        subject.maybeSubmitStartupMigrationRootHashVote(state);
+
+        verify(migrationRootHashSubmissions, never()).submitStartupVoteIfActive(any());
+    }
+
+    private static NodeRewardGroups nodeRewardGroups(List<AccountID> active, List<AccountID> inactive) {
+        return new NodeRewardGroups(
+                active.stream()
+                        .map(id -> new NodeRewardActivity(id.accountNum(), id, 0, 100, 0))
+                        .collect(Collectors.toList()),
+                inactive.stream()
+                        .map(id -> new NodeRewardActivity(id.accountNum(), id, 101, 100, 0))
+                        .collect(Collectors.toList()));
+    }
+
+    private static @NonNull NodeRewardGroups emptyNodeGroups() {
+        return nodeRewardGroups(List.of(), List.of());
+    }
+
+    @Test
+    void currentBlockNumberUsesRecordBlockNumberInRecordsMode() throws Exception {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "RECORDS")
+                .withValue("consensus.handleMaxPrecedingRecords", 3)
+                .withValue("scheduling.reservedSystemTxnNanos", 1000)
+                .withValue("hedera.firstUserEntity", 1001)
+                .withValue("hedera.transactionMaxValidDuration", 180)
+                .withValue("accounts.systemAdmin", 50)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new SystemTransactions(
+                initTrigger,
+                parentTxnFactory,
+                fileService,
+                networkInfo,
+                configProvider,
+                dispatchProcessor,
+                appContext,
+                servicesRegistry,
+                blockRecordManager,
+                blockStreamManager,
+                exchangeRateManager,
+                recordCache,
+                startupNetworks,
+                stakePeriodChanges,
+                selfNodeAccountIdManager,
+                wrappedRecordBlockHashMigration,
+                migrationRootHashSubmissions);
+
+        final var method = SystemTransactions.class.getDeclaredMethod("currentBlockNumber");
+        method.setAccessible(true);
+
+        assertNull(method.invoke(subject));
+        verify(blockStreamManager, never()).blockNo();
+        verify(blockRecordManager, never()).blockNo();
+    }
+
+    @Test
+    void currentBlockNumberUsesBlockStreamNumberInBlocksMode() throws Exception {
+        given(blockStreamManager.blockNo()).willReturn(123L);
+
+        final var method = SystemTransactions.class.getDeclaredMethod("currentBlockNumber");
+        method.setAccessible(true);
+
+        assertEquals(123L, method.invoke(subject));
+        verify(blockStreamManager).blockNo();
+        verify(blockRecordManager, never()).blockNo();
+    }
+
+    @SuppressWarnings("unchecked")
+    private ReadableKVState<AccountID, Account> givenAccountsState() {
+        given(entityIdFactory.newAccountId(CLPR_STAKING_ACCOUNT_NUM)).willReturn(CLPR_STAKING_ACCOUNT_ID);
+        final var readableStates = mock(ReadableStates.class);
+        final ReadableKVState<AccountID, Account> accounts = mock(ReadableKVState.class);
+        given(state.getReadableStates(TokenService.NAME)).willReturn(readableStates);
+        given(readableStates.<AccountID, Account>get(ACCOUNTS_STATE_ID)).willReturn(accounts);
+        return accounts;
+    }
+
+    @SuppressWarnings("unchecked")
+    private SystemContext doPostUpgradeSetupWithMockContext(final boolean clprEnabled) {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("nodes.enableDAB", "false")
+                .withValue("clpr.enabled", clprEnabled)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        final var selfNodeInfo = mock(NodeInfo.class);
+        given(selfNodeInfo.accountId()).willReturn(NODE_ACCOUNT_ID);
+        given(networkInfo.selfNodeInfo()).willReturn(selfNodeInfo);
+        // The simple fees file already exists, so the CLPR staking account is the only possible creation
+        final ReadableStates fileStates = mock(ReadableStates.class);
+        final ReadableKVState<FileID, File> filesState = mock(ReadableKVState.class);
+        given(state.getReadableStates(FileService.NAME)).willReturn(fileStates);
+        given(fileStates.<FileID, File>get(FILES_STATE_ID)).willReturn(filesState);
+        given(filesState.get(any())).willReturn(File.DEFAULT);
+        final var systemContext = mock(SystemContext.class);
+        final var spySubject = spy(subject);
+        doReturn(systemContext).when(spySubject).newSystemContext(any(), any(), any(), any(), any());
+
+        spySubject.doPostUpgradeSetup(NOW, state);
+
+        return systemContext;
+    }
+
+    private SystemContext doGenesisSetup(final boolean clprEnabled) {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("clpr.enabled", clprEnabled)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        given(startupNetworks.genesisNetworkOrThrow(any())).willThrow(new IllegalStateException("No genesis network"));
+        given(state.getReadableStates(any())).willReturn(mock(ReadableStates.class));
+        final var systemContext = mock(SystemContext.class);
+        final var spySubject = spy(subject);
+        doReturn(systemContext).when(spySubject).newSystemContext(any(), any(), any(), any(), any());
+
+        spySubject.doGenesisSetup(NOW, state, stateChangeStreaming);
+
+        return systemContext;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static TransactionBody capturedClprStakingAccountCreation(@NonNull final SystemContext systemContext) {
+        final ArgumentCaptor<Consumer<TransactionBody.Builder>> spec = ArgumentCaptor.forClass(Consumer.class);
+        verify(systemContext).dispatchCreation(spec.capture(), eq(CLPR_STAKING_ACCOUNT_NUM));
+        final var builder = TransactionBody.newBuilder();
+        spec.getValue().accept(builder);
+        return builder.build();
     }
 }

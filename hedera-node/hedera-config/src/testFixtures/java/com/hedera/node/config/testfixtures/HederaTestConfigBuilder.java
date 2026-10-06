@@ -32,8 +32,10 @@ import com.hedera.node.config.data.BlockBufferConfig;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.CacheConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
@@ -69,26 +71,23 @@ import com.hedera.node.config.types.LongPair;
 import com.hedera.node.config.types.PermissionedAccountsRange;
 import com.hedera.node.config.validation.EmulatesMapValidator;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.FileSystemManagerConfig;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.platform.config.PathsConfig;
-import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.health.OSHealthCheckConfig;
-import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.base.concurrent.config.BasicCommonConfig;
 import org.hiero.base.crypto.config.CryptoConfig;
-import org.hiero.consensus.concurrent.config.BasicCommonConfig;
-import org.hiero.consensus.config.BasicConfig;
-import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.BasicConfig;
+import org.hiero.consensus.PathsConfig;
+import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.gossip.config.SocketConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.prometheus.PrometheusConfig;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
+import org.hiero.consensus.state.config.StateConfig;
+import org.hiero.consensus.status.monitor.config.PlatformStatusConfig;
 
 /**
  * A builder for creating {@link TestConfigBuilder} instances, or {@link Configuration} instances for testing. The
@@ -118,10 +117,8 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(PathsConfig.class)
                 .withConfigDataType(SocketConfig.class)
                 .withConfigDataType(StateConfig.class)
-                .withConfigDataType(StateCommonConfig.class)
+                .withConfigDataType(PathsConfig.class)
                 .withConfigDataType(CryptoConfig.class)
-                .withConfigDataType(TemporaryFileConfig.class)
-                .withConfigDataType(FileSystemManagerConfig.class)
                 .withConfigDataType(ReconnectConfig.class)
                 .withConfigDataType(MetricsConfig.class)
                 .withConfigDataType(PrometheusConfig.class)
@@ -150,6 +147,7 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(BlockRecordStreamConfig.class)
                 .withConfigDataType(BootstrapConfig.class)
                 .withConfigDataType(CacheConfig.class)
+                .withConfigDataType(ClprConfig.class)
                 .withConfigDataType(ConsensusConfig.class)
                 .withConfigDataType(ContractsConfig.class)
                 .withConfigDataType(HooksConfig.class)
@@ -173,6 +171,7 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(NodesConfig.class)
                 .withConfigDataType(TssConfig.class)
                 .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockStreamJumpstartConfig.class)
                 .withConfigDataType(BlockNodeConnectionConfig.class)
                 .withConfigDataType(BlockBufferConfig.class)
                 .withConfigDataType(AtomicBatchConfig.class)

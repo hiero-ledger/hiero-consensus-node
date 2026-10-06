@@ -16,6 +16,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.DaggerHederaInjectionComponent;
 import com.hedera.node.app.HederaInjectionComponent;
+import com.hedera.node.app.ServicesMain;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
@@ -29,8 +30,10 @@ import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
+import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
+import com.hedera.node.app.service.clpr.impl.ClprServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
@@ -53,9 +56,9 @@ import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import java.time.InstantSource;
@@ -63,7 +66,7 @@ import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;
@@ -133,7 +136,9 @@ class IngestComponentTest {
                 ForkJoinPool.commonPool(),
                 appContext,
                 new HintsLibraryImpl(),
-                DEFAULT_CONFIG.getConfigData(BlockStreamConfig.class).blockPeriod());
+                DEFAULT_CONFIG.getConfigData(BlockStreamConfig.class).blockPeriod(),
+                new com.hedera.node.app.hints.impl.RsaContext(appContext.configSupplier()),
+                new java.util.concurrent.ConcurrentHashMap<>());
         final var historyService =
                 new HistoryServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl());
         final var state = new FakeState();
@@ -174,6 +179,9 @@ class IngestComponentTest {
                 .consensusServiceImpl(new ConsensusServiceImpl())
                 .networkServiceImpl(new NetworkServiceImpl())
                 .addressBookService(new AddressBookServiceImpl())
+                .clprServiceImpl(new ClprServiceImpl())
+                .wrappedRecordBlockHashMigration(new WrappedRecordBlockHashMigration())
+                .transactionOffsetNanos(ServicesMain.transactionOffsetNanos(configuration))
                 .build();
 
         state.addService(RecordCacheService.NAME, Map.of(TRANSACTION_RECEIPTS_STATE_ID, new ArrayDeque<String>()));

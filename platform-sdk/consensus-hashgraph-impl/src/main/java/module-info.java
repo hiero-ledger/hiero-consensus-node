@@ -3,14 +3,26 @@ import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.hashgraph.impl.DefaultHashgraphModule;
 
 module org.hiero.consensus.hashgraph.impl {
-    exports org.hiero.consensus.hashgraph.impl.consensus;
-    exports org.hiero.consensus.hashgraph.impl.linking;
-    exports org.hiero.consensus.hashgraph.impl.metrics;
-    exports org.hiero.consensus.hashgraph.impl;
+    exports org.hiero.consensus.hashgraph.impl to
+            org.hiero.consensus.gossip.impl.test.fixtures,
+            org.hiero.consensus.gui,
+            org.hiero.consensus.hashgraph.impl.test.fixtures,
+            org.hiero.consensus.network.simulation,
+            org.hiero.consensus.network.simulation.test.fixtures,
+            org.hiero.otter.fixtures;
+    exports org.hiero.consensus.hashgraph.impl.consensus to
+            org.hiero.consensus.gui,
+            org.hiero.consensus.hashgraph.impl.test.fixtures,
+            org.hiero.consensus.pcli;
+    exports org.hiero.consensus.hashgraph.impl.linking to
+            org.hiero.consensus.gui,
+            org.hiero.consensus.hashgraph.impl.test.fixtures;
+    exports org.hiero.consensus.hashgraph.impl.metrics to
+            org.hiero.consensus.gui,
+            org.hiero.consensus.hashgraph.impl.test.fixtures;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
-    requires transitive com.swirlds.component.framework;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.crypto;
@@ -18,10 +30,10 @@ module org.hiero.consensus.hashgraph.impl {
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.wiring.framework;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
-    requires org.hiero.consensus.concurrent;
-    requires org.hiero.consensus.roster;
+    requires org.hiero.base.concurrent;
     requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j;
     requires static com.github.spotbugs.annotations;

@@ -10,19 +10,19 @@ open module com.swirlds.merkledb {
     exports com.swirlds.merkledb.files;
     exports com.swirlds.merkledb.files.hashmap;
     exports com.swirlds.merkledb.utilities;
+    // Diagnostic tooling reaches into the data source internals; not a supported public API
+    exports com.swirlds.merkledb.internal to
+            com.hedera.state.validator;
 
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.virtualmap;
-    requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires com.swirlds.base;
-    requires com.swirlds.common;
-    requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
-    requires org.hiero.consensus.concurrent;
+    requires org.hiero.base.concurrent;
     requires org.hiero.consensus.metrics;
     requires java.management;
     requires jdk.management;
@@ -31,4 +31,7 @@ open module com.swirlds.merkledb {
     requires org.eclipse.collections.api;
     requires org.eclipse.collections.impl;
     requires static transitive com.github.spotbugs.annotations;
+
+    provides com.swirlds.config.api.ConfigurationExtension with
+            com.swirlds.merkledb.config.MerkleDbConfigExtension;
 }

@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.node.app.service.token.AliasUtils.recoverAddressFromPubKey;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
@@ -24,13 +23,14 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedAtomicBatchFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedUsdWithinWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -41,6 +41,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_REMAINING_A
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
@@ -59,6 +61,7 @@ import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ThresholdKey;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -70,7 +73,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(ATOMIC_BATCH)
 class AtomicBatchAutoAccountCreationEndToEndTests {
 
-    private static final double BASE_FEE_BATCH_TRANSACTION = 0.001;
     private static final String FT_FOR_AUTO_ACCOUNT = "ftForAutoAccount";
     private static final String NFT_FOR_AUTO_ACCOUNT = "nftForAutoAccount";
     private static final String DUMMY_NFT = "dummyNft";
@@ -186,7 +188,11 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                                 .via("batchTxn")
                                 .hasKnownStatus(SUCCESS);
 
-                        final var batchTxnFeeCheck = validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        final var batchTxnFeeCheck = validateChargedUsdWithinWithTxnSize(
+                                "batchTxn",
+                                txnSize -> expectedAtomicBatchFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
 
                         // validate the public key accounts creation and transfers
                         final var infoCheckED2559First = getAliasedAccountInfo(VALID_ALIAS_ED25519)
@@ -381,7 +387,11 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                                 .via("batchTxn")
                                 .hasKnownStatus(SUCCESS);
 
-                        final var batchTxnFeeCheck = validateChargedUsd("batchTxn", BASE_FEE_BATCH_TRANSACTION);
+                        final var batchTxnFeeCheck = validateChargedUsdWithinWithTxnSize(
+                                "batchTxn",
+                                txnSize -> expectedAtomicBatchFullFeeUsd(
+                                        Map.of(SIGNATURES, 1L, PROCESSING_BYTES, (long) txnSize)),
+                                0.001);
 
                         // validate the hollow accounts creation and transfers
                         final var infoCheckEVMFirst = getAliasedAccountInfo(evmAliasFirst.get())
@@ -716,7 +726,6 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
 
         @HapiTest
         @DisplayName("Auto Create Hollow Account in one Batch, Finalize it and Token Transfer in Another Atomic Batch")
-        @Tag(MATS)
         Stream<DynamicTest> autoCreateHollowAccountInOneBatchFinalizeAndTokenTransferInAnotherBatch() {
 
             final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
@@ -860,7 +869,6 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                             .payingWith(OWNER)
                             .via("associateAndSupplyTokens"),
                     withOpContext((spec, opLog) -> {
-
                         // Create hollow account with token transfer in one atomic batch
                         final var atomicBatchTransactionFirst = atomicBatch(
                                         createHollowAccountWithCryptoTransferWithBatchKeyToAlias_RealTransfersOnly(
@@ -950,9 +958,8 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
         }
 
         @HapiTest
-        @DisplayName(
-                "Auto Create Hollow Account in one Batch and Finalize it in another Batch Inner Transaction Fails in Atomic Batch")
-        Stream<DynamicTest> autoCreateHollowAccountAndFinalizeInInnerTxnFailsInBatch() {
+        @DisplayName("Auto Create Hollow Account in one Batch and Hollow Account remains hollow after second Batch")
+        Stream<DynamicTest> autoCreateHollowAccountRemainsHollowAfterSecondBatch() {
 
             final AtomicReference<ByteString> evmAlias = new AtomicReference<>();
 
@@ -988,7 +995,7 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                                         createHollowAccountWithCryptoTransferWithBatchKeyToAlias_RealTransfersOnly(
                                                         CIVILIAN,
                                                         evmAlias.get(),
-                                                        10L,
+                                                        ONE_HBAR,
                                                         1L,
                                                         FT_FOR_AUTO_ACCOUNT,
                                                         List.of(3L), // NFT serials
@@ -1006,7 +1013,7 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                                 .isHollow()
                                 .has(accountWith()
                                         .hasEmptyKey()
-                                        .balance(10L)
+                                        .balance(ONE_HBAR)
                                         .noAlias()
                                         .maxAutoAssociations(-1)
                                         .memo(AUTO_MEMO))
@@ -1044,10 +1051,11 @@ class AtomicBatchAutoAccountCreationEndToEndTests {
                         spec.registry().saveAccountId(VALID_ALIAS_HOLLOW, newAccountId);
 
                         // try to finalize the auto-created hollow account with inner transaction only in second batch
+                        // the batch succeeds but the hollow account is not finalized in batch context
                         final var atomicBatchTransactionSecond = atomicBatch(finalizeHollowAccount)
                                 .payingWith(BATCH_OPERATOR)
-                                .via("batchTxnFirst")
-                                .hasPrecheck(INVALID_SIGNATURE);
+                                .via("batchTxnSecond")
+                                .hasKnownStatus(SUCCESS);
 
                         // validate the hollow account is not finalized but remains hollow
                         final var infoCheckEVMAliasSecond = getAliasedAccountInfo(evmAlias.get())

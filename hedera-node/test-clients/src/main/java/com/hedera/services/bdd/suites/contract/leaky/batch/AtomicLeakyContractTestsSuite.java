@@ -3,9 +3,9 @@ package com.hedera.services.bdd.suites.contract.leaky.batch;
 
 import static com.google.protobuf.ByteString.EMPTY;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
-import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
+import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -31,7 +31,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCallWit
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddressArray;
@@ -44,15 +43,13 @@ import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.sidecarValidatio
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertionsHold;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.reduceFeeFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_CONTRACT_SENDER;
 import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -100,6 +97,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECEIPT_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.hyperledger.besu.datatypes.Address.contractAddress;
@@ -111,11 +109,10 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.BytesValue;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
-import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.node.app.hapi.utils.fee.FeeConstants;
+import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
@@ -129,7 +126,6 @@ import com.hedera.services.bdd.suites.contract.Utils;
 import com.hedera.services.stream.proto.CallOperationType;
 import com.hedera.services.stream.proto.ContractAction;
 import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
@@ -150,16 +146,14 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 // This test cases are direct copies of LeakyContractTestsSuite. The difference here is that
 // we are wrapping the operations in an atomic batch to confirm that everything works as expected.
 @SuppressWarnings("java:S1192") // "string literal should not be duplicated" - this rule makes test suites worse
 @Tag(ATOMIC_BATCH)
-@OrderedInIsolation
 @HapiTestLifecycle
-class AtomicLeakyContractTestsSuite {
+public class AtomicLeakyContractTestsSuite {
     public static final String CREATE_TX = "createTX";
     public static final String CREATE_TX_REC = "createTXRec";
     public static final String FALSE = "false";
@@ -200,8 +194,7 @@ class AtomicLeakyContractTestsSuite {
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
     }
 
-    @HapiTest
-    @Order(27)
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> transferErc20TokenFromErc721TokenFails() {
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
@@ -221,7 +214,7 @@ class AtomicLeakyContractTestsSuite {
                         .payingWith(ACCOUNT),
                 uploadInitCode(ERC_20_CONTRACT),
                 contractCreate(ERC_20_CONTRACT),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         atomicBatch(contractCall(
                                                 ERC_20_CONTRACT,
@@ -242,12 +235,8 @@ class AtomicLeakyContractTestsSuite {
                 getTxnRecord(TRANSFER_TXN).andAllChildRecords());
     }
 
-    @Order(35)
-    @LeakyHapiTest(requirement = FEE_SCHEDULE_OVERRIDES)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> getErc20TokenNameExceedingLimits() {
-        final var REDUCED_NETWORK_FEE = 1L;
-        final var REDUCED_NODE_FEE = 1L;
-        final var REDUCED_SERVICE_FEE = 1L;
         final var INIT_ACCOUNT_BALANCE = 100 * ONE_HUNDRED_HBARS;
         return hapiTest(
                 newKeyNamed(MULTI_KEY),
@@ -264,9 +253,7 @@ class AtomicLeakyContractTestsSuite {
                 uploadInitCode(ERC_20_CONTRACT),
                 contractCreate(ERC_20_CONTRACT),
                 balanceSnapshot("accountSnapshot", ACCOUNT),
-                reduceFeeFor(
-                        HederaFunctionality.ContractCall, REDUCED_NODE_FEE, REDUCED_NETWORK_FEE, REDUCED_SERVICE_FEE),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         atomicBatch(contractCall(
                                                 ERC_20_CONTRACT,
@@ -293,8 +280,7 @@ class AtomicLeakyContractTestsSuite {
                                         .gasUsed(4_000_000))));
     }
 
-    @HapiTest
-    @Order(2)
+    @EmbeddedHapiTest({MUST_SKIP_INGEST, NEEDS_STATE_ACCESS})
     final Stream<DynamicTest> payerCannotOverSendValue() {
         final var payerBalance = 666 * ONE_HBAR;
         final var overdraftAmount = payerBalance + ONE_HBAR;
@@ -309,23 +295,25 @@ class AtomicLeakyContractTestsSuite {
                         .sending(overdraftAmount)
                         .hasPrecheck(INSUFFICIENT_PAYER_BALANCE),
                 usableTxnIdNamed(uncheckedCC).payerId(overAmbitiousPayer),
-                uncheckedSubmit(atomicBatch(contractCall(
-                                                PAY_RECEIVABLE_CONTRACT, DEPOSIT, BigInteger.valueOf(overdraftAmount))
-                                        .txnId(uncheckedCC)
-                                        .payingWith(overAmbitiousPayer)
-                                        .sending(overdraftAmount)
-                                        .batchKey(BATCH_OPERATOR))
-                                .payingWith(BATCH_OPERATOR))
-                        .payingWith(GENESIS),
-                sleepFor(1_000),
+                atomicBatch(contractCall(PAY_RECEIVABLE_CONTRACT, DEPOSIT, BigInteger.valueOf(overdraftAmount))
+                                .txnId(uncheckedCC)
+                                .payingWith(overAmbitiousPayer)
+                                .sending(overdraftAmount)
+                                .batchKey(BATCH_OPERATOR)
+                                .hasAnyStatusAtAll())
+                        .payingWith(BATCH_OPERATOR)
+                        .setNode("4") // for skipping ingest
+                        .hasAnyStatusAtAll()
+                        .deferStatusResolution(),
                 getReceipt(uncheckedCC)
+                        .hasRetryAnswerOnlyPrecheck(RECEIPT_NOT_FOUND)
+                        .setRetryLimit(300) // 3s
                         // Mod-service and mono-service use these mostly interchangeably
                         .hasPriorityStatusFrom(INSUFFICIENT_PAYER_BALANCE, INSUFFICIENT_ACCOUNT_BALANCE)
                         .logged());
     }
 
-    @HapiTest
-    @Order(0)
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> transferToCaller() {
         final var transferTxn = TRANSFER_TXN;
         final var sender = "sender";
@@ -334,7 +322,7 @@ class AtomicLeakyContractTestsSuite {
                 contractCreate(TRANSFERRING_CONTRACT).balance(10_000L),
                 cryptoCreate(sender).balance(ONE_HUNDRED_HBARS),
                 getAccountInfo(sender).savingSnapshot(ACCOUNT_INFO).payingWith(GENESIS),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     var transferCall = atomicBatch(
                                     contractCall(TRANSFERRING_CONTRACT, TRANSFER_TO_CALLER, BigInteger.valueOf(10))
                                             .payingWith(sender)
@@ -367,8 +355,9 @@ class AtomicLeakyContractTestsSuite {
                         .has(contractWith().balance(10_000L - 10L))));
     }
 
-    @LeakyHapiTest(overrides = {"contracts.maxRefundPercentOfGasLimit"})
-    @Order(14)
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.maxRefundPercentOfGasLimit"})
     final Stream<DynamicTest> maxRefundIsMaxGasRefundConfiguredWhenTXGasPriceIsSmaller() {
         return hapiTest(
                 overriding("contracts.maxRefundPercentOfGasLimit", "5"),
@@ -379,7 +368,7 @@ class AtomicLeakyContractTestsSuite {
                                 .via(CALL_TX)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var subop01 = getTxnRecord(CALL_TX).saveTxnRecordToRegistry(CALL_TX_REC);
                     allRunFor(spec, subop01);
 
@@ -392,7 +381,9 @@ class AtomicLeakyContractTestsSuite {
     }
 
     @SuppressWarnings("java:S5960")
-    @LeakyHapiTest(overrides = {"ledger.autoRenewPeriod.maxDuration", "entities.maxLifetime"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"ledger.autoRenewPeriod.maxDuration", "entities.maxLifetime"})
     final Stream<DynamicTest> contractCreationStoragePriceMatchesFinalExpiry() {
         final var toyMaker = "ToyMaker";
         final var createIndirectly = "CreateIndirectly";
@@ -433,8 +424,10 @@ class AtomicLeakyContractTestsSuite {
                         .payingWith(longLivedPayer)));
     }
 
-    @LeakyHapiTest(overrides = {"contracts.maxGasPerTransaction"})
-    final Stream<DynamicTest> gasLimitOverMaxGasLimitFailsPrecheck() {
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.maxGasPerTransaction"})
+    final Stream<DynamicTest> gasLimitOverMaxGasLimitFails() {
         return hapiTest(
                 uploadInitCode(SIMPLE_UPDATE_CONTRACT),
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
@@ -446,11 +439,10 @@ class AtomicLeakyContractTestsSuite {
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED),
-                contractCreate(EMPTY_CONSTRUCTOR_CONTRACT).gas(1_000_000L).hasPrecheck(MAX_GAS_LIMIT_EXCEEDED));
+                contractCreate(EMPTY_CONSTRUCTOR_CONTRACT).gas(1_000_000L).hasKnownStatus(MAX_GAS_LIMIT_EXCEEDED));
     }
 
-    @HapiTest
-    @Order(5)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> transferZeroHbarsToCaller() {
         final var transferTxn = TRANSFER_TXN;
         return hapiTest(
@@ -459,7 +451,7 @@ class AtomicLeakyContractTestsSuite {
                 getAccountInfo(DEFAULT_CONTRACT_SENDER)
                         .savingSnapshot(ACCOUNT_INFO)
                         .payingWith(GENESIS),
-                withOpContext((spec, log) -> {
+                doingContextual(spec -> {
                     var transferCall = atomicBatch(
                                     contractCall(TRANSFERRING_CONTRACT, TRANSFER_TO_CALLER, BigInteger.ZERO)
                                             .payingWith(DEFAULT_CONTRACT_SENDER)
@@ -495,17 +487,18 @@ class AtomicLeakyContractTestsSuite {
                 }));
     }
 
-    @Order(1)
-    @LeakyHapiTest(overrides = {"contracts.maxRefundPercentOfGasLimit"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.maxRefundPercentOfGasLimit"})
     final Stream<DynamicTest> resultSizeAffectsFees() {
         final var contract = "VerboseDeposit";
         final var TRANSFER_AMOUNT = 1_000L;
         BiConsumer<TransactionRecord, Logger> resultSizeFormatter = (rcd, txnLog) -> {
             final var result = rcd.getContractCallResult();
             txnLog.info(
-                    "Contract call result FeeBuilder size = {}, fee = {}, result is"
+                    "Contract call result FeeConstants size = {}, fee = {}, result is"
                             + " [self-reported size = {}, '{}']",
-                    () -> FeeBuilder.getContractFunctionSize(result),
+                    () -> FeeConstants.getContractFunctionSize(result),
                     rcd::getTransactionFee,
                     result.getContractCallResult()::size,
                     result::getContractCallResult);
@@ -545,9 +538,7 @@ class AtomicLeakyContractTestsSuite {
                 }));
     }
 
-    @HapiTest
-    @Order(8)
-    @Tag(MATS)
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> autoAssociationSlotsAppearsInInfo() {
         final int maxAutoAssociations = 100;
         final String CONTRACT = "Multipurpose";
@@ -564,8 +555,9 @@ class AtomicLeakyContractTestsSuite {
                         .has(ContractInfoAsserts.contractWith().maxAutoAssociations(maxAutoAssociations)));
     }
 
-    @Order(16)
-    @LeakyHapiTest(overrides = {"contracts.maxRefundPercentOfGasLimit"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.maxRefundPercentOfGasLimit"})
     final Stream<DynamicTest> createMaxRefundIsMaxGasRefundConfiguredWhenTXGasPriceIsSmaller() {
         return hapiTest(
                 overriding("contracts.maxRefundPercentOfGasLimit", "5"),
@@ -575,7 +567,7 @@ class AtomicLeakyContractTestsSuite {
                                 .via(CREATE_TX)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var subop01 = getTxnRecord(CREATE_TX).saveTxnRecordToRegistry(CREATE_TX_REC);
                     allRunFor(spec, subop01);
 
@@ -587,8 +579,9 @@ class AtomicLeakyContractTestsSuite {
                 }));
     }
 
-    @Order(11)
-    @LeakyHapiTest(overrides = {"contracts.maxRefundPercentOfGasLimit"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.maxRefundPercentOfGasLimit"})
     final Stream<DynamicTest> createMinChargeIsTXGasUsedByContractCreate() {
         return hapiTest(
                 overriding("contracts.maxRefundPercentOfGasLimit", "100"),
@@ -598,7 +591,7 @@ class AtomicLeakyContractTestsSuite {
                                 .via(CREATE_TX)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
-                withOpContext((spec, ignore) -> {
+                doingContextual(spec -> {
                     final var subop01 = getTxnRecord(CREATE_TX).saveTxnRecordToRegistry(CREATE_TX_REC);
                     allRunFor(spec, subop01);
 
@@ -610,9 +603,7 @@ class AtomicLeakyContractTestsSuite {
                 }));
     }
 
-    @HapiTest
-    @Order(3)
-    @Tag(MATS)
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> propagatesNestedCreations() {
         final var call = "callTxn";
         final var creation = "createTxn";
@@ -640,7 +631,7 @@ class AtomicLeakyContractTestsSuite {
                                 .via(call)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var parentNum = spec.registry().getContractId(contract);
 
                     final var expectedParentContractAddress = asHeadlongAddress(asSolidityAddress(parentNum))
@@ -653,16 +644,22 @@ class AtomicLeakyContractTestsSuite {
                             contractAddress(fromHexString(expectedParentContractAddress), 1L);
                     final var expectedGrandChildContractAddress = contractAddress(expectedChildContractAddress, 1L);
                     childNum.set(parentNum.getContractNum() + 1L);
-                    expectedChildAddress.set(ByteString.copyFrom(expectedChildContractAddress.toArray()));
+                    expectedChildAddress.set(ByteString.copyFrom(
+                            expectedChildContractAddress.getBytes().toArray()));
                     grandChildNum.set(parentNum.getContractNum() + 2L);
 
                     final var parentContractInfo =
                             getContractInfo(contract).has(contractWith().addressOrAlias(expectedParentContractAddress));
                     final var childContractInfo = getContractInfo(String.valueOf(childNum.get()))
-                            .has(contractWith().addressOrAlias(expectedChildContractAddress.toUnprefixedHexString()));
+                            .has(contractWith()
+                                    .addressOrAlias(expectedChildContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()));
                     final var grandChildContractInfo = getContractInfo(String.valueOf(grandChildNum.get()))
                             .has(contractWith()
-                                    .addressOrAlias(expectedGrandChildContractAddress.toUnprefixedHexString()))
+                                    .addressOrAlias(expectedGrandChildContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()))
                             .logged();
 
                     allRunFor(spec, parentContractInfo, childContractInfo, grandChildContractInfo);
@@ -681,7 +678,9 @@ class AtomicLeakyContractTestsSuite {
                         .has(contractWith().propertiesInheritedFrom(contract))));
     }
 
-    @LeakyHapiTest(overrides = {"contracts.maxRefundPercentOfGasLimit"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.maxRefundPercentOfGasLimit"})
     final Stream<DynamicTest> temporarySStoreRefundTest() {
         final var contract = "TemporarySStoreRefund";
         return hapiTest(
@@ -696,7 +695,7 @@ class AtomicLeakyContractTestsSuite {
                                 .via("permHoldTx")
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var subop01 = getTxnRecord("tempHoldTx")
                             .saveTxnRecordToRegistry("tempHoldTxRec")
                             .logged();
@@ -721,7 +720,9 @@ class AtomicLeakyContractTestsSuite {
     }
 
     @Disabled
-    @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.evm.version"})
     final Stream<DynamicTest> evmLazyCreateViaSolidityCall() {
         final var LAZY_CREATE_CONTRACT = "NestedLazyCreateContract";
         final var ECDSA_KEY = "ECDSAKey";
@@ -747,7 +748,7 @@ class AtomicLeakyContractTestsSuite {
                     final var lastChildResult = records.getLast().getContractCreateResult();
                     evmAddressOfChildContract.set(lastChildResult.getEvmAddress());
                 }),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var ecdsaKey = spec.registry().getKey(ECDSA_KEY);
                     final var keyBytes = ecdsaKey.getECDSASecp256K1().toByteArray();
                     final var address = asHeadlongAddress(recoverAddressFromPubKey(keyBytes));
@@ -801,7 +802,7 @@ class AtomicLeakyContractTestsSuite {
                                             .evmAddress(evmAddress)
                                             .balance(depositAmount)));
                 }),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var getTxnRecord =
                             getTxnRecord(payTxn).andAllChildRecords().logged();
                     allRunFor(spec, getTxnRecord);
@@ -837,7 +838,9 @@ class AtomicLeakyContractTestsSuite {
                 }));
     }
 
-    @LeakyHapiTest(overrides = {"consensus.handle.maxFollowingRecords", "contracts.evm.version"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"consensus.handle.maxFollowingRecords", "contracts.evm.version"})
     final Stream<DynamicTest> evmLazyCreateViaSolidityCallTooManyCreatesFails() {
         final var LAZY_CREATE_CONTRACT = "NestedLazyCreateContract";
         final var ECDSA_KEY = "ECDSAKey";
@@ -851,7 +854,7 @@ class AtomicLeakyContractTestsSuite {
                 uploadInitCode(LAZY_CREATE_CONTRACT),
                 contractCreate(LAZY_CREATE_CONTRACT).via(CALL_TX_REC).gas(2_000_000),
                 getTxnRecord(CALL_TX_REC).andAllChildRecords().logged(),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var ecdsaKey = spec.registry().getKey(ECDSA_KEY);
                     final var tmp = ecdsaKey.getECDSASecp256K1().toByteArray();
                     final var addressBytes = recoverAddressFromPubKey(tmp);
@@ -879,8 +882,9 @@ class AtomicLeakyContractTestsSuite {
                 emptyChildRecordsCheck(TRANSFER_TXN, MAX_CHILD_RECORDS_EXCEEDED));
     }
 
-    @Order(30)
-    @LeakyHapiTest(overrides = {"contracts.nonces.externalization.enabled"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.nonces.externalization.enabled"})
     final Stream<DynamicTest> shouldReturnNullWhenContractsNoncesExternalizationFlagIsDisabled() {
         final var contract = "NoncesExternalization";
         final var payer = "payer";
@@ -895,7 +899,7 @@ class AtomicLeakyContractTestsSuite {
                                 .via("txn")
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     HapiGetTxnRecord op = getTxnRecord("txn")
                             .logged()
                             .hasPriority(recordWith()
@@ -905,8 +909,9 @@ class AtomicLeakyContractTestsSuite {
                 }));
     }
 
-    @Order(31)
-    @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.evm.version"})
     final Stream<DynamicTest> someErc721GetApprovedScenariosPass() {
         final AtomicReference<String> tokenMirrorAddr = new AtomicReference<>();
         final AtomicReference<String> aCivilianMirrorAddr = new AtomicReference<>();
@@ -934,7 +939,7 @@ class AtomicLeakyContractTestsSuite {
                                 // 2
                                 ByteString.copyFromUtf8("B"))),
                 tokenAssociate(A_CIVILIAN, NF_TOKEN),
-                withOpContext((spec, opLog) -> {
+                doingContextual(_ -> {
                     zCivilianMirrorAddr.set(asHexedSolidityAddress(
                             AccountID.newBuilder().setAccountNum(666_666_666L).build()));
                     zTokenMirrorAddr.set(asHexedSolidityAddress(
@@ -1001,7 +1006,7 @@ class AtomicLeakyContractTestsSuite {
                         .logged()
                         .gas(1_000_000)
                         .has(resultWith().contractCallResult(hexedAddress(aCivilianMirrorAddr.get())))),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         childRecordsCheck(
                                 "MISSING_SPENDER",
@@ -1024,8 +1029,9 @@ class AtomicLeakyContractTestsSuite {
                                                                 spec.registry().getAccountID(A_CIVILIAN)))))))));
     }
 
-    @Order(33)
-    @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.evm.version"})
     final Stream<DynamicTest> someErc721BalanceOfScenariosPass() {
         final AtomicReference<String> tokenMirrorAddr = new AtomicReference<>();
         final AtomicReference<String> aCivilianMirrorAddr = new AtomicReference<>();
@@ -1055,7 +1061,7 @@ class AtomicLeakyContractTestsSuite {
                                 ByteString.copyFromUtf8("B"))),
                 tokenAssociate(A_CIVILIAN, NF_TOKEN),
                 cryptoTransfer(movingUnique(NF_TOKEN, 1L, 2L).between(SOME_ERC_721_SCENARIOS, A_CIVILIAN)),
-                withOpContext((spec, opLog) -> zTokenMirrorAddr.set(asHexedSolidityAddress(
+                doingContextual(_ -> zTokenMirrorAddr.set(asHexedSolidityAddress(
                         TokenID.newBuilder().setTokenNum(666_666L).build()))),
                 sourcing(() -> atomicBatch(contractCall(
                                         SOME_ERC_721_SCENARIOS,
@@ -1108,8 +1114,9 @@ class AtomicLeakyContractTestsSuite {
                                                 .withBalance(0)))));
     }
 
-    @Order(32)
-    @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.evm.version"})
     final Stream<DynamicTest> someErc721OwnerOfScenariosPass() {
         final AtomicReference<String> tokenMirrorAddr = new AtomicReference<>();
         final AtomicReference<String> aCivilianMirrorAddr = new AtomicReference<>();
@@ -1137,7 +1144,7 @@ class AtomicLeakyContractTestsSuite {
                                 // 2
                                 ByteString.copyFromUtf8("B"))),
                 tokenAssociate(A_CIVILIAN, NF_TOKEN),
-                withOpContext((spec, opLog) -> {
+                doingContextual(_ -> {
                     zCivilianMirrorAddr.set(asHexedSolidityAddress(
                             AccountID.newBuilder().setAccountNum(666_666_666L).build()));
                     zTokenMirrorAddr.set(asHexedSolidityAddress(
@@ -1185,7 +1192,7 @@ class AtomicLeakyContractTestsSuite {
                                 .hasKnownStatus(SUCCESS)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> allRunFor(
                         spec,
                         childRecordsCheck(
                                 "TREASURY_OWNER",
@@ -1210,18 +1217,20 @@ class AtomicLeakyContractTestsSuite {
                                                                 spec.registry().getAccountID(A_CIVILIAN)))))))));
     }
 
-    @Order(34)
-    @LeakyHapiTest(overrides = {"contracts.evm.version"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"contracts.evm.version"})
     final Stream<DynamicTest> callToNonExistingContractFailsGracefullyInV038() {
         return hapiTest(
                 overriding("contracts.evm.version", "v0.38"),
-                withOpContext((spec, ctxLog) -> spec.registry().saveContractId("invalid", asContract("0.0.100000001"))),
+                doingContextual(spec ->
+                        spec.registry().saveContractId("invalid", asContract(spec.shard(), spec.realm(), 100000001L))),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
                 cryptoCreate(TOKEN_TREASURY),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-                withOpContext((spec, opLog) -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
-                withOpContext((spec, opLog) -> allRunFor(
+                doingContextual(spec -> updateSpecFor(spec, SECP_256K1_SOURCE_KEY)),
+                doingContextual(spec -> allRunFor(
                         spec,
                         atomicBatch(ethereumCallWithFunctionAbi(
                                                 false,
@@ -1240,14 +1249,14 @@ class AtomicLeakyContractTestsSuite {
                                 .hasKnownStatus(INNER_TRANSACTION_FAILED))));
     }
 
-    @Order(38)
-    @LeakyHapiTest
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> invalidContractCallFailsInV038() {
         final var function = getABIFor(FUNCTION, "getIndirect", "CreateTrivial");
 
         return hapiTest(
                 overriding("contracts.evm.version", "v0.38"),
-                withOpContext((spec, ctxLog) -> spec.registry().saveContractId("invalid", asContract("0.0.100000001"))),
+                doingContextual(spec ->
+                        spec.registry().saveContractId("invalid", asContract(spec.shard(), spec.realm(), 100000001L))),
                 atomicBatch(contractCallWithFunctionAbi("invalid", function)
                                 .hasKnownStatus(INVALID_CONTRACT_ID)
                                 .batchKey(BATCH_OPERATOR))

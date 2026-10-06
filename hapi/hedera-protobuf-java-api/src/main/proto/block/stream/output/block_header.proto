@@ -86,6 +86,8 @@ message BlockHeader {
      *      is no previous round, the timestamp SHALL be the median of
      *      the judge created timestamps for this round.</li>
      * </ul>
+     * For historical converted record stream blocks, this is the consensus
+     * timestamp of the first transaction in the record file.
      */
     proto.Timestamp block_timestamp = 4;
 

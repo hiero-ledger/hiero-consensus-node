@@ -73,6 +73,10 @@ public class GrpcUtils {
                 clients.getNetworkSvcStub(nodeAccountId, false, asNodeOperator).getExecutionTime(query);
             case GetAccountDetails ->
                 clients.getNetworkSvcStub(nodeAccountId, false, asNodeOperator).getAccountDetails(query);
+            case ClprGetLedgerConfiguration ->
+                clients.getClprSvcStub(nodeAccountId, false, asNodeOperator).getLedgerConfiguration(query);
+            case ClprGetEndpointManifest ->
+                clients.getClprSvcStub(nodeAccountId, false, asNodeOperator).getEndpointManifest(query);
             default -> throw new IllegalArgumentException(functionality + " is not a query");
         };
     }
@@ -155,8 +159,6 @@ public class GrpcUtils {
                 clients.getConsSvcStub(nodeAccountId, false, false).deleteTopic(transaction);
             case ConsensusSubmitMessage ->
                 clients.getConsSvcStub(nodeAccountId, false, false).submitMessage(transaction);
-            case UncheckedSubmit ->
-                clients.getNetworkSvcStub(nodeAccountId, false, false).uncheckedSubmit(transaction);
             case TokenCreate ->
                 clients.getTokenSvcStub(nodeAccountId, false, false).createToken(transaction);
             case TokenFreezeAccount ->
@@ -204,6 +206,12 @@ public class GrpcUtils {
                 clients.getAddressBookSvcStub(nodeAccountId, false, false).createNode(transaction);
             case NodeUpdate ->
                 clients.getAddressBookSvcStub(nodeAccountId, false, false).updateNode(transaction);
+            case RegisteredNodeCreate ->
+                clients.getAddressBookSvcStub(nodeAccountId, false, false).createRegisteredNode(transaction);
+            case RegisteredNodeUpdate ->
+                clients.getAddressBookSvcStub(nodeAccountId, false, false).updateRegisteredNode(transaction);
+            case RegisteredNodeDelete ->
+                clients.getAddressBookSvcStub(nodeAccountId, false, false).deleteRegisteredNode(transaction);
             case TokenAirdrop ->
                 clients.getTokenSvcStub(nodeAccountId, false, false).airdropTokens(transaction);
             case TokenCancelAirdrop ->
@@ -212,6 +220,24 @@ public class GrpcUtils {
                 clients.getTokenSvcStub(nodeAccountId, false, false).claimAirdrop(transaction);
             case AtomicBatch ->
                 clients.getUtilSvcStub(nodeAccountId, false, false).atomicBatch(transaction);
+            case ClprRegisterChannel ->
+                clients.getClprSvcStub(nodeAccountId, false, false).registerChannel(transaction);
+            case ClprCompleteChannel ->
+                clients.getClprSvcStub(nodeAccountId, false, false).completeChannel(transaction);
+            case ClprCloseChannel ->
+                clients.getClprSvcStub(nodeAccountId, false, false).closeChannel(transaction);
+            case ClprSubmitBundle ->
+                clients.getClprSvcStub(nodeAccountId, false, false).submitBundle(transaction);
+            case ClprRedactMessage ->
+                clients.getClprSvcStub(nodeAccountId, false, false).redactMessage(transaction);
+            case ClprRegisterConnector ->
+                clients.getClprSvcStub(nodeAccountId, false, false).registerConnector(transaction);
+            case ClprCompleteConnector ->
+                clients.getClprSvcStub(nodeAccountId, false, false).completeConnector(transaction);
+            case ClprDeregisterConnector ->
+                clients.getClprSvcStub(nodeAccountId, false, false).deregisterConnector(transaction);
+            case ClprUpdateLedgerConfiguration ->
+                clients.getClprSvcStub(nodeAccountId, false, false).updateLedgerConfiguration(transaction);
             case StateSignatureTransaction,
                     HintsPreprocessingVote,
                     HintsKeyPublication,

@@ -7,7 +7,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.service.entityid.ReadableEntityCounters;
+import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
@@ -30,7 +30,7 @@ public class ReadableStakingInfoStoreImpl implements ReadableStakingInfoStore {
      */
     private final ReadableKVState<EntityNumber, StakingNodeInfo> stakingInfoState;
 
-    private final ReadableEntityCounters entityCounters;
+    private final ReadableEntityIdStore entityCounters;
 
     /**
      * Create a new {@link ReadableStakingInfoStoreImpl} instance.
@@ -39,7 +39,7 @@ public class ReadableStakingInfoStoreImpl implements ReadableStakingInfoStore {
      * @param entityCounters
      */
     public ReadableStakingInfoStoreImpl(
-            @NonNull final ReadableStates states, final ReadableEntityCounters entityCounters) {
+            @NonNull final ReadableStates states, final ReadableEntityIdStore entityCounters) {
         this.entityCounters = requireNonNull(entityCounters);
         this.stakingInfoState = states.get(STAKING_INFOS_STATE_ID);
     }
@@ -54,7 +54,7 @@ public class ReadableStakingInfoStoreImpl implements ReadableStakingInfoStore {
     @Override
     public Set<Long> getAll() {
         final var numStakingInfo = entityCounters.getCounterFor(EntityType.STAKING_INFO);
-        final var numNodes = entityCounters.getCounterFor(EntityType.NODE);
+        final var numNodes = entityCounters.peekAtNextNodeId();
         if (numStakingInfo == 0) {
             return Collections.emptySet();
         }

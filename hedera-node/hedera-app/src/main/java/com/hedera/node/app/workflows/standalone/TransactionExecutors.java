@@ -16,6 +16,7 @@ import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
+import com.hedera.node.app.service.clpr.impl.ClprServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
@@ -29,13 +30,11 @@ import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.signature.AppSignatureVerifier;
 import com.hedera.node.app.signature.impl.SignatureExpanderImpl;
 import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
-import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
-import com.hedera.node.app.throttle.AppThrottleFactory;
+import com.hedera.node.app.throttle.AppScheduleThrottleFactory;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
 import com.hedera.node.app.workflows.standalone.impl.StandaloneNetworkInfo;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
-import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
@@ -52,11 +51,17 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hyperledger.besu.evm.operation.Operation;
 
 /**
  * A factory for creating {@link TransactionExecutor} instances.
+ *
+ * <p>Executors created by this factory skip all signature and key verification: the standalone
+ * dispatch uses a no-op key verifier, and the contract service is wired with
+ * {@code NOOP_VERIFICATION_STRATEGIES}, which treats every key as valid. They are intended for
+ * standalone replay and simulation (e.g. Mirror Node gas estimation and {@code eth_call}), not
+ * for authoritative transaction execution.
  */
 public enum TransactionExecutors {
     TRANSACTION_EXECUTORS;
@@ -219,19 +224,25 @@ public enum TransactionExecutors {
                 customTracerBinding != null ? customTracerBinding : DefaultTracerBinding.DEFAULT_TRACER_BINDING;
         final var executor = newExecutorComponent(state, properties, tracerBinding, customOps, entityIdFactory);
         executor.stateNetworkInfo().initFrom(state);
-        executor.initializer().initialize(state, StreamMode.BOTH);
+        final var streamMode = executor.configProvider()
+                .getConfiguration()
+                .getConfigData(BlockStreamConfig.class)
+                .streamMode();
+        executor.initializer().initialize(state, streamMode);
         final var exchangeRateManager = executor.exchangeRateManager();
         return (transactionBody, consensusNow, tracers) -> {
             final var dispatch = executor.standaloneDispatchFactory().newDispatch(state, transactionBody, consensusNow);
             tracerBinding.runWhere(
                     List.of(tracers), () -> executor.dispatchProcessor().processDispatch(dispatch));
-            final var recordSource = dispatch.stack()
+            return dispatch.stack()
                     .buildHandleOutput(consensusNow, exchangeRateManager.exchangeRates())
-                    .recordSourceOrThrow();
-            return ((LegacyListRecordSource) recordSource).precomputedRecords();
+                    .singleTransactionRecords();
         };
     }
 
+    /**
+     * Builds the {@link ExecutorComponent} backing a standalone executor.
+     */
     public ExecutorComponent newExecutorComponent(
             @NonNull final State state,
             @NonNull Map<String, String> properties,
@@ -268,7 +279,7 @@ public enum TransactionExecutors {
                 bootstrapConfigProvider::getConfiguration,
                 () -> defaultNodeInfo,
                 () -> NO_OP_METRICS,
-                new AppThrottleFactory(
+                new AppScheduleThrottleFactory(
                         configProvider::getConfiguration,
                         () -> state,
                         () -> componentRef.get().throttleServiceManager().activeThrottleDefinitionsOrThrow(),
@@ -292,7 +303,9 @@ public enum TransactionExecutors {
                 ForkJoinPool.commonPool(),
                 appContext,
                 new HintsLibraryImpl(),
-                bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod());
+                bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod(),
+                new com.hedera.node.app.hints.impl.RsaContext(appContext.configSupplier()),
+                new java.util.concurrent.ConcurrentHashMap<>());
         final var historyService =
                 new HistoryServiceImpl(NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl());
         final var standaloneNetworkInfo = new StandaloneNetworkInfo(configProvider);
@@ -304,6 +317,7 @@ public enum TransactionExecutors {
                 .bootstrapConfigProviderImpl(bootstrapConfigProvider)
                 .fileServiceImpl(fileService)
                 .tokenServiceImpl(new TokenServiceImpl(appContext))
+                .clprServiceImpl(new ClprServiceImpl())
                 .consensusServiceImpl(new ConsensusServiceImpl())
                 .networkServiceImpl(new NetworkServiceImpl())
                 .contractServiceImpl(contractService)

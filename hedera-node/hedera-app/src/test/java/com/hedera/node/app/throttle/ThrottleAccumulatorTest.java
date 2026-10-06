@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_GET_ACCOUNT_BALANCE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
 import static com.hedera.hapi.node.base.HederaFunctionality.GET_VERSION_INFO;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
@@ -21,6 +22,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
 import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_ID_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
@@ -43,6 +46,7 @@ import static org.mockito.Mockito.verify;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.SignatureMap;
@@ -67,8 +71,11 @@ import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.ThrottleBucket;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
+import com.hedera.hapi.node.transaction.ThrottleGroup;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.hapi.utils.sysfiles.domain.throttling.ScaleFactor;
 import com.hedera.node.app.hapi.utils.throttles.BucketThrottle;
 import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
@@ -89,8 +96,10 @@ import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
+import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -112,6 +121,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -122,7 +132,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 
 @ExtendWith({MockitoExtension.class, LogCaptureExtension.class})
-class ThrottleAccumulatorTest {
+public class ThrottleAccumulatorTest {
 
     private static final int CAPACITY_SPLIT = 2;
     private static final Instant TIME_INSTANT = Instant.ofEpochSecond(1_234_567L, 123);
@@ -183,6 +193,12 @@ class ThrottleAccumulatorTest {
     private EntitiesConfig entitiesConfig;
 
     @Mock
+    private FeesConfig feesConfig;
+
+    @Mock
+    private NetworkAdminConfig networkAdminConfig;
+
+    @Mock
     private State state;
 
     @Mock
@@ -206,6 +222,69 @@ class ThrottleAccumulatorTest {
     private final HederaConfig hederaConfig =
             HederaTestConfigBuilder.create().getOrCreateConfig().getConfigData(HederaConfig.class);
 
+    @BeforeEach
+    void setUpFeatureFlagDefaults() {
+        lenient().when(configuration.getConfigData(FeesConfig.class)).thenReturn(feesConfig);
+        lenient().when(configuration.getConfigData(NetworkAdminConfig.class)).thenReturn(networkAdminConfig);
+        lenient().when(networkAdminConfig.highVolumeThrottlesEnabled()).thenReturn(true);
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = ThrottleAccumulator.ThrottleType.class,
+            names = {"FRONTEND_THROTTLE", "BACKEND_THROTTLE"})
+    void nodePayersCannotBypassClprBundleCapacity(final ThrottleAccumulator.ThrottleType throttleType) {
+        givenClprBundleThrottle(throttleType, true);
+
+        assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false));
+        assertTrue(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false));
+        assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT.plusSeconds(1), state, null, false));
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = ThrottleAccumulator.ThrottleType.class,
+            names = {"FRONTEND_THROTTLE", "BACKEND_THROTTLE"})
+    void nodePayersStayExemptFromClprBundleCapacityWhileClprIsDisabled(
+            final ThrottleAccumulator.ThrottleType throttleType) {
+        givenClprBundleThrottle(throttleType, false);
+
+        assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false));
+        assertFalse(subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false));
+    }
+
+    private void givenClprBundleThrottle(
+            final ThrottleAccumulator.ThrottleType throttleType, final boolean clprEnabled) {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("clpr.enabled", clprEnabled)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new ThrottleAccumulator(
+                () -> 1,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        final var function = com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
+        subject.rebuildFor(ThrottleDefinitions.newBuilder()
+                .throttleBuckets(ThrottleBucket.newBuilder()
+                        .name("ClprBundles")
+                        .burstPeriodMs(1000)
+                        .throttleGroups(ThrottleGroup.newBuilder()
+                                .milliOpsPerSec(1000)
+                                .operations(function)
+                                .build())
+                        .build())
+                .build());
+        given(transactionInfo.functionality()).willReturn(function);
+        lenient().when(transactionInfo.txBody()).thenReturn(TransactionBody.DEFAULT);
+        lenient()
+                .when(transactionInfo.payerID())
+                .thenReturn(AccountID.newBuilder().accountNum(3).build());
+    }
+
     @Test
     void noOpThrottlesNeverThrottleAnything() {
         subject = new ThrottleAccumulator(
@@ -220,7 +299,7 @@ class ThrottleAccumulatorTest {
         assertFalse(subject.checkAndEnforceThrottle(
                 TRANSACTION_GET_RECEIPT, TIME_INSTANT, query, state, AccountID.DEFAULT));
         assertFalse(subject.shouldThrottleNOfUnscaled(1, CRYPTO_TRANSFER, TIME_INSTANT));
-        assertDoesNotThrow(() -> subject.leakCapacityForNOfUnscaled(1, CRYPTO_TRANSFER));
+        assertDoesNotThrow(() -> subject.leakCapacityForNOfUnscaled(1, CRYPTO_TRANSFER, false));
         assertDoesNotThrow(() -> subject.leakUnusedGasPreviouslyReserved(transactionInfo, 1L));
     }
 
@@ -337,6 +416,9 @@ class ThrottleAccumulatorTest {
                 .state(new FunctionReadableSingletonState<Object>(
                         ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.newBuilder()
                                 .build()))
+                .state(new FunctionReadableSingletonState<Object>(
+                        HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> NodeId.newBuilder()
+                                .build()))
                 .build();
         given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
 
@@ -387,6 +469,9 @@ class ThrottleAccumulatorTest {
                 .state(new FunctionReadableSingletonState<Object>(
                         ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityNumber.newBuilder()
                                 .build()))
+                .state(new FunctionReadableSingletonState<Object>(
+                        HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> NodeId.newBuilder()
+                                .build()))
                 .build();
         given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
 
@@ -404,6 +489,34 @@ class ThrottleAccumulatorTest {
 
         // then
         assertThat(result).containsExactly(false, false, false, true);
+    }
+
+    @Test
+    void mainnetThrottlesAlwaysReturnBusyForGetAccountBalance() throws IOException, ParseException {
+        // given - mainnet throttles have no entry for CryptoGetAccountBalance
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                FRONTEND_THROTTLE,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        final var defs = getThrottleDefs("bootstrap/mainnet-throttles.json");
+        subject.rebuildFor(defs);
+        final var query = Query.newBuilder()
+                .cryptogetAccountBalance(CryptoGetAccountBalanceQuery.newBuilder()
+                        .accountID(RECEIVER_ID)
+                        .build())
+                .build();
+
+        // then - no throttle group covers CryptoGetAccountBalance, so every call returns BUSY
+        assertTrue(subject.checkAndEnforceThrottle(CRYPTO_GET_ACCOUNT_BALANCE, TIME_INSTANT, query, state, PAYER_ID));
+        assertTrue(subject.checkAndEnforceThrottle(
+                CRYPTO_GET_ACCOUNT_BALANCE, TIME_INSTANT.plusNanos(1), query, state, PAYER_ID));
     }
 
     @Test
@@ -448,6 +561,8 @@ class ThrottleAccumulatorTest {
                         ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
                                 .build()))
                 .state(new FunctionReadableSingletonState<>(
+                        HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> NodeId.newBuilder()))
+                .state(new FunctionReadableSingletonState<>(
                         ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.newBuilder()
                                 .build()))
                 .build();
@@ -479,6 +594,69 @@ class ThrottleAccumulatorTest {
                     CRYPTO_GET_ACCOUNT_BALANCE, TIME_INSTANT.plusNanos(1), numericQuery, state, PAYER_ID)
         };
         assertThat(numericResult).containsExactly(false, true);
+    }
+
+    @Test
+    void worksAsExpectedForCountsAssociationsWhenContractIdIsProvidedInGetBalance() throws IOException, ParseException {
+        // given
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("tokens.countingGetBalanceThrottleEnabled", true)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                FRONTEND_THROTTLE,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+        subject.rebuildFor(defs);
+
+        // Use a contractID for the balance query
+        final var contractId = ContractID.newBuilder()
+                .contractNum(RECEIVER_ID.accountNumOrThrow())
+                .build();
+        final var contractQuery = Query.newBuilder()
+                .cryptogetAccountBalance(CryptoGetAccountBalanceQuery.newBuilder()
+                        .contractID(contractId)
+                        .build())
+                .build();
+
+        // The underlying contract account has 2 associations
+        final var contractAccount =
+                Account.newBuilder().smartContract(true).numberAssociations(2).build();
+        final var states = MapReadableStates.builder()
+                .state(new MapReadableKVState<>(
+                        ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, Map.of(RECEIVER_ID, contractAccount)))
+                .state(new MapReadableKVState<>(ALIASES_STATE_ID, ALIASES_STATE_LABEL, Map.of()))
+                .build();
+        given(state.getReadableStates(TokenService.NAME)).willReturn(states);
+        final var entityIdStates = MapReadableStates.builder()
+                .state(new FunctionReadableSingletonState<>(
+                        ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
+                                .build()))
+                .state(new FunctionReadableSingletonState<>(
+                        ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.newBuilder()
+                                .build()))
+                .state(new FunctionReadableSingletonState<Object>(
+                        HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> NodeId.newBuilder()
+                                .build()))
+                .build();
+        given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
+
+        // when (contractID path)
+        final var contractResult = new boolean[] {
+            subject.checkAndEnforceThrottle(
+                    CRYPTO_GET_ACCOUNT_BALANCE, TIME_INSTANT.plusNanos(0), contractQuery, state, PAYER_ID),
+            subject.checkAndEnforceThrottle(
+                    CRYPTO_GET_ACCOUNT_BALANCE, TIME_INSTANT.plusNanos(1), contractQuery, state, PAYER_ID)
+        };
+
+        // then (contractID path)
+        // With 2 associations, the first passes and the second is throttled
+        assertThat(contractResult).containsExactly(false, true);
     }
 
     @Test
@@ -1288,6 +1466,108 @@ class ThrottleAccumulatorTest {
 
     @ParameterizedTest
     @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void unparseableEthereumTransactionIsChargedToEthBucketNotCryptoCreate(
+            ThrottleAccumulator.ThrottleType throttleType) throws IOException, ParseException {
+        // given
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+
+        given(transactionInfo.payerID())
+                .willReturn(AccountID.newBuilder().accountNum(1234L).build());
+
+        // throttles-sans-creation.json defines an ETHEREUM_TRANSACTION bucket but no CRYPTO_CREATE bucket
+        final var defs = getThrottleDefs("bootstrap/throttles-sans-creation.json");
+
+        given(transactionInfo.functionality()).willReturn(ETHEREUM_TRANSACTION);
+        // Empty (unparseable) ethereumData makes getImplicitCreationsCount return the
+        // UNKNOWN_NUM_IMPLICIT_CREATIONS sentinel (-1).
+        final var ethTxnBody =
+                EthereumTransactionBody.newBuilder().ethereumData(Bytes.EMPTY).build();
+        given(transactionInfo.txBody())
+                .willReturn(TransactionBody.newBuilder()
+                        .ethereumTransaction(ethTxnBody)
+                        .build());
+
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.get(anyInt())).willReturn(aliases);
+
+        // when
+        subject.rebuildFor(defs);
+        var ans = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false);
+
+        // then
+        assertFalse(ans);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void unparseableEthereumTransactionChargesEthBucketNotCryptoCreate(ThrottleAccumulator.ThrottleType throttleType)
+            throws IOException, ParseException {
+        // given
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+        given(transactionInfo.payerID())
+                .willReturn(AccountID.newBuilder().accountNum(1234L).build());
+
+        // throttles.json is the mainnet shape: an ETHEREUM_TRANSACTION bucket AND CryptoCreate buckets
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+        given(transactionInfo.functionality()).willReturn(ETHEREUM_TRANSACTION);
+        final var ethTxnBody =
+                EthereumTransactionBody.newBuilder().ethereumData(Bytes.EMPTY).build();
+        given(transactionInfo.txBody())
+                .willReturn(TransactionBody.newBuilder()
+                        .ethereumTransaction(ethTxnBody)
+                        .build());
+        given(state.getReadableStates(any())).willReturn(readableStates);
+        given(readableStates.get(anyInt())).willReturn(aliases);
+
+        subject.rebuildFor(defs);
+        // CryptoCreate shares bucket A with EthereumTransaction and additionally owns an exclusive bucket (C);
+        // that exclusive bucket is the clean discriminator — an eth txn must never touch it.
+        final var ethThrottles = subject.activeThrottlesFor(ETHEREUM_TRANSACTION);
+        final var cryptoCreateOnly = subject.activeThrottlesFor(CRYPTO_CREATE).stream()
+                .filter(t -> !ethThrottles.contains(t))
+                .toList();
+        assertFalse(cryptoCreateOnly.isEmpty(), "expected a CryptoCreate-exclusive bucket in throttles.json");
+
+        // when
+        final var throttled = subject.checkAndEnforceThrottle(transactionInfo, TIME_INSTANT, state, null, false);
+
+        // then
+        assertFalse(throttled); // (a) not throttled
+        assertTrue(ethThrottles.stream().anyMatch(t -> t.used() > 0)); // (b) eth bucket charged
+        assertTrue(
+                cryptoCreateOnly.stream().allMatch(t -> t.used() == 0)); // (c) CryptoCreate-exclusive bucket untouched
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
     void alwaysThrottlesContractCallWhenGasThrottleIsNotDefined(ThrottleAccumulator.ThrottleType throttleType) {
         // given
         subject = new ThrottleAccumulator(
@@ -1719,7 +1999,7 @@ class ThrottleAccumulatorTest {
         subject.shouldThrottleNOfUnscaled(1, TOKEN_MINT, TIME_INSTANT);
         final var oneUsed = subject.activeThrottlesFor(TOKEN_MINT).get(0).used();
         subject.shouldThrottleNOfUnscaled(43, TOKEN_MINT, TIME_INSTANT);
-        subject.leakCapacityForNOfUnscaled(2, TOKEN_MINT);
+        subject.leakCapacityForNOfUnscaled(2, TOKEN_MINT, false);
         final var fortyTwoUsed = subject.activeThrottlesFor(TOKEN_MINT).get(0).used();
         assertEquals(42 * oneUsed, fortyTwoUsed);
     }
@@ -2043,18 +2323,13 @@ class ThrottleAccumulatorTest {
         // when
         subject.rebuildFor(defs);
 
-        // then
-        // Normal throttles should exist for CRYPTO_CREATE
         assertFalse(subject.activeThrottles().isEmpty(), "Normal throttles should be populated");
-        // High-volume throttles should exist for CRYPTO_CREATE
         assertFalse(subject.highVolumeActiveThrottles().isEmpty(), "High-volume throttles should be populated");
-        // Should have high-volume throttle for CRYPTO_CREATE
         assertTrue(
                 subject.hasHighVolumeThrottleFor(CRYPTO_CREATE), "Should have high-volume throttle for CRYPTO_CREATE");
-        // Should NOT have high-volume throttle for CRYPTO_TRANSFER (not in high-volume bucket)
         assertFalse(
-                subject.hasHighVolumeThrottleFor(CRYPTO_TRANSFER),
-                "Should NOT have high-volume throttle for CRYPTO_TRANSFER");
+                subject.hasHighVolumeThrottleFor(CRYPTO_UPDATE),
+                "Should NOT have high-volume throttle for CRYPTO_UPDATE");
     }
 
     @ParameterizedTest
@@ -2113,6 +2388,10 @@ class ThrottleAccumulatorTest {
 
         // then - should eventually be throttled
         assertTrue(throttled, "High-volume transactions should eventually be throttled");
+        assertTrue(
+                subject.getHighVolumeThrottleInstantaneousUtilizationBps(CRYPTO_CREATE, TIME_INSTANT.plusNanos(2_100))
+                        >= 9_999,
+                "High-volume utilization should be near saturation in basis points");
     }
 
     @ParameterizedTest
@@ -2196,7 +2475,7 @@ class ThrottleAccumulatorTest {
         given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(false);
         given(state.getReadableStates(any())).willReturn(readableStates);
 
-        final var defs = getThrottleDefs("bootstrap/high-volume-throttles.json");
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
         subject.rebuildFor(defs);
 
         // Create a high-volume CryptoTransfer transaction (no high-volume bucket exists for this)
@@ -2233,8 +2512,162 @@ class ThrottleAccumulatorTest {
                 "Should NOT have high-volume throttle for CRYPTO_TRANSFER");
     }
 
+    @ParameterizedTest
+    @EnumSource(value = ThrottleAccumulator.ThrottleType.class, mode = EnumSource.Mode.EXCLUDE, names = "NOOP_THROTTLE")
+    void highVolumeCryptoTransferWithoutImplicitCreationUsesNormalBucket(ThrottleAccumulator.ThrottleType throttleType)
+            throws IOException, ParseException {
+        // given
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                throttleType,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+        given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
+        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(false);
+        given(state.getReadableStates(any())).willReturn(readableStates);
+
+        final var defs = getThrottleDefs("bootstrap/high-volume-throttles.json");
+        subject.rebuildFor(defs);
+
+        // Create a high-volume CryptoTransfer transaction with no aliases / no implicit creations
+        final var cryptoTransferBody =
+                CryptoTransferTransactionBody.newBuilder().build();
+        final var highVolumeTxBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
+                .cryptoTransfer(cryptoTransferBody)
+                .highVolume(true)
+                .build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(highVolumeTxBody))
+                .build();
+        final var highVolumeTxnInfo = new TransactionInfo(
+                signedTx,
+                highVolumeTxBody,
+                TransactionID.newBuilder().accountID(PAYER_ID).build(),
+                PAYER_ID,
+                SignatureMap.DEFAULT,
+                Bytes.EMPTY,
+                CRYPTO_TRANSFER,
+                null);
+
+        // when - submit transactions until throttled
+        // Normal bucket has 100 ops/sec with 2 sec burst = 200 capacity
+        // High-volume bucket has 1000 ops/sec with 2 sec burst = 2000 capacity
+        // No implicit creations means this should use the normal bucket and throttle early.
+        var throttled = false;
+        for (int i = 0; i < 250; i++) {
+            throttled =
+                    subject.checkAndEnforceThrottle(highVolumeTxnInfo, TIME_INSTANT.plusNanos(i), state, null, false);
+            if (throttled) {
+                break;
+            }
+        }
+
+        // then
+        assertTrue(throttled, "High-volume CryptoTransfer without implicit creation should use normal bucket");
+        assertTrue(
+                subject.hasHighVolumeThrottleFor(CRYPTO_TRANSFER),
+                "Fixture should include a high-volume throttle for CRYPTO_TRANSFER");
+    }
+
+    @Test
+    void usesHighVolumeBucketForImplicitCreationsMirrorsClaimRouting() {
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                FRONTEND_THROTTLE,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+
+        // High-volume CRYPTO_TRANSFER carrying implicit creations routes to the high-volume bucket
+        assertTrue(subject.usesHighVolumeBucketForImplicitCreations(CRYPTO_TRANSFER, true, 1));
+        // Not flagged high-volume -> normal bucket
+        assertFalse(subject.usesHighVolumeBucketForImplicitCreations(CRYPTO_TRANSFER, false, 1));
+        // High-volume but no implicit creations -> normal bucket (matches shouldUseHighVolumeBucket)
+        assertFalse(subject.usesHighVolumeBucketForImplicitCreations(CRYPTO_TRANSFER, true, 0));
+        // ETHEREUM_TRANSACTION is not a high-volume function -> normal bucket even when flagged
+        assertFalse(subject.usesHighVolumeBucketForImplicitCreations(ETHEREUM_TRANSACTION, true, 1));
+    }
+
+    @Test
+    void leakCapacityForNOfUnscaledReturnsCapacityToHighVolumeBucket() throws IOException, ParseException {
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                FRONTEND_THROTTLE,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(AccountsConfig.class)).willReturn(accountsConfig);
+        given(accountsConfig.lastThrottleExempt()).willReturn(100L);
+        given(configuration.getConfigData(ContractsConfig.class)).willReturn(contractsConfig);
+        given(contractsConfig.throttleThrottleByGas()).willReturn(false);
+        given(configuration.getConfigData(JumboTransactionsConfig.class)).willReturn(jumboTransactionsConfig);
+        given(jumboTransactionsConfig.isEnabled()).willReturn(false);
+
+        final var defs = getThrottleDefs("bootstrap/high-volume-throttles.json");
+        subject.rebuildFor(defs);
+
+        // Claim high-volume CRYPTO_CREATE capacity (routed to the high-volume bucket)
+        final var cryptoCreateBody = com.hedera.hapi.node.token.CryptoCreateTransactionBody.newBuilder()
+                .build();
+        final var highVolumeTxBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(PAYER_ID).build())
+                .cryptoCreateAccount(cryptoCreateBody)
+                .highVolume(true)
+                .build();
+        final var signedTx = SignedTransaction.newBuilder()
+                .bodyBytes(TransactionBody.PROTOBUF.toBytes(highVolumeTxBody))
+                .build();
+        final var highVolumeTxnInfo = new TransactionInfo(
+                signedTx,
+                highVolumeTxBody,
+                TransactionID.newBuilder().accountID(PAYER_ID).build(),
+                PAYER_ID,
+                SignatureMap.DEFAULT,
+                Bytes.EMPTY,
+                CRYPTO_CREATE,
+                null);
+        for (int i = 0; i < 200; i++) {
+            subject.checkAndEnforceThrottle(highVolumeTxnInfo, TIME_INSTANT, state, null, false);
+        }
+        final int bpsAfterClaim = subject.getHighVolumeThrottleInstantaneousUtilizationBps(CRYPTO_CREATE, TIME_INSTANT);
+        assertTrue(bpsAfterClaim > 0, "High-volume bucket should have recorded usage from the claim");
+
+        // Leaking with useHighVolumeBucket=true must return capacity to the high-volume bucket
+        subject.leakCapacityForNOfUnscaled(100, CRYPTO_CREATE, true);
+        final int bpsAfterHvLeak =
+                subject.getHighVolumeThrottleInstantaneousUtilizationBps(CRYPTO_CREATE, TIME_INSTANT);
+        assertTrue(
+                bpsAfterHvLeak < bpsAfterClaim, "Leak with useHighVolumeBucket=true must drain the high-volume bucket");
+
+        // Leaking with useHighVolumeBucket=false hits the normal bucket and must NOT touch the high-volume bucket
+        subject.leakCapacityForNOfUnscaled(100, CRYPTO_CREATE, false);
+        final int bpsAfterNormalLeak =
+                subject.getHighVolumeThrottleInstantaneousUtilizationBps(CRYPTO_CREATE, TIME_INSTANT);
+        assertEquals(
+                bpsAfterHvLeak,
+                bpsAfterNormalLeak,
+                "Leak with useHighVolumeBucket=false must not change high-volume utilization");
+    }
+
     @NonNull
-    private static Bytes keyToBytes(Key key) throws IOException, ParseException {
+    private static Bytes keyToBytes(Key key) throws IOException {
         final var dataBuffer = getThreadLocalDataBuffer();
         Key.PROTOBUF.write(key, dataBuffer);
         // clamp limit to bytes written

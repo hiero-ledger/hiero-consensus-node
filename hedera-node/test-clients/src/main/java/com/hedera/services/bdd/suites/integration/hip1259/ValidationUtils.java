@@ -7,7 +7,9 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toMap;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -23,6 +25,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
@@ -155,7 +158,7 @@ public class ValidationUtils {
      */
     public static VisibleItemsValidator nodeRewardsWithFeeCollectionValidator(
             @NonNull final LongSupplier initialNodeBalance,
-            @NonNull final LongSupplier nodeAccountBalanceAfterDistribution) {
+            @NonNull final CompletableFuture<Long> nodeAccountBalanceAfterDistribution) {
         return (spec, records) -> {
             final var items = records.get(SELECTED_ITEMS_KEY);
             assertNotNull(items, "No reward payments or fee distributions found");
@@ -168,6 +171,7 @@ public class ValidationUtils {
             int feeDistributionIndex = -1;
             int nodeRewardIndex = -1;
             long nodeFees = 0L;
+            long nodeRewards = 0L;
 
             for (int i = 0; i < items.size(); i++) {
                 final var payment = items.get(i);
@@ -211,16 +215,24 @@ public class ValidationUtils {
                             -nodeRewardDebit,
                             totalCredits,
                             "Total credits to node accounts should equal debit from 0.0.801");
+
+                    if (bodyAdjustments.containsKey(3L)) {
+                        nodeRewards += bodyAdjustments.get(3L);
+                    }
                 }
             }
 
             assertTrue(foundFeeDistribution, "Should have at least one fee distribution transaction");
             assertTrue(foundNodeReward, "Should have at least one node reward transaction");
             assertTrue(feeDistributionIndex < nodeRewardIndex, "Fee distribution should happen before node rewards");
-            assertEquals(
-                    initialNodeBalance.getAsLong() + nodeFees,
-                    nodeAccountBalanceAfterDistribution.getAsLong(),
-                    "Node account balance should match");
+            final var minimumExpectedBalance = initialNodeBalance.getAsLong() + nodeFees + nodeRewards;
+            // Stream thread can see these records before the spec reads the final balance
+            final long balanceAfterDistribution = assertDoesNotThrow(
+                    () -> nodeAccountBalanceAfterDistribution.get(5, SECONDS),
+                    "Node account balance after distribution was never read");
+            assertTrue(
+                    balanceAfterDistribution >= minimumExpectedBalance,
+                    "Node account balance should include fee distribution and node reward credits");
         };
     }
 }

@@ -9,9 +9,10 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertF
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.notNull;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -22,6 +23,8 @@ import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
+import com.hedera.node.app.service.contract.impl.exec.delegation.CodeDelegationResult;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.HederaOperations;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
@@ -29,19 +32,18 @@ import com.hedera.node.app.service.contract.impl.handlers.ContractCallHandler;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.RootProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.contract.impl.utils.ConstantUtils;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
-import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fixtures.workflows.FakePreHandleContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.data.ContractsConfig;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
-import org.hyperledger.besu.evm.gascalculator.GasCalculator;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -53,6 +55,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class ContractCallHandlerTest extends ContractHandlerTestBase {
     public static final long INTRINSIC_GAS_FOR_0_ARG_METHOD = 21064L;
+    private static final Configuration BOTH_MODE_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BOTH")
+            .getOrCreateConfig();
+    private static final Configuration BLOCKS_MODE_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("blockStream.streamMode", "BLOCKS")
+            .getOrCreateConfig();
 
     @Mock
     private TransactionComponent component;
@@ -85,7 +93,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
     private HederaOperations hederaOperations;
 
     @Mock
-    private GasCalculator gasCalculator;
+    private HederaGasCalculator gasCalculator;
 
     @Mock(strictness = Strictness.LENIENT)
     private ContractServiceComponent contractServiceComponent;
@@ -113,6 +121,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         given(factory.create(context, HederaFunctionality.CONTRACT_CALL, EvmFrameStates.DEFAULT))
                 .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
+        given(context.configuration()).willReturn(BOTH_MODE_CONFIG);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(recordBuilder);
         given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
@@ -128,6 +137,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 SUCCESS_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
                 SUCCESS_RESULT.signerNonce(),
                 null,
+                null,
                 null);
         given(processor.call()).willReturn(expectedOutcome);
         given(component.hederaOperations()).willReturn(hederaOperations);
@@ -136,6 +146,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         given(recordBuilder.contractCallResult(expectedResult)).willReturn(recordBuilder);
         given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
                 .willReturn(recordBuilder);
+        givenNoTraceDataSizeLimitExceeded();
 
         assertDoesNotThrow(() -> subject.handle(context));
     }
@@ -146,6 +157,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 .willReturn(component);
         given(component.contextTransactionProcessor()).willReturn(processor);
         given(component.hederaOperations()).willReturn(hederaOperations);
+        given(context.configuration()).willReturn(BOTH_MODE_CONFIG);
         given(context.savepointStack()).willReturn(stack);
         given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(recordBuilder);
         final var expectedResult = HALT_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
@@ -160,6 +172,7 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
                 HALT_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
                 null,
                 null,
+                null,
                 null);
         given(processor.call()).willReturn(expectedOutcome);
 
@@ -167,8 +180,85 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         given(recordBuilder.contractCallResult(expectedResult)).willReturn(recordBuilder);
         given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
                 .willReturn(recordBuilder);
+        givenNoTraceDataSizeLimitExceeded();
 
         assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(context));
+    }
+
+    private void givenNoTraceDataSizeLimitExceeded() {
+        given(recordBuilder.hasTraceDataSizeLimitExceeded()).willReturn(false);
+        given(recordBuilder.estimatedContractBytecodeSize()).willReturn(0L);
+    }
+
+    @Test
+    void delegatesToCreatedComponentAndExposesSuccessInBlocksMode() {
+        given(factory.create(context, HederaFunctionality.CONTRACT_CALL, EvmFrameStates.DEFAULT))
+                .willReturn(component);
+        given(component.contextTransactionProcessor()).willReturn(processor);
+        given(context.configuration()).willReturn(BLOCKS_MODE_CONFIG);
+        given(context.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(recordBuilder);
+        given(baseProxyWorldUpdater.entityIdFactory()).willReturn(entityIdFactory);
+        final var expectedResult = SUCCESS_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
+        final var expectedOutcome = new CallOutcome(
+                expectedResult,
+                SUCCESS_RESULT.finalStatus(),
+                CALLED_CONTRACT_ID,
+                null,
+                null,
+                null,
+                null,
+                SUCCESS_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
+                SUCCESS_RESULT.signerNonce(),
+                null,
+                null,
+                CodeDelegationResult.EMPTY);
+        given(processor.call()).willReturn(expectedOutcome);
+        given(component.hederaOperations()).willReturn(hederaOperations);
+
+        given(recordBuilder.contractID(CALLED_CONTRACT_ID)).willReturn(recordBuilder);
+        given(recordBuilder.evmCallTransactionResult(any())).willReturn(recordBuilder);
+        given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
+                .willReturn(recordBuilder);
+
+        assertDoesNotThrow(() -> subject.handle(context));
+
+        verify(recordBuilder, never()).contractCallResult(any());
+    }
+
+    @Test
+    void delegatesToCreatedComponentAndThrowsOnFailureInBlocksMode() {
+        given(factory.create(context, HederaFunctionality.CONTRACT_CALL, EvmFrameStates.DEFAULT))
+                .willReturn(component);
+        given(component.contextTransactionProcessor()).willReturn(processor);
+        given(component.hederaOperations()).willReturn(hederaOperations);
+        given(context.configuration()).willReturn(BLOCKS_MODE_CONFIG);
+        given(context.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(ContractCallStreamBuilder.class)).willReturn(recordBuilder);
+        final var expectedResult = HALT_RESULT.asProtoResultOf(null, baseProxyWorldUpdater, null);
+        final var expectedOutcome = new CallOutcome(
+                expectedResult,
+                HALT_RESULT.finalStatus(),
+                null,
+                null,
+                null,
+                null,
+                null,
+                HALT_RESULT.asEvmTxResultOf(null, baseProxyWorldUpdater, null, null),
+                null,
+                null,
+                null,
+                CodeDelegationResult.EMPTY);
+        given(processor.call()).willReturn(expectedOutcome);
+
+        given(recordBuilder.contractID(null)).willReturn(recordBuilder);
+        given(recordBuilder.evmCallTransactionResult(any())).willReturn(recordBuilder);
+        given(recordBuilder.withCommonFieldsSetFrom(expectedOutcome, context, entityIdFactory))
+                .willReturn(recordBuilder);
+
+        assertFailsWith(INVALID_SIGNATURE, () -> subject.handle(context));
+
+        verify(recordBuilder, never()).contractCallResult(any());
     }
 
     @Test
@@ -190,8 +280,8 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
 
         // check at least intrinsic gas
         final var txn2 = contractCallTransactionWithContractId(targetContract, INTRINSIC_GAS_FOR_0_ARG_METHOD - 1);
-        given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
-                .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
+        given(gasCalculator.transactionGasRequirements(0, 0, false, null, null))
+                .willReturn(TestHelpers.gasChargesFromIntrinsicGas(INTRINSIC_GAS_FOR_0_ARG_METHOD));
         given(pureChecksContext.body()).willReturn(txn2);
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
 
@@ -209,20 +299,6 @@ class ContractCallHandlerTest extends ContractHandlerTestBase {
         final var txn5 = contractCallTransactionWithContractId(ConstantUtils.EVM_ZERO_CONTRACT_ID);
         given(pureChecksContext.body()).willReturn(txn5);
         assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-    }
-
-    @Test
-    void testCalculateFeesWithoutCallBody() {
-        final var txn = TransactionBody.newBuilder().build();
-        final var feeCtx = mock(FeeContext.class);
-        given(feeCtx.body()).willReturn(txn);
-
-        final var feeCalcFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalc = mock(FeeCalculator.class);
-        given(feeCtx.feeCalculatorFactory()).willReturn(feeCalcFactory);
-        given(feeCalcFactory.feeCalculator(notNull())).willReturn(feeCalc);
-
-        assertDoesNotThrow(() -> subject.calculateFees(feeCtx));
     }
 
     private TransactionBody contractCallTransaction() {

@@ -2,8 +2,8 @@
 package com.hedera.node.app.service.token.api;
 
 import static com.hedera.node.app.service.token.Units.HBARS_TO_TINYBARS;
-import static com.swirlds.common.stream.LinkedObjectStreamUtilities.getPeriod;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.event.stream.LinkedObjectStreamUtilities.getPeriod;
 
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;

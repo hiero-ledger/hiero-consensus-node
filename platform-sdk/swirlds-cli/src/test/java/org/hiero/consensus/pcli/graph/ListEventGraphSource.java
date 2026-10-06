@@ -5,6 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Supplier;
+import org.hiero.consensus.event.EventGraphSource;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
@@ -12,7 +13,8 @@ import org.hiero.consensus.model.event.PlatformEvent;
  */
 public class ListEventGraphSource implements EventGraphSource {
 
-    private final Iterator<PlatformEvent> eventsIterator;
+    private final Supplier<List<PlatformEvent>> eventSupplier;
+    private Iterator<PlatformEvent> eventsIterator;
 
     /**
      * Creates a source that loads events from the given supplier.
@@ -20,6 +22,7 @@ public class ListEventGraphSource implements EventGraphSource {
      * @param eventSupplier provides the list of events to iterate over
      */
     public ListEventGraphSource(@NonNull final Supplier<List<PlatformEvent>> eventSupplier) {
+        this.eventSupplier = eventSupplier;
         this.eventsIterator = eventSupplier.get().iterator();
     }
 
@@ -38,5 +41,10 @@ public class ListEventGraphSource implements EventGraphSource {
     @Override
     public boolean hasNext() {
         return eventsIterator.hasNext();
+    }
+
+    @Override
+    public void reset() {
+        this.eventsIterator = eventSupplier.get().iterator();
     }
 }

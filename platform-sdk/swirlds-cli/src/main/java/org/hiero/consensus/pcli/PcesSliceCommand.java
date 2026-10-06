@@ -9,12 +9,9 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.crypto.EnhancedKeyStoreLoader;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -34,6 +31,8 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Signer;
+import org.hiero.base.file.FileUtils;
+import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -236,7 +235,7 @@ public class PcesSliceCommand extends AbstractCommand {
         // Generate node IDs and keys
         final List<NodeId> nodeIds =
                 IntStream.range(0, nodeCount).mapToObj(NodeId::of).toList();
-        final Map<NodeId, KeysAndCerts> keysAndCertsMap = CryptoStatic.generateKeysAndCerts(nodeIds);
+        final Map<NodeId, KeysAndCerts> keysAndCertsMap = KeysAndCertsGenerator.generateKeysAndCerts(nodeIds);
 
         System.out.println("Generated keys for " + nodeCount + " nodes.");
 
@@ -250,9 +249,11 @@ public class PcesSliceCommand extends AbstractCommand {
         writeKeysPem(keysAndCertsMap, keysDirectory);
         System.out.println("Wrote keys to: " + keysDirectory);
 
+        final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
+
         // Build the slicer
         final PcesGraphSlicer slicer = PcesGraphSlicer.builder()
-                .context(createDefaultPlatformContext())
+                .configuration(configuration)
                 .keysAndCertsMap(keysAndCertsMap)
                 .existingPcesFilesLocation(inputDirectory)
                 .exportPcesFileLocation(outputDirectory)
@@ -370,7 +371,7 @@ public class PcesSliceCommand extends AbstractCommand {
             return null;
         }
         try (final FileInputStream fis = new FileInputStream(snapshotPath.toFile())) {
-            return ConsensusSnapshot.JSON.parse(new ReadableStreamingData(fis));
+            return ConsensusSnapshot.JSON.parseStrict(new ReadableStreamingData(fis));
         }
     }
 
@@ -419,22 +420,6 @@ public class PcesSliceCommand extends AbstractCommand {
             final Path publicCertPath = keysDirectory.resolve(String.format("s-public-%s.pem", nodeName));
             EnhancedKeyStoreLoader.writePemFile(
                     false, publicCertPath, keysAndCerts.sigCert().getEncoded());
-        }
-    }
-
-    /**
-     * Creates a default platform context for CLI operations.
-     *
-     * @return a new platform context
-     */
-    @NonNull
-    public static PlatformContext createDefaultPlatformContext() {
-        try {
-            final Configuration configuration =
-                    DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
-            return PlatformContext.create(configuration);
-        } catch (final IOException e) {
-            throw new java.io.UncheckedIOException("Failed to create platform context", e);
         }
     }
 

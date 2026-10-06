@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip551.contracts;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -47,7 +46,9 @@ import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFo
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
@@ -70,7 +71,6 @@ import org.junit.jupiter.api.Tag;
 
 @Tag(ATOMIC_BATCH)
 @HapiTestLifecycle
-@Tag(MATS)
 class AtomicBatchEthereumCallKeysTest {
     private static final String DEFAULT_BATCH_OPERATOR = "defaultBatchOperator";
 
@@ -134,22 +134,24 @@ class AtomicBatchEthereumCallKeysTest {
                         .sending(100 * ONE_HBAR)
                         // This is the important change, include a top-level signature with the admin key
                         .alsoSigningWithFullPrefix(cryptoKey))),
-                // Finally confirm we ALSO succeed when providing the admin key's
-                // signature via an EthereumTransaction signature
+                // Batch will fail due to the alias signing the eth transaction
+                // is different from the admin key
                 cryptoCreate(RELAYER).balance(10 * THOUSAND_HBAR),
                 sourcing(() -> atomicBatchDefaultOperator(ethereumCall(
-                                contract,
-                                "createFungibleTokenWithSECP256K1AdminKeyPublic",
-                                creationDetails.get().evmAddress(),
-                                adminKey.get())
-                        .type(EthTxData.EthTransactionType.EIP1559)
-                        .nonce(0)
-                        .signingWith(cryptoKey)
-                        .payingWith(RELAYER)
-                        .sending(50 * ONE_HBAR)
-                        .maxGasAllowance(ONE_HBAR * 10)
-                        .gasLimit(5_000_000L)
-                        .via("creationActivatingAdminKeyViaEthTxSig"))),
+                                        contract,
+                                        "createFungibleTokenWithSECP256K1AdminKeyPublic",
+                                        creationDetails.get().evmAddress(),
+                                        adminKey.get())
+                                .type(EthTxData.EthTransactionType.EIP1559)
+                                .nonce(0)
+                                .signingWith(cryptoKey)
+                                .payingWith(RELAYER)
+                                .sending(50 * ONE_HBAR)
+                                .maxGasAllowance(ONE_HBAR * 10)
+                                .gasLimit(5_000_000L)
+                                .hasKnownStatus(INVALID_SIGNATURE)
+                                .via("creationActivatingAdminKeyViaEthTxSig"))
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED)),
                 childRecordsCheck(
                         "creationWithoutTopLevelSig",
                         CONTRACT_REVERT_EXECUTED,
@@ -159,7 +161,7 @@ class AtomicBatchEthereumCallKeysTest {
                                 createdIds -> assertFalse(createdIds.isEmpty(), "Top-level sig map creation failed")),
                 getTxnRecord("creationActivatingAdminKeyViaEthTxSig")
                         .exposingTokenCreationsTo(
-                                createdIds -> assertFalse(createdIds.isEmpty(), "EthTx sig creation failed")));
+                                createdIds -> assertTrue(createdIds.isEmpty(), "EthTx sig creation failed")));
     }
 
     @HapiTest

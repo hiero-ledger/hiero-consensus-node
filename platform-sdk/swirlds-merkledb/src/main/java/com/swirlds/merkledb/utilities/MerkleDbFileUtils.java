@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.utilities;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -99,8 +100,8 @@ public final class MerkleDbFileUtils {
      * @throws IOException
      * 		if an exception occurs while writing.
      */
-    public static int completelyWrite(final WritableByteChannel fileChannel, final ByteBuffer srcBuffer)
-            throws IOException {
+    public static int completelyWrite(
+            @NonNull final WritableByteChannel fileChannel, @NonNull final ByteBuffer srcBuffer) throws IOException {
         int totalBytesWritten = 0;
         while (srcBuffer.hasRemaining()) {
             totalBytesWritten += fileChannel.write(srcBuffer);

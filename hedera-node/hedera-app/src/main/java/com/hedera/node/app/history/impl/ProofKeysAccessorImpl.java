@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
 import com.hedera.cryptography.wraps.SchnorrKeys;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.tss.SequentialContentManager;
+import com.hedera.node.app.tss.TssKeyFiles;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -51,6 +52,7 @@ public class ProofKeysAccessorImpl
     @Override
     public SchnorrKeyPair readContent(@NonNull final Path p) throws IOException {
         requireNonNull(p);
+        TssKeyFiles.ensureKeyFilePermissions(p);
         final var bytes = Files.readAllBytes(p);
         return SchnorrKeyPair.fromDelimited(bytes);
     }
@@ -59,7 +61,7 @@ public class ProofKeysAccessorImpl
     public void writeContent(@NonNull final SchnorrKeyPair content, @NonNull final Path p) throws IOException {
         requireNonNull(content);
         requireNonNull(p);
-        Files.write(p, content.toDelimitedBytes());
+        TssKeyFiles.writeKeyBytes(p, Bytes.wrap(content.toDelimitedBytes()));
     }
 
     public record SchnorrKeyPair(Bytes privateKey, Bytes publicKey) {
@@ -72,16 +74,21 @@ public class ProofKeysAccessorImpl
             return new SchnorrKeyPair(Bytes.wrap(keys.privateKey()), Bytes.wrap(keys.publicKey()));
         }
 
+        @Override
+        public @NonNull String toString() {
+            return "SchnorrKeyPair[privateKey=<redacted>, publicKey=" + publicKey + "]";
+        }
+
         /**
          * Translates a byte array into a {@link SchnorrKeyPair} instance.
          * @param bytes the byte array
          * @return the instance
          */
         public static SchnorrKeyPair fromDelimited(@NonNull final byte[] bytes) {
-            final var m = bytes[0];
+            final var m = bytes[0] & 0xFF;
             final var privateKey = new byte[m];
             System.arraycopy(bytes, 1, privateKey, 0, m);
-            final var n = bytes[m + 1];
+            final var n = bytes[m + 1] & 0xFF;
             final var publicKey = new byte[n];
             System.arraycopy(bytes, m + 2, publicKey, 0, n);
             return new SchnorrKeyPair(Bytes.wrap(privateKey), Bytes.wrap(publicKey));

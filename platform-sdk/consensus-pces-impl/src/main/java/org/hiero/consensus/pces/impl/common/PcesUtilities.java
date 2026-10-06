@@ -4,7 +4,6 @@ package org.hiero.consensus.pces.impl.common;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
-import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -20,6 +19,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
@@ -211,19 +211,21 @@ public final class PcesUtilities {
      * Get the directory where event files are stored. If that directory doesn't exist, create it.
      *
      * @param configuration the configuration for this node
+     * @param fileSystemManager the file system manager to use for resolving the path
      * @param selfId          the ID of this node
      * @return the directory where event files are stored
      * @throws IOException if an error occurs while creating the directory
      */
     @NonNull
-    public static Path getDatabaseDirectory(@NonNull final Configuration configuration, @NonNull final NodeId selfId)
+    public static Path getDatabaseDirectory(
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
+            @NonNull final NodeId selfId)
             throws IOException {
 
-        final StateCommonConfig stateConfig = configuration.getConfigData(StateCommonConfig.class);
         final PcesConfig preconsensusEventStreamConfig = configuration.getConfigData(PcesConfig.class);
 
-        final Path savedStateDirectory = stateConfig.savedStateDirectory();
-        final Path databaseDirectory = savedStateDirectory
+        final Path databaseDirectory = fileSystemManager
                 .resolve(preconsensusEventStreamConfig.databaseDirectory())
                 .resolve(Long.toString(selfId.id()));
 

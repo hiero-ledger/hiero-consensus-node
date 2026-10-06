@@ -9,7 +9,7 @@ import java.io.UncheckedIOException;
 
 public class ThrottleDefsLoader {
     public static ThrottleDefinitions protoDefsFromResource(String testResource) {
-        try (InputStream in = ThrottlesJsonToProtoSerde.class.getClassLoader().getResourceAsStream(testResource)) {
+        try (InputStream in = ThrottleDefsLoader.class.getResourceAsStream("/" + testResource)) {
             return ThrottlesJsonToProtoSerde.loadProtoDefs(in);
         } catch (IOException e) {
             throw new UncheckedIOException(e);

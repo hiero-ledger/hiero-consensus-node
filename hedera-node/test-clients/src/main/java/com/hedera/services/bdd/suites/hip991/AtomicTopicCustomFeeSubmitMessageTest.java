@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip991;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.ControlForKey.forKey;
@@ -45,18 +44,24 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.LegacyFeeParam.LEGACY_ALLOWED_PERCENT_DIFF;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.LegacyFeeParam.LEGACY_EXPECTED_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateFeeModeAwareWithTxnSize;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_FROZEN_FOR_TOKEN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CUSTOM_FEE_CHARGING_EXCEEDED_MAX_RECURSION_DEPTH;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_DENOMINATION_IN_MAX_CUSTOM_FEE_LIST;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_MAX_CUSTOM_FEES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TOKEN_ID_IN_CUSTOM_FEES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CUSTOM_FEE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NO_VALID_MAX_CUSTOM_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static org.hiero.hapi.support.fees.Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -69,12 +74,14 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenID;
 import com.hederahashgraph.api.proto.java.TokenType;
 import com.hederahashgraph.api.proto.java.TransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -786,6 +793,28 @@ class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
         }
 
         @HapiTest
+        @DisplayName("Submits a message when aggregated hbar custom fees overflow a long")
+        final Stream<DynamicTest> submitFailsWhenAggregatedHbarFeesOverflow() {
+            final var collector = "collector";
+            // Two hbar fees whose sum exceeds Long.MAX_VALUE
+            final long halfMaxPlusOne = Long.MAX_VALUE / 2 + 1;
+            return hapiTest(
+                    cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
+                    cryptoCreate(collector).balance(ONE_HBAR),
+                    atomicBatch(createTopic(TOPIC)
+                                    .withConsensusCustomFee(fixedConsensusHbarFee(halfMaxPlusOne, collector))
+                                    .withConsensusCustomFee(fixedConsensusHbarFee(halfMaxPlusOne, collector))
+                                    .batchKey(BATCH_OPERATOR))
+                            .payingWith(BATCH_OPERATOR),
+                    submitMessageTo(TOPIC)
+                            .maxCustomFee(maxCustomFee(SUBMITTER, hbarLimit(1)))
+                            .message("TEST")
+                            .payingWith(SUBMITTER)
+                            .hasKnownStatus(MAX_CUSTOM_FEE_LIMIT_EXCEEDED),
+                    getAccountBalance(collector).hasTinyBars(ONE_HBAR));
+        }
+
+        @HapiTest
         @DisplayName("Submits a message to a topic with custom fee FT with 4 layer fees")
         // TOPIC_FEE_144
         final Stream<DynamicTest> submitToTopicWithFourLayersOfFees() {
@@ -967,11 +996,32 @@ class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                     cryptoCreate(COLLECTOR),
                     atomicBatch(createTopic(TOPIC).feeExemptKeys(SUBMITTER).batchKey(BATCH_OPERATOR))
                             .payingWith(BATCH_OPERATOR),
+                    // The denominating token id is validated even though the payer is fee exempt
                     submitMessageTo(TOPIC)
                             .message("TEST")
                             .maxCustomFee(maxCustomFee(SUBMITTER, htsLimit("invalidToken", 1)))
-                            .payingWith(SUBMITTER),
-                    getAccountBalance(COLLECTOR).hasTokenBalance("invalidToken", 0));
+                            .payingWith(SUBMITTER)
+                            .hasPrecheck(INVALID_MAX_CUSTOM_FEES));
+        }
+
+        @HapiTest
+        @DisplayName("MessageSubmit with an invalid token in a max custom fee that is not the payer's")
+        final Stream<DynamicTest> submitMessageWithInvalidTokenInNonPayerMaxCustomFee() {
+            return hapiTest(
+                    cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
+                    withOpContext((spec, opLog) -> {
+                        spec.registry().saveTokenId("invalidToken", TokenID.getDefaultInstance());
+                    }),
+                    tokenCreate("tokenA"),
+                    cryptoCreate("otherPayer"),
+                    atomicBatch(createTopic(TOPIC).batchKey(BATCH_OPERATOR)).payingWith(BATCH_OPERATOR),
+                    // Fee assessment only reads the payer's entry, but every entry is still validated
+                    submitMessageTo(TOPIC)
+                            .message("TEST")
+                            .maxCustomFee(maxCustomFee(SUBMITTER, htsLimit("tokenA", 1)))
+                            .maxCustomFee(maxCustomFee("otherPayer", htsLimit("invalidToken", 1)))
+                            .payingWith(SUBMITTER)
+                            .hasPrecheck(INVALID_MAX_CUSTOM_FEES));
         }
 
         @HapiTest
@@ -1001,7 +1051,6 @@ class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
         @HapiTest
         @DisplayName("SubmitMessage to a topic with a custom fee of 1 FT A and 1 HBAR and accept_all_custom_fees=true")
         // TOPIC_FEE_192/193
-        @Tag(MATS)
         final Stream<DynamicTest> submitMessageToTopicWithCustomFeesAndAcceptAllCustomFees() {
             final var collector = "collector";
             final var tokenA = "tokenA";
@@ -1037,13 +1086,9 @@ class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
         // TOPIC_FEE_199
         final Stream<DynamicTest> submitMessageFromFeeCollector() {
             final var fee = fixedConsensusHtsFee(5, BASE_TOKEN, COLLECTOR);
-            final var feeLimit = maxCustomFee(
-                    COLLECTOR, htsLimit("invalidToken", 1), htsLimit(BASE_TOKEN, 1), htsLimit("tokenA", 1));
+            final var feeLimit = maxCustomFee(COLLECTOR, htsLimit(BASE_TOKEN, 1), htsLimit("tokenA", 1));
             return hapiTest(
                     cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
-                    withOpContext((spec, opLog) -> {
-                        spec.registry().saveTokenId("invalidToken", TokenID.getDefaultInstance());
-                    }),
                     tokenCreate("tokenA"),
                     cryptoCreate(COLLECTOR),
                     tokenAssociate(COLLECTOR, BASE_TOKEN),
@@ -2049,6 +2094,12 @@ class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
             Arrays.fill(messageBytes1000, (byte) 0b1);
             Arrays.fill(messageBytes1024, (byte) 0b1);
 
+            final FeesChargingUtils.ExpectedUsdFromExtras submitExpectedFn =
+                    FeesChargingUtils::expectedTopicSubmitMessageWithCustomFeeFullFeeUsd;
+            final double legacyAllowedPercentDiff = 0.1;
+            final double simpleFeesAllowedPercentDiff = 0.1;
+            final long testMsgBytes = "test".getBytes().length;
+
             return hapiTest(flattened(
                     cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                     newKeyNamed(SUBMIT_KEY),
@@ -2081,16 +2132,60 @@ class AtomicTopicCustomFeeSubmitMessageTest extends TopicCustomFeeBase {
                             .payingWith(SUBMITTER)
                             .via("extraSigs"),
                     getAccountBalance("collector").hasTinyBars(60),
-                    validateChargedUsdWithin("simpleSubmit", 0.05, 0.1),
-                    validateChargedUsdWithin("submit513", 0.051, 0.1),
-                    validateChargedUsdWithin("submit800", 0.055999, 0.1),
-                    validateChargedUsdWithin("submit1000", 0.06, 0.1),
-                    validateChargedUsdWithin("submit1024", 0.06, 0.1),
-                    validateChargedUsdWithin("extraSigs", 0.0792, 0.1)));
+
+                    // --- Fee validations in simple fees - legacy fees dual-mode ---//
+                    validateFeeModeAwareWithTxnSize(
+                            "simpleSubmit",
+                            Map.of(SIGNATURES, 1L, CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES, testMsgBytes),
+                            Map.of(LEGACY_EXPECTED_USD, 0.05, LEGACY_ALLOWED_PERCENT_DIFF, legacyAllowedPercentDiff),
+                            simpleFeesAllowedPercentDiff,
+                            submitExpectedFn),
+                    validateFeeModeAwareWithTxnSize(
+                            "submit513",
+                            Map.of(
+                                    SIGNATURES, 1L,
+                                    CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES, 513L),
+                            Map.of(LEGACY_EXPECTED_USD, 0.051, LEGACY_ALLOWED_PERCENT_DIFF, legacyAllowedPercentDiff),
+                            simpleFeesAllowedPercentDiff,
+                            submitExpectedFn),
+                    validateFeeModeAwareWithTxnSize(
+                            "submit800",
+                            Map.of(
+                                    SIGNATURES, 1L,
+                                    CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES, 800L),
+                            Map.of(
+                                    LEGACY_EXPECTED_USD,
+                                    0.055999,
+                                    LEGACY_ALLOWED_PERCENT_DIFF,
+                                    legacyAllowedPercentDiff),
+                            simpleFeesAllowedPercentDiff,
+                            submitExpectedFn),
+                    validateFeeModeAwareWithTxnSize(
+                            "submit1000",
+                            Map.of(
+                                    SIGNATURES, 1L,
+                                    CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES, 1000L),
+                            Map.of(LEGACY_EXPECTED_USD, 0.06, LEGACY_ALLOWED_PERCENT_DIFF, legacyAllowedPercentDiff),
+                            simpleFeesAllowedPercentDiff,
+                            submitExpectedFn),
+                    validateFeeModeAwareWithTxnSize(
+                            "submit1024",
+                            Map.of(
+                                    SIGNATURES, 1L,
+                                    CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES, 1024L),
+                            Map.of(LEGACY_EXPECTED_USD, 0.06, LEGACY_ALLOWED_PERCENT_DIFF, legacyAllowedPercentDiff),
+                            simpleFeesAllowedPercentDiff,
+                            submitExpectedFn),
+                    validateFeeModeAwareWithTxnSize(
+                            "extraSigs",
+                            Map.of(SIGNATURES, 2L, CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES, testMsgBytes),
+                            Map.of(LEGACY_EXPECTED_USD, 0.0792, LEGACY_ALLOWED_PERCENT_DIFF, legacyAllowedPercentDiff),
+                            simpleFeesAllowedPercentDiff,
+                            submitExpectedFn)));
         }
 
         @HapiTest
-        @DisplayName("Submit ot topic with 2 layers fee should have 0 child records")
+        @DisplayName("Submit to topic with 2 layers fee should have 0 child records")
         final Stream<DynamicTest> submitToTopicWith2layersFee() {
             return hapiTest(flattened(
                     cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),

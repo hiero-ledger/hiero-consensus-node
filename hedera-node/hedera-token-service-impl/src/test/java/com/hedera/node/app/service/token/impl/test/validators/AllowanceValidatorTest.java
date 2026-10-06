@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.validators.AllowanceValidator.aggregateApproveNftAllowances;
 import static com.hedera.node.app.service.token.impl.validators.AllowanceValidator.getEffectiveOwner;
+import static com.hedera.node.app.service.token.impl.validators.AllowanceValidator.isDelegatingSpenderPresent;
 import static com.hedera.node.app.service.token.impl.validators.AllowanceValidator.isValidOwner;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -25,6 +26,7 @@ import com.hedera.node.app.service.token.impl.test.handlers.util.CryptoTokenHand
 import com.hedera.node.app.service.token.impl.validators.AllowanceValidator;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -85,6 +87,50 @@ class AllowanceValidatorTest extends CryptoTokenHandlerTestBase {
     void validatesOwner() {
         assertThat(isValidOwner(nftSl1, spenderId, fungibleToken)).isFalse();
         assertThat(isValidOwner(nftSl1, ownerId, nonFungibleToken)).isTrue();
+    }
+
+    @Test
+    void aliasedOwnerIsNotTreatedAsAbsent() {
+        final var aliasedOwner =
+                AccountID.newBuilder().alias(Bytes.wrap("aliasNotAnAccountNum")).build();
+        assertThatThrownBy(() -> getEffectiveOwner(aliasedOwner, account, readableAccountStore, expiryValidator))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INVALID_ALLOWANCE_OWNER_ID));
+    }
+
+    @Test
+    void zeroNumberedOwnerIsInvalidRatherThanAbsent() {
+        // Account numbers must be positive - pureChecks already rejects a zero-numbered owner with
+        // INVALID_ACCOUNT_ID - so such an id is an invalid reference, not an omitted field, and the
+        // payer fallback must not apply to it
+        final var zeroOwner = AccountID.newBuilder().accountNum(0L).build();
+        assertThatThrownBy(() -> getEffectiveOwner(zeroOwner, account, readableAccountStore, expiryValidator))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INVALID_ALLOWANCE_OWNER_ID));
+    }
+
+    @Test
+    void recognizesDelegatingSpenderWithoutReadingItAsANumber() {
+        final var withAlias = NftAllowance.newBuilder()
+                .delegatingSpender(AccountID.newBuilder()
+                        .alias(Bytes.wrap("aliasNotAnAccountNum"))
+                        .build())
+                .build();
+        assertThat(isDelegatingSpenderPresent(withAlias)).isTrue();
+
+        final var withNumber =
+                NftAllowance.newBuilder().delegatingSpender(spenderId).build();
+        assertThat(isDelegatingSpenderPresent(withNumber)).isTrue();
+
+        assertThat(isDelegatingSpenderPresent(NftAllowance.DEFAULT)).isFalse();
+        assertThat(isDelegatingSpenderPresent(NftAllowance.newBuilder()
+                        .delegatingSpender(AccountID.DEFAULT)
+                        .build()))
+                .isFalse();
+        assertThat(isDelegatingSpenderPresent(NftAllowance.newBuilder()
+                        .delegatingSpender(AccountID.newBuilder().accountNum(0L).build())
+                        .build()))
+                .isFalse();
     }
 
     @Test

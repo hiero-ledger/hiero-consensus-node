@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_QUERY_HEADER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RECEIVING_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
@@ -19,23 +20,23 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.Query;
-import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.fees.context.IngestFeeContext;
+import com.hedera.node.app.fees.context.SimpleFeeContextImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.fees.SimpleFeeContextUtil;
 import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.validation.ExpiryValidation;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.ingest.IngestChecker;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
-import com.hedera.node.config.data.FeesConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -56,6 +57,7 @@ public class QueryChecker {
     private final FeeManager feeManager;
     private final TransactionDispatcher dispatcher;
     private final IngestChecker ingestChecker;
+    private final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
 
     /**
      * Constructor of {@code QueryChecker}
@@ -78,7 +80,8 @@ public class QueryChecker {
             @NonNull final ExpiryValidation expiryValidation,
             @NonNull final FeeManager feeManager,
             @NonNull final TransactionDispatcher dispatcher,
-            @NonNull final IngestChecker ingestChecker) {
+            @NonNull final IngestChecker ingestChecker,
+            @NonNull final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator) {
         this.authorizer = requireNonNull(authorizer);
         this.cryptoTransferHandler = requireNonNull(cryptoTransferHandler);
         this.solvencyPreCheck = requireNonNull(solvencyPreCheck);
@@ -86,6 +89,7 @@ public class QueryChecker {
         this.feeManager = requireNonNull(feeManager);
         this.dispatcher = requireNonNull(dispatcher);
         this.ingestChecker = requireNonNull(ingestChecker);
+        this.synchronizedThrottleAccumulator = requireNonNull(synchronizedThrottleAccumulator);
     }
 
     /**
@@ -112,6 +116,14 @@ public class QueryChecker {
         final var txBody = transactionInfo.txBody();
         final var pureChecksContext = new PureChecksContextImpl(txBody, dispatcher);
         cryptoTransferHandler.pureChecks(pureChecksContext);
+
+        // A query payment must be a pure HBAR transfer to the node. Token transfers in the payment are not
+        // validated on the query path (no token-sender signature, association, KYC, freeze, or balance checks),
+        // so a payment whose token leg is doomed at consensus would still let the query be answered without the
+        // node collecting its fee. Reject any token transfers here rather than answer such a query.
+        if (!txBody.cryptoTransferOrThrow().tokenTransfers().isEmpty()) {
+            throw new PreCheckException(INVALID_QUERY_HEADER);
+        }
 
         for (final var accountAmount :
                 txBody.cryptoTransferOrThrow().transfersOrThrow().accountAmounts()) {
@@ -240,7 +252,7 @@ public class QueryChecker {
             @NonNull final TransactionInfo transactionInfo,
             @NonNull final Key payerKey,
             @NonNull final Configuration configuration) {
-        final var feeContext = new FeeContextImpl(
+        final var feeContext = new IngestFeeContext(
                 consensusTime,
                 transactionInfo,
                 payerKey,
@@ -251,13 +263,11 @@ public class QueryChecker {
                 authorizer,
                 // Signatures aren't applicable to queries
                 -1,
-                dispatcher);
-        if (configuration.getConfigData(FeesConfig.class).simpleFeesEnabled()) {
-            final var transferFeeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
-                    .calculateTxFee(transactionInfo.txBody(), SimpleFeeContextUtil.fromFeeContext(feeContext));
-            final var fees = feeResultToFees(transferFeeResult, fromPbj(feeContext.activeRate()));
-            return fees.totalFee();
-        }
-        return cryptoTransferHandler.calculateFees(feeContext).totalFee();
+                dispatcher,
+                synchronizedThrottleAccumulator);
+        final var transferFeeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
+                .calculateTxFee(transactionInfo.txBody(), new SimpleFeeContextImpl(feeContext, null));
+        final var fees = feeResultToFees(transferFeeResult, fromPbj(feeContext.activeRate()));
+        return fees.totalFee();
     }
 }

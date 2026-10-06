@@ -11,7 +11,7 @@ import static com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus.GrpcSta
 import static com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus.GrpcStatus.NA;
 import static com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus.GrpcStatus.UP;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.conditionFuture;
-import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.destroyAnySubProcessNodeWithId;
+import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.destroyAnySubProcessNodeFor;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.startSubProcessNodeFrom;
 import static com.hedera.services.bdd.junit.hedera.subprocess.StatusLookupAttempt.newLogAttempt;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ERROR_REDIRECT_FILE;
@@ -149,20 +149,24 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
 
     @Override
     public CompletableFuture<Void> stopFuture() {
-        if (processHandle == null) {
+        // Capture into a local: the onExit callback below nulls this.processHandle on another
+        // thread, which would otherwise race the dereferences here when a node self-exits (e.g.
+        // during a freeze-triggered shutdown) and cause a NullPointerException.
+        final var handle = processHandle;
+        if (handle == null) {
             return CompletableFuture.completedFuture(null);
         }
-        final var stopFuture = processHandle.onExit().thenAccept(handle -> {
-            log.info("Destroyed PID {}", handle.pid());
+        final var stopFuture = handle.onExit().thenAccept(exited -> {
+            log.info("Destroyed PID {}", exited.pid());
             this.processHandle = null;
         });
         log.info(
                 "Destroying node{} with PID '{}' (Alive? {})",
                 metadata.nodeId(),
-                processHandle.pid(),
-                processHandle.isAlive() ? "Yes" : "No");
-        if (!processHandle.destroyForcibly()) {
-            log.warn("May have failed to stop node{} with PID '{}'", metadata.nodeId(), processHandle.pid());
+                handle.pid(),
+                handle.isAlive() ? "Yes" : "No");
+        if (!handle.destroyForcibly()) {
+            log.warn("May have failed to stop node{} with PID '{}'", metadata.nodeId(), handle.pid());
         }
         return stopFuture;
     }
@@ -214,7 +218,7 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
             final int configVersion, @NonNull final Map<String, String> envOverrides) {
         assertStopped();
         assertWorkingDirInitialized();
-        destroyAnySubProcessNodeWithId(metadata.nodeId());
+        destroyAnySubProcessNodeFor(metadata.networkName(), metadata.nodeId());
         processHandle = startSubProcessNodeFrom(metadata, configVersion, envOverrides);
         return this;
     }

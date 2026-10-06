@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration;
 
+import static com.hedera.services.bdd.junit.RepeatableReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
@@ -12,7 +13,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.SysFileOverrideOp.Target.THROTTLES;
@@ -27,6 +27,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
@@ -52,7 +53,7 @@ public class CongestionPricingTest {
     private static final String CIVILIAN_ACCOUNT = "civilian";
 
     @LeakyRepeatableHapiTest(
-            value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
+            value = {MUST_SKIP_INGEST, NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
             overrides = {"contracts.maxGasPerSec", "fees.percentCongestionMultipliers", "fees.minCongestionPeriod"})
     Stream<DynamicTest> canUpdateGasThrottleMultipliersDynamically() {
         final var contract = "Multipurpose";
@@ -74,12 +75,10 @@ public class CongestionPricingTest {
                         .gas(gasToOffer)
                         .sending(ONE_HBAR)
                         .via("cheapCall"),
-                getTxnRecord("cheapCall")
-                        .providingFeeTo(normalFee -> {
-                            log.info("Normal ContractCall fee is {}", normalFee);
-                            normalPrice.set(normalFee);
-                        })
-                        .logged(),
+                getTxnRecord("cheapCall").providingFeeTo(normalFee -> {
+                    log.info("Normal ContractCall fee is {}", normalFee);
+                    normalPrice.set(normalFee);
+                }),
                 overridingTwo("fees.percentCongestionMultipliers", "1,7x", "fees.minCongestionPeriod", "1"),
                 new SysFileOverrideOp(
                         THROTTLES, () -> resourceAsString("testSystemFiles/artificial-limits-congestion.json")),
@@ -87,13 +86,14 @@ public class CongestionPricingTest {
                 blockingOrder(IntStream.range(0, 10)
                         .mapToObj(i -> new HapiSpecOperation[] {
                             usableTxnIdNamed("uncheckedTxn" + i).payerId(CIVILIAN_ACCOUNT),
-                            uncheckedSubmit(contractCall(contract)
-                                            .signedBy(CIVILIAN_ACCOUNT)
-                                            .fee(ONE_HUNDRED_HBARS)
-                                            .gas(gasToOffer)
-                                            .sending(ONE_HBAR)
-                                            .txnId("uncheckedTxn" + i))
-                                    .payingWith(GENESIS),
+                            contractCall(contract)
+                                    .signedBy(CIVILIAN_ACCOUNT)
+                                    .fee(ONE_HUNDRED_HBARS)
+                                    .gas(gasToOffer)
+                                    .sending(ONE_HBAR)
+                                    .txnId("uncheckedTxn" + i)
+                                    .setNode("4") // for skipping ingest
+                                    .hasAnyStatusAtAll(),
                             sleepFor(125)
                         })
                         .flatMap(Arrays::stream)
@@ -117,40 +117,46 @@ public class CongestionPricingTest {
     }
 
     @LeakyRepeatableHapiTest(
-            value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
+            value = {MUST_SKIP_INGEST, NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION},
             overrides = {"fees.percentCongestionMultipliers", "fees.minCongestionPeriod"})
     Stream<DynamicTest> canUpdateTransferThrottleMultipliersDynamically() {
         AtomicLong normalPrice = new AtomicLong();
         AtomicLong sevenXPrice = new AtomicLong();
+        final int burstTxns = 24;
 
         return hapiTest(
+                overridingTwo("fees.percentCongestionMultipliers", "1,7x", "fees.minCongestionPeriod", "1"),
                 cryptoCreate(CIVILIAN_ACCOUNT).payingWith(GENESIS).balance(ONE_MILLION_HBARS),
                 cryptoTransfer(tinyBarsFromTo(CIVILIAN_ACCOUNT, FUNDING, 5L))
                         .payingWith(CIVILIAN_ACCOUNT)
                         .via("normalTransfer"),
-                getTxnRecord("normalTransfer")
-                        .providingFeeTo(normalFee -> {
-                            log.info("Normal fee for transfer is {}", normalFee);
-                            normalPrice.set(normalFee);
-                        })
-                        .logged(),
-                overridingTwo("fees.percentCongestionMultipliers", "1,7x", "fees.minCongestionPeriod", "1"),
+                getTxnRecord("normalTransfer").providingFeeTo(normalFee -> {
+                    log.info("Normal fee for transfer is {}", normalFee);
+                    normalPrice.set(normalFee);
+                }),
                 new SysFileOverrideOp(THROTTLES, () -> resourceAsString("testSystemFiles/extreme-limits.json")),
                 sleepFor(2_000),
-                blockingOrder(IntStream.range(0, 20)
+                blockingOrder(IntStream.range(0, burstTxns)
                         .mapToObj(i -> new HapiSpecOperation[] {
                             usableTxnIdNamed("uncheckedTxn" + i).payerId(CIVILIAN_ACCOUNT),
-                            uncheckedSubmit(cryptoTransfer(tinyBarsFromTo(CIVILIAN_ACCOUNT, FUNDING, 5L))
-                                            .payingWith(CIVILIAN_ACCOUNT))
-                                    .payingWith(GENESIS)
-                                    .noLogging()
+                            cryptoTransfer(tinyBarsFromTo(CIVILIAN_ACCOUNT, FUNDING, 5L))
+                                    .payingWith(CIVILIAN_ACCOUNT)
+                                    .txnId("uncheckedTxn" + i)
+                                    .setNode("4") // for skipping ingest
+                                    .hasAnyStatusAtAll()
+                                    .noLogging(),
+                            sleepFor(125)
                         })
                         .flatMap(Arrays::stream)
                         .toArray(HapiSpecOperation[]::new)),
                 cryptoTransfer(tinyBarsFromTo(CIVILIAN_ACCOUNT, FUNDING, 5L))
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(CIVILIAN_ACCOUNT)
-                        .via("congestedTransfer"),
+                        .via("congestedTransfer")
+                        .hasRetryPrecheckFrom(BUSY)
+                        .setRetryLimit(20),
+                // Allow throttles to settle so follow-up record query and cleanup overrides aren't BUSY-throttled.
+                sleepFor(2_000),
                 getTxnRecord("congestedTransfer").payingWith(GENESIS).providingFeeTo(congestionFee -> {
                     log.info("Congestion fee for transfer is {}", congestionFee);
                     sevenXPrice.set(congestionFee);

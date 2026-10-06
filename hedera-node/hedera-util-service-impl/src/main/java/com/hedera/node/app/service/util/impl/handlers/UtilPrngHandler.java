@@ -3,10 +3,7 @@ package com.hedera.node.app.service.util.impl.handlers;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.node.app.service.util.impl.records.PrngStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -53,23 +50,6 @@ public class UtilPrngHandler implements TransactionHandler {
         if (context.body().utilPrngOrThrow().range() < 0) {
             throw new PreCheckException(ResponseCodeEnum.INVALID_PRNG_RANGE);
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public Fees calculateFees(@NonNull FeeContext feeContext) {
-        // Determine the fees. If the range is specified (i.e. it isn't 0), then we charge for an additional 4 bytes
-        // (one integer), otherwise we don't charge for any additional bytes. Standard transaction usage has already
-        // been determined and loaded into the calculator.
-        final var range = feeContext.body().utilPrngOrThrow().range();
-        return feeContext
-                .feeCalculatorFactory()
-                .feeCalculator(SubType.DEFAULT)
-                .addBytesPerTransaction(range > 0 ? Integer.BYTES : 0)
-                .calculate();
     }
 
     /**

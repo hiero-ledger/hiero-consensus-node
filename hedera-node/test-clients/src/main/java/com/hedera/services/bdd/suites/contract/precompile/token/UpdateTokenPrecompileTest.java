@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.token;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.entities.SpecKey.Type.SECP_256K1;
@@ -56,6 +55,7 @@ import org.junit.jupiter.api.Tag;
 @SuppressWarnings("java:S1192")
 @HapiTestLifecycle
 public class UpdateTokenPrecompileTest {
+    private static final long GAS_NEEDED = 550_000L;
     private static final Address ZERO_ADDRESS = asHeadlongAddress(new byte[20]);
 
     @Contract(contract = "UpdateTokenInfoContract", creationGas = 4_000_000L)
@@ -77,6 +77,7 @@ public class UpdateTokenPrecompileTest {
     public Stream<DynamicTest> cannotUpdateMissingToken() {
         return hapiTest(updateTokenContract
                 .call("tokenUpdateKeys", ZERO_ADDRESS, ed25519Key, secp256k1Key, updateTokenContract)
+                .gas(GAS_NEEDED)
                 .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, INVALID_TOKEN_ID)));
     }
 
@@ -87,9 +88,11 @@ public class UpdateTokenPrecompileTest {
                 newTreasury.authorizeContract(updateTokenContract),
                 updateTokenContract
                         .call("updateTokenTreasury", immutableToken, newTreasury)
+                        .gas(GAS_NEEDED)
                         .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, TOKEN_IS_IMMUTABLE)),
                 updateTokenContract
                         .call("tokenUpdateKeys", immutableToken, ed25519Key, secp256k1Key, updateTokenContract)
+                        .gas(GAS_NEEDED)
                         .andAssert(txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, TOKEN_IS_IMMUTABLE)));
     }
 
@@ -176,7 +179,6 @@ public class UpdateTokenPrecompileTest {
 
         @HapiTest
         @DisplayName("can update the auto-renew account")
-        @Tag(MATS)
         public Stream<DynamicTest> canUpdateAutoRenewAccount(
                 @Account(name = "autoRenewAccount") SpecAccount autoRenewAccount) {
             return hapiTest(
@@ -209,7 +211,6 @@ public class UpdateTokenPrecompileTest {
 
         @HapiTest
         @DisplayName("can update the KYC key to a different Ed25519 key or itself")
-        @Tag(MATS)
         public Stream<DynamicTest> canUpdateKycKeyToEd25519OrItself() {
             return hapiTest(
                     // This contract uses 1 as shorthand for the KYC key
@@ -225,7 +226,6 @@ public class UpdateTokenPrecompileTest {
 
         @HapiTest
         @DisplayName("can update the freeze key to a different Ed25519 key or itself")
-        @Tag(MATS)
         public Stream<DynamicTest> canUpdateFreezeKeyToEd25519OrItself() {
             return hapiTest(
                     // This contract uses 2 as shorthand for the freeze key
@@ -354,6 +354,7 @@ public class UpdateTokenPrecompileTest {
                                         ed25519Key,
                                         secp256k1Key,
                                         updateTokenContract)
+                                .gas(GAS_NEEDED)
                                 .andAssert(txn ->
                                         txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, TOKEN_HAS_NO_FEE_SCHEDULE_KEY)));
             }
@@ -374,6 +375,7 @@ public class UpdateTokenPrecompileTest {
                                         ed25519Key,
                                         secp256k1Key,
                                         updateTokenContract)
+                                .gas(GAS_NEEDED)
                                 .andAssert(txn ->
                                         txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, TOKEN_HAS_NO_SUPPLY_KEY)));
             }
@@ -394,6 +396,7 @@ public class UpdateTokenPrecompileTest {
                                         ed25519Key,
                                         secp256k1Key,
                                         updateTokenContract)
+                                .gas(GAS_NEEDED)
                                 .andAssert(
                                         txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, TOKEN_HAS_NO_WIPE_KEY)));
             }
@@ -414,6 +417,7 @@ public class UpdateTokenPrecompileTest {
                                         ed25519Key,
                                         secp256k1Key,
                                         updateTokenContract)
+                                .gas(GAS_NEEDED)
                                 .andAssert(
                                         txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, TOKEN_HAS_NO_PAUSE_KEY)));
             }
@@ -434,6 +438,7 @@ public class UpdateTokenPrecompileTest {
                                         ed25519Key,
                                         secp256k1Key,
                                         updateTokenContract)
+                                .gas(GAS_NEEDED)
                                 .andAssert(txn ->
                                         txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, TOKEN_HAS_NO_FREEZE_KEY)));
             }
@@ -454,6 +459,7 @@ public class UpdateTokenPrecompileTest {
                                         ed25519Key,
                                         secp256k1Key,
                                         updateTokenContract)
+                                .gas(GAS_NEEDED)
                                 .andAssert(
                                         txn -> txn.hasKnownStatuses(CONTRACT_REVERT_EXECUTED, TOKEN_HAS_NO_KYC_KEY)));
             }

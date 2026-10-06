@@ -78,7 +78,7 @@ class CustomFeeAssessmentStepTest extends StepsBase {
 
         givenTxn();
 
-        final var listOfOps = subject.assessCustomFees(new TransferContextImpl(handleContext, false));
+        final var listOfOps = subject.assessCustomFees(new TransferContextImpl(handleContext, false, false));
         assertThat(listOfOps).hasSize(2);
 
         final var givenOp = listOfOps.get(0);
@@ -202,6 +202,8 @@ class CustomFeeAssessmentStepTest extends StepsBase {
         final var tokensReceiver = asAccount(0L, 0L, tokenReceiver);
 
         givenTxn();
+        // Model the NFT sender having been resolved from an existing alias. It must not be treated as auto-created.
+        transferContext.resolutions().put(idFactory.newAccountIdWithAlias(ecKeyAlias.value()), ownerId);
 
         final var listOfOps = subject.assessCustomFees(transferContext);
         assertThat(listOfOps).hasSize(2);
@@ -284,7 +286,7 @@ class CustomFeeAssessmentStepTest extends StepsBase {
 
         givenTxn();
 
-        final var listOfOps = subject.assessCustomFees(new TransferContextImpl(handleContext, false));
+        final var listOfOps = subject.assessCustomFees(new TransferContextImpl(handleContext, false, false));
         assertThat(listOfOps).hasSize(2);
 
         final var givenOp = listOfOps.get(0);

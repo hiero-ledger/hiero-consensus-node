@@ -21,11 +21,13 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_REMAINING_AUTOMATIC_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_WIPE_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_IMMUTABLE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_IS_PAUSED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NAME_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_SYMBOL_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_WAS_DELETED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
 import static com.hedera.hapi.node.base.TokenType.FUNGIBLE_COMMON;
 import static com.hedera.hapi.node.base.TokenType.NON_FUNGIBLE_UNIQUE;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.asAccount;
@@ -47,6 +49,7 @@ import static org.mockito.Mockito.verify;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.base.TokenID;
@@ -276,6 +279,49 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
+    void failsIfTokenHasEmptyKeyListAdminKey() {
+        // An empty key list admin key (the HIP-540 removal sentinel) means the token is effectively
+        // immutable; an admin-gated update must fail rather than require no signature.
+        final var copyToken = writableTokenStore
+                .get(fungibleTokenId)
+                .copyBuilder()
+                .adminKey(Key.newBuilder().keyList(KeyList.DEFAULT).build())
+                .build();
+        writableTokenStore.put(copyToken);
+        given(preHandleContext.createStore(ReadableTokenStore.class)).willReturn(writableTokenStore);
+        txn = new TokenUpdateBuilder().build();
+        given(preHandleContext.body()).willReturn(txn);
+        assertThatThrownBy(() -> subject.preHandle(preHandleContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(TOKEN_IS_IMMUTABLE));
+    }
+
+    @Test
+    void failsToUpdateRoleKeyWhenExistingRoleKeyIsEmptyKeyList() {
+        // A token with a valid admin key but a wipe key set to the empty-KeyList sentinel: the wipe key
+        // is "removed"/disabled, so updating it must be rejected with TOKEN_HAS_NO_WIPE_KEY rather than
+        // routed through an unsatisfiable 1/2 threshold whose signature requirement is silently dropped.
+        final var copyToken = writableTokenStore
+                .get(fungibleTokenId)
+                .copyBuilder()
+                .wipeKey(Key.newBuilder().keyList(KeyList.DEFAULT).build())
+                .build();
+        writableTokenStore.put(copyToken);
+        given(preHandleContext.createStore(ReadableTokenStore.class)).willReturn(writableTokenStore);
+        txn = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(payerId).build())
+                .tokenUpdate(TokenUpdateTransactionBody.newBuilder()
+                        .token(fungibleTokenId)
+                        .wipeKey(B_COMPLEX_KEY)
+                        .build())
+                .build();
+        given(preHandleContext.body()).willReturn(txn);
+        assertThatThrownBy(() -> subject.preHandle(preHandleContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(TOKEN_HAS_NO_WIPE_KEY));
+    }
+
+    @Test
     void invalidKeysForTokenFails() {
         final Key invalidAllZeros = Key.newBuilder()
                 .ecdsaSecp256k1((Bytes.fromHex("0000000000000000000000000000000000000000")))
@@ -459,6 +505,88 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(ACCOUNT_FROZEN_FOR_TOKEN));
+    }
+
+    @Test
+    void failsIfNewTreasuryOwnsNftsWhenOldTreasuryIsEmpty() {
+        givenTreasuryBalances(0, 1);
+        txn = new TokenUpdateBuilder()
+                .withTreasury(payerId)
+                .withToken(nonFungibleTokenId)
+                .build();
+        given(handleContext.body()).willReturn(txn);
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES));
+    }
+
+    @Test
+    void reportsMissingKycBeforeNonZeroBalanceWhenBothTreasuriesHoldNfts() {
+        // Dropping the kycKey stops updateTreasuryTitles() from resetting kycGranted on the incoming
+        // relation, leaving validateFrozenAndKey() something to reject. It must be reported ahead of
+        // the zero-balance check; hoisting that check above it would silently change this status.
+        writableTokenStore.put(writableTokenStore
+                .get(nonFungibleTokenId)
+                .copyBuilder()
+                .kycKey((Key) null)
+                .build());
+        given(storeFactory.readableStore(ReadableTokenStore.class)).willReturn(writableTokenStore);
+        givenTreasuryBalances(1, 1);
+        writableTokenRelStore.put(writableTokenRelStore
+                .get(payerId, nonFungibleTokenId)
+                .copyBuilder()
+                .kycGranted(false)
+                .build());
+        txn = new TokenUpdateBuilder()
+                .withTreasury(payerId)
+                .withToken(nonFungibleTokenId)
+                .build();
+        given(handleContext.body()).willReturn(txn);
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(TOKEN_HAS_NO_KYC_KEY));
+    }
+
+    @Test
+    void worksWhenBothTreasuriesAreEmptyForNFT() {
+        givenTreasuryBalances(0, 0);
+        txn = new TokenUpdateBuilder()
+                .withTreasury(payerId)
+                .withToken(nonFungibleTokenId)
+                .build();
+        given(handleContext.body()).willReturn(txn);
+
+        assertThatNoException().isThrownBy(() -> subject.handle(handleContext));
+
+        assertThat(writableTokenStore.get(nonFungibleTokenId).treasuryAccountId())
+                .isEqualTo(payerId);
+        // Nothing was moved, so neither relation's balance changed
+        assertThat(writableTokenRelStore.get(treasuryId, nonFungibleTokenId).balance())
+                .isZero();
+        assertThat(writableTokenRelStore.get(payerId, nonFungibleTokenId).balance())
+                .isZero();
+    }
+
+    @Test
+    void worksWhenOldTreasuryIsEmptyForFungibleToken() {
+        final var emptyOldRel = writableTokenRelStore
+                .get(treasuryId, fungibleTokenId)
+                .copyBuilder()
+                .balance(0)
+                .build();
+        writableTokenRelStore.put(emptyOldRel);
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
+                .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
+        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
+        given(storeFactory.readableStore(ReadableTokenRelationStore.class)).willReturn(writableTokenRelStore);
+        txn = new TokenUpdateBuilder().build();
+        given(handleContext.body()).willReturn(txn);
+
+        assertThatNoException().isThrownBy(() -> subject.handle(handleContext));
+
+        assertThat(writableTokenStore.get(fungibleTokenId).treasuryAccountId()).isEqualTo(ownerId);
+        assertThat(writableTokenRelStore.get(treasuryId, fungibleTokenId).balance())
+                .isZero();
     }
 
     @Test
@@ -1204,6 +1332,27 @@ class TokenUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     }
 
     /* --------------------------------- Helpers --------------------------------- */
+    /**
+     * Sets the NFT relation balances of the outgoing ({@code treasuryId}) and incoming
+     * ({@code payerId}) treasuries, and stubs the expiry validation the handler needs.
+     */
+    private void givenTreasuryBalances(final long oldTreasuryBalance, final long newTreasuryBalance) {
+        writableTokenRelStore.put(writableTokenRelStore
+                .get(treasuryId, nonFungibleTokenId)
+                .copyBuilder()
+                .balance(oldTreasuryBalance)
+                .build());
+        writableTokenRelStore.put(writableTokenRelStore
+                .get(payerId, nonFungibleTokenId)
+                .copyBuilder()
+                .balance(newTreasuryBalance)
+                .build());
+        given(expiryValidator.resolveUpdateAttempt(any(), any()))
+                .willReturn(new ExpiryMeta(1234600L, autoRenewSecs, ownerId));
+        given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
+        given(storeFactory.readableStore(ReadableTokenRelationStore.class)).willReturn(writableTokenRelStore);
+    }
+
     /**
      * A builder for {@link com.hedera.hapi.node.transaction.TransactionBody} instances.
      */

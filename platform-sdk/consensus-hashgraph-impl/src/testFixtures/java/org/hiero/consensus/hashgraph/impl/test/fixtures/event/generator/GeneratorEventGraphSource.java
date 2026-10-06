@@ -1,0 +1,173 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator;
+
+import static org.hiero.consensus.hashgraph.impl.test.fixtures.event.RandomEventUtils.DEFAULT_FIRST_EVENT_TIME_CREATED;
+
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
+import org.hiero.consensus.crypto.PbjStreamHasher;
+import org.hiero.consensus.event.EventGraphSource;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.event.signing.GeneratorEventSigner;
+import org.hiero.consensus.model.event.EventDescriptorWrapper;
+import org.hiero.consensus.model.event.EventOrigin;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.event.UnsignedEvent;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.test.fixtures.Randotron;
+
+/**
+ * A utility class for generating a graph of events.
+ */
+public class GeneratorEventGraphSource implements EventGraphSource {
+
+    private final Configuration configuration;
+    private final Time time;
+    private final long seed;
+    private final int maxOtherParents;
+    private final RosterWrapper roster;
+    private final GeneratorEventSigner eventSigner;
+    private final boolean populateNgen;
+
+    /** The source of all randomness for this class. */
+    private Randotron random;
+
+    /**  The instance of consensus used to advance the birth round of new events */
+    private GeneratorConsensus consensus;
+
+    /** Hasher for newly created events */
+    private final PbjStreamHasher hasher;
+
+    /** Tracks the latest known event by each creator */
+    private EventDescriptorWrapper[] latestEventPerNode;
+
+    /** The timestamp of the previously emitted event. */
+    private Instant latestEventTime;
+
+    /**
+     * Creates a new graph generator.
+     *
+     * @param configuration   the platform configuration
+     * @param time            the time source
+     * @param seed            the random seed for deterministic event generation
+     * @param maxOtherParents the maximum number of other-parents an event can have
+     * @param roster          the roster of network nodes
+     * @param eventSigner     the signer used to produce event signatures
+     * @param populateNgen    whether to populate ngen values on generated events
+     */
+    GeneratorEventGraphSource(
+            @NonNull final Configuration configuration,
+            @NonNull final Time time,
+            final long seed,
+            final int maxOtherParents,
+            @NonNull final RosterWrapper roster,
+            @NonNull final GeneratorEventSigner eventSigner,
+            final boolean populateNgen) {
+        this.configuration = configuration;
+        this.time = time;
+        this.seed = seed;
+        this.maxOtherParents = maxOtherParents;
+        this.roster = roster;
+        this.hasher = new PbjStreamHasher();
+        this.eventSigner = eventSigner;
+        this.populateNgen = populateNgen;
+
+        // These fields get reset in reset()
+        this.latestEventPerNode = new EventDescriptorWrapper[roster.size()];
+        this.consensus = new GeneratorConsensus(configuration, time, roster);
+        this.random = Randotron.create(seed);
+    }
+
+    /**
+     * Returns the roster used by this generator.
+     *
+     * @return the roster
+     */
+    public @NonNull RosterWrapper getRoster() {
+        return roster;
+    }
+
+    /**
+     * Get the next timestamp for the next event.
+     */
+    private Instant getNextTimestamp() {
+        if (latestEventTime == null) {
+            latestEventTime = DEFAULT_FIRST_EVENT_TIME_CREATED;
+            return latestEventTime;
+        }
+
+        latestEventTime = latestEventTime.plusMillis(random.nextInt(1, 5));
+        return latestEventTime;
+    }
+
+    /**
+     * Generates a single event with the hash populated.
+     *
+     * @return the generated event
+     */
+    @NonNull
+    @Override
+    public PlatformEvent next() {
+        final List<Integer> nodeIndices =
+                IntStream.range(0, roster.size()).boxed().collect(ArrayList::new, List::add, List::addAll);
+        Collections.shuffle(nodeIndices, random);
+
+        final Integer eventCreator = nodeIndices.removeLast();
+        final List<EventDescriptorWrapper> parents = new ArrayList<>();
+        if (latestEventPerNode[eventCreator] != null) {
+            parents.add(latestEventPerNode[eventCreator]);
+        }
+        nodeIndices.subList(0, Math.min(maxOtherParents, nodeIndices.size())).stream()
+                .map(i -> latestEventPerNode[i])
+                .filter(Objects::nonNull)
+                .forEach(parents::add);
+
+        final long birthRound = consensus.getCurrentBirthRound();
+        final List<Bytes> transactions = Stream.generate(() -> random.randomBytes(1, 100))
+                .limit(random.nextInt(0, 5))
+                .toList();
+        final int coin = random.nextInt(0, roster.size() + 1);
+        final UnsignedEvent unsignedEvent = new UnsignedEvent(
+                roster.nodeIdAtIndex(eventCreator), parents, birthRound, getNextTimestamp(), transactions, coin);
+        hasher.hashUnsignedEvent(unsignedEvent);
+
+        final PlatformEvent platformEvent =
+                new PlatformEvent(unsignedEvent, eventSigner.signEvent(unsignedEvent), EventOrigin.GOSSIP);
+        consensus.updateConsensus(platformEvent);
+
+        // The event given to consensus will be modified by it with consensus information as some point. We do not want
+        // to modify the events that are returned to the caller, so the caller gets a separate copy of the event.
+        final PlatformEvent copy = platformEvent.copyGossipedData();
+        copy.signalPrehandleCompletion();
+
+        latestEventPerNode[eventCreator] = copy.getDescriptor();
+        if (populateNgen) {
+            // the event sent to consensus will have its nGen value populated, we should copy this value if the caller
+            // wants ngen values to be populated on the returned events
+            copy.setNGen(platformEvent.getNGen());
+            copy.setSequenceNumber(platformEvent.getSequenceNumber());
+        }
+        return copy;
+    }
+
+    @Override
+    public boolean hasNext() {
+        return true;
+    }
+
+    @Override
+    public void reset() {
+        this.latestEventPerNode = new EventDescriptorWrapper[roster.size()];
+        this.consensus = new GeneratorConsensus(configuration, time, roster);
+        this.random = Randotron.create(seed);
+        this.latestEventTime = null;
+    }
+}

@@ -219,6 +219,54 @@ class ApproveAllowanceValidatorTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
+    void cannotGrantEmptySerialNftAllowanceWithDelegatingSpender() {
+        // The delegating spender (spenderId) holds approve-for-all, so it is a valid delegating spender; but a
+        // delegated allowance carrying no serials can only have been an attempt to tamper with the owner's
+        // approve-for-all grants, so it is rejected rather than accepted as a no-op.
+        givenApproveAllowanceTxn(
+                payerId,
+                false,
+                List.of(),
+                List.of(),
+                List.of(nftAllowance
+                        .copyBuilder()
+                        .owner(ownerId)
+                        .spender(delegatingSpenderId)
+                        .delegatingSpender(spenderId)
+                        .approvedForAll(Boolean.FALSE)
+                        .serialNumbers(List.of())
+                        .build()));
+
+        assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(EMPTY_ALLOWANCES));
+    }
+
+    @Test
+    void cannotNameDelegatingSpenderByAlias() {
+        // Aliases are resolved for CryptoTransfer only, so an allowance must name its delegating spender by account
+        // number. This alias does map to an account in state, which an aliased lookup would happily resolve - the
+        // rejection below is what keeps that from being honored here.
+        assertThat(readableAccountStore.getAliasedAccountById(alias)).isNotNull();
+        assertThat(readableAccountStore.getAccountById(alias)).isNull();
+
+        givenApproveAllowanceTxn(
+                payerId,
+                false,
+                List.of(),
+                List.of(),
+                List.of(nftAllowance
+                        .copyBuilder()
+                        .delegatingSpender(alias)
+                        .approvedForAll(Boolean.FALSE)
+                        .build()));
+
+        assertThatThrownBy(() -> subject.validate(handleContext, account, readableAccountStore))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INVALID_DELEGATING_SPENDER));
+    }
+
+    @Test
     void failsWhenTokenNotAssociatedToAccount() {
         givenApproveAllowanceTxn(
                 payerId,

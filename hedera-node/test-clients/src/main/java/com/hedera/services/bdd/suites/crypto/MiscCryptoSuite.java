@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
-import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.keys.KeyShape.SIMPLE;
@@ -27,7 +25,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getBySolidityIdNotS
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getClaimNotSupported;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getExecutionTimeNotSupported;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.reduceFeeFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModifiedWithFixedPayer;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.verifyAddLiveHashNotSupported;
@@ -40,8 +37,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -49,7 +44,6 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.List;
@@ -70,7 +64,6 @@ public class MiscCryptoSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> sysAccountKeyUpdateBySpecialWontNeedNewKeyTxnSign() {
         String sysAccount = "977";
         String randomAccountA = "randomAccountA";
@@ -98,34 +91,9 @@ public class MiscCryptoSuite {
                         .hasKnownStatus(INVALID_SIGNATURE));
     }
 
-    @LeakyHapiTest(requirement = FEE_SCHEDULE_OVERRIDES)
-    final Stream<DynamicTest> reduceTransferFee() {
-        final long REDUCED_NODE_FEE = 2L;
-        final long REDUCED_NETWORK_FEE = 3L;
-        final long REDUCED_SERVICE_FEE = 3L;
-        final long REDUCED_TOTAL_FEE = REDUCED_NODE_FEE + REDUCED_NETWORK_FEE + REDUCED_SERVICE_FEE;
-        return hapiTest(
-                cryptoCreate("sender").balance(ONE_HUNDRED_HBARS),
-                cryptoCreate("receiver").balance(0L),
-                cryptoTransfer(tinyBarsFromTo("sender", "receiver", ONE_HBAR))
-                        .payingWith("sender")
-                        .fee(REDUCED_TOTAL_FEE)
-                        .hasPrecheck(INSUFFICIENT_TX_FEE),
-                reduceFeeFor(CryptoTransfer, REDUCED_NODE_FEE, REDUCED_NETWORK_FEE, REDUCED_SERVICE_FEE),
-                cryptoTransfer(tinyBarsFromTo("sender", "receiver", ONE_HBAR))
-                        .payingWith("sender")
-                        .fee(ONE_HBAR),
-                getAccountBalance("sender").hasTinyBars(ONE_HUNDRED_HBARS - ONE_HBAR - REDUCED_TOTAL_FEE));
-    }
-
     @HapiTest
     final Stream<DynamicTest> getsGenesisBalance() {
         return hapiTest(getAccountBalance(GENESIS).logged());
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> getBalanceIdVariantsTreatedAsExpected() {
-        return hapiTest(sendModified(withSuccessivelyVariedQueryIds(), () -> getAccountBalance(DEFAULT_PAYER)));
     }
 
     @HapiTest
@@ -146,7 +114,8 @@ public class MiscCryptoSuite {
 
     @HapiTest
     final Stream<DynamicTest> getInfoIdVariantsTreatedAsExpected() {
-        return hapiTest(sendModified(withSuccessivelyVariedQueryIds(), () -> getAccountInfo(DEFAULT_PAYER)));
+        return hapiTest(
+                cryptoCreate("inert2"), sendModified(withSuccessivelyVariedQueryIds(), () -> getAccountInfo("inert2")));
     }
 
     @HapiTest
@@ -222,7 +191,7 @@ public class MiscCryptoSuite {
                         .addTokenAllowance(owner, token, spender, 100L)
                         .addNftAllowance(owner, nft, spender, true, List.of(1L))
                         .via("approveTxn")
-                        .fee(ONE_HBAR)
+                        .fee(ONE_HBAR * 2)
                         .blankMemo()
                         .logged(),
                 /* NetworkGetExecutionTime requires superuser payer */

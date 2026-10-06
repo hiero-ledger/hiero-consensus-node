@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.junit;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.junit.AnnotationUtils.findAnnotation;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -15,6 +16,7 @@ import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
+import org.hiero.otter.fixtures.specs.ContainerSpecs;
 import org.hiero.otter.fixtures.specs.OtterSpecs;
 import org.hiero.otter.fixtures.specs.TurtleSpecs;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
@@ -36,7 +38,6 @@ import org.junit.jupiter.api.extension.TestTemplateInvocationContext;
 import org.junit.jupiter.api.extension.TestTemplateInvocationContextProvider;
 import org.junit.jupiter.api.extension.TestWatcher;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.platform.commons.support.AnnotationSupport;
 
 /**
  * A JUnit 5 extension for testing with the Otter framework.
@@ -153,7 +154,7 @@ public class OtterTestExtension
         return Stream.of(new TestTemplateInvocationContext() {
             @Override
             public String getDisplayName(final int invocationIndex) {
-                return "OtterTest";
+                return context.getRequiredTestMethod().getName();
             }
 
             @Override
@@ -230,8 +231,8 @@ public class OtterTestExtension
      * @return a list of required capabilities
      */
     private List<Capability> getRequiredCapabilitiesFromTest(@NonNull final ExtensionContext extensionContext) {
-        final OtterTest otterTest = AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterTest.class)
-                .orElseThrow();
+        final OtterTest otterTest =
+                findAnnotation(extensionContext, OtterTest.class).orElseThrow();
         return List.of(otterTest.requires());
     }
 
@@ -266,12 +267,10 @@ public class OtterTestExtension
      */
     @NonNull
     private TestEnvironment createTurtleTestEnvironment(@NonNull final ExtensionContext extensionContext) {
-        final Optional<OtterSpecs> otterSpecs =
-                AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterSpecs.class);
+        final Optional<OtterSpecs> otterSpecs = findAnnotation(extensionContext, OtterSpecs.class);
         final boolean randomNodeIds = otterSpecs.map(OtterSpecs::randomNodeIds).orElse(true);
 
-        final Optional<TurtleSpecs> turtleSpecs =
-                AnnotationSupport.findAnnotation(extensionContext.getElement(), TurtleSpecs.class);
+        final Optional<TurtleSpecs> turtleSpecs = findAnnotation(extensionContext, TurtleSpecs.class);
         final long randomSeed = turtleSpecs.map(TurtleSpecs::randomSeed).orElse(0L);
 
         final Path outputDirectory = EnvironmentUtils.getDefaultOutputDirectory("turtle", extensionContext);
@@ -287,12 +286,20 @@ public class OtterTestExtension
      */
     @NonNull
     private TestEnvironment createContainerTestEnvironment(@NonNull final ExtensionContext extensionContext) {
-        final Optional<OtterSpecs> otterSpecs =
-                AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterSpecs.class);
+
+        final Optional<OtterSpecs> otterSpecs = findAnnotation(extensionContext, OtterSpecs.class);
         final boolean randomNodeIds = otterSpecs.map(OtterSpecs::randomNodeIds).orElse(true);
 
+        final Optional<ContainerSpecs> containerSpecs = findAnnotation(extensionContext, ContainerSpecs.class);
+        final boolean proxyEnabled =
+                containerSpecs.map(ContainerSpecs::proxyEnabled).orElse(true);
+        final boolean gcLoggingEnabled =
+                containerSpecs.map(ContainerSpecs::gcLogging).orElse(false);
+        final List<String> jvmArgs =
+                containerSpecs.map(specs -> List.of(specs.jvmArgs())).orElse(List.of());
+
         final Path outputDirectory = EnvironmentUtils.getDefaultOutputDirectory("container", extensionContext);
-        return new ContainerTestEnvironment(randomNodeIds, outputDirectory);
+        return new ContainerTestEnvironment(randomNodeIds, outputDirectory, proxyEnabled, gcLoggingEnabled, jvmArgs);
     }
 
     /**

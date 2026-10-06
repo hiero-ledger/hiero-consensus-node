@@ -18,8 +18,6 @@
 package com.swirlds.virtualmap;
 
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.Path;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Iterator;
@@ -57,7 +55,7 @@ public class VirtualMapIterator implements Iterator<VirtualLeafBytes> {
     /**
      * The path of the most recently returned node.
      */
-    private long previousPath = Path.INVALID_PATH;
+    private long previousPath = MerklePathUtils.INVALID_PATH;
 
     /**
      * The next node to be returned.
@@ -73,9 +71,8 @@ public class VirtualMapIterator implements Iterator<VirtualLeafBytes> {
      */
     public VirtualMapIterator(@NonNull final VirtualMap map) {
         this.map = Objects.requireNonNull(map);
-        final VirtualMapMetadata metadata = map.getMetadata();
-        this.firstPath = metadata.getFirstLeafPath();
-        this.lastPath = metadata.getLastLeafPath();
+        this.firstPath = map.getMetadata().getFirstLeafPath();
+        this.lastPath = map.getMetadata().getLastLeafPath();
         this.nextPath = this.firstPath;
     }
 
@@ -94,7 +91,7 @@ public class VirtualMapIterator implements Iterator<VirtualLeafBytes> {
      */
     @NonNull
     public VirtualMapIterator setFilter(@Nullable final Predicate<VirtualLeafBytes> filter) {
-        if (nextNode != null || previousPath != Path.INVALID_PATH || nextPath != firstPath) {
+        if (nextNode != null || previousPath != MerklePathUtils.INVALID_PATH || nextPath != firstPath) {
             throw new IllegalStateException("Cannot set filter after iteration has started");
         }
         if (filter == null) {
@@ -114,7 +111,7 @@ public class VirtualMapIterator implements Iterator<VirtualLeafBytes> {
             return true;
         }
 
-        if (nextPath == Path.INVALID_PATH) {
+        if (nextPath == MerklePathUtils.INVALID_PATH) {
             return false;
         }
 
@@ -153,7 +150,7 @@ public class VirtualMapIterator implements Iterator<VirtualLeafBytes> {
      */
     @Nullable
     public Long getPath() {
-        if (previousPath == Path.INVALID_PATH) {
+        if (previousPath == MerklePathUtils.INVALID_PATH) {
             return null;
         }
         return previousPath;

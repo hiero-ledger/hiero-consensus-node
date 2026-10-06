@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountDetailsAsserts.accountDetailsWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountDetails;
@@ -39,6 +39,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.OWNER;
 import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.SPENDER;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.CRYPTO_DELETE_ALLOWANCE_FEE;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.EMPTY_ALLOWANCES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FUNGIBLE_TOKEN_IN_NFT_ALLOWANCES;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID;
@@ -50,7 +52,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
 import java.util.List;
@@ -97,7 +99,6 @@ public class CryptoDeleteAllowanceSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> canDeleteAllowanceForDeletedSpender() {
         final String owner = "owner";
         final String spender = "spender";
@@ -269,14 +270,13 @@ public class CryptoDeleteAllowanceSuite {
                         .signedBy("payer", owner)
                         .via("baseDeleteTxn")
                         .blankMemo()
-                        .hasPrecheck(INVALID_ALLOWANCE_OWNER_ID),
+                        .hasKnownStatus(INVALID_ALLOWANCE_OWNER_ID),
                 getAccountDetails(owner)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith().deleted(true)));
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> feesAsExpected() {
         final String owner = "owner";
         final String spender = "spender";
@@ -327,7 +327,7 @@ public class CryptoDeleteAllowanceSuite {
                         .blankMemo()
                         .addNftDeleteAllowance(MISSING_OWNER, nft, List.of(1L))
                         .via("baseDeleteNft"),
-                validateChargedUsdWithin("baseDeleteNft", 0.05, 0.02),
+                validateChargedUsdWithin("baseDeleteNft", CRYPTO_DELETE_ALLOWANCE_FEE, 0.1),
                 cryptoApproveAllowance().payingWith(owner).addNftAllowance(owner, nft, "spender2", false, List.of(1L)),
                 /* with specifying owner */
                 cryptoDeleteAllowance()
@@ -335,7 +335,7 @@ public class CryptoDeleteAllowanceSuite {
                         .blankMemo()
                         .addNftDeleteAllowance(owner, nft, List.of(1L))
                         .via("baseDeleteNft"),
-                validateChargedUsdWithin("baseDeleteNft", 0.05, 0.02),
+                validateChargedUsdWithin("baseDeleteNft", CRYPTO_DELETE_ALLOWANCE_FEE, 0.1),
 
                 /* with 2 serials */
                 cryptoDeleteAllowance()
@@ -343,7 +343,7 @@ public class CryptoDeleteAllowanceSuite {
                         .blankMemo()
                         .addNftDeleteAllowance(owner, nft, List.of(2L, 3L))
                         .via("twoDeleteNft"),
-                validateChargedUsdWithin("twoDeleteNft", 0.050101, 0.01),
+                validateChargedUsdWithin("twoDeleteNft", CRYPTO_DELETE_ALLOWANCE_FEE, 0.1),
                 /* with 2 sigs */
                 cryptoApproveAllowance().payingWith(owner).addNftAllowance(owner, nft, "spender2", false, List.of(1L)),
                 cryptoDeleteAllowance()
@@ -352,11 +352,11 @@ public class CryptoDeleteAllowanceSuite {
                         .addNftDeleteAllowance(owner, nft, List.of(1L))
                         .signedBy(payer, owner)
                         .via("twoDeleteNft"),
-                validateChargedUsdWithin("twoDeleteNft", 0.08124, 0.035));
+                validateChargedUsdWithin(
+                        "twoDeleteNft", CRYPTO_DELETE_ALLOWANCE_FEE + SIGNATURE_FEE_AFTER_MULTIPLIER, 0.1));
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> succeedsWhenTokenPausedFrozenKycRevoked() {
         final String owner = "owner";
         final String spender = "spender";
@@ -442,7 +442,9 @@ public class CryptoDeleteAllowanceSuite {
                                 "hedera.allowances.maxAccountLimit", "100")));
     }
 
-    @LeakyHapiTest(overrides = {"hedera.allowances.maxTransactionLimit"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"hedera.allowances.maxTransactionLimit"})
     final Stream<DynamicTest> exceedsTransactionLimit() {
         final String owner = "owner";
         final String spender = "spender";
@@ -487,11 +489,11 @@ public class CryptoDeleteAllowanceSuite {
                 cryptoDeleteAllowance()
                         .payingWith(owner)
                         .addNftDeleteAllowance(owner, nft, List.of(1L, 2L, 3L, 3L, 3L))
-                        .hasPrecheck(MAX_ALLOWANCES_EXCEEDED),
+                        .hasKnownStatus(MAX_ALLOWANCES_EXCEEDED),
                 cryptoDeleteAllowance()
                         .payingWith(owner)
                         .addNftDeleteAllowance(owner, nft, List.of(1L, 1L, 1L, 1L, 1L))
-                        .hasPrecheck(MAX_ALLOWANCES_EXCEEDED),
+                        .hasKnownStatus(MAX_ALLOWANCES_EXCEEDED),
                 cryptoDeleteAllowance()
                         .payingWith(owner)
                         .addNftDeleteAllowance(owner, nft, List.of(1L))
@@ -499,7 +501,7 @@ public class CryptoDeleteAllowanceSuite {
                         .addNftDeleteAllowance(owner, nft, List.of(3L))
                         .addNftDeleteAllowance(owner, nft, List.of(1L))
                         .addNftDeleteAllowance(owner, nft, List.of(1L))
-                        .hasPrecheck(MAX_ALLOWANCES_EXCEEDED));
+                        .hasKnownStatus(MAX_ALLOWANCES_EXCEEDED));
     }
 
     @HapiTest
@@ -533,11 +535,11 @@ public class CryptoDeleteAllowanceSuite {
                 cryptoDeleteAllowance()
                         .payingWith(owner)
                         .addNftDeleteAllowance(owner, nft, List.of(-1L))
-                        .hasPrecheck(INVALID_TOKEN_NFT_SERIAL_NUMBER),
+                        .hasKnownStatus(INVALID_TOKEN_NFT_SERIAL_NUMBER),
                 cryptoDeleteAllowance()
                         .payingWith(owner)
                         .addNftDeleteAllowance(owner, nft, List.of(1000L))
-                        .hasPrecheck(INVALID_TOKEN_NFT_SERIAL_NUMBER),
+                        .hasKnownStatus(INVALID_TOKEN_NFT_SERIAL_NUMBER),
                 cryptoDeleteAllowance()
                         .payingWith(owner)
                         .addNftDeleteAllowance(owner, nft, List.of(3L))
@@ -571,7 +573,7 @@ public class CryptoDeleteAllowanceSuite {
                 cryptoDeleteAllowance()
                         .payingWith(owner)
                         .addNftDeleteAllowance(owner, token, List.of(1L))
-                        .hasPrecheck(FUNGIBLE_TOKEN_IN_NFT_ALLOWANCES));
+                        .hasKnownStatus(FUNGIBLE_TOKEN_IN_NFT_ALLOWANCES));
     }
 
     @HapiTest
@@ -618,7 +620,7 @@ public class CryptoDeleteAllowanceSuite {
                 cryptoDeleteAllowance()
                         .payingWith(owner)
                         .addNftDeleteAllowance(owner, nft, List.of(1L))
-                        .hasPrecheck(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
+                        .hasKnownStatus(TOKEN_NOT_ASSOCIATED_TO_ACCOUNT),
                 getAccountDetails(owner)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith()
@@ -901,8 +903,7 @@ public class CryptoDeleteAllowanceSuite {
                         .blankMemo()
                         .via("cryptoDeleteAllowanceTxn")
                         .logged(),
-                getTxnRecord("cryptoDeleteAllowanceTxn").logged(),
-                validateChargedUsdWithin("cryptoDeleteAllowanceTxn", 0.05, 0.01),
+                validateChargedUsdWithin("cryptoDeleteAllowanceTxn", CRYPTO_DELETE_ALLOWANCE_FEE, 0.1),
                 getAccountDetails(owner)
                         .payingWith(GENESIS)
                         .has(accountDetailsWith().nftApprovedForAllAllowancesCount(1)),

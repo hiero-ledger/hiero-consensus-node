@@ -100,4 +100,12 @@ public interface MultipleNodeLogResults extends OtterResult {
      */
     @NonNull
     MultipleNodeLogResults suppressingLoggerName(@NonNull final String loggerName);
+
+    /**
+     * Excludes any ISS errors from the log results.
+     *
+     * @return a new {@code MultipleNodeLogResults} instance with ISS errors excluded
+     */
+    @NonNull
+    MultipleNodeLogResults suppressingIssErrors();
 }

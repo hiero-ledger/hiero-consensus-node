@@ -3,12 +3,12 @@ package com.hedera.services.bdd.spec.transactions.node;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
-import static com.hedera.services.bdd.spec.keys.SigMapGenerator.Nature.FULL_PREFIXES;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asPosNodeId;
 import static com.hedera.services.bdd.suites.HapiSuite.EMPTY_KEY;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusUpdateTopic;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static java.util.Objects.requireNonNull;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.BoolValue;
@@ -16,21 +16,16 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.BytesValue;
 import com.google.protobuf.StringValue;
 import com.hedera.hapi.node.base.ServiceEndpoint;
-import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.CommonUtils;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.fees.AdapterUtils;
-import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.FeeData;
+import com.hederahashgraph.api.proto.java.AssociatedRegisteredNodeList;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.NodeUpdateTransactionBody;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -62,12 +57,16 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
     @Nullable
     private byte[] newGrpcCertificateHash;
 
+    @Nullable
+    private List<Long> associatedRegisteredNode;
+
+    private boolean hasAssociatedRegisteredNode = false;
+
     private Optional<Key> newAdminKey = Optional.empty();
     private Optional<String> newAdminKeyName = Optional.empty();
 
     public HapiNodeUpdate(@NonNull final String nodeName) {
         this.nodeName = nodeName;
-        sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES));
     }
 
     public HapiNodeUpdate accountId(@NonNull final String accountId) {
@@ -113,6 +112,12 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
 
     public HapiNodeUpdate grpcCertificateHash(@NonNull final byte[] grpcCertificateHash) {
         this.newGrpcCertificateHash = grpcCertificateHash;
+        return this;
+    }
+
+    public HapiNodeUpdate associatedRegisteredNode(@NonNull final List<Long> ids) {
+        this.associatedRegisteredNode = requireNonNull(ids);
+        this.hasAssociatedRegisteredNode = true;
         return this;
     }
 
@@ -201,6 +206,12 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
                             if (grpcWebProxyEndpoint != null) {
                                 builder.setGrpcProxyEndpoint(fromPbj(grpcWebProxyEndpoint));
                             }
+                            if (hasAssociatedRegisteredNode) {
+                                builder.setAssociatedRegisteredNodeList(AssociatedRegisteredNodeList.newBuilder()
+                                        .addAllAssociatedRegisteredNode(
+                                                associatedRegisteredNode != null ? associatedRegisteredNode : List.of())
+                                        .build());
+                            }
                         });
         return builder -> builder.setNodeUpdate(opBody);
     }
@@ -221,17 +232,6 @@ public class HapiNodeUpdate extends HapiTxnOp<HapiNodeUpdate> {
         });
 
         return signers;
-    }
-
-    @Override
-    protected long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) throws Throwable {
-        return spec.fees().forActivityBasedOp(HederaFunctionality.NodeUpdate, this::usageEstimate, txn, numPayerKeys);
-    }
-
-    private FeeData usageEstimate(final TransactionBody txn, final SigValueObj svo) {
-        final UsageAccumulator accumulator = new UsageAccumulator();
-        accumulator.addVpt(Math.max(0, svo.getTotalSigCount() - 1));
-        return AdapterUtils.feeDataFrom(accumulator);
     }
 
     @Override

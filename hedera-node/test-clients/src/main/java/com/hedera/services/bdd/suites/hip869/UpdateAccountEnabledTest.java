@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.hip869;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -16,6 +15,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.NODE_UPDATE_BASE_FEE_USD;
+import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesScheduleConstantsInUsd.SIGNATURE_FEE_AFTER_MULTIPLIER;
 import static com.hedera.services.bdd.suites.hip869.NodeCreateTest.generateX509Certificates;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_NODE_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -37,12 +38,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 /**
  * Tests expected behavior when the {@code nodes.updateAccountIdAllowed} feature flag is on for
  * <a href="https://hips.hedera.com/hip/hip-869">HIP-869, "Dynamic Address Book - Stage 1 - HAPI Endpoints"</a>.
  */
+// nodes.updateAccountIdAllowed is true by default so it is safe to run this concurrently
 @HapiTestLifecycle
 public class UpdateAccountEnabledTest {
     private static List<X509Certificate> gossipCertificates;
@@ -62,7 +63,7 @@ public class UpdateAccountEnabledTest {
                 nodeCreate("testNode", nodeAccount)
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                nodeUpdate("testNode").accountId("").hasPrecheck(INVALID_NODE_ACCOUNT_ID));
+                nodeUpdate("testNode").accountId("").hasKnownStatus(INVALID_NODE_ACCOUNT_ID));
     }
 
     @HapiTest
@@ -74,14 +75,13 @@ public class UpdateAccountEnabledTest {
                 nodeCreate("testNode", nodeAccount)
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                nodeUpdate("testNode").aliasAccountId("alias").hasPrecheck(INVALID_NODE_ACCOUNT_ID));
+                nodeUpdate("testNode").aliasAccountId("alias").hasKnownStatus(INVALID_NODE_ACCOUNT_ID));
     }
 
     @LeakyEmbeddedHapiTest(
             reason = MUST_SKIP_INGEST,
             requirement = {THROTTLE_OVERRIDES},
             throttles = "testSystemFiles/mainnet-throttles.json")
-    @Tag(MATS)
     final Stream<DynamicTest> validateFees() throws CertificateEncodingException {
         final String description = "His vorpal blade went snicker-snack!";
         final var nodeAccount = "nodeAccount";
@@ -107,7 +107,7 @@ public class UpdateAccountEnabledTest {
                         .via("failedUpdate"),
                 getTxnRecord("failedUpdate").logged(),
                 // The fee is charged here because the payer is not privileged
-                validateChargedUsdWithin("failedUpdate", 0.001, 3.0),
+                validateChargedUsdWithin("failedUpdate", NODE_UPDATE_BASE_FEE_USD, 1.0),
                 nodeUpdate("node100")
                         .adminKey("testKey")
                         .accountId(nodeAccount2)
@@ -126,7 +126,10 @@ public class UpdateAccountEnabledTest {
                         .sigMapPrefixes(uniqueWithFullPrefixesFor("payer", "randomAccount", "testKey"))
                         .fee(ONE_HBAR)
                         .via("failedUpdateMultipleSigs"),
-                validateChargedUsdWithin("failedUpdateMultipleSigs", 0.0011276316, 3.0));
+                validateChargedUsdWithin(
+                        "failedUpdateMultipleSigs",
+                        NODE_UPDATE_BASE_FEE_USD + 2 * SIGNATURE_FEE_AFTER_MULTIPLIER,
+                        1.0));
     }
 
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)

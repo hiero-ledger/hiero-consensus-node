@@ -7,12 +7,12 @@ import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.MerkleNodeState;
-import com.swirlds.state.MerkleProof;
-import com.swirlds.state.QueueState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.binary.MerkleProof;
+import com.swirlds.state.binary.QueueState;
 import com.swirlds.state.lifecycle.StateMetadata;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.EmptyReadableStates;
 import com.swirlds.state.spi.EmptyWritableStates;
 import com.swirlds.state.spi.KVChangeListener;
@@ -41,14 +41,12 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.base.constructable.ConstructableIgnored;
 import org.hiero.base.crypto.Hash;
 
 /**
  * A useful test double for {@link State}. Works together with {@link MapReadableStates} and other fixtures.
  */
-@ConstructableIgnored
-public class FakeState implements MerkleNodeState<VirtualMap> {
+public class FakeState implements VirtualMapState {
 
     // Key is Service, value is Map of state name to HashMap or List or Object (depending on state type)
     private final Map<String, Map<Integer, Object>> states = new ConcurrentHashMap<>();
@@ -271,11 +269,6 @@ public class FakeState implements MerkleNodeState<VirtualMap> {
     }
 
     @Override
-    public @NonNull MerkleNodeState copy() {
-        return this;
-    }
-
-    @Override
     public long getKvPath(final int stateId, @NonNull final Bytes key) {
         throw new UnsupportedOperationException();
     }
@@ -345,7 +338,7 @@ public class FakeState implements MerkleNodeState<VirtualMap> {
         throw new UnsupportedOperationException();
     }
 
-    // --- New MerkleNodeState mutation APIs (no-op implementations for test fixture) ---
+    // --- New VirtualMapState mutation APIs (no-op implementations for test fixture) ---
     @Override
     public void updateSingleton(int stateId, @NonNull Bytes value) {
         throw new UnsupportedOperationException();

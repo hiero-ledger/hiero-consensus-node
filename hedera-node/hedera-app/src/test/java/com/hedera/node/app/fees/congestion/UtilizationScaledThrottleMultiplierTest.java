@@ -12,6 +12,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -36,19 +37,23 @@ import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.service.consensus.ConsensusService;
+import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.schemas.V0490ConsensusSchema;
 import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema;
 import com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema;
+import com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema;
+import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.ConfigProvider;
@@ -166,7 +171,9 @@ class UtilizationScaledThrottleMultiplierTest {
                                 V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
                                 new AtomicReference<>(EntityCounts.newBuilder()
                                         .numAccounts(1L)
-                                        .build())));
+                                        .build()),
+                                V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID,
+                                new AtomicReference<>(NodeId.DEFAULT)));
 
         var storeFactory = new ReadableStoreFactoryImpl(state);
         long multiplier = utilizationScaledThrottleMultiplier.currentMultiplier(txnInfo, storeFactory);
@@ -203,7 +210,9 @@ class UtilizationScaledThrottleMultiplierTest {
                                 V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
                                 new AtomicReference<>(EntityCounts.newBuilder()
                                         .numContractBytecodes(1L)
-                                        .build())));
+                                        .build()),
+                                V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID,
+                                new AtomicReference<>(NodeId.DEFAULT)));
 
         var storeFactory = new ReadableStoreFactoryImpl(state);
         long multiplier = utilizationScaledThrottleMultiplier.currentMultiplier(txnInfo, storeFactory);
@@ -237,7 +246,9 @@ class UtilizationScaledThrottleMultiplierTest {
                                 new AtomicReference<>(EntityNumber.newBuilder().build()),
                                 V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
                                 new AtomicReference<>(
-                                        EntityCounts.newBuilder().numFiles(1L).build())));
+                                        EntityCounts.newBuilder().numFiles(1L).build()),
+                                V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID,
+                                new AtomicReference<>(NodeId.DEFAULT)));
 
         var storeFactory = new ReadableStoreFactoryImpl(state);
         long multiplier = utilizationScaledThrottleMultiplier.currentMultiplier(txnInfo, storeFactory);
@@ -284,7 +295,9 @@ class UtilizationScaledThrottleMultiplierTest {
                                 new AtomicReference<>(EntityNumber.newBuilder().build()),
                                 V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
                                 new AtomicReference<>(
-                                        EntityCounts.newBuilder().numNfts(1L).build())));
+                                        EntityCounts.newBuilder().numNfts(1L).build()),
+                                V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID,
+                                new AtomicReference<>(NodeId.DEFAULT)));
 
         var storeFactory = new ReadableStoreFactoryImpl(state);
         long multiplier = utilizationScaledThrottleMultiplier.currentMultiplier(nftMintTxnInfo, storeFactory);
@@ -342,7 +355,9 @@ class UtilizationScaledThrottleMultiplierTest {
                                 new AtomicReference<>(EntityNumber.newBuilder().build()),
                                 V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
                                 new AtomicReference<>(
-                                        EntityCounts.newBuilder().numTokens(1L).build())));
+                                        EntityCounts.newBuilder().numTokens(1L).build()),
+                                V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID,
+                                new AtomicReference<>(NodeId.DEFAULT)));
 
         var storeFactory = new ReadableStoreFactoryImpl(state);
         long multiplier = utilizationScaledThrottleMultiplier.currentMultiplier(txnInfo, storeFactory);
@@ -375,7 +390,9 @@ class UtilizationScaledThrottleMultiplierTest {
                                 V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
                                 new AtomicReference<>(EntityCounts.newBuilder()
                                         .numAirdrops(1L)
-                                        .build())));
+                                        .build()),
+                                V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID,
+                                new AtomicReference<>(NodeId.DEFAULT)));
 
         var storeFactory = new ReadableStoreFactoryImpl(state);
         long multiplier = utilizationScaledThrottleMultiplier.currentMultiplier(txnInfo, storeFactory);
@@ -414,7 +431,9 @@ class UtilizationScaledThrottleMultiplierTest {
                                 V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
                                 new AtomicReference<>(EntityCounts.newBuilder()
                                         .numTokenRelations(1L)
-                                        .build())));
+                                        .build()),
+                                V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID,
+                                new AtomicReference<>(NodeId.DEFAULT)));
 
         var storeFactory = new ReadableStoreFactoryImpl(state);
         long multiplier = utilizationScaledThrottleMultiplier.currentMultiplier(txnInfo, storeFactory);
@@ -448,12 +467,56 @@ class UtilizationScaledThrottleMultiplierTest {
                                 new AtomicReference<>(EntityNumber.newBuilder().build()),
                                 V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
                                 new AtomicReference<>(
-                                        EntityCounts.newBuilder().numTopics(1L).build())));
+                                        EntityCounts.newBuilder().numTopics(1L).build()),
+                                V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID,
+                                new AtomicReference<>(NodeId.DEFAULT)));
 
         var storeFactory = new ReadableStoreFactoryImpl(state);
         long multiplier = utilizationScaledThrottleMultiplier.currentMultiplier(txnInfo, storeFactory);
 
         assertEquals(SOME_MULTIPLIER * ENTITY_SCALE_FACTOR, multiplier);
+    }
+
+    @Test
+    void testCurrentMultiplierConsensusCreateTopicBelowFirstTierAtNewCeiling() {
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(FeesConfig.class)).willReturn(feesConfig);
+        given(feesConfig.percentUtilizationScaleFactors()).willReturn(entityScaleFactors);
+        given(configuration.getConfigData(TopicsConfig.class)).willReturn(topicsConfig);
+        given(topicsConfig.maxNumber()).willReturn(2_000_000L);
+
+        when(txnInfo.functionality()).thenReturn(CONSENSUS_CREATE_TOPIC);
+        when(delegate.currentMultiplier()).thenReturn(SOME_MULTIPLIER);
+
+        final var topicStore = mock(ReadableTopicStore.class);
+        when(topicStore.sizeOfState()).thenReturn(19_999L);
+        final var storeFactory = mock(ReadableStoreFactory.class);
+        when(storeFactory.readableStore(ReadableTopicStore.class)).thenReturn(topicStore);
+
+        long multiplier = utilizationScaledThrottleMultiplier.currentMultiplier(txnInfo, storeFactory);
+
+        assertEquals(SOME_MULTIPLIER, multiplier);
+    }
+
+    @Test
+    void testCurrentMultiplierConsensusCreateTopicCrossesTiersAtNewCeiling() {
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(FeesConfig.class)).willReturn(feesConfig);
+        given(feesConfig.percentUtilizationScaleFactors()).willReturn(entityScaleFactors);
+        given(configuration.getConfigData(TopicsConfig.class)).willReturn(topicsConfig);
+        given(topicsConfig.maxNumber()).willReturn(2_000_000L);
+
+        when(txnInfo.functionality()).thenReturn(CONSENSUS_CREATE_TOPIC);
+        when(delegate.currentMultiplier()).thenReturn(SOME_MULTIPLIER);
+
+        final var topicStore = mock(ReadableTopicStore.class);
+        when(topicStore.sizeOfState()).thenReturn(1_000_000L);
+        final var storeFactory = mock(ReadableStoreFactory.class);
+        when(storeFactory.readableStore(ReadableTopicStore.class)).thenReturn(topicStore);
+
+        long multiplier = utilizationScaledThrottleMultiplier.currentMultiplier(txnInfo, storeFactory);
+
+        assertEquals(SOME_MULTIPLIER * 25L, multiplier);
     }
 
     @Test

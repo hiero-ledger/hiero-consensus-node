@@ -19,7 +19,9 @@ produced by a given consensus node in an ordered manner.
 - Keeps a recent history of blocks produced by the consensus node.
 - Tracks which blocks are currently being produced and what the latest (or highest) block acknowledged by the block node.
 - Provides an interface for access any block that is held in the buffer.
-- Regularly prunes the buffer to reclaim memory after a block has been acknowledged and exceeded the max TTL.
+- Regularly prunes the buffer to reclaim memory by removing acknowledged blocks once they fall outside the soft
+  retention floor (`blockStream.buffer.ackedBlocksToRetain`), with the hard `blockStream.buffer.maxBlocks` and
+  `blockStream.buffer.maxBytes` ceilings always taking precedence when unacknowledged blocks push the buffer toward capacity.
 - Monitors the buffer for saturation (i.e. too many blocks unacknowledged) and applies back pressure if necessary.
 - Persists the buffer to disk for recovery purposes (only when `streamMode` is `BLOCKS`).
 
@@ -42,8 +44,9 @@ produced by a given consensus node in an ordered manner.
 ## Backpressure Mechanism
 
 The block stream system implements a backpressure mechanism to ensure that block nodes keep pace with the incoming block stream.
-If block acknowledgments are delayed beyond a configurable threshold, this mechanism activates to halt further block production and transaction handling on the consensus node.
-This ensures system stability and prevents the accumulation of unacknowledged blocks in the stream buffer.
+If block acknowledgments are delayed beyond a configurable threshold, this mechanism activates to halt further block production
+and transaction handling on the consensus node. This ensures system stability and prevents the accumulation of
+unacknowledged blocks in the stream buffer.
 
 ### Buffer Management
 
@@ -51,9 +54,22 @@ The system maintains a buffer of block states in `BlockBufferService` with the f
 
 - Each block state contains the block items for a specific block number.
 - The buffer tracks acknowledgment status as a single high watermark.
-- Entries remain in the buffer until acknowledged and expired, according to a configurable TTL (Time To Live).
-- A periodic pruning mechanism removes acknowledged and expired entries.
-- The buffer size is monitored to apply backpressure when needed.
+- Entries remain in the buffer until acknowledged.
+- A periodic pruning mechanism removes acknowledged entries.
+
+Within the block buffer, there are two capacity limits that are enforced:
+- Max number of unacknowledged blocks - governed by `blockStream.buffer.maxBlocks`.
+- Max number of bytes consumed by the buffer for unacknowledge blocks - governed by `blockStream.buffer.maxBytes`.
+
+When the pruner runs, it will first check if there are any acknowledged blocks that can be pruned. Once this is complete,
+the number of unacknowledged blocks and the total bytes consumed by unacknowledged blocks is calculated. (Note: in-progress
+blocks - i.e. blocks that haven't been closed yet - are not considered unacknowledged and thus don't count towards the
+calculations.) If either of these exceeds the maximum permitted, then back pressure will be engaged. The effective
+buffer saturation is the maximum of the two dimensions.
+
+If the buffer is not saturated with unacknowledged blocks, then the buffer may retain acknowledged blocks. The number of
+acknowledged blocks to retain is determined by the `blockStream.buffer.ackedBlocksToRetain` configuration. However, this
+is overruled if the buffer starts to be become saturated with unacknowledged blocks. This feature is only a best-effort.
 
 ### Buffer State
 
@@ -65,36 +81,22 @@ are taken to attempt buffery recovery. Currently, this means forcing a connectio
 blocks are acknowledged.)
 
 Over the course of the buffer's lifecycle there are several state transitions that can occur, each with its own set of
-actions to take.
-- Zero/Low Saturation to Full Saturation
-- Back pressure is enabled
-- Switch block nodes<sup>1</sup>
-- Zero/Low Saturation to Action Stage Saturation
-- Switch block nodes<sup>1</sup>
-- Zero/Low Saturation to Zero/Low Saturation
-- No action required
-- Action Stage Saturation to Full Saturation
-- Back pressure is enabled
-- Switch block nodes<sup>1</sup>
-- Action Stage Saturation to Action Stage Saturation
-- Switch block nodes<sup>1</sup>
-- Action Stage Saturation to Zero/Low Saturation
-- No action required
-- Full Saturation to Full Saturation
-- Back pressure is enabled (though it should already be)
-- Switch block nodes<sup>1</sup>
-- Full Saturation to Action Stage Saturation
-- Disable back pressure<sup>2</sup>
-- Switch block nodes<sup>1</sup>
-- Full Saturation to Zero/Low Saturation
-- Disable back pressure<sup>2</sup>
+actions to take:
+
+|        From         |           To            | Back Pressure Action | Action Stage? |
+|---------------------|-------------------------|----------------------|---------------|
+| Zero/Low Saturation | Fully Saturated         | Enabled              | Yes           |
+| Zero/Low Saturation | Action Stage Saturation | -                    | Yes           |
+| Zero/Low Saturation | Zero/Low Saturation     | -                    | No            |
+| Action Stage        | Fully Saturated         | Enabled              | Yes           |
+| Action Stage        | Action Stage            | -                    | Yes           |
+| Action Stage        | Zero/Low Saturation     | -                    | No            |
+| Fully Saturated     | Fully Saturated         | Enabled              | Yes           |
+| Fully Saturated     | Action Stage            | Disabled             | Yes           |
+| Fully Saturated     | Zero/Low Saturation     | Disabled             | No            |
 
 Additionally, upon each iteration a secondary check will be performed to determine if back pressure needs to be disabled
 if the buffer saturation falls below the recovery threshold. This check is performed regardless of the above operations.
-
-<sup>1</sup> Switching block node connections may not happen every time. Whether or not to switch block nodes is dictated
-by a grace period between switch attempts. This is configured by `blockStream.buffer.actionGracePeriod`. If this property
-is configured to 10 seconds, then switching nodes will only happen once every 10 seconds.
 
 <sup>2</sup> Disabling back pressure has an additional gate in form of a recovery threshold. This is configured by
 `blockStream.buffer.recoveryThreshold`. If this property is configured to 70.0, then the buffer saturated must be less
@@ -107,7 +109,6 @@ The backpressure mechanism operates at two levels:
 1. **Block State Buffer Level**
    - An asynchronous thread is continuously running in the background to prune the buffer.
    - Pruning occurs on a configurable interval defined in `blockStream.buffer.pruneInterval` (if set to `0`, the pruning is disabled)
-   - Acknowledged states older than `blockStream.buffer.blockTtl` are removed
    - If buffer size exceeds safe thresholds after pruning, backpressure is applied
 2. **HandleWorkflow Level**
    - `HandleWorkflow` checks for backpressure signals before processing each round of transactions

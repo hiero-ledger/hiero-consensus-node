@@ -24,6 +24,7 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
@@ -191,6 +192,24 @@ class TokenUnfreezeAccountHandlerTest {
             given(tokenStore.get(token))
                     .willReturn(Token.newBuilder().tokenId(token).build());
             given(tokenStore.getTokenMeta(token)).willReturn(tokenMetaWithFreezeKey(null));
+            final var txn = newUnfreezeTxn(token);
+            given(context.body()).willReturn(txn);
+
+            assertThatThrownBy(() -> subject.handle(context))
+                    .isInstanceOf(HandleException.class)
+                    .has(responseCode(TOKEN_HAS_NO_FREEZE_KEY));
+            verifyNoPut();
+        }
+
+        @Test
+        void tokenHasEmptyKeyListFreezeKey() {
+            final var token = toPbj(KNOWN_TOKEN_NO_SPECIAL_KEYS);
+            given(tokenStore.get(token))
+                    .willReturn(Token.newBuilder().tokenId(token).build());
+            // An empty key list is the HIP-540 key-removal sentinel and must be treated as "no key"
+            given(tokenStore.getTokenMeta(token))
+                    .willReturn(tokenMetaWithFreezeKey(
+                            Key.newBuilder().keyList(KeyList.DEFAULT).build()));
             final var txn = newUnfreezeTxn(token);
             given(context.body()).willReturn(txn);
 

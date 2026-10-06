@@ -44,12 +44,10 @@ public class V0490ContractSchema extends Schema<SemanticVersion> {
     }
 
     private @NonNull StateDefinition<SlotKey, SlotValue> storageDef() {
-        return StateDefinition.onDisk(
-                STORAGE_STATE_ID, STORAGE_KEY, SlotKey.PROTOBUF, SlotValue.PROTOBUF, MAX_STORAGE_ENTRIES);
+        return StateDefinition.keyValue(STORAGE_STATE_ID, STORAGE_KEY, SlotKey.PROTOBUF, SlotValue.PROTOBUF);
     }
 
     private @NonNull StateDefinition<ContractID, Bytecode> bytecodeDef() {
-        return StateDefinition.onDisk(
-                BYTECODE_STATE_ID, BYTECODE_KEY, ContractID.PROTOBUF, Bytecode.PROTOBUF, MAX_BYTECODES);
+        return StateDefinition.keyValue(BYTECODE_STATE_ID, BYTECODE_KEY, ContractID.PROTOBUF, Bytecode.PROTOBUF);
     }
 }

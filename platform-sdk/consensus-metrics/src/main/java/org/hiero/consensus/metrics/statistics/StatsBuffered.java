@@ -12,20 +12,6 @@ import org.hiero.consensus.metrics.statistics.internal.StatsBuffer;
  */
 public interface StatsBuffered {
     /**
-     * get the entire history of values of this statistic. The caller should not modify it.
-     *
-     * @return A {@link StatsBuffer} object keeps all history statistic.
-     */
-    StatsBuffer getAllHistory();
-
-    /**
-     * get the recent history of values of this statistic. The caller should not modify it.
-     *
-     * @return A {@link StatsBuffer} object keeps recent history of this statistic.
-     */
-    StatsBuffer getRecentHistory();
-
-    /**
      * reset the statistic, and make it use the given halflife
      *
      * @param halflife

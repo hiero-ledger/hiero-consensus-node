@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.impl;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.spi.AppContext;
@@ -13,8 +12,8 @@ import dagger.Component;
 import java.time.Duration;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import javax.inject.Named;
 import javax.inject.Singleton;
 
 @Singleton
@@ -27,9 +26,10 @@ public interface HintsServiceComponent {
                 @BindsInstance AppContext appContext,
                 @BindsInstance Executor executor,
                 @BindsInstance Metrics metrics,
-                @BindsInstance AtomicReference<Roster> currentRoster,
                 @BindsInstance Duration blockPeriod,
-                @BindsInstance OnHintsFinished onHintsFinished);
+                @BindsInstance OnHintsFinished onHintsFinished,
+                @BindsInstance RsaContext rsaContext,
+                @BindsInstance @Named(HintsModule.RSA_SIGNINGS) ConcurrentMap<Bytes, BlockHashSigning> rsaSignings);
     }
 
     HintsHandlers handlers();
@@ -40,7 +40,8 @@ public interface HintsServiceComponent {
 
     HintsControllers controllers();
 
-    ConcurrentMap<Bytes, HintsContext.Signing> signings();
+    @Named(HintsModule.HINTS_SIGNINGS)
+    ConcurrentMap<Bytes, BlockHashSigning> signings();
 
     @Deprecated
     Supplier<Configuration> configSupplier();

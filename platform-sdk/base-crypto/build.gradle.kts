@@ -11,17 +11,19 @@ description = "Base Crypto"
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 testModuleInfo {
-    requires("com.swirlds.common")
-    requires("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
+    requires("com.swirlds.logging.test.fixtures")
     requires("org.hiero.base.crypto")
     requires("org.hiero.base.crypto.test.fixtures")
+    requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.fakes")
+    requires("org.apache.logging.log4j.core")
+    requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
 }
 
 timingSensitiveModuleInfo {
-    runtimeOnly("com.swirlds.common.test.fixtures")
     requires("com.swirlds.config.api")
     requires("com.swirlds.config.extensions.test.fixtures")
     requires("org.hiero.base.crypto")
@@ -30,4 +32,16 @@ timingSensitiveModuleInfo {
     requires("org.apache.logging.log4j.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
+}
+
+tasks.test {
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
+}
+
+tasks.timingSensitive {
+    jvmArgs(
+        "--enable-native-access=com.hedera.common.nativesupport,com.hedera.cryptography.libsecp256k1,com.hedera.cryptography.libsodium"
+    )
 }

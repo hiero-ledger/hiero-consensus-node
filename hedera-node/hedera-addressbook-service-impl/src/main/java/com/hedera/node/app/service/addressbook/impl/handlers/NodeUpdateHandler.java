@@ -10,7 +10,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NODE_ACCOUNT_HAS_ZERO_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UPDATE_NODE_ACCOUNT_NOT_ALLOWED;
-import static com.hedera.node.app.service.addressbook.AddressBookHelper.checkDABEnabled;
+import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.parseX509Certificate;
 import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.validateX509Certificate;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -23,16 +23,14 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ServiceEndpoint;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.addressbook.ReadableRegisteredNodeStore;
 import com.hedera.node.app.service.addressbook.impl.WritableAccountNodeRelStore;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -45,12 +43,15 @@ import java.util.Arrays;
 import java.util.Objects;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#NODE_UPDATE}.
  */
 @Singleton
 public class NodeUpdateHandler implements TransactionHandler {
+    private static final Logger log = LogManager.getLogger(NodeUpdateHandler.class);
     private final AddressBookValidator addressBookValidator;
 
     @Inject
@@ -61,14 +62,14 @@ public class NodeUpdateHandler implements TransactionHandler {
 
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
-        requireNonNull(context);
+        requireNonNull(context, "context must not be null");
         final var txn = context.body();
-        requireNonNull(txn);
+        requireNonNull(txn, "txn must not be null");
         final var op = txn.nodeUpdateOrThrow();
         validateFalsePreCheck(op.nodeId() < 0, INVALID_NODE_ID);
         if (op.hasGossipCaCertificate()) {
             validateFalsePreCheck(op.gossipCaCertificate().equals(Bytes.EMPTY), INVALID_GOSSIP_CA_CERTIFICATE);
-            validateX509Certificate(op.gossipCaCertificate());
+            parseX509Certificate(op.gossipCaCertificate());
         }
         if (op.hasAdminKey()) {
             final var adminKey = op.adminKey();
@@ -81,14 +82,17 @@ public class NodeUpdateHandler implements TransactionHandler {
 
     @Override
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
-        requireNonNull(context);
-        final var op = context.body().nodeUpdateOrThrow();
+        requireNonNull(context, "context must not be null");
+        final var txn = context.body();
+        requireNonNull(txn, "txn must not be null");
+        final var op = txn.nodeUpdateOrThrow();
+
         final var nodeStore = context.createStore(ReadableNodeStore.class);
         final var config = context.configuration().getConfigData(NodesConfig.class);
 
         final var existingNode = nodeStore.get(op.nodeId());
         validateFalsePreCheck(existingNode == null, INVALID_NODE_ID);
-        validateFalsePreCheck(existingNode.deleted(), INVALID_NODE_ID);
+        validateFalsePreCheck(requireNonNull(existingNode).deleted(), INVALID_NODE_ID);
 
         if (op.hasAccountId()) {
             validateTruePreCheck(config.updateAccountIdAllowed(), UPDATE_NODE_ACCOUNT_NOT_ALLOWED);
@@ -110,7 +114,7 @@ public class NodeUpdateHandler implements TransactionHandler {
 
     @Override
     public void handle(@NonNull final HandleContext handleContext) {
-        requireNonNull(handleContext);
+        requireNonNull(handleContext, "handleContext must not be null");
         final var op = handleContext.body().nodeUpdateOrThrow();
 
         final var configuration = handleContext.configuration();
@@ -119,13 +123,17 @@ public class NodeUpdateHandler implements TransactionHandler {
         final var nodeStore = storeFactory.writableStore(WritableNodeStore.class);
         final var accountNodeRelStore = storeFactory.writableStore(WritableAccountNodeRelStore.class);
         final var accountStore = storeFactory.readableStore(ReadableAccountStore.class);
+        final var registeredNodeStore = storeFactory.readableStore(ReadableRegisteredNodeStore.class);
 
         final var existingNode = nodeStore.get(op.nodeId());
         validateFalse(existingNode == null, INVALID_NODE_ID);
+        if (op.hasGossipCaCertificate()) {
+            validateX509Certificate(op.gossipCaCertificateOrThrow(), handleContext.consensusNow());
+        }
         if (op.hasAccountId()) {
             final var accountId = op.accountIdOrThrow();
             validateTrue(accountStore.contains(accountId), INVALID_NODE_ACCOUNT_ID);
-            if (!accountId.equals(existingNode.accountId())) {
+            if (!accountId.equals(requireNonNull(existingNode).accountId())) {
                 final var account = addressBookValidator.validateAccount(
                         accountId, accountStore, accountNodeRelStore, handleContext.expiryValidator());
 
@@ -157,21 +165,21 @@ public class NodeUpdateHandler implements TransactionHandler {
             }
         }
 
-        final var nodeBuilder = updateNode(op, existingNode, proxyIsSentinelValue);
-        nodeStore.put(nodeBuilder.build());
-    }
+        if (op.hasAssociatedRegisteredNodeList()) {
+            addressBookValidator.validateAssociatedRegisteredNodes(
+                    op.associatedRegisteredNodeListOrThrow().associatedRegisteredNode(),
+                    registeredNodeStore,
+                    nodeConfig);
+        }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        checkDABEnabled(feeContext);
-        final var calculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
-        calculator.resetUsage();
-        // The price of node update should be increased based on number of signatures.
-        // The first signature is free and is accounted in the base price, so we only need to add
-        // the price of the rest of the signatures.
-        calculator.addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1));
-        return calculator.calculate();
+        final var nodeBuilder = updateNode(op, requireNonNull(existingNode), proxyIsSentinelValue);
+        final var updatedNode = nodeBuilder.build();
+        nodeStore.put(updatedNode);
+        log.info(
+                "Updated Node {} from {} to {}",
+                op.nodeId(),
+                Node.JSON.toJSON(existingNode),
+                Node.JSON.toJSON(updatedNode));
     }
 
     private Node.Builder updateNode(
@@ -207,6 +215,10 @@ public class NodeUpdateHandler implements TransactionHandler {
         if (op.hasGrpcProxyEndpoint()) {
             nodeBuilder.grpcProxyEndpoint(unsetWebProxy ? null : op.grpcProxyEndpoint());
         }
+        if (op.hasAssociatedRegisteredNodeList()) {
+            nodeBuilder.associatedRegisteredNode(
+                    op.associatedRegisteredNodeListOrThrow().associatedRegisteredNode());
+        }
         return nodeBuilder;
     }
 
@@ -230,7 +242,8 @@ public class NodeUpdateHandler implements TransactionHandler {
                 && !op.hasGossipCaCertificate()
                 && !op.hasGrpcCertificateHash()
                 && !op.hasDeclineReward()
-                && !op.hasGrpcProxyEndpoint();
+                && !op.hasGrpcProxyEndpoint()
+                && !op.hasAssociatedRegisteredNodeList();
     }
 
     /**

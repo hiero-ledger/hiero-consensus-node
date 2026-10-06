@@ -44,7 +44,14 @@ class UserAgentTest {
                 Arguments.of("hiero-sdk-java/1.2.3/foo", UserAgentType.UNKNOWN, "Unknown"),
                 Arguments.of("hiero-sdk-java/dev", UserAgentType.HIERO_SDK_JAVA, "dev"),
                 Arguments.of("hiero-sdk-java/3.0.0-beta1", UserAgentType.HIERO_SDK_JAVA, "3.0.0-beta1"),
-                Arguments.of("hiero-sdk-java/2.1.0 hiero-sdk-java/2.1.0", UserAgentType.UNKNOWN, "Unknown"));
+                Arguments.of("hiero-sdk-java/2.1.0 hiero-sdk-java/2.1.0", UserAgentType.UNKNOWN, "Unknown"),
+                // a slash-only token after the first token must be skipped, not parsed
+                Arguments.of("x /", UserAgentType.UNKNOWN, "Unknown"),
+                Arguments.of("foo //", UserAgentType.UNKNOWN, "Unknown"),
+                Arguments.of(" /", UserAgentType.UNSPECIFIED, "Unknown"),
+                Arguments.of("hiero-sdk-java/1.2.3 /", UserAgentType.HIERO_SDK_JAVA, "1.2.3"),
+                // a malformed token after the first token must not be trusted
+                Arguments.of("foo-bar/2 hiero-sdk-java/1.2.3/x", UserAgentType.UNKNOWN, "Unknown"));
     }
 
     @ParameterizedTest

@@ -19,6 +19,7 @@ then
   mv ./data/config/.archive/genesis-network.json data/config/genesis-network.json
   rm -rf /opt/hgcapp/services-hedera/HapiApp2.0/.archive
   rm -rf /opt/hgcapp/services-hedera/HapiApp2.0/data/config/.archive  
+
 fi
 
 if [[ "${isToClean}" == "cobertura" ]]

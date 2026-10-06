@@ -7,6 +7,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
 /**
@@ -55,9 +56,20 @@ public interface BlockRecordStreamProducer extends AutoCloseable {
      * @param newBlockFirstTransactionConsensusTime The consensus time of the first <b>user</b> transaction in the new
      *                                              block. It must be the adjusted consensus time not the platform
      *                                              assigned consensus time, if the two are different.
+     * @return a future that completes with the record file hash signed while closing the previous block
      */
-    void switchBlocks(
+    CompletableFuture<Bytes> switchBlocks(
             long lastBlockNumber, long newBlockNumber, @NonNull Instant newBlockFirstTransactionConsensusTime);
+
+    /**
+     * Closes the current record file without opening a new file.
+     *
+     * @return a future that completes with the record file hash signed while closing the current block
+     */
+    default CompletableFuture<Bytes> finishCurrentBlock() {
+        // Optional for producer implementations that do not need explicit close-without-open handling.
+        return CompletableFuture.completedFuture(Bytes.EMPTY);
+    }
 
     /**
      * Write record items to stream files. They must be in exact consensus time order! This must only be called after

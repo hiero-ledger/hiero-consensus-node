@@ -10,6 +10,12 @@ public interface ReadableEntityIdStore extends ReadableEntityCounters {
     long peekAtNextNumber();
 
     /**
+     * Returns the next node id that will be used.
+     * If no node id has been allocated yet, returns 0.
+     */
+    long peekAtNextNodeId();
+
+    /**
      * Returns the number of accounts in the store.
      *
      * @return the number of accounts in the store

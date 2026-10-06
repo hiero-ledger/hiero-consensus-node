@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.roster;
 
+import static org.hiero.consensus.roster.ConsensusRosterInputAssertion.assertConsensusLayerRosterInputs;
 import static org.hiero.consensus.roster.WritableRosterStore.MAXIMUM_ROSTER_HISTORY_SIZE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -8,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -18,20 +18,26 @@ import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.roster.RosterState.Builder;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
+import com.swirlds.state.merkle.vm.VirtualMapWritableSingletonState;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import java.lang.reflect.Field;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 
 /**
@@ -39,13 +45,23 @@ import org.mockito.Mockito;
  */
 class WritableRosterStoreTest {
 
+    @TempDir
+    static Path tempDir;
+
+    private static FileSystemManager fileSystemManager;
+
+    @BeforeAll
+    static void setupFileSystemManager() {
+        fileSystemManager = new TestFileSystemManager(tempDir);
+    }
+
     private final WritableStates writableStates = Mockito.mock(WritableStates.class);
     private WritableRosterStore writableRosterStore;
     private ReadableRosterStore readableRosterStore;
 
     @BeforeEach
     void setUp() {
-        final var virtualMap = VirtualMapUtils.createVirtualMap(1);
+        final var virtualMap = VirtualMapUtils.createVirtualMap(fileSystemManager, 1);
 
         final WritableKVState<ProtoBytes, Roster> rosters = MapWritableKVState.<ProtoBytes, Roster>builder(
                         RosterStateId.ROSTERS_STATE_ID, RosterStateId.ROSTERS_STATE_LABEL)
@@ -53,7 +69,7 @@ class WritableRosterStoreTest {
         Mockito.when(writableStates.<ProtoBytes, Roster>get(RosterStateId.ROSTERS_STATE_ID))
                 .thenReturn(rosters);
         Mockito.when(writableStates.<RosterState>getSingleton(RosterStateId.ROSTER_STATE_STATE_ID))
-                .thenReturn(new OnDiskWritableSingletonState<>(
+                .thenReturn(new VirtualMapWritableSingletonState<>(
                         RosterStateId.ROSTER_STATE_STATE_ID,
                         RosterStateId.ROSTER_STATE_STATE_LABEL,
                         RosterState.PROTOBUF,
@@ -260,22 +276,8 @@ class WritableRosterStoreTest {
                 roster3,
                 "Returned active roster should be the same as the one set");
 
-        final List<RoundRosterPair> rosterHistory = readableRosterStore.getRosterHistory();
-        assertEquals(2, rosterHistory.size(), "Roster history should contain 2 entries");
-
-        final Bytes roster2Hash = RosterUtils.hash(roster2).getBytes();
-        final Bytes roster3Hash = RosterUtils.hash(roster3).getBytes();
-
-        assertTrue(
-                rosterHistory.contains(new RoundRosterPair(2, roster2Hash)),
-                "Roster history should contain the second roster");
-        assertTrue(
-                rosterHistory.contains(new RoundRosterPair(3, roster3Hash)),
-                "Roster history should contain the third roster");
-        assertFalse(
-                rosterHistory.contains(
-                        new RoundRosterPair(1, RosterUtils.hash(roster1).getBytes())),
-                "Roster history should not contain the first roster");
+        final ConsensusLayerRosterInputs rosterInputs = readableRosterStore.getConsensusLayerRosterInputs();
+        assertConsensusLayerRosterInputs(rosterInputs, List.of(3L, 2L), List.of(roster3, roster2));
     }
 
     @Test
@@ -286,16 +288,14 @@ class WritableRosterStoreTest {
         writableRosterStore.putActiveRoster(roster, 1);
         assertNull(readableRosterStore.getPreviousRosterHash());
         assertEquals(roster, readableRosterStore.getActiveRoster());
-        final Bytes rosterHash = readableRosterStore.getCurrentRosterHash();
+        final Bytes rosterHash = readableRosterStore.getActiveRosterHash();
 
         // Now set the same roster as active, but for the next round. Given that the active roster AND this roster are
         // the same, it will not set the roster
         writableRosterStore.putActiveRoster(roster, 2);
 
-        final List<RoundRosterPair> history = readableRosterStore.getRosterHistory();
-        assertEquals(1, history.size());
-        assertEquals(rosterHash, history.getFirst().activeRosterHash());
-        assertEquals(rosterHash, history.getLast().activeRosterHash());
+        final ConsensusLayerRosterInputs rosterInputs = readableRosterStore.getConsensusLayerRosterInputs();
+        assertConsensusLayerRosterInputs(rosterInputs, List.of(1L), List.of(roster));
     }
 
     @Test

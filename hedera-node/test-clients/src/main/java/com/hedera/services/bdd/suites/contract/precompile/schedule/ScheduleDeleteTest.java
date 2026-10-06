@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.precompile.schedule;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getScheduleInfo;
@@ -80,10 +79,7 @@ public class ScheduleDeleteTest {
         lifecycle.doAdhoc(UtilVerbs.restoreDefault("contracts.systemContract.scheduleService.scheduleCall.enabled"));
     }
 
-    // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
-    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
-    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
-    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
+    @LeakyHapiTest
     @DisplayName(
             "call deleteSchedule/proxy deleteSchedule for scheduleCall(address,uint256,uint256,uint64,bytes) success")
     public Stream<DynamicTest> scheduleCallDeleteTest() {
@@ -92,13 +88,9 @@ public class ScheduleDeleteTest {
                         "scheduleCallExample", deleteFunc, BigInteger.valueOf(50 + COUNTER.getAndIncrement())));
     }
 
-    // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
-    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
-    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
-    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
+    @LeakyHapiTest
     @DisplayName(
             "call deleteSchedule/proxy deleteSchedule for scheduleCallWithPayer(address,address,uint256,uint256,uint64,bytes) success")
-    @Tag(MATS)
     public Stream<DynamicTest> scheduleCallWithPayerDeleteTest() {
         return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample")
                 .flatMap(deleteFunc -> deleteScheduleTest(
@@ -108,13 +100,9 @@ public class ScheduleDeleteTest {
                         BigInteger.valueOf(50 + COUNTER.getAndIncrement())));
     }
 
-    // default 'feeSchedules.json' do not contain HederaFunctionality.SCHEDULE_CREATE,
-    // fee data for SubType.SCHEDULE_CREATE_CONTRACT_CALL
-    // that is why we are reuploading 'scheduled-contract-fees.json' in tests
-    @LeakyHapiTest(fees = "scheduled-contract-fees.json")
+    @LeakyHapiTest
     @DisplayName(
             "call deleteSchedule/proxy deleteSchedule for executeCallOnPayerSignature(address,address,uint256,uint256,uint64,bytes) success")
-    @Tag(MATS)
     public Stream<DynamicTest> executeCallOnPayerSignatureDeleteTest() {
         return Stream.of("deleteScheduleExample", "deleteScheduleProxyExample")
                 .flatMap(deleteFunc -> deleteScheduleTest(

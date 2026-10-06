@@ -4,8 +4,11 @@ package com.hedera.node.app.service.token.impl.test.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_HAS_NO_KYC_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
+import static com.hedera.node.app.service.token.impl.test.handlers.util.CryptoHandlerTestBase.A_COMPLEX_KEY;
 import static com.hedera.node.app.service.token.impl.test.keys.KeysAndIds.TOKEN_WIPE_KT;
+import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.notNull;
@@ -14,8 +17,11 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.never;
 import static org.mockito.BDDMockito.verify;
 import static org.mockito.Mock.Strictness.LENIENT;
+import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TransactionID;
@@ -37,6 +43,7 @@ import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
+import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -82,6 +89,53 @@ class TokenGrantKycToAccountHandlerTest extends TokenHandlerTestBase {
                 .isInstanceOf(PreCheckException.class)
                 .has(responseCode(INVALID_ACCOUNT_ID));
     }
+
+    @Test
+    void preHandleRejectsEmptyKeyListKycKey() {
+        final var txn = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(TEST_DEFAULT_PAYER))
+                .tokenGrantKyc(TokenGrantKycTransactionBody.newBuilder()
+                        .token(tokenId)
+                        .account(AccountID.newBuilder().accountNum(1L))
+                        .build())
+                .build();
+        final var context = mock(PreHandleContext.class);
+        final var tokenStore = mock(ReadableTokenStore.class);
+        given(context.body()).willReturn(txn);
+        given(context.createStore(ReadableTokenStore.class)).willReturn(tokenStore);
+        // An empty key list is the HIP-540 key-removal sentinel and must be treated as "no key"
+        final var sentinel = Key.newBuilder().keyList(KeyList.DEFAULT).build();
+        given(tokenStore.getTokenMeta(tokenId))
+                .willReturn(new ReadableTokenStore.TokenMetadata(
+                        null, sentinel, null, null, null, null, null, null, false, TREASURY_ACCOUNT_9876, 2));
+
+        assertThrowsPreCheck(() -> subject.preHandle(context), TOKEN_HAS_NO_KYC_KEY);
+    }
+
+    @Test
+    void preHandleAcceptsValidKycKey() throws Exception {
+        final var txn = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(TEST_DEFAULT_PAYER))
+                .tokenGrantKyc(TokenGrantKycTransactionBody.newBuilder()
+                        .token(tokenId)
+                        .account(AccountID.newBuilder().accountNum(1L))
+                        .build())
+                .build();
+        final var context = mock(PreHandleContext.class);
+        final var tokenStore = mock(ReadableTokenStore.class);
+        given(context.body()).willReturn(txn);
+        given(context.createStore(ReadableTokenStore.class)).willReturn(tokenStore);
+        // A non-empty KYC key is required and is added as a signing requirement.
+        given(tokenStore.getTokenMeta(tokenId))
+                .willReturn(new ReadableTokenStore.TokenMetadata(
+                        null, A_COMPLEX_KEY, null, null, null, null, null, null, false, TREASURY_ACCOUNT_9876, 2));
+
+        subject.preHandle(context);
+
+        verify(context).requireKey(A_COMPLEX_KEY);
+    }
+
+    private static final AccountID TREASURY_ACCOUNT_9876 = BaseCryptoHandler.asAccount(0L, 0L, 9876);
 
     @Nested
     class HandleTests {

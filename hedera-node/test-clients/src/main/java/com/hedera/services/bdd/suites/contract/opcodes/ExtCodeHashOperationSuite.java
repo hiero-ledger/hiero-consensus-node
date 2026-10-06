@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.opcodes;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.contractCallLocal;
@@ -24,12 +23,12 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import java.util.stream.Stream;
 import org.apache.tuweni.bytes.Bytes;
-import org.hyperledger.besu.crypto.Hash;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -38,12 +37,11 @@ import org.junit.jupiter.api.Tag;
 public class ExtCodeHashOperationSuite {
     @SuppressWarnings("java:S5960")
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> verifiesExistence() {
         final var contract = "ExtCodeOperationsChecker";
         final var invalidAddress = "0x0000000000000000000000000000000000123456";
         final var expectedAccountHash =
-                ByteString.copyFrom(Hash.keccak256(Bytes.EMPTY).toArray());
+                ByteString.copyFrom(MiscCryptoUtils.keccak256DigestOf(Bytes.EMPTY.toArrayUnsafe()));
         final var hashOf = "hashOf";
 
         final String account = "account";
@@ -82,7 +80,7 @@ public class ExtCodeHashOperationSuite {
                     final var contractCodeResult = spec.registry().getBytes("contractCodeHash");
                     final var contractBytecode = spec.registry().getBytes("contractBytecode");
                     final var expectedContractCodeHash = ByteString.copyFrom(
-                                    Hash.keccak256(Bytes.of(contractBytecode)).toArray())
+                                    MiscCryptoUtils.keccak256DigestOf(contractBytecode))
                             .toByteArray();
 
                     Assertions.assertEquals(expectedAccountHash, recordResult.getContractCallResult());
@@ -92,7 +90,6 @@ public class ExtCodeHashOperationSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> testExtCodeHashWithSystemAccounts() {
         final var contract = "ExtCodeOperationsChecker";
         final var hashOf = "hashOf";

@@ -2,7 +2,9 @@
 package org.hiero.otter.fixtures.util;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.lang.reflect.Parameter;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -51,6 +53,27 @@ public class EnvironmentUtils {
     private static boolean hasExtraParameters(@NonNull final ExtensionContext extensionContext) {
         final Parameter[] parameters = extensionContext.getRequiredTestMethod().getParameters();
         return Stream.of(parameters).map(Parameter::getType).anyMatch(type -> !type.equals(TestEnvironment.class));
+    }
+
+    /**
+     * Prepares the output directory for a test run. If the directory already exists
+     * (indicating a retry), it is renamed with a {@code _run1}, {@code _run2}, etc. suffix
+     * to preserve artifacts from the previous attempt, then a fresh directory is created.
+     *
+     * @param directory the output directory to prepare
+     * @throws IOException if the directory cannot be renamed or created
+     */
+    public static void prepareOutputDirectory(@NonNull final Path directory) throws IOException {
+        if (Files.exists(directory)) {
+            int runIndex = 1;
+            Path renamedDir;
+            do {
+                renamedDir = directory.resolveSibling(directory.getFileName() + "_run" + runIndex);
+                runIndex++;
+            } while (Files.exists(renamedDir));
+            Files.move(directory, renamedDir);
+        }
+        Files.createDirectories(directory);
     }
 
     /**

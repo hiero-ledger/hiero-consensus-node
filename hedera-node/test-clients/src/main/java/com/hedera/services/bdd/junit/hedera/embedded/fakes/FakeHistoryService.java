@@ -14,23 +14,32 @@ import com.hedera.node.app.history.impl.OnProofFinished;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
+import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.state.lifecycle.SchemaRegistry;
+import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.SortedMap;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import java.util.function.Supplier;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 
 public class FakeHistoryService implements HistoryService {
     private final HistoryService delegate;
     private final Queue<Runnable> pendingHintsSubmissions = new ArrayDeque<>();
 
-    public FakeHistoryService(@NonNull final AppContext appContext) {
+    public FakeHistoryService(
+            @NonNull final AppContext appContext, @NonNull final Supplier<Network> genesisNetworkSupplier) {
         delegate = new HistoryServiceImpl(
-                new NoOpMetrics(), pendingHintsSubmissions::offer, appContext, new HistoryLibraryImpl());
+                new NoOpMetrics(),
+                pendingHintsSubmissions::offer,
+                appContext,
+                new HistoryLibraryImpl(),
+                genesisNetworkSupplier);
     }
 
     @Override
@@ -46,14 +55,29 @@ public class FakeHistoryService implements HistoryService {
             @NonNull final Instant now,
             @NonNull final TssConfig tssConfig,
             final boolean isActive,
-            @Nullable final HintsConstruction activeConstruction) {
-        delegate.reconcile(activeRosters, currentMetadata, historyStore, now, tssConfig, isActive, activeConstruction);
+            @Nullable final HintsConstruction activeConstruction,
+            final boolean freshGenesisRequested) {
+        delegate.reconcile(
+                activeRosters,
+                currentMetadata,
+                historyStore,
+                now,
+                tssConfig,
+                isActive,
+                activeConstruction,
+                freshGenesisRequested);
     }
 
     @NonNull
     @Override
     public ChainOfTrustProof getCurrentChainOfTrustProof(@NonNull final Bytes metadata) {
         return delegate.getCurrentChainOfTrustProof(metadata);
+    }
+
+    @Override
+    public boolean doGenesisSetup(
+            @NonNull final WritableStates writableStates, @NonNull final Configuration configuration) {
+        return delegate.doGenesisSetup(writableStates, configuration);
     }
 
     @Override
@@ -74,6 +98,11 @@ public class FakeHistoryService implements HistoryService {
     @Override
     public void setLatestHistoryProof(@NonNull HistoryProof historyProof) {
         delegate.setLatestHistoryProof(historyProof);
+    }
+
+    @Override
+    public void stop() {
+        delegate.stop();
     }
 
     @Override

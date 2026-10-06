@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_QUERY_HEADER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RECEIVING_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.estimatedFee;
@@ -27,6 +28,8 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.TokenID;
+import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
@@ -37,7 +40,6 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fixtures.AppTestBase;
-import com.hedera.node.app.service.entityid.ReadableEntityCounters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
@@ -47,13 +49,12 @@ import com.hedera.node.app.spi.store.ReadableStoreFactory;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
+import com.hedera.node.app.throttle.SynchronizedThrottleAccumulator;
 import com.hedera.node.app.validation.ExpiryValidation;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.ingest.IngestChecker;
-import com.hedera.node.config.data.FeesConfig;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.time.Instant;
@@ -96,6 +97,9 @@ class QueryCheckerTest extends AppTestBase {
     @Mock
     private IngestChecker ingestChecker;
 
+    @Mock
+    private SynchronizedThrottleAccumulator synchronizedThrottleAccumulator;
+
     private QueryChecker checker;
 
     @BeforeEach
@@ -107,7 +111,8 @@ class QueryCheckerTest extends AppTestBase {
                 expiryValidation,
                 feeManager,
                 dispatcher,
-                ingestChecker);
+                ingestChecker,
+                synchronizedThrottleAccumulator);
     }
 
     @AfterEach
@@ -127,10 +132,18 @@ class QueryCheckerTest extends AppTestBase {
                         expiryValidation,
                         feeManager,
                         dispatcher,
-                        ingestChecker))
+                        ingestChecker,
+                        synchronizedThrottleAccumulator))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
-                        authorizer, null, solvencyPreCheck, expiryValidation, feeManager, dispatcher, ingestChecker))
+                        authorizer,
+                        null,
+                        solvencyPreCheck,
+                        expiryValidation,
+                        feeManager,
+                        dispatcher,
+                        ingestChecker,
+                        synchronizedThrottleAccumulator))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
                         authorizer,
@@ -139,7 +152,8 @@ class QueryCheckerTest extends AppTestBase {
                         expiryValidation,
                         feeManager,
                         dispatcher,
-                        ingestChecker))
+                        ingestChecker,
+                        synchronizedThrottleAccumulator))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
                         authorizer,
@@ -148,7 +162,8 @@ class QueryCheckerTest extends AppTestBase {
                         null,
                         feeManager,
                         dispatcher,
-                        ingestChecker))
+                        ingestChecker,
+                        synchronizedThrottleAccumulator))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
                         authorizer,
@@ -157,7 +172,8 @@ class QueryCheckerTest extends AppTestBase {
                         expiryValidation,
                         null,
                         dispatcher,
-                        ingestChecker))
+                        ingestChecker,
+                        synchronizedThrottleAccumulator))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
                         authorizer,
@@ -166,7 +182,8 @@ class QueryCheckerTest extends AppTestBase {
                         expiryValidation,
                         feeManager,
                         null,
-                        ingestChecker))
+                        ingestChecker,
+                        synchronizedThrottleAccumulator))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new QueryChecker(
                         authorizer,
@@ -175,6 +192,17 @@ class QueryCheckerTest extends AppTestBase {
                         expiryValidation,
                         feeManager,
                         dispatcher,
+                        null,
+                        synchronizedThrottleAccumulator))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new QueryChecker(
+                        authorizer,
+                        cryptoTransferHandler,
+                        solvencyPreCheck,
+                        expiryValidation,
+                        feeManager,
+                        dispatcher,
+                        ingestChecker,
                         null))
                 .isInstanceOf(NullPointerException.class);
     }
@@ -264,6 +292,39 @@ class QueryCheckerTest extends AppTestBase {
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_ACCOUNT_AMOUNTS));
         }
+
+        @Test
+        void testValidateCryptoTransferRejectsTokenTransfers() {
+            // A query payment must be a pure HBAR transfer; a payment carrying token transfers is rejected,
+            // because the query path does not validate the token leg (signatures, association, balance).
+            final var tokenLeg = TokenTransferList.newBuilder()
+                    .token(TokenID.newBuilder().tokenNum(1234L).build())
+                    .transfers(
+                            AccountAmount.newBuilder()
+                                    .accountID(ERIN.accountID())
+                                    .amount(-1L)
+                                    .build(),
+                            AccountAmount.newBuilder()
+                                    .accountID(ALICE.accountID())
+                                    .amount(1L)
+                                    .build())
+                    .build();
+            final var txBody = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .accountID(AccountID.DEFAULT)
+                            .build())
+                    .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                            .transfers(TransferList.newBuilder().build())
+                            .tokenTransfers(tokenLeg)
+                            .build())
+                    .build();
+            final var transactionInfo = new TransactionInfo(
+                    SignedTransaction.DEFAULT, txBody, SignatureMap.DEFAULT, Bytes.EMPTY, CRYPTO_TRANSFER, null);
+
+            assertThatThrownBy(() -> checker.validateCryptoTransfer(store, transactionInfo, configuration))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(INVALID_QUERY_HEADER));
+        }
     }
 
     @SuppressWarnings("ConstantConditions")
@@ -305,9 +366,6 @@ class QueryCheckerTest extends AppTestBase {
     class ValidateAccountBalanceTests {
 
         private ReadableAccountStore store;
-
-        @Mock
-        private ReadableEntityCounters entityCounters;
 
         @BeforeEach
         void setup() {
@@ -573,26 +631,8 @@ class QueryCheckerTest extends AppTestBase {
     }
 
     @Test
-    void testEstimateTxFees(@Mock final ReadableStoreFactory storeFactory) {
-        // given
-        final var consensusNow = Instant.ofEpochSecond(0);
-        final var txInfo = createPaymentInfo(ALICE.accountID());
-        final var configuration = HederaTestConfigBuilder.createConfig();
-        final var fees = new Fees(1L, 20L, 300L);
-        when(cryptoTransferHandler.calculateFees(any())).thenReturn(fees);
-
-        // when
-        final var result = checker.estimateTxFees(
-                storeFactory, consensusNow, txInfo, ALICE.account().keyOrThrow(), configuration);
-
-        // then
-        assertThat(result).isEqualTo(fees.totalFee());
-    }
-
-    @Test
     void testEstimateTxFeesWithSimpleFeesEnabled(@Mock final ReadableStoreFactory storeFactory) {
         final var txInfo = createPaymentInfo(ALICE.accountID());
-        final var feesConfig = mock(FeesConfig.class);
         final var exchangeRateManager = mock(ExchangeRateManager.class);
         final var activeRate =
                 ExchangeRate.newBuilder().hbarEquiv(120).centEquiv(1000).build();
@@ -601,10 +641,6 @@ class QueryCheckerTest extends AppTestBase {
         final var transferFeeResult = new FeeResult(100, 300, 2);
         // hbar equivalent should be 120
         final var expectedFee = 120;
-
-        // Mock config to enable simple fees
-        when(configuration.getConfigData(FeesConfig.class)).thenReturn(feesConfig);
-        when(feesConfig.simpleFeesEnabled()).thenReturn(true);
 
         // Mock feeManager and calculator
         when(feeManager.getSimpleFeeCalculator()).thenReturn(simpleFeeCalculator);

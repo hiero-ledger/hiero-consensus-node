@@ -52,7 +52,7 @@ public class NodesCommand implements Callable<Integer> {
      * @param loc the location to check for a key file
      * @param yahcli the {@link Yahcli} to use for context
      */
-    static void validateKeyAt(@NonNull final String loc, @NonNull final Yahcli yahcli) {
+    public static void validateKeyAt(@NonNull final String loc, @NonNull final Yahcli yahcli) {
         final Optional<File> keyFile;
         try {
             keyFile = AccessoryUtils.keyFileAt(loc.substring(0, loc.lastIndexOf('.')));

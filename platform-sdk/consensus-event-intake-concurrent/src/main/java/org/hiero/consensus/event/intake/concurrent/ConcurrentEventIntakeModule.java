@@ -1,0 +1,236 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.event.intake.concurrent;
+
+import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.wiring.framework.wires.SolderType.INJECT;
+
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.List;
+import java.util.function.UnaryOperator;
+import org.hiero.base.crypto.SigningFactory;
+import org.hiero.consensus.crypto.DefaultEventHasher;
+import org.hiero.consensus.crypto.EventHasher;
+import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig;
+import org.hiero.consensus.event.validation.DefaultEventFieldValidator;
+import org.hiero.consensus.event.validation.EventFieldValidator;
+import org.hiero.consensus.metrics.statistics.EventPipelineTracker;
+import org.hiero.consensus.model.event.EventOrigin;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
+import org.hiero.consensus.orphan.DefaultOrphanBuffer;
+import org.hiero.consensus.orphan.OrphanBuffer;
+import org.hiero.consensus.transaction.TransactionLimits;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.transformers.WireTransformer;
+import org.hiero.consensus.wiring.framework.wires.input.InputWire;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
+
+/**
+ * An {@link EventIntakeModule} implementation that consolidates hashing, validation,
+ * deduplication, and signature verification into a single {@code CONCURRENT} component.
+ *
+ * <p>The pipeline is:
+ * <pre>
+ *   [EventIntakeProcessor (CONCURRENT)] → [OrphanBuffer (SEQUENTIAL)]
+ * </pre>
+ */
+public class ConcurrentEventIntakeModule implements EventIntakeModule {
+
+    @Nullable
+    private WireTransformer<ConsensusRound, EventWindow> eventWindowExtractor;
+
+    @Nullable
+    private WireTransformer<EventWindow, EventWindow> eventWindowWire;
+
+    @Nullable
+    private WireTransformer<Object, Object> clearCommandWire;
+
+    @Nullable
+    private ComponentWiring<EventIntakeProcessor, PlatformEvent> processorWiring;
+
+    @Nullable
+    private ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring;
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void initialize(
+            @NonNull final WiringModel model,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final RosterWrapperHistory rosterHistory,
+            @NonNull final IntakeEventCounter intakeEventCounter,
+            @NonNull final TransactionLimits transactionLimits,
+            @Nullable final EventPipelineTracker pipelineTracker) {
+        if (processorWiring != null) {
+            throw new IllegalStateException("Already initialized");
+        }
+
+        final EventIntakeWiringConfig wiringConfig = configuration.getConfigData(EventIntakeWiringConfig.class);
+
+        // --- Set up dispatchers ---
+        this.eventWindowExtractor = new WireTransformer<>(
+                model, "EventIntake_EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow);
+        this.eventWindowWire =
+                new WireTransformer<>(model, "EventWindowDispatcher", "event window", UnaryOperator.identity());
+        this.clearCommandWire =
+                new WireTransformer<>(model, "ClearCommandDispatcher", "clear commands", UnaryOperator.identity());
+
+        // --- Set up component wirings ---
+        // Use the eventSignatureValidator config slot: CONCURRENT CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC
+        this.processorWiring =
+                new ComponentWiring<>(model, EventIntakeProcessor.class, wiringConfig.eventSignatureValidator());
+        this.orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, wiringConfig.orphanBuffer());
+
+        // --- Wire data flow: processor → orphan buffer ---
+        processorWiring
+                .getOutputWire()
+                .solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::handleEvent, "unordered events"));
+
+        // --- Wire INJECT: event window → processor + orphan buffer ---
+        eventWindowExtractor.getOutputWire().solderTo(eventWindowWire.getInputWire(), INJECT);
+        eventWindowWire
+                .getOutputWire()
+                .solderTo(processorWiring.getInputWire(EventIntakeProcessor::setEventWindow), INJECT);
+        eventWindowWire
+                .getOutputWire()
+                .solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow, "event window"), INJECT);
+
+        // --- Wire INJECT: clear → processor + orphan buffer ---
+        clearCommandWire.getOutputWire().solderTo(processorWiring.getInputWire(EventIntakeProcessor::clear), INJECT);
+        clearCommandWire.getOutputWire().solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::clear), INJECT);
+
+        // --- Wire metrics ---
+        // Per-stage metrics are recorded inside the processor itself (hashing, validation,
+        // deduplication, verification). We only need to register the stage names here and
+        // wire the orphan buffer output metric externally.
+        if (pipelineTracker != null) {
+            pipelineTracker.registerMetric(
+                    ConcurrentEventIntakeProcessor.STAGE_HASHING, EventOrigin.GOSSIP, EventOrigin.STORAGE);
+            pipelineTracker.registerMetric(ConcurrentEventIntakeProcessor.STAGE_VALIDATION);
+            pipelineTracker.registerMetric(ConcurrentEventIntakeProcessor.STAGE_DEDUPLICATION);
+            pipelineTracker.registerMetric(ConcurrentEventIntakeProcessor.STAGE_VERIFICATION);
+            pipelineTracker.registerMetric("orphanBuffer");
+            orphanBufferWiring
+                    .getSplitOutput()
+                    .solderForMonitoring(platformEvent ->
+                            pipelineTracker.recordEvent("orphanBuffer", (PlatformEvent) platformEvent));
+        }
+
+        // Force not-yet-soldered wires to be built
+        processorWiring.getInputWire(EventIntakeProcessor::updateRosterHistory);
+        orphanBufferWiring.getInputWire(OrphanBuffer::clear);
+
+        // --- Create and bind components ---
+        final EventHasher eventHasher = new DefaultEventHasher();
+        final EventFieldValidator eventFieldValidator =
+                new DefaultEventFieldValidator(metrics, time, transactionLimits);
+        final EventIntakeProcessor processor = new ConcurrentEventIntakeProcessor(
+                metrics,
+                time,
+                eventHasher,
+                eventFieldValidator,
+                SigningFactory::createVerifier,
+                rosterHistory,
+                intakeEventCounter,
+                pipelineTracker);
+        processorWiring.bind(processor);
+
+        final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
+        orphanBufferWiring.bind(orphanBuffer);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public OutputWire<PlatformEvent> validatedEventsOutputWire() {
+        return requireNonNull(orphanBufferWiring, "Not initialized").getSplitOutput();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public InputWire<PlatformEvent> unhashedEventsInputWire() {
+        return requireNonNull(processorWiring, "Not initialized")
+                .getInputWire(EventIntakeProcessor::processUnhashedEvent);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public InputWire<PlatformEvent> nonValidatedEventsInputWire() {
+        return requireNonNull(processorWiring, "Not initialized")
+                .getInputWire(EventIntakeProcessor::processHashedEvent);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public InputWire<ConsensusRound> consensusRoundInputWire() {
+        return requireNonNull(eventWindowExtractor, "Not initialized").getInputWire();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public InputWire<EventWindow> initialEventWindowInputWire() {
+        return requireNonNull(eventWindowWire, "Not initialized").getInputWire();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public InputWire<RosterWrapperHistory> rosterHistoryInputWire() {
+        return requireNonNull(processorWiring, "Not initialized")
+                .getInputWire(EventIntakeProcessor::updateRosterHistory);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public InputWire<Object> clearComponentsInputWire() {
+        return requireNonNull(clearCommandWire, "Not initialized").getInputWire();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void flush() {
+        requireNonNull(processorWiring, "Not initialized").flush();
+        requireNonNull(orphanBufferWiring, "Not initialized").flush();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void destroy() {
+        throw new UnsupportedOperationException("Shutdown mechanism not implemented yet");
+    }
+}

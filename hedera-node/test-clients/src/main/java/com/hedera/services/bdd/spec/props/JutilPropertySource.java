@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.props;
 
-import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
+import static org.hiero.base.file.FileUtils.rethrowIO;
 
 import com.google.common.io.ByteSource;
 import com.google.common.io.Resources;

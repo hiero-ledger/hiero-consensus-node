@@ -50,7 +50,7 @@ public record StateItem(@NonNull Bytes key, @NonNull Bytes value) {
     public static final class StateItemCodec implements Codec<StateItem> {
 
         static final FieldDefinition FIELD_KEY = new FieldDefinition("keyBytes", FieldType.BYTES, false, 2);
-        static final FieldDefinition FIELD_VALUE = new FieldDefinition("keyBytes", FieldType.BYTES, false, 3);
+        static final FieldDefinition FIELD_VALUE = new FieldDefinition("valueBytes", FieldType.BYTES, false, 3);
 
         /**
          * Parses a StateItem object from ProtoBuf bytes in a {@link ReadableSequentialData}. Throws if in strict mode ONLY.

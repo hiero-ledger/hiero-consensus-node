@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.forensics;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.extractSignatureMap;
 import static com.hedera.node.app.hapi.utils.CommonUtils.timestampToInstant;
 
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
@@ -10,6 +12,7 @@ import com.hedera.services.stream.proto.RecordStreamItem;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ScheduleID;
+import com.hederahashgraph.api.proto.java.SignatureMap;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionID;
@@ -48,6 +51,20 @@ public record RecordStreamEntry(TransactionParts parts, TransactionRecord txnRec
 
     public Transaction submittedTransaction() {
         return parts.wrapper();
+    }
+
+    /**
+     * Returns the {@link SignatureMap} from the submitted transaction, throwing an unchecked exception if the
+     * extraction fails.
+     * @return the submitted signature map
+     * @throws IllegalStateException if the signature map cannot be extracted
+     */
+    public SignatureMap submittedSignatureMap() {
+        try {
+            return extractSignatureMap(submittedTransaction());
+        } catch (InvalidProtocolBufferException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     public TransactionBody body() {

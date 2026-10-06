@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
-import org.gradle.kotlin.dsl.get
-
 plugins {
     id("org.hiero.gradle.module.application")
-    id("org.hiero.gradle.feature.shadow")
+    id("org.gradlex.java-module-packaging")
 }
 
 description = "Hedera Execution YahCli Tool"
@@ -16,51 +13,29 @@ mainModuleInfo {
 
 testModuleInfo {
     requires("com.fasterxml.jackson.databind")
+    requires("org.apache.commons.lang3")
     requires("org.assertj.core")
     requires("org.junit.jupiter.params")
     requires("org.junit.platform.launcher")
-    requires("org.apache.commons.lang3")
+
     opensTo("org.junit.platform.commons")
 }
 
 tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-exports") }
 
-tasks.compileJava { dependsOn(":test-clients:assemble") }
-
-val yahCliJar =
-    tasks.register<ShadowJar>("yahCliJar") {
-        archiveClassifier.set("shadow")
-        configurations = listOf(project.configurations.getByName("runtimeClasspath"))
-
-        manifest { attributes("Main-Class" to "com.hedera.services.yahcli.Yahcli") }
-
-        // Include all classes and resources from the main source set
-        from(sourceSets["main"].output)
-
-        // Also include all service files (except signature-related) in META-INF
-        mergeServiceFiles()
-        exclude(listOf("META-INF/*.DSA", "META-INF/*.RSA", "META-INF/*.SF", "META-INF/INDEX.LIST"))
-
-        // Allow shadow Jar files to have more than 64k entries
-        isZip64 = true
-
-        dependsOn(tasks.compileJava, tasks.classes, tasks.processResources)
-    }
+application.mainClass = "com.hedera.services.yahcli.Yahcli"
 
 tasks.register<Copy>("copyYahCli") {
     group = "copy"
-    from(yahCliJar)
+    from(tasks.fatModuleJar)
     into(project.projectDir)
     rename { "yahcli.jar" }
-
-    dependsOn(yahCliJar)
-    mustRunAfter(tasks.jar, yahCliJar, tasks.javadoc)
 }
 
-tasks.named("compileTestJava") { mustRunAfter(tasks.named("copyYahCli")) }
-
 tasks.test {
-    useJUnitPlatform {}
+    // Keep default `test` fast and deterministic; subprocess HAPI-style suites run under
+    // `testSubprocess`.
+    useJUnitPlatform { excludeTags("REGRESSION") }
 
     // Limit heap and number of processors
     maxHeapSize = "8g"
@@ -96,9 +71,3 @@ tasks.register<Test>("testSubprocess") {
     jvmArgs("-XX:ActiveProcessorCount=6")
     maxParallelForks = 1
 }
-
-// Disable `shadowJar` so it doesn't conflict with `yahCliJar`
-tasks.named("shadowJar") { enabled = false }
-
-// Disable unneeded tasks
-tasks.matching { it.group == "distribution" }.configureEach { enabled = false }

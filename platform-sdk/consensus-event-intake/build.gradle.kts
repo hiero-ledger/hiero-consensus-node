@@ -2,8 +2,21 @@
 plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.publish-artifactregistry")
+    id("org.hiero.gradle.feature.benchmark")
 }
 
 description = "Consensus Event Intake API"
 
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
+
+jmhModuleInfo {
+    requires("com.swirlds.config.extensions.test.fixtures")
+    requires("org.hiero.base.concurrent")
+    requires("org.hiero.base.crypto")
+    requires("org.hiero.consensus.fakes")
+    requires("org.hiero.consensus.hashgraph.impl.test.fixtures")
+    requires("jmh.core")
+
+    runtimeOnly("org.hiero.consensus.event.intake.concurrent")
+    runtimeOnly("org.hiero.consensus.event.intake.impl")
+}

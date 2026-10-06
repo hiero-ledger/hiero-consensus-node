@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.MAX_PBJ_RECORD_SIZE;
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Fail.fail;
 
@@ -25,13 +27,12 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.HashingOutputStream;
+import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
@@ -60,8 +61,29 @@ public class BlockStreamEventBuilder {
     /** The index of the current event within the current block */
     private int eventIndexWithinBlock = 0;
 
-    /** The set of parent hashes that reference events in another block. Useful for verifying calculated hash integrity. */
-    private final Set<Hash> crossBlockParentHashes = new HashSet<>();
+    /** Cross-block parent references with context about both parent and child events. */
+    private final List<CrossBlockParentRef> crossBlockParentRefs = new ArrayList<>();
+
+    /** Current block index, used for cross-block parent tracking. */
+    private int currentBlockIndex = 0;
+
+    /**
+     * Details about a cross-block parent reference: the parent's descriptor and the child event that references it.
+     *
+     * @param parentDescriptor the parent event's descriptor (hash, creator, birth round)
+     * @param childCreatorId the creator node ID of the child event
+     * @param childBirthRound the birth round of the child event
+     * @param childBlockIndex the block index containing the child event
+     */
+    public record CrossBlockParentRef(
+            @NonNull EventDescriptor parentDescriptor, long childCreatorId, long childBirthRound, int childBlockIndex) {
+
+        /** Returns the parent event hash. */
+        @NonNull
+        public Hash parentHash() {
+            return new Hash(parentDescriptor.hash());
+        }
+    }
 
     /**
      * Constructor.
@@ -94,10 +116,24 @@ public class BlockStreamEventBuilder {
      */
     public static TransactionBody getTransactionBody(@NonNull final Bytes transactionBytes) {
         try {
-            final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(transactionBytes);
-            return TransactionBody.PROTOBUF.parse(signedTransaction.bodyBytes());
+            // The default PBJ max message size (2 MiB) rejects node-generated history proof votes,
+            // which carry the ~32 MB uncompressed WRAPS proof; parse with the same raised ceiling
+            // used by BlockStreamAccess to read the blocks these transactions come from
+            final SignedTransaction signedTransaction = SignedTransaction.PROTOBUF.parse(
+                    transactionBytes.toReadableSequentialData(), false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
+            return TransactionBody.PROTOBUF.parse(
+                    signedTransaction.bodyBytes().toReadableSequentialData(),
+                    false,
+                    false,
+                    DEFAULT_MAX_DEPTH,
+                    MAX_PBJ_RECORD_SIZE);
         } catch (final ParseException e) {
-            throw new RuntimeException("Unable to parse transaction bytes", e);
+            throw new RuntimeException(
+                    "Unable to parse transaction bytes (" + transactionBytes.length() + " bytes, prefix 0x"
+                            + transactionBytes
+                                    .slice(0, Math.min(48, transactionBytes.length()))
+                                    .toHex() + ")",
+                    e);
         }
     }
 
@@ -114,15 +150,15 @@ public class BlockStreamEventBuilder {
     }
 
     /**
-     * Returns the set of parent hashes that reference events outside the current block.
+     * Returns cross-block parent references with context about both parent and child events.
      *
-     * @return the set of cross-block parent hashes
+     * @return the list of cross-block parent references
      */
-    public Set<Hash> getCrossBlockParentHashes() {
+    public List<CrossBlockParentRef> getCrossBlockParentRefs() {
         if (events.isEmpty()) {
             reconstructEventsFromBlocks();
         }
-        return crossBlockParentHashes;
+        return crossBlockParentRefs;
     }
 
     /**
@@ -134,8 +170,9 @@ public class BlockStreamEventBuilder {
      * as each event's hash must be calculated and stored before it can be referenced by subsequent events as a parent.
      */
     private void reconstructEventsFromBlocks() {
-        for (final Block block : blocks) {
-            startOfBlock();
+        for (int blockIdx = 0; blockIdx < blocks.size(); blockIdx++) {
+            final Block block = blocks.get(blockIdx);
+            startOfBlock(blockIdx);
 
             for (final BlockItem item : block.items()) {
                 final var itemKind = item.item().kind();
@@ -166,7 +203,8 @@ public class BlockStreamEventBuilder {
         currentTransactions.add(TransactionWrapper.ofTransactionHash(redactedItem.signedTransactionHash()));
     }
 
-    private void startOfBlock() {
+    private void startOfBlock(final int blockIndex) {
+        currentBlockIndex = blockIndex;
         eventIndexWithinBlock = 0;
         currentTransactions.clear();
         eventIndexToEvent.clear();
@@ -233,7 +271,8 @@ public class BlockStreamEventBuilder {
         }
 
         // Resolve parent hashes from EventHeader parent references
-        final List<EventDescriptor> resolvedParents = resolveParentReferences(eventHeader.parents(), eventIndexToEvent);
+        final List<EventDescriptor> resolvedParents =
+                resolveParentReferences(eventHeader.parents(), eventIndexToEvent, eventCore);
 
         final List<Bytes> transactionBytes = new ArrayList<>();
         for (final TransactionWrapper wrappedTransaction : wrappedTransactions) {
@@ -254,7 +293,7 @@ public class BlockStreamEventBuilder {
                 .parents(resolvedParents)
                 .transactions(transactionBytes) // may not match original if there are filtered transactions
                 .build();
-        final PlatformEvent platformEvent = new PlatformEvent(gossipEvent);
+        final PlatformEvent platformEvent = new PlatformEvent(gossipEvent, EventOrigin.STORAGE);
         platformEvent.setHash(eventHash);
         return platformEvent;
     }
@@ -265,11 +304,13 @@ public class BlockStreamEventBuilder {
      *
      * @param parentReferences original parent references from EventHeader
      * @param eventIndexToHash lookup map for event hashes
+     * @param childEventCore the EventCore of the child event referencing these parents
      * @return resolved parent descriptors with proper hashes
      */
     private List<EventDescriptor> resolveParentReferences(
             @NonNull final List<ParentEventReference> parentReferences,
-            @NonNull final Map<Integer, PlatformEvent> eventIndexToHash) {
+            @NonNull final Map<Integer, PlatformEvent> eventIndexToHash,
+            @NonNull final EventCore childEventCore) {
 
         final List<EventDescriptor> resolvedParents = new ArrayList<>();
 
@@ -281,21 +322,22 @@ public class BlockStreamEventBuilder {
                     final PlatformEvent parent = eventIndexToHash.get(parentIndex);
 
                     if (parent != null) {
-                        resolvedParents.add(parent.getDescriptor().eventDescriptor());
+                        resolvedParents.add(parent.getDescriptor().toPbj());
                     } else {
                         fail("Unable to find a parent event for index %d", parentIndex);
                     }
                     break;
 
                 case EVENT_DESCRIPTOR:
-                    // Parent is already an EventDescriptor (outside current block)
+                    // Parent is already an EventDescriptor (outside current block). Collect the
+                    // reference with context for later validation in validateEventHashChain().
                     final EventDescriptor parentDescriptor = parentRef.parent().as();
                     resolvedParents.add(parentDescriptor);
-                    final Hash parentHash = new Hash(parentDescriptor.hash());
-                    if (!eventHashToEvent.containsKey(parentHash)) {
-                        fail("Unable to find event matching parent hash %s", parentHash);
-                    }
-                    crossBlockParentHashes.add(new Hash(parentDescriptor.hash()));
+                    crossBlockParentRefs.add(new CrossBlockParentRef(
+                            parentDescriptor,
+                            childEventCore.creatorNodeId(),
+                            childEventCore.birthRound(),
+                            currentBlockIndex));
                     break;
 
                 default:
@@ -356,7 +398,8 @@ public class BlockStreamEventBuilder {
      * @param transaction the full transaction bytes, or null if only the hash is available
      * @param transactionHash the transaction hash, or null if the full transaction is available
      */
-    private record TransactionWrapper(@Nullable Bytes transaction, @Nullable Bytes transactionHash) {
+    private record TransactionWrapper(
+            @Nullable Bytes transaction, @Nullable Bytes transactionHash) {
         public boolean isTransaction() {
             return transaction != null;
         }

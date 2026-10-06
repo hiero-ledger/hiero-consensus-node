@@ -2,19 +2,19 @@
 package org.hiero.consensus.pcli;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.component.framework.model.WiringModelBuilder;
-import com.swirlds.component.framework.model.diagram.ModelEdgeSubstitution;
-import com.swirlds.component.framework.model.diagram.ModelGroup;
-import com.swirlds.component.framework.model.diagram.ModelManualLink;
-import com.swirlds.component.framework.schedulers.TaskScheduler;
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
-import com.swirlds.component.framework.wires.SolderType;
 import java.io.IOException;
 import java.util.Base64;
 import java.util.List;
 import java.util.Set;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
+import org.hiero.consensus.wiring.framework.model.WiringModel;
+import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
+import org.hiero.consensus.wiring.framework.model.diagram.ModelEdgeSubstitution;
+import org.hiero.consensus.wiring.framework.model.diagram.ModelGroup;
+import org.hiero.consensus.wiring.framework.model.diagram.ModelManualLink;
+import org.hiero.consensus.wiring.framework.schedulers.TaskScheduler;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerType;
+import org.hiero.consensus.wiring.framework.wires.SolderType;
 import picocli.CommandLine;
 
 @CommandLine.Command(

@@ -18,6 +18,9 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hederahashgraph.api.proto.java.AccountID;
+import com.hederahashgraph.api.proto.java.ClprCloseChannelTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprRedactMessageTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprUpdateLedgerConfigurationTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractDeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ContractUpdateTransactionBody;
@@ -37,14 +40,25 @@ import com.hederahashgraph.api.proto.java.SystemUndeleteTransactionBody;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionID;
-import com.hederahashgraph.api.proto.java.UncheckedSubmitBody;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 // This test may look a little weird without context. The original test in mono is very extensive. To ensure that
 // we don't break anything, I copied the test from mono and hacked it a little to run it with the new code.
 // (It was a good thing. I discovered two bugs...) :)
 class PrivilegesVerifierTest {
+    // System account numbers — must match AccountsConfig defaults.
+    private static final long TREASURY = 2L;
+    private static final long SYSTEM_ADMIN = 50L;
+    private static final long ADDRESS_BOOK_ADMIN = 55L;
+    private static final long EXCHANGE_RATES_ADMIN = 57L;
+    private static final long FREEZE_ADMIN = 58L;
+    private static final long CIVILIAN = 75231L;
+
     private static final AccountID EVM_ACCOUNT_ID = AccountID.newBuilder()
             .setAlias(ByteString.fromHex("abcd1234abcd1234abcd1234abcd1234abcd1234"))
             .build();
@@ -115,8 +129,10 @@ class PrivilegesVerifierTest {
         // expect:
         assertTrue(subject.canPerformNonCryptoUpdate(2, 101));
         assertTrue(subject.canPerformNonCryptoUpdate(2, 102));
-        assertTrue(subject.canPerformNonCryptoUpdate(2, 111));
+        assertTrue(subject.canPerformNonCryptoUpdate(2, 113));
         assertTrue(subject.canPerformNonCryptoUpdate(2, 112));
+        // 111 is retired and no longer updatable by anyone
+        assertFalse(subject.canPerformNonCryptoUpdate(2, 111));
         assertTrue(subject.canPerformNonCryptoUpdate(2, 121));
         assertTrue(subject.canPerformNonCryptoUpdate(2, 122));
         assertTrue(subject.canPerformNonCryptoUpdate(2, 123));
@@ -130,8 +146,9 @@ class PrivilegesVerifierTest {
         // expect:
         assertTrue(subject.canPerformNonCryptoUpdate(50, 101));
         assertTrue(subject.canPerformNonCryptoUpdate(50, 102));
-        assertTrue(subject.canPerformNonCryptoUpdate(50, 111));
+        assertTrue(subject.canPerformNonCryptoUpdate(50, 113));
         assertTrue(subject.canPerformNonCryptoUpdate(50, 112));
+        assertFalse(subject.canPerformNonCryptoUpdate(50, 111));
         assertTrue(subject.canPerformNonCryptoUpdate(50, 121));
         assertTrue(subject.canPerformNonCryptoUpdate(50, 122));
         assertTrue(subject.canPerformNonCryptoUpdate(50, 123));
@@ -149,6 +166,7 @@ class PrivilegesVerifierTest {
         assertFalse(subject.canPerformNonCryptoUpdate(54, 122));
         assertFalse(subject.canPerformNonCryptoUpdate(54, 123));
         assertFalse(subject.canPerformNonCryptoUpdate(54, 111));
+        assertFalse(subject.canPerformNonCryptoUpdate(54, 113));
         assertFalse(subject.canPerformNonCryptoUpdate(54, 112));
         for (var num = 150; num <= 159; num++) {
             assertTrue(subject.canPerformNonCryptoUpdate(54, num));
@@ -164,6 +182,7 @@ class PrivilegesVerifierTest {
         assertTrue(subject.canPerformNonCryptoUpdate(55, 122));
         assertTrue(subject.canPerformNonCryptoUpdate(55, 123));
         assertFalse(subject.canPerformNonCryptoUpdate(55, 111));
+        assertFalse(subject.canPerformNonCryptoUpdate(55, 113));
         assertFalse(subject.canPerformNonCryptoUpdate(55, 112));
         for (var num = 150; num <= 159; num++) {
             assertFalse(subject.canPerformNonCryptoUpdate(55, num));
@@ -173,7 +192,8 @@ class PrivilegesVerifierTest {
     @Test
     void feeSchedulesAdminCanUpdateExpected() {
         // expect:
-        assertTrue(subject.canPerformNonCryptoUpdate(56, 111));
+        assertTrue(subject.canPerformNonCryptoUpdate(56, 113));
+        assertFalse(subject.canPerformNonCryptoUpdate(56, 111));
         assertFalse(subject.canPerformNonCryptoUpdate(56, 101));
         assertFalse(subject.canPerformNonCryptoUpdate(56, 102));
         assertFalse(subject.canPerformNonCryptoUpdate(56, 121));
@@ -193,6 +213,7 @@ class PrivilegesVerifierTest {
         assertTrue(subject.canPerformNonCryptoUpdate(57, 123));
         assertTrue(subject.canPerformNonCryptoUpdate(57, 112));
         assertFalse(subject.canPerformNonCryptoUpdate(57, 111));
+        assertFalse(subject.canPerformNonCryptoUpdate(57, 113));
         assertFalse(subject.canPerformNonCryptoUpdate(57, 101));
         assertFalse(subject.canPerformNonCryptoUpdate(57, 102));
         assertFalse(subject.canPerformNonCryptoUpdate(57, 150));
@@ -209,41 +230,12 @@ class PrivilegesVerifierTest {
         assertFalse(subject.canPerformNonCryptoUpdate(58, 123));
         assertFalse(subject.canPerformNonCryptoUpdate(58, 112));
         assertFalse(subject.canPerformNonCryptoUpdate(58, 111));
+        assertFalse(subject.canPerformNonCryptoUpdate(58, 113));
         assertFalse(subject.canPerformNonCryptoUpdate(58, 101));
         assertFalse(subject.canPerformNonCryptoUpdate(58, 102));
         for (var num = 150; num <= 159; num++) {
             assertFalse(subject.canPerformNonCryptoUpdate(58, num));
         }
-    }
-
-    @Test
-    void uncheckedSubmitRejectsUnauthorized() throws InvalidProtocolBufferException {
-        // given:
-        var txn = civilianTxn()
-                .setUncheckedSubmit(UncheckedSubmitBody.newBuilder()
-                        .setTransactionBytes(ByteString.copyFrom("DOESN'T MATTER".getBytes())));
-        // expect:
-        assertEquals(SystemOpAuthorization.UNAUTHORIZED, subject.authForTestCase(accessor(txn)));
-    }
-
-    @Test
-    void sysAdminCanSubmitUnchecked() throws InvalidProtocolBufferException {
-        // given:
-        var txn = sysAdminTxn()
-                .setUncheckedSubmit(UncheckedSubmitBody.newBuilder()
-                        .setTransactionBytes(ByteString.copyFrom("DOESN'T MATTER".getBytes())));
-        // expect:
-        assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
-    }
-
-    @Test
-    void treasuryCanSubmitUnchecked() throws InvalidProtocolBufferException {
-        // given:
-        var txn = treasuryTxn()
-                .setUncheckedSubmit(UncheckedSubmitBody.newBuilder()
-                        .setTransactionBytes(ByteString.copyFrom("DOESN'T MATTER".getBytes())));
-        // expect:
-        assertEquals(SystemOpAuthorization.AUTHORIZED, subject.authForTestCase(accessor(txn)));
     }
 
     @Test
@@ -655,6 +647,58 @@ class PrivilegesVerifierTest {
         assertEquals(
                 SystemOpAuthorization.AUTHORIZED,
                 subject.authForTestCase(accessorWithPayer(otherUpdateTxn, account(2))));
+    }
+
+    @ParameterizedTest(name = "{0} with payer {1} -> {2}")
+    @MethodSource("clprAuthorizationCases")
+    void clprOperationsRequireSuperAdmin(HederaFunctionality operation, long payerNum, SystemOpAuthorization expected)
+            throws InvalidProtocolBufferException {
+        final var txn = txnWithPayer(payerNum);
+        switch (operation) {
+            case CLPR_UPDATE_LEDGER_CONFIGURATION ->
+                txn.setClprUpdateLedgerConfiguration(ClprUpdateLedgerConfigurationTransactionBody.getDefaultInstance());
+            case CLPR_CLOSE_CHANNEL -> txn.setClprCloseChannel(ClprCloseChannelTransactionBody.getDefaultInstance());
+            case CLPR_REDACT_MESSAGE -> txn.setClprRedactMessage(ClprRedactMessageTransactionBody.getDefaultInstance());
+            default -> throw new IllegalArgumentException("Unexpected CLPR operation: " + operation);
+        }
+
+        assertEquals(expected, subject.authForTestCase(accessor(txn)));
+    }
+
+    static Stream<Arguments> clprAuthorizationCases() {
+        // CLPR ops require a super user (treasury or systemAdmin). Other privileged
+        // accounts (freeze admin, exchange-rates admin, etc.) and civilians are rejected.
+        return Stream.of(
+                Arguments.of(
+                        HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION,
+                        TREASURY,
+                        SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(
+                        HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION,
+                        SYSTEM_ADMIN,
+                        SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(
+                        HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION,
+                        FREEZE_ADMIN,
+                        SystemOpAuthorization.UNAUTHORIZED),
+                Arguments.of(
+                        HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION,
+                        CIVILIAN,
+                        SystemOpAuthorization.UNAUTHORIZED),
+                Arguments.of(HederaFunctionality.CLPR_CLOSE_CHANNEL, TREASURY, SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(HederaFunctionality.CLPR_CLOSE_CHANNEL, SYSTEM_ADMIN, SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(
+                        HederaFunctionality.CLPR_CLOSE_CHANNEL,
+                        EXCHANGE_RATES_ADMIN,
+                        SystemOpAuthorization.UNAUTHORIZED),
+                Arguments.of(HederaFunctionality.CLPR_CLOSE_CHANNEL, CIVILIAN, SystemOpAuthorization.UNAUTHORIZED),
+                Arguments.of(HederaFunctionality.CLPR_REDACT_MESSAGE, TREASURY, SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(HederaFunctionality.CLPR_REDACT_MESSAGE, SYSTEM_ADMIN, SystemOpAuthorization.AUTHORIZED),
+                Arguments.of(
+                        HederaFunctionality.CLPR_REDACT_MESSAGE,
+                        ADDRESS_BOOK_ADMIN,
+                        SystemOpAuthorization.UNAUTHORIZED),
+                Arguments.of(HederaFunctionality.CLPR_REDACT_MESSAGE, CIVILIAN, SystemOpAuthorization.UNAUTHORIZED));
     }
 
     private TestCase accessor(TransactionBody.Builder transaction) throws InvalidProtocolBufferException {

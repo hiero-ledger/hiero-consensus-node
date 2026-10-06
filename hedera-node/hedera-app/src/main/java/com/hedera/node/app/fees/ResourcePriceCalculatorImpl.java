@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static com.hedera.node.app.hapi.utils.fee.FeeConstants.FEE_DIVISOR_FACTOR;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.FeeComponents;
+import com.hedera.hapi.node.base.FeeData;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
@@ -39,8 +42,15 @@ public class ResourcePriceCalculatorImpl implements ResourcePriceCalculator {
     @Override
     public FunctionalityResourcePrices resourcePricesFor(
             @NonNull HederaFunctionality functionality, @NonNull SubType subType) {
+        // Base prices synthesized from the simple fee schedule; the legacy fee-schedule units are
+        // thousandths of a tinycent, and all non-gas resource prices (e.g. RBH) are zero, matching
+        // the values the retired file-111 schedules carried for every EVM transaction type
+        final var basePrices = FeeData.newBuilder()
+                .servicedata(FeeComponents.newBuilder()
+                        .gas(feeManager.getGasPriceInTinyCents(consensusNow) * FEE_DIVISOR_FACTOR)
+                        .build())
+                .build();
         return new FunctionalityResourcePrices(
-                requireNonNull(feeManager.getFeeData(functionality, consensusNow, subType)),
-                feeManager.congestionMultiplierFor(txnInfo.txBody(), functionality, readableStoreFactory));
+                basePrices, feeManager.congestionMultiplierFor(txnInfo.txBody(), functionality, readableStoreFactory));
     }
 }

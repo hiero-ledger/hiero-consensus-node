@@ -98,9 +98,9 @@ public class FutureMerkleHash implements Future<Hash> {
      * @param hash
      * 		the hash
      */
-    public synchronized void set(Hash hash) {
+    public synchronized void set(byte[] hash) {
         if (exception == null) {
-            this.hash = hash;
+            this.hash = new Hash(hash);
             latch.countDown();
         }
     }

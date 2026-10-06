@@ -14,6 +14,7 @@ import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.state.HederaRecordCache;
+import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.app.state.recordcache.BlockRecordSource;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.workflows.handle.record.RecordStreamBuilder;
@@ -66,7 +67,6 @@ public record HandleOutput(
         // The stack for the user txn should never be committed
         parentTxn.stack().rollbackFullStack();
 
-        RecordSource cacheableRecordSource = null;
         final RecordSource recordSource;
         if (streamMode != BLOCKS) {
             final var failInvalidBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
@@ -74,7 +74,7 @@ public record HandleOutput(
                     .status(FAIL_INVALID)
                     .consensusTimestamp(parentTxn.consensusNow());
             final var failInvalidRecord = failInvalidBuilder.build();
-            cacheableRecordSource = recordSource = new LegacyListRecordSource(
+            recordSource = new LegacyListRecordSource(
                     List.of(failInvalidRecord),
                     List.of(new RecordSource.IdentifiedReceipt(
                             failInvalidRecord.transactionRecord().transactionIDOrThrow(),
@@ -90,17 +90,18 @@ public record HandleOutput(
                     .status(FAIL_INVALID)
                     .consensusTimestamp(parentTxn.consensusNow());
             outputs.add(failInvalidBuilder.build(true, null));
-            cacheableRecordSource = blockRecordSource = new BlockRecordSource(outputs);
+            blockRecordSource = new BlockRecordSource(outputs);
         } else {
             blockRecordSource = null;
         }
 
+        final var handleOutput = new HandleOutput(blockRecordSource, recordSource, parentTxn.consensusNow());
         recordCache.addRecordSource(
                 parentTxn.creatorInfo().nodeId(),
                 requireNonNull(parentTxn.txnInfo().transactionID()),
                 HederaRecordCache.DueDiligenceFailure.NO,
-                requireNonNull(cacheableRecordSource));
-        return new HandleOutput(blockRecordSource, recordSource, parentTxn.consensusNow());
+                handleOutput.preferredRecordSource());
+        return handleOutput;
     }
 
     public @NonNull RecordSource recordSourceOrThrow() {
@@ -111,7 +112,29 @@ public record HandleOutput(
         return requireNonNull(blockRecordSource);
     }
 
-    public @NonNull RecordSource preferringBlockRecordSource() {
-        return blockRecordSource != null ? blockRecordSource : requireNonNull(recordSource);
+    /**
+     * Returns the only available source. When both are available, returns the block-stream source if it has outputs,
+     * otherwise the record-stream source. This preserves normal block-derived query behavior while allowing
+     * record-derived queries after preview block output is suppressed.
+     *
+     * @return the source to use for receipt and record queries
+     */
+    public @NonNull RecordSource preferredRecordSource() {
+        if (blockRecordSource != null && (recordSource == null || blockRecordSource.hasOutputs())) {
+            return blockRecordSource;
+        }
+        return requireNonNull(recordSource);
+    }
+
+    /**
+     * Returns a list of {@link SingleTransactionRecord}s from this output, regardless of stream mode.
+     * In RECORDS/BOTH mode, returns the precomputed records from the legacy record source.
+     * In BLOCKS mode, translates block outputs into {@link SingleTransactionRecord}s.
+     */
+    public @NonNull List<SingleTransactionRecord> singleTransactionRecords() {
+        if (recordSource instanceof LegacyListRecordSource legacy) {
+            return legacy.precomputedRecords();
+        }
+        return requireNonNull(blockRecordSource).precomputedRecords();
     }
 }

@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.file.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -18,15 +17,14 @@ import static com.hedera.services.bdd.suites.HapiSuite.API_PERMISSIONS;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATES;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATE_CONTROL;
-import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE_CONTROL;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_DETAILS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.SIMPLE_FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTHORIZATION_FAILED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -86,7 +84,6 @@ class AtomicProtectedFilesUpdateSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> account2CanUpdateApiPermissions() {
         return specialAccountCanUpdateSpecialPropertyFile(GENESIS, API_PERMISSIONS, "createTopic", "1-*");
     }
@@ -150,24 +147,23 @@ class AtomicProtectedFilesUpdateSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> account2CanUpdateFeeSchedule() {
-        return specialAccountCanUpdateSpecialFile(GENESIS, FEE_SCHEDULE, IGNORE, IGNORE);
+    final Stream<DynamicTest> atomicAccount2CanUpdateSimpleFeeSchedule() {
+        return specialAccountCanUpdateSpecialFile(GENESIS, SIMPLE_FEE_SCHEDULE, IGNORE, IGNORE);
     }
 
     @HapiTest
-    final Stream<DynamicTest> account50CanUpdateFeeSchedule() {
-        return specialAccountCanUpdateSpecialFile(SYSTEM_ADMIN, FEE_SCHEDULE, IGNORE, IGNORE);
+    final Stream<DynamicTest> atomicAccount50CanUpdateSimpleFeeSchedule() {
+        return specialAccountCanUpdateSpecialFile(SYSTEM_ADMIN, SIMPLE_FEE_SCHEDULE, IGNORE, IGNORE);
     }
 
     @HapiTest
-    final Stream<DynamicTest> account56CanUpdateFeeSchedule() {
-        return specialAccountCanUpdateSpecialFile(FEE_SCHEDULE_CONTROL, FEE_SCHEDULE, IGNORE, IGNORE);
+    final Stream<DynamicTest> atomicAccount56CanUpdateSimpleFeesSchedule() {
+        return specialAccountCanUpdateSpecialFile(FEE_SCHEDULE_CONTROL, SIMPLE_FEE_SCHEDULE, IGNORE, IGNORE);
     }
 
     @HapiTest
-    @Tag(MATS)
-    final Stream<DynamicTest> unauthorizedAccountCannotUpdateFeeSchedule() {
-        return unauthorizedAccountCannotUpdateSpecialFile(FEE_SCHEDULE, NEW_CONTENTS);
+    final Stream<DynamicTest> atomicUnauthorizedAccountCannotUpdateSimpleFeesSchedule() {
+        return unauthorizedAccountCannotUpdateSpecialFile(SIMPLE_FEE_SCHEDULE, NEW_CONTENTS);
     }
 
     @HapiTest
@@ -297,13 +293,13 @@ class AtomicProtectedFilesUpdateSuite {
         return hapiTest(
                 cryptoCreate("unauthorizedAccount"),
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
+                // The inner update is unauthorized, so the whole batch is rejected at ingest.
                 atomicBatch(fileUpdate(specialFile)
                                 .contents(newContents)
                                 .payingWith("unauthorizedAccount")
-                                .hasKnownStatus(AUTHORIZATION_FAILED)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+                        .hasPrecheck(AUTHORIZATION_FAILED));
     }
 
     private byte[] extendedBioAddressBook(byte[] contents, String targetMemo, String replaceMemo) {

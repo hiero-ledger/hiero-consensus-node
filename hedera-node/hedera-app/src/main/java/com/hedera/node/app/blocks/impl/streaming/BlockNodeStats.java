@@ -7,11 +7,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Queue;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Tracks information for a block node across multiple connection instances.
@@ -20,15 +23,30 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class BlockNodeStats {
     /**
+     * Maximum number of entries to track in the block proof timing dataset.
+     */
+    static final int MAX_BLOCK_PROOF_TRACKING_ENTRIES = 100;
+
+    /**
      * Queue for tracking EndOfStream response timestamps for rate limiting.
      */
     private final Queue<Instant> endOfStreamTimestamps = new ConcurrentLinkedQueue<>();
 
     /**
+     * Queue for tracking BehindPublisher response timestamps for rate limiting.
+     */
+    private final Queue<Instant> behindPublisherTimestamps = new ConcurrentLinkedQueue<>();
+
+    /**
+     * Timestamp when the current BehindPublisher ignore period ends. Null if not currently ignoring.
+     */
+    private final AtomicReference<Instant> behindPublisherIgnoreUntil = new AtomicReference<>();
+
+    /**
      * Map for tracking the timestamps when blocks are sent to the block node.
      * The key is the block number and the value is the timestamp when the block was sent.
      */
-    private final Map<Long, Instant> blockProofSendTimestamps = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, Instant> blockProofSendTimestamps = new ConcurrentHashMap<>();
 
     /**
      * Counter for tracking consecutive high-latency events.
@@ -45,6 +63,15 @@ public class BlockNodeStats {
     }
 
     /**
+     * Returns the current count of BehindPublisher events tracked.
+     *
+     * @return the number of BehindPublisher events currently tracked
+     */
+    public int getBehindPublisherCount() {
+        return behindPublisherTimestamps.size();
+    }
+
+    /**
      * Adds a new EndOfStream event timestamp, prunes any old timestamps that are outside the time window,
      * and then checks if the number of EndOfStream events exceeds the configured maximum.
      *
@@ -54,7 +81,7 @@ public class BlockNodeStats {
      * @return true if the number of EndOfStream responses exceeds the maximum, otherwise false
      */
     public boolean addEndOfStreamAndCheckLimit(
-            @NonNull Instant timestamp, int maxAllowed, @NonNull Duration timeFrame) {
+            @NonNull final Instant timestamp, final int maxAllowed, @NonNull final Duration timeFrame) {
         requireNonNull(timestamp, "timestamp must not be null");
         requireNonNull(timeFrame, "timeFrame must not be null");
 
@@ -78,6 +105,84 @@ public class BlockNodeStats {
     }
 
     /**
+     * Adds a new BehindPublisher event timestamp, prunes any old timestamps that are outside the time window,
+     * and then checks if the number of BehindPublisher events exceeds the configured maximum.
+     *
+     * @param timestamp the timestamp of the last BehindPublisher response received
+     * @param maxAllowed the maximum number of BehindPublisher responses allowed in the time window
+     * @param timeFrame the time window for counting BehindPublisher responses
+     * @return true if the number of BehindPublisher responses exceeds the maximum, otherwise false
+     */
+    public boolean addBehindPublisherAndCheckLimit(
+            @NonNull final Instant timestamp, final int maxAllowed, @NonNull final Duration timeFrame) {
+        requireNonNull(timestamp, "timestamp must not be null");
+        requireNonNull(timeFrame, "timeFrame must not be null");
+
+        // Add the current timestamp to the queue
+        behindPublisherTimestamps.add(timestamp);
+
+        final Instant now = Instant.now();
+        final Instant cutoff = now.minus(timeFrame);
+
+        // Remove expired timestamps
+        final Iterator<Instant> it = behindPublisherTimestamps.iterator();
+        while (it.hasNext()) {
+            final Instant behindPublisherTimestamp = it.next();
+            if (behindPublisherTimestamp.isBefore(cutoff)) {
+                it.remove();
+            } else {
+                break;
+            }
+        }
+        return behindPublisherTimestamps.size() > maxAllowed;
+    }
+
+    /**
+     * Checks if the current BehindPublisher message should be ignored based on the ignore period.
+     * If the BehindPublisher queue is empty (new window), resets the ignore period.
+     * If not currently ignoring, starts a new ignore period.
+     *
+     * @param now the current timestamp
+     * @param ignorePeriod the duration of the ignore period
+     * @param timeFrame the time window for counting BehindPublisher responses
+     * @return true if the BehindPublisher message should be ignored, false if it should be processed
+     */
+    public boolean shouldIgnoreBehindPublisher(
+            @NonNull final Instant now, @NonNull final Duration ignorePeriod, @NonNull final Duration timeFrame) {
+        requireNonNull(now, "now must not be null");
+        requireNonNull(ignorePeriod, "ignorePeriod must not be null");
+        requireNonNull(timeFrame, "timeFrame must not be null");
+
+        final Instant cutoff = now.minus(timeFrame);
+
+        // Remove expired timestamps from the queue
+        final Iterator<Instant> it = behindPublisherTimestamps.iterator();
+        while (it.hasNext()) {
+            final Instant timestamp = it.next();
+            if (timestamp.isBefore(cutoff)) {
+                it.remove();
+            } else {
+                break;
+            }
+        }
+
+        // If the queue is empty, we're in a new window - reset the ignore period
+        if (behindPublisherTimestamps.isEmpty()) {
+            behindPublisherIgnoreUntil.set(null);
+        }
+
+        // Check if we're within the ignore period
+        final Instant ignoreUntilTimestamp = behindPublisherIgnoreUntil.get();
+        if (ignoreUntilTimestamp != null && now.isBefore(ignoreUntilTimestamp)) {
+            return true;
+        }
+
+        // Start a new ignore period
+        behindPublisherIgnoreUntil.set(now.plus(ignorePeriod));
+        return false;
+    }
+
+    /**
      * Records the time when a block proof was sent to a block node.
      *
      * @param blockNumber the block number of the sent proof
@@ -86,6 +191,17 @@ public class BlockNodeStats {
     public void recordBlockProofSent(final long blockNumber, @NonNull final Instant timestamp) {
         requireNonNull(timestamp, "timestamp must not be null");
         blockProofSendTimestamps.put(blockNumber, timestamp);
+
+        if (blockProofSendTimestamps.size() > MAX_BLOCK_PROOF_TRACKING_ENTRIES) {
+            // There are a lot of block proof timestamps held that aren't being cleared, likely because we are not
+            // receiving acknowledgements fast enough. To guard against a slow memory leak, prune the oldest entries.
+            final int numToRemove = blockProofSendTimestamps.size() - MAX_BLOCK_PROOF_TRACKING_ENTRIES;
+            final SortedSet<Long> sortedKeys = new TreeSet<>(blockProofSendTimestamps.keySet());
+            for (int i = 0; i < numToRemove; ++i) {
+                final long blockNumberToRemove = sortedKeys.removeFirst();
+                blockProofSendTimestamps.remove(blockNumberToRemove);
+            }
+        }
     }
 
     /**
@@ -118,7 +234,7 @@ public class BlockNodeStats {
 
         final long latencyMs = Duration.between(sendTime, acknowledgedTime).toMillis();
         final boolean isHighLatency = latencyMs > highLatencyThreshold.toMillis();
-        int consecutiveCount;
+        final int consecutiveCount;
         boolean shouldSwitch = false;
 
         synchronized (consecutiveHighLatencyEvents) {

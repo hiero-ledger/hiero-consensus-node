@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.assertions.ErroringAsserts;
@@ -243,11 +242,6 @@ public class HapiContractCallLocal extends HapiQueryOp<HapiContractCallLocal> {
             opBuilder.setContractID(TxnUtils.asContractId(contract, spec));
         }
         return Query.newBuilder().setContractCallLocal(opBuilder).build();
-    }
-
-    @Override
-    protected long costOnlyNodePayment(HapiSpec spec) {
-        return spec.fees().forOp(HederaFunctionality.ContractCallLocal, FeeBuilder.getCostForQueryByIdOnly());
     }
 
     @Override

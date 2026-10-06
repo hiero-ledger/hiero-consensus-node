@@ -6,47 +6,52 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
-import static org.hiero.otter.fixtures.app.OtterStateUtils.createGenesisState;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.constructable.ConstructableRegistration.setupConstructableRegistry;
+import static org.hiero.otter.fixtures.app.OtterStateUtils.initGenesisState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.builder.PlatformBuilder;
-import com.swirlds.platform.builder.PlatformBuildingBlocks;
-import com.swirlds.platform.builder.PlatformComponentBuilder;
+import com.swirlds.platform.builder.PlatformBuilder.PersistenceScope;
+import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.util.BootstrapUtils;
-import com.swirlds.platform.wiring.PlatformComponents;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.platform.test.fixtures.builder.TestPlatformBuilder;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.ConsensusLayerBuildingBlocks;
+import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.io.RecycleBin;
+import org.hiero.consensus.io.RecycleBinImpl;
+import org.hiero.consensus.metrics.platform.SnapshotEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
+import org.hiero.consensus.otter.docker.app.metrics.ToFilePrometheusExporter;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
+import org.hiero.consensus.roster.RosterStateId;
+import org.hiero.consensus.roster.WritableRosterStore;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
+import org.hiero.otter.fixtures.app.OtterStateUtils;
 
 /**
  * Manages the lifecycle and operations of a consensus node within a container-based network. This class initializes the
@@ -92,7 +97,7 @@ public class ConsensusNodeManager {
             @NonNull final KeysAndCerts keysAndCerts) {
 
         initLogging();
-        BootstrapUtils.setupConstructableRegistry();
+        setupConstructableRegistry();
 
         setupGlobalMetrics(platformConfig);
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
@@ -100,63 +105,73 @@ public class ConsensusNodeManager {
         log.info(STARTUP.getMarker(), "Creating node {} with version {}", selfId, version);
 
         final Time time = Time.getCurrent();
-        final FileSystemManager fileSystemManager = FileSystemManager.create(platformConfig);
+        final PathsConfig pathsConfig = platformConfig.getConfigData(PathsConfig.class);
+        final FileSystemManager fileSystemManager =
+                new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
         final RecycleBin recycleBin = RecycleBinImpl.create(
                 metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
+        getMetricsProvider().subscribeSnapshot((Consumer<? super SnapshotEvent>)
+                new ToFilePrometheusExporter(selfId, platformConfig)::handleSnapshots);
 
         final PlatformContext platformContext =
-                PlatformContext.create(platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin);
-        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
-                metrics, time, virtualMap -> new VirtualMapState(virtualMap, metrics), platformConfig);
+                PlatformContext.create(platformConfig, time, metrics, fileSystemManager, recycleBin);
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(metrics, time, platformConfig, fileSystemManager);
 
         otterApp = new OtterApp(platformConfig, version);
 
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> createGenesisState(platformConfig, metrics, activeRoster, version, otterApp.allServices()),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 selfId,
-                platformContext,
+                platformConfig,
+                fileSystemManager,
                 stateLifecycleManager);
         final ReservedSignedState initialState = reservedState.state();
-        final MerkleNodeState state = initialState.get().getState();
+        final VirtualMapState state = initialState.get().getState();
+        if (initialState.get().isGenesisState()) {
+            initGenesisState(state, activeRoster, version, otterApp.allServices());
+        }
 
         // Set active the roster
-        final ReadablePlatformStateStore store =
+        final ReadablePlatformStateStore platformStateStore =
                 new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
-        RosterStateUtils.setActiveRoster(state, activeRoster, store.getRound() + 1);
+        final WritableRosterStore rosterStore =
+                new WritableRosterStore(state.getWritableStates(RosterStateId.SERVICE_NAME));
+        rosterStore.putActiveRoster(activeRoster, platformStateStore.getRound() + 1);
+        OtterStateUtils.commitState(state);
 
-        final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
+        final ConsensusLayerRosterInputs rosterInputs = rosterStore.getConsensusLayerRosterInputs();
         executionCallback = new OtterExecutionLayer(new Random(), metrics, time);
-        final PlatformBuilder builder = PlatformBuilder.create(
-                        OtterApp.APP_NAME,
-                        OtterApp.SWIRLD_NAME,
-                        version,
-                        initialState,
-                        otterApp,
-                        selfId,
-                        Long.toString(selfId.id()),
-                        rosterHistory,
-                        stateLifecycleManager)
-                .withPlatformContext(platformContext)
-                .withConfiguration(platformConfig)
-                .withKeysAndCerts(keysAndCerts)
-                .withExecutionLayer(executionCallback);
 
-        // Build the platform component builder
-        final PlatformComponentBuilder componentBuilder = builder.buildComponentBuilder();
-        final PlatformBuildingBlocks blocks = componentBuilder.getBuildingBlocks();
+        final TestPlatformBuilder builder = new TestPlatformBuilder(
+                platformConfig,
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                rosterInputs,
+                keysAndCerts,
+                selfId,
+                platformContext.getRecycleBin(),
+                platformContext.getFileSystemManager(),
+                executionCallback,
+                otterApp,
+                initialState,
+                stateLifecycleManager,
+                version,
+                new PersistenceScope(OtterApp.APP_NAME, OtterApp.SWIRLD_NAME),
+                Long.toString(selfId.id()),
+                OtterApp.DEFAULT_TRANSACTION_OFFSET_NANOS);
+
+        platform = builder.build();
 
         // Wiring: Forward consensus rounds to registered listeners
-        final PlatformComponents platformComponents = blocks.platformComponents();
-        platformComponents
+        final ConsensusLayerBuildingBlocks buildingBlocks = builder.buildingBlocks();
+        buildingBlocks
                 .hashgraphModule()
                 .consensusRoundOutputWire()
                 .solderTo("dockerApp", "consensusRounds", this::notifyConsensusRoundListeners);
-
-        platform = componentBuilder.build();
     }
 
     /**

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.schedule;
 
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.NOT_REPEATABLE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -58,7 +59,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SCHEDULE_PENDI
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SOME_SIGNATURES_WERE_INVALID;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.keys.ControlForKey;
 import com.hedera.services.bdd.spec.keys.OverlappingKeyGenerator;
 import com.hederahashgraph.api.proto.java.Key;
@@ -524,7 +525,7 @@ public class ScheduleSignTest {
                         .adminKey(adminKey));
     }
 
-    @HapiTest
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     @Tag(NOT_REPEATABLE)
     final Stream<DynamicTest> overlappingKeysTreatedAsExpected() {
         var keyGen = OverlappingKeyGenerator.withAtLeastOneOverlappingByte(2);
@@ -578,7 +579,9 @@ public class ScheduleSignTest {
                 getAccountBalance(SENDER).hasTinyBars(664L));
     }
 
-    @LeakyHapiTest(overrides = {"ledger.schedule.txExpiryTimeSecs", "scheduling.longTermEnabled"})
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"ledger.schedule.txExpiryTimeSecs", "scheduling.longTermEnabled"})
     final Stream<DynamicTest> signFailsDueToDeletedExpiration() {
         return hapiTest(
                 overriding("scheduling.longTermEnabled", "false"),

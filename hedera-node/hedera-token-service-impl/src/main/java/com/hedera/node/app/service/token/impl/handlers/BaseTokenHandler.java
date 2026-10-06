@@ -11,6 +11,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.NO_REMAINING_AUTOMATIC_
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKENS_PER_ACCOUNT_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_MAX_SUPPLY_REACHED;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
@@ -30,6 +31,7 @@ import com.hedera.node.app.service.token.impl.WritableTokenStore;
 import com.hedera.node.app.service.token.impl.util.TokenHandlerHelper;
 import com.hedera.node.app.service.token.impl.util.TokenKey;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
@@ -296,8 +298,11 @@ public class BaseTokenHandler {
 
             // Create the new token relation
             boolean isTreasuryAccount = Objects.equals(token.treasuryAccountId(), account.accountId());
-            final var isFrozen = token.hasFreezeKey() && token.accountsFrozenByDefault() && !isTreasuryAccount;
-            final var kycGranted = !token.hasKycKey() || isTreasuryAccount;
+            // An empty key list (the HIP-540 removal sentinel) means the freeze/KYC function is
+            // disabled, so it must count as "no key" here: otherwise a new relation would default to
+            // frozen or KYC-revoked with no key able to ever unfreeze it or grant KYC.
+            final var isFrozen = !isEmpty(token.freezeKey()) && token.accountsFrozenByDefault() && !isTreasuryAccount;
+            final var kycGranted = isEmpty(token.kycKey()) || isTreasuryAccount;
             final var newTokenRel = new TokenRelation(
                     token.tokenId(), account.accountId(), 0, isFrozen, kycGranted, false, prevTokenId, nextTokenId);
             newTokenRels.add(newTokenRel);
@@ -346,13 +351,16 @@ public class BaseTokenHandler {
         if (!hasUnlimitedAutoAssociations(account, entitiesConfig)) {
             validateFalse(usedAutoAssociations >= maxAutoAssociations, NO_REMAINING_AUTOMATIC_ASSOCIATIONS);
         }
-        // Create new token relation and commit to store
+        // Create new token relation and commit to store. An empty key list (the HIP-540 removal
+        // sentinel) means the freeze/KYC function is disabled, so it must count as "no key" here:
+        // otherwise the new relation would default to frozen or KYC-revoked with no key able to
+        // ever unfreeze it or grant KYC.
         final var newTokenRel = TokenRelation.newBuilder()
                 .tokenId(tokenId)
                 .accountId(accountId)
                 .automaticAssociation(true)
-                .kycGranted(!token.hasKycKey())
-                .frozen(token.hasFreezeKey() && token.accountsFrozenByDefault())
+                .kycGranted(isEmpty(token.kycKey()))
+                .frozen(!isEmpty(token.freezeKey()) && token.accountsFrozenByDefault())
                 .previousToken((TokenID) null)
                 .nextToken(account.headTokenId())
                 .build();
@@ -399,7 +407,7 @@ public class BaseTokenHandler {
         requireNonNull(accountStore);
 
         final var originalBalance = tokenRel.balance();
-        final var newBalance = originalBalance + adjustment;
+        final var newBalance = addExactBalance(originalBalance, adjustment);
         validateTrue(newBalance >= 0, INSUFFICIENT_TOKEN_BALANCE);
 
         final var copyRel = tokenRel.copyBuilder();
@@ -417,6 +425,15 @@ public class BaseTokenHandler {
         }
         final var copyAccount = account.copyBuilder();
         accountStore.put(copyAccount.numberPositiveBalances(numPositiveBalances).build());
+    }
+
+    // Reject out-of-range sums; a wrapped result could pass the newBalance >= 0 guard.
+    protected static long addExactBalance(final long a, final long b) {
+        try {
+            return Math.addExact(a, b);
+        } catch (final ArithmeticException e) {
+            throw new HandleException(INSUFFICIENT_TOKEN_BALANCE);
+        }
     }
 
     protected void validateNotFrozenAndKycOnRelation(@NonNull final TokenRelation rel) {

@@ -158,7 +158,7 @@ class IngestWorkflowImplTest extends AppTestBase {
         // The cost *MUST* be zero, it is only non-zero for insufficient balance errors
         assertThat(response.cost()).isZero();
         // And that the transaction and its bytes were actually passed to the submission manager
-        verify(submissionManager).submit(eq(transactionBody), any());
+        verify(submissionManager).submit(eq(transactionBody), any(), eq(false));
     }
 
     @Nested
@@ -186,7 +186,7 @@ class IngestWorkflowImplTest extends AppTestBase {
                 // The cost *MUST* be zero, it is only non-zero for insufficient balance errors
                 assertThat(response.cost()).isZero();
                 // And the transaction is not submitted to the platform
-                verify(submissionManager, never()).submit(any(), any());
+                verify(submissionManager, never()).submit(any(), any(), eq(false));
             }
         }
     }
@@ -227,7 +227,7 @@ class IngestWorkflowImplTest extends AppTestBase {
             // The cost *MUST* be zero, it is only non-zero for insufficient balance errors
             assertThat(response.cost()).isZero();
             // And the transaction is not submitted to the platform
-            verify(submissionManager, never()).submit(any(), any());
+            verify(submissionManager, never()).submit(any(), any(), eq(false));
         }
 
         @Test
@@ -248,7 +248,7 @@ class IngestWorkflowImplTest extends AppTestBase {
             // And the cost will be zero
             assertThat(response.cost()).isZero();
             // And the transaction is not submitted to the platform
-            verify(submissionManager, never()).submit(any(), any());
+            verify(submissionManager, never()).submit(any(), any(), eq(false));
         }
     }
 
@@ -283,7 +283,7 @@ class IngestWorkflowImplTest extends AppTestBase {
             // The cost *MUST* be zero, it is only non-zero for insufficient balance errors
             assertThat(response.cost()).isZero();
             // And the transaction is not submitted to the platform
-            verify(submissionManager, never()).submit(any(), any());
+            verify(submissionManager, never()).submit(any(), any(), eq(false));
         }
 
         @Test
@@ -305,7 +305,7 @@ class IngestWorkflowImplTest extends AppTestBase {
             // And the cost will be zero
             assertThat(response.cost()).isZero();
             // And the transaction is not submitted to the platform
-            verify(submissionManager, never()).submit(any(), any());
+            verify(submissionManager, never()).submit(any(), any(), eq(false));
         }
     }
 
@@ -319,7 +319,7 @@ class IngestWorkflowImplTest extends AppTestBase {
             // Given a SubmissionManager that will fail the submit
             doThrow(new PreCheckException(PLATFORM_TRANSACTION_NOT_CREATED))
                     .when(submissionManager)
-                    .submit(any(), any());
+                    .submit(any(), any(), eq(false));
 
             // When we submit a transaction
             workflow.submitTransaction(requestBuffer, responseBuffer);
@@ -337,7 +337,7 @@ class IngestWorkflowImplTest extends AppTestBase {
             // Given a SubmissionManager that will throw a RuntimeException from submit
             doThrow(new RuntimeException("submit exception"))
                     .when(submissionManager)
-                    .submit(any(), any());
+                    .submit(any(), any(), eq(false));
 
             // When the transaction is submitted
             workflow.submitTransaction(requestBuffer, responseBuffer);

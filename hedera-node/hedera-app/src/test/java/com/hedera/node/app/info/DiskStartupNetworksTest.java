@@ -6,11 +6,11 @@ import static com.hedera.node.app.info.DiskStartupNetworks.ARCHIVE;
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
-import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.hiero.consensus.platformstate.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
 import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
 import static org.mockito.BDDMockito.given;
@@ -18,6 +18,8 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
+import com.hedera.hapi.node.state.history.HistoryProof;
+import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterState;
@@ -41,13 +43,13 @@ import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
+import com.hedera.node.internal.network.TssMetadata;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -61,6 +63,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.assertj.core.api.Assertions;
+import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -80,6 +83,7 @@ class DiskStartupNetworksTest {
     private StoreMetricsServiceImpl storeMetricsService;
 
     private static final long ROUND_NO = 666L;
+    private static final int JUST_OVER_DEFAULT_JSON_SIZE_LIMIT = 4 * 1024 * 1024 + 1;
 
     private static Network NETWORK;
 
@@ -125,6 +129,39 @@ class DiskStartupNetworksTest {
     }
 
     @Test
+    void cachesAvailableGenesisNetworkUntilCleared() throws IOException {
+        givenConfig();
+        putJsonAt(GENESIS_NETWORK_JSON);
+        final var cachedNetwork = subject.genesisNetworkOrThrow(DEFAULT_CONFIG);
+        final var updatedNetwork =
+                NETWORK.copyBuilder().ledgerId(Bytes.wrap("updated-ledger-id")).build();
+        putJsonAt(GENESIS_NETWORK_JSON, updatedNetwork);
+
+        assertThat(subject.genesisNetworkOrThrow(DEFAULT_CONFIG)).isEqualTo(cachedNetwork);
+
+        subject.clearCachedNetworks();
+
+        assertThat(subject.genesisNetworkOrThrow(DEFAULT_CONFIG)).isEqualTo(updatedNetwork);
+    }
+
+    @Test
+    void findsAvailableGenesisNetworkWithLargeTssProof() throws IOException {
+        givenConfig();
+        final var network = NETWORK.copyBuilder()
+                .tssMetadata(TssMetadata.newBuilder()
+                        .activeProofConstruction(HistoryProofConstruction.newBuilder()
+                                .targetProof(HistoryProof.newBuilder()
+                                        .uncompressedWrapsProof(
+                                                Bytes.wrap(new byte[JUST_OVER_DEFAULT_JSON_SIZE_LIMIT])))))
+                .build();
+        putJsonAt(GENESIS_NETWORK_JSON, network);
+
+        final var loadedNetwork = subject.genesisNetworkOrThrow(DEFAULT_CONFIG);
+
+        assertThat(loadedNetwork).isEqualTo(network);
+    }
+
+    @Test
     void findsAvailableMigrationNetwork() throws IOException {
         givenConfig();
         putJsonAt(OVERRIDE_NETWORK_JSON);
@@ -138,6 +175,13 @@ class DiskStartupNetworksTest {
                 HederaTestConfigBuilder.create().withValue("addressBook.forceUseOfConfigAddressBook", "true"));
 
         final Optional<Network> object = subject.overrideNetworkFor(ROUND_NO, configB);
+        assertThat(object).isEmpty();
+    }
+
+    @Test
+    void hasNoLastUsedOverrideNetworkBeforeOverrideRoundIsSet() {
+        final var object = subject.lastUsedOverrideNetwork(DEFAULT_CONFIG);
+
         assertThat(object).isEmpty();
     }
 
@@ -170,6 +214,43 @@ class DiskStartupNetworksTest {
         assertThat(Files.exists(overrideJson)).isFalse();
         final var archivedGenesisJson = tempDir.resolve(ARCHIVE + File.separator + OVERRIDE_NETWORK_JSON);
         assertThat(Files.exists(archivedGenesisJson)).isTrue();
+    }
+
+    @Test
+    void archivesOverStartupAssetsLeftByAnEarlierRun() throws IOException {
+        givenConfig();
+        // An earlier run of this node already archived both startup assets
+        Files.createDirectory(tempDir.resolve(ARCHIVE));
+        putJsonAt(ARCHIVE + File.separator + GENESIS_NETWORK_JSON);
+        putJsonAt(ARCHIVE + File.separator + OVERRIDE_NETWORK_JSON);
+        // And this run was redeployed with fresh copies of both
+        putJsonAt(GENESIS_NETWORK_JSON);
+        putJsonAt(OVERRIDE_NETWORK_JSON);
+
+        subject.archiveStartupNetworks();
+
+        // Neither may survive in data/config; a leftover override-network.json is applied as a roster
+        // transplant by the next restart or reconnect that reads it
+        assertThat(Files.exists(tempDir.resolve(GENESIS_NETWORK_JSON))).isFalse();
+        assertThat(Files.exists(tempDir.resolve(OVERRIDE_NETWORK_JSON))).isFalse();
+        assertThat(Files.exists(tempDir.resolve(ARCHIVE + File.separator + GENESIS_NETWORK_JSON)))
+                .isTrue();
+        assertThat(Files.exists(tempDir.resolve(ARCHIVE + File.separator + OVERRIDE_NETWORK_JSON)))
+                .isTrue();
+    }
+
+    @Test
+    void scopesOverrideNetworkToRoundOverAssetLeftByAnEarlierRun() throws IOException {
+        givenConfig();
+        Files.createDirectory(tempDir.resolve("" + ROUND_NO));
+        putJsonAt(ROUND_NO + File.separator + OVERRIDE_NETWORK_JSON);
+        putJsonAt(OVERRIDE_NETWORK_JSON);
+
+        subject.setOverrideRound(ROUND_NO);
+
+        assertThat(Files.exists(tempDir.resolve(OVERRIDE_NETWORK_JSON))).isFalse();
+        assertThat(Files.exists(tempDir.resolve(ROUND_NO + File.separator + OVERRIDE_NETWORK_JSON)))
+                .isTrue();
     }
 
     @Test
@@ -215,6 +296,19 @@ class DiskStartupNetworksTest {
     }
 
     @Test
+    void findsLastUsedOverrideNetworkAfterOverrideRoundIsSet() throws IOException {
+        givenConfig();
+        putJsonAt(OVERRIDE_NETWORK_JSON);
+
+        subject.setOverrideRound(ROUND_NO);
+
+        final var lastUsedOverrideNetwork = subject.lastUsedOverrideNetwork(DEFAULT_CONFIG);
+
+        assertThat(lastUsedOverrideNetwork).isPresent();
+        assertThat(lastUsedOverrideNetwork.orElseThrow()).isEqualTo(NETWORK);
+    }
+
+    @Test
     void writesExpectedStateInfo() throws IOException, ParseException {
         final var state = stateContainingInfoFrom(NETWORK);
         final var loc = tempDir.resolve("reproduced-network.json");
@@ -226,9 +320,13 @@ class DiskStartupNetworksTest {
     }
 
     private void putJsonAt(@NonNull final String fileName) throws IOException {
+        putJsonAt(fileName, NETWORK);
+    }
+
+    private void putJsonAt(@NonNull final String fileName, @NonNull final Network network) throws IOException {
         final var loc = tempDir.resolve(fileName);
         try (final var fout = Files.newOutputStream(loc)) {
-            Network.JSON.write(NETWORK, new WritableStreamingData(fout));
+            Network.JSON.write(network, new WritableStreamingData(fout));
         }
     }
 
@@ -241,7 +339,7 @@ class DiskStartupNetworksTest {
         Set.of(
                         new PlatformStateService(),
                         new EntityIdServiceImpl(),
-                        new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> state, () -> startupNetworks),
+                        new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> startupNetworks),
                         new AddressBookServiceImpl())
                 .forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();

@@ -14,7 +14,6 @@ import static com.hedera.hapi.node.base.TokenPauseStatus.PAUSED;
 import static com.hedera.hapi.node.base.TokenPauseStatus.PAUSE_NOT_APPLICABLE;
 import static com.hedera.hapi.node.base.TokenPauseStatus.UNPAUSED;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isEmpty;
-import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
@@ -25,20 +24,15 @@ import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseHeader;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
-import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.TokenGetInfoResponse;
 import com.hedera.hapi.node.token.TokenInfo;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.node.app.hapi.fees.usage.token.TokenGetInfoUsage;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
-import com.hedera.node.config.data.LedgerConfig;
-import com.hederahashgraph.api.proto.java.FeeData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
 import javax.inject.Inject;
@@ -88,7 +82,6 @@ public class TokenGetInfoHandler extends PaidQueryHandler {
         requireNonNull(context);
         requireNonNull(header);
         final var query = context.query();
-        final var config = context.configuration().getConfigData(LedgerConfig.class);
         final var tokenStore = context.createStore(ReadableTokenStore.class);
         final var op = query.tokenGetInfoOrThrow();
         final var response = TokenGetInfoResponse.newBuilder();
@@ -97,7 +90,7 @@ public class TokenGetInfoHandler extends PaidQueryHandler {
         final var responseType = op.headerOrElse(QueryHeader.DEFAULT).responseType();
         response.header(header);
         if (header.nodeTransactionPrecheckCode() == OK && responseType != COST_ANSWER) {
-            final var optionalInfo = infoForToken(tokenID, tokenStore, config);
+            final var optionalInfo = infoForToken(tokenID, tokenStore, context.ledgerId());
             if (optionalInfo.isPresent()) {
                 response.tokenInfo(optionalInfo.get());
             } else {
@@ -117,24 +110,24 @@ public class TokenGetInfoHandler extends PaidQueryHandler {
      * the {@link TokenID} for which to return the {@link TokenInfo}
      * @param readableTokenStore
      * the {@link ReadableTokenStore} from which to retrieve the {@link TokenInfo}
-     * @param config
-     * the {@link LedgerConfig} containing the ledger ID
+     * @param ledgerId
+     * the ledger ID to surface in the query response
      * @return the {@link TokenInfo} for the given {@link TokenID}, if it exists
      */
     private Optional<TokenInfo> infoForToken(
             @NonNull final TokenID tokenID,
             @NonNull final ReadableTokenStore readableTokenStore,
-            @NonNull final LedgerConfig config) {
+            @NonNull final Bytes ledgerId) {
         requireNonNull(tokenID);
         requireNonNull(readableTokenStore);
-        requireNonNull(config);
+        requireNonNull(ledgerId);
 
         final var token = readableTokenStore.get(tokenID);
         if (token == null) {
             return Optional.empty();
         } else {
             final var info = TokenInfo.newBuilder();
-            info.ledgerId(config.id());
+            info.ledgerId(ledgerId);
             info.tokenType(token.tokenType());
             info.supplyType(token.supplyType());
             info.tokenId(tokenID);
@@ -189,63 +182,6 @@ public class TokenGetInfoHandler extends PaidQueryHandler {
             info.customFees(token.customFees());
 
             return Optional.of(info.build());
-        }
-    }
-
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull final QueryContext queryContext) {
-        final var query = queryContext.query();
-        final var tokenStore = queryContext.createStore(ReadableTokenStore.class);
-        final var op = query.tokenGetInfoOrThrow();
-        final var tokenId = op.tokenOrElse(TokenID.DEFAULT);
-        final var token = tokenStore.get(tokenId);
-
-        return queryContext
-                .feeCalculator()
-                .legacyCalculate(sigValueObj -> usageGiven(CommonPbjConverters.fromPbj(query), token));
-    }
-
-    private FeeData usageGiven(final com.hederahashgraph.api.proto.java.Query query, final Token token) {
-        if (token != null) {
-            final var estimate = TokenGetInfoUsage.newEstimate(query)
-                    .givenCurrentAdminKey(
-                            token.hasAdminKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.adminKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentFreezeKey(
-                            token.hasFreezeKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.freezeKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentWipeKey(
-                            token.hasWipeKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.wipeKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentSupplyKey(
-                            token.hasSupplyKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.supplyKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentKycKey(
-                            token.hasKycKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.kycKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentPauseKey(
-                            token.hasPauseKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.pauseKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentMetadataKey(
-                            token.hasMetadataKey()
-                                    ? Optional.of(CommonPbjConverters.fromPbj(token.metadataKeyOrThrow()))
-                                    : Optional.empty())
-                    .givenCurrentName(token.name())
-                    .givenCurrentMemo(token.memo())
-                    .givenCurrentSymbol(token.symbol());
-            if (token.hasAutoRenewAccountId()) {
-                estimate.givenCurrentlyUsingAutoRenewAccount();
-            }
-            return estimate.get();
-        } else {
-            return CONSTANT_FEE_DATA;
         }
     }
 }

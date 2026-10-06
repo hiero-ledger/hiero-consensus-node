@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.queries;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -24,8 +23,10 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.handleAnyRepeatableQueryPayment;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -38,27 +39,8 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class RepeatableOperatorQueryTests extends NodeOperatorQueriesBase {
-    @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
-    @Tag(MATS)
-    final Stream<DynamicTest> nodeOperatorQueryVerifyPayerBalanceForAccountBalance() {
-        return hapiTest(
-                cryptoCreate(NODE_OPERATOR).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                // perform getAccountBalance() query, pay for the query with payer account
-                getAccountBalance(NODE_OPERATOR).payingWith(PAYER),
-                handleAnyRepeatableQueryPayment(),
-                // assert payer is charged
-                getAccountBalance(PAYER).hasTinyBars(ONE_HUNDRED_HBARS),
-                // perform free query to local port with asNodeOperator() method
-                getAccountBalance(NODE_OPERATOR).payingWith(PAYER).asNodeOperator(),
-                handleAnyRepeatableQueryPayment(),
-                // assert payer is not charged as the query is performed as node operator
-                getAccountBalance(PAYER).hasTinyBars(ONE_HUNDRED_HBARS));
-    }
-
     @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
     final Stream<DynamicTest> nodeOperatorQueryVerifyPayerBalanceForAccountInfo() {
         return customizedHapiTest(
@@ -71,13 +53,22 @@ public class RepeatableOperatorQueryTests extends NodeOperatorQueriesBase {
                         // the grpc client performs the query to different ports
                         getAccountInfo(NODE_OPERATOR).payingWith(PAYER),
                         handleAnyRepeatableQueryPayment(),
-                        // assert payer is charged
-                        getAccountBalance(PAYER).hasTinyBars(changeFromSnapshot("payerInitialBalance", -QUERY_COST)),
-                        // perform free query to local port with asNodeOperator() method
-                        getAccountInfo(NODE_OPERATOR).payingWith(PAYER).asNodeOperator(),
-                        handleAnyRepeatableQueryPayment(),
-                        // assert payer is not charged as the query is performed as node operator
-                        getAccountBalance(PAYER).hasTinyBars(changeFromSnapshot("payerInitialBalance", -QUERY_COST))));
+                        doingContextual(spec -> {
+                            final var queryCost = QUERY_COST_SIMPLE_FEES;
+                            allRunFor(
+                                    spec,
+                                    // assert payer is charged
+                                    getAccountBalance(PAYER)
+                                            .hasTinyBars(changeFromSnapshot("payerInitialBalance", -queryCost)),
+                                    // perform free query to local port with asNodeOperator() method
+                                    getAccountInfo(NODE_OPERATOR)
+                                            .payingWith(PAYER)
+                                            .asNodeOperator(),
+                                    handleAnyRepeatableQueryPayment(),
+                                    // assert payer is not charged as the query is performed as node operator
+                                    getAccountBalance(PAYER)
+                                            .hasTinyBars(changeFromSnapshot("payerInitialBalance", -queryCost)));
+                        })));
     }
 
     @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
@@ -180,7 +171,6 @@ public class RepeatableOperatorQueryTests extends NodeOperatorQueriesBase {
     }
 
     @RepeatableHapiTest(NEEDS_SYNCHRONOUS_HANDLE_WORKFLOW)
-    @Tag(MATS)
     final Stream<DynamicTest> nodeOperatorTopicInfoQueryNotCharged() {
         return hapiTest(flattened(
                 nodeOperatorAccount(),

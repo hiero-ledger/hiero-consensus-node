@@ -74,6 +74,7 @@ public class HssCallFactory implements CallFactory<HssCallAttempt> {
                 new CallAttemptOptions<>(
                         contractID,
                         frame.getSenderAddress(),
+                        frame.getRecipientAddress(),
                         frame.getSenderAddress(),
                         addressChecks.hasParentDelegateCall(frame),
                         enhancement,

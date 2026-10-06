@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.hips.hip632;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPrivateKey;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -48,6 +47,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.SignaturePair;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.SignatureGenerator;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -57,12 +57,11 @@ import com.hedera.services.bdd.suites.utils.contracts.BoolResult;
 import com.hedera.services.bdd.utils.Signing;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
-import org.bouncycastle.jcajce.provider.digest.SHA384.Digest;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -93,14 +92,11 @@ public class IsAuthorizedTest {
     private static final String HRC632_CONTRACT = "HRC632Contract";
     private static final String CONTRACTS_SYSTEM_CONTRACT_ACCOUNT_SERVICE_IS_AUTHORIZED_RAW_ENABLED =
             "contracts.systemContract.accountService.isAuthorizedRawEnabled";
-    private static final String CONTRACTS_SYSTEM_CONTRACT_ACCOUNT_SERVICE_IS_AUTHORIZED_ENABLED =
-            "contracts.systemContract.accountService.isAuthorizedRawEnabled";
 
     @Nested
     @DisplayName("IsAuthorizedRaw")
     class IsAuthorizedRawTests {
         @HapiTest
-        @Tag(MATS)
         final Stream<DynamicTest> isAuthorizedRawECDSAHappyPath() {
             return hapiTest(
                     newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE).generator(new RepeatableKeyGenerator()),
@@ -108,7 +104,7 @@ public class IsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
 
                         final var privateKey = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                         final var addressBytes = recoverAddressFromPrivateKey(privateKey);
@@ -138,7 +134,7 @@ public class IsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
 
                         final var privateKey = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                         final var addressBytes = recoverAddressFromPrivateKey(privateKey);
@@ -165,8 +161,8 @@ public class IsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
-                        final var differentHash = new Keccak.Digest256().digest("submit1".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
+                        final var differentHash = MiscCryptoUtils.keccak256DigestOf("submit1".getBytes());
 
                         final var privateKey = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                         final var addressBytes = recoverAddressFromPrivateKey(privateKey);
@@ -196,7 +192,7 @@ public class IsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
 
                         final var privateKey = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                         final var addressBytes = recoverAddressFromPrivateKey(privateKey);
@@ -232,7 +228,7 @@ public class IsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
 
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
@@ -269,8 +265,8 @@ public class IsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
-                        final var differentHash = new Keccak.Digest256().digest("submit1".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
+                        final var differentHash = MiscCryptoUtils.keccak256DigestOf("submit1".getBytes());
 
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
@@ -307,7 +303,8 @@ public class IsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Digest().digest("submit".getBytes());
+                        final var messageHash =
+                                MessageDigest.getInstance("SHA-384").digest("submit".getBytes());
 
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
@@ -341,7 +338,7 @@ public class IsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
 
                         final var callECSigWithLongZero = contractCall(
                                         HRC632_CONTRACT,
@@ -386,7 +383,8 @@ public class IsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Digest().digest("submit".getBytes());
+                        final var messageHash =
+                                MessageDigest.getInstance("SHA-384").digest("submit".getBytes());
                         final var privateKey = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                         final var signedBytes = Signing.signMessage(messageHash, privateKey);
 
@@ -426,7 +424,8 @@ public class IsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Digest().digest("submit".getBytes());
+                        final var messageHash =
+                                MessageDigest.getInstance("SHA-384").digest("submit".getBytes());
                         final var edKey = spec.registry().getKey(ED25519_KEY);
                         final var privateKey = spec.keys()
                                 .getEd25519PrivateKey(
@@ -482,8 +481,8 @@ public class IsAuthorizedTest {
                     uploadInitCode(HRC632_CONTRACT),
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
-                        final var messageHash32Bytes = new Keccak.Digest256().digest("submit".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
+                        final var messageHash32Bytes = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
 
                         // Sign message with ED25519
                         final var edKey = spec.registry().getKey(ED25519_KEY);
@@ -542,13 +541,6 @@ public class IsAuthorizedTest {
                             recordWith().status(INVALID_SIGNATURE_TYPE_MISMATCHING_KEY)));
         }
 
-        // FUTURE: Note the difference in returned status between the EC tests and the ED tests:
-        // INSUFFICIENT_GAS vs CONTRACT_REVERT_EXECUTED.  This has to do with whether the tests run out
-        // of gas before/after the `isAuthorizedRaw` call, or within it.  And it also shows up in whether
-        // there is a child record for the method call.  The question is: Given that this difference is
-        // visible to callers, is it acceptable?  Question will become more important as more system
-        // contract methods gain individual gas fees.
-
         @HapiTest
         final Stream<DynamicTest> isAuthorizedRawECDSACheckGasRequirements() {
 
@@ -576,7 +568,7 @@ public class IsAuthorizedTest {
                                 uploadInitCode(HRC632_CONTRACT),
                                 contractCreate(HRC632_CONTRACT))
                         .when(withOpContext((spec, opLog) -> {
-                            final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                            final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
 
                             final var privateKey = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                             final var addressBytes = recoverAddressFromPrivateKey(privateKey);
@@ -614,18 +606,16 @@ public class IsAuthorizedTest {
         @HapiTest
         final Stream<DynamicTest> isAuthorizedRawED25519CheckGasRequirements() {
 
-            // Intrinsic gas is 21_000, hard-coded verification charge is 1_500_000, but there's also the contract
-            // itself
-            // that we're calling - allow 55K gas (actually, determined empirically)
-
-            final long GAS_BURNT_IN_ADDITION_TO_IS_AUTHORIZED_RAW_ALLOWANCE = 55_000L;
+            // Intrinsic gas is 21_000, Ed25519 verification is 3_000, but there's also the contract itself that we're
+            // calling
 
             record TestCase(long gasAmount, ResponseCodeEnum status) {}
-            final var testCases = new ArrayList<TestCase>();
-            for (long g = 1_550_000; g < 1_554_000; g += 1000) testCases.add(new TestCase(g, INSUFFICIENT_GAS));
-            for (long g = 1_553_500; g < 1_554_000; g += 100) testCases.add(new TestCase(g, INSUFFICIENT_GAS));
-            for (long g = 1_554_500; g < 1_555_000; g += 100) testCases.add(new TestCase(g, SUCCESS));
-            for (long g = 1_555_000; g < 1_560_000; g += 1000) testCases.add(new TestCase(g, SUCCESS));
+
+            final var testCases = new ArrayList<TestCase>(List.of(new TestCase(100000, SUCCESS)));
+            for (long g = 28000; g < 34000; g += 1000) testCases.add(new TestCase(g, INSUFFICIENT_GAS));
+            for (long g = 33000; g < 33800; g += 100) testCases.add(new TestCase(g, INSUFFICIENT_GAS));
+            for (long g = 33900; g < 35000; g += 100) testCases.add(new TestCase(g, SUCCESS));
+            for (long g = 35000; g < 40000; g += 1000) testCases.add(new TestCase(g, SUCCESS));
 
             final var dynamicTests = new ArrayList<Stream<DynamicTest>>(testCases.size());
             for (final var testCase : testCases) {
@@ -645,7 +635,7 @@ public class IsAuthorizedTest {
                                 uploadInitCode(HRC632_CONTRACT),
                                 contractCreate(HRC632_CONTRACT))
                         .when(withOpContext((spec, opLog) -> {
-                            final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                            final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
 
                             final var edKey = spec.registry().getKey(ED25519_KEY);
                             final var privateKey = spec.keys()
@@ -662,7 +652,8 @@ public class IsAuthorizedTest {
                                     .via(recordName)
                                     .gas(testCase.gasAmount());
                             if (testCase.status() == INSUFFICIENT_GAS) {
-                                call = call.hasKnownStatus(CONTRACT_REVERT_EXECUTED);
+                                call = call.hasKnownStatusFrom(
+                                        INSUFFICIENT_GAS, CONTRACT_REVERT_EXECUTED, REVERTED_SUCCESS);
                             }
                             allRunFor(spec, call);
                         }));
@@ -671,16 +662,10 @@ public class IsAuthorizedTest {
                                 .hasPriority(recordWith()
                                         .status(SUCCESS)
                                         .contractCallResult(resultWith().contractCallResult(BoolResult.flag(true)))))
-                        : throughWhen.then(childRecordsCheck(
-                                recordName,
-                                CONTRACT_REVERT_EXECUTED,
-                                recordWith()
+                        : throughWhen.then(getTxnRecord(recordName)
+                                .hasPriority(recordWith()
                                         .status(INSUFFICIENT_GAS)
-                                        .contractCallResult(resultWith()
-                                                .gasUsedIsInRange(
-                                                        (testCase.gasAmount()
-                                                                - GAS_BURNT_IN_ADDITION_TO_IS_AUTHORIZED_RAW_ALLOWANCE),
-                                                        testCase.gasAmount()))));
+                                        .contractCallResult(resultWith().gasUsed(testCase.gasAmount()))));
                 dynamicTests.add(hapiSpec);
             }
 
@@ -700,7 +685,7 @@ public class IsAuthorizedTest {
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
                         final var message = "submit".getBytes();
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
                         final var privateKey = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                         final var publicKey = spec.registry().getKey(ECDSA_KEY).getECDSASecp256K1();
                         final var addressBytes = recoverAddressFromPrivateKey(privateKey);
@@ -791,7 +776,7 @@ public class IsAuthorizedTest {
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
                         final var message = "submit".getBytes();
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
                         final var privateKeyEcdsa = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                         final var publicKeyEcdsa =
                                 spec.registry().getKey(ECDSA_KEY).getECDSASecp256K1();
@@ -833,7 +818,6 @@ public class IsAuthorizedTest {
         }
 
         @HapiTest
-        @Tag(MATS)
         final Stream<DynamicTest> thresholdKey1of2HappyPath() {
             final AtomicReference<AccountID> accountNum = new AtomicReference<>();
             return hapiTest(
@@ -849,7 +833,7 @@ public class IsAuthorizedTest {
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
                         final var message = "submit".getBytes();
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
                         final var privateKeyEcdsa = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                         final var publicKeyEcdsa =
                                 spec.registry().getKey(ECDSA_KEY).getECDSASecp256K1();
@@ -908,7 +892,7 @@ public class IsAuthorizedTest {
                     contractCreate(HRC632_CONTRACT),
                     withOpContext((spec, opLog) -> {
                         final var message = "submit".getBytes();
-                        final var messageHash = new Keccak.Digest256().digest("submit".getBytes());
+                        final var messageHash = MiscCryptoUtils.keccak256DigestOf("submit".getBytes());
                         final var privateKeyEcdsa = getEcdsaPrivateKeyFromSpec(spec, ECDSA_KEY);
                         final var publicKeyEcdsa =
                                 spec.registry().getKey(ECDSA_KEY).getECDSASecp256K1();

@@ -12,7 +12,7 @@ import org.hiero.consensus.model.status.PlatformStatus;
  */
 @Singleton
 public class CurrentPlatformStatusImpl implements CurrentPlatformStatus {
-    private PlatformStatus status = PlatformStatus.STARTING_UP;
+    private volatile PlatformStatus status = PlatformStatus.STARTING_UP;
 
     public CurrentPlatformStatusImpl(@NonNull final Platform platform) {
         platform.getNotificationEngine()

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.services.iss;
 
-import com.swirlds.platform.scratchpad.ScratchpadType;
+import org.hiero.consensus.scratchpad.ScratchpadType;
 
 /**
  * Types of data stored in the scratch pad by the ISS Service.

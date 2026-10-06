@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.issues;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_KEYS;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -24,21 +23,21 @@ import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTHORIZATION_FAILED;
 
 import com.google.protobuf.ByteString;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.EmbeddedReason;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.utilops.CustomSpecAssert;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class Issue2319Spec {
     private static final String NON_TREASURY_KEY = "nonTreasuryKey";
     private static final String NON_TREASURY_ADMIN_KEY = "nonTreasuryAdminKey";
     private static final String DEFAULT_ADMIN_KEY = "defaultAdminKey";
 
-    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_KEYS)
+    @LeakyEmbeddedHapiTest(reason = EmbeddedReason.NEEDS_STATE_ACCESS, requirement = SYSTEM_ACCOUNT_KEYS)
     final Stream<DynamicTest> propsPermissionsSigReqsWaivedForAddressBookAdmin() {
         return hapiTest(
                 newKeyNamed(NON_TREASURY_KEY),
@@ -66,7 +65,7 @@ public class Issue2319Spec {
                 fileUpdate(API_PERMISSIONS).wacl(GENESIS));
     }
 
-    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_KEYS)
+    @LeakyEmbeddedHapiTest(reason = EmbeddedReason.NEEDS_STATE_ACCESS, requirement = SYSTEM_ACCOUNT_KEYS)
     final Stream<DynamicTest> sysFileImmutabilityWaivedForMasterAndTreasury() {
         return hapiTest(
                 cryptoCreate("civilian"),
@@ -81,8 +80,7 @@ public class Issue2319Spec {
                 fileUpdate(EXCHANGE_RATES).wacl(GENESIS).payingWith(GENESIS).signedBy(GENESIS));
     }
 
-    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_KEYS)
-    @Tag(MATS)
+    @LeakyEmbeddedHapiTest(reason = EmbeddedReason.NEEDS_STATE_ACCESS, requirement = SYSTEM_ACCOUNT_KEYS)
     final Stream<DynamicTest> sysAccountSigReqsWaivedForMasterAndTreasury() {
         return hapiTest(
                 newKeyNamed(NON_TREASURY_KEY),
@@ -112,8 +110,7 @@ public class Issue2319Spec {
                         .signedBy(GENESIS));
     }
 
-    @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_KEYS)
-    @Tag(MATS)
+    @LeakyEmbeddedHapiTest(reason = EmbeddedReason.NEEDS_STATE_ACCESS, requirement = SYSTEM_ACCOUNT_KEYS)
     final Stream<DynamicTest> sysFileSigReqsWaivedForMasterAndTreasury() {
         var validRates = new AtomicReference<ByteString>();
 

@@ -6,10 +6,10 @@ plugins {
 }
 
 testModuleInfo {
+    requires("org.hiero.base.concurrent")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
-    requires("org.hiero.consensus.concurrent")
-    requires("com.swirlds.common")
+
     runtimeOnly("com.swirlds.platform.core")
 
     exportsTo("com.swirlds.config.extensions")

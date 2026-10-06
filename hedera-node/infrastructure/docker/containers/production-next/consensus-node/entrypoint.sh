@@ -159,8 +159,8 @@ echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> BEGIN WAITING FOR FILES >>>>>>>>
 ## This is a permanent belt and suspenders type of fix in addition to any resiliency which may also be added to the
 ## Platform configuration loading mechanism.
 waitForFileEx "log4j2.xml" "Checking for log4j2.xml presence"
-waitForFileEx "config.txt" "Checking for config.txt presence"
 waitForFileEx "settings.txt" "Checking for settings.txt presence"
+waitForFileEx "data/config/genesis-network.json" "Checking for genesis-network.json presence"
 waitForFileEx "data/config/application.properties" "Checking for application.properties presence"
 waitForFileEx "data/config/api-permission.properties" "Checking for api-permission.properties presence"
 waitForFileEx "hedera.crt" "Checking for hedera.crt presence (optional)" "true"
@@ -174,7 +174,7 @@ echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> BEGIN NODE OUTPUT >>>>>>>>>>>>>>
 ## starting the platform software if the exit code is 205 which indicates a config.txt/address book loading issue.
 ATTEMPTS=0
 while true; do
-  /usr/bin/env java ${JAVA_HEAP_OPTS} ${JAVA_OPTS} -cp "${JAVA_CLASS_PATH}" "${JAVA_MAIN_CLASS}" ${CONSENSUS_NODE_ARGS}
+  /usr/bin/env java --enable-native-access=ALL-UNNAMED --sun-misc-unsafe-memory-access=allow ${JAVA_HEAP_OPTS} ${JAVA_OPTS} -cp "${JAVA_CLASS_PATH}" "${JAVA_MAIN_CLASS}" ${CONSENSUS_NODE_ARGS}
   EC="${?}"
   if [[ "${EC}" -eq 205 && "${ATTEMPTS}" -lt 20 ]]; then
     printf "\n\n############# Retrying system initialization - DNS or Address Book Failure (Exit Code: %s) #############\n\n" "${EC}"

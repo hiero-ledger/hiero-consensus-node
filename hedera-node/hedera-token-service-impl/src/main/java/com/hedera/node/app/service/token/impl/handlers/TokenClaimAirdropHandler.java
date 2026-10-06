@@ -4,6 +4,7 @@ package com.hedera.node.app.service.token.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_PENDING_AIRDROP_ID_LIST;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PENDING_AIRDROP_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PENDING_AIRDROP_ID_LIST_TOO_LONG;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PENDING_AIRDROP_ID_REPEATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_AIRDROP_WITH_FALLBACK_ROYALTY;
@@ -17,8 +18,6 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.PendingAirdropId;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.state.token.Token;
@@ -40,8 +39,6 @@ import com.hedera.node.app.service.token.impl.util.PendingAirdropUpdater;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.node.app.service.token.impl.validators.TokenAirdropValidator;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -194,19 +191,6 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
         return standardAirdropIds;
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull FeeContext feeContext) {
-        var tokensConfig = feeContext.configuration().getConfigData(TokensConfig.class);
-        validateTrue(tokensConfig.airdropsClaimEnabled(), ResponseCodeEnum.NOT_SUPPORTED);
-        final var feeCalculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
-        feeCalculator.resetUsage();
-
-        return feeCalculator
-                .addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1))
-                .calculate();
-    }
-
     private void createOrUpdateTransfers(
             @NonNull final PendingAirdropId airdrop,
             @NonNull final WritableAirdropStore airdropStore,
@@ -221,7 +205,8 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
             // process fungible tokens
             final var senderAccountAmount = asAccountAmount(
                     senderId,
-                    -accountPendingAirdrop.pendingAirdropValueOrThrow().amount());
+                    safeNegate(
+                            accountPendingAirdrop.pendingAirdropValueOrThrow().amount()));
             final var receiverAccountAmount = asAccountAmount(
                     receiverId,
                     accountPendingAirdrop.pendingAirdropValueOrThrow().amount());
@@ -250,13 +235,30 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
                 final var updatedTransfer = transfers
                         .get(i)
                         .copyBuilder()
-                        .amount(transfers.get(i).amount() + newTransfer.amount())
+                        .amount(safeAdd(transfers.get(i).amount(), newTransfer.amount()))
                         .build();
                 transfers.set(i, updatedTransfer);
                 return;
             }
         }
         transfers.add(newTransfer);
+    }
+
+    // Fail the claim when the sum is out of range instead of wrapping a receiver credit into a debit.
+    private static long safeAdd(final long a, final long b) {
+        try {
+            return Math.addExact(a, b);
+        } catch (final ArithmeticException e) {
+            throw new HandleException(INVALID_TRANSACTION_BODY);
+        }
+    }
+
+    private static long safeNegate(final long value) {
+        try {
+            return Math.negateExact(value);
+        } catch (final ArithmeticException e) {
+            throw new HandleException(INVALID_TRANSACTION_BODY);
+        }
     }
 
     private void associateForFree(
@@ -275,12 +277,15 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
             @NonNull final List<TokenTransferList> transfers,
             @NonNull final HandleContext context,
             @NonNull final CryptoTransferStreamBuilder recordBuilder) {
+        final var isHighVolume = context.body().highVolume();
         final var cryptoTransferBody = CryptoTransferTransactionBody.newBuilder()
                 .tokenTransfers(transfers)
                 .build();
-        final var syntheticCryptoTransferTxn =
-                TransactionBody.newBuilder().cryptoTransfer(cryptoTransferBody).build();
-        final var transferContext = new TransferContextImpl(context, cryptoTransferBody, true);
+        final var syntheticCryptoTransferTxn = TransactionBody.newBuilder()
+                .cryptoTransfer(cryptoTransferBody)
+                .highVolume(isHighVolume)
+                .build();
+        final var transferContext = new TransferContextImpl(context, cryptoTransferBody, true, isHighVolume);
         // We should skip custom fee steps here, because they must be already prepaid
         executeCryptoTransferWithoutCustomFee(syntheticCryptoTransferTxn, transferContext, context, recordBuilder);
     }

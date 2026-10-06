@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.token;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.TOKEN;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -87,7 +86,6 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(TOKEN)
-@Tag(MATS)
 public class TokenUpdateSpecs {
     private static final int MAX_NAME_LENGTH = 100;
     private static final int MAX_SYMBOL_LENGTH = 100;
@@ -501,7 +499,7 @@ public class TokenUpdateSpecs {
                 .then(tokenUpdate("tbu")
                         .name(tooLongName)
                         .signedByPayerAnd("adminKey")
-                        .hasPrecheck(TOKEN_NAME_TOO_LONG));
+                        .hasKnownStatus(TOKEN_NAME_TOO_LONG));
     }
 
     @HapiTest
@@ -514,7 +512,7 @@ public class TokenUpdateSpecs {
                 .then(tokenUpdate("tbu")
                         .symbol(tooLongSymbol)
                         .signedByPayerAnd("adminKey")
-                        .hasPrecheck(TOKEN_SYMBOL_TOO_LONG));
+                        .hasKnownStatus(TOKEN_SYMBOL_TOO_LONG));
     }
 
     @HapiTest
@@ -628,7 +626,7 @@ public class TokenUpdateSpecs {
                         tokenUpdate("primary")
                                 .entityMemo(ZERO_BYTE_MEMO)
                                 .signedByPayerAnd("adminKey")
-                                .hasPrecheck(INVALID_ZERO_BYTE_IN_STRING),
+                                .hasKnownStatus(INVALID_ZERO_BYTE_IN_STRING),
                         tokenUpdate("primary")
                                 .name(newSaltedName)
                                 .entityMemo(updatedMemo)
@@ -694,6 +692,124 @@ public class TokenUpdateSpecs {
                         .treasury("newTreasury")
                         .signedByPayerAnd("adminKey", "newTreasury")
                         .hasKnownStatus(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> canDeletePreviousNftTreasuryAfterSuccessiveTreasuryUpdates() {
+        final var token = "nonFungible";
+        final var originalTreasury = "originalTreasury";
+        final var previousTreasury = "previousTreasury";
+        final var finalTreasury = "finalTreasury";
+        final var beneficiary = "beneficiary";
+        final var adminKey = "adminKey";
+        final var supplyKey = "supplyKey";
+
+        return defaultHapiSpec("CanDeletePreviousNftTreasuryAfterSuccessiveTreasuryUpdates")
+                .given(
+                        newKeyNamed(adminKey),
+                        newKeyNamed(supplyKey),
+                        cryptoCreate(originalTreasury),
+                        cryptoCreate(previousTreasury),
+                        cryptoCreate(finalTreasury),
+                        cryptoCreate(beneficiary),
+                        tokenCreate(token)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0)
+                                .adminKey(adminKey)
+                                .supplyKey(supplyKey)
+                                .treasury(originalTreasury),
+                        mintToken(token, List.of(ByteString.copyFromUtf8("memo"))))
+                .when(
+                        tokenAssociate(previousTreasury, token),
+                        tokenUpdate(token).treasury(previousTreasury).signedByPayerAnd(adminKey, previousTreasury),
+                        getAccountInfo(previousTreasury)
+                                .hasOwnedNfts(1)
+                                .hasToken(
+                                        ExpectedTokenRel.relationshipWith(token).balance(1)),
+                        tokenAssociate(finalTreasury, token),
+                        tokenUpdate(token).treasury(finalTreasury).signedByPayerAnd(adminKey, finalTreasury))
+                .then(
+                        getAccountInfo(previousTreasury)
+                                .hasOwnedNfts(0)
+                                .hasToken(
+                                        ExpectedTokenRel.relationshipWith(token).balance(0)),
+                        cryptoDelete(previousTreasury).transfer(beneficiary));
+    }
+
+    /**
+     * An account that already owns serials of a token cannot become that token's treasury, even
+     * when the outgoing treasury is empty.
+     *
+     * <p>{@code changeOwnerToNewTreasury()} hands NFTs over by rewriting relation balances alone;
+     * it never touches an {@code Nft} record, which is correct only because treasury-held serials
+     * carry a null {@code ownerId} sentinel and so follow the treasury automatically. A serial
+     * acquired by transfer carries an <i>explicit</i> {@code ownerId} instead, and would be
+     * silently orphaned by the next handoff - left owned by an account whose relation balance,
+     * {@code numberPositiveBalances} and {@code numberOwnedNfts} have all been zeroed, and which
+     * can then pass the {@code CryptoDelete} gate in {@code TokenServiceApiImpl}.
+     *
+     * <p>Compare {@link #updateTokenTreasuryRequiresZeroTokenBalance()}, which covers the same
+     * rejection when the outgoing treasury is non-empty, and
+     * {@link #canDeletePreviousNftTreasuryAfterSuccessiveTreasuryUpdates()}, the sentinel-owned
+     * case that must keep working.
+     */
+    @HapiTest
+    final Stream<DynamicTest> nftTreasuryHandoffRejectsIncomingTreasuryHoldingSerials() {
+        final var token = "handoffNft";
+        final var originalTreasury = "handoffOriginalTreasury";
+        final var candidateTreasury = "handoffCandidateTreasury";
+        final var holder = "handoffHolder";
+        final var beneficiary = "handoffBeneficiary";
+        final var adminKey = "handoffAdminKey";
+        final var supplyKey = "handoffSupplyKey";
+
+        return hapiTest(
+                newKeyNamed(adminKey),
+                newKeyNamed(supplyKey),
+                cryptoCreate(originalTreasury),
+                cryptoCreate(candidateTreasury),
+                cryptoCreate(holder),
+                cryptoCreate(beneficiary),
+                tokenCreate(token)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .initialSupply(0)
+                        .adminKey(adminKey)
+                        .supplyKey(supplyKey)
+                        .treasury(originalTreasury),
+
+                // Mint one serial, then transfer it away. The transfer writes an explicit ownerId
+                // and drains the original treasury's relation to zero.
+                mintToken(token, List.of(ByteString.copyFromUtf8("memo"))),
+                tokenAssociate(candidateTreasury, token),
+                cryptoTransfer(movingUnique(token, 1).between(originalTreasury, candidateTreasury)),
+                getAccountInfo(originalTreasury)
+                        .hasOwnedNfts(0)
+                        .hasToken(ExpectedTokenRel.relationshipWith(token).balance(0)),
+
+                // The candidate now owns serial 1 outright, so it cannot take the treasury title -
+                // an empty outgoing treasury must not skip this check.
+                tokenUpdate(token)
+                        .treasury(candidateTreasury)
+                        .signedByPayerAnd(adminKey, candidateTreasury)
+                        .hasKnownStatus(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES),
+
+                // Nothing moved, and the candidate is still correctly accounted for as the owner.
+                getTokenInfo(token).hasTreasury(originalTreasury),
+                getTokenNftInfo(token, 1).hasAccountID(candidateTreasury),
+                getAccountInfo(candidateTreasury)
+                        .hasOwnedNfts(1)
+                        .hasToken(ExpectedTokenRel.relationshipWith(token).balance(1)),
+                cryptoDelete(candidateTreasury)
+                        .transfer(beneficiary)
+                        .hasKnownStatus(TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES),
+
+                // Once the candidate holds nothing the handoff is allowed again, with both the
+                // outgoing and incoming relations empty - the case the guard newly evaluates.
+                tokenAssociate(holder, token),
+                cryptoTransfer(movingUnique(token, 1).between(candidateTreasury, holder)),
+                tokenUpdate(token).treasury(candidateTreasury).signedByPayerAnd(adminKey, candidateTreasury),
+                getTokenInfo(token).hasTreasury(candidateTreasury),
+                getTokenNftInfo(token, 1).hasAccountID(holder));
     }
 
     @HapiTest

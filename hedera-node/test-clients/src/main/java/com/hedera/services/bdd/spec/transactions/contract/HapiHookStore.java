@@ -4,7 +4,6 @@ package com.hedera.services.bdd.spec.transactions.contract;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asContractId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.HookStore;
 import static java.util.Objects.requireNonNull;
 
@@ -20,7 +19,6 @@ import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.HookId;
 import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -99,12 +97,6 @@ public class HapiHookStore extends HapiTxnOp<HapiHookStore> {
     @Override
     protected HapiHookStore self() {
         return this;
-    }
-
-    @Override
-    protected long feeFor(@NonNull final HapiSpec spec, @NonNull final Transaction txn, final int numPayerKeys)
-            throws Throwable {
-        return ONE_HBAR;
     }
 
     @Override

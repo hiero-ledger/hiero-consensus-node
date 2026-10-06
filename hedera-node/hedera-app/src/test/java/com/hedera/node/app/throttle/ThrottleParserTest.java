@@ -1,13 +1,29 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.throttle;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.BUCKET_HAS_NO_THROTTLE_GROUPS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.OPERATION_REPEATED_IN_BUCKET_GROUPS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS_BUT_MISSING_EXPECTED_OPERATION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLE_GROUP_HAS_ZERO_OPS_PER_SEC;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.THROTTLE_GROUP_LCM_OVERFLOW;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.UNPARSEABLE_THROTTLE_DEFINITIONS;
+import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.ThrottleBucket;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.hapi.node.transaction.ThrottleGroup;
+import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 class ThrottleParserTest {
 
@@ -38,10 +54,183 @@ class ThrottleParserTest {
             .build();
     Bytes throttleDefinitionsByes = ThrottleDefinitions.PROTOBUF.toBytes(throttleDefinitions);
 
+    // Only throttleBucket2 (CONTRACT_CREATE only) — missing most expected ops
+    Bytes partialThrottleDefinitionBytes = ThrottleDefinitions.PROTOBUF.toBytes(
+            ThrottleDefinitions.newBuilder().throttleBuckets(throttleBucket2).build());
+
+    // All expected ops except the CLPR ones
+    Bytes nonClprThrottleDefinitionBytes = ThrottleDefinitions.PROTOBUF.toBytes(ThrottleDefinitions.newBuilder()
+            .throttleBuckets(ThrottleBucket.newBuilder()
+                    .name("throttle1")
+                    .burstPeriodMs(100L)
+                    .throttleGroups(ThrottleGroup.newBuilder()
+                            .operations(ThrottleParser.EXPECTED_OPS_WITHOUT_CLPR.stream()
+                                    .toList())
+                            .milliOpsPerSec(100)
+                            .build())
+                    .build())
+            .build());
+
     private ThrottleParser subject;
 
     @BeforeEach
     void setUp() {
-        subject = new ThrottleParser();
+        subject = new ThrottleParser(configProviderWithClprEnabled(false));
+    }
+
+    @Test
+    void parseWithAllExpectedOps_returnsSuccess() {
+        final var result = subject.parse(throttleDefinitionsByes);
+
+        assertEquals(SUCCESS, result.successStatus());
+        assertEquals(throttleDefinitions, result.throttleDefinitions());
+    }
+
+    @Test
+    void parseWithoutClprOps_returnsSuccessWhileClprIsDisabled() {
+        final var result = subject.parse(nonClprThrottleDefinitionBytes);
+
+        assertEquals(SUCCESS, result.successStatus());
+    }
+
+    @Test
+    void parseWithoutClprOps_returnsMissingExpectedOperationStatusWhenClprIsEnabled() {
+        subject = new ThrottleParser(configProviderWithClprEnabled(true));
+
+        final var result = subject.parse(nonClprThrottleDefinitionBytes);
+
+        assertEquals(SUCCESS_BUT_MISSING_EXPECTED_OPERATION, result.successStatus());
+    }
+
+    @Test
+    void parseWithAllExpectedOps_returnsSuccessWhenClprIsEnabled() {
+        subject = new ThrottleParser(configProviderWithClprEnabled(true));
+
+        final var result = subject.parse(throttleDefinitionsByes);
+
+        assertEquals(SUCCESS, result.successStatus());
+    }
+
+    private static ConfigProvider configProviderWithClprEnabled(final boolean clprEnabled) {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("clpr.enabled", clprEnabled)
+                .getOrCreateConfig();
+        return () -> new VersionedConfigImpl(config, 1);
+    }
+
+    @Test
+    void parseWithMissingExpectedOps_returnsMissingExpectedOperationStatus() {
+        final var result = subject.parse(partialThrottleDefinitionBytes);
+
+        assertEquals(SUCCESS_BUT_MISSING_EXPECTED_OPERATION, result.successStatus());
+    }
+
+    @Test
+    void parseWithInvalidBytes_throwsUnparseableThrottleDefinitions() {
+        assertThatThrownBy(() -> subject.parse(Bytes.wrap(new byte[] {0x06})))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(UNPARSEABLE_THROTTLE_DEFINITIONS));
+    }
+
+    @Test
+    void parseWithZeroOpsPerSec_throwsThrottleGroupHasZeroOpsPerSec() {
+        final var zeroOpsGroup = ThrottleGroup.newBuilder()
+                .operations(ThrottleParser.EXPECTED_OPS.stream().toList())
+                .milliOpsPerSec(0)
+                .build();
+        final var bucket = ThrottleBucket.newBuilder()
+                .name("bucket")
+                .burstPeriodMs(100L)
+                .throttleGroups(zeroOpsGroup)
+                .build();
+        final var bytes = ThrottleDefinitions.PROTOBUF.toBytes(
+                ThrottleDefinitions.newBuilder().throttleBuckets(bucket).build());
+
+        assertThatThrownBy(() -> subject.parse(bytes))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(THROTTLE_GROUP_HAS_ZERO_OPS_PER_SEC));
+    }
+
+    @Test
+    void parseWithEmptyBucket_throwsBucketHasNoThrottleGroups() {
+        final var bucket =
+                ThrottleBucket.newBuilder().name("bucket").burstPeriodMs(100L).build();
+        final var bytes = ThrottleDefinitions.PROTOBUF.toBytes(
+                ThrottleDefinitions.newBuilder().throttleBuckets(bucket).build());
+
+        assertThatThrownBy(() -> subject.parse(bytes))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(BUCKET_HAS_NO_THROTTLE_GROUPS));
+    }
+
+    @Test
+    void parseWithRepeatedOperationsInBucket_throwsOperationRepeatedInBucketGroups() {
+        final var group1 = ThrottleGroup.newBuilder()
+                .operations(List.of(HederaFunctionality.CRYPTO_CREATE))
+                .milliOpsPerSec(100)
+                .build();
+        final var group2 = ThrottleGroup.newBuilder()
+                .operations(List.of(HederaFunctionality.CRYPTO_CREATE))
+                .milliOpsPerSec(120)
+                .build();
+        final var bucket = ThrottleBucket.newBuilder()
+                .name("bucket")
+                .burstPeriodMs(100L)
+                .throttleGroups(group1, group2)
+                .build();
+        final var bytes = ThrottleDefinitions.PROTOBUF.toBytes(
+                ThrottleDefinitions.newBuilder().throttleBuckets(bucket).build());
+
+        assertThatThrownBy(() -> subject.parse(bytes))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(OPERATION_REPEATED_IN_BUCKET_GROUPS));
+    }
+
+    @Test
+    void parseWithLcmOverflow_throwsThrottleGroupLcmOverflow() {
+        final var group1 = ThrottleGroup.newBuilder()
+                .operations(List.of(HederaFunctionality.CRYPTO_CREATE))
+                .milliOpsPerSec(Long.MAX_VALUE / 2)
+                .build();
+        final var group2 = ThrottleGroup.newBuilder()
+                .operations(List.of(HederaFunctionality.CRYPTO_TRANSFER))
+                .milliOpsPerSec(Long.MAX_VALUE / 3)
+                .build();
+        final var bucket = ThrottleBucket.newBuilder()
+                .name("bucket")
+                .burstPeriodMs(100L)
+                .throttleGroups(group1, group2)
+                .build();
+        final var bytes = ThrottleDefinitions.PROTOBUF.toBytes(
+                ThrottleDefinitions.newBuilder().throttleBuckets(bucket).build());
+
+        assertThatThrownBy(() -> subject.parse(bytes))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(THROTTLE_GROUP_LCM_OVERFLOW));
+    }
+
+    @Test
+    void parseWithScaledCapacityOverflow_throwsThrottleGroupLcmOverflow() {
+        // Coprime rates whose LCM (~1e12) fits in a long, so the pairwise LCM guard passes; but the
+        // scaled capacity (lcm * NTPS_PER_MTPS * CAPACITY_UNITS_PER_NANO_TXN) overflows a long.
+        final var group1 = ThrottleGroup.newBuilder()
+                .operations(List.of(HederaFunctionality.CRYPTO_CREATE))
+                .milliOpsPerSec(1_000_000)
+                .build();
+        final var group2 = ThrottleGroup.newBuilder()
+                .operations(List.of(HederaFunctionality.CRYPTO_TRANSFER))
+                .milliOpsPerSec(1_000_001)
+                .build();
+        final var bucket = ThrottleBucket.newBuilder()
+                .name("bucket")
+                .burstPeriodMs(100L)
+                .throttleGroups(group1, group2)
+                .build();
+        final var bytes = ThrottleDefinitions.PROTOBUF.toBytes(
+                ThrottleDefinitions.newBuilder().throttleBuckets(bucket).build());
+
+        assertThatThrownBy(() -> subject.parse(bytes))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(THROTTLE_GROUP_LCM_OVERFLOW));
     }
 }

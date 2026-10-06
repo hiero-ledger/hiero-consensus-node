@@ -20,7 +20,6 @@ public interface MetricsExporter extends Closeable {
     /**
      * Initialize the exporter with a supplier of {@link MetricRegistrySnapshot}.
      * The supplier can be called by the exporter when it needs to pull metrics data.
-     * Implementations should be able to handle multiple calls to this method.
      *
      * @param snapshotSupplier the supplier of {@link MetricRegistrySnapshot}
      */

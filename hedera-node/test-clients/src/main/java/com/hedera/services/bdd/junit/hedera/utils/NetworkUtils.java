@@ -9,14 +9,13 @@ import static java.util.Objects.requireNonNull;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
-import com.hederahashgraph.api.proto.java.ServiceEndpoint;
-import com.swirlds.platform.crypto.CryptoStatic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
@@ -30,6 +29,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -37,6 +37,15 @@ import org.hiero.consensus.model.node.NodeId;
  * Utility class for generating an address book configuration file.
  */
 public class NetworkUtils {
+    /**
+     * A network configuration paired with the keys and certs generated for each node.
+     *
+     * @param network the network configuration
+     * @param keysAndCerts the keys and certs for each node
+     */
+    public record NetworkWithKeys(
+            @NonNull Network network, @NonNull Map<NodeId, KeysAndCerts> keysAndCerts) {}
+
     public static final long CLASSIC_FIRST_NODE_ACCOUNT_NUM = 3;
     public static final String[] CLASSIC_NODE_NAMES =
             new String[] {"node1", "node2", "node3", "node4", "node5", "node6", "node7", "node8"};
@@ -54,9 +63,9 @@ public class NetworkUtils {
      * @param nodes the nodes in the network
      * @param nextInternalGossipPort the next gossip port to use
      * @param nextExternalGossipPort the next gossip TLS port to use
-     * @return the contents of the <i>config.txt</i> file
+     * @return the network configuration with keys and certs
      */
-    public static Network generateNetworkConfig(
+    public static NetworkWithKeys generateNetworkConfig(
             @NonNull final List<HederaNode> nodes, final int nextInternalGossipPort, final int nextExternalGossipPort) {
         return generateNetworkConfig(nodes, nextInternalGossipPort, nextExternalGossipPort, Map.of());
     }
@@ -68,9 +77,9 @@ public class NetworkUtils {
      * @param nextInternalGossipPort the next gossip port to use
      * @param nextExternalGossipPort the next gossip TLS port to use
      * @param overrideWeights the map of node IDs to their weights
-     * @return the contents of the <i>config.txt</i> file
+     * @return the network configuration with keys and certs
      */
-    public static Network generateNetworkConfig(
+    public static NetworkWithKeys generateNetworkConfig(
             @NonNull final List<HederaNode> nodes,
             final int nextInternalGossipPort,
             final int nextExternalGossipPort,
@@ -78,8 +87,9 @@ public class NetworkUtils {
         final List<com.hedera.node.internal.network.NodeMetadata> metadata = new ArrayList<>();
 
         final Map<Long, Bytes> certsMap = new HashMap<>();
+        final Map<NodeId, KeysAndCerts> kacMap;
         try {
-            final Map<NodeId, KeysAndCerts> kacMap = CryptoStatic.generateKeysAndCerts(
+            kacMap = KeysAndCertsGenerator.generateKeysAndCerts(
                     nodes.stream().map(HederaNode::getNodeId).map(NodeId::of).toList());
             for (final Entry<NodeId, KeysAndCerts> entry : kacMap.entrySet()) {
                 certsMap.put(
@@ -98,11 +108,11 @@ public class NetworkUtils {
                     .weight(overrideWeights.getOrDefault(hNode.getNodeId(), 1L))
                     .gossipCaCertificate(cert)
                     .gossipEndpoint(List.of(
-                            com.hedera.hapi.node.base.ServiceEndpoint.newBuilder()
+                            ServiceEndpoint.newBuilder()
                                     .ipAddressV4(localhost)
                                     .port(nextInternalGossipPort + ((int) hNode.getNodeId() * 2))
                                     .build(),
-                            com.hedera.hapi.node.base.ServiceEndpoint.newBuilder()
+                            ServiceEndpoint.newBuilder()
                                     .ipAddressV4(localhost)
                                     .port(nextExternalGossipPort + ((int) hNode.getNodeId() * 2))
                                     .build()))
@@ -112,7 +122,21 @@ public class NetworkUtils {
                     .accountId(hNode.getAccountId())
                     .description("node" + (hNode.getNodeId() + 1))
                     .gossipEndpoint(rosterEntry.gossipEndpoint())
-                    .serviceEndpoint(rosterEntry.gossipEndpoint().getFirst())
+                    // Node.serviceEndpoint MUST be the HAPI gRPC endpoint (not a gossip port).
+                    // Production networks configure it this way; consumers such as
+                    // ClprEndpointBuilder rely on the invariant to publish dial targets that
+                    // actually reach the HAPI gRPC service. Embedded nodes have no bound gRPC
+                    // listener (grpcPort == 0); a port-0 service endpoint is invalid and leaves
+                    // ClprEndpointBuilder unable to derive the node's own endpoint, so fall back to
+                    // the (valid, non-zero) gossip endpoint in that case — matching the pre-E2E
+                    // behavior for embedded while keeping the real gRPC endpoint for subprocess nodes.
+                    .serviceEndpoint(
+                            hNode.getGrpcPort() > 0
+                                    ? ServiceEndpoint.newBuilder()
+                                            .ipAddressV4(localhost)
+                                            .port(hNode.getGrpcPort())
+                                            .build()
+                                    : rosterEntry.gossipEndpoint().getFirst())
                     .gossipCaCertificate(cert)
                     // The gRPC certificate hash is irrelevant for PR checks
                     .grpcCertificateHash(Bytes.EMPTY)
@@ -126,7 +150,11 @@ public class NetworkUtils {
                     .node(node)
                     .build());
         }
-        return Network.newBuilder().ledgerId(Bytes.EMPTY).nodeMetadata(metadata).build();
+        final var network = Network.newBuilder()
+                .ledgerId(Bytes.EMPTY)
+                .nodeMetadata(metadata)
+                .build();
+        return new NetworkWithKeys(network, kacMap);
     }
 
     /**
@@ -160,6 +188,7 @@ public class NetworkUtils {
         requireNonNull(networkName);
         return new NodeMetadata(
                 nodeId,
+                networkName,
                 CLASSIC_NODE_NAMES[nodeId],
                 AccountID.newBuilder()
                         .shardNum(shard)
@@ -208,6 +237,7 @@ public class NetworkUtils {
         requireNonNull(workingDir);
         return new NodeMetadata(
                 nodeId,
+                networkName,
                 CLASSIC_NODE_NAMES[nodeId],
                 AccountID.newBuilder()
                         .shardNum(shard)
@@ -249,9 +279,11 @@ public class NetworkUtils {
      * @param port the port number
      * @return the service endpoint
      */
-    public static ServiceEndpoint endpointFor(@NonNull final String host, final int port) {
+    public static com.hederahashgraph.api.proto.java.ServiceEndpoint endpointFor(
+            @NonNull final String host, final int port) {
         final Pattern IPV4_ADDRESS_PATTERN = Pattern.compile("^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$");
-        final var builder = ServiceEndpoint.newBuilder().setPort(port);
+        final var builder =
+                com.hederahashgraph.api.proto.java.ServiceEndpoint.newBuilder().setPort(port);
         if (IPV4_ADDRESS_PATTERN.matcher(host).matches()) {
             final var octets = host.split("[.]");
             builder.setIpAddressV4(ByteString.copyFrom((new byte[] {

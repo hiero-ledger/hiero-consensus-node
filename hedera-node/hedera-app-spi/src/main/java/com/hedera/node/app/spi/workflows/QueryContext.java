@@ -4,12 +4,14 @@ package com.hedera.node.app.spi.workflows;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
-import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.records.RecordCache;
+import com.hedera.node.config.data.LedgerConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.hapi.support.fees.FeeSchedule;
 
 /**
  * Context of a single query. Contains all query specific information.
@@ -52,6 +54,17 @@ public interface QueryContext {
     @NonNull
     Configuration configuration();
 
+    /**
+     * Returns the ledger id that query responses should surface. By default this is the configured ledger id, but
+     * implementations may override it with an externalized ledger id from state when one is available.
+     *
+     * @return the ledger id to surface in query responses
+     */
+    @NonNull
+    default Bytes ledgerId() {
+        return configuration().getConfigData(LedgerConfig.class).id();
+    }
+
     /** Gets the {@link RecordCache}. */
     @NonNull
     RecordCache recordCache();
@@ -67,10 +80,10 @@ public interface QueryContext {
     ExchangeRateInfo exchangeRateInfo();
 
     /**
-     * Get a calculator for calculating fees for the current query
+     * Returns the current simple fees schedule.
      *
-     * @return The {@link FeeCalculator} to use.
+     * @return the current {@link FeeSchedule} for simple fees
      */
     @NonNull
-    FeeCalculator feeCalculator();
+    FeeSchedule simpleFeesSchedule();
 }

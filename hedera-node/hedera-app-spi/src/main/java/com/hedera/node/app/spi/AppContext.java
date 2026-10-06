@@ -155,7 +155,7 @@ public interface AppContext {
          * Attempts to submit the given transaction to the network.
          *
          * @param body the transaction to submit
-         * @throws IllegalStateException    if the network is not active; the client should retry later
+         * @throws IllegalStateException    if node gossip is unavailable; the client should retry later
          * @throws IllegalArgumentException if body is invalid; so the client can retry immediately with a
          *                                  different transaction id if the exception's message is {@link ResponseCodeEnum#DUPLICATE_TRANSACTION}
          */
@@ -170,7 +170,7 @@ public interface AppContext {
         Signature sign(byte[] bytes);
 
         /**
-         * Whether network gossip is currently active.
+         * Whether node transactions can currently be submitted through gossip.
          */
         boolean isAvailable();
     }
@@ -190,7 +190,7 @@ public interface AppContext {
     SignatureVerifier signatureVerifier();
 
     /**
-     * The {@link Gossip} can be used to submit transactions to the network when it is active.
+     * The {@link Gossip} can be used to submit node transactions to the network when available.
      *
      * @return the gossip interface
      */

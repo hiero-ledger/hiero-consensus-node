@@ -82,6 +82,7 @@ import com.hedera.node.app.blocks.impl.contexts.SupplyChangeOpContext;
 import com.hedera.node.app.blocks.impl.contexts.TokenOpContext;
 import com.hedera.node.app.blocks.impl.contexts.TopicOpContext;
 import com.hedera.node.app.service.addressbook.impl.records.NodeCreateStreamBuilder;
+import com.hedera.node.app.service.addressbook.impl.records.RegisteredNodeCreateStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusCreateTopicStreamBuilder;
 import com.hedera.node.app.service.consensus.impl.records.ConsensusSubmitMessageStreamBuilder;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
@@ -113,6 +114,7 @@ import com.hedera.node.app.service.util.impl.records.ReplayableFeeStreamBuilder;
 import com.hedera.node.app.spi.records.RecordSource;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.app.workflows.handle.record.TraceDataSizeLimiter;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -126,6 +128,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import org.apache.logging.log4j.LogManager;
@@ -163,6 +166,7 @@ public class BlockStreamBuilder
                 TokenAccountWipeStreamBuilder,
                 CryptoUpdateStreamBuilder,
                 NodeCreateStreamBuilder,
+                RegisteredNodeCreateStreamBuilder,
                 TokenAirdropStreamBuilder,
                 ReplayableFeeStreamBuilder,
                 HookDispatchStreamBuilder {
@@ -217,6 +221,10 @@ public class BlockStreamBuilder
      * The id of a node created by the transaction.
      */
     private long nodeId;
+    /**
+     * The id of a registered node created by the transaction.
+     */
+    private long registeredNodeId;
     /**
      * The id of a file created by the transaction.
      */
@@ -297,6 +305,11 @@ public class BlockStreamBuilder
      * This is useful to set the first hookId on the account if the head is deleted
      */
     private Long nextHookId;
+    /**
+     * The block number of the transaction. This is used to include the block number in the
+     * transaction receipt.
+     */
+    private Long blockNumber;
 
     // --- Fields used to build the TransactionOutput(s) ---
     /**
@@ -365,17 +378,24 @@ public class BlockStreamBuilder
     @Nullable
     private List<ContractSlotUsage> slotUsages;
 
+    private int contractSlotUsagesTraceDataSize;
+
     /**
      * The contract actions resulting from the transaction.
      */
     @Nullable
     private List<ContractAction> contractActions;
 
+    private int contractActionsTraceDataSize;
+
     /**
      * The contract initcode for this builder's EVM transaction or internal creation.
      */
     @Nullable
     private ExecutedInitcode initcode;
+
+    private final TraceDataSizeLimiter traceDataSizeLimiter;
+    private long estimatedContractBytecodeSize;
 
     /**
      * The hash of the Ethereum payload if relevant to the transaction.
@@ -460,9 +480,26 @@ public class BlockStreamBuilder
             @NonNull final ReversingBehavior reversingBehavior,
             @NonNull final SignedTxCustomizer customizer,
             @NonNull final HandleContext.TransactionCategory category) {
+        this(reversingBehavior, customizer, category, TraceDataSizeLimiter.NO_LIMIT);
+    }
+
+    public BlockStreamBuilder(
+            @NonNull final ReversingBehavior reversingBehavior,
+            @NonNull final SignedTxCustomizer customizer,
+            @NonNull final HandleContext.TransactionCategory category,
+            final int maxSerializedTraceDataBytes) {
+        this(reversingBehavior, customizer, category, new TraceDataSizeLimiter(maxSerializedTraceDataBytes));
+    }
+
+    public BlockStreamBuilder(
+            @NonNull final ReversingBehavior reversingBehavior,
+            @NonNull final SignedTxCustomizer customizer,
+            @NonNull final HandleContext.TransactionCategory category,
+            @NonNull final TraceDataSizeLimiter traceDataSizeLimiter) {
         this.reversingBehavior = requireNonNull(reversingBehavior);
         this.customizer = requireNonNull(customizer);
         this.category = requireNonNull(category);
+        this.traceDataSizeLimiter = requireNonNull(traceDataSizeLimiter);
     }
 
     /**
@@ -471,9 +508,12 @@ public class BlockStreamBuilder
      * {@link BlockItemsTranslator} to use.
      * @param blockItems the list of block items
      * @param translationContext the translation context
+     * @param blockNumber the block number, if known
      */
     public record Output(
-            @NonNull List<BlockItem> blockItems, @NonNull TranslationContext translationContext) {
+            @NonNull List<BlockItem> blockItems,
+            @NonNull TranslationContext translationContext,
+            @Nullable Long blockNumber) {
         public Output {
             requireNonNull(blockItems);
             requireNonNull(translationContext);
@@ -490,6 +530,7 @@ public class BlockStreamBuilder
 
         /**
          * Translates the block items into a transaction record.
+         *
          * @param translator the translator to use
          * @return the transaction record
          */
@@ -500,7 +541,9 @@ public class BlockStreamBuilder
 
         /**
          * Translates the block items into a transaction receipt.
+         *
          * @param translator the translator to use
+         * is not known at the time of translation
          * @return the transaction record
          */
         public RecordSource.IdentifiedReceipt toIdentifiedReceipt(@NonNull final BlockItemsTranslator translator) {
@@ -523,10 +566,11 @@ public class BlockStreamBuilder
          *     <li>Find the {@link TransactionOutput} items, if any.</li>
          *     <li>Translate these items into a view of the requested type.</li>
          * </ol>
+         *
+         * @param <T> the Java type of the view
          * @param translator the translator to use
          * @param view the type of view to translate to
          * @return the translated view
-         * @param <T> the Java type of the view
          */
         @SuppressWarnings("unchecked")
         private <T> T toView(@NonNull final BlockItemsTranslator translator, @NonNull final View view) {
@@ -563,8 +607,9 @@ public class BlockStreamBuilder
                             case RECEIPT ->
                                 new RecordSource.IdentifiedReceipt(
                                         translationContext.txnId(),
-                                        translator.translateReceipt(translationContext, result, outputs));
-                            case RECORD -> translator.translateRecord(translationContext, result, logs, outputs);
+                                        translator.translateReceipt(translationContext, result, blockNumber, outputs));
+                            case RECORD ->
+                                translator.translateRecord(translationContext, result, logs, blockNumber, outputs);
                         };
             } else {
                 return (T)
@@ -572,8 +617,8 @@ public class BlockStreamBuilder
                             case RECEIPT ->
                                 new RecordSource.IdentifiedReceipt(
                                         translationContext.txnId(),
-                                        translator.translateReceipt(translationContext, result));
-                            case RECORD -> translator.translateRecord(translationContext, result, null);
+                                        translator.translateReceipt(translationContext, result, blockNumber));
+                            case RECORD -> translator.translateRecord(translationContext, result, null, blockNumber);
                         };
             }
         }
@@ -610,7 +655,8 @@ public class BlockStreamBuilder
         }
         blockItems.add(transactionResultBlockItem());
         addOutputItemsTo(blockItems);
-        if (slotUsages != null || contractActions != null || initcode != null || logs != null) {
+        if (!traceDataSizeLimiter.hasExceededTraceDataSizeLimit()
+                && (slotUsages != null || contractActions != null || (initcode != null && !topLevel) || logs != null)) {
             final var builder = EvmTraceData.newBuilder();
             if (slotUsages != null) {
                 final boolean traceExplicitWrites = logicallyIdentical == null;
@@ -771,7 +817,7 @@ public class BlockStreamBuilder
                             .build())
                     .build());
         }
-        return new Output(blockItems, translationContext);
+        return new Output(blockItems, translationContext, blockNumber);
     }
 
     @Override
@@ -919,7 +965,8 @@ public class BlockStreamBuilder
     @Override
     @NonNull
     public BlockStreamBuilder contractCallResult(@Nullable final ContractFunctionResult contractCallResult) {
-        throw new UnsupportedOperationException("Use concise EVM transaction result");
+        // No-op
+        return this;
     }
 
     @NonNull
@@ -957,9 +1004,16 @@ public class BlockStreamBuilder
         return this;
     }
 
+    /**
+     * If the trace data size limit has already been exceeded, the EVM transaction will be reverted with
+     * {@code INSUFFICIENT_GAS}; so there is no reason to keep holding the log objects here.
+     */
     @NonNull
     @Override
     public ContractCallStreamBuilder addLogs(@NonNull final List<EvmTransactionLog> logs) {
+        if (traceDataSizeLimiter.hasExceededTraceDataSizeLimit()) {
+            return this;
+        }
         this.logs = requireNonNull(logs);
         return this;
     }
@@ -967,7 +1021,8 @@ public class BlockStreamBuilder
     @Override
     @NonNull
     public BlockStreamBuilder contractCreateResult(@Nullable ContractFunctionResult contractCreateResult) {
-        throw new UnsupportedOperationException("Use concise EVM transaction result");
+        // No-op
+        return this;
     }
 
     @NonNull
@@ -1192,6 +1247,20 @@ public class BlockStreamBuilder
         return this;
     }
 
+    @NonNull
+    @Override
+    public BlockStreamBuilder highVolumePricingMultiplier(final long highVolumePricingMultiplier) {
+        transactionResultBuilder.highVolumePricingMultiplier(highVolumePricingMultiplier);
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public BlockStreamBuilder blockNumber(final Long blockNumber) {
+        this.blockNumber = blockNumber;
+        return this;
+    }
+
     @Override
     @NonNull
     public BlockStreamBuilder topicID(@NonNull final TopicID topicID) {
@@ -1239,6 +1308,13 @@ public class BlockStreamBuilder
         return this;
     }
 
+    @Override
+    @NonNull
+    public BlockStreamBuilder registeredNodeID(final long registeredNodeID) {
+        this.registeredNodeId = registeredNodeID;
+        return this;
+    }
+
     @NonNull
     public BlockStreamBuilder newTotalSupply(final long newTotalSupply) {
         this.newTotalSupply = newTotalSupply;
@@ -1283,14 +1359,22 @@ public class BlockStreamBuilder
     @NonNull
     public BlockStreamBuilder addContractStateChanges(
             @NonNull final ContractStateChanges contractStateChanges, final boolean isMigration) {
-        throw new UnsupportedOperationException("Add slot usages directly");
+        // No-op
+        return this;
     }
 
     @NonNull
     @Override
     public BlockStreamBuilder addContractSlotUsages(@NonNull final List<ContractSlotUsage> slotUsages) {
         requireNonNull(slotUsages);
-        this.slotUsages = slotUsages;
+        final var newTraceDataSize = EvmTraceData.PROTOBUF.measureRecord(
+                EvmTraceData.newBuilder().contractSlotUsages(slotUsages).build());
+        if (traceDataSizeLimiter.tryReplace(contractSlotUsagesTraceDataSize, newTraceDataSize)) {
+            this.slotUsages = slotUsages;
+            this.contractSlotUsagesTraceDataSize = newTraceDataSize;
+        } else {
+            clearContractTraceData();
+        }
         return this;
     }
 
@@ -1298,13 +1382,22 @@ public class BlockStreamBuilder
     @NonNull
     public BlockStreamBuilder addContractActions(
             @NonNull final ContractActions contractActions, final boolean isMigration) {
-        throw new UnsupportedOperationException("Add actions directly");
+        // No-op
+        return this;
     }
 
     @NonNull
     @Override
     public BlockStreamBuilder addActions(@NonNull final List<ContractAction> actions) {
-        this.contractActions = requireNonNull(actions);
+        requireNonNull(actions);
+        final var newTraceDataSize = EvmTraceData.PROTOBUF.measureRecord(
+                EvmTraceData.newBuilder().contractActions(actions).build());
+        if (traceDataSizeLimiter.tryReplace(contractActionsTraceDataSize, newTraceDataSize)) {
+            this.contractActions = actions;
+            this.contractActionsTraceDataSize = newTraceDataSize;
+        } else {
+            clearContractTraceData();
+        }
         return this;
     }
 
@@ -1312,18 +1405,53 @@ public class BlockStreamBuilder
     @NonNull
     public BlockStreamBuilder addContractBytecode(
             @NonNull final ContractBytecode contractBytecode, final boolean isMigration) {
-        throw new UnsupportedOperationException("Add initcode directly");
+        // No-op
+        return this;
     }
 
     @NonNull
     @Override
     public BlockStreamBuilder addInitcode(@NonNull final ExecutedInitcode initcode) {
         requireNonNull(initcode);
+        if (traceDataSizeLimiter.hasExceededTraceDataSizeLimit()) {
+            return this;
+        }
         if (this.initcode != null) {
             log.warn("Overwriting existing initcode {} with new initcode {}", this.initcode, initcode);
         }
         this.initcode = initcode;
+        estimatedContractBytecodeSize = positiveSizeOf(EvmTraceData.PROTOBUF.measureRecord(
+                EvmTraceData.newBuilder().executedInitcode(initcode).build()));
         return this;
+    }
+
+    @Override
+    public boolean hasTraceDataSizeLimitExceeded() {
+        return traceDataSizeLimiter.hasExceededTraceDataSizeLimit();
+    }
+
+    private void clearContractTraceData() {
+        logs = null;
+        slotUsages = null;
+        contractSlotUsagesTraceDataSize = 0;
+        contractActions = null;
+        contractActionsTraceDataSize = 0;
+        initcode = null;
+        estimatedContractBytecodeSize = 0L;
+    }
+
+    @Override
+    public long estimatedContractBytecodeSize() {
+        return estimatedContractBytecodeSize;
+    }
+
+    @Override
+    public boolean ensureTraceDataSizeLimitWithAdditionalBytes(final long additionalBytes) {
+        return traceDataSizeLimiter.ensureWithinLimitWith(additionalBytes);
+    }
+
+    private static long positiveSizeOf(final int measuredSize) {
+        return measuredSize < 0 ? Long.MAX_VALUE : measuredSize;
     }
 
     @Override
@@ -1343,6 +1471,12 @@ public class BlockStreamBuilder
     @Nullable
     public AccountID getDeletedAccountBeneficiaryFor(@NonNull final AccountID deletedAccountID) {
         return deletedAccountBeneficiaries.get(deletedAccountID);
+    }
+
+    @Override
+    public void forEachDeletedAccountBeneficiary(@NonNull final BiConsumer<AccountID, AccountID> action) {
+        requireNonNull(action);
+        deletedAccountBeneficiaries.forEach(action);
     }
 
     @Override
@@ -1413,6 +1547,7 @@ public class BlockStreamBuilder
         tokenId = null;
         topicId = null;
         nodeId = 0L;
+        registeredNodeId = 0L;
         if (status != IDENTICAL_SCHEDULE_ALREADY_CREATED) {
             scheduleId = null;
             scheduledTransactionId = null;
@@ -1421,6 +1556,17 @@ public class BlockStreamBuilder
         runningHash = Bytes.EMPTY;
         sequenceNumber = 0L;
         runningHashVersion = 0L;
+        if (evmTransactionResult != null) {
+            logs = null;
+            createdContractIds = null;
+        }
+        if (traceDataSizeLimiter.hasExceededTraceDataSizeLimit()) {
+            clearContractTraceData();
+        }
+        if (evmTransactionResult != null) {
+            logs = null;
+            createdContractIds = null;
+        }
     }
 
     @NonNull
@@ -1440,7 +1586,7 @@ public class BlockStreamBuilder
 
     private TransactionBody inProgressBody() {
         try {
-            return TransactionBody.PROTOBUF.parse(signedTx.bodyBytes().toReadableSequentialData());
+            return TransactionBody.PROTOBUF.parseStrict(signedTx.bodyBytes().toReadableSequentialData());
         } catch (Exception e) {
             throw new IllegalStateException("Record being built for unparseable transaction", e);
         }
@@ -1573,6 +1719,15 @@ public class BlockStreamBuilder
                         signedTx,
                         functionality,
                         nodeId,
+                        serializedSignedTx);
+            case REGISTERED_NODE_CREATE ->
+                new NodeOpContext(
+                        memo,
+                        translationContextExchangeRates,
+                        transactionId,
+                        signedTx,
+                        functionality,
+                        registeredNodeId,
                         serializedSignedTx);
             case SCHEDULE_DELETE ->
                 new ScheduleOpContext(

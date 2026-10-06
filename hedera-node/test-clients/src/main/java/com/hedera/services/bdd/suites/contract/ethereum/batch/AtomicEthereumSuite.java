@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.contract.ethereum.batch;
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.namedHapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
@@ -97,7 +96,6 @@ import static org.hyperledger.besu.datatypes.Address.fromHexString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Address;
-import com.google.common.io.Files;
 import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.contracts.ParsingConstants.FunctionType;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
@@ -105,6 +103,7 @@ import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
 import com.hedera.services.bdd.spec.keys.SigControl;
@@ -122,13 +121,14 @@ import com.hederahashgraph.api.proto.java.TransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.math.BigInteger;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.bouncycastle.util.encoders.Hex;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -185,7 +185,7 @@ class AtomicEthereumSuite {
                                 .bytecode(TOKEN_CREATE_CONTRACT)
                                 .gasPrice(10L)
                                 .maxGasAllowance(ONE_HUNDRED_HBARS)
-                                .gasLimit(5_000_000L)
+                                .gasLimit(4_001_000L)
                                 .hasKnownStatusFrom(SUCCESS)
                                 .via("deployTokenCreateContract")
                                 .batchKey(BATCH_OPERATOR))
@@ -219,7 +219,7 @@ class AtomicEthereumSuite {
                         .hasPriority(recordWith().transfers(includingDeduction("HAPI fees", RELAYER))));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.evm.ethTransaction.zeroHapiFees.enabled"})
     final Stream<DynamicTest> baseRelayerCostAsExpected() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -327,7 +327,6 @@ class AtomicEthereumSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> matrixedPayerRelayerTest1() {
         return feePaymentMatrix().get(0);
     }
@@ -444,6 +443,72 @@ class AtomicEthereumSuite {
     }
 
     @HapiTest
+    final Stream<DynamicTest> rollbackInBatchRechargesAllAssessedFees() {
+        final long smallGasLimit = 22_000L;
+        final AtomicLong relayerFee = new AtomicLong();
+        final AtomicLong senderFee = new AtomicLong();
+        return hapiTest(
+                newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
+                cryptoCreate(RELAYER).balance(100 * ONE_HUNDRED_HBARS),
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
+                uploadInitCode(PAY_RECEIVABLE_CONTRACT),
+                contractCreate(PAY_RECEIVABLE_CONTRACT),
+                ethereumCall(PAY_RECEIVABLE_CONTRACT, "deposit", BigInteger.valueOf(DEPOSIT_AMOUNT + 1))
+                        .type(EthTxData.EthTransactionType.EIP1559)
+                        .signingWith(SECP_256K1_SOURCE_KEY)
+                        .payingWith(RELAYER)
+                        .via("referenceTx")
+                        .nonce(0)
+                        .gasPrice(GAS_PRICE)
+                        .maxGasAllowance(smallGasLimit / 2 * 71)
+                        .gasLimit(smallGasLimit)
+                        .fee(ONE_HUNDRED_HBARS)
+                        .sending(DEPOSIT_AMOUNT)
+                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
+                getTxnRecord("referenceTx").exposingTo(r -> r.getTransferList()
+                        .getAccountAmountsList()
+                        .forEach(aa -> {
+                            if (aa.getAccountID().equals(r.getTransactionID().getAccountID())) {
+                                relayerFee.set(-aa.getAmount());
+                            } else if (aa.getAccountID()
+                                    .equals(r.getContractCallResult().getSenderId())) {
+                                senderFee.set(-aa.getAmount());
+                            }
+                        })),
+                atomicBatch(ethereumCall(PAY_RECEIVABLE_CONTRACT, "deposit", BigInteger.valueOf(DEPOSIT_AMOUNT + 1))
+                                .type(EthTxData.EthTransactionType.EIP1559)
+                                .signingWith(SECP_256K1_SOURCE_KEY)
+                                .payingWith(RELAYER)
+                                .via("batchTx")
+                                .nonce(1)
+                                .gasPrice(GAS_PRICE)
+                                .maxGasAllowance(smallGasLimit / 2 * 71)
+                                .gasLimit(smallGasLimit)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .sending(DEPOSIT_AMOUNT)
+                                .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR)
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED),
+                getTxnRecord("batchTx").exposingTo(r -> r.getTransferList()
+                        .getAccountAmountsList()
+                        .forEach(aa -> {
+                            if (aa.getAccountID().equals(r.getTransactionID().getAccountID())) {
+                                assertEquals(
+                                        relayerFee.get(),
+                                        -aa.getAmount(),
+                                        "Relayer fee should be the same as reference transaction");
+                            } else if (aa.getAccountID()
+                                    .equals(r.getContractCallResult().getSenderId())) {
+                                assertEquals(
+                                        senderFee.get(),
+                                        -aa.getAmount(),
+                                        "Sender fee should be the same as reference transaction");
+                            }
+                        })));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> invalidTxData() {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
@@ -526,7 +591,7 @@ class AtomicEthereumSuite {
                 }));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"contracts.evm.ethTransaction.zeroHapiFees.enabled"})
     final Stream<DynamicTest> etx031InvalidNonceEthereumTxFailsAndChargesRelayer() {
         final var relayerSnapshot = "relayer";
         final var senderSnapshot = "sender";
@@ -778,16 +843,25 @@ class AtomicEthereumSuite {
                     final var thirdChildContractId = CommonUtils.hex(asEvmAddress(thirdChildId.getContractNum()));
 
                     final var parentContractInfo = getContractInfo(parentContractId)
-                            .has(contractWith().addressOrAlias(expectedParentContractAddress.toUnprefixedHexString()));
+                            .has(contractWith()
+                                    .addressOrAlias(expectedParentContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()));
                     final var firstChildContractInfo = getContractInfo(firstChildContractId)
                             .has(contractWith()
-                                    .addressOrAlias(expectedFirstChildContractAddress.toUnprefixedHexString()));
+                                    .addressOrAlias(expectedFirstChildContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()));
                     final var secondChildContractInfo = getContractInfo(secondChildContractId)
                             .has(contractWith()
-                                    .addressOrAlias(expectedSecondChildContractAddress.toUnprefixedHexString()));
+                                    .addressOrAlias(expectedSecondChildContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()));
                     final var thirdChildContractInfo = getContractInfo(thirdChildContractId)
                             .has(contractWith()
-                                    .addressOrAlias(expectedThirdChildContractAddress.toUnprefixedHexString()))
+                                    .addressOrAlias(expectedThirdChildContractAddress
+                                            .getBytes()
+                                            .toUnprefixedHexString()))
                             .logged();
 
                     allRunFor(
@@ -820,8 +894,8 @@ class AtomicEthereumSuite {
                     final var getBytecode = getContractBytecode(contract).saveResultTo("contractByteCode");
                     allRunFor(spec, getBytecode);
 
-                    final var originalBytecode =
-                            Hex.decode(Files.toByteArray(new File(getResourcePath(contract, ".bin"))));
+                    final var originalBytecode = HexFormat.of()
+                            .parseHex(Files.readString(new File(getResourcePath(contract, ".bin")).toPath()));
                     final var actualBytecode = spec.registry().getBytes("contractByteCode");
                     // The original bytecode is modified on deployment
                     final var expectedBytecode = Arrays.copyOfRange(originalBytecode, 29, originalBytecode.length);
@@ -830,7 +904,6 @@ class AtomicEthereumSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> directTransferWorksForERC20() {
         final var tokenSymbol = "FDFGF";
         final var tokenTotalSupply = 5;
@@ -1214,12 +1287,11 @@ class AtomicEthereumSuite {
         final var firstTxn = "firstCreateTxn";
         // RAW_BIG_INTEGER_WEIBAR has high bit _ON_: Negative in two's complement but positive in Ethereum
         final var RAW_BIG_INTEGER_WEIBAR =
-                new BigInteger(Bytes.fromHex("FAC7230489E80000").toByteArray());
-        //             ^^^^ 10000000000000000000 wasn't enough to pay the tx fee, so changed the leading `8` to an `F`
-        final var BIG_INTEGER_WEIBAR = new BigInteger("18070450532247928832"); // this is the actual value
+                new BigInteger(Bytes.fromHex("FAC7230489E8000000").toByteArray());
+        final var BIG_INTEGER_WEIBAR = new BigInteger("4626035336252247928832"); // this is the actual value
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
-                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, 20 * ONE_HUNDRED_HBARS))
+                cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_MILLION_HBARS))
                         .via(AUTO_ACCOUNT_TRANSACTION_NAME),
                 cryptoCreate(feeCollectorAndAutoRenew)
                         .keyShape(SigControl.ED25519_ON)

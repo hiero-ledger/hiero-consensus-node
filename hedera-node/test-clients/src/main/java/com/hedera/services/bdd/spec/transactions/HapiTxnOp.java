@@ -9,13 +9,14 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.TransactionGetReceipt;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALIAS_KEY;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_NOT_ACTIVE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECEIPT_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNKNOWN;
@@ -40,6 +41,7 @@ import com.hedera.services.bdd.spec.exceptions.HapiTxnCheckStateException;
 import com.hedera.services.bdd.spec.exceptions.HapiTxnPrecheckStateException;
 import com.hedera.services.bdd.spec.infrastructure.DelegatingOpFinisher;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
+import com.hedera.services.bdd.spec.infrastructure.TransientPlatformErrorRetry;
 import com.hedera.services.bdd.spec.keys.ControlForKey;
 import com.hedera.services.bdd.spec.keys.SigMapGenerator;
 import com.hedera.services.bdd.spec.utilops.mod.BodyMutation;
@@ -51,7 +53,6 @@ import com.hederahashgraph.api.proto.java.Key;
 import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.Response;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
-import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionGetReceiptResponse;
@@ -112,7 +113,9 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
     protected Optional<ResponseCodeEnum> expectedPrecheck = Optional.empty();
     protected Optional<EnumSet<ResponseCodeEnum>> permissibleStatuses = Optional.empty();
     protected Optional<EnumSet<ResponseCodeEnum>> permissiblePrechecks = Optional.empty();
-    /** if response code in the set then allow to resubmit transaction */
+    /**
+     * if response code in the set then allow to resubmit transaction
+     */
     protected Optional<EnumSet<ResponseCodeEnum>> retryPrechecks = Optional.empty();
 
     protected List<Condition> conditions = new ArrayList<>();
@@ -146,6 +149,12 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
 
     public T satisfies(@NonNull final BooleanSupplier condition, @NonNull final String errorMessage) {
         return satisfies(new Condition(condition, () -> errorMessage));
+    }
+
+    public T withHighVolume() {
+        return self().fee(ONE_HUNDRED_HBARS)
+                .withBodyMutation(BodyMutation.withTransform(
+                        body -> body.toBuilder().setHighVolume(true).build()));
     }
 
     /**
@@ -212,6 +221,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
     protected boolean submitOp(HapiSpec spec) throws Throwable {
         configureTlsFor(spec);
         int retryCount = 1;
+        long platformNotActiveRetryStart = 0;
         while (true) {
             Transaction txn = finalizedTxn(spec, opBodyDef(spec));
 
@@ -268,12 +278,23 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
             }
 
             actualPrecheck = response.getNodeTransactionPrecheckCode();
-            if (retryPrechecks.isPresent()
+            // Don't retry if the test explicitly expects this transient error (e.g., testing throttling)
+            final boolean expectsTransientError =
+                    expectedPrecheck.isPresent() && expectedPrecheck.get() == actualPrecheck;
+
+            final var transientDecision = expectsTransientError
+                    ? TransientPlatformErrorRetry.NO_RETRY
+                    : TransientPlatformErrorRetry.evaluate(
+                            actualPrecheck, retryCount, platformNotActiveRetryStart, System.currentTimeMillis());
+            platformNotActiveRetryStart = transientDecision.firstSeenMs();
+
+            final boolean shouldRetryExplicit = retryPrechecks.isPresent()
                     && retryPrechecks.get().contains(actualPrecheck)
-                    && isWithInRetryLimit(retryCount)) {
+                    && isWithInRetryLimit(retryCount);
+            if (transientDecision.shouldRetry() || shouldRetryExplicit) {
                 retryCount++;
                 try {
-                    sleep(10);
+                    sleep(transientDecision.shouldRetry() ? transientDecision.sleepMs() : 10);
                 } catch (InterruptedException e) {
                     log.error("Interrupted while sleeping before retry");
                     throw new RuntimeException(e);
@@ -292,19 +313,6 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
             }
         }
         if (!acceptAnyPrecheck) {
-            final var expectedIngestStatus = getExpectedPrecheck();
-            if (expectedIngestStatus != OK
-                    && spec.setup().streamlinedIngestChecks().contains(expectedIngestStatus)) {
-                // Since INVALID_ALIAS_KEY was in ingest in mono-service the precheck fails
-                // but, in modular code it is moved to handle, so the tests fail with INVALID_SIGNATURE. This is a
-                // temporary fix to make the tests pass.
-                if (expectedIngestStatus != INVALID_ALIAS_KEY) {
-                    expectedStatus = Optional.of(expectedIngestStatus);
-                } else {
-                    permissibleStatuses = Optional.of(EnumSet.copyOf(List.of(INVALID_ALIAS_KEY, INVALID_SIGNATURE)));
-                }
-                permissiblePrechecks = Optional.of(EnumSet.of(OK, expectedIngestStatus));
-            }
             if (permissiblePrechecks.isPresent()) {
                 if (permissiblePrechecks.get().contains(actualPrecheck)) {
                     expectedPrecheck = Optional.of(actualPrecheck);
@@ -483,19 +491,6 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         }
     }
 
-    /**
-     * Returns the valid start time of the submitted transaction.
-     *
-     * @return the valid start time
-     */
-    public Timestamp validStartOfSubmittedTxn() {
-        try {
-            return extractTxnId(txnSubmitted).getTransactionValidStart();
-        } catch (Throwable e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     private ResponseCodeEnum resolvedStatusOfSubmission(HapiSpec spec) throws Throwable {
         long delayMS = spec.setup().statusPreResolvePauseMs();
         long elapsedMS = System.currentTimeMillis() - submitTime;
@@ -524,6 +519,12 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                     // This smooths the case of getting the receipt for a transaction that was submitted
                     // to the non-default node in embedded mode, bypassing ingest; we retry until the default
                     // node caches the receipt at consensus
+                    continue;
+                } else if (lookupStatus == PLATFORM_NOT_ACTIVE
+                        || lookupStatus == PLATFORM_TRANSACTION_NOT_CREATED
+                        || lookupStatus == BUSY) {
+                    // Retry transient platform errors from the receipt query precheck, consistent
+                    // with how the transaction submission loop and query submission loop handle them
                     continue;
                 } else {
                     return statusNow;
@@ -585,7 +586,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
         return msg.contains("NO_ERROR")
                 || msg.contains("Received unexpected EOS on DATA frame from server")
                 || msg.contains("REFUSED_STREAM")
-                || msg.contains("UNAVAILABLE: Channel shutdown invoked");
+                || msg.contains("UNAVAILABLE");
     }
 
     private void pause(long forMs) {

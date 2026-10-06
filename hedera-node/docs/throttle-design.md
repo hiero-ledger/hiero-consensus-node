@@ -1,4 +1,3 @@
-
 # Throttle Design Document #
 
 This documents the design of the Hedera throttling system. It is used on each node to limit how many transactions it will accept from users each second. It is used in `handleTransaction` to decide when to engage emergency congestion pricing. And it is used in some of the tests.
@@ -6,37 +5,37 @@ This documents the design of the Hedera throttling system. It is used on each no
 The throttling is based on a set of _buckets_. A bucket might be defined as something like this:
 
 ```
+{
+    "name": "ThroughputLimits",
+    "burstPeriod": 1,
+    "throttleGroups": [
         {
-            "name": "ThroughputLimits",
-            "burstPeriod": 1,
-            "throttleGroups": [
-                {
-                    "opsPerSec": 10000,
-                    "operations": [
-                        "CryptoCreate", "CryptoTransfer", "CryptoUpdate", "CryptoDelete", "CryptoGetInfo", "CryptoGetAccountRecords",
-                        "ConsensusCreateTopic", "ConsensusSubmitMessage", "ConsensusUpdateTopic", "ConsensusDeleteTopic", "ConsensusGetTopicInfo",
-                        "TokenGetInfo",
-                        "ScheduleDelete", "ScheduleGetInfo",
-                        "FileGetContents", "FileGetInfo",
-                        "ContractUpdate", "ContractDelete", "ContractGetInfo", "ContractGetBytecode", "ContractGetRecords", "ContractCallLocal", 
-                        "TransactionGetRecord",
-                        "GetVersionInfo", "UtilPrng"
-                    ]
-                },
-                {
-                    "opsPerSec": 13,
-                    "operations": [ "ContractCall", "ContractCreate", "FileCreate", "FileUpdate", "FileAppend", "FileDelete" ]
-                },
-                {
-                    "opsPerSec": 3000,
-                    "operations": [
-                        "ScheduleSign", 
-                        "TokenCreate", "TokenDelete", "TokenMint", "TokenBurn", "TokenUpdate", "TokenAssociateToAccount", "TokenAccountWipe",
-                        "TokenDissociateFromAccount","TokenFreezeAccount", "TokenUnfreezeAccount", "TokenGrantKycToAccount", "TokenRevokeKycFromAccount"
-                    ]
-                }
+            "opsPerSec": 10000,
+            "operations": [
+                "CryptoCreate", "CryptoTransfer", "CryptoUpdate", "CryptoDelete", "CryptoGetInfo", "CryptoGetAccountRecords",
+                "ConsensusCreateTopic", "ConsensusSubmitMessage", "ConsensusUpdateTopic", "ConsensusDeleteTopic", "ConsensusGetTopicInfo",
+                "TokenGetInfo",
+                "ScheduleDelete", "ScheduleGetInfo",
+                "FileGetContents", "FileGetInfo",
+                "ContractUpdate", "ContractDelete", "ContractGetInfo", "ContractGetBytecode", "ContractGetRecords", "ContractCallLocal",
+                "TransactionGetRecord",
+                "GetVersionInfo", "UtilPrng"
+            ]
+        },
+        {
+            "opsPerSec": 13,
+            "operations": [ "ContractCall", "ContractCreate", "FileCreate", "FileUpdate", "FileAppend", "FileDelete" ]
+        },
+        {
+            "opsPerSec": 3000,
+            "operations": [
+                "ScheduleSign",
+                "TokenCreate", "TokenDelete", "TokenMint", "TokenBurn", "TokenUpdate", "TokenAssociateToAccount", "TokenAccountWipe",
+                "TokenDissociateFromAccount","TokenFreezeAccount", "TokenUnfreezeAccount", "TokenGrantKycToAccount", "TokenRevokeKycFromAccount"
             ]
         }
+    ]
+}
 ```
 
 Imagine that there is a bucket that holds one liter of water, but it has a leak that causes it to drain at a rate of one liter per second (losing a billionth of a liter every billionth of a second). When the bucket is full, it will take one second to become completely empty.  Every time a transaction is submitted, it adds some water to the bucket. And when the bucket is full, it won't accept any more transactions. Once enough of the water drains out, it will start accepting new transactions again.
@@ -52,16 +51,16 @@ However, that means that it is possible for contract calls to completely use all
 If there are multiple buckets, then an incoming transaction adds water to _all_ of the buckets that list it. And it will be reject if _any_ of those buckets are full.  So we can accomplish the above goal by adding a second bucket like this:
 
 ```
+{
+    "name": "PriorityReservations",
+    "burstPeriod": 1,
+    "throttleGroups": [
         {
-            "name": "PriorityReservations",
-            "burstPeriod": 1,
-            "throttleGroups": [
-                {
-                    "opsPerSec": 10,
-                    "operations": [ "ContractCall", "ContractCreate", "FileCreate", "FileUpdate", "FileAppend", "FileDelete" ]
-                }
-            ]
+            "opsPerSec": 10,
+            "operations": [ "ContractCall", "ContractCreate", "FileCreate", "FileUpdate", "FileAppend", "FileDelete" ]
         }
+    ]
+}
 ```
 
 This bucket gains 1/10 of a liter of water every time there is a contract call, and never gains water for any other transaction.
@@ -73,42 +72,46 @@ In this way, we can ensure that there will never be more than 10 contract calls 
 It might even be useful to add a third bucket:
 
 ```
+{
+    "name": "CreationLimits",
+    "burstPeriod": 10,
+    "throttleGroups": [
         {
-            "name": "CreationLimits",
-            "burstPeriod": 10,
-            "throttleGroups": [
-                {
-                    "opsPerSec": 2,
-                    "operations": [ "CryptoCreate" ]
-                },
-                {
-                    "opsPerSec": 5,
-                    "operations": [ "ConsensusCreateTopic" ]
-                },
-                {
-                    "opsPerSec": 100,
-                    "operations": [ "TokenCreate", "TokenAssociateToAccount", "ScheduleCreate" ]
-                }
-            ]
+            "opsPerSec": 2,
+            "operations": [ "CryptoCreate" ]
+        },
+        {
+            "opsPerSec": 5,
+            "operations": [ "ConsensusCreateTopic" ]
+        },
+        {
+            "opsPerSec": 100,
+            "operations": [ "TokenCreate", "TokenAssociateToAccount", "ScheduleCreate" ]
         }
+    ]
+}
 ```
 
 This bucket throttles how many new entities can be created each second. The goal here isn't to throttle because entity creation is slow. It's because entity creation causes long-term use of memory, and so should not be allowed to happen too many times.  These transactions are in the first bucket with much higher tps, because they are fast operations, and don't compete much with other fast transactions. But they are also in this bucket to ensure that there aren't too many of them happening per second, so that the number of entities in memory will not grow too fast.
 
 A final bucket is valuable to put some ceiling on the queries-per-second (qps) accepted for the free account balance and transaction receipt queries.
+
 ```
+{
+    "name": "FreeQueryLimits",
+    "burstPeriod": 1,
+    "throttleGroups": [
         {
-            "name": "FreeQueryLimits",
-            "burstPeriod": 1,
-            "throttleGroups": [
-                {
-                    "opsPerSec": 1000000,
-                    "operations": [ "CryptoGetAccountBalance", "TransactionGetReceipt" ]
-                }
-            ]
+            "opsPerSec": 1000000,
+            "operations": [ "CryptoGetAccountBalance", "TransactionGetReceipt" ]
         }
+    ]
+}
 ```
-As of Hedera release 0.21 an additional mechanism for throttling contract-related transactions (`ContractCall`, `ContractCallLocal`, `ContractCreate`) was introduced. It involves a `frontend` (gRpc incoming transactions to the node) maximum gas per second throttle and a `consensus` (backend upon start of the actual execution of the transaction) maximum gas per second allowed property. These are configured by the `contracts.frontendThrottleMaxGasLimit` and `contracts.consensusThrottleMaxGasLimit` global dynamic properties. 
+
+An additional mechanism for throttling contract-related transactions (`ContractCall`, `ContractCallLocal`, `ContractCreate`) was added soon after the original release. It involves a `frontend` (gRpc incoming transactions to the node) maximum gas per second throttle and a `consensus` (backend upon start of the actual execution of the transaction) maximum gas per second allowed property. These are configured by the `contracts.maxGasPerSec` (frontend) and `contracts.maxGasPerSecBackend` (backend) network properties, with `contracts.throttle.throttleByGas` toggling enforcement.
 Transactions throttled by the frontend receive a status `BUSY` and transactions throttled on the consensus level receive a status `CONSENSUS_GAS_EXHAUSTED`. Transaction may still be throttled by the `opsPerSec` buckets where contract-related ops are listed.
 
 So this is how Hedera does its throttling. It uses four buckets: one for speed, one for reserving some speed, one for limiting entity creation, and one for putting some mild limitations on free queries. Each incoming transaction adds water to only the buckets that list it. And it is blocked only if one of those buckets is full.
+
+> The throttling subsystem has grown beyond TPS buckets and the contract-gas throttle described above. In addition to those, the runtime now applies a jumbo-transaction bytes-per-second throttle on the frontend, an EVM ops-duration throttle on the contract path, congestion-pricing multipliers driven by both entity and gas utilization, a separate schedule-service throttle for transactions scheduled for future execution, and HIP-1313 high-volume pricing tiers. See [`design/app/throttles.md`](design/app/throttles.md) for the up-to-date code organization, transaction flow, and state-persistence model, and [`design/app/state-throttling-tests.md`](design/app/state-throttling-tests.md) for the steady-state HAPI test suite that validates this behavior.

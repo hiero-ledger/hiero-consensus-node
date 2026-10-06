@@ -3,8 +3,8 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static com.hedera.node.app.blocks.BlockStreamManager.NUM_SIBLINGS_PER_BLOCK;
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
@@ -62,8 +62,16 @@ public class FileBlockItemWriter implements BlockItemWriter {
     /** The file extension for complete block files. */
     private static final String COMPLETE_BLOCK_EXTENSION = ".blk";
 
+    /** The file extension for an incomplete (open, unproven) block flushed for triage at catastrophic failure. */
+    private static final String INCOMPLETE_BLOCK_EXTENSION = ".open";
+
     /** The suffix added to RECORD_EXTENSION when they are compressed. */
     private static final String COMPRESSION_ALGORITHM_EXTENSION = ".gz";
+
+    /**
+     * Number of bytes in a single kilobyte.
+     */
+    private static final int ONE_KB_BYTES = 1024;
 
     /** The node-specific path to the directory where block files are written */
     private final Path nodeScopedBlockDir;
@@ -78,6 +86,11 @@ public class FileBlockItemWriter implements BlockItemWriter {
      */
     private final UnaryOperator<String> pendingFileName;
 
+    /**
+     * Converts a base block number file name to the name of an incomplete (triage) block file.
+     */
+    private final UnaryOperator<String> incompleteFileName;
+
     /** The file output stream we are writing to, which writes to the configured block file path */
     private WritableStreamingData writableStreamingData;
 
@@ -89,6 +102,21 @@ public class FileBlockItemWriter implements BlockItemWriter {
      * set in {@link #openBlock}, it is never changed.
      */
     private long blockNumber;
+
+    /**
+     * Buffer size to use for the outer file writer - in bytes.
+     */
+    private final int blockFileBufferOuterSizeBytes;
+
+    /**
+     * Buffer size to use for the inner file writer - in bytes.
+     */
+    private final int blockFileBufferInnerSizeBytes;
+
+    /**
+     * Buffer size to use for the GZIP file writer - in bytes.
+     */
+    private final int blockFileBufferGzipSizeBytes;
 
     private enum State {
         UNINITIALIZED,
@@ -115,6 +143,10 @@ public class FileBlockItemWriter implements BlockItemWriter {
         final var config = configProvider.getConfiguration();
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
 
+        blockFileBufferOuterSizeBytes = ONE_KB_BYTES * blockStreamConfig.blockFileBufferOuterSizeKb();
+        blockFileBufferInnerSizeBytes = ONE_KB_BYTES * blockStreamConfig.blockFileBufferInnerSizeKb();
+        blockFileBufferGzipSizeBytes = ONE_KB_BYTES * blockStreamConfig.blockFileBufferGzipSizeKb();
+
         // Compute directory for block files
         final Path blockDir = fileSystem.getPath(blockStreamConfig.blockFileDir());
         nodeScopedBlockDir =
@@ -122,6 +154,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
         this.completeFileName = name -> name + COMPLETE_BLOCK_EXTENSION + COMPRESSION_ALGORITHM_EXTENSION;
         this.pendingFileName = name -> name + ".pnd" + COMPRESSION_ALGORITHM_EXTENSION;
+        this.incompleteFileName = name -> name + INCOMPLETE_BLOCK_EXTENSION + COMPRESSION_ALGORITHM_EXTENSION;
     }
 
     /**
@@ -233,7 +266,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
             final var proofJsonPath = proofJson.toPath();
             final PendingProof pendingProof;
             try {
-                pendingProof = PendingProof.JSON.parse(new ReadableStreamingData(proofJsonPath));
+                pendingProof = PendingProof.JSON.parseStrict(new ReadableStreamingData(proofJsonPath));
             } catch (IOException | ParseException e) {
                 logger.warn(
                         "Error reading pending proof metadata from {} (not considering remaining - {})",
@@ -286,8 +319,9 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
     private static Block parseBlock(final byte[] bytes, final int maxReadDepth, final int maxReadSize)
             throws ParseException {
+        // Reject unknown fields while retaining the configured depth and size limits.
         return Block.PROTOBUF.parse(
-                Bytes.wrap(bytes).toReadableSequentialData(), false, false, maxReadDepth, maxReadSize);
+                Bytes.wrap(bytes).toReadableSequentialData(), true, false, maxReadDepth, maxReadSize);
     }
 
     /**
@@ -320,15 +354,25 @@ public class FileBlockItemWriter implements BlockItemWriter {
             if (!Files.exists(nodeScopedBlockDir)) {
                 Files.createDirectories(nodeScopedBlockDir);
             }
+
+            /*
+            A block will contain many smaller items and writing each item individually is very inefficient. Because of
+            this, a series of nested buffers are used to write the contents of a block to disk. The outermost buffer
+            is the largest, and it collects the original items meant to be written. Then, once this buffer is full (or
+            flushed) the contents are sent to a GZIP buffer that compresses the raw items. Once the items are compressed
+            and fill the buffer, they are finally sent to the lowest buffer (the one doing the actual writing to disk).
+            Finally, once this lowest level buffer is full (or flushed) the contents are written to disk. By doing this
+            nested approach, we can minimize the number of synchronous calls writing to disk and improve performance.
+
+            While each buffer can be independently sized, a general rule of thumb for sizing is:
+            OuterBufferSize > InnerBufferSize > GZIPBufferSize in a 16:4:1 ratio
+            e.g. Outer: 4096 KB, Inner: 1024 KB, GZIP: 256 KB
+             */
+
             out = Files.newOutputStream(blockFilePath);
-            out = new BufferedOutputStream(out, 1024 * 1024); // 1 MB
-            out = new GZIPOutputStream(out, 1024 * 256); // 256 KB
-            // By wrapping the GZIPOutputStream in a BufferedOutputStream, the code reduces the number of write
-            // operations to the GZIPOutputStream, and therefore the number of synchronized calls. Instead of
-            // writing each small piece of data immediately to the GZIPOutputStream, it writes the data to the
-            // buffer, and only when the buffer is full, it writes all the data to the GZIPOutputStream in one go.
-            // This can significantly improve the performance when writing many small amounts of data.
-            out = new BufferedOutputStream(out, 1024 * 1024 * 4); // 4 MB
+            out = new BufferedOutputStream(out, blockFileBufferInnerSizeBytes);
+            out = new GZIPOutputStream(out, blockFileBufferGzipSizeBytes);
+            out = new BufferedOutputStream(out, blockFileBufferOuterSizeBytes);
 
             this.writableStreamingData = new WritableStreamingData(out);
         } catch (final IOException e) {
@@ -336,7 +380,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
             if (out != null) {
                 try {
                     out.close();
-                } catch (IOException ex) {
+                } catch (final IOException ex) {
                     logger.error("Error closing the FileBlockItemWriter output stream", ex);
                 }
             }
@@ -434,7 +478,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
             }
             final var json = PendingProof.JSON.toJSON(pendingProof);
             try {
-                Files.writeString(pathOf(blockNumber, name -> name + ".pnd.json"), json);
+                Files.writeString(pendingProofPath(nodeScopedBlockDir, blockNumber), json);
             } catch (IOException e) {
                 logger.error("Error flushing pending proof metadata #{}", blockNumber, e);
             }
@@ -442,15 +486,36 @@ public class FileBlockItemWriter implements BlockItemWriter {
                     "Flushed pending block #{} ({}, {})",
                     blockNumber,
                     pathOf(blockNumber, pendingFileName),
-                    pathOf(blockNumber, name -> name + ".pnd.json"));
+                    pendingProofPath(nodeScopedBlockDir, blockNumber));
         } else {
             logger.warn("Block #{} flushed in non-OPEN state '{}'", blockNumber, state, new IllegalStateException());
         }
     }
 
     @Override
-    public void jumpToBlockAfterFreeze(long blockNumber) {
-        // no-op
+    public void flushIncompleteBlock() {
+        // Persist the open, unproven block as a ".open.gz" triage artifact: close the stream and rename the
+        // partially-written ".blk.gz" to ".open.gz". We deliberately write no ".mf" completion marker and no
+        // ".pnd.json" proof sidecar, so this block is never treated as a finished block nor picked up by pending-block
+        // recovery. Best-effort: never throws.
+        if (state != State.OPEN) {
+            logger.warn("Cannot flush incomplete block #{} in non-OPEN state '{}'", blockNumber, state);
+            return;
+        }
+        try {
+            writableStreamingData.close();
+            Files.move(pathOf(blockNumber, completeFileName), pathOf(blockNumber, incompleteFileName));
+            logger.info(
+                    "Flushed incomplete block #{} for triage to {}",
+                    blockNumber,
+                    pathOf(blockNumber, incompleteFileName));
+        } catch (final Exception e) {
+            // Catch everything (not just IOException): per the BlockItemWriter contract this is best-effort and must
+            // not throw, since the caller is already on the catastrophic-failure path.
+            logger.error("Error flushing incomplete block #{}", blockNumber, e);
+        } finally {
+            state = State.CLOSED;
+        }
     }
 
     /**

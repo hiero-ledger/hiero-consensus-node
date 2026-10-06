@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.state.hints.CRSStage.GATHERING_CONTRIBUTIONS;
 import static com.hedera.hapi.node.state.hints.CRSStage.WAITING_FOR_ADOPTING_FINAL_CRS;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hints.HintsService.partySizeForRosterNodeCount;
 import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.moreThanTwoThirdsOfTotal;
 import static java.util.Objects.requireNonNull;
@@ -32,7 +33,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -66,7 +70,24 @@ public class HintsControllerImpl implements HintsController {
     private final Map<Long, Integer> nodePartyIds = new HashMap<>();
     private final Map<Integer, Long> partyNodeIds = new HashMap<>();
     private final RosterTransitionWeights weights;
-    private final Map<Long, PreprocessingVote> votes = new ConcurrentHashMap<>();
+    /**
+     * The effective tally of resolved preprocessing votes. Every entry's value is the actual
+     * {@link PreprocessedKeys} that the corresponding node contributed. Congruent votes are
+     * resolved to the referent's keys at insertion time so that downstream code can call
+     * getValue() without a null-check or a throw.
+     *
+     * <p>This invariant is established in the constructor (via {@link #resolveVotes}) and
+     * maintained by {@link #addPreprocessingVote}, ensuring the map is safe to read on both the
+     * consensus thread and the async preprocessing future.
+     */
+    private final Map<Long, PreprocessedKeys> votes = new ConcurrentHashMap<>();
+    /**
+     * Congruent votes whose referent is not yet resolved. Keyed by the waiting node's ID, valued by
+     * the referent node ID. When the referent later resolves, all pending entries pointing to it
+     * are retroactively resolved into {@link #votes}.
+     */
+    private final Map<Long, Long> pendingCongruentVotes = new ConcurrentHashMap<>();
+
     private final NavigableMap<Instant, CompletableFuture<Validation>> validationFutures = new TreeMap<>();
     private final Supplier<Configuration> configurationSupplier;
     private final OnHintsFinished onHintsFinished;
@@ -134,11 +155,18 @@ public class HintsControllerImpl implements HintsController {
         this.library = requireNonNull(library);
         this.construction = requireNonNull(construction);
         this.onHintsFinished = requireNonNull(onHintsFinished);
-        this.votes.putAll(votes);
+        final var resolveResult = resolveVotes(votes, hintsStore, construction.constructionId());
+        this.votes.putAll(resolveResult.resolved());
+        this.pendingCongruentVotes.putAll(resolveResult.pending());
         this.configurationSupplier = requireNonNull(configuration);
 
         final var crsState = hintsStore.getCrsState();
-        if (crsState.stage() == GATHERING_CONTRIBUTIONS) {
+        // Also rebuild finalCrsFuture when the persisted stage is WAITING_FOR_ADOPTING_FINAL_CRS:
+        // a restart in that stage would otherwise leave finalCrsFuture null, so
+        // validateWeightOfContributions() would see weight 0 once contributionEndTime elapses and
+        // erroneously call restartFromFirstNode(), writing a state change that did not occur on the
+        // original run -> SELF_ISS on the rebuilt node.
+        if (crsState.stage() == GATHERING_CONTRIBUTIONS || crsState.stage() == WAITING_FOR_ADOPTING_FINAL_CRS) {
             final var crsPublications = hintsStore.getOrderedCrsPublications(weights.sourceNodeIds());
             crsPublications.forEach((nodeId, publication) -> {
                 if (publication != null) {
@@ -359,6 +387,10 @@ public class HintsControllerImpl implements HintsController {
                                 ? finalCrsFuture.join().crs()
                                 : hintsStore.getCrsState().crs();
                         final var updatedCrs = library.updateCrs(previousCrs, generateEntropy());
+                        if (updatedCrs == null) {
+                            log.warn("Library returned null while updating CRS; skipping CRS publication");
+                            return;
+                        }
                         final var newCrs = decodeCrsUpdate(previousCrs.length(), updatedCrs);
                         submissions
                                 .submitCrsUpdate(newCrs.crs(), newCrs.proof())
@@ -428,33 +460,91 @@ public class HintsControllerImpl implements HintsController {
             final long nodeId, @NonNull final PreprocessingVote vote, @NonNull final WritableHintsStore hintsStore) {
         requireNonNull(vote);
         requireNonNull(hintsStore);
-        if (!construction.hasHintsScheme() && !votes.containsKey(nodeId)) {
-            hintsStore.addPreprocessingVote(nodeId, constructionId(), vote);
-            if (vote.hasPreprocessedKeys()) {
-                votes.put(nodeId, vote);
-            } else if (vote.hasCongruentNodeId()) {
-                final var congruentVote = votes.get(vote.congruentNodeIdOrThrow());
-                if (congruentVote != null && congruentVote.hasPreprocessedKeys()) {
-                    votes.put(nodeId, congruentVote);
-                }
-            }
-            final var outputWeights = votes.entrySet().stream()
-                    .collect(groupingBy(
-                            entry -> entry.getValue().preprocessedKeysOrThrow(),
-                            summingLong(entry -> weights.sourceWeightOf(entry.getKey()))));
-            final var maybeWinningOutputs = outputWeights.entrySet().stream()
-                    .filter(entry -> entry.getValue() >= weights.sourceWeightThreshold())
-                    .map(Map.Entry::getKey)
-                    .findFirst();
-            maybeWinningOutputs.ifPresent(keys -> {
-                construction = hintsStore.setHintsScheme(
-                        construction.constructionId(), keys, nodePartyIds, weights.targetNodeWeights());
-                log.info("Completed hinTS Scheme for construction #{}", construction.constructionId());
-                onHintsFinished.accept(hintsStore, construction, context);
-            });
-            return true;
+        if (votes.containsKey(nodeId)) {
+            log.info(
+                    "Skipping already-counted preprocessing vote from node{} for construction #{}",
+                    nodeId,
+                    construction.constructionId());
+            return false;
         }
-        return false;
+        if (construction.hasHintsScheme()) {
+            final var schemeSummary = construction.hintsSchemeOrThrow().hasPreprocessedKeys()
+                    ? summarizePreprocessedKeys(
+                            construction.hintsSchemeOrThrow().preprocessedKeysOrThrow())
+                    : "complete";
+            log.info(
+                    "Skipping preprocessing vote from node{} for construction #{} because the hinTS scheme is already {}",
+                    nodeId,
+                    construction.constructionId(),
+                    schemeSummary);
+            return false;
+        }
+        hintsStore.addPreprocessingVote(nodeId, constructionId(), vote);
+        pendingCongruentVotes.remove(nodeId);
+        PreprocessedKeys countedKeys = null;
+        if (vote.hasPreprocessedKeys()) {
+            countedKeys = vote.preprocessedKeysOrThrow();
+            resolveVoteAndDependents(nodeId, countedKeys);
+        } else if (vote.hasCongruentNodeId()) {
+            final var congruentKeys = votes.get(vote.congruentNodeIdOrThrow());
+            if (congruentKeys != null) {
+                countedKeys = congruentKeys;
+                resolveVoteAndDependents(nodeId, congruentKeys);
+            } else {
+                pendingCongruentVotes.put(nodeId, vote.congruentNodeIdOrThrow());
+            }
+        }
+        log.info(
+                "Accepted preprocessing vote from node{} for construction #{}: {}",
+                nodeId,
+                construction.constructionId(),
+                summarizeVote(vote, countedKeys));
+        final var outputWeights = votes.entrySet().stream()
+                .collect(groupingBy(Map.Entry::getValue, summingLong(entry -> weights.sourceWeightOf(entry.getKey()))));
+        log.info(
+                "Now have preprocessing votes with weights {} for construction #{}",
+                summarizeOutputWeights(outputWeights),
+                construction.constructionId());
+        final var maybeWinningOutputs = outputWeights.entrySet().stream()
+                .filter(entry -> entry.getValue() >= weights.sourceWeightThreshold())
+                .map(Map.Entry::getKey)
+                .findFirst();
+        maybeWinningOutputs.ifPresent(keys -> {
+            construction = hintsStore.setHintsScheme(
+                    construction.constructionId(), keys, nodePartyIds, weights.targetNodeWeights());
+            log.info(
+                    "Completed hinTS scheme for construction #{} with {}",
+                    construction.constructionId(),
+                    summarizePreprocessedKeys(keys));
+            onHintsFinished.accept(hintsStore, construction, context);
+        });
+        return true;
+    }
+
+    /**
+     * Adds a resolved vote to the effective tally, then transitively resolves every pending vote
+     * that directly or indirectly refers to it.
+     *
+     * @param nodeId the node whose vote has resolved
+     * @param keys the keys selected by the resolved vote
+     */
+    private void resolveVoteAndDependents(final long nodeId, @NonNull final PreprocessedKeys keys) {
+        final var newlyResolved = new ArrayDeque<Long>();
+        votes.put(nodeId, keys);
+        newlyResolved.add(nodeId);
+        while (!newlyResolved.isEmpty()) {
+            final long referentNodeId = newlyResolved.removeFirst();
+            final var directDependents = pendingCongruentVotes.entrySet().stream()
+                    .filter(entry -> entry.getValue() == referentNodeId)
+                    .map(Map.Entry::getKey)
+                    .toList();
+            directDependents.forEach(dependentNodeId -> {
+                if (pendingCongruentVotes.remove(dependentNodeId, referentNodeId)
+                        && votes.putIfAbsent(dependentNodeId, keys) == null) {
+                    newlyResolved.add(dependentNodeId);
+                }
+            });
+        }
     }
 
     @Override
@@ -702,26 +792,50 @@ public class HintsControllerImpl implements HintsController {
                                         entry -> weights.targetWeightOf(entry.getKey()),
                                         (a, b) -> a,
                                         TreeMap::new));
+                        log.info(
+                                "Calling preprocess for construction #{} with crsHash={}, hintKeyHashes={}, aggregatedWeights={}, numParties={}",
+                                construction.constructionId(),
+                                sha384Hex(crs),
+                                summarizeHintKeys(hintKeys),
+                                aggregatedWeights,
+                                numParties);
                         final var output = library.preprocess(crs, hintKeys, aggregatedWeights, numParties);
+                        if (output == null) {
+                            log.warn(
+                                    "Library returned null preprocessing output for construction #{}; skipping vote",
+                                    construction.constructionId());
+                            return;
+                        }
                         final var preprocessedKeys = PreprocessedKeys.newBuilder()
                                 .verificationKey(Bytes.wrap(output.verificationKey()))
                                 .aggregationKey(Bytes.wrap(output.aggregationKey()))
                                 .build();
+                        log.info(
+                                "Computed preprocessing output for construction #{}: {}",
+                                construction.constructionId(),
+                                summarizePreprocessedKeys(preprocessedKeys));
                         // Prefer to vote for a congruent node's preprocessed keys if one exists
                         long congruentNodeId = -1;
                         for (final var entry : votes.entrySet()) {
-                            if (entry.getValue().preprocessedKeysOrThrow().equals(preprocessedKeys)) {
+                            if (entry.getValue().equals(preprocessedKeys)) {
                                 congruentNodeId = entry.getKey();
                                 break;
                             }
                         }
                         if (congruentNodeId != -1) {
-                            log.info("Voting for congruent node's preprocessed keys: {}", congruentNodeId);
+                            log.info(
+                                    "Voting for congruent node{}'s preprocessed keys for construction #{}: {}",
+                                    congruentNodeId,
+                                    construction.constructionId(),
+                                    summarizePreprocessedKeys(preprocessedKeys));
                             submissions
                                     .submitHintsVote(construction.constructionId(), congruentNodeId)
                                     .join();
                         } else {
-                            log.info("Voting for own preprocessed keys");
+                            log.info(
+                                    "Voting for own preprocessed keys for construction #{}: {}",
+                                    construction.constructionId(),
+                                    summarizePreprocessedKeys(preprocessedKeys));
                             submissions
                                     .submitHintsVote(construction.constructionId(), preprocessedKeys)
                                     .join();
@@ -733,6 +847,133 @@ public class HintsControllerImpl implements HintsController {
                     }
                 },
                 executor);
+    }
+
+    /**
+     * Bundles the output of {@link #resolveVotes}: the fully resolved tally and any congruent votes
+     * whose referent is unresolved (deferred for retroactive resolution on live arrival).
+     */
+    private record ResolveResult(
+            @NonNull Map<Long, PreprocessedKeys> resolved,
+            @NonNull Map<Long, Long> pending) {}
+
+    /**
+     * Builds the initial resolved tally from raw persisted votes.
+     *
+     * <p>First loads the complete referent closure for every congruent vote available in the
+     * supplied map. It then walks the resulting dependency graph outward from every explicit vote,
+     * resolving congruent chains transitively and independently of map iteration order. Congruent
+     * votes in a cycle or whose referent is genuinely absent are placed in
+     * {@link ResolveResult#pending()} rather than dropped, so that
+     * {@link #addPreprocessingVote} can resolve them retroactively if their referent votes live.
+     */
+    @NonNull
+    private static ResolveResult resolveVotes(
+            @NonNull final Map<Long, PreprocessingVote> rawVotes,
+            @NonNull final ReadableHintsStore hintsStore,
+            final long constructionId) {
+        final Map<Long, PreprocessingVote> allVotes = new HashMap<>(rawVotes);
+        final Set<Long> queriedReferents = new HashSet<>();
+        final var referentsToLoad = new ArrayDeque<Long>();
+        rawVotes.values().stream()
+                .filter(PreprocessingVote::hasCongruentNodeId)
+                .map(PreprocessingVote::congruentNodeIdOrThrow)
+                .filter(nodeId -> !allVotes.containsKey(nodeId))
+                .forEach(referentsToLoad::add);
+        while (!referentsToLoad.isEmpty()) {
+            final long referentNodeId = referentsToLoad.removeFirst();
+            if (allVotes.containsKey(referentNodeId) || !queriedReferents.add(referentNodeId)) {
+                continue;
+            }
+            final var referentVote =
+                    hintsStore.getVotes(constructionId, Set.of(referentNodeId)).get(referentNodeId);
+            if (referentVote != null) {
+                allVotes.put(referentNodeId, referentVote);
+                if (referentVote.hasCongruentNodeId() && !allVotes.containsKey(referentVote.congruentNodeIdOrThrow())) {
+                    referentsToLoad.add(referentVote.congruentNodeIdOrThrow());
+                }
+            }
+        }
+
+        final Map<Long, PreprocessedKeys> resolved = new HashMap<>();
+        final Map<Long, Long> congruentReferents = new HashMap<>();
+        final Map<Long, List<Long>> dependentsByReferent = new HashMap<>();
+        final var newlyResolved = new ArrayDeque<Long>();
+        allVotes.forEach((nodeId, vote) -> {
+            if (vote.hasPreprocessedKeys()) {
+                resolved.put(nodeId, vote.preprocessedKeysOrThrow());
+                newlyResolved.add(nodeId);
+            } else if (vote.hasCongruentNodeId()) {
+                final long referentNodeId = vote.congruentNodeIdOrThrow();
+                congruentReferents.put(nodeId, referentNodeId);
+                dependentsByReferent
+                        .computeIfAbsent(referentNodeId, ignored -> new ArrayList<>())
+                        .add(nodeId);
+            }
+        });
+        while (!newlyResolved.isEmpty()) {
+            final long referentNodeId = newlyResolved.removeFirst();
+            final var keys = resolved.get(referentNodeId);
+            for (final var dependentNodeId : dependentsByReferent.getOrDefault(referentNodeId, List.of())) {
+                if (resolved.putIfAbsent(dependentNodeId, keys) == null) {
+                    newlyResolved.add(dependentNodeId);
+                }
+            }
+        }
+
+        final Map<Long, Long> pending = new HashMap<>();
+        congruentReferents.forEach((nodeId, referentNodeId) -> {
+            if (!resolved.containsKey(nodeId)) {
+                pending.put(nodeId, referentNodeId);
+                log.warn(
+                        "Deferring unresolvable congruent vote from node{} for construction #{}",
+                        nodeId,
+                        constructionId);
+            }
+        });
+        return new ResolveResult(resolved, pending);
+    }
+
+    private static @NonNull String summarizeVote(
+            @NonNull final PreprocessingVote vote, @Nullable final PreprocessedKeys countedKeys) {
+        requireNonNull(vote);
+        if (vote.hasPreprocessedKeys()) {
+            return "preprocessedKeys{" + summarizePreprocessedKeys(vote.preprocessedKeysOrThrow()) + "}";
+        }
+        if (vote.hasCongruentNodeId()) {
+            final var summary = "congruentNodeId=" + vote.congruentNodeIdOrThrow();
+            return countedKeys == null
+                    ? summary + " (not yet resolved)"
+                    : summary + " -> preprocessedKeys{" + summarizePreprocessedKeys(countedKeys) + "}";
+        }
+        return "<empty vote>";
+    }
+
+    private static @NonNull List<String> summarizeOutputWeights(
+            @NonNull final Map<PreprocessedKeys, Long> outputWeights) {
+        requireNonNull(outputWeights);
+        return outputWeights.entrySet().stream()
+                .map(entry -> "preprocessedKeys{" + summarizePreprocessedKeys(entry.getKey()) + "}, weight="
+                        + entry.getValue())
+                .sorted()
+                .toList();
+    }
+
+    private static @NonNull Map<Integer, String> summarizeHintKeys(@NonNull final Map<Integer, Bytes> hintKeys) {
+        requireNonNull(hintKeys);
+        final Map<Integer, String> summary = new TreeMap<>();
+        hintKeys.forEach((partyId, hintsKey) -> summary.put(partyId, sha384Hex(hintsKey)));
+        return summary;
+    }
+
+    private static @NonNull String summarizePreprocessedKeys(@NonNull final PreprocessedKeys keys) {
+        requireNonNull(keys);
+        return "vkHash=" + sha384Hex(keys.verificationKey()) + ", akHash=" + sha384Hex(keys.aggregationKey());
+    }
+
+    private static @NonNull String sha384Hex(@NonNull final Bytes bytes) {
+        requireNonNull(bytes);
+        return noThrowSha384HashOf(bytes).toHex();
     }
 
     @VisibleForTesting
@@ -761,5 +1002,6 @@ public class HintsControllerImpl implements HintsController {
      * @param crs the updated CRS
      * @param proof the proof of the update
      */
-    public record CrsUpdateOutput(@NonNull Bytes crs, @NonNull Bytes proof) {}
+    public record CrsUpdateOutput(
+            @NonNull Bytes crs, @NonNull Bytes proof) {}
 }

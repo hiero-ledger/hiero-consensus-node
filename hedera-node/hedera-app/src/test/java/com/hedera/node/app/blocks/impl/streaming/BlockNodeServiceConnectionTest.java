@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -20,6 +21,8 @@ import com.hedera.node.app.blocks.impl.streaming.BlockNodeServiceConnection.GetB
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeServiceConnection.ServiceClientHolder;
 import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.types.BlockStreamGrpcCompressionType;
+import com.hedera.pbj.runtime.grpc.ServiceInterface;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
@@ -28,6 +31,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -44,6 +48,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
+    private static final long NODE_ID = 0L;
 
     private static final VarHandle connectionStateHandle;
     private static final VarHandle clientRefHandle;
@@ -84,9 +89,18 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         lenient()
                 .doReturn(client)
                 .when(clientFactory)
-                .createServiceClient(any(BlockNodeConfiguration.class), any(Duration.class));
+                .createServiceClient(
+                        any(BlockNodeConfiguration.class),
+                        any(Duration.class),
+                        anyString(),
+                        any(BlockStreamGrpcCompressionType.class));
+        lenient()
+                .doReturn(mock(ServiceInterface.RequestOptions.class))
+                .when(clientFactory)
+                .requestOptionsForCorrelationId(anyString());
 
-        connection = new BlockNodeServiceConnection(configProvider, nodeConfiguration, executorService, clientFactory);
+        connection = new BlockNodeServiceConnection(
+                configProvider, nodeConfiguration, executorService, clientFactory, NODE_ID);
     }
 
     @AfterEach
@@ -107,7 +121,12 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(holder).isNotNull();
         assertThat(holder.client()).isEqualTo(client);
 
-        verify(clientFactory).createServiceClient(eq(nodeConfiguration), any(Duration.class));
+        verify(clientFactory)
+                .createServiceClient(
+                        eq(nodeConfiguration),
+                        any(Duration.class),
+                        anyString(),
+                        any(BlockStreamGrpcCompressionType.class));
 
         verifyNoInteractions(executorService);
         verifyNoInteractions(client);
@@ -138,7 +157,12 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
 
         final ArgumentCaptor<? extends Runnable> execSvcCaptor = ArgumentCaptor.forClass(Runnable.class);
 
-        verify(clientFactory).createServiceClient(eq(nodeConfiguration), any(Duration.class));
+        verify(clientFactory)
+                .createServiceClient(
+                        eq(nodeConfiguration),
+                        any(Duration.class),
+                        anyString(),
+                        any(BlockStreamGrpcCompressionType.class));
         verify(executorService).submit(execSvcCaptor.capture());
 
         assertThat(execSvcCaptor.getAllValues()).hasSize(1);
@@ -180,7 +204,12 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
 
         final ArgumentCaptor<? extends Runnable> execSvcCaptor = ArgumentCaptor.forClass(Runnable.class);
 
-        verify(clientFactory).createServiceClient(eq(nodeConfiguration), any(Duration.class));
+        verify(clientFactory)
+                .createServiceClient(
+                        eq(nodeConfiguration),
+                        any(Duration.class),
+                        anyString(),
+                        any(BlockStreamGrpcCompressionType.class));
         verify(executorService).submit(execSvcCaptor.capture());
 
         assertThat(execSvcCaptor.getAllValues()).hasSize(1);
@@ -438,17 +467,81 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void testClose_preSetInterruptFlag_closeClientTaskStillRuns() throws Exception {
+        // Use a real single-thread executor, with its thread pre-blocked so that CloseClientTask
+        // is forced into the queue and cannot run until we release it. This makes it deterministic:
+        // with the bug, cancel(true) kills the queued task before it runs; with the fix it runs.
+        final CountDownLatch unblockExecutorLatch = new CountDownLatch(1);
+        final CountDownLatch executorBlockedLatch = new CountDownLatch(1);
+        final java.util.concurrent.ExecutorService realExecutor = Executors.newSingleThreadExecutor();
+        try {
+            realExecutor.execute(() -> {
+                executorBlockedLatch.countDown();
+                try {
+                    unblockExecutorLatch.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            assertThat(executorBlockedLatch.await(5, TimeUnit.SECONDS)).isTrue();
+
+            final BlockNodeServiceConnection conn = new BlockNodeServiceConnection(
+                    createConfigProvider(createDefaultConfigProvider()),
+                    nodeConfiguration,
+                    realExecutor,
+                    clientFactory,
+                    NODE_ID);
+
+            // Force into ACTIVE state with the same shared client mock
+            ((AtomicReference<ServiceClientHolder>) clientRefHandle.get(conn)).set(new ServiceClientHolder(1, client));
+            ((AtomicReference<ConnectionState>) connectionStateHandle.get(conn)).set(ConnectionState.ACTIVE);
+
+            // Call close() from a virtual thread with the interrupt flag already set.
+            // The executor is busy so CloseClientTask goes into the queue.
+            //   Bug:  future.get() throws immediately -> cancel(true) -> task cancelled -> client.close() NOT called
+            //   Fix:  interrupt flag drained -> future.get() blocks  -> task runs     -> client.close() IS called
+            final CountDownLatch closeDone = new CountDownLatch(1);
+            Thread.ofVirtual().start(() -> {
+                Thread.currentThread().interrupt(); // pre-set the interrupt flag
+                conn.close();
+                closeDone.countDown();
+            });
+
+            // Allow close() to begin and reach future.get() (either block or throw immediately),
+            // then release the executor so the queued task can run.
+            Thread.sleep(100);
+            unblockExecutorLatch.countDown();
+
+            assertThat(closeDone.await(5, TimeUnit.SECONDS)).isTrue();
+            realExecutor.shutdown();
+            assertThat(realExecutor.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
+
+            // Verify the CloseClientTask ran (gRPC channel closed) despite the pre-set interrupt flag
+            verify(client).close();
+            assertThat(((AtomicReference<ConnectionState>) connectionStateHandle.get(conn)))
+                    .hasValue(ConnectionState.CLOSED);
+        } finally {
+            unblockExecutorLatch.countDown();
+            realExecutor.shutdownNow();
+        }
+    }
+
+    @Test
     void testGetBlockNodeStatusTask_success() throws Exception {
-        final ServerStatusResponse expectedResponse = new ServerStatusResponse(100, 200, false, null);
-        doReturn(expectedResponse).when(client).serverStatus(any(ServerStatusRequest.class));
+        final ServerStatusResponse expectedResponse = new ServerStatusResponse(100, 200, false, 201);
+        doReturn(expectedResponse)
+                .when(client)
+                .serverStatus(any(ServerStatusRequest.class), any(ServiceInterface.RequestOptions.class));
 
         final ServerStatusResponse actualResponse = connection.new GetBlockNodeStatusTask(client).call();
 
         assertThat(actualResponse).isEqualTo(expectedResponse);
 
-        verify(client).serverStatus(any(ServerStatusRequest.class));
+        verify(client).serverStatus(any(ServerStatusRequest.class), any(ServiceInterface.RequestOptions.class));
+        verify(clientFactory).requestOptionsForCorrelationId(anyString());
         verifyNoMoreInteractions(client);
-        verifyNoInteractions(clientFactory);
+        verifyNoMoreInteractions(clientFactory);
         verifyNoInteractions(executorService);
     }
 
@@ -466,14 +559,14 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         stateRef().set(ConnectionState.ACTIVE);
 
         final Future<ServerStatusResponse> getFuture =
-                CompletableFuture.completedFuture(new ServerStatusResponse(1234L, 2345L, false, null));
+                CompletableFuture.completedFuture(new ServerStatusResponse(1234L, 2345L, false, 2346L));
         doReturn(getFuture).when(executorService).submit(any(GetBlockNodeStatusTask.class));
 
         final BlockNodeStatus status = connection.getBlockNodeStatus();
 
         assertThat(status).isNotNull();
         assertThat(status.wasReachable()).isTrue();
-        assertThat(status.latestBlockAvailable()).isEqualTo(2345L);
+        assertThat(status.nextExpectedBlock()).isEqualTo(2346L);
         assertThat(status.latencyMillis()).isGreaterThan(-1L);
 
         verify(executorService).submit(any(GetBlockNodeStatusTask.class));
@@ -510,7 +603,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(status).isNotNull();
         assertThat(status.wasReachable()).isFalse();
-        assertThat(status.latestBlockAvailable()).isEqualTo(-1L);
+        assertThat(status.nextExpectedBlock()).isEqualTo(-1L);
         assertThat(status.latencyMillis()).isEqualTo(-1L);
 
         assertThat(stateRef()).hasValue(ConnectionState.ACTIVE); // errors do not affect connection state
@@ -557,7 +650,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         final BlockNodeStatus status = statusRef.get();
         assertThat(status).isNotNull();
         assertThat(status.wasReachable()).isFalse();
-        assertThat(status.latestBlockAvailable()).isEqualTo(-1L);
+        assertThat(status.nextExpectedBlock()).isEqualTo(-1L);
         assertThat(status.latencyMillis()).isEqualTo(-1L);
 
         assertThat(stateRef()).hasValue(ConnectionState.ACTIVE); // errors do not affect connection state
@@ -584,7 +677,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(status).isNotNull();
         assertThat(status.wasReachable()).isFalse();
-        assertThat(status.latestBlockAvailable()).isEqualTo(-1L);
+        assertThat(status.nextExpectedBlock()).isEqualTo(-1L);
         assertThat(status.latencyMillis()).isEqualTo(-1L);
 
         assertThat(stateRef()).hasValue(ConnectionState.ACTIVE); // errors do not affect connection state

@@ -4,11 +4,9 @@ package com.hedera.node.app.service.contract.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseType.ANSWER_ONLY;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.hexedEvmAddressOf;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.summarizeStakingInfo;
 import static com.hedera.node.app.service.token.api.AccountSummariesApi.tokenRelationshipsOf;
-import static com.hedera.node.app.spi.fees.Fees.CONSTANT_FEE_DATA;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -23,20 +21,18 @@ import com.hedera.hapi.node.contract.ContractGetInfoResponse.ContractInfo;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
-import com.hedera.node.app.hapi.fees.usage.contract.ContractGetInfoUsage;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PaidQueryHandler;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
-import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TokensConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.InstantSource;
@@ -93,7 +89,7 @@ public class ContractGetInfoHandler extends PaidQueryHandler {
             contractGetInfo.contractInfo(infoFor(
                     contract,
                     config.getConfigData(TokensConfig.class),
-                    config.getConfigData(LedgerConfig.class),
+                    context.ledgerId(),
                     config.getConfigData(StakingConfig.class),
                     context.createStore(ReadableTokenStore.class),
                     context.createStore(ReadableStakingInfoStore.class),
@@ -103,27 +99,10 @@ public class ContractGetInfoHandler extends PaidQueryHandler {
         return Response.newBuilder().contractGetInfo(contractGetInfo).build();
     }
 
-    @NonNull
-    @Override
-    public Fees computeFees(@NonNull final QueryContext context) {
-        return context.feeCalculator().legacyCalculate(sigValueObj -> {
-            final var contract = contractFrom(context);
-            if (contract == null) {
-                return CONSTANT_FEE_DATA;
-            } else {
-                return ContractGetInfoUsage.newEstimate(fromPbj(context.query()))
-                        .givenCurrentKey(fromPbj(contract.keyOrThrow()))
-                        .givenCurrentMemo(contract.memo())
-                        .givenCurrentTokenAssocs(contract.numberAssociations())
-                        .get();
-            }
-        });
-    }
-
     private ContractInfo infoFor(
             @NonNull final Account contract,
             @NonNull final TokensConfig tokensConfig,
-            @NonNull final LedgerConfig ledgerConfig,
+            @NonNull final Bytes ledgerId,
             @NonNull final StakingConfig stakingConfig,
             @NonNull final ReadableTokenStore tokenStore,
             @NonNull final ReadableStakingInfoStore stakingInfoStore,
@@ -139,7 +118,7 @@ public class ContractGetInfoHandler extends PaidQueryHandler {
                 instantSource.instant());
         final var maxReturnedRels = tokensConfig.maxRelsPerInfoQuery();
         final var builder = ContractInfo.newBuilder()
-                .ledgerId(ledgerConfig.id())
+                .ledgerId(ledgerId)
                 .accountID(accountId)
                 .contractID(entityIdFactory.newContractId(accountId.accountNumOrThrow()))
                 .deleted(contract.deleted())

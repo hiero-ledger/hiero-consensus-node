@@ -3,20 +3,21 @@ package com.hedera.statevalidation.exporter;
 
 import static com.hedera.statevalidation.util.ConfigUtils.MAX_OBJ_PER_FILE;
 import static com.hedera.statevalidation.util.ConfigUtils.PRETTY_PRINT_ENABLED;
+import static com.hedera.statevalidation.util.ConfigUtils.getVirtualMapValueParseMaxSizeBytes;
 import static com.swirlds.state.merkle.StateKeyUtils.extractStateIdFromStateKeyOneOf;
 import static java.lang.StrictMath.toIntExact;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
+import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.util.JsonUtils;
 import com.hedera.statevalidation.util.StateUtils;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.BufferedWriter;
@@ -44,7 +45,7 @@ public class JsonExporter {
     public static final String SINGLE_STATE_TMPL = "%s_%s_%d.json";
 
     private final File resultDir;
-    private final MerkleNodeState state;
+    private final VirtualMapState state;
     private final String serviceName;
     private final String stateKey;
     private final long suppliedFirstLeafPath;
@@ -60,7 +61,7 @@ public class JsonExporter {
 
     public JsonExporter(
             @NonNull final File resultDir,
-            @NonNull final MerkleNodeState state,
+            @NonNull final VirtualMapState state,
             @Nullable final String serviceName,
             @Nullable final String stateKey,
             long suppliedFirstLeafPath,
@@ -73,8 +74,7 @@ public class JsonExporter {
         this.suppliedLastLeafPath = suppliedLastLeafPath;
 
         allStates = stateKey == null;
-        writingParallelism =
-                toIntExact(((VirtualMap) state.getRoot()).getMetadata().getSize() / MAX_OBJ_PER_FILE) + 1;
+        writingParallelism = toIntExact((state.getRoot()).getMetadata().getSize() / MAX_OBJ_PER_FILE) + 1;
         if (allStates) {
             expectedStateId = -1;
         } else {
@@ -86,7 +86,7 @@ public class JsonExporter {
 
     public void export() {
         final long startTimestamp = System.currentTimeMillis();
-        final VirtualMap vm = (VirtualMap) state.getRoot();
+        final VirtualMap vm = state.getRoot();
         log.debug("Start exporting state");
         List<CompletableFuture<Void>> futures = traverseVmInParallel(vm);
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
@@ -95,7 +95,7 @@ public class JsonExporter {
     }
 
     private List<CompletableFuture<Void>> traverseVmInParallel(@NonNull final VirtualMap virtualMap) {
-        final VirtualMapMetadata metadata = virtualMap.getMetadata();
+        final VirtualMap.Metadata metadata = virtualMap.getMetadata();
 
         // define the first path and last path
         long firstLeafPath;
@@ -144,7 +144,7 @@ public class JsonExporter {
     }
 
     private void processRange(@NonNull String fileName, long start, long end) {
-        final VirtualMap vm = (VirtualMap) state.getRoot();
+        final VirtualMap vm = state.getRoot();
         final File file = new File(resultDir, fileName);
         boolean emptyFile = true;
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(file))) {
@@ -170,7 +170,12 @@ public class JsonExporter {
                         continue;
                     }
                     stateKey = StateKey.PROTOBUF.parse(keyBytes);
-                    stateValue = StateValue.PROTOBUF.parse(valueBytes);
+                    stateValue = StateValue.PROTOBUF.parse(
+                            valueBytes.toReadableSequentialData(),
+                            false,
+                            false,
+                            Codec.DEFAULT_MAX_DEPTH,
+                            getVirtualMapValueParseMaxSizeBytes());
                     if (stateKey.key().kind().equals(StateKey.KeyOneOfType.SINGLETON)) {
                         JsonUtils.write(
                                 writer,

@@ -1,0 +1,218 @@
+// SPDX-License-Identifier: Apache-2.0
+package com.hedera.node.app.throttle;
+
+import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static com.hedera.node.app.throttle.ThrottleAccumulator.ThrottleType.BACKEND_THROTTLE;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+
+import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.base.SignatureMap;
+import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
+import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.ThrottleDefinitions;
+import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.hapi.utils.throttles.DeterministicThrottle;
+import com.hedera.node.app.hapi.utils.throttles.LeakyBucketDeterministicThrottle;
+import com.hedera.node.app.hapi.utils.throttles.OpsDurationDeterministicThrottle;
+import com.hedera.node.app.workflows.TransactionInfo;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.state.State;
+import java.time.Instant;
+import java.util.List;
+import java.util.function.IntSupplier;
+import java.util.function.Supplier;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+@ExtendWith(MockitoExtension.class)
+class AppScheduleThrottleFactoryTest {
+    private static final int SPLIT_FACTOR = 7;
+    private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(123456, 789);
+    private static final AccountID PAYER_ID =
+            AccountID.newBuilder().accountNum(666L).build();
+    private static final TransactionInfo TXN_INFO = new TransactionInfo(
+            SignedTransaction.DEFAULT,
+            TransactionBody.newBuilder()
+                    .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT)
+                    .build(),
+            TransactionID.DEFAULT,
+            PAYER_ID,
+            SignatureMap.DEFAULT,
+            Bytes.EMPTY,
+            CRYPTO_TRANSFER,
+            null);
+    private static final ThrottleUsageSnapshots FAKE_SNAPSHOTS = new ThrottleUsageSnapshots(
+            List.of(
+                    new ThrottleUsageSnapshot(1L, new Timestamp(234567, 8)),
+                    new ThrottleUsageSnapshot(2L, new Timestamp(345678, 9))),
+            ThrottleUsageSnapshot.DEFAULT,
+            ThrottleUsageSnapshot.DEFAULT);
+
+    @Mock
+    private State state;
+
+    @Mock
+    private Supplier<Configuration> config;
+
+    @Mock
+    private ThrottleAccumulator throttleAccumulator;
+
+    @Mock
+    private DeterministicThrottle firstThrottle;
+
+    @Mock
+    private DeterministicThrottle lastThrottle;
+
+    @Mock
+    private DeterministicThrottle highVolumeThrottle;
+
+    @Mock
+    private LeakyBucketDeterministicThrottle gasThrottle;
+
+    @Mock
+    private LeakyBucketDeterministicThrottle bytesThrottle;
+
+    @Mock
+    private OpsDurationDeterministicThrottle opsDurationThrottle;
+
+    @Mock
+    private AppScheduleThrottleFactory.ThrottleAccumulatorFactory throttleAccumulatorFactory;
+
+    private AppScheduleThrottleFactory subject;
+    private SemanticVersion softwareVersionFactory;
+
+    @BeforeEach
+    void setUp() {
+        softwareVersionFactory = SemanticVersion.DEFAULT;
+        subject = new AppScheduleThrottleFactory(
+                config, () -> state, () -> ThrottleDefinitions.DEFAULT, throttleAccumulatorFactory);
+    }
+
+    @Test
+    void initializesAccumulatorFromCurrentConfigAndGivenDefinitions() {
+        given(throttleAccumulatorFactory.newThrottleAccumulator(
+                        eq(config), argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR), eq(BACKEND_THROTTLE)))
+                .willReturn(throttleAccumulator);
+        given(throttleAccumulator.allActiveThrottlesIncludingHighVolume())
+                .willReturn(List.of(firstThrottle, lastThrottle));
+        given(throttleAccumulator.gasLimitThrottle()).willReturn(gasThrottle);
+        given(throttleAccumulator.opsDurationThrottle()).willReturn(opsDurationThrottle);
+
+        final var throttle = subject.newScheduleThrottle(SPLIT_FACTOR, FAKE_SNAPSHOTS);
+
+        verify(throttleAccumulator).applyGasConfig();
+        verify(throttleAccumulator).rebuildFor(ThrottleDefinitions.DEFAULT);
+        verify(firstThrottle).resetUsageTo(FAKE_SNAPSHOTS.tpsThrottles().getFirst());
+        verify(lastThrottle).resetUsageTo(FAKE_SNAPSHOTS.tpsThrottles().getLast());
+        verify(gasThrottle).resetUsageTo(FAKE_SNAPSHOTS.gasThrottleOrThrow());
+
+        given(throttleAccumulator.checkAndEnforceThrottle(TXN_INFO, CONSENSUS_NOW, state, null, true))
+                .willReturn(true);
+        assertThat(throttle.allow(PAYER_ID, TXN_INFO.txBody(), TXN_INFO.functionality(), CONSENSUS_NOW))
+                .isFalse();
+
+        given(firstThrottle.usageSnapshot())
+                .willReturn(FAKE_SNAPSHOTS.tpsThrottles().getFirst());
+        given(lastThrottle.usageSnapshot())
+                .willReturn(FAKE_SNAPSHOTS.tpsThrottles().getLast());
+        given(gasThrottle.usageSnapshot()).willReturn(FAKE_SNAPSHOTS.gasThrottleOrThrow());
+        given(opsDurationThrottle.usageSnapshot()).willReturn(FAKE_SNAPSHOTS.evmOpsDurationThrottleOrThrow());
+        assertEquals(FAKE_SNAPSHOTS, throttle.usageSnapshots());
+    }
+
+    @Test
+    void throwsWhenSnapshotCountIsFewerThanThrottles() {
+        given(throttleAccumulatorFactory.newThrottleAccumulator(
+                        eq(config), argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR), eq(BACKEND_THROTTLE)))
+                .willReturn(throttleAccumulator);
+        // Two active throttles but only one usage snapshot: the legacy positional loop would throw
+        // IndexOutOfBoundsException mid-restore; we now fail fast before mutating any throttle.
+        given(throttleAccumulator.allActiveThrottlesIncludingHighVolume())
+                .willReturn(List.of(firstThrottle, lastThrottle));
+        given(throttleAccumulator.allActiveThrottles()).willReturn(List.of(firstThrottle, lastThrottle));
+        final var oneSnapshot = new ThrottleUsageSnapshots(
+                List.of(new ThrottleUsageSnapshot(1L, new Timestamp(234567, 8))),
+                ThrottleUsageSnapshot.DEFAULT,
+                ThrottleUsageSnapshot.DEFAULT);
+
+        final var e =
+                assertThrows(IllegalStateException.class, () -> subject.newScheduleThrottle(SPLIT_FACTOR, oneSnapshot));
+        assertTrue(e.getMessage().contains("1 usage snapshots"));
+        assertTrue(e.getMessage().contains("2 active throttles"));
+        verify(firstThrottle, never()).resetUsageTo(any());
+        verify(lastThrottle, never()).resetUsageTo(any());
+    }
+
+    @Test
+    void throwsWhenSnapshotCountExceedsThrottles() {
+        given(throttleAccumulatorFactory.newThrottleAccumulator(
+                        eq(config), argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR), eq(BACKEND_THROTTLE)))
+                .willReturn(throttleAccumulator);
+        // One active throttle but two usage snapshots: the trailing snapshot would previously be
+        // dropped silently (usage lost -> throttle under-count); we now fail fast so the caller rebuilds.
+        given(throttleAccumulator.allActiveThrottlesIncludingHighVolume()).willReturn(List.of(firstThrottle));
+        given(throttleAccumulator.allActiveThrottles()).willReturn(List.of(firstThrottle));
+
+        final var e = assertThrows(
+                IllegalStateException.class, () -> subject.newScheduleThrottle(SPLIT_FACTOR, FAKE_SNAPSHOTS));
+        assertTrue(e.getMessage().contains("2 usage snapshots"));
+        assertTrue(e.getMessage().contains("1 active throttles"));
+        verify(firstThrottle, never()).resetUsageTo(any());
+    }
+
+    @Test
+    void restoresNormalThrottlesForLegacySnapshots() {
+        given(throttleAccumulatorFactory.newThrottleAccumulator(
+                        eq(config), argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR), eq(BACKEND_THROTTLE)))
+                .willReturn(throttleAccumulator);
+        // Legacy snapshots contain only the normal TPS throttles; the guard must compare against the
+        // selected (normal) list size, not the larger including-high-volume size, and not falsely trip.
+        given(throttleAccumulator.allActiveThrottlesIncludingHighVolume())
+                .willReturn(List.of(firstThrottle, lastThrottle, highVolumeThrottle));
+        given(throttleAccumulator.allActiveThrottles()).willReturn(List.of(firstThrottle, lastThrottle));
+        given(throttleAccumulator.gasLimitThrottle()).willReturn(gasThrottle);
+
+        subject.newScheduleThrottle(SPLIT_FACTOR, FAKE_SNAPSHOTS);
+
+        verify(firstThrottle).resetUsageTo(FAKE_SNAPSHOTS.tpsThrottles().getFirst());
+        verify(lastThrottle).resetUsageTo(FAKE_SNAPSHOTS.tpsThrottles().getLast());
+        verify(highVolumeThrottle, never()).resetUsageTo(any());
+        verify(gasThrottle).resetUsageTo(FAKE_SNAPSHOTS.gasThrottleOrThrow());
+    }
+
+    @Test
+    void propagatesWhenSnapshotContentIsIncompatible() {
+        given(throttleAccumulatorFactory.newThrottleAccumulator(
+                        eq(config), argThat((IntSupplier i) -> i.getAsInt() == SPLIT_FACTOR), eq(BACKEND_THROTTLE)))
+                .willReturn(throttleAccumulator);
+        given(throttleAccumulator.allActiveThrottlesIncludingHighVolume())
+                .willReturn(List.of(firstThrottle, lastThrottle));
+        // Counts match, but restoring a snapshot fails (e.g. used exceeds the throttle's capacity after a
+        // same-size bucket replacement). The exception must propagate so the caller rebuilds and replays;
+        // we deliberately do not swallow it and reset to zero usage.
+        willThrow(new IllegalArgumentException("usage exceeds capacity"))
+                .given(lastThrottle)
+                .resetUsageTo(any());
+
+        assertThrows(IllegalArgumentException.class, () -> subject.newScheduleThrottle(SPLIT_FACTOR, FAKE_SNAPSHOTS));
+    }
+}

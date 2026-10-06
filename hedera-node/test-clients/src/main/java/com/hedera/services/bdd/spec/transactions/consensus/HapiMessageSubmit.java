@@ -3,27 +3,18 @@ package com.hedera.services.bdd.spec.transactions.consensus;
 
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTopicId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asTransactionID;
-import static com.hedera.services.bdd.spec.transactions.TxnUtils.suFrom;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusSubmitMessage;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
-import com.hedera.node.app.hapi.fees.usage.BaseTransactionMeta;
-import com.hedera.node.app.hapi.fees.usage.consensus.SubmitMessageMeta;
-import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.fees.AdapterUtils;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.ConsensusMessageChunkInfo;
 import com.hederahashgraph.api.proto.java.ConsensusSubmitMessageTransactionBody;
-import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Key;
-import com.hederahashgraph.api.proto.java.SubType;
 import com.hederahashgraph.api.proto.java.TopicID;
-import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionID;
 import java.util.Collections;
@@ -169,39 +160,6 @@ public class HapiMessageSubmit extends HapiTxnOp<HapiMessageSubmit> {
             }
             return Collections.emptyList();
         };
-    }
-
-    @Override
-    protected long feeFor(final HapiSpec spec, final Transaction txn, final int numPayerKeys) throws Throwable {
-        return spec.fees()
-                .forActivityBasedOp(
-                        ConsensusSubmitMessage, (_txn, _svo) -> usageEstimate(_txn, _svo, spec), txn, numPayerKeys);
-    }
-
-    private FeeData usageEstimate(final TransactionBody txn, final SigValueObj svo, final HapiSpec spec) {
-        final var op = txn.getConsensusSubmitMessage();
-        final var baseMeta = new BaseTransactionMeta(txn.getMemoBytes().size(), 0);
-        final long numCustomFees = lookupCustomFees(spec);
-        final var submitMeta = new SubmitMessageMeta(op.getMessage().size(), numCustomFees);
-
-        final var accumulator = new UsageAccumulator();
-        consensusOpsUsage.submitMessageUsage(suFrom(svo), submitMeta, baseMeta, accumulator);
-
-        return AdapterUtils.feeDataFrom(accumulator).toBuilder()
-                .setSubType(numCustomFees > 0 ? SubType.SUBMIT_MESSAGE_WITH_CUSTOM_FEES : SubType.DEFAULT)
-                .build();
-    }
-
-    private long lookupCustomFees(final HapiSpec spec) {
-        final var topicId = topicFn.isPresent() ? topicFn.get().apply(spec) : (topic.orElse(null));
-        if (topicId == null || !spec.registry().hasTopicMeta(topicId.toString())) {
-            if (!loggingOff) {
-                log.info("Assuming no custom fees for topic {}", topicId);
-            }
-            return 0;
-        }
-        final var topicCreation = spec.registry().getTopicMeta(topicId.toString());
-        return topicCreation.getCustomFeesCount();
     }
 
     @Override

@@ -29,7 +29,7 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.token.Account;
-import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCalculator;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculatorImpl;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauthorizedraw.IsAuthorizedRawCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.isauthorizedraw.IsAuthorizedRawCall.SignatureType;
@@ -55,7 +55,7 @@ class IsAuthorizedRawCallTest extends CallTestBase {
     @Mock
     private SignatureVerifier signatureVerifier;
 
-    private final CustomGasCalculator customGasCalculator = new CustomGasCalculator();
+    private final HederaGasCalculatorImpl hederaGasCalculatorImpl = new HederaGasCalculatorImpl();
 
     @BeforeEach
     void setup() {
@@ -83,8 +83,8 @@ class IsAuthorizedRawCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_ACCOUNT_ID), result.getOutput());
+        assertEquals(State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_ACCOUNT_ID), result.output());
     }
 
     @Test
@@ -96,8 +96,8 @@ class IsAuthorizedRawCallTest extends CallTestBase {
 
         final var result = subject.execute(frame).fullResult().result();
 
-        assertEquals(State.REVERT, result.getState());
-        assertEquals(revertOutputFor(INVALID_ACCOUNT_ID), result.getOutput());
+        assertEquals(State.REVERT, result.state());
+        assertEquals(revertOutputFor(INVALID_ACCOUNT_ID), result.output());
     }
 
     @Test
@@ -235,7 +235,7 @@ class IsAuthorizedRawCallTest extends CallTestBase {
 
     @NonNull
     IsAuthorizedRawCall getSubject(@NonNull final Address address) {
-        return new IsAuthorizedRawCall(attempt, address, messageHash, signature, customGasCalculator);
+        return new IsAuthorizedRawCall(attempt, address, messageHash, signature, hederaGasCalculatorImpl);
     }
 
     @NonNull

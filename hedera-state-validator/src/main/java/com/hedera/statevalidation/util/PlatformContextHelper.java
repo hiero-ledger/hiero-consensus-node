@@ -2,14 +2,15 @@
 package com.hedera.statevalidation.util;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.context.PlatformContext;
 import org.hiero.base.concurrent.ExecutorFactory;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.PathsConfig;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpRecycleBin;
 import org.hiero.consensus.io.RecycleBin;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 /**
  * Provides singleton access to a configured {@link PlatformContext} instance.
@@ -19,7 +20,9 @@ public final class PlatformContextHelper {
     private static PlatformContext platformContext;
 
     private static PlatformContext createPlatformContext() {
+
         return new PlatformContext() {
+            private FileSystemManager fileSystemManager;
 
             @Override
             public Configuration getConfiguration() {
@@ -48,7 +51,12 @@ public final class PlatformContextHelper {
 
             @Override
             public FileSystemManager getFileSystemManager() {
-                return FileSystemManager.create(ConfigUtils.getConfiguration());
+                if (fileSystemManager == null) {
+                    final PathsConfig pathsConfig =
+                            ConfigUtils.getConfiguration().getConfigData(PathsConfig.class);
+                    fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
+                }
+                return fileSystemManager;
             }
         };
     }

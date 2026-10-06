@@ -2,7 +2,7 @@
 
 ## Preliminaries: JDK
 
-An [Eclipse Adoptium](https://adoptium.net/) build of the Java **21.0.1** JDK is required.
+An [Eclipse Adoptium](https://adoptium.net/) build of the Java **25.0.2** JDK is required.
 
 ## Building, Running and Working with the project
 

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl.streaming;
 
+import com.hedera.hapi.block.internal.BlockBytes;
 import com.hedera.hapi.block.internal.BufferedBlock;
-import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.input.EventHeader;
@@ -38,13 +38,16 @@ public class BlockTestUtils {
 
     public static void writeBlockToDisk(final BlockState block, final boolean isAcked, final File file)
             throws IOException {
-        final List<BlockItem> items = new ArrayList<>();
+        final List<Bytes> items = new ArrayList<>();
 
         for (int i = 0; i < block.itemCount(); ++i) {
-            items.add(block.blockItem(i));
+            final BlockState.BufferedItem item = block.bufferedItem(i);
+            if (item != null) {
+                items.add(item.serializedItem());
+            }
         }
 
-        final Block blk = new Block(items);
+        final BlockBytes blk = new BlockBytes(items);
         final Instant closedInstant = block.closedTimestamp();
         final Instant openedInstant = block.openedTimestamp();
 
@@ -79,9 +82,10 @@ public class BlockTestUtils {
     }
 
     public static BlockState toBlockState(final BufferedBlock bufferedBlock) {
-        final BlockState block = new BlockState(bufferedBlock.blockNumber());
+        final BlockState block =
+                new BlockState(bufferedBlock.blockNumber(), bufferedBlock.blockPeriodMillisOrElse(-1L));
 
-        bufferedBlock.block().items().forEach(block::addItem);
+        bufferedBlock.block().items().forEach(block::addSerializedItem);
 
         final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
         final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());
@@ -108,7 +112,7 @@ public class BlockTestUtils {
 
     public static BlockState generateRandomBlock(final long blockNumber) {
         final int numItems = ThreadLocalRandom.current().nextInt(25, 250);
-        final BlockState block = new BlockState(blockNumber);
+        final BlockState block = new BlockState(blockNumber, 2_000L);
         block.addItem(newBlockHeader(blockNumber));
         for (int i = 0; i < numItems; ++i) {
             block.addItem(newRandomItem());

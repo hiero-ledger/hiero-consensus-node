@@ -15,6 +15,7 @@ import com.hedera.node.app.spi.authorization.SystemPrivilege;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.ApiPermissionConfig;
+import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import javax.inject.Inject;
@@ -28,13 +29,19 @@ public class AuthorizerImpl implements Authorizer {
 
     private final ConfigProvider configProvider;
     private final AccountsConfig accountsConfig;
+    private final long shard;
+    private final long realm;
     private final PrivilegesVerifier privilegedTransactionChecker;
 
     @Inject
     public AuthorizerImpl(
             @NonNull final ConfigProvider configProvider, @NonNull PrivilegesVerifier privilegedTransactionChecker) {
         this.configProvider = requireNonNull(configProvider);
-        this.accountsConfig = configProvider.getConfiguration().getConfigData(AccountsConfig.class);
+        final var configuration = configProvider.getConfiguration();
+        this.accountsConfig = configuration.getConfigData(AccountsConfig.class);
+        final var hederaConfig = configuration.getConfigData(HederaConfig.class);
+        this.shard = hederaConfig.shard();
+        this.realm = hederaConfig.realm();
         this.privilegedTransactionChecker = requireNonNull(privilegedTransactionChecker);
     }
 
@@ -47,16 +54,27 @@ public class AuthorizerImpl implements Authorizer {
 
     @Override
     public boolean isSuperUser(@NonNull final AccountID accountID) {
-        if (!accountID.hasAccountNum()) return false;
-        long num = accountID.accountNumOrThrow();
+        if (!isOnThisLedger(accountID)) return false;
+        final long num = accountID.accountNumOrThrow();
         return num == accountsConfig.treasury() || num == accountsConfig.systemAdmin();
     }
 
     @Override
     public boolean isTreasury(@NonNull final AccountID accountID) {
-        if (!accountID.hasAccountNum()) return false;
-        long num = accountID.accountNumOrThrow();
-        return num == accountsConfig.treasury();
+        if (!isOnThisLedger(accountID)) return false;
+        return accountID.accountNumOrThrow() == accountsConfig.treasury();
+    }
+
+    /**
+     * Returns whether the given id is a number-based account scoped to this ledger's shard and realm. Privilege
+     * checks must consider the full {@code shard.realm.num} triplet rather than the account number alone, so that a
+     * foreign-shard or foreign-realm id such as {@code 1.0.2} is never treated as the treasury account {@code 0.0.2}.
+     *
+     * @param accountID the account id to check
+     * @return true if the id has an account number in this ledger's shard and realm
+     */
+    private boolean isOnThisLedger(@NonNull final AccountID accountID) {
+        return accountID.hasAccountNum() && accountID.shardNum() == shard && accountID.realmNum() == realm;
     }
 
     @Override

@@ -5,6 +5,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.function.BiConsumer;
 
 /**
  * Base record builder for any transaction that can delete accounts or contracts. These include,
@@ -44,4 +45,16 @@ public interface DeleteCapableTransactionStreamBuilder extends StreamBuilder {
      */
     void addBeneficiaryForDeletedAccount(
             @NonNull AccountID deletedAccountID, @NonNull AccountID beneficiaryForDeletedAccount);
+
+    /**
+     * Visits every {@code (deletedAccountId -> beneficiaryAccountId)} entry recorded on this builder.
+     *
+     * <p>This is needed at root staking-reward finalization to fold in the beneficiaries recorded by
+     * child dispatches (for example, the inner {@code CryptoDelete}, {@code ContractDelete}, or EVM
+     * self-destruct of an atomic batch, each of which records on its own dispatch's builder rather than
+     * the root builder that the reward redirect consults).
+     *
+     * @param action the action to invoke for each deleted-account/beneficiary pair
+     */
+    void forEachDeletedAccountBeneficiary(@NonNull BiConsumer<AccountID, AccountID> action);
 }

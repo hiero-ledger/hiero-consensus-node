@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.customHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.changeFromSnapshot;
@@ -30,7 +30,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.API_PERMISSIONS;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATES;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATE_CONTROL;
-import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_DETAILS;
 import static com.hedera.services.bdd.suites.HapiSuite.ZERO_BYTE_MEMO;
@@ -43,6 +42,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.keys.ControlForKey;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -51,7 +51,6 @@ import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hederahashgraph.api.proto.java.AccountID;
-import com.hederahashgraph.api.proto.java.CurrentAndNextFeeSchedule;
 import com.hederahashgraph.api.proto.java.ExchangeRateSet;
 import com.hederahashgraph.api.proto.java.NodeAddressBook;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
@@ -63,10 +62,9 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class FileCreateSuite {
-    @HapiTest
+    @LeakyEmbeddedHapiTest(reason = NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> exchangeRateControlAccountIsntCharged() {
         return hapiTest(
                 cryptoTransfer(tinyBarsFromTo(GENESIS, EXCHANGE_RATE_CONTROL, 1_000_000_000_000L)),
@@ -82,11 +80,10 @@ public class FileCreateSuite {
     final Stream<DynamicTest> createFailsWithExcessiveLifetime() {
         return hapiTest(doWithStartupConfig("entities.maxLifetime", value -> fileCreate("test")
                 .lifetime(Long.parseLong(value) + 12_345L)
-                .hasPrecheck(AUTORENEW_DURATION_NOT_IN_RANGE)));
+                .hasKnownStatus(AUTORENEW_DURATION_NOT_IN_RANGE)));
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> idVariantsTreatedAsExpected() {
         return hapiTest(submitModified(
                 withSuccessivelyVariedBodyIds(), () -> fileCreate("file").contents("ABC")));
@@ -140,12 +137,12 @@ public class FileCreateSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> precheckRejectsBadEffectiveAutoRenewPeriod() {
+    final Stream<DynamicTest> rejectsBadEffectiveAutoRenewPeriod() {
         var now = Instant.now();
         System.out.println(now.getEpochSecond());
 
         return hapiTest(
-                fileCreate("notHere").lifetime(-60L).hasPrecheck(ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE));
+                fileCreate("notHere").lifetime(-60L).hasKnownStatus(ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE));
     }
 
     @HapiTest
@@ -195,7 +192,6 @@ public class FileCreateSuite {
      * parsed as the expected protobuf messages.
      */
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> fetchFiles() {
         return customHapiSpec("FetchFiles")
                 .withProperties(Map.of(
@@ -210,11 +206,7 @@ public class FileCreateSuite {
                         getFileContents(APP_PROPERTIES)
                                 .andValidate(unchecked(ServicesConfigurationList::parseFrom)::apply),
                         getFileContents(API_PERMISSIONS)
-                                .andValidate(unchecked(ServicesConfigurationList::parseFrom)::apply),
-                        getFileContents(FEE_SCHEDULE)
-                                .fee(300_000L)
-                                .nodePayment(40L)
-                                .andValidate(unchecked(CurrentAndNextFeeSchedule::parseFrom)::apply));
+                                .andValidate(unchecked(ServicesConfigurationList::parseFrom)::apply));
     }
 
     @FunctionalInterface

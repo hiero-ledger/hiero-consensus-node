@@ -27,6 +27,7 @@ import "google/protobuf/wrappers.proto";
 import "services/basic_types.proto";
 import "services/exchange_rate.proto";
 import "services/state/addressbook/node.proto";
+import "services/state/addressbook/registered_node.proto";
 import "services/state/blockrecords/block_info.proto";
 import "services/state/blockrecords/running_hashes.proto";
 import "services/state/blockstream/block_stream_info.proto";
@@ -57,6 +58,12 @@ import "services/auxiliary/tss/tss_vote.proto";
 import "services/state/tss/tss_encryption_keys.proto";
 import "services/state/tss/tss_message_map_key.proto";
 import "services/state/tss/tss_vote_map_key.proto";
+import "services/state/clpr/clpr_channel.proto";
+import "services/state/clpr/clpr_endpoint_manifest.proto";
+import "services/state/clpr/clpr_endpoint_manifest_construction.proto";
+import "services/state/clpr/clpr_ledger_configuration.proto";
+import "services/state/clpr/clpr_message.proto";
+import "services/state/clpr/clpr_connector.proto";
 import "services/state/hints/hints_types.proto";
 import "services/state/history/history_types.proto";
 import "services/state/entity/entity_counts.proto";
@@ -489,6 +496,61 @@ enum StateIdentifier {
     STATE_ID_NODE_PAYMENTS = 55;
 
     /**
+    * A state identifier for registered nodes. Key/value state.
+    */
+    STATE_ID_REGISTERED_NODES = 56;
+
+    /**
+     * A state identifier for the highest node identifier allocated so far.
+     */
+    STATE_ID_HIGHEST_NODE_ID = 57;
+
+    /**
+     * A state identifier for the expected WRAPS proving key hash. Singleton state.
+     */
+    STATE_ID_WRAPS_PROVING_KEY_HASH = 58;
+
+    /**
+     * A state identifier for the CLPR ledger configuration. Singleton state.
+     */
+    STATE_ID_CLPR_LEDGER_CONFIGURATION = 59;
+
+    /**
+     * A state identifier for the CLPR channels. Key/value state.
+     */
+    STATE_ID_CLPR_CHANNELS = 60;
+
+    /**
+     * A state identifier for the CLPR pending commitments. Key/value state.
+     */
+    STATE_ID_CLPR_PENDING_COMMITMENTS = 61;
+
+    /**
+     * A state identifier for the CLPR message queue. Key/value state.
+     */
+    STATE_ID_CLPR_MESSAGE_QUEUE = 62;
+
+    /**
+     * A state identifier for the CLPR connectors. Key/value state.
+     */
+    STATE_ID_CLPR_CONNECTORS = 63;
+
+    /**
+     * A state identifier for CLPR pending connector commitments. Key/value state.
+     */
+    STATE_ID_CLPR_PENDING_CONNECTOR_COMMITMENTS = 64;
+
+    /**
+     * A state identifier for the CLPR endpoint manifest. Singleton state.
+     */
+    STATE_ID_CLPR_ENDPOINT_MANIFEST = 66;
+
+    /**
+     * A state identifier for the CLPR endpoint manifest construction. Singleton state.
+     */
+    STATE_ID_CLPR_ENDPOINT_MANIFEST_CONSTRUCTION = 67;
+
+    /**
      * A state identifier for the round receipts queue. Queue state.
      */
     STATE_ID_TRANSACTION_RECEIPTS = 126;
@@ -730,6 +792,28 @@ message SingletonUpdateChange {
          * Node payments SHALL be updated for every non-empty block.
          */
         com.hedera.hapi.node.state.token.NodePayments node_payments_value = 19;
+
+        /**
+         * A change to the highest node id singleton.
+         */
+        com.hedera.hapi.platform.state.NodeId node_id_value = 20;
+
+        /**
+         * A change to the CLPR ledger configuration singleton.
+         */
+        com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration clpr_ledger_configuration_value = 21;
+
+        /**
+         * A change to the CLPR endpoint manifest singleton.
+         */
+        com.hedera.hapi.node.state.clpr.ClprEndpointManifest clpr_endpoint_manifest_value = 22;
+
+        /**
+         * A change to the CLPR endpoint manifest construction singleton.
+         * Present while a manifest construction is gathering per-node publications;
+         * absent between constructions (deleted on close).
+         */
+        com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction clpr_endpoint_manifest_construction_value = 23;
     }
 }
 
@@ -795,18 +879,13 @@ message MapDeleteChange {
  * A key identifying a specific entry in a key-value "virtual map".
  */
 message MapChangeKey {
+    reserved 2;
+
     oneof key_choice {
         /**
          * A key for a change affecting a map keyed by an Account identifier.
          */
         proto.AccountID account_id_key = 1;
-
-        /**
-         * A change to the token relationships virtual map.<br/>
-         * This map is keyed by the pair of account identifier and
-         * token identifier.
-         */
-        proto.TokenAssociation token_relationship_key = 2;
 
         /**
          * A change to a map keyed by an EntityNumber (which is a whole number).
@@ -925,6 +1004,23 @@ message MapChangeKey {
          * An EVM hook's storage slot key.
          */
         com.hedera.hapi.node.state.hooks.EvmHookSlotKey evm_hook_slot_key = 24;
+
+        /**
+         * A change to the token relationships virtual map.<br/>
+         * This map is keyed by the pair of account identifier and
+         * token identifier.
+         */
+        proto.AccountTokenAssociation token_relationship_key = 25;
+
+        /**
+         * A CLPR message queue key (channel_id + message_id).
+         */
+        com.hedera.hapi.node.state.clpr.ClprMessageKey clpr_message_key = 26;
+
+        /**
+         * A CLPR connector key (channel_id, connector_id).
+         */
+        com.hedera.hapi.node.state.clpr.ClprConnectorKey clpr_connector_key = 27;
     }
 }
 
@@ -1105,6 +1201,31 @@ message MapChangeValue {
          * A WRAPS message history.
          */
         com.hedera.hapi.node.state.history.WrapsMessageHistory wraps_message_history_value = 31;
+
+        /**
+         * A registered node value.
+         */
+        com.hedera.hapi.node.state.addressbook.RegisteredNode registered_node_value = 32;
+
+        /**
+         * A CLPR channel value.
+         */
+        com.hedera.hapi.node.state.clpr.ClprChannel clpr_channel_value = 33;
+
+        /**
+         * A raw bytes value used as a map entry marker.
+         */
+        google.protobuf.BytesValue proto_bytes_value = 34;
+
+        /**
+         * A CLPR message queue value (payload + running_hash).
+         */
+        com.hedera.hapi.node.state.clpr.ClprMessageValue clpr_message_value = 35;
+
+        /**
+         * A CLPR connector value.
+         */
+        com.hedera.hapi.node.state.clpr.ClprConnector clpr_connector_value = 36;
     }
 }
 

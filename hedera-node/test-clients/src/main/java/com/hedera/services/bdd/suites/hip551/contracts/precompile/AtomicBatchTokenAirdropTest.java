@@ -27,7 +27,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import com.esaulpaugh.headlong.abi.Address;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
@@ -43,12 +42,13 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 
 @Tag(ATOMIC_BATCH)
-@OrderedInIsolation
 @HapiTestLifecycle
+@Execution(ExecutionMode.SAME_THREAD)
 class AtomicBatchTokenAirdropTest {
 
     private static final String DEFAULT_BATCH_OPERATOR = "batchOperator";
@@ -66,7 +66,6 @@ class AtomicBatchTokenAirdropTest {
     /**
      * AirdropFromContractTest
      */
-    @Order(1)
     @HapiTest
     @DisplayName("Atomic Contract Airdrops a token to a receiver who is associated to the token")
     Stream<DynamicTest> atomicAirdropTokenToAccount(
@@ -95,7 +94,6 @@ class AtomicBatchTokenAirdropTest {
     /**
      * AirdropSystemContractTest
      */
-    @Order(2)
     @HapiTest
     @DisplayName("Atomic Airdrop token")
     Stream<DynamicTest> atomicAirdropToken(
@@ -117,7 +115,6 @@ class AtomicBatchTokenAirdropTest {
     /**
      * AirdropToContractSystemContractTest
      */
-    @Order(3)
     @HapiTest
     @DisplayName("Can atomic airdrop fungible token to a contract that is already associated to it")
     Stream<DynamicTest> atomicAirdropToContract(
@@ -141,7 +138,6 @@ class AtomicBatchTokenAirdropTest {
     /**
      * HRCSetUnlimitedAutoAssociationsTest
      */
-    @Order(4)
     @HapiTest
     Stream<DynamicTest> atomicHrcSetUnlimitedAutoAssociations() {
         final AtomicReference<AccountID> accountNum = new AtomicReference<>();
@@ -178,7 +174,6 @@ class AtomicBatchTokenAirdropTest {
     /**
      * HRCTokenCancelTest
      */
-    @Order(5)
     @HapiTest
     @DisplayName("Can cancel atomic airdrop of fungible token")
     Stream<DynamicTest> canCancelAtomicAirdropOfFungibleToken(
@@ -199,7 +194,6 @@ class AtomicBatchTokenAirdropTest {
     /**
      * HRCTokenClaimTest
      */
-    @Order(6)
     @HapiTest
     @DisplayName("Can claim atomic airdrop of fungible token")
     Stream<DynamicTest> canClaimAtomicAirdropOfFungibleToken(
@@ -222,7 +216,6 @@ class AtomicBatchTokenAirdropTest {
     /**
      * HRCTokenRejectTest
      */
-    @Order(7)
     @HapiTest
     @DisplayName("Atomic HRC rejectTokenFT works")
     Stream<DynamicTest> atomicHrcFungibleWorks(
@@ -243,7 +236,6 @@ class AtomicBatchTokenAirdropTest {
     /**
      * TokenCancelAirdropSystemContractTest
      */
-    @Order(8)
     @HapiTest
     @DisplayName("Atomic Can cancel 1 fungible airdrop")
     Stream<DynamicTest> atomicCancelAirdrop(
@@ -274,7 +266,6 @@ class AtomicBatchTokenAirdropTest {
     /**
      * TokenClaimAirdropSystemContractTest
      */
-    @Order(9)
     @HapiTest
     @DisplayName("Atomic can claim 1 fungible airdrop")
     Stream<DynamicTest> atomicClaimAirdrop(
@@ -308,7 +299,6 @@ class AtomicBatchTokenAirdropTest {
     /**
      * TokenRejectSystemContractTest
      */
-    @Order(10)
     @HapiTest
     @DisplayName("Atomic reject fungible token")
     Stream<DynamicTest> atomicTokenRejectSystemContractTest(

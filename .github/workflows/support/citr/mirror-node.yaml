@@ -1,0 +1,391 @@
+# SPDX-License-Identifier: Apache-2.0
+labels:
+  solo.hedera.com/testSuiteName: ""
+  solo.hedera.com/testName: ""
+  solo.hedera.com/testRunUID: ""
+  solo.hedera.com/testCreationTimestamp: ""
+  solo.hedera.com/testExpirationTimestamp: ""
+  solo.hedera.com/testRequester: ""
+graphql: # not needed for default use case
+  enabled: false
+rosetta: # not needed for default use case
+  enabled: false
+redis:
+  enabled: true
+  nodeSelector:
+    solo.hashgraph.io/role: "auxiliary-services"
+    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+    solo.hashgraph.io/network-id: "%NETWORK_ID%"
+  tolerations:
+    - key: "solo.hashgraph.io/role"
+      operator: "Equal"
+      value: "auxiliary-services"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/owner"
+      operator: "Equal"
+      value: "%NETWORK_OWNER%"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/network-id"
+      operator: "Equal"
+      value: "%NETWORK_ID%"
+      effect: "NoSchedule"
+#  namespaceOverride: "{{ tpl (.Values.global.namespaceOverride | toString) }}"
+# importer is a component of the hedera mirror node
+# config for subchart hedera-mirror/importer
+importer:
+  nodeSelector:
+    solo.hashgraph.io/role: "auxiliary-services"
+    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+    solo.hashgraph.io/network-id: "%NETWORK_ID%"
+  tolerations:
+    - key: "solo.hashgraph.io/role"
+      operator: "Equal"
+      value: "auxiliary-services"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/owner"
+      operator: "Equal"
+      value: "%NETWORK_OWNER%"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/network-id"
+      operator: "Equal"
+      value: "%NETWORK_ID%"
+      effect: "NoSchedule"
+  resources:
+    requests:
+      cpu: 1
+      memory: 10Gi
+    limits:
+      cpu: 2
+      memory: 20Gi
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  # Importer startup includes the first-run Flyway schema build; 300 matches mirror-node-values.yaml
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 300
+  envFrom:
+    - secretRef:
+        name: mirror-passwords
+    - secretRef:
+        name: "{{ .Release.Name }}-redis"
+    - secretRef:
+        name: uploader-mirror-secrets
+  # The addressbook.bin file updates will be handled by infrastructure code or solo
+  addressBook: ""
+  config:
+    # importer is a springboot app, its application.yaml configuration starts here
+    # This config is mounted at [/usr/etc/hedera/application.yaml] in the importer pod
+    hedera:
+      mirror:
+        importer:
+          startDate: 1970-01-01T00:00:00Z
+          network: other
+          downloader:
+            allowAnonymousAccess: false
+            bucketName: "solo-streams"
+            # for s3 configuration of mirror node look at uploader-mirror-secrets.yaml
+          parser:
+            record:
+              entity:
+                persist:
+                  pendingReward: false
+              sidecar:
+                enabled: true
+grpc:
+  nodeSelector:
+    solo.hashgraph.io/role: "auxiliary-services"
+    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+    solo.hashgraph.io/network-id: "%NETWORK_ID%"
+  tolerations:
+    - key: "solo.hashgraph.io/role"
+      operator: "Equal"
+      value: "auxiliary-services"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/owner"
+      operator: "Equal"
+      value: "%NETWORK_OWNER%"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/network-id"
+      operator: "Equal"
+      value: "%NETWORK_ID%"
+      effect: "NoSchedule"
+  resources:
+    requests:
+      cpu: 0
+      memory: 0
+    limits:
+      cpu: 500m
+      memory: 1000Mi
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+pinger:
+  nodeSelector:
+    solo.hashgraph.io/role: "auxiliary-services"
+    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+    solo.hashgraph.io/network-id: "%NETWORK_ID%"
+  tolerations:
+    - key: "solo.hashgraph.io/role"
+      operator: "Equal"
+      value: "auxiliary-services"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/owner"
+      operator: "Equal"
+      value: "%NETWORK_OWNER%"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/network-id"
+      operator: "Equal"
+      value: "%NETWORK_ID%"
+      effect: "NoSchedule"
+  enabled: true
+  resources:
+    requests:
+      cpu: 0
+      memory: 15Mi
+    limits:
+      cpu: 100m
+      memory: 20Mi
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+postgresql:
+  persistence:
+    size: 10Gi
+  postgresql:
+    nodeSelector:
+      solo.hashgraph.io/role: "auxiliary-services"
+      solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+      solo.hashgraph.io/network-id: "%NETWORK_ID%"
+    tolerations:
+      - key: "solo.hashgraph.io/role"
+        operator: "Equal"
+        value: "auxiliary-services"
+        effect: "NoSchedule"
+      - key: "solo.hashgraph.io/owner"
+        operator: "Equal"
+        value: "%NETWORK_OWNER%"
+        effect: "NoSchedule"
+      - key: "solo.hashgraph.io/network-id"
+        operator: "Equal"
+        value: "%NETWORK_ID%"
+        effect: "NoSchedule"
+    resources:
+      requests:
+        cpu: 1
+        memory: 2Gi
+      limits:
+        cpu: 3
+        memory: 3Gi
+  pgpool:
+    replicaCount: 0
+rest:
+  nodeSelector:
+    solo.hashgraph.io/role: "auxiliary-services"
+    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+    solo.hashgraph.io/network-id: "%NETWORK_ID%"
+  tolerations:
+    - key: "solo.hashgraph.io/role"
+      operator: "Equal"
+      value: "auxiliary-services"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/owner"
+      operator: "Equal"
+      value: "%NETWORK_OWNER%"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/network-id"
+      operator: "Equal"
+      value: "%NETWORK_ID%"
+      effect: "NoSchedule"
+  resources:
+    requests:
+      cpu: 0
+      memory: 0
+    limits:
+      cpu: 500m
+      memory: 500Mi
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  monitor:
+    enabled: false
+  redis:
+    enabled: true
+  global:
+    hostname: "localhost"
+restjava:
+  nodeSelector:
+    solo.hashgraph.io/role: "auxiliary-services"
+    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+    solo.hashgraph.io/network-id: "%NETWORK_ID%"
+  tolerations:
+    - key: "solo.hashgraph.io/role"
+      operator: "Equal"
+      value: "auxiliary-services"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/owner"
+      operator: "Equal"
+      value: "%NETWORK_OWNER%"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/network-id"
+      operator: "Equal"
+      value: "%NETWORK_ID%"
+      effect: "NoSchedule"
+  resources:
+    requests:
+      cpu: 0
+      memory: 0
+    limits:
+      cpu: 500m
+      memory: 500Mi
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+web3:
+  nodeSelector:
+    solo.hashgraph.io/role: "auxiliary-services"
+    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+    solo.hashgraph.io/network-id: "%NETWORK_ID%"
+  tolerations:
+    - key: "solo.hashgraph.io/role"
+      operator: "Equal"
+      value: "auxiliary-services"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/owner"
+      operator: "Equal"
+      value: "%NETWORK_OWNER%"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/network-id"
+      operator: "Equal"
+      value: "%NETWORK_ID%"
+      effect: "NoSchedule"
+  resources:
+    requests:
+      cpu: 0
+      memory: 0
+    limits:
+      cpu: 1000m
+      memory: 1000Mi
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 1
+    failureThreshold: 60
+
+# config for subchart hedera-mirror/monitor
+# Sets up a Pinger service that periodically submits CRYPTO_TRANSFER transactions
+# Additional configuration for node addresses, operator id and key should be handled by infrastructure code or solo
+monitor:
+  nodeSelector:
+    solo.hashgraph.io/role: "auxiliary-services"
+    solo.hashgraph.io/owner: "%NETWORK_OWNER%"
+    solo.hashgraph.io/network-id: "%NETWORK_ID%"
+  tolerations:
+    - key: "solo.hashgraph.io/role"
+      operator: "Equal"
+      value: "auxiliary-services"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/owner"
+      operator: "Equal"
+      value: "%NETWORK_OWNER%"
+      effect: "NoSchedule"
+    - key: "solo.hashgraph.io/network-id"
+      operator: "Equal"
+      value: "%NETWORK_ID%"
+      effect: "NoSchedule"
+  resources:
+    requests:
+      cpu: 0
+      memory: 0
+    limits:
+      cpu: 500m
+      memory: 1000Mi
+  envFrom:
+    - secretRef:
+        name: mirror-passwords
+    - secretRef:
+        name: "{{ .Release.Name }}-redis"
+    - secretRef:
+        name: uploader-mirror-secrets
+  config:
+    hedera:
+      mirror:
+        common:
+          realm: 0
+          shard: 0
+        monitor:
+          publish:
+            scenarios:
+              pinger:
+                properties:
+                  amount: 1
+                  maxTransactionFee: 10000
+                  senderAccountId: 0.0.2
+                  recipientAccountId: 0.0.55
+                  transferTypes:
+                    - CRYPTO
+                receiptPercent: 1
+                tps: 0
+                type: CRYPTO_TRANSFER
+          subscribe:
+            grpc:
+              hcs:
+                enabled: false
+            rest:
+              transactionId:
+                enabled: true
+                samplePercent: 1
+          network: OTHER
+  readinessProbe:
+    failureThreshold: 60
+    initialDelaySeconds: 0
+    timeoutSeconds: 1

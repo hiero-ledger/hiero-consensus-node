@@ -15,9 +15,8 @@ public class ContractCallFeeCalculator implements ServiceFeeCalculator {
             @NonNull final SimpleFeeContext simpleFeeContext,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
-        // we clear the node and network fee previously set by SimpleFeeCalculatorImpl,
-        // as contract call is paid only in gas
-        feeResult.clearFees();
+        // ContractCall is paid only in gas; node/network exemption is handled by the
+        // nodeNetworkFeeExempt flag in the fee schedule, and baseFee is 0 with no extras.
     }
 
     @Override

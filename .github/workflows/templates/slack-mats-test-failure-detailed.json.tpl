@@ -1,0 +1,100 @@
+{{- $refName := getenv "REF_NAME" | required "REF_NAME must be set" -}}
+{{- $color := "#FF0000" -}}
+{{- if strings.HasPrefix "release/" $refName -}}{{- $color = "#F08080" -}}{{- end -}}
+{
+  "attachments": [
+    {
+      "color": {{ $color | data.ToJSON }},
+      "blocks": [
+        {
+          "type": "header",
+          "text": {
+            "type": "plain_text",
+            "text": ":x: Hiero Consensus Node - MATS Test Failure Report",
+            "emoji": true
+          }
+        },
+        {
+          "type": "divider"
+        },
+        {
+          "type": "section",
+          "text": {
+            "type": "mrkdwn",
+            "text": {{ printf "*MATS test failure on `%s`. See status below.* " (getenv "REF_NAME" | required "REF_NAME must be set") | data.ToJSON }}
+          },
+          "fields": [
+            {
+              "type": "mrkdwn",
+              "text": {{ printf "*MATS Tests*: %s" (getenv "MATS_TESTS_RESULT") | data.ToJSON }}
+            },
+            {
+              "type": "mrkdwn",
+              "text": {{ printf "*Deploy CI Triggers*: %s" (getenv "DEPLOY_CI_TRIGGER_RESULT") | data.ToJSON }}
+            },
+            {
+              "type": "mrkdwn",
+              "text": {{ printf "*Failing Test(s)*: %s" (getenv "FAILED_TESTS" | required "FAILED_TESTS must be set") | data.ToJSON }}
+            },
+            {
+              "type": "mrkdwn",
+              "text": {{ printf "*Run attempt*: %s" (getenv "RUN_ATTEMPT") | data.ToJSON }}
+            }
+          ]
+        },
+        {
+          "type": "divider"
+        },
+        {
+          "type": "section",
+          "text": {
+            "type": "mrkdwn",
+            "text": "*Workflow and Commit Information*"
+          },
+          "fields": [
+            {
+              "type": "mrkdwn",
+              "text": "*Source Commit*:"
+            },
+            {
+              "type": "mrkdwn",
+              "text": {{ printf "<%s>" (getenv "COMMIT_URL" | required "COMMIT_URL must be set") | data.ToJSON }}
+            },
+            {
+              "type": "mrkdwn",
+              "text": "*Commit author*:"
+            },
+            {
+              "type": "mrkdwn",
+              "text": {{ getenv "COMMIT_AUTHOR" | required "COMMIT_AUTHOR must be set" | data.ToJSON }}
+            },
+            {
+              "type": "mrkdwn",
+              "text": "*Slack user*:"
+            },
+            {
+              "type": "mrkdwn",
+              "text": {{ getenv "SLACK_USER_ID" | default "N/A" | data.ToJSON }}
+            },
+            {
+              "type": "mrkdwn",
+              "text": "*Workflow run ID*:"
+            },
+            {
+              "type": "mrkdwn",
+              "text": {{ getenv "WORKFLOW_RUN_ID" | data.ToJSON }}
+            },
+            {
+              "type": "mrkdwn",
+              "text": "*Workflow run URL*:"
+            },
+            {
+              "type": "mrkdwn",
+              "text": {{ printf "<%s>" (getenv "WORKFLOW_RUN_URL" | required "WORKFLOW_RUN_URL must be set") | data.ToJSON }}
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

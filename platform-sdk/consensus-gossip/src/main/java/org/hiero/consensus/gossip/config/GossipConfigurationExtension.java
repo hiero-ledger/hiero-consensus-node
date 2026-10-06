@@ -4,6 +4,7 @@ package org.hiero.consensus.gossip.config;
 import com.swirlds.config.api.ConfigurationExtension;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 
 /**
  * Registers configuration types for the gossip module.
@@ -21,7 +22,9 @@ public class GossipConfigurationExtension implements ConfigurationExtension {
                 GossipWiringConfig.class,
                 ProtocolConfig.class,
                 SocketConfig.class,
-                SyncConfig.class);
+                SyncConfig.class,
+                BroadcastConfig.class,
+                TrafficShapingConfig.class);
     }
 
     /**
@@ -30,6 +33,8 @@ public class GossipConfigurationExtension implements ConfigurationExtension {
     @Override
     @NonNull
     public Set<ConverterPair<?>> getConverters() {
-        return Set.of(new ConverterPair<>(NetworkEndpoint.class, new NetworkEndpointConverter()));
+        return Set.of(
+                new ConverterPair<>(NetworkEndpoint.class, new NetworkEndpointConverter()),
+                new ConverterPair<>(TaskSchedulerConfiguration.class, TaskSchedulerConfiguration::parse));
     }
 }

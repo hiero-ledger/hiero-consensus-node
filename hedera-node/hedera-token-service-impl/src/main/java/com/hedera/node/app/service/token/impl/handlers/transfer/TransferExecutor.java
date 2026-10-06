@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.handlers.transfer;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALIAS_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
@@ -9,8 +10,10 @@ import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 import static com.hedera.node.app.service.token.AliasUtils.isAlias;
+import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchExecution;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.isStakingAccount;
+import static com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler.chargeableGasLimit;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor.OptionalKeyCheck.RECEIVER_KEY_IS_OPTIONAL;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.TransferExecutor.OptionalKeyCheck.RECEIVER_KEY_IS_REQUIRED;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkReceiver;
@@ -50,6 +53,8 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -172,19 +177,26 @@ public class TransferExecutor extends BaseTokenHandler {
             boolean skipCustomFee) {
         final var topLevelPayer = context.payer();
         transferContext.validateHbarAllowances();
-        final var hooksConfig = context.configuration().getConfigData(HooksConfig.class);
-
         // Replace all aliases in the transaction body with its account ids; use in all further steps
-        final var replacedOp = ensureAndReplaceAliasesInOp(txn, transferContext, validator);
+        final var replacedOp = ensureAndReplaceAliasesInOp(txn, transferContext);
         List<CryptoTransferTransactionBody> txns = List.of(replacedOp);
         if (!skipCustomFee) {
             txns = new CustomFeeAssessmentStep(replacedOp).assessCustomFees(transferContext);
         }
         final boolean hasHooks = HookUtils.hasHookExecutions(replacedOp);
-        final var hookCalls = hasHooks
-                ? hookCallsFactory.from(
-                        transferContext.getHandleContext(), replacedOp, transferContext.getItemizedAssessedFees())
-                : null;
+        final HookCalls hookCalls;
+        if (hasHooks) {
+            // Use OrThrow() on all required fields, catch and propagate NPE as INVALID_HOOK_CALL; other
+            // exception types should not occur and will propagate as a FAIL_INVALID with fees re-charged
+            try {
+                hookCalls = hookCallsFactory.from(
+                        transferContext.getHandleContext(), replacedOp, transferContext.getItemizedAssessedFees());
+            } catch (NullPointerException ignore) {
+                throw new HandleException(INVALID_HOOK_CALL);
+            }
+        } else {
+            hookCalls = null;
+        }
         final var numAttemptedHookCalls = new Counter();
         if (hasHooks) {
             try {
@@ -201,11 +213,18 @@ public class TransferExecutor extends BaseTokenHandler {
                         HooksABI.FN_ALLOW_PRE,
                         numAttemptedHookCalls);
             } catch (HandleException e) {
+                final var config = context.configuration();
                 // Customize the thrown exception by refunding the charged fees for other hook calls that didn't execute
                 throw new HandleException(
                         e.getStatus(),
-                        ctx -> refundHookFee(
-                                context, ctx, hookCalls, numAttemptedHookCalls.get(), hooksConfig, topLevelPayer));
+                        (ctx, ignored) -> refundHookFee(
+                                context,
+                                ctx,
+                                hookCalls,
+                                numAttemptedHookCalls.get(),
+                                config.getConfigData(HooksConfig.class),
+                                config.getConfigData(AccountsConfig.class),
+                                topLevelPayer));
             }
         }
 
@@ -225,15 +244,33 @@ public class TransferExecutor extends BaseTokenHandler {
                         HooksABI.FN_ALLOW_POST,
                         numAttemptedHookCalls);
             } catch (HandleException e) {
-                // if hook execution failed, we still want to throw an exception but refund the charged fees
-                // for other hook calls that didn't execute
+                final var config = context.configuration();
+                // Customize the thrown exception by refunding the charged fees for other hook calls that didn't execute
                 throw new HandleException(
                         e.getStatus(),
-                        ctx -> refundHookFee(
-                                context, ctx, hookCalls, numAttemptedHookCalls.get(), hooksConfig, topLevelPayer));
+                        (ctx, ignored) -> refundHookFee(
+                                context,
+                                ctx,
+                                hookCalls,
+                                numAttemptedHookCalls.get(),
+                                config.getConfigData(HooksConfig.class),
+                                config.getConfigData(AccountsConfig.class),
+                                topLevelPayer));
             }
         }
 
+        externalizeTransferContext(transferContext, recordBuilder);
+    }
+
+    /**
+     * Externalizes the record data accumulated while processing a transfer.
+     *
+     * @param transferContext the transfer context containing accumulated record data
+     * @param recordBuilder the record builder to update
+     */
+    protected void externalizeTransferContext(
+            @NonNull final TransferContextImpl transferContext,
+            @NonNull final CryptoTransferStreamBuilder recordBuilder) {
         if (!transferContext.getAutomaticAssociations().isEmpty()) {
             transferContext.getAutomaticAssociations().forEach(recordBuilder::addAutomaticTokenAssociation);
         }
@@ -248,12 +285,18 @@ public class TransferExecutor extends BaseTokenHandler {
             @NonNull final HookCalls hookCalls,
             final int numAttemptedHookCalls,
             @NonNull final HooksConfig hooksConfig,
+            @NonNull final AccountsConfig accountsConfig,
             @NonNull final AccountID payerId) {
+        if (accountsConfig.isSuperuser(payerId)) {
+            // Edge case for test env mostly; superusers aren't charged fees in the first place, don't refund them
+            return;
+        }
         final long tinycentsToRefund = getFeesToRefund(
                 hookCalls,
                 numAttemptedHookCalls,
                 hooksConfig.hookInvocationCostTinyCents(),
-                context.getGasPriceInTinycents());
+                context.getGasPriceInTinycents(),
+                context.configuration().getConfigData(ContractsConfig.class).maxGasPerTransaction());
         final long refundInTinybars = ((FeeContext) context).tinybarsFromTinycents(tinycentsToRefund);
         ctx.refund(payerId, new Fees(0, 0, refundInTinybars));
     }
@@ -266,13 +309,15 @@ public class TransferExecutor extends BaseTokenHandler {
      * @param hookCalls the hook calls
      * @param numAttemptedHookCalls number of attempted hook calls
      * @param hookInvocationCostTinyCents cost of hook invocation in tiny cents
+     * @param maxGasPerTransaction the max gas limit per contract call transaction
      * @return gas to refund
      */
     private long getFeesToRefund(
             final HookCalls hookCalls,
             final int numAttemptedHookCalls,
             final long hookInvocationCostTinyCents,
-            final long gasPriceInTinyCents) {
+            final long gasPriceInTinyCents,
+            final long maxGasPerTransaction) {
         final var preOnlyHooks = hookCalls.preOnlyHooks();
         final var prePostHooks = hookCalls.prePostHooks();
 
@@ -290,7 +335,7 @@ public class TransferExecutor extends BaseTokenHandler {
         // pre-only hooks: FN_ALLOW
         for (final var hook : preOnlyHooks) {
             if (invocationIndex >= numAttemptedHookCalls) {
-                gasToRefund += hook.gasLimit();
+                gasToRefund += chargeableGasLimit(hook.gasLimit(), maxGasPerTransaction);
                 invocationsToRefund++;
             }
             invocationIndex++;
@@ -299,7 +344,7 @@ public class TransferExecutor extends BaseTokenHandler {
         // pre part of pre-post hooks: FN_ALLOW_PRE
         for (final var hook : prePostHooks) {
             if (invocationIndex >= numAttemptedHookCalls) {
-                gasToRefund += hook.gasLimit();
+                gasToRefund += chargeableGasLimit(hook.gasLimit(), maxGasPerTransaction);
                 invocationsToRefund++;
             }
             invocationIndex++;
@@ -308,7 +353,7 @@ public class TransferExecutor extends BaseTokenHandler {
         // post part of pre-post hooks: FN_ALLOW_POST
         for (final var hook : prePostHooks) {
             if (invocationIndex >= numAttemptedHookCalls) {
-                gasToRefund += hook.gasLimit();
+                gasToRefund += chargeableGasLimit(hook.gasLimit(), maxGasPerTransaction);
                 invocationsToRefund++;
             }
             invocationIndex++;
@@ -321,15 +366,17 @@ public class TransferExecutor extends BaseTokenHandler {
     protected void executeAirdropCryptoTransfer(
             @NonNull final HandleContext context,
             @NonNull final List<TokenTransferList> tokenTransferList,
+            @NonNull final TransferContextImpl transferContext,
             @NonNull final CryptoTransferStreamBuilder recordBuilder) {
+        final var isHighVolume = context.body().highVolume();
         var cryptoTransferBody = CryptoTransferTransactionBody.newBuilder()
                 .tokenTransfers(tokenTransferList)
                 .build();
 
-        final var syntheticCryptoTransferTxn =
-                TransactionBody.newBuilder().cryptoTransfer(cryptoTransferBody).build();
-
-        final var transferContext = new TransferContextImpl(context, cryptoTransferBody, true);
+        final var syntheticCryptoTransferTxn = TransactionBody.newBuilder()
+                .cryptoTransfer(cryptoTransferBody)
+                .highVolume(isHighVolume)
+                .build();
 
         // We should skip custom fee steps here, because they must be already prepaid
         executeCryptoTransferWithoutCustomFee(syntheticCryptoTransferTxn, transferContext, context, recordBuilder);
@@ -395,14 +442,11 @@ public class TransferExecutor extends BaseTokenHandler {
      *
      * @param txn the given transaction body
      * @param transferContext the given transfer context
-     * @param validator crypto transfer validator
      * @return the replaced transaction body with all aliases replaced with its account ids
      * @throws HandleException if any error occurs during the process
      */
-    private CryptoTransferTransactionBody ensureAndReplaceAliasesInOp(
-            @NonNull final TransactionBody txn,
-            @NonNull final TransferContextImpl transferContext,
-            @NonNull final CryptoTransferValidator validator)
+    protected CryptoTransferTransactionBody ensureAndReplaceAliasesInOp(
+            @NonNull final TransactionBody txn, @NonNull final TransferContextImpl transferContext)
             throws HandleException {
         final var op = txn.cryptoTransferOrThrow();
 
@@ -535,19 +579,21 @@ public class TransferExecutor extends BaseTokenHandler {
                         ctx.requireKeyOrThrow(account.key(), INVALID_TRANSFER_ACCOUNT_ID);
                     }
                 }
-            } else if (hbarTransfer) {
+            } else {
                 // It is possible for the transfer to be valid even if the account is not found. For example, we
                 // allow auto-creation of "hollow accounts" if you transfer value into an account *by alias* that
                 // didn't previously exist. If that is not the case, then we fail because we couldn't find the
                 // destination account.
-                if (!isCredit || !isAlias(accountId)) {
-                    // Interestingly, this means that if the transfer amount is exactly 0 and the account has a
-                    // non-existent alias, then we fail.
+                if (isDebit || !isAlias(accountId) || (hbarTransfer && !isCredit)) {
                     throw new PreCheckException(INVALID_ACCOUNT_ID);
                 }
-            } else if (isDebit) {
-                // All debited accounts must be valid
-                throw new PreCheckException(INVALID_ACCOUNT_ID);
+                // A missing long-zero address cannot be auto-created. Positive credits historically
+                // failed creation with INVALID_ALIAS_KEY; zero adjustments require an existing account.
+                if (isEntityNumAlias(accountId.aliasOrThrow())) {
+                    throw new PreCheckException(isCredit ? INVALID_ALIAS_KEY : INVALID_ACCOUNT_ID);
+                }
+                // A zero token adjustment may refer to an alias created by another credit in this transfer.
+                // Handle will reject it if no such creation occurs.
             }
         }
     }

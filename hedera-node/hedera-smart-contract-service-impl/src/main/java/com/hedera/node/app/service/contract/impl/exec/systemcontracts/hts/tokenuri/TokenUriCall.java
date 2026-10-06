@@ -16,6 +16,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Abs
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.nio.charset.StandardCharsets;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -59,7 +60,7 @@ public class TokenUriCall extends AbstractCall {
             }
             final var nft = nativeOperations().getNft(token.tokenIdOrThrow(), serialNo);
             if (nft != null) {
-                metadata = new String(nft.metadata().toByteArray());
+                metadata = new String(nft.metadata().toByteArray(), StandardCharsets.UTF_8);
             }
         }
         return gasOnly(

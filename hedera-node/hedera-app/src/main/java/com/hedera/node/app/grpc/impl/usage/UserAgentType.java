@@ -20,7 +20,10 @@ public enum UserAgentType {
     HIERO_SDK_RUST("HieroSdkRust", true, "hiero-sdk-rust"),
     HIERO_SDK_SWIFT("HieroSdkSwift", true, "hiero-sdk-swift"),
     UNSPECIFIED("Unspecified", false),
-    UNKNOWN("Unknown", false);
+    UNKNOWN("Unknown", false),
+    // Overflow bucket used when an endpoint exceeds its distinct user-agent cap. Kept distinct from UNKNOWN, which
+    // means a user-agent was present but unrecognized or malformed.
+    OTHER("Other", false);
 
     private static final Map<String, UserAgentType> values = new HashMap<>();
 

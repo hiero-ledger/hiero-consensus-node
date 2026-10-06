@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.evm;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asContract;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -20,9 +19,9 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
@@ -34,17 +33,17 @@ import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddre
 import static com.hedera.services.bdd.suites.contract.Utils.captureOneChildCreate2MetaFor;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_DELETED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.LOCAL_CALL_MODIFICATION_EXCEPTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
@@ -60,13 +59,13 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
-import org.hyperledger.besu.crypto.Hash;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
+@OrderedInIsolation
 @HapiTestLifecycle
 public class Evm38ValidationSuite {
     private static final Logger LOG = LogManager.getLogger(Evm38ValidationSuite.class);
@@ -90,7 +89,8 @@ public class Evm38ValidationSuite {
         final var function = getABIFor(FUNCTION, "getIndirect", CREATE_TRIVIAL);
 
         return hapiTest(
-                withOpContext((spec, ctxLog) -> spec.registry().saveContractId("invalid", asContract("0.0.5555"))),
+                doingContextual(spec ->
+                        spec.registry().saveContractId("invalid", asContract(spec.shard(), spec.realm(), 5555L))),
                 contractCallWithFunctionAbi("invalid", function).hasKnownStatus(INVALID_CONTRACT_ID));
     }
 
@@ -120,19 +120,18 @@ public class Evm38ValidationSuite {
                         .sending(ONE_HBAR)
                         .payingWith(TOKEN_TREASURY)
                         .via(internalViolation)
-                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
+                        .hasKnownStatus(INVALID_CONTRACT_ID)),
                 sourcing((() -> contractCall(tokenMirrorAddr.get())
                         .sending(1L)
                         .payingWith(TOKEN_TREASURY)
                         .refusingEthConversion()
                         .via(externalViolation)
-                        .hasKnownStatus(LOCAL_CALL_MODIFICATION_EXCEPTION))),
+                        .hasKnownStatus(INVALID_CONTRACT_ID))),
                 getTxnRecord(internalViolation).hasPriority(recordWith().feeGreaterThan(0L)),
                 getTxnRecord(externalViolation).hasPriority(recordWith().feeGreaterThan(0L)));
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> verifiesExistenceOfAccountsAndContracts() {
         final var contract = "BalanceChecker";
         final var BALANCE = 10L;
@@ -147,7 +146,7 @@ public class Evm38ValidationSuite {
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS),
                 contractCallLocal(contract, BALANCE_OF, asHeadlongAddress(INVALID_ADDRESS))
                         .hasAnswerOnlyPrecheck(INVALID_SOLIDITY_ADDRESS),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var id = spec.registry().getAccountID(ACCOUNT);
                     final var contractID = spec.registry().getContractId(contract);
 
@@ -191,7 +190,7 @@ public class Evm38ValidationSuite {
                 contractCreate(contract),
                 contractCall(contract, "callCode", asHeadlongAddress(INVALID_ADDRESS))
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var id = spec.registry().getAccountID(DEFAULT_PAYER);
                     final var solidityAddress = asHexedSolidityAddress(id);
 
@@ -215,7 +214,7 @@ public class Evm38ValidationSuite {
                 contractCreate(contract),
                 contractCall(contract, "call", asHeadlongAddress(INVALID_ADDRESS))
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var id = spec.registry().getAccountID(ACCOUNT);
 
                     final var contractCall = contractCall(
@@ -251,7 +250,7 @@ public class Evm38ValidationSuite {
                 contractCreate(contract),
                 contractCall(contract, "delegateCall", asHeadlongAddress(INVALID_ADDRESS))
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var id = spec.registry().getAccountID(DEFAULT_PAYER);
                     final var solidityAddress = asHexedSolidityAddress(id);
 
@@ -264,7 +263,6 @@ public class Evm38ValidationSuite {
 
     @SuppressWarnings("java:S5960")
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> verifiesExistenceForExtCodeOperation() {
         final var contract = "ExtCodeOperationsChecker";
         final var invalidAddress = "0x0000000000000000000000000000000000123456";
@@ -280,7 +278,7 @@ public class Evm38ValidationSuite {
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS),
                 contractCallLocal(contract, codeCopyOf, asHeadlongAddress(invalidAddress))
                         .hasAnswerOnlyPrecheck(INVALID_SOLIDITY_ADDRESS),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var accountID = spec.registry().getAccountID(account);
                     final var contractID = spec.registry().getContractId(contract);
                     final var accountSolidityAddress = asHexedSolidityAddress(accountID);
@@ -329,7 +327,7 @@ public class Evm38ValidationSuite {
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS),
                 contractCallLocal(contract, sizeOf, asHeadlongAddress(invalidAddress))
                         .hasAnswerOnlyPrecheck(INVALID_SOLIDITY_ADDRESS),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var accountID = spec.registry().getAccountID(account);
                     final var contractID = spec.registry().getContractId(contract);
                     final var accountSolidityAddress = asHexedSolidityAddress(accountID);
@@ -374,7 +372,7 @@ public class Evm38ValidationSuite {
         final var contract = "ExtCodeOperationsChecker";
         final var invalidAddress = "0x0000000000000000000000000000000000123456";
         final var expectedAccountHash =
-                ByteString.copyFrom(Hash.keccak256(Bytes.EMPTY).toArray());
+                ByteString.copyFrom(MiscCryptoUtils.keccak256DigestOf(Bytes.EMPTY.toArrayUnsafe()));
         final var hashOf = "hashOf";
 
         final String account = "account";
@@ -386,7 +384,7 @@ public class Evm38ValidationSuite {
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS),
                 contractCallLocal(contract, hashOf, asHeadlongAddress(invalidAddress))
                         .hasAnswerOnlyPrecheck(INVALID_SOLIDITY_ADDRESS),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var accountID = spec.registry().getAccountID(account);
                     final var contractID = spec.registry().getContractId(contract);
                     final var accountSolidityAddress = asHexedSolidityAddress(accountID);
@@ -413,7 +411,7 @@ public class Evm38ValidationSuite {
                     final var contractCodeResult = spec.registry().getBytes("contractCodeHash");
                     final var contractBytecode = spec.registry().getBytes("contractBytecode");
                     final var expectedContractCodeHash = ByteString.copyFrom(
-                                    Hash.keccak256(Bytes.of(contractBytecode)).toArray())
+                                    MiscCryptoUtils.keccak256DigestOf(contractBytecode))
                             .toByteArray();
 
                     Assertions.assertEquals(expectedAccountHash, recordResult.getContractCallResult());
@@ -432,7 +430,7 @@ public class Evm38ValidationSuite {
                 contractCreate(contract),
                 contractCall(contract, STATIC_CALL, asHeadlongAddress(INVALID_ADDRESS))
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var id = spec.registry().getAccountID(DEFAULT_PAYER);
                     final var solidityAddress = asHexedSolidityAddress(id);
 
@@ -489,7 +487,7 @@ public class Evm38ValidationSuite {
                         .hasKnownStatus(INVALID_SOLIDITY_ADDRESS)
                         .payingWith(GENESIS)
                         .via(mirrorCall)),
-                withOpContext((spec, opLog) -> {
+                doingContextual(spec -> {
                     final var mirrorLookup = getTxnRecord(mirrorCall);
                     allRunFor(spec, mirrorLookup);
                     final var mirrorResult = mirrorLookup
@@ -519,7 +517,7 @@ public class Evm38ValidationSuite {
                         .gas(1_000_000L)),
                 contractCall(SIMPLE_UPDATE_CONTRACT, "set", BigInteger.valueOf(15), BigInteger.valueOf(434))
                         .gas(350_000L)
-                        .hasPrecheck(CONTRACT_DELETED));
+                        .hasKnownStatus(CONTRACT_DELETED));
     }
 
     @HapiTest
@@ -531,10 +529,7 @@ public class Evm38ValidationSuite {
                 uploadInitCode(contract),
                 cryptoCreate(sender).balance(ONE_HUNDRED_HBARS),
                 contractCreate(contract).balance(10).payingWith(sender),
-                contractCall(contract)
-                        .hasPrecheck(CONTRACT_DELETED)
-                        .payingWith(sender)
-                        .hasKnownStatus(SUCCESS),
+                contractCall(contract).hasKnownStatus(CONTRACT_DELETED).payingWith(sender),
                 getContractBytecode(contract).hasCostAnswerPrecheck(CONTRACT_DELETED));
     }
 }

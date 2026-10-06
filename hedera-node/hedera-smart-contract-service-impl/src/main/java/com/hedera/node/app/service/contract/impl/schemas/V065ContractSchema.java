@@ -47,17 +47,9 @@ public class V065ContractSchema extends Schema<SemanticVersion> {
     @Override
     public Set<StateDefinition> statesToCreate() {
         return Set.of(
-                StateDefinition.onDisk(
-                        EVM_HOOK_STATES_STATE_ID,
-                        EVM_HOOK_STATES_KEY,
-                        HookId.PROTOBUF,
-                        EvmHookState.PROTOBUF,
-                        MAX_EVM_HOOK_STATES),
-                StateDefinition.onDisk(
-                        EVM_HOOK_STORAGE_STATE_ID,
-                        EVM_HOOK_STORAGE_KEY,
-                        EvmHookSlotKey.PROTOBUF,
-                        SlotValue.PROTOBUF,
-                        MAX_EVM_HOOK_STORAGE));
+                StateDefinition.keyValue(
+                        EVM_HOOK_STATES_STATE_ID, EVM_HOOK_STATES_KEY, HookId.PROTOBUF, EvmHookState.PROTOBUF),
+                StateDefinition.keyValue(
+                        EVM_HOOK_STORAGE_STATE_ID, EVM_HOOK_STORAGE_KEY, EvmHookSlotKey.PROTOBUF, SlotValue.PROTOBUF));
     }
 }

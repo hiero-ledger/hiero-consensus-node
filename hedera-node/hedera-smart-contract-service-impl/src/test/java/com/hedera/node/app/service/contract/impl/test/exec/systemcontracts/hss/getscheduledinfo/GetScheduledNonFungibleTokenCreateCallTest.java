@@ -17,7 +17,6 @@ import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.getscheduledinfo.GetScheduledNonFungibleTokenCreateCall;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
-import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,9 +27,6 @@ class GetScheduledNonFungibleTokenCreateCallTest extends CallTestBase {
 
     @Mock
     private Configuration configuration;
-
-    @Mock
-    private LedgerConfig ledgerConfig;
 
     private GetScheduledNonFungibleTokenCreateCall subject;
     private final ScheduleID scheduleId =
@@ -81,8 +77,7 @@ class GetScheduledNonFungibleTokenCreateCallTest extends CallTestBase {
 
     @Test
     void returnsSuccessForValidNonFungibleTokenSchedule() {
-        given(configuration.getConfigData(LedgerConfig.class)).willReturn(ledgerConfig);
-        given(ledgerConfig.id()).willReturn(Bytes.wrap(LEDGER_ID));
+        given(nativeOperations.ledgerId()).willReturn(Bytes.wrap(LEDGER_ID));
 
         var schedule = Schedule.newBuilder()
                 .scheduledTransaction(SchedulableTransactionBody.newBuilder()

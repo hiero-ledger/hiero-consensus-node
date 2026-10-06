@@ -6,7 +6,7 @@ import static org.hiero.consensus.model.hashgraph.ConsensusConstants.MIN_TRANS_T
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import org.hiero.consensus.crypto.CryptoConstants;
+import org.hiero.base.crypto.CryptoConstants;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.Event;
 

@@ -14,15 +14,13 @@ import com.hedera.node.app.services.MigrationStateChanges;
 import com.hedera.node.app.spi.fixtures.TestSchema;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.data.HederaConfig;
-import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.WritableKVState;
@@ -78,13 +76,6 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
         lenient().when(config.getConfigData(MerkleDbConfig.class)).thenReturn(merkleDbConfig);
         final var virtualMapConfig = mock(VirtualMapConfig.class);
         lenient().when(config.getConfigData(VirtualMapConfig.class)).thenReturn(virtualMapConfig);
-        final var temporaryFileDbConfig = mock(TemporaryFileConfig.class);
-        lenient().when(config.getConfigData(TemporaryFileConfig.class)).thenReturn(temporaryFileDbConfig);
-        final var stateCommonConfig = mock(StateCommonConfig.class);
-        lenient().when(config.getConfigData(StateCommonConfig.class)).thenReturn(stateCommonConfig);
-        lenient()
-                .when(temporaryFileDbConfig.getTemporaryFilePath(stateCommonConfig))
-                .thenReturn("test");
     }
 
     @Nested
@@ -168,7 +159,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
          * Utility method that migrates from version 9 to 10
          */
         void migrateFromV9ToV10() {
-            final var virtualMap = VirtualMapUtils.createVirtualMap();
+            final var virtualMap = VirtualMapUtils.createVirtualMap(FILE_SYSTEM_MANAGER);
             SemanticVersion latestVersion = version(10, 0, 0);
             schemaRegistry.migrate(
                     createTestStateWithVM(virtualMap),
@@ -187,7 +178,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
     @Nested
     @DisplayName("Migration Tests")
     class MigrationTest {
-        private MerkleNodeState merkleTree;
+        private VirtualMapState merkleTree;
         private SemanticVersion[] versions;
 
         @BeforeEach
@@ -411,8 +402,8 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     @Override
                     @SuppressWarnings("rawtypes")
                     public Set<StateDefinition> statesToCreate() {
-                        final var fruitDef = StateDefinition.onDisk(
-                                FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 100);
+                        final var fruitDef = StateDefinition.keyValue(
+                                FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF);
                         return Set.of(fruitDef);
                     }
 
@@ -436,8 +427,8 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
                     @Override
                     @SuppressWarnings("rawtypes")
                     public Set<StateDefinition> statesToCreate() {
-                        final var learningDef = StateDefinition.onDisk(
-                                STEAM_STATE_ID, STEAM_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 100);
+                        final var learningDef = StateDefinition.keyValue(
+                                STEAM_STATE_ID, STEAM_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF);
                         final var countryDef =
                                 StateDefinition.singleton(COUNTRY_STATE_ID, COUNTRY_STATE_KEY, ProtoBytes.PROTOBUF);
                         return Set.of(learningDef, countryDef);
@@ -670,6 +661,46 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
 
                 // And we should see that schemaV2Called is false because it was never called
                 assertThat(schemaV2Called).isFalse();
+            }
+
+            @Test
+            @DisplayName("State should be skipped if removed by later schema already in state")
+            void skipStateIfRemovedByLaterSchema() {
+                // Given a schema V1 that adds FRUIT_STATE_ID
+                final var schemaV1 = createV1Schema();
+                // And a schema V2 that removes FRUIT_STATE_ID
+                final var schemaV2 = new TestSchema(versions[2]) {
+                    @NonNull
+                    @Override
+                    public Set<Integer> statesToRemove() {
+                        return Set.of(FRUIT_STATE_ID);
+                    }
+                };
+
+                schemaRegistry.register(schemaV1);
+                schemaRegistry.register(schemaV2);
+
+                // When we migrate from versions[2] to versions[2]
+                // The registry will see that versions[2] is already in state.
+                // It should apply definitions for schemaV1 because versions[2] >= versions[1].
+                // BUT it should skip definitions for schemaV1 because schemaV2 (which is also already in state)
+                // removes FRUIT_STATE_ID.
+                schemaRegistry.migrate(
+                        merkleTree,
+                        versions[2],
+                        versions[2],
+                        config,
+                        config,
+                        new HashMap<>(),
+                        migrationStateChanges,
+                        startupNetworks,
+                        InitTrigger.RESTART);
+
+                // We expect that FRUIT_STATE_ID was NOT initialized in the merkleTree
+                // because it should have been skipped.
+                // If it wasn't skipped, it would have been initialized.
+                final var readableStates = merkleTree.getReadableStates(FIRST_SERVICE);
+                assertThat(readableStates.contains(FRUIT_STATE_ID)).isFalse();
             }
         }
     }

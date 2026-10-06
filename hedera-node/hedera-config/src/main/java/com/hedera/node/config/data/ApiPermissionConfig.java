@@ -2,6 +2,18 @@
 package com.hedera.node.config.data;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CLOSE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_ENDPOINT_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_ENDPOINT_MANIFEST;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_LEDGER_CONFIGURATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REDACT_MESSAGE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNEL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_UPDATE_LEDGER_CONFIGURATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_DELETE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_GET_TOPIC_INFO;
@@ -45,11 +57,15 @@ import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_DISPATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LAMBDA_S_STORE;
 import static com.hedera.hapi.node.base.HederaFunctionality.LEDGER_ID_PUBLICATION;
+import static com.hedera.hapi.node.base.HederaFunctionality.MIGRATION_ROOT_HASH_VOTE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_STAKE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NODE_UPDATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.REGISTERED_NODE_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.REGISTERED_NODE_DELETE;
+import static com.hedera.hapi.node.base.HederaFunctionality.REGISTERED_NODE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_GET_INFO;
@@ -196,6 +212,10 @@ import java.util.function.Function;
  * @param createNode                  the permission for {@link HederaFunctionality#NODE_CREATE} functionality
  * @param updateNode                  the permission for {@link HederaFunctionality#NODE_UPDATE} functionality
  * @param deleteNode                  the permission for {@link HederaFunctionality#NODE_DELETE} functionality
+ *
+ * @param createRegisteredNode        the permission for {@link HederaFunctionality#REGISTERED_NODE_CREATE} functionality
+ * @param updateRegisteredNode        the permission for {@link HederaFunctionality#REGISTERED_NODE_UPDATE} functionality
+ * @param deleteRegisteredNode        the permission for {@link HederaFunctionality#REGISTERED_NODE_DELETE} functionality
  */
 @ConfigData
 public record ApiPermissionConfig(
@@ -286,7 +306,23 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange hookStore,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange hookDispatch,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange nodeStakeUpdate,
-        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange ledgerIdPublication) {
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange ledgerIdPublication,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange migrationRootHashVote,
+        @ConfigProperty(defaultValue = "2-55") PermissionedAccountsRange createRegisteredNode,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange updateRegisteredNode,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange deleteRegisteredNode,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprUpdateLedgerConfiguration,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprRegisterChannel,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprCompleteChannel,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprCloseChannel,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprRegisterConnector,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprCompleteConnector,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprDeregisterConnector,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprSubmitBundle,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprRedactMessage,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprGetLedgerConfiguration,
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange clprEndpointPublication,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprGetEndpointManifest) {
 
     private static final EnumMap<HederaFunctionality, Function<ApiPermissionConfig, PermissionedAccountsRange>>
             permissionKeys = new EnumMap<>(HederaFunctionality.class);
@@ -378,6 +414,22 @@ public record ApiPermissionConfig(
         permissionKeys.put(CRS_PUBLICATION, c -> c.crsPublication);
         permissionKeys.put(NODE_STAKE_UPDATE, c -> c.nodeStakeUpdate);
         permissionKeys.put(LEDGER_ID_PUBLICATION, c -> c.ledgerIdPublication);
+        permissionKeys.put(MIGRATION_ROOT_HASH_VOTE, c -> c.migrationRootHashVote);
+        permissionKeys.put(REGISTERED_NODE_CREATE, c -> c.createRegisteredNode);
+        permissionKeys.put(REGISTERED_NODE_UPDATE, c -> c.updateRegisteredNode);
+        permissionKeys.put(REGISTERED_NODE_DELETE, c -> c.deleteRegisteredNode);
+        permissionKeys.put(CLPR_UPDATE_LEDGER_CONFIGURATION, c -> c.clprUpdateLedgerConfiguration);
+        permissionKeys.put(CLPR_REGISTER_CHANNEL, c -> c.clprRegisterChannel);
+        permissionKeys.put(CLPR_COMPLETE_CHANNEL, c -> c.clprCompleteChannel);
+        permissionKeys.put(CLPR_CLOSE_CHANNEL, c -> c.clprCloseChannel);
+        permissionKeys.put(CLPR_REGISTER_CONNECTOR, c -> c.clprRegisterConnector);
+        permissionKeys.put(CLPR_COMPLETE_CONNECTOR, c -> c.clprCompleteConnector);
+        permissionKeys.put(CLPR_DEREGISTER_CONNECTOR, c -> c.clprDeregisterConnector);
+        permissionKeys.put(CLPR_SUBMIT_BUNDLE, c -> c.clprSubmitBundle);
+        permissionKeys.put(CLPR_REDACT_MESSAGE, c -> c.clprRedactMessage);
+        permissionKeys.put(CLPR_GET_LEDGER_CONFIGURATION, c -> c.clprGetLedgerConfiguration);
+        permissionKeys.put(CLPR_ENDPOINT_PUBLICATION, c -> c.clprEndpointPublication);
+        permissionKeys.put(CLPR_GET_ENDPOINT_MANIFEST, c -> c.clprGetEndpointManifest);
     }
 
     /**

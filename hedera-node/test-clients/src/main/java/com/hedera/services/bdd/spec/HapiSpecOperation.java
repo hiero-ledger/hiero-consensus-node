@@ -6,21 +6,16 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asIdWithAlias;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.extractTxnId;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static java.util.Collections.EMPTY_LIST;
 import static java.util.stream.Collectors.toList;
 
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.UnknownFieldSet;
-import com.hedera.node.app.hapi.fees.usage.consensus.ConsensusOpsUsage;
-import com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage;
-import com.hedera.node.app.hapi.fees.usage.file.FileOpsUsage;
-import com.hedera.node.app.hapi.fees.usage.schedule.ScheduleOpsUsage;
 import com.hedera.node.app.hapi.utils.CommonUtils;
-import com.hedera.node.app.hapi.utils.fee.CryptoFeeBuilder;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
-import com.hedera.node.app.hapi.utils.fee.FileFeeBuilder;
-import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
+import com.hedera.node.app.hapi.utils.fee.FeeConstants;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.spec.keys.ControlForKey;
@@ -29,7 +24,6 @@ import com.hedera.services.bdd.spec.keys.SigMapGenerator;
 import com.hedera.services.bdd.spec.queries.meta.HapiGetTxnRecord;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.mod.BodyMutation;
-import com.hedera.services.bdd.suites.HapiSuite;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.CustomFeeLimit;
 import com.hederahashgraph.api.proto.java.Duration;
@@ -67,11 +61,6 @@ import org.apache.logging.log4j.Logger;
 public abstract class HapiSpecOperation implements SpecOperation {
     private static final Logger log = LogManager.getLogger(HapiSpecOperation.class);
 
-    protected static final FileOpsUsage fileOpsUsage = new FileOpsUsage();
-    protected static final CryptoOpsUsage cryptoOpsUsage = new CryptoOpsUsage();
-    protected static final ScheduleOpsUsage scheduleOpsUsage = new ScheduleOpsUsage();
-    protected static final ConsensusOpsUsage consensusOpsUsage = new ConsensusOpsUsage();
-
     @SuppressWarnings("java:S2245") // using java.util.Random in tests is fine
     private final Random r = new Random(688679L);
 
@@ -79,11 +68,6 @@ public abstract class HapiSpecOperation implements SpecOperation {
     protected String txnName = UUID.randomUUID().toString().substring(0, 8);
     protected Transaction txnSubmitted;
     protected TransactionRecord recordOfSubmission;
-
-    protected FeeBuilder fees = new FeeBuilder();
-    protected FileFeeBuilder fileFees = new FileFeeBuilder();
-    protected CryptoFeeBuilder cryptoFees = new CryptoFeeBuilder();
-    protected SmartContractFeeBuilder scFees = new SmartContractFeeBuilder();
 
     protected boolean omitTxnId = false;
     protected boolean loggingOff = false;
@@ -139,8 +123,16 @@ public abstract class HapiSpecOperation implements SpecOperation {
         OP_BODY
     }
 
-    protected abstract long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) throws Throwable;
-
+    /**
+     * Submits the operation to the Hedera network.
+     *
+     * @param spec The HapiSpec instance for the operation.
+     * @return true if the operation's full lifecycle (automated validation and state updates) should be completed;
+     * false if the lifecycle ended early (e.g., due to an expected failure, deferred resolution, or the operation being
+     * a pure utility). False may also be returned if the operation is a pure utility and the lifecycle is not expected
+     * to complete (no standard Hedera consensus lifecycle).
+     * @throws Throwable if an error occurs during submission.
+     */
     protected abstract boolean submitOp(HapiSpec spec) throws Throwable;
 
     protected Key lookupKey(final HapiSpec spec, final String name) {
@@ -297,7 +289,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
             final double tinybarFee = centsFee
                     / spec.ratesProvider().rates().getCentEquiv()
                     * spec.ratesProvider().rates().getHbarEquiv()
-                    * HapiSuite.ONE_HBAR;
+                    * ONE_HBAR;
             fee = Optional.of((long) tinybarFee);
         }
         Consumer<TransactionBody.Builder> netDef = fee.map(amount -> minDef.andThen(b -> b.setTransactionFee(amount)))
@@ -316,11 +308,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
         if (fee.isPresent()) {
             txn = provisional;
         } else {
-            final Key payerKey =
-                    spec.registry().getKey(payer.orElse(spec.setup().defaultPayerName()));
-            final int numPayerKeys = hardcodedNumPayerKeys.orElse(spec.keys().controlledKeyCount(payerKey, overrides));
-            final long customFee = feeFor(spec, provisional, numPayerKeys);
-            netDef = netDef.andThen(b -> b.setTransactionFee(customFee));
+            netDef = netDef.andThen(b -> b.setTransactionFee(ONE_HUNDRED_HBARS));
             txn = getSigned(spec, spec.txns().getReadyToSign(netDef, bodyMutation, spec), keys);
         }
 
@@ -440,7 +428,7 @@ public abstract class HapiSpecOperation implements SpecOperation {
     protected MoreObjects.ToStringHelper toStringHelper() {
         final MoreObjects.ToStringHelper helper = MoreObjects.toStringHelper(this);
         if (txnSubmitted != null) {
-            helper.add("sigs", FeeBuilder.getSignatureCount(txnSubmitted));
+            helper.add("sigs", FeeConstants.getSignatureCount(txnSubmitted));
         }
         payer.ifPresent(a -> helper.add("payer", a));
         node.ifPresent(id -> helper.add("node", id));

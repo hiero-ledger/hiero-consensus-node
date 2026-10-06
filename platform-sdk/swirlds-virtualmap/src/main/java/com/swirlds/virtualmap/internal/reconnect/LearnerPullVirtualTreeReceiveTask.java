@@ -1,103 +1,70 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.reconnect;
 
-import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
-
-import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
+import com.swirlds.virtualmap.sync.LearnerTreeExchanger;
+import com.swirlds.virtualmap.sync.streams.AsyncInputStream;
+import com.swirlds.virtualmap.sync.streams.YieldStrategy;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * A task running on the learner side, which is responsible for getting responses from the teacher.
- *
- * <p>The task keeps running as long as the corresponding {@link LearnerPullVirtualTreeSendTask}
- * is alive, or some responses are expected from the teacher.
- *
- * <p>For every response from the teacher, the learner view is notified, which in turn notifies
+ * <p>
+ * This tasks terminates either on exception or when no more messages are provided by {@link AsyncInputStream}.
+ * <p>
+ * For every response from the teacher, the learner view is notified, which in turn notifies
  * the current traversal order, so it can recalculate the next virtual path to request.
  */
-public class LearnerPullVirtualTreeReceiveTask {
+public class LearnerPullVirtualTreeReceiveTask implements Runnable {
 
-    private static final Logger logger = LogManager.getLogger(LearnerPullVirtualTreeReceiveTask.class);
-
-    private static final String NAME = "reconnect-learner-receiver";
-
-    private final StandardWorkGroup workGroup;
-    private final SerializableDataInputStream in;
-    private final LearnerPullVirtualTreeView view;
-
-    // Indicates if the learner sender task is done sending all requests to the teacher
-    private final AtomicBoolean senderIsFinished;
-
-    // Number of requests sent to teacher / responses expected from the teacher. Increased in
-    // the sending task, decreased in this task
-    private final AtomicLong expectedResponses;
-
-    // Indicates if a response for path 0 (virtual root node) has been received
-    private final CountDownLatch rootResponseReceived;
+    private final AsyncInputStream in;
+    private final LearnerTreeExchanger treeExchanger;
+    private final CountDownLatch receiveTasksDone;
 
     /**
      * Create a thread for receiving responses to queries from the teacher.
      *
-     * @param workGroup
-     * 		the work group that will manage this thread
      * @param in
      * 		the input stream, this object is responsible for closing this when finished
-     * @param view
-     * 		the view to be used when touching the merkle tree
-     * @param senderIsFinished
-     * 		becomes true once the sending thread has finished
+     * @param treeExchanger
+     * 		the exchanger used to callback on tree node received
+     * @param receiveTasksDone
+     * 		latch counted down when this receiver finishes; lets the ordered leaf-apply thread know
+     * 		when no further responses will arrive
      */
     public LearnerPullVirtualTreeReceiveTask(
-            final StandardWorkGroup workGroup,
-            final SerializableDataInputStream in,
-            final LearnerPullVirtualTreeView view,
-            final AtomicBoolean senderIsFinished,
-            final AtomicLong expectedResponses,
-            final CountDownLatch rootResponseReceived) {
-        this.workGroup = workGroup;
+            final AsyncInputStream in,
+            final LearnerTreeExchanger treeExchanger,
+            final CountDownLatch receiveTasksDone) {
         this.in = in;
-        this.view = view;
-        this.senderIsFinished = senderIsFinished;
-        this.expectedResponses = expectedResponses;
-        this.rootResponseReceived = rootResponseReceived;
+        this.treeExchanger = treeExchanger;
+        this.receiveTasksDone = receiveTasksDone;
     }
 
-    public void exec() {
-        workGroup.execute(NAME, this::run);
-    }
-
-    private void run() {
-        try (view) {
-            boolean finished = senderIsFinished.get();
-            boolean responseExpected = expectedResponses.get() > 0;
-
-            while (!finished || responseExpected) {
-                if (responseExpected) {
-                    final PullVirtualTreeResponse response = new PullVirtualTreeResponse(view);
-                    // the learner tree is notified about the new response in deserialize() method below
-                    response.deserialize(in, 0);
-                    view.getMapStats().incrementTransfersFromTeacher();
-                    logger.debug(RECONNECT.getMarker(), "Learner receive path: " + response.getPath());
-                    if (response.getPath() == 0) {
-                        rootResponseReceived.countDown();
-                    }
-                    expectedResponses.decrementAndGet();
-                } else {
-                    Thread.onSpinWait();
+    /**
+     * Main loop for the receiver thread. Reads responses from the async input stream,
+     * tracks reconnect statistics, and delegates to the learner view.
+     * Terminates when input streams returns no more messages to process.
+     */
+    @Override
+    public void run() {
+        try {
+            while (!Thread.currentThread().isInterrupted()) {
+                final byte[] responseBytes = in.readOrWait(YieldStrategy.SLEEP);
+                if (responseBytes == null) {
+                    break;
                 }
-
-                finished = senderIsFinished.get();
-                responseExpected = expectedResponses.get() > 0;
+                final PullVirtualTreeResponse response =
+                        PullVirtualTreeResponse.parseFrom(BufferedData.wrap(responseBytes));
+                if (response.path() < 0) {
+                    throw new IllegalStateException("Invalid path received from learner: " + response.path());
+                }
+                treeExchanger.responseReceived(response);
             }
-            logger.debug(RECONNECT.getMarker(), "Learner receive done");
-        } catch (final Exception ex) {
-            throw new MerkleSynchronizationException("Exception in the learner's receiving task", ex);
+        } finally {
+            // Always signal completion, even on exception/interrupt, so the ordered leaf-apply thread
+            // cannot hang waiting for a receiver that has already died.
+            receiveTasksDone.countDown();
         }
     }
 }

@@ -4,9 +4,7 @@ package org.hiero.consensus.event.creator.impl;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.ATTEMPTING_CREATION;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.IDLE;
 import static org.hiero.consensus.event.creator.impl.EventCreationStatus.NO_ELIGIBLE_PARENTS;
-import static org.hiero.consensus.event.creator.impl.EventCreationStatus.RATE_LIMITED;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.DoubleGauge;
@@ -36,6 +34,7 @@ import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 
@@ -89,7 +88,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
      * @param time provides the time source for the event creator
      * @param signatureTransactionCheck checks for pending signature transactions
      * @param eventCreator creates events
-     * @param roster current roster
+     * @param roster active roster
      * @param selfId id of current node
      */
     public DefaultEventCreationManager(
@@ -98,7 +97,7 @@ public class DefaultEventCreationManager implements EventCreationManager {
             @NonNull final Time time,
             @NonNull final SignatureTransactionCheck signatureTransactionCheck,
             @NonNull final EventCreator eventCreator,
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final NodeId selfId) {
         this.creator = Objects.requireNonNull(eventCreator);
         this.syncLagCalculator = new SyncLagCalculator(selfId, roster);
@@ -146,8 +145,12 @@ public class DefaultEventCreationManager implements EventCreationManager {
             phase.activatePhase(NO_ELIGIBLE_PARENTS);
         } else {
             eventCreationRules.eventWasCreated();
-            // We created an event, we won't be allowed to create another until some time has elapsed.
-            phase.activatePhase(RATE_LIMITED);
+            // After an event was created we check the status to update the right phase
+            if (!eventCreationRules.isEventCreationPermitted()) {
+                phase.activatePhase(eventCreationRules.getEventCreationStatus());
+            } else {
+                phase.activatePhase(IDLE);
+            }
         }
 
         return newEvent;

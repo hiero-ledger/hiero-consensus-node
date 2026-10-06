@@ -12,6 +12,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
+import org.hiero.consensus.iss.detection.internal.DefaultIssDetector;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.result.LogSubscriber;
@@ -135,6 +136,15 @@ public class MultipleNodeLogResultsImpl implements MultipleNodeLogResults {
                 .toList();
 
         return new MultipleNodeLogResultsImpl(filteredResults);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public MultipleNodeLogResults suppressingIssErrors() {
+        return suppressingLoggerName(DefaultIssDetector.class);
     }
 
     @Override

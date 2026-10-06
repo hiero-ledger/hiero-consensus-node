@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app;
 
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_OVERRIDES_YAML_FILE_NAME;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
@@ -15,20 +12,25 @@ import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
-import static com.swirlds.platform.system.SystemExitCode.NODE_ADDRESS_MISMATCH;
-import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
-import static com.swirlds.platform.util.BootstrapUtils.getNodesToRun;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.file.FileUtils.getAbsolutePath;
+import static org.hiero.base.file.FileUtils.rethrowIO;
+import static org.hiero.consensus.system.SystemExitCode.NODE_ID_NOT_PROVIDED;
+import static org.hiero.consensus.system.SystemExitUtils.exitSystem;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.info.DiskStartupNetworks;
+import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.records.schemas.V0490BlockRecordSchema;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
@@ -36,14 +38,15 @@ import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.services.OrderedServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
-import com.hedera.node.app.tss.TssBlockHashSigner;
+import com.hedera.node.app.tss.DualBlockHashSigner;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.BlockStreamJumpstartConfig;
+import com.hedera.node.config.data.ConsensusConfig;
+import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.filesystem.FileSystemManager;
-import com.swirlds.common.io.utility.RecycleBinImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
@@ -51,34 +54,35 @@ import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.CommandLineArgs;
 import com.swirlds.platform.builder.PlatformBuilder;
+import com.swirlds.platform.builder.PlatformBuilder.PersistenceScope;
+import com.swirlds.platform.config.ConfigurationSetupUtils;
 import com.swirlds.platform.config.legacy.ConfigurationException;
+import com.swirlds.platform.context.PlatformContext;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
-import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.SwirldMain;
-import com.swirlds.platform.util.BootstrapUtils;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.InstantSource;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
-import org.hiero.consensus.config.BasicConfig;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.PathsConfig;
+import org.hiero.consensus.constructable.ConstructableRegistration;
+import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.roster.ReadableRosterStore;
-import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.state.signed.ReservedSignedState;
 
 /**
  * Main entry point.
@@ -87,18 +91,6 @@ import org.hiero.consensus.roster.RosterStateUtils;
  */
 public class ServicesMain {
     private static final Logger logger = LogManager.getLogger(ServicesMain.class);
-
-    /**
-     * A supplier that refuses to satisfy fallback requests for a set of node ids to run
-     * simultaneously; this is only useful for certain platform testing applications
-     */
-    private static final Supplier<Set<NodeId>> ILLEGAL_FALLBACK_NODE_IDS = () -> {
-        throw new IllegalStateException("The node id must be configured explicitly");
-    };
-    /**
-     * Upfront validation on node ids is only useful for certain platform testing applications
-     */
-    private static final Predicate<NodeId> NOOP_NODE_VALIDATOR = nodeId -> true;
 
     /**
      * The {@link Hedera} singleton.
@@ -116,23 +108,18 @@ public class ServicesMain {
      *     <li>Scan the classpath for {@link RuntimeConstructable} classes,
      *     registering their no-op constructors as the default factories for their
      *     class ids.</li>
-     *     <li>Create the application's {@link Hedera} singleton, which overrides
-     *     the default factory for the stable {@literal 0x8e300b0dfdafbb1a} class
-     *     id of the Services Merkle tree root with a reference to its
-     *     {@link SwirldMain#newStateRoot()} method.</li>
+     *     <li>Create the application's {@link Hedera} singleton, which initializes an instance of
+     *     {@link VirtualMapStateLifecycleManager} to manage state instances.</li>
      *     <li>Determine this node's <b>self id</b> by searching the <i>config.txt</i>
      *     in the working directory for any address book entries with IP addresses
      *     local to this machine; if there is more than one such entry, fail unless
      *     the command line args include a {@literal -local N} arg.</li>
-     *     <li>Build a {@link Platform} instance from Services application metadata
-     *     and the working directory <i>settings.txt</i>, providing the same
-     *     {@link SwirldMain#newStateRoot()} method reference as the genesis state
-     *     factory. (<b>IMPORTANT:</b> This step instantiates and invokes
-     *     {@link ConsensusStateEventHandler#onStateInitialized(MerkleNodeState, Platform, InitTrigger, SemanticVersion)}
-     *     on a {@link MerkleNodeState} instance that delegates the call back to our
+     *     <li>Load the initial state via the {@code StateLifecycleManager}, which creates
+     *     a genesis state eagerly in its constructor if no saved state is found.
+     *     (<b>IMPORTANT:</b> This step instantiates and invokes
+     *     {@link ConsensusStateEventHandler#onStateInitialized(State, Platform, InitTrigger, SemanticVersion)}
+     *     on a {@link VirtualMapState} instance that delegates the call back to our
      *     Hedera instance.)</li>
-     *     <li>Call {@link Hedera#init(Platform, NodeId)} to complete startup phase
-     *     validation and register notification listeners on the platform.</li>
      *     <li>Invoke {@link Platform#start()}.</li>
      * </ol>
      *
@@ -142,137 +129,144 @@ public class ServicesMain {
      * <p>
      * <b>IMPORTANT:</b> A surface-level reading of this method will undersell the centrality
      * of the Hedera instance. It is actually omnipresent throughout both the startup and
-     * runtime phases of the application. Let's see why. When we build the platform, the
-     * builder will either:
-     * <ol>
-     *      <li>Create a genesis state; or,</li>
-     *      <li>Deserialize a saved state.</li>
-     * </ol>
-     * In both cases the state object will be created by the {@link SwirldMain#newStateRoot()}
-     * method reference bound to our Hedera instance. Because,
-     * <ol>
-     *      <li>We provided this method as the genesis state factory right above; and,</li>
-     *      <li>Our Hedera instance's constructor registered its {@link SwirldMain#newStateRoot()}
-     *      method with the {@link ConstructableRegistry} as the factory for the Services state root
-     *      class id.</li>
-     * </ol>
-     *  Now, note that {@link SwirldMain#newStateRoot()} returns {@link MerkleNodeState}
-     *  instances that delegate their lifecycle methods to an injected instance of
-     *  {@link ConsensusStateEventHandler}---and the implementation of that
-     *  injected by {@link SwirldMain#newStateRoot()} delegates these calls back to the Hedera
-     *  instance itself.
-     * <p>
-     *  Thus, the Hedera instance centralizes nearly all the setup and runtime logic for the
-     *  application. It implements this logic by instantiating a {@link javax.inject.Singleton}
-     *  component whose object graph roots include the Ingest, PreHandle, Handle, and Query
-     *  workflows; as well as other infrastructure components that need to be initialized or
-     *  accessed at specific points in the Swirlds application lifecycle.
+     * runtime phases of the application. The {@link StateLifecycleManager} owned by the
+     * Hedera instance is responsible for creating and managing all state instances. The
+     * Hedera instance centralizes nearly all the setup and runtime logic for the application.
+     * It implements this logic by instantiating a {@link javax.inject.Singleton} component
+     * whose object graph roots include the Ingest, PreHandle, Handle, and Query workflows;
+     * as well as other infrastructure components that need to be initialized or accessed at
+     * specific points in the Swirlds application lifecycle.
      *
      * @param args optionally, what node id to run; required if the address book is ambiguous
      */
     public static void main(final String... args) throws Exception {
         // --- Configure platform infrastructure and derive node id from the command line and environment ---
         initLogging();
-        BootstrapUtils.setupConstructableRegistry();
+        ConstructableRegistration.setupConstructableRegistry();
         final var commandLineArgs = CommandLineArgs.parse(args);
         if (commandLineArgs.localNodesToStart().size() > 1) {
             logger.error(
                     EXCEPTION.getMarker(),
                     "Multiple nodes were supplied via the command line. Only one node can be started per java process.");
-            exitSystem(NODE_ADDRESS_MISMATCH);
+            exitSystem(NODE_ID_NOT_PROVIDED);
             // the following throw is not reachable in production,
             // but reachable in testing with static mocked system exit calls.
             throw new ConfigurationException();
         }
         final var platformConfig = buildPlatformConfig();
+        final var pathsConfig = platformConfig.getConfigData(PathsConfig.class);
+        final var fileSystemManager = new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
 
-        // Determine which nodes were _requested_ to run from the command line
-        final var cliNodesToRun = commandLineArgs.localNodesToStart();
-        // Determine which nodes are _configured_ to run from the config file(s)
-        final var configNodesToRun =
-                platformConfig.getConfigData(BasicConfig.class).nodesToRun();
-        // Using the requested nodes to run from the command line, the nodes configured to run, and now the
-        // address book on disk, reconcile the list of nodes to run
-        final List<NodeId> nodesToRun =
-                getNodesToRun(cliNodesToRun, configNodesToRun, ILLEGAL_FALLBACK_NODE_IDS, NOOP_NODE_VALIDATOR);
-        // Finally, verify that the reconciliation of above node IDs yields exactly one node to run
-        final var selfId = ensureSingleNode(nodesToRun);
+        final var selfId = commandLineArgs.localNodesToStart().stream()
+                .findFirst()
+                .orElseThrow(() -> {
+                    final String msg = "No node id specified on command line. Use -local <nodeId>";
+                    exitSystem(NODE_ID_NOT_PROVIDED, msg);
+                    return new ConfigurationException(msg);
+                });
 
         // --- Initialize the platform metrics and the Hedera instance ---
         setupGlobalMetrics(platformConfig);
         final var time = Time.getCurrent();
         metrics = getMetricsProvider().createPlatformMetrics(selfId);
-        hedera = newHedera(platformConfig, metrics, time);
+        hedera = newHedera(platformConfig, fileSystemManager, metrics, time, selfId);
         final var version = hedera.getSemanticVersion();
-        final AtomicBoolean genesisNetwork = new AtomicBoolean(false);
         logger.info("Starting node {} with version {}", selfId, version);
 
         // --- Build required infrastructure to load the initial state, then initialize the States API ---
-        final var fileSystemManager = FileSystemManager.create(platformConfig);
         final var recycleBin = RecycleBinImpl.create(
                 metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
-        final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler =
-                hedera.newConsensusStateEvenHandler();
+        final ConsensusStateEventHandler consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
         final PlatformContext platformContext =
                 PlatformContext.create(platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin);
+
+        // Try to load a saved state from disk. The StateLifecycleManager creates a genesis state eagerly in its
+        // constructor, so if no saved state is found we proceed with the genesis path.
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> {
-                    genesisNetwork.set(true);
-                    final var genesisState = hedera.newStateRoot();
-                    hedera.initializeStatesApi(genesisState, GENESIS, platformConfig);
-                    return genesisState;
-                },
                 Hedera.APP_NAME,
                 Hedera.SWIRLD_NAME,
                 selfId,
-                platformContext,
+                platformConfig,
+                fileSystemManager,
                 hedera.getStateLifecycleManager());
         final ReservedSignedState initialState = reservedState.state();
-        final MerkleNodeState state = initialState.get().getState();
-        if (!genesisNetwork.get()) {
+        final VirtualMapState state = initialState.get().getState();
+
+        // Determine whether we are starting from genesis or restarting from a saved state.
+        final boolean isGenesis = initialState.get().isGenesisState();
+
+        if (isGenesis) {
+            // Genesis path: initialize the States API on the genesis state created by the manager.
+            hedera.initializeStatesApi(state, GENESIS, platformConfig);
+        } else {
+            // Restart path: initialize the States API on the loaded state.
             hedera.initializeStatesApi(state, RESTART, platformConfig);
         }
         hedera.setInitialStateHash(reservedState.hash());
-        logger.info("Initial state hash: {}", reservedState.hash().toHex());
+        logger.info(
+                "Initial state hash: {}",
+                reservedState.hash() != null ? reservedState.hash().toHex() : "<null>");
 
-        final RosterHistory rosterHistory;
+        final ConsensusLayerRosterInputs rosterInputs;
         final List<RosterEntry> rosterEntries;
-        if (genesisNetwork.get()) {
+        if (isGenesis) {
             final var genesisRoster = hedera.genesisRosterOrThrow();
-            rosterHistory = RosterHistory.fromGenesis(genesisRoster);
+            rosterInputs = RosterUtils.rosterInputsFromGenesis(genesisRoster);
             rosterEntries = genesisRoster.rosterEntries();
         } else {
-            rosterHistory = RosterStateUtils.createRosterHistory(state);
             final var rosterStore = new ReadableStoreFactoryImpl(state).readableStore(ReadableRosterStore.class);
+            rosterInputs = rosterStore.getConsensusLayerRosterInputs();
             rosterEntries = requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
         }
         final var keysAndCerts = initNodeSecurity(platformConfig, selfId, rosterEntries);
 
-        final String consensusEventStreamName = genesisNetwork.get()
+        final String consensusEventStreamName = isGenesis
                 // If at genesis, base the event stream location on the genesis network metadata
                 ? eventStreamLocOrThrow(hedera.startupNetworks().genesisNetworkOrThrow(platformConfig), selfId.id())
-                // Otherwise derive if from the node's id in state or
+                // Otherwise derive it from the node's id in state
                 : canonicalEventStreamLoc(selfId.id(), state);
+
+        // Run the wrapped record block hash migration before platform.build() so the result is available when
+        // BlockRecordManagerImpl is constructed during DI initialization.
+        // The migration itself is gated by the appropriate feature flags, so this is safe to invoke.
+        // If migration voting has already completed in state, skip the migration entirely.
+        final var hederaConfig = hedera.configProvider().getConfiguration();
+        final var migrationAlreadyApplied = isMigrationVotingComplete(state);
+        hedera.wrappedRecordBlockHashMigration()
+                .execute(
+                        hederaConfig.getConfigData(BlockStreamConfig.class).streamMode(),
+                        hederaConfig.getConfigData(BlockRecordStreamConfig.class),
+                        hederaConfig.getConfigData(BlockStreamJumpstartConfig.class),
+                        migrationAlreadyApplied);
+
+        final var transactionOffsetNanos = transactionOffsetNanos(hederaConfig);
+        hedera.setTxnOffsetNanos(transactionOffsetNanos);
+        logger.info("Defined transaction offset (nanos): {}", transactionOffsetNanos);
+
+        final var persistenceScope = new PersistenceScope(Hedera.APP_NAME, Hedera.SWIRLD_NAME);
+
         // --- Now build the platform and start it ---
-        final var platformBuilder = PlatformBuilder.create(
-                        Hedera.APP_NAME,
-                        Hedera.SWIRLD_NAME,
-                        version,
-                        initialState,
-                        consensusStateEventHandler,
+        final var platform = new PlatformBuilder<>(
+                        platformConfig,
+                        platformContext.getMetrics(),
+                        platformContext.getTime(),
+                        rosterInputs,
+                        keysAndCerts,
                         selfId,
+                        platformContext.getRecycleBin(),
+                        platformContext.getFileSystemManager(),
+                        hedera,
+                        consensusStateEventHandler,
+                        initialState,
+                        hedera.getStateLifecycleManager(),
+                        version,
+                        persistenceScope,
                         consensusEventStreamName,
-                        rosterHistory,
-                        hedera.getStateLifecycleManager())
-                .withPlatformContext(platformContext)
-                .withConfiguration(platformConfig)
-                .withKeysAndCerts(keysAndCerts)
-                .withExecutionLayer(hedera)
-                .withStaleEventCallback(hedera);
-        final var platform = platformBuilder.build();
-        hedera.init(platform, selfId);
+                        transactionOffsetNanos)
+                .withStaleEventConsumer(hedera)
+                .build();
 
         platform.start();
         hedera.run();
@@ -327,37 +321,52 @@ public class ServicesMain {
     }
 
     /**
-     * Creates a canonical {@link Hedera} instance for the given node id and metrics.
+     * Constructs a new {@link Hedera} instance.
      *
-     * @param configuration the platform configuration instance to use when creating the new instance of state
-     * @param metrics       the platform metric instance to use when creating the new instance of state
-     * @param time          the time instance to use when creating the new instance of state
+     * @param configuration the configuration to use
+     * @param fileSystemManager the file system manager to use
+     * @param metrics the platform metric instance to use when creating the new instance of state
+     * @param time the time instance to use when creating the new instance of state
+     * @param selfId the node id of this node
      * @return the {@link Hedera} instance
      */
     public static Hedera newHedera(
-            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
+            @NonNull final Configuration configuration,
+            @NonNull final FileSystemManager fileSystemManager,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final NodeId selfId) {
         requireNonNull(configuration);
         requireNonNull(metrics);
         requireNonNull(time);
+        requireNonNull(selfId);
         return new Hedera(
                 ConstructableRegistry.getInstance(),
                 ServicesRegistryImpl::new,
                 new OrderedServiceMigrator(),
                 InstantSource.system(),
+                selfId,
                 DiskStartupNetworks::new,
-                (appContext, bootstrapConfig) -> new HintsServiceImpl(
+                (appContext, bootstrapConfig, rsaContext, rsaSignings, genesisNetworkSupplier) -> new HintsServiceImpl(
                         metrics,
                         ForkJoinPool.commonPool(),
                         appContext,
                         new HintsLibraryImpl(),
-                        bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod()),
-                (appContext, bootstrapConfig) -> new HistoryServiceImpl(
-                        metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl()),
-                TssBlockHashSigner::new,
+                        bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod(),
+                        rsaContext,
+                        rsaSignings,
+                        genesisNetworkSupplier),
+                (appContext, bootstrapConfig, genesisNetworkSupplier) -> new HistoryServiceImpl(
+                        metrics,
+                        ForkJoinPool.commonPool(),
+                        appContext,
+                        new HistoryLibraryImpl(),
+                        genesisNetworkSupplier),
+                DualBlockHashSigner::new,
                 configuration,
+                fileSystemManager,
                 metrics,
-                time,
-                () -> new VirtualMapState(configuration, metrics));
+                time);
     }
 
     /**
@@ -371,7 +380,7 @@ public class ServicesMain {
                 .withSource(SystemEnvironmentConfigSource.getInstance())
                 .withSource(SystemPropertiesConfigSource.getInstance());
 
-        rethrowIO(() -> BootstrapUtils.setupConfigBuilder(
+        rethrowIO(() -> ConfigurationSetupUtils.setupConfigBuilder(
                 configurationBuilder,
                 getAbsolutePath(DEFAULT_SETTINGS_FILE_NAME),
                 getAbsolutePath(DEFAULT_OVERRIDES_YAML_FILE_NAME)));
@@ -380,38 +389,41 @@ public class ServicesMain {
         return configuration;
     }
 
-    /**
-     * Ensures there is exactly 1 node to run.
-     *
-     * @param nodesToRun        the list of nodes configured to run.
-     * @return the node which should be run locally.
-     * @throws ConfigurationException if more than one node would be started or the requested node is not configured.
-     */
-    private static NodeId ensureSingleNode(@NonNull final List<NodeId> nodesToRun) {
-        requireNonNull(nodesToRun);
-
-        logger.info(STARTUP.getMarker(), "The following nodes {} are set to run locally", nodesToRun);
-        if (nodesToRun.isEmpty()) {
-            final String errorMessage = "No nodes are configured to run locally.";
-            logger.error(STARTUP.getMarker(), errorMessage);
-            exitSystem(NODE_ADDRESS_MISMATCH, errorMessage);
-            // the following throw is not reachable in production,
-            // but reachable in testing with static mocked system exit calls.
-            throw new ConfigurationException(errorMessage);
-        }
-
-        if (nodesToRun.size() > 1) {
-            final String errorMessage = "Multiple nodes are configured to run locally.";
-            logger.error(EXCEPTION.getMarker(), errorMessage);
-            exitSystem(NODE_ADDRESS_MISMATCH, errorMessage);
-            // the following throw is not reachable in production,
-            // but reachable in testing with static mocked system exit calls.
-            throw new ConfigurationException(errorMessage);
-        }
-        return nodesToRun.getFirst();
-    }
-
     private static @NonNull Hedera hederaOrThrow() {
         return requireNonNull(hedera);
+    }
+
+    /**
+     * Checks if migration root hash voting has already completed in state.
+     */
+    @VisibleForTesting
+    static boolean isMigrationVotingComplete(@NonNull final State state) {
+        final var blockRecordStates = state.getReadableStates(BlockRecordService.NAME);
+        final var blockInfo = blockRecordStates
+                .<BlockInfo>getSingleton(V0490BlockRecordSchema.BLOCKS_STATE_ID)
+                .get();
+        if (blockInfo == null) {
+            return false;
+        }
+        if (blockInfo.votingComplete()) {
+            return true;
+        }
+        return blockInfo.votingCompletionDeadlineBlockNumber() > 0
+                && blockInfo.lastBlockNumber() > blockInfo.votingCompletionDeadlineBlockNumber();
+    }
+
+    /**
+     * Calculates the minimum transaction offset in nanoseconds, taking into account the reserved system
+     * transaction time range and the maximum number of preceding records.
+     * @param config the configuration to use for the calculation
+     * @return the transaction offset in nanoseconds
+     */
+    @VisibleForTesting
+    public static int transactionOffsetNanos(@NonNull final Configuration config) {
+        final int reservedSystemTxnNanos =
+                config.getConfigData(SchedulingConfig.class).reservedSystemTxnNanos();
+        final int maxPrecedingRecords =
+                config.getConfigData(ConsensusConfig.class).handleMaxPrecedingRecords();
+        return reservedSystemTxnNanos + maxPrecedingRecords + 1;
     }
 }

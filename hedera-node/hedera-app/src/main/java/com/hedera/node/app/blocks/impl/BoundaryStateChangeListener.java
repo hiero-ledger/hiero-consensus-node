@@ -11,6 +11,9 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifestConstruction;
+import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.congestion.CongestionLevelStarts;
 import com.hedera.hapi.node.state.entity.EntityCounts;
@@ -25,6 +28,7 @@ import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.NodePayments;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
+import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
 import com.hedera.node.config.data.AccountsConfig;
@@ -260,6 +264,20 @@ public class BoundaryStateChangeListener implements StateChangeListener {
             }
             case CRSState crsState -> {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.CRS_STATE_VALUE, crsState);
+            }
+            case NodeId highestNodeId -> {
+                return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.NODE_ID_VALUE, highestNodeId);
+            }
+            case ClprLedgerConfiguration clprConfig -> {
+                return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.CLPR_LEDGER_CONFIGURATION_VALUE, clprConfig);
+            }
+            case ClprEndpointManifest clprManifest -> {
+                return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.CLPR_ENDPOINT_MANIFEST_VALUE, clprManifest);
+            }
+            case ClprEndpointManifestConstruction clprConstruction -> {
+                return new OneOf<>(
+                        SingletonUpdateChange.NewValueOneOfType.CLPR_ENDPOINT_MANIFEST_CONSTRUCTION_VALUE,
+                        clprConstruction);
             }
             default ->
                 throw new IllegalArgumentException(

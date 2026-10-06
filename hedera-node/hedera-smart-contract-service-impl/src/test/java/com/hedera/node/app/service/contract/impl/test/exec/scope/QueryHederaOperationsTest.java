@@ -20,6 +20,7 @@ import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.Collections;
+import org.hyperledger.besu.datatypes.Address;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,6 +40,9 @@ class QueryHederaOperationsTest {
 
     @Mock
     private TinybarValues tinybarValues;
+
+    @Mock
+    private AccountID accountID;
 
     private QueryHederaOperations subject;
 
@@ -150,5 +154,11 @@ class QueryHederaOperationsTest {
     @Test
     void summarizingContractChangesNotSupported() {
         assertThrows(UnsupportedOperationException.class, subject::summarizeContractChanges);
+    }
+
+    @Test
+    void setAccountCodeDelegationNotSupported() {
+        assertThrows(
+                UnsupportedOperationException.class, () -> subject.setAccountCodeDelegation(accountID, Address.ZERO));
     }
 }

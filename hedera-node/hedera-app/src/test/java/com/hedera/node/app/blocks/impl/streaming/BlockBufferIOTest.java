@@ -3,26 +3,36 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.generateRandomBlock;
 import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.generateRandomBlocks;
+import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.newBlockHeader;
+import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.newBlockProof;
+import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.newEventTransaction;
+import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.newStateChanges;
 import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.toBlockState;
 import static com.hedera.node.app.blocks.impl.streaming.BlockTestUtils.writeBlockToDisk;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 
 import com.hedera.hapi.block.internal.BufferedBlock;
+import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class BlockBufferIOTest {
 
@@ -159,11 +169,88 @@ class BlockBufferIOTest {
     }
 
     @Test
+    void readWritePreservesSerializedItemBytesAndDerivesTypes() throws Exception {
+        // Build a block by adding items in their serialized form (the production path), capturing the exact bytes.
+        final BlockState block = new BlockState(42L, 2_000L);
+        final List<BlockItem> sourceItems =
+                List.of(newBlockHeader(42L), newEventTransaction(), newStateChanges(), newBlockProof(42L));
+        final List<Bytes> expectedBytes = new ArrayList<>();
+        for (final BlockItem item : sourceItems) {
+            final Bytes serialized = BlockItem.PROTOBUF.toBytes(item);
+            block.addSerializedItem(serialized, item.item().kind());
+            expectedBytes.add(serialized);
+        }
+        block.closeBlock();
+
+        // Persist and reload through the real IO path.
+        bufferIO.write(List.of(block), 42L);
+        final List<BufferedBlock> readBlocks = bufferIO.read();
+        assertThat(readBlocks).hasSize(1);
+        final BlockState reloaded = toBlockState(readBlocks.getFirst());
+
+        // Every item's serialized bytes survive the round-trip byte-for-byte (no deserialize/re-serialize), and the
+        // item type is correctly re-derived from the bytes on load.
+        assertThat(reloaded.itemCount()).isEqualTo(sourceItems.size());
+        for (int i = 0; i < sourceItems.size(); i++) {
+            final BlockState.BufferedItem bufferedItem = reloaded.bufferedItem(i);
+            assertThat(bufferedItem).isNotNull();
+            assertThat(bufferedItem.serializedItem()).isEqualTo(expectedBytes.get(i));
+            assertThat(bufferedItem.itemType())
+                    .isEqualTo(sourceItems.get(i).item().kind());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"c03e01", "0a03c03e01"})
+    void readWritePreservesUnknownFieldsInSignedTransaction(final String signedTxHex) throws Exception {
+        // Field 1000, varint 1, either in SignedTransaction or inside its bodyBytes (field 1).
+        final var signedTxBytes = Bytes.fromHex(signedTxHex);
+        final var item = BlockItem.newBuilder().signedTransaction(signedTxBytes).build();
+        final var serializedItem = BlockItem.PROTOBUF.toBytes(item);
+        final var block = new BlockState(42L, 2_000L);
+        final var header = newBlockHeader(42L);
+        block.addSerializedItem(
+                BlockItem.PROTOBUF.toBytes(header), header.item().kind());
+        block.addSerializedItem(serializedItem, item.item().kind());
+        block.closeBlock();
+
+        bufferIO.write(List.of(block), 42L);
+        final var readBlocks = bufferIO.read();
+        assertThat(readBlocks).hasSize(1);
+        final var reloaded = toBlockState(readBlocks.getFirst());
+
+        assertThat(reloaded.bufferedItem(1).serializedItem()).isEqualTo(serializedItem);
+        // BlockState's strict BlockItem parser must leave the opaque transaction bytes intact, too.
+        assertThat(reloaded.blockItem(1).signedTransactionOrThrow()).isEqualTo(signedTxBytes);
+    }
+
+    @Test
+    void readSkipsBufferedBlockWithUnknownFields() throws IOException {
+        final var block = generateRandomBlock(1);
+        bufferIO.write(List.of(block), 0);
+        final var directory = testDirFile.listFiles()[0];
+        final var file = directory.listFiles()[0].toPath();
+        final var original = Files.readAllBytes(file);
+        final var corrupted = ByteBuffer.allocate(original.length + 3);
+        corrupted.putInt(ByteBuffer.wrap(original).getInt() + 3);
+        corrupted.put(original, Integer.BYTES, original.length - Integer.BYTES);
+        // Valid protobuf field 1000, varint 1, which is not part of BufferedBlock.
+        corrupted.put(Bytes.fromHex("c03e01").toByteArray());
+        Files.write(file, corrupted.array());
+
+        assertThat(bufferIO.read()).isEmpty();
+    }
+
+    @Test
     void insufficientReadDepthIgnoresBlocks() throws IOException {
         final List<BlockState> blocksToWrite = generateRandomBlocks(10);
         bufferIO.write(blocksToWrite, 0);
 
-        final var restrictedSubject = new BlockBufferIO(testDir, 1); // MB KB
+        // The persisted BufferedBlock embeds nested messages (its timestamps and the BlockBytes wrapper), so a max
+        // read depth of 0 (which disallows any nested message) makes every block fail to parse and be skipped. Note
+        // the serialized-bytes format is intentionally shallow: block items are stored as opaque bytes rather than
+        // deeply nested BlockItem messages, so buffer restoration is no longer sensitive to per-item nesting depth.
+        final var restrictedSubject = new BlockBufferIO(testDir, 0);
         final List<BufferedBlock> blocksFromDisk = restrictedSubject.read();
         assertThat(blocksFromDisk).isEmpty();
     }

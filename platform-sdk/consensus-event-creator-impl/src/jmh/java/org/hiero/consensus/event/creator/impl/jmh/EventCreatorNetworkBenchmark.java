@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.jmh;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
+import static org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory.randomRosterWithKeys;
+
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
@@ -18,17 +15,20 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.hiero.base.crypto.BytesSigner;
-import org.hiero.consensus.crypto.SigningFactory;
-import org.hiero.consensus.crypto.SigningImplementation;
+import org.hiero.base.crypto.SigningFactory;
+import org.hiero.base.crypto.SigningImplementation;
+import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.config.EventCreationConfig_;
 import org.hiero.consensus.event.creator.impl.DefaultEventCreationManager;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
-import org.hiero.consensus.gossip.impl.gossip.NoOpIntakeEventCounter;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
@@ -75,7 +75,7 @@ public class EventCreatorNetworkBenchmark {
     private List<DefaultEventCreationManager> eventCreators;
 
     /** The roster defining the network. */
-    private Roster roster;
+    private RosterWrapper roster;
 
     /** Total number of events created in the current iteration. */
     private int eventsCreatedInIteration;
@@ -92,11 +92,8 @@ public class EventCreatorNetworkBenchmark {
     @Setup(Level.Trial)
     public void setupTrial() {
         // Build a roster with real keys
-        final RandomRosterBuilder rosterBuilder = RandomRosterBuilder.create(Randotron.create(seed))
-                .withSize(numNodes)
-                .withWeightGenerator(WeightGenerators.BALANCED)
-                .withRealKeysEnabled(true);
-        roster = rosterBuilder.build();
+        roster = randomRosterWithKeys(Randotron.create(seed), numNodes, WeightGenerators.BALANCED)
+                .roster();
         eventWindowUpdateInterval = Math.round(numNodes * Math.log(numNodes));
     }
 
@@ -108,15 +105,12 @@ public class EventCreatorNetworkBenchmark {
                 .withConfigDataType(EventCreationConfig.class)
                 .withValue(EventCreationConfig_.MAX_CREATION_RATE, 0)
                 .getOrCreateConfig();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
-                .withConfiguration(configuration)
-                .build();
-        final Metrics metrics = platformContext.getMetrics();
-        final Time time = platformContext.getTime();
+        final Metrics metrics = new NoOpMetrics();
+        final Time time = Time.getCurrent();
 
         // Create an event creator for each node
-        for (final RosterEntry entry : roster.rosterEntries()) {
-            final NodeId nodeId = NodeId.of(entry.nodeId());
+        for (final RosterEntryWrapper entry : roster.rosterEntries()) {
+            final NodeId nodeId = entry.nodeId();
             final SecureRandom nodeRandom = new SecureRandom();
             nodeRandom.setSeed(nodeId.id());
             final KeyPair keyPair = SigningFactory.generateKeyPair(signingType.getSigningSchema(), nodeRandom);

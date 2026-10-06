@@ -1,0 +1,212 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus;
+
+import static org.hiero.consensus.wiring.framework.wires.SolderType.INJECT;
+
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.swirlds.base.test.fixtures.time.FakeTime;
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
+import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.wiring.components.PassThroughWiring;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Queue;
+import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.consensus.crypto.DefaultEventHasher;
+import org.hiero.consensus.crypto.EventHasher;
+import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.event.NoOpIntakeEventCounter;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
+import org.hiero.consensus.hashgraph.FreezePeriodChecker;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
+import org.hiero.consensus.hashgraph.impl.ConsensusEngine;
+import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
+import org.hiero.consensus.hashgraph.impl.DefaultConsensusEngine;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
+import org.hiero.consensus.orphan.DefaultOrphanBuffer;
+import org.hiero.consensus.orphan.OrphanBuffer;
+import org.hiero.consensus.round.EventWindowUtils;
+import org.hiero.consensus.wiring.framework.component.ComponentWiring;
+import org.hiero.consensus.wiring.framework.model.DeterministicWiringModel;
+import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
+import org.hiero.consensus.wiring.framework.schedulers.TaskScheduler;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerType;
+import org.hiero.consensus.wiring.framework.wires.input.NoInput;
+import org.hiero.consensus.wiring.framework.wires.output.OutputWire;
+
+/**
+ * Event intake with consensus and shadowgraph, used for testing
+ */
+public class TestIntake {
+    private final ConsensusOutput output;
+
+    private final ComponentWiring<EventHasher, PlatformEvent> hasherWiring;
+    private final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring;
+    private final ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring;
+    private final Queue<Throwable> componentExceptions = new LinkedList<>();
+    private final DeterministicWiringModel model;
+    private final int roundsNonAncient;
+    private final AtomicReference<FreezePeriodChecker> freezeCheckHolder = new AtomicReference<>(i -> false);
+    private final FakeTime time = new FakeTime(Duration.of(1, ChronoUnit.SECONDS));
+
+    /**
+     * Constructor. Uses default configuration, metrics, and time.
+     *
+     * @param roster the roster used by this intake
+     */
+    public TestIntake(@NonNull final RosterWrapper roster) {
+        this(new TestConfigBuilder().getOrCreateConfig(), roster);
+    }
+
+    /**
+     * Constructor. Uses default metrics and time.
+     *
+     * @param configuration the configuration to use for this intake.
+     * @param roster the roster used by this intake
+     */
+    public TestIntake(@NonNull final Configuration configuration, @NonNull final RosterWrapper roster) {
+        this(configuration, new NoOpMetrics(), Time.getCurrent(), roster);
+    }
+
+    /**
+     * Constructor.
+     *
+     * @param configuration the configuration to use for this intake.
+     * @param metrics the metrics to use for this intake.
+     * @param time the time to use for this intake.
+     * @param roster the roster used by this intake
+     */
+    public TestIntake(
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final RosterWrapper roster) {
+        final NodeId selfId = NodeId.of(0);
+        roundsNonAncient = configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
+
+        output = new ConsensusOutput();
+
+        model = WiringModelBuilder.create(new NoOpMetrics(), time)
+                .deterministic()
+                .build();
+
+        hasherWiring = new ComponentWiring<>(model, EventHasher.class, scheduler("eventHasher"));
+        final EventHasher eventHasher = new DefaultEventHasher();
+        hasherWiring.bind(eventHasher);
+
+        final PassThroughWiring<PlatformEvent> postHashCollectorWiring =
+                new PassThroughWiring(model, "PlatformEvent", "postHashCollector", TaskSchedulerType.DIRECT);
+
+        final IntakeEventCounter intakeEventCounter = new NoOpIntakeEventCounter();
+        final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, intakeEventCounter);
+        orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, scheduler("orphanBuffer"));
+        orphanBufferWiring.bind(orphanBuffer);
+
+        final var localFreezeCheck = new FreezePeriodChecker() {
+            @Override
+            public boolean isInFreezePeriod(@NonNull final Instant timestamp) {
+                return freezeCheckHolder.get().isInFreezePeriod(timestamp);
+            }
+        };
+
+        final ConsensusEngine consensusEngine =
+                new DefaultConsensusEngine(configuration, metrics, time, roster, selfId, localFreezeCheck, 0L);
+
+        consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, scheduler("consensusEngine"));
+        consensusEngineWiring.bind(consensusEngine);
+
+        hasherWiring.getOutputWire().solderTo(postHashCollectorWiring.getInputWire());
+        postHashCollectorWiring.getOutputWire().solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::handleEvent));
+        final OutputWire<PlatformEvent> splitOutput = orphanBufferWiring.getSplitOutput();
+        splitOutput.solderTo(consensusEngineWiring.getInputWire(ConsensusEngine::addEvent));
+
+        final OutputWire<ConsensusRound> consensusRoundOutputWire = consensusEngineWiring
+                .getOutputWire()
+                .buildTransformer("getConsRounds", "consensusEngineOutput", ConsensusEngineOutput::consensusRounds)
+                .buildSplitter("consensusRoundsSplitter", "consensusRounds");
+        consensusRoundOutputWire
+                .buildTransformer("EventWindowExtractor", "consensus round", ConsensusRound::getEventWindow)
+                .solderTo(orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow), INJECT);
+        consensusEngineWiring
+                .getOutputWire()
+                .solderTo("consensusOutputTestTool", "consensus output", output::consensusEngineOutput);
+
+        // Ensure unsoldered wires are created.
+        hasherWiring.getInputWire(EventHasher::hashEvent);
+        orphanBufferWiring.getInputWire(OrphanBuffer::clear);
+
+        // Make sure this unsoldered wire is properly built
+        consensusEngineWiring.getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
+
+        model.start();
+    }
+
+    /**
+     * Link an event to its parents and add it to consensus and shadowgraph
+     *
+     * @param event the event to add
+     */
+    public void addEvent(@NonNull final PlatformEvent event) {
+        hasherWiring.getInputWire(EventHasher::hashEvent).put(event);
+        output.eventAdded(event);
+        model.doAllWork();
+        throwComponentExceptionsIfAny();
+    }
+
+    /**
+     * @return a list of all rounds that have reached consensus
+     */
+    public @NonNull List<ConsensusRound> getConsensusRounds() {
+        return output.getConsensusRounds();
+    }
+
+    public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
+        final EventWindow eventWindow = EventWindowUtils.createEventWindow(snapshot, roundsNonAncient);
+        orphanBufferWiring.getInputWire(OrphanBuffer::setEventWindow).put(eventWindow);
+        consensusEngineWiring
+                .getInputWire(ConsensusEngine::outOfBandSnapshotUpdate)
+                .put(snapshot);
+        throwComponentExceptionsIfAny();
+    }
+
+    public @NonNull ConsensusOutput getOutput() {
+        return output;
+    }
+
+    public void setFreezeCheck(@NonNull final FreezePeriodChecker freezeChecker) {
+        this.freezeCheckHolder.set(freezeChecker);
+    }
+
+    public void reset() {
+        time.reset();
+        orphanBufferWiring.getInputWire(OrphanBuffer::clear).put(NoInput.getInstance());
+        loadSnapshot(GenesisSnapshotFactory.newGenesisSnapshot());
+        output.clear();
+    }
+
+    private void throwComponentExceptionsIfAny() {
+        componentExceptions.stream().findFirst().ifPresent(t -> {
+            throw new RuntimeException(t);
+        });
+    }
+
+    public <X> TaskScheduler<X> scheduler(final String name) {
+        return model.<X>schedulerBuilder(name)
+                .withType(TaskSchedulerType.SEQUENTIAL)
+                // This is needed because of the catch in StandardOutputWire.forward()
+                // if we throw the exception, it will be caught by it and will not fail the test
+                .withUncaughtExceptionHandler((t, e) -> componentExceptions.add(e))
+                .build();
+    }
+}

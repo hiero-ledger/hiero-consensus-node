@@ -1,17 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.calculator;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler.getHookInfo;
-import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 import static org.hiero.hapi.support.fees.Extra.ACCOUNTS;
-import static org.hiero.hapi.support.fees.Extra.FUNGIBLE_TOKENS;
 import static org.hiero.hapi.support.fees.Extra.GAS;
 import static org.hiero.hapi.support.fees.Extra.HOOK_EXECUTION;
-import static org.hiero.hapi.support.fees.Extra.NON_FUNGIBLE_TOKENS;
 import static org.hiero.hapi.support.fees.Extra.TOKEN_TRANSFER_BASE;
 import static org.hiero.hapi.support.fees.Extra.TOKEN_TRANSFER_BASE_CUSTOM_FEES;
+import static org.hiero.hapi.support.fees.Extra.TOKEN_TYPES;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -51,6 +48,7 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
  * </ul>
  */
 public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
+    private static final long INTRINSIC_ESTIMATE_MAX_GAS_PER_TRANSACTION = 15_000_000L;
 
     @Override
     public TransactionBody.DataOneOfType getTransactionType() {
@@ -69,41 +67,36 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         final var op = txnBody.cryptoTransferOrThrow();
         final long numAccounts = countUniqueAccounts(op);
         addExtraFee(feeResult, serviceDef, ACCOUNTS, feeSchedule, numAccounts);
-        final var hookInfo = getHookInfo(op);
+        // Could be null if the context is an intrinsic fee estimate w/o state access
+        final var maybeFeeContext = simpleFeeContext.feeContext();
+        final var hookInfo = getHookInfo(
+                op,
+                maybeFeeContext == null
+                        ? INTRINSIC_ESTIMATE_MAX_GAS_PER_TRANSACTION
+                        : maybeFeeContext
+                                .configuration()
+                                .getConfigData(ContractsConfig.class)
+                                .maxGasPerTransaction());
         if (hookInfo.numHookInvocations() > 0) {
-            final var config = simpleFeeContext.feeContext().configuration();
-            // Avoid overflow in by clamping effective limit. Since we validate each hook dispatch can't
-            // exceed maxGasPerSec downstream, we need to allow to charge upto maxGasPerSec * numHookInvocations
-            final long effectiveGasLimit = Math.max(
-                    0,
-                    Math.min(
-                            hookInfo.numHookInvocations()
-                                    * config.getConfigData(ContractsConfig.class)
-                                            .maxGasPerSec(),
-                            hookInfo.totalGasLimitOfHooks()));
             addExtraFee(feeResult, serviceDef, HOOK_EXECUTION, feeSchedule, hookInfo.numHookInvocations());
-            addExtraFee(feeResult, serviceDef, GAS, feeSchedule, effectiveGasLimit);
+            // We clamp each gas limit summed by the hook info in the [0, maxTxGasLimit] range already
+            addExtraFee(feeResult, serviceDef, GAS, feeSchedule, hookInfo.totalGasLimitOfHooks());
         }
-
-        if (simpleFeeContext.feeContext() != null) {
-            final ReadableTokenStore tokenStore = simpleFeeContext.feeContext().readableStore(ReadableTokenStore.class);
+        if (maybeFeeContext != null) {
+            final ReadableTokenStore tokenStore = maybeFeeContext.readableStore(ReadableTokenStore.class);
             final TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
-
             final Extra transferType = determineTransferType(tokenCounts);
             if (transferType != null) {
                 addExtraFee(feeResult, serviceDef, transferType, feeSchedule, 1);
             }
-
             final long totalFungible = tokenCounts.standardFungible() + tokenCounts.customFeeFungible();
-            addExtraFee(feeResult, serviceDef, FUNGIBLE_TOKENS, feeSchedule, totalFungible);
             final long totalNft = tokenCounts.standardNft() + tokenCounts.customFeeNft();
-            addExtraFee(feeResult, serviceDef, NON_FUNGIBLE_TOKENS, feeSchedule, totalNft);
+            addExtraFee(feeResult, serviceDef, TOKEN_TYPES, feeSchedule, totalFungible + totalNft);
         } else {
             for (final var ttl : op.tokenTransfers()) {
                 var regular_count = ttl.transfers().size();
-                addExtraFee(feeResult, serviceDef, FUNGIBLE_TOKENS, feeSchedule, regular_count);
                 var nft_count = ttl.nftTransfers().size();
-                addExtraFee(feeResult, serviceDef, NON_FUNGIBLE_TOKENS, feeSchedule, nft_count);
+                addExtraFee(feeResult, serviceDef, TOKEN_TYPES, feeSchedule, regular_count + nft_count);
             }
         }
     }
@@ -156,9 +149,10 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         for (final var ttl : op.tokenTransfers()) {
             final var tokenId = ttl.tokenOrThrow();
             final var token = tokenStore.get(tokenId);
-            validateTrue(token != null, INVALID_TOKEN_ID);
-            final boolean hasCustomFees = !token.customFees().isEmpty();
-            final boolean isFungible = token.tokenType() == TokenType.FUNGIBLE_COMMON;
+            // If token doesn't exist, still charge for the transfer attempt as a standard token
+            // transfer (no custom fees assumed). Validation at handle time returns INVALID_TOKEN_ID.
+            final boolean hasCustomFees = token != null && !token.customFees().isEmpty();
+            final boolean isFungible = token == null || token.tokenType() == TokenType.FUNGIBLE_COMMON;
             if (isFungible) {
                 if (!ttl.transfers().isEmpty()) {
                     if (hasCustomFees) {

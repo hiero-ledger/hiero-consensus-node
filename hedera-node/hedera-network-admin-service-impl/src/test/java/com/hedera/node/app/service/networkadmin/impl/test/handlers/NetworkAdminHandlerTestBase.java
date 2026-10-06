@@ -41,7 +41,6 @@ import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
-import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.state.DeduplicationCache;
@@ -150,7 +149,7 @@ public class NetworkAdminHandlerTestBase {
     protected RecordCacheImpl cache;
 
     @Mock
-    private DeduplicationCache dedupeCache;
+    protected DeduplicationCache dedupeCache;
 
     @Mock
     protected SavepointStackImpl stack;
@@ -184,9 +183,6 @@ public class NetworkAdminHandlerTestBase {
 
     @Mock
     private StartupNetworks startupNetworks;
-
-    @Mock
-    protected FeeCalculator feeCalculator;
 
     @Mock
     protected ReadableEntityCounters readableEntityCounters;
@@ -460,7 +456,8 @@ public class NetworkAdminHandlerTestBase {
                 0,
                 0L,
                 0L,
-                0L);
+                0L,
+                Bytes.EMPTY);
     }
 
     protected void givenFungibleTokenRelation() {

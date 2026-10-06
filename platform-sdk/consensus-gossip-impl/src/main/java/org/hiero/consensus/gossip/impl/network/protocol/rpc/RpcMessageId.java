@@ -35,4 +35,9 @@ class RpcMessageId {
      * Indicates {@link com.hedera.hapi.platform.message.GossipPing} ping reply
      */
     static final int PING_REPLY = 6;
+
+    /**
+     * Indicates single {@link com.hedera.hapi.platform.event.GossipEvent} from send/receiveBroadcastEvent
+     */
+    static final int BROADCAST_EVENT = 7;
 }

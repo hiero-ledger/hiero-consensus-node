@@ -1,0 +1,13 @@
+------------- Configuration Overrides -------------
+
+event.eventsLogDir, build/turtle/unknownClass/unknownTest/node-0/hgcapp
+event.preconsensus.limitReplayFrequency, false
+event.preconsensus.pcesFileWriterType, OUTPUT_STREAM
+jvmPauseDetectorSleepMs, 0
+merkleDb.initialCapacity, 10000
+merkleDb.maxNumOfKeys, 100000
+metrics.disableMetricsOutput, true
+paths.keysDirPath, build/turtle/unknownClass/unknownTest/node-0/data/keys
+paths.savedStateDir, build/turtle/unknownClass/unknownTest/node-0/data/saved
+paths.settingsUsedDir, build/turtle/unknownClass/unknownTest/node-0
+state.saveStateAsync, false

@@ -18,9 +18,8 @@ import com.hedera.hapi.node.state.hints.PreprocessingVote;
 import com.hedera.hapi.node.state.hints.PreprocessingVoteId;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
-import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.hints.ReadableHintsStore;
-import com.hedera.node.app.service.entityid.ReadableEntityCounters;
+import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.spi.ReadableKVState;
@@ -33,6 +32,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 
 /**
  * Provides read access to the {@link HintsConstruction} and {@link PreprocessingVote} instances in state.
@@ -45,9 +46,10 @@ public class ReadableHintsStoreImpl implements ReadableHintsStore {
     private final ReadableKVState<PreprocessingVoteId, PreprocessingVote> votes;
     private final ReadableSingletonState<CRSState> crs;
     private final ReadableKVState<NodeId, CrsPublicationTransactionBody> crsPublications;
-    private final ReadableEntityCounters entityCounters;
+    private final ReadableEntityIdStore readableEntityIdStore;
 
-    public ReadableHintsStoreImpl(@NonNull final ReadableStates states, final ReadableEntityCounters entityCounters) {
+    public ReadableHintsStoreImpl(
+            @NonNull final ReadableStates states, final ReadableEntityIdStore readableEntityIdStore) {
         requireNonNull(states);
         this.hintsKeys = states.get(HINTS_KEY_SETS_STATE_ID);
         this.nextConstruction = states.getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID);
@@ -55,7 +57,7 @@ public class ReadableHintsStoreImpl implements ReadableHintsStore {
         this.votes = states.get(PREPROCESSING_VOTES_STATE_ID);
         this.crs = states.getSingleton(CRS_STATE_STATE_ID);
         this.crsPublications = states.get(CRS_PUBLICATIONS_STATE_ID);
-        this.entityCounters = requireNonNull(entityCounters);
+        this.readableEntityIdStore = requireNonNull(readableEntityIdStore);
     }
 
     @Override
@@ -131,9 +133,9 @@ public class ReadableHintsStoreImpl implements ReadableHintsStore {
 
     @Override
     public List<CrsPublicationTransactionBody> getCrsPublications() {
-        final var nodesSize = entityCounters.getCounterFor(EntityType.NODE);
+        final var nextNodeId = readableEntityIdStore.peekAtNextNodeId();
         final var publications = new ArrayList<CrsPublicationTransactionBody>();
-        for (int i = 0; i < nodesSize; i++) {
+        for (int i = 0; i < nextNodeId; i++) {
             final var nodeId = new NodeId(i);
             final var publication = crsPublications.get(nodeId);
             if (publication != null) {
@@ -144,8 +146,8 @@ public class ReadableHintsStoreImpl implements ReadableHintsStore {
     }
 
     @Override
-    public Map<Long, CrsPublicationTransactionBody> getOrderedCrsPublications(@NonNull final Set<Long> nodeIds) {
-        final Map<Long, CrsPublicationTransactionBody> publications = new HashMap<>();
+    public SortedMap<Long, CrsPublicationTransactionBody> getOrderedCrsPublications(@NonNull final Set<Long> nodeIds) {
+        final SortedMap<Long, CrsPublicationTransactionBody> publications = new TreeMap<>();
         for (final var nodeId : nodeIds) {
             final var publication = crsPublications.get(new NodeId(nodeId));
             if (publication != null) {

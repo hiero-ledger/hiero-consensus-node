@@ -11,4 +11,3 @@ showInternalStats,         1
 useLoopbackIp,             false
 csvFileName,               PlatformTesting
 checkSignedStateFromDisk,  1
-loadKeysFromPfxFiles,      0

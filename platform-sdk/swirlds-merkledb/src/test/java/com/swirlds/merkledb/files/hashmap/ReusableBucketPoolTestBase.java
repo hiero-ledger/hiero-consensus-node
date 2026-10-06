@@ -27,7 +27,7 @@ abstract class ReusableBucketPoolTestBase {
     }
 
     @AfterEach
-    void resore() {
+    void restore() {
         Assertions.assertNull(error.get(), () -> {
             final StringWriter sw = new StringWriter();
             error.get().printStackTrace(new PrintWriter(sw));

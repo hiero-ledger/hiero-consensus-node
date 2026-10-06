@@ -3,6 +3,7 @@ package com.swirlds.merkledb.files;
 
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
 
+import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.merkledb.FileStatisticAware;
 import com.swirlds.merkledb.KeyRange;
@@ -105,7 +106,7 @@ public class MemoryIndexDiskKeyValueStore implements AutoCloseable, Snapshotable
      * @param dataItemSize the data item size, in bytes
      * @throws IOException If there was a problem write key/value to the store
      */
-    public void put(final long key, final Consumer<BufferedData> dataItemWriter, final int dataItemSize)
+    public void put(final long key, final Consumer<WritableSequentialData> dataItemWriter, final int dataItemSize)
             throws IOException {
         final long dataLocation = fileCollection.storeDataItem(dataItemWriter, dataItemSize);
         // store data location in index

@@ -38,6 +38,7 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
@@ -252,6 +253,31 @@ class TokenBurnHandlerTest extends ParityTestBase {
                     .tokenType(TokenType.FUNGIBLE_COMMON)
                     .treasuryAccountId(ACCOUNT_1339)
                     .supplyKey((Key) null) // Intentionally missing supply key
+                    .totalSupply(totalFungibleSupply)
+                    .build());
+            writableTokenRelStore = newWritableStoreWithTokenRels(TokenRelation.newBuilder()
+                    .accountId(ACCOUNT_1339)
+                    .tokenId(TOKEN_123)
+                    .balance(totalFungibleSupply)
+                    .build());
+            final var txn = newBurnTxn(TOKEN_123, totalFungibleSupply + 1);
+            final var context = mockContext(txn);
+
+            assertThatThrownBy(() -> subject.handle(context))
+                    .isInstanceOf(HandleException.class)
+                    .has(responseCode(TOKEN_HAS_NO_SUPPLY_KEY));
+        }
+
+        @Test
+        void tokenHasEmptyKeyListSupplyKey() {
+
+            final var totalFungibleSupply = 5;
+            // An empty key list is the HIP-540 key-removal sentinel and must be treated as "no key"
+            writableTokenStore = newWritableStoreWithTokens(Token.newBuilder()
+                    .tokenId(TOKEN_123)
+                    .tokenType(TokenType.FUNGIBLE_COMMON)
+                    .treasuryAccountId(ACCOUNT_1339)
+                    .supplyKey(Key.newBuilder().keyList(KeyList.DEFAULT).build())
                     .totalSupply(totalFungibleSupply)
                     .build());
             writableTokenRelStore = newWritableStoreWithTokenRels(TokenRelation.newBuilder()

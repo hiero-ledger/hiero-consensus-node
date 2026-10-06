@@ -1,26 +1,28 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkledb.files;
 
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
 import static com.swirlds.logging.legacy.LogMarker.MERKLE_DB;
+import static com.swirlds.merkledb.files.DataFileCommon.NON_EXISTENT_DATA_LOCATION;
 import static com.swirlds.merkledb.files.DataFileCommon.formatSizeBytes;
 import static com.swirlds.merkledb.files.DataFileCommon.getSizeOfFiles;
-import static com.swirlds.merkledb.files.DataFileCommon.getSizeOfFilesByPath;
 import static com.swirlds.merkledb.files.DataFileCommon.logCompactStats;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.merkledb.KeyRange;
 import com.swirlds.merkledb.collections.CASableLongIndex;
-import com.swirlds.merkledb.config.MerkleDbConfig;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -30,24 +32,22 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * This class is responsible performing compaction of data files in a {@link DataFileCollection}.
- * The compaction is supposed to happen in the background and can be paused and resumed with {@link #pauseCompaction()}
+ * This class is responsible for performing compaction of data files in a {@link DataFileCollection}.
+ * Compaction runs in the background and can be paused and resumed with {@link #pauseCompaction()}
  * and {@link #resumeCompaction()} to prevent compaction from interfering with snapshots.
+ *
+ * <p>Each instance is used for a single compaction run (one level of one store). The
+ * {@code MerkleDbCompactionCoordinator} creates a fresh instance per task
+ * because each instance carries its own {@link #snapshotCompactionLock}, writer, and reader state.
  */
 public class DataFileCompactor {
 
     private static final Logger logger = LogManager.getLogger(DataFileCompactor.class);
 
-    public static final String HASH_STORE_DISK = "HashStoreDisk";
-    public static final String OBJECT_KEY_TO_PATH = "ObjectKeyToPath";
-    public static final String PATH_TO_KEY_VALUE = "PathToKeyValue";
-
     /**
      * This is the compaction level that non-compacted files have.
      */
     public static final int INITIAL_COMPACTION_LEVEL = 0;
-
-    private final MerkleDbConfig dbConfig;
 
     /**
      * Name of the file store to compact. This is used for logging and metrics.
@@ -76,6 +76,10 @@ public class DataFileCompactor {
     @Nullable
     private final BiConsumer<Integer, Double> reportSavedSpaceMetricFunction;
 
+    /**
+     * A function that will be called to report the amount of space used by the compaction level.
+     */
+    @Nullable
     private final BiConsumer<Integer, Double> reportFileSizeByLevelMetricFunction;
 
     /**
@@ -120,15 +124,16 @@ public class DataFileCompactor {
 
     /**
      * Indicates whether compaction is in progress at the time when {@link #pauseCompaction()}
-     * is called. This flag is then checked in {@link DataFileCompactor#resumeCompaction()} )} to start a new
+     * is called. This flag is then checked in {@link #resumeCompaction()} to start a new
      * compacted file or not. This field is synchronized using {@link #snapshotCompactionLock}.
      */
     private boolean compactionWasInProgress = false;
 
     /**
-     * This variable keeps track of the compaction level that was in progress at the time when it was suspended.
-     * Once the compaction is resumed, this level is used to start a new compacted file, and then it's reset to
-     * 0. This field is synchronized using {@link #snapshotCompactionLock}.
+     * This variable keeps track of the compaction level that was in progress at the time when
+     * it was suspended. Once the compaction is resumed, this level is used to start a new
+     * compacted file, and then it's reset to 0. This field is synchronized using
+     * {@link #snapshotCompactionLock}.
      */
     private int compactionLevelInProgress = 0;
 
@@ -140,71 +145,199 @@ public class DataFileCompactor {
     private volatile boolean interruptFlag = false;
 
     /**
-     * @param dbConfig                       MerkleDb config
-     * @param storeName                      name of the store to compact
-     * @param dataFileCollection             data file collection to compact
-     * @param index                          index to update during compaction
-     * @param reportDurationMetricFunction   function to report how long compaction took, in ms
-     * @param reportSavedSpaceMetricFunction function to report how much space was compacted, in Mb
-     * @param reportFileSizeByLevelMetricFunction function to report how much space is used by the store by compaction level, in Mb
-     * @param updateTotalStatsFunction       A function that updates statistics of total usage of disk space and off-heap space
+     * When {@code true}, enables HDHM bucket deduplication during compaction. After a
+     * {@link com.swirlds.merkledb.files.hashmap.HalfDiskHashMap} doubles its bucket count,
+     * entries at {@code index[x]} and {@code index[x + N/2]} may point to the same data
+     * location. This mode iterates only the lower half and writes each mirrored bucket once,
+     * updating both index entries to the same new location.
      */
+    private final boolean deduplicateMirroredEntries;
+
+    /**
+     * Total number of entries in the index. Only used when {@code deduplicateMirroredEntries}
+     * is {@code true} — needed to compute the half point for deduplication. Set to -1 when
+     * deduplication is disabled.
+     */
+    private final long indexSize;
+
+    /**
+     * Cumulative size in bytes of all output files produced during the current compaction run.
+     * Accumulated in {@link #finishCurrentCompactionFile()} each time an output file is finalized.
+     * Reset at the start of {@link #compactFiles}.
+     *
+     * <p>This field exists because output file sizes cannot be safely read from disk after
+     * {@code compactFiles} returns. When a snapshot interrupts compaction mid-flight,
+     * {@link #pauseCompaction()} finalizes the current output file, which becomes immediately
+     * visible to other tasks (it is completed and small). A concurrent task may pick it up,
+     * compact it, and delete it before the original compaction run finishes. If
+     * {@code compactSingleLevel} then tried to read the output file's size from disk via
+     * {@code getSizeOfFilesByPath}, it would fail with {@code NoSuchFileException}.
+     *
+     * <p>By capturing each output file's size in memory at finalization time (from
+     * {@link DataFileReader#getSize()}, which is cached), this field provides a safe
+     * alternative that does not depend on the output files still existing on disk.
+     *
+     * <p>Synchronized via {@link #snapshotCompactionLock} — all calls to
+     * {@code finishCurrentCompactionFile} (from both the compaction thread and the snapshot
+     * thread's {@code pauseCompaction}) hold this lock.
+     */
+    private long totalCompactedBytes;
+
     public DataFileCompactor(
-            final MerkleDbConfig dbConfig,
-            final String storeName,
             final DataFileCollection dataFileCollection,
             CASableLongIndex index,
             @Nullable final BiConsumer<Integer, Long> reportDurationMetricFunction,
             @Nullable final BiConsumer<Integer, Double> reportSavedSpaceMetricFunction,
             @Nullable final BiConsumer<Integer, Double> reportFileSizeByLevelMetricFunction,
-            @Nullable Runnable updateTotalStatsFunction) {
-        this.dbConfig = dbConfig;
-        this.storeName = storeName;
+            @Nullable Runnable updateTotalStatsFunction,
+            final boolean deduplicateMirroredEntries,
+            final long indexSize) {
+        this.storeName = dataFileCollection.getStoreName();
         this.dataFileCollection = dataFileCollection;
         this.index = index;
         this.reportDurationMetricFunction = reportDurationMetricFunction;
         this.reportSavedSpaceMetricFunction = reportSavedSpaceMetricFunction;
         this.reportFileSizeByLevelMetricFunction = reportFileSizeByLevelMetricFunction;
         this.updateTotalStatsFunction = updateTotalStatsFunction;
+        this.deduplicateMirroredEntries = deduplicateMirroredEntries;
+        this.indexSize = indexSize;
     }
 
     /**
-     * Compacts all files in compactionPlan.
+     * @param dataFileCollection                 data file collection to compact
+     * @param index                              index to update during compaction
+     * @param reportDurationMetricFunction       function to report how long compaction took, in ms
+     * @param reportSavedSpaceMetricFunction     function to report how much space was compacted, in Mb
+     * @param reportFileSizeByLevelMetricFunction function to report space used by level, in Mb
+     * @param updateTotalStatsFunction           updates statistics of total disk and off-heap usage
+     */
+    public DataFileCompactor(
+            final DataFileCollection dataFileCollection,
+            CASableLongIndex index,
+            @Nullable final BiConsumer<Integer, Long> reportDurationMetricFunction,
+            @Nullable final BiConsumer<Integer, Double> reportSavedSpaceMetricFunction,
+            @Nullable final BiConsumer<Integer, Double> reportFileSizeByLevelMetricFunction,
+            @Nullable Runnable updateTotalStatsFunction) {
+        this(
+                dataFileCollection,
+                index,
+                reportDurationMetricFunction,
+                reportSavedSpaceMetricFunction,
+                reportFileSizeByLevelMetricFunction,
+                updateTotalStatsFunction,
+                false,
+                -1);
+    }
+
+    /**
+     * Returns the data file collection managed by this compactor. Used by the compaction
+     * coordinator to access the file list for evaluating compaction candidates.
+     */
+    public DataFileCollection getDataFileCollection() {
+        return dataFileCollection;
+    }
+
+    /**
+     * Compacts pre-selected files from a single source level into the provided target level.
      *
-     * @param index          takes a map of moves from old location to new location. Once it is finished and
-     *                       returns it is assumed all readers will no longer be looking in old location, so old files
-     *                       can be safely deleted.
-     * @param filesToCompact list of files to compact
+     * @param filesToCompact files selected for compaction (all at the same source level)
+     * @param targetLevel    target compaction level for newly created file(s)
+     * @return true if compaction was performed, false otherwise
+     * @throws IOException          if there was a problem merging
+     * @throws InterruptedException if the merge thread was interrupted
+     */
+    public boolean compactSingleLevel(@NonNull final List<DataFileReader> filesToCompact, final int targetLevel)
+            throws IOException, InterruptedException {
+        assert filesToCompactBelongToCollection(filesToCompact);
+        if (filesToCompact.isEmpty()) {
+            logger.debug(MERKLE_DB.getMarker(), "[{}] No need to compact, as the files list is empty", storeName);
+            return false;
+        }
+
+        final int filesCount = filesToCompact.size();
+        final long start = System.currentTimeMillis();
+        final long filesToCompactSize = getSizeOfFiles(filesToCompact);
+        logger.info(
+                MERKLE_DB.getMarker(),
+                "[{}] Starting compaction to level {} of {} files of size {}",
+                storeName,
+                targetLevel,
+                filesCount,
+                formatSizeBytes(filesToCompactSize));
+
+        final List<Path> newFilesCreated = compactFiles(index, filesToCompact, targetLevel);
+
+        final long end = System.currentTimeMillis();
+        final long tookMillis = end - start;
+        if (reportDurationMetricFunction != null) {
+            reportDurationMetricFunction.accept(targetLevel, tookMillis);
+        }
+
+        if (reportSavedSpaceMetricFunction != null) {
+            reportSavedSpaceMetricFunction.accept(
+                    targetLevel, (filesToCompactSize - totalCompactedBytes) * UnitConstants.BYTES_TO_MEBIBYTES);
+        }
+
+        reportFileSizeByLevel(dataFileCollection.getAllCompletedFiles());
+
+        logCompactStats(
+                storeName,
+                tookMillis,
+                filesToCompact,
+                filesToCompactSize,
+                newFilesCreated,
+                targetLevel,
+                dataFileCollection,
+                totalCompactedBytes);
+        logger.info(
+                MERKLE_DB.getMarker(),
+                "[{}] Finished compaction {} files / {} in {} ms",
+                storeName,
+                filesCount,
+                formatSizeBytes(filesToCompactSize),
+                tookMillis);
+
+        if (updateTotalStatsFunction != null) {
+            updateTotalStatsFunction.run();
+        }
+
+        return true;
+    }
+
+    private boolean filesToCompactBelongToCollection(List<DataFileReader> filesToCompact) {
+        Set<DataFileReader> allFileReaders = new HashSet<>(dataFileCollection.getAllCompletedFiles());
+        for (DataFileReader dataFileReader : filesToCompact) {
+            if (!allFileReaders.contains(dataFileReader)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Compacts all files in the provided list into one or more new files at the target level.
+     *
+     * @param index                 index to update during compaction
+     * @param filesToCompact        list of files to compact
      * @param targetCompactionLevel target compaction level
      * @return list of files created during the compaction
      * @throws IOException          If there was a problem with the compaction
      * @throws InterruptedException If the compaction thread was interrupted
      */
     List<Path> compactFiles(
-            final CASableLongIndex index,
-            final List<? extends DataFileReader> filesToCompact,
+            @NonNull final CASableLongIndex index,
+            @NonNull final List<? extends DataFileReader> filesToCompact,
             final int targetCompactionLevel)
             throws IOException, InterruptedException {
-        if (filesToCompact.size() < getMinNumberOfFilesToCompact()) {
-            // nothing to do we have merged since the last data update
-            logger.debug(MERKLE_DB.getMarker(), "No files were available for merging [{}]", storeName);
-            return Collections.emptyList();
-        }
-
         if (interruptFlag) {
             return Collections.emptyList();
         }
 
-        // create a merge time stamp, this timestamp is the newest time of the set of files we are
-        // merging
-        final Instant startTime = filesToCompact.stream()
-                .map(file -> file.getMetadata().getCreationDate())
-                .max(Instant::compareTo)
-                .orElseGet(Instant::now);
         snapshotCompactionLock.lock();
         try {
-            currentCompactionStartTime.set(startTime);
+            currentCompactionStartTime.set(Instant.now());
             newCompactedFiles.clear();
+            totalCompactedBytes = 0;
             startNewCompactionFile(targetCompactionLevel);
         } finally {
             snapshotCompactionLock.unlock();
@@ -230,45 +363,11 @@ public class DataFileCompactor {
         boolean allDataItemsProcessed = false;
         try {
             final KeyRange keyRange = dataFileCollection.getValidKeyRange();
-            allDataItemsProcessed = index.forEach(
-                    (path, dataLocation) -> {
-                        if (!keyRange.withinRange(path)) {
-                            return;
-                        }
-                        final int fileIndex = DataFileCommon.fileIndexFromDataLocation(dataLocation);
-                        if ((fileIndex < firstIndexInc) || (fileIndex >= lastIndexExc)) {
-                            return;
-                        }
-                        final DataFileReader reader = readers[fileIndex - firstIndexInc];
-                        if (reader == null) {
-                            return;
-                        }
-                        final long fileOffset = DataFileCommon.byteOffsetFromDataLocation(dataLocation);
-                        // Take the lock. If a snapshot is started in a different thread, this call
-                        // will block until the snapshot is done. The current file will be flushed,
-                        // and current data file writer and reader will point to a new file
-                        snapshotCompactionLock.lock();
-                        try {
-                            final DataFileWriter newFileWriter = currentWriter.get();
-                            final BufferedData itemBytesWithTag = reader.readDataItemWithTag(fileOffset);
-                            assert itemBytesWithTag != null;
-                            long newLocation = newFileWriter.storeDataItemWithTag(itemBytesWithTag);
-                            // update the index
-                            index.putIfEqual(path, dataLocation, newLocation);
-                        } catch (final IOException z) {
-                            logger.error(
-                                    EXCEPTION.getMarker(),
-                                    "[{}] Failed to copy data item {} / {}",
-                                    storeName,
-                                    fileIndex,
-                                    fileOffset,
-                                    z);
-                            throw z;
-                        } finally {
-                            snapshotCompactionLock.unlock();
-                        }
-                    },
-                    this::notInterrupted);
+            if (deduplicateMirroredEntries) {
+                allDataItemsProcessed = compactWithDedup(index, keyRange, firstIndexInc, lastIndexExc, readers);
+            } else {
+                allDataItemsProcessed = compactWithNoDedup(index, keyRange, firstIndexInc, lastIndexExc, readers);
+            }
         } finally {
             // Even if the thread is interrupted, make sure the new compacted file is properly closed
             // and is included to future compactions
@@ -279,7 +378,7 @@ public class DataFileCompactor {
                 // Clear compaction start time
                 currentCompactionStartTime.set(null);
                 if (allDataItemsProcessed) {
-                    logger.info(
+                    logger.debug(
                             MERKLE_DB.getMarker(), "All files to compact have been processed, they will be deleted");
                     // Close the readers and delete compacted files
                     dataFileCollection.deleteFiles(filesToCompact);
@@ -296,13 +395,154 @@ public class DataFileCompactor {
         return newCompactedFiles;
     }
 
-    // visible for testing
-    int getMinNumberOfFilesToCompact() {
-        return dbConfig.minNumberOfFilesInCompaction();
+    /**
+     * Compacts files using standard iteration over all valid index entries. For each entry
+     * pointing to a file in the compaction set, reads the data item, writes it to the current
+     * output file, and atomically updates the index via CAS. Entries whose index was concurrently
+     * updated by a flush are silently skipped — the flush's data is more recent.
+     *
+     * <p>Each item copy is performed under {@link #snapshotCompactionLock} to coordinate with
+     * snapshots. If a snapshot pauses compaction mid-iteration, the current output file is
+     * finalized and a new one is opened when compaction resumes.
+     *
+     * <p>Used for IdToHashChunk and PathToKeyValue stores where each index entry is unique.
+     * For ObjectKeyToPath (HalfDiskHashMap), use {@link #compactWithDedup} instead to
+     * avoid writing mirrored bucket entries twice after a bucket index doubling.
+     *
+     * @param index         the index to iterate and update
+     * @param keyRange      valid key range — entries outside this range are skipped
+     * @param firstIndexInc lowest file index in the compaction set (inclusive)
+     * @param lastIndexExc  highest file index in the compaction set (exclusive)
+     * @param readers       sparse array of readers for files in the compaction set, indexed by
+     *                      {@code fileIndex - firstIndexInc}
+     * @return {@code true} if all entries were processed; {@code false} if interrupted
+     */
+    private boolean compactWithNoDedup(
+            @NonNull CASableLongIndex index,
+            @NonNull KeyRange keyRange,
+            int firstIndexInc,
+            int lastIndexExc,
+            DataFileReader[] readers)
+            throws InterruptedException, IOException {
+        return index.forEach(
+                (key, dataLocation) -> {
+                    if (!keyRange.withinRange(key)) {
+                        return;
+                    }
+                    final int fileIndex = DataFileCommon.fileIndexFromDataLocation(dataLocation);
+                    if ((fileIndex < firstIndexInc) || (fileIndex >= lastIndexExc)) {
+                        return;
+                    }
+                    final DataFileReader reader = readers[fileIndex - firstIndexInc];
+                    if (reader == null) {
+                        return;
+                    }
+                    compactSingleItem(index, key, dataLocation, reader);
+                },
+                this::notInterrupted);
     }
 
     /**
-     * Opens a new file for writing during compaction. This method is called, when compaction is
+     * Compacts files with HDHM bucket deduplication. Iterates only the lower half of the
+     * index. For mirrored entries (both halves point to the same location), the data is
+     * written once and both index entries are updated to point to the same new location.
+     *
+     * This method implies that the index starts with 0. If this is not the case, the method is not applicable.
+     *
+     * @return {@code true} if all items were processed without interruption
+     */
+    private boolean compactWithDedup(
+            @NonNull CASableLongIndex index,
+            @NonNull final KeyRange keyRange,
+            final int firstIndexInc,
+            final int lastIndexExc,
+            @NonNull final DataFileReader[] readers)
+            throws IOException {
+
+        final long halfSize = indexSize / 2;
+
+        for (long key = 0; key < halfSize; key++) {
+            if (interruptFlag) {
+                return false;
+            }
+
+            // Process lower half entry
+            final long locationLow = index.get(key);
+            long newLocationLow = 0;
+            if (locationLow != 0 && keyRange.withinRange(key)) {
+                final int fileIndex = DataFileCommon.fileIndexFromDataLocation(locationLow);
+                if (fileIndex >= firstIndexInc && fileIndex < lastIndexExc) {
+                    final DataFileReader reader = readers[fileIndex - firstIndexInc];
+                    if (reader != null) {
+                        // newLocationLow is either 0 (the data item was not copied to a new location) or new location.
+                        // Note that even if CAS in `compactSingleItem` fails, and the low index points to a different
+                        // location,
+                        // newLocatiomLow may be used below (for i + halfSize case)
+                        newLocationLow = compactSingleItem(index, key, locationLow, reader);
+                    }
+                }
+            }
+
+            // Process upper half entry
+            final long locationHigh = index.get(key + halfSize);
+            if (locationHigh != 0 && keyRange.withinRange(key + halfSize)) {
+                if (locationHigh == locationLow && newLocationLow != 0) {
+                    // Mirrored, lower succeeded → update index only, no data write
+                    index.putIfEqual(key + halfSize, locationHigh, newLocationLow);
+                } else {
+                    // Either have different locations or mirrored but lower CAS
+                    // failed → process independently
+                    final int fileIndex = DataFileCommon.fileIndexFromDataLocation(locationHigh);
+                    if (fileIndex >= firstIndexInc && fileIndex < lastIndexExc) {
+                        final DataFileReader reader = readers[fileIndex - firstIndexInc];
+                        if (reader != null) {
+                            compactSingleItem(index, key + halfSize, locationHigh, reader);
+                        }
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Reads a data item from the old file, writes it to the current compaction output file,
+     * and atomically updates the index entry.
+     *
+     * @param index       the index to update
+     * @param key         the index key
+     * @param oldLocation the current data location in the old file
+     * @param reader      the reader for the old file
+     * @return the new data location, or 0 if the CAS failed or the item could not be read
+     */
+    private long compactSingleItem(
+            @NonNull final CASableLongIndex index, final long key, final long oldLocation, final DataFileReader reader)
+            throws IOException {
+        final long fileOffset = DataFileCommon.byteOffsetFromDataLocation(oldLocation);
+        // Take the lock. If a snapshot is started in a different thread, this call
+        // will block until the snapshot is done. The current file will be flushed,
+        // and current data file writer and reader will point to a new file
+        snapshotCompactionLock.lock();
+        try {
+            final DataFileWriter newFileWriter = currentWriter.get();
+            final BufferedData itemBytesWithTag = reader.readDataItemWithTag(fileOffset);
+            assert itemBytesWithTag != null;
+            // Check if the index was changed while this thread was reading data. If
+            // changed, there is no need to write the data as the following CAS call
+            // would fail anyway
+            if (index.get(key) == oldLocation) {
+                final long newLocation = newFileWriter.storeDataItemWithTag(itemBytesWithTag);
+                index.putIfEqual(key, oldLocation, newLocation);
+                return newLocation;
+            }
+            return NON_EXISTENT_DATA_LOCATION;
+        } finally {
+            snapshotCompactionLock.unlock();
+        }
+    }
+
+    /**
+     * Opens a new file for writing during compaction. This method is called when compaction is
      * started. If compaction is interrupted and resumed by data source snapshot using {@link
      * #pauseCompaction()} and {@link #resumeCompaction()}, a new file is created for writing using
      * this method before compaction is resumed.
@@ -321,7 +561,8 @@ public class DataFileCompactor {
         final DataFileMetadata newFileMetadata = newFileWriter.getMetadata();
         final DataFileReader newFileReader = dataFileCollection.addNewDataFileReader(newFileCreated, newFileMetadata);
         currentReader.set(newFileReader);
-        logger.info(MERKLE_DB.getMarker(), "[{}] New compaction file, newFile={}", storeName, newFileReader.getIndex());
+        logger.debug(
+                MERKLE_DB.getMarker(), "[{}] New compaction file, newFile={}", storeName, newFileReader.getIndex());
     }
 
     /**
@@ -334,15 +575,27 @@ public class DataFileCompactor {
      * @throws IOException If an I/O error occurs
      */
     private void finishCurrentCompactionFile() throws IOException {
-        currentWriter.get().close();
+        final DataFileWriter writer = currentWriter.get();
+        writer.close();
         currentWriter.set(null);
-        // Now include the file in future compactions
-        currentReader.get().setFileCompleted();
-        logger.info(
-                MERKLE_DB.getMarker(),
-                "[{}] Compaction file written, fileNum={}",
-                storeName,
-                currentReader.get().getIndex());
+
+        final DataFileReader reader = currentReader.get();
+        if (writer.getMetadata().getItemsCount() == 0) {
+            // Nothing was written — discard the empty file
+            logger.info(
+                    MERKLE_DB.getMarker(),
+                    "[{}] Discarding empty compaction file, fileNum={}",
+                    storeName,
+                    reader.getIndex());
+            dataFileCollection.deleteFiles(List.of(reader));
+            newCompactedFiles.remove(writer.getPath());
+        } else {
+            reader.updateMetadata(writer.getMetadata());
+            reader.setFileCompleted();
+            totalCompactedBytes += reader.getSize();
+            logger.info(
+                    MERKLE_DB.getMarker(), "[{}] Compaction file written, fileNum={}", storeName, reader.getIndex());
+        }
         currentReader.set(null);
     }
 
@@ -356,7 +609,7 @@ public class DataFileCompactor {
      * <p>
      * This method should not be called on the compaction thread.
      * <p>
-     * <b>This method must be always balanced with and called before {@link DataFileCompactor#resumeCompaction()}. If
+     * <b>This method must be always balanced with and called before {@link #resumeCompaction()}. If
      * there are more / less calls to resume compactions than to pause, or if they are called in a
      * wrong order, it will result in deadlocks.</b>
      *
@@ -400,6 +653,7 @@ public class DataFileCompactor {
                 compactionWasInProgress = false;
                 assert currentWriter.get() == null;
                 assert currentReader.get() == null;
+                currentCompactionStartTime.set(Instant.now());
                 startNewCompactionFile(compactionLevelInProgress);
                 compactionLevelInProgress = 0;
             }
@@ -425,166 +679,14 @@ public class DataFileCompactor {
         return !interruptFlag;
     }
 
-    /**
-     * @return true if compaction is currently running, false otherwise.
-     */
-    public boolean isCompactionRunning() {
-        snapshotCompactionLock.lock();
-        try {
-            return currentCompactionStartTime.get() != null;
-        } finally {
-            snapshotCompactionLock.unlock();
-        }
-    }
-
-    /**
-     * @return true if compaction was started and now is complete (successfully or
-     * exceptionally), false otherwise.
-     */
-    public boolean isCompactionComplete() {
-        snapshotCompactionLock.lock();
-        try {
-            return (currentCompactionStartTime.get() == null) && !newCompactedFiles.isEmpty();
-        } finally {
-            snapshotCompactionLock.unlock();
-        }
-    }
-
-    /**
-     * Compact data files in the collection according to the compaction algorithm.
-     *
-     * @throws IOException          if there was a problem merging
-     * @throws InterruptedException if the merge thread was interrupted
-     * @return true if compaction was performed, false otherwise
-     */
-    public boolean compact() throws IOException, InterruptedException {
-        final List<DataFileReader> completedFiles = dataFileCollection.getAllCompletedFiles();
-        reportFileSizeByLevel(completedFiles);
-        final List<DataFileReader> filesToCompact =
-                compactionPlan(completedFiles, getMinNumberOfFilesToCompact(), dbConfig.maxCompactionLevel());
-        if (filesToCompact.isEmpty()) {
-            logger.debug(MERKLE_DB.getMarker(), "[{}] No need to compact, as the compaction plan is empty", storeName);
-            return false;
-        }
-
-        final int filesCount = filesToCompact.size();
-        logger.info(MERKLE_DB.getMarker(), "[{}] Starting compaction", storeName);
-
-        final int targetCompactionLevel = getTargetCompactionLevel(filesToCompact, filesCount);
-
-        final long start = System.currentTimeMillis();
-
-        final long filesToCompactSize = getSizeOfFiles(filesToCompact);
-        logger.debug(
-                MERKLE_DB.getMarker(),
-                "[{}] Starting merging {} files / {}",
-                storeName,
-                filesCount,
-                formatSizeBytes(filesToCompactSize));
-
-        final List<Path> newFilesCreated = compactFiles(index, filesToCompact, targetCompactionLevel);
-
-        final long end = System.currentTimeMillis();
-        final long tookMillis = end - start;
-        if (reportDurationMetricFunction != null) {
-            reportDurationMetricFunction.accept(targetCompactionLevel, tookMillis);
-        }
-
-        final long compactedFilesSize = getSizeOfFilesByPath(newFilesCreated);
-        if (reportSavedSpaceMetricFunction != null) {
-            reportSavedSpaceMetricFunction.accept(
-                    targetCompactionLevel,
-                    (filesToCompactSize - compactedFilesSize) * UnitConstants.BYTES_TO_MEBIBYTES);
-        }
-
-        reportFileSizeByLevel(dataFileCollection.getAllCompletedFiles());
-
-        logCompactStats(
-                storeName,
-                tookMillis,
-                filesToCompact,
-                filesToCompactSize,
-                newFilesCreated,
-                targetCompactionLevel,
-                dataFileCollection);
-        logger.info(
-                MERKLE_DB.getMarker(),
-                "[{}] Finished compaction {} files / {} in {} ms",
-                storeName,
-                filesCount,
-                formatSizeBytes(filesToCompactSize),
-                tookMillis);
-
-        if (updateTotalStatsFunction != null) {
-            updateTotalStatsFunction.run();
-        }
-
-        return true;
-    }
-
     private void reportFileSizeByLevel(List<DataFileReader> allCompletedFiles) {
         if (reportFileSizeByLevelMetricFunction != null) {
-            final Map<Integer, List<DataFileReader>> readersByLevel = getReadersByLevel(allCompletedFiles);
-            for (int i = 0; i < readersByLevel.size(); i++) {
-                final List<DataFileReader> readers = readersByLevel.get(i);
-                if (readers != null) {
-                    reportFileSizeByLevelMetricFunction.accept(
-                            i, getSizeOfFiles(readers) * UnitConstants.BYTES_TO_MEBIBYTES);
-                }
+            final Map<Integer, List<DataFileReader>> readersByLevel = allCompletedFiles.stream()
+                    .collect(Collectors.groupingBy(r -> r.getMetadata().getCompactionLevel()));
+            for (final Map.Entry<Integer, List<DataFileReader>> entry : readersByLevel.entrySet()) {
+                reportFileSizeByLevelMetricFunction.accept(
+                        entry.getKey(), getSizeOfFiles(entry.getValue()) * BYTES_TO_MEBIBYTES);
             }
         }
-    }
-
-    /**
-     * The target compaction level should not exceed the maxCompactionLevel configuration parameter.
-     * We need a limit on compaction levels for two reasons:
-     *  - To ensure a reasonably predictable frequency for full compactions, even for data that changes infrequently.
-     *  - We maintain metrics for each level, and there should be a cap on the number of these metrics.
-     */
-    private int getTargetCompactionLevel(List<? extends DataFileReader> filesToCompact, int filesCount) {
-        int highestExistingCompactionLevel =
-                filesToCompact.get(filesCount - 1).getMetadata().getCompactionLevel();
-
-        return Math.min(highestExistingCompactionLevel + 1, dbConfig.maxCompactionLevel());
-    }
-
-    /**
-     * This method creates a compaction plan (a set of files to be compacted). The plan is organized by compaction levels
-     * in ascending order. If there are not enough files to compact, then no files are compacted and the plan will be empty.
-     * If the current level doesn't reach minNumberOfFilesToCompact threshold,
-     * then this level and the levels above it are not included in the plan.
-     * @return filter creating a compaction plan
-     */
-    static List<DataFileReader> compactionPlan(
-            List<DataFileReader> dataFileReaders, int minNumberOfFilesToCompact, int maxCompactionLevel) {
-        if (dataFileReaders.isEmpty()) {
-            return dataFileReaders;
-        }
-
-        final Map<Integer, List<DataFileReader>> readersByLevel = getReadersByLevel(dataFileReaders);
-
-        final List<DataFileReader> nonCompactedReaders = readersByLevel.get(INITIAL_COMPACTION_LEVEL);
-        if (nonCompactedReaders == null || nonCompactedReaders.size() < minNumberOfFilesToCompact) {
-            return Collections.emptyList();
-        }
-
-        // we always compact files from level 0 if we have enough files
-        final List<DataFileReader> readersToCompact = new ArrayList<>(nonCompactedReaders);
-
-        for (int i = 1; i <= maxCompactionLevel; i++) {
-            final List<DataFileReader> readers = readersByLevel.get(i);
-            // Presumably, one file comes from the compaction of the previous level.
-            // If, counting this file in, it still doesn't have enough, then it stops collecting.
-            if (readers == null || readers.size() < minNumberOfFilesToCompact - 1) {
-                break;
-            }
-            readersToCompact.addAll(readers);
-        }
-        return readersToCompact;
-    }
-
-    private static Map<Integer, List<DataFileReader>> getReadersByLevel(final List<DataFileReader> dataFileReaders) {
-        return dataFileReaders.stream()
-                .collect(Collectors.groupingBy(r -> r.getMetadata().getCompactionLevel()));
     }
 }

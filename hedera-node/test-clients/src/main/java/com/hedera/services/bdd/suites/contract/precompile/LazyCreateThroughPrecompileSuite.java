@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.contract.precompile;
 
 import static com.hedera.node.app.hapi.utils.EthSigsUtils.recoverAddressFromPubKey;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asToken;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -258,7 +257,7 @@ public class LazyCreateThroughPrecompileSuite {
                                             BigInteger.valueOf(2))
                                     .refusingEthConversion()
                                     .via(TRANSFER_TXN)
-                                    .gas(780_000L)
+                                    .gas(2_000_000L)
                                     .hasKnownStatus(SUCCESS),
                             getAliasedAccountInfo(ECDSA_KEY)
                                     .has(AccountInfoAsserts.accountWith()
@@ -366,7 +365,7 @@ public class LazyCreateThroughPrecompileSuite {
                                             HapiParserUtil.asHeadlongAddress(addressBytes),
                                             BigInteger.TWO)
                                     .refusingEthConversion()
-                                    .gas(780_000L)
+                                    .gas(2_000_000L)
                                     .via(TRANSFER_FROM_ACCOUNT_TXN)
                                     .hasKnownStatus(SUCCESS),
                             getAliasedAccountInfo(ECDSA_KEY)
@@ -401,7 +400,6 @@ public class LazyCreateThroughPrecompileSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> erc721TransferFromLazyCreate() {
         return hapiTest(
                 newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),
@@ -466,7 +464,7 @@ public class LazyCreateThroughPrecompileSuite {
                                             BigInteger.valueOf(1))
                                     .refusingEthConversion()
                                     .via(TRANSFER_FROM_ACCOUNT_TXN)
-                                    .gas(780_000L)
+                                    .gas(2_000_000L)
                                     .hasKnownStatus(SUCCESS),
                             getAliasedAccountInfo(ECDSA_KEY)
                                     .has(AccountInfoAsserts.accountWith()
@@ -566,7 +564,6 @@ public class LazyCreateThroughPrecompileSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> htsTransferFromForNFTLazyCreate() {
         return hapiTest(
                 newKeyNamed(ECDSA_KEY).shape(SECP_256K1_SHAPE),

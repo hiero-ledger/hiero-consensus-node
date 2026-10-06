@@ -13,7 +13,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FILE_DELETED;
@@ -892,7 +891,7 @@ public class AtomicBatchEndToEndFileServiceTests {
 
     private List<SpecOperation> createAccountsAndKeys() {
         return List.of(
-                cryptoCreate(BATCH_OPERATOR).balance(ONE_HBAR),
+                cryptoCreate(BATCH_OPERATOR).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(fileKey).shape(KeyShape.SIMPLE),
                 newKeyNamed(newFileKey).shape(KeyShape.SIMPLE),
                 newKeyListNamed("keyList", List.of(fileKey)),

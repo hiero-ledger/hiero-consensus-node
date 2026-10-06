@@ -221,6 +221,19 @@ public class TransactionRecordAsserts extends BaseErroringAssertsProvider<Transa
         return this;
     }
 
+    public TransactionRecordAsserts targetAccountId(String expectedAccountId) {
+        this.<TransactionReceipt>registerTypedProvider(RECEIPT, spec -> receipt -> {
+            try {
+                assertEquals(
+                        receipt.getAccountID(), spec.registry().getAccountID(expectedAccountId), "Wrong AccountId!");
+            } catch (Throwable t) {
+                return List.of(t);
+            }
+            return EMPTY_LIST;
+        });
+        return this;
+    }
+
     public TransactionRecordAsserts pseudoRandomBytes() {
         this.<ByteString>registerTypedProvider("prngBytes", spec -> prngBytes -> {
             try {
@@ -298,6 +311,30 @@ public class TransactionRecordAsserts extends BaseErroringAssertsProvider<Transa
         this.<TransactionReceipt>registerTypedProvider(RECEIPT, spec -> receipt -> {
             try {
                 assertEquals(expected, receipt.getNewTotalSupply(), "Wrong new total supply");
+            } catch (Throwable t) {
+                return List.of(t);
+            }
+            return EMPTY_LIST;
+        });
+        return this;
+    }
+
+    public TransactionRecordAsserts registeredNodeId(final long expected) {
+        this.<TransactionReceipt>registerTypedProvider(RECEIPT, spec -> receipt -> {
+            try {
+                assertEquals(expected, receipt.getRegisteredNodeId(), "Wrong registered node id");
+            } catch (Throwable t) {
+                return List.of(t);
+            }
+            return EMPTY_LIST;
+        });
+        return this;
+    }
+
+    public TransactionRecordAsserts hasNonZeroRegisteredNodeId() {
+        this.<TransactionReceipt>registerTypedProvider(RECEIPT, spec -> receipt -> {
+            try {
+                assertTrue(receipt.getRegisteredNodeId() > 0, "Expected non-zero registered node id");
             } catch (Throwable t) {
                 return List.of(t);
             }

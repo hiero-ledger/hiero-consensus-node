@@ -20,14 +20,12 @@ import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.props.NodeConnectInfo;
 import com.hedera.services.bdd.spec.remote.RemoteNetworkSpec;
-import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hedera.services.bdd.spec.utilops.inventory.AccessoryUtils;
 import com.hedera.services.bdd.suites.contract.Utils;
 import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.Duration;
 import com.hederahashgraph.api.proto.java.FileID;
-import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -38,15 +36,11 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.security.PrivateKey;
 import java.security.interfaces.ECPrivateKey;
-import java.util.Collections;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.SplittableRandom;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import net.i2p.crypto.eddsa.EdDSAPrivateKey;
 import org.apache.commons.lang3.StringUtils;
@@ -58,7 +52,6 @@ import org.hiero.base.utility.CommonUtils;
 public class HapiSpecSetup {
     private final SplittableRandom r = new SplittableRandom(1_234_567L);
 
-    private Set<ResponseCodeEnum> streamlinedIngestChecks = null;
     private HapiPropertySource ciPropertiesMap = null;
     private static HapiPropertySource DEFAULT_PROPERTY_SOURCE = null;
     private static final HapiPropertySource BASE_DEFAULT_PROPERTY_SOURCE = JutilPropertySource.getDefaultInstance();
@@ -488,14 +481,6 @@ public class HapiSpecSetup {
         return props.getLong("fee.schedule.fetch.fee");
     }
 
-    public FileID feeScheduleId() {
-        return props.getFile("fee.schedule.id");
-    }
-
-    public String feeScheduleName() {
-        return props.get("fee.schedule.name");
-    }
-
     public AccountID simpleFeesScheduleControl() {
         return props.getAccount("simplefees.schedule.controlAccount.id");
     }
@@ -720,34 +705,5 @@ public class HapiSpecSetup {
      */
     public String remoteNodesYmlLoc() {
         return props.get("nodes.remoteYml");
-    }
-
-    /**
-     * Returns the set of response codes that should be always be enforced on ingest. When
-     * {@link HapiTxnOp#hasPrecheck(ResponseCodeEnum)} is given a response code <i>not</i> in
-     * this set, it will automatically accept {@code OK} in its place, but switch the expected
-     * consensus status to that response code.
-     *
-     * <p>That is, for a non-streamlined status like {@link ResponseCodeEnum#INVALID_ACCOUNT_AMOUNTS},
-     * {@code hasPrecheck(INVALID_ACCOUNT_AMOUNTS)} is equivalent to,
-     * <pre>{@code
-     *     cryptoTransfer(...)
-     *         .hasPrecheckFrom(OK, INVALID_ACCOUNT_AMOUNTS)
-     *         .hasKnownStatus(INVALID_ACCOUNT_AMOUNTS)
-     * }</pre>
-     *
-     * @return the set of response codes that should be always be enforced on ingest
-     */
-    public Set<ResponseCodeEnum> streamlinedIngestChecks() {
-        if (streamlinedIngestChecks == null) {
-            final var nominal = props.get("spec.streamlinedIngestChecks");
-            streamlinedIngestChecks = EnumSet.copyOf(
-                    nominal.isEmpty()
-                            ? Collections.emptySet()
-                            : Stream.of(nominal.split(","))
-                                    .map(ResponseCodeEnum::valueOf)
-                                    .collect(Collectors.toSet()));
-        }
-        return streamlinedIngestChecks;
     }
 }

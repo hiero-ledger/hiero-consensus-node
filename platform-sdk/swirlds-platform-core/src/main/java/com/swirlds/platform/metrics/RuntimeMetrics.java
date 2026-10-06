@@ -13,9 +13,7 @@ import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import com.sun.management.HotSpotDiagnosticMXBean;
 import com.sun.management.OperatingSystemMXBean;
 import com.swirlds.base.units.UnitConstants;
-import com.swirlds.common.utility.RuntimeObjectRegistry;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.state.signed.SignedState;
 import java.io.File;
 import java.lang.management.BufferPoolMXBean;
 import java.lang.management.ManagementFactory;
@@ -26,8 +24,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.base.constructable.RuntimeObjectRegistry;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.metrics.RunningAverageMetric;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * Collection of metrics related to runtime statistics

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.contract;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBody;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.keys.TrieSigMapGenerator.uniqueWithFullPrefixesFor;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -261,17 +260,6 @@ public class HapiContractCall extends HapiBaseCall<HapiContractCall> {
 
     public boolean getDeferStatusResolution() {
         return deferStatusResolution;
-    }
-
-    @Override
-    protected long feeFor(HapiSpec spec, Transaction txn, int numPayerKeys) throws Throwable {
-        final var ans = spec.fees()
-                .forActivityBasedOp(
-                        HederaFunctionality.ContractCall, scFees::getContractCallTxFeeMatrices, txn, numPayerKeys);
-        final var additionalGasCost =
-                extractTransactionBody(txn).getContractCall().getGas()
-                        * spec.ratesProvider().currentTinybarGasPrice();
-        return ans + additionalGasCost;
     }
 
     @Override

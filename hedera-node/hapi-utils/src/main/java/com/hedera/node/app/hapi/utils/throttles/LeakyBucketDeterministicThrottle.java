@@ -12,7 +12,8 @@ import java.time.Instant;
 /**
  * Main class responsible for throttling transactions by gasLimit. Keeps track of the instance the
  * last decision was made and calculates the time elapsed since then.
- * Uses a {@link LeakyBucketThrottle} under the hood.
+ * Uses a {@link LeakyBucketThrottle} under the hood. This is similar to {@link DeterministicThrottle},
+ * but for scalar limits like gas/bytes:
  */
 public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
     private final String throttleName;

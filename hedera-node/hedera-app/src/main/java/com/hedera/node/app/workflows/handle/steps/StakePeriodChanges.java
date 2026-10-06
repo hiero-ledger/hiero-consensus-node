@@ -4,9 +4,9 @@ package com.hedera.node.app.workflows.handle.steps;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.swirlds.common.stream.LinkedObjectStreamUtilities.getPeriod;
 import static java.time.ZoneOffset.UTC;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.event.stream.LinkedObjectStreamUtilities.getPeriod;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -160,13 +160,15 @@ public class StakePeriodChanges {
                     final var weightFunction = tokenContext
                             .readableStore(ReadableStakingInfoStore.class)
                             .weightFunction();
-                    final var reweightedRoster =
-                            new Roster(requireNonNull(rosterStore.getActiveRoster()).rosterEntries().stream()
-                                    .map(rosterEntry -> rosterEntry
-                                            .copyBuilder()
-                                            .weight(weightFunction.applyAsLong(rosterEntry.nodeId()))
-                                            .build())
-                                    .toList());
+                    final var rosterToReweight = rosterStore.getCandidateRosterHash() == null
+                            ? requireNonNull(rosterStore.getActiveRoster())
+                            : requireNonNull(rosterStore.getCandidateRoster());
+                    final var reweightedRoster = new Roster(rosterToReweight.rosterEntries().stream()
+                            .map(rosterEntry -> rosterEntry
+                                    .copyBuilder()
+                                    .weight(weightFunction.applyAsLong(rosterEntry.nodeId()))
+                                    .build())
+                            .toList());
                     if (!hasZeroWeight(reweightedRoster)) {
                         rosterStore.putCandidateRoster(reweightedRoster);
                         stack.commitFullStack();

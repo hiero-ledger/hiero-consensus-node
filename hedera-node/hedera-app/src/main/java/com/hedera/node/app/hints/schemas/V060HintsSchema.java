@@ -36,8 +36,6 @@ public class V060HintsSchema extends Schema<SemanticVersion> {
             StateKey.KeyOneOfType.HINTSSERVICE_I_CRS_PUBLICATIONS.protoOrdinal();
     public static final String CRS_PUBLICATIONS_STATE_LABEL = computeLabel(HintsService.NAME, CRS_PUBLICATIONS_KEY);
 
-    private static final long MAX_CRS_PUBLICATIONS = 1L << 10;
-
     private final HintsContext signingContext;
 
     public V060HintsSchema(@NonNull final HintsContext signingContext) {
@@ -49,12 +47,11 @@ public class V060HintsSchema extends Schema<SemanticVersion> {
     public @NonNull Set<StateDefinition> statesToCreate() {
         return Set.of(
                 StateDefinition.singleton(CRS_STATE_STATE_ID, CRS_STATE_KEY, CRSState.PROTOBUF),
-                StateDefinition.onDisk(
+                StateDefinition.keyValue(
                         CRS_PUBLICATIONS_STATE_ID,
                         CRS_PUBLICATIONS_KEY,
                         NodeId.PROTOBUF,
-                        CrsPublicationTransactionBody.PROTOBUF,
-                        MAX_CRS_PUBLICATIONS));
+                        CrsPublicationTransactionBody.PROTOBUF));
     }
 
     @Override

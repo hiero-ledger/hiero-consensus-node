@@ -3,11 +3,15 @@ package org.hiero.consensus.pcli.recovery;
 
 import static org.hiero.consensus.pcli.recovery.EventRecoveryWorkflow.recoverState;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.DefaultConfiguration;
 import java.nio.file.Path;
+import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.PathsConfig;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.pcli.AbstractCommand;
 import org.hiero.consensus.pcli.EventStreamCommand;
@@ -21,6 +25,9 @@ import picocli.CommandLine;
 @SubcommandOf(EventStreamCommand.class)
 public final class EventStreamRecoverCommand extends AbstractCommand {
 
+    /** This is the value used in production by the Hedera App */
+    private static final long DEFAULT_TRANSACTION_OFFSET_NANOS = 104L;
+
     private Path outputPath = Path.of("./out");
     private Path bootstrapSignedState;
     private NodeId selfId;
@@ -29,6 +36,7 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
     private Path eventStreamDirectory;
     private Path configurationPath;
     private boolean loadSigningKeys;
+    private long transactionOffsetNanos = DEFAULT_TRANSACTION_OFFSET_NANOS;
 
     private EventStreamRecoverCommand() {}
 
@@ -95,22 +103,39 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
         this.loadSigningKeys = loadSigningKeys;
     }
 
+    @CommandLine.Option(
+            names = {"-t", "--transaction-offset-nanos"},
+            defaultValue = "0",
+            description = "Nanoseconds to add to the first transaction's timestamp in each event. "
+                    + "Should match the value computed by the execution layer from its configuration. Default = 0")
+    private void setTransactionOffsetNanos(final long transactionOffsetNanos) {
+        this.transactionOffsetNanos = transactionOffsetNanos;
+    }
+
     @Override
     public Integer call() throws Exception {
         final Configuration configuration =
                 DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create(), configurationPath);
 
-        final PlatformContext platformContext = PlatformContext.create(configuration);
+        final Metrics metrics = new NoOpMetrics();
+        final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
+        final FileSystemManager fileSystemManager =
+                new FileSystemManager(pathsConfig.savedStateDir(), pathsConfig.tmpDir());
+        final Time time = Time.getCurrent();
 
         recoverState(
-                platformContext,
+                configuration,
+                metrics,
+                time,
+                fileSystemManager,
                 bootstrapSignedState,
                 eventStreamDirectory,
                 !ignorePartialRounds,
                 finalRound,
                 outputPath,
                 selfId,
-                loadSigningKeys);
+                loadSigningKeys,
+                transactionOffsetNanos);
         return 0;
     }
 }

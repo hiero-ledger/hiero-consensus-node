@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.staking;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -13,13 +12,13 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.sleepToExactly;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.scheduledExecutionResult;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.streamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withRecordSpec;
@@ -50,7 +49,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestMethodOrder;
 
 /**
@@ -96,17 +94,12 @@ public class RepeatableStakingTests {
                 getTxnRecord("collection").hasPaidStakingRewards(List.of(Pair.of("forgottenStaker", 365L))));
     }
 
-    /**
-     * Validates that staking metadata stays up-to-date even when returning to a staked account
-     * after a long period of inactivity.
-     */
     @Order(2)
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-    @Tag(MATS)
     Stream<DynamicTest> scheduledTransactionCrossingThresholdTriggersExpectedRewards() {
         final AtomicReference<Instant> secondBoundary = new AtomicReference<>();
         return hapiTest(
-                blockStreamMustIncludePassFrom(scheduledExecutionResult(
+                streamMustIncludePassFrom(scheduledExecutionResult(
                         "trigger", withRecordSpec(op -> op.hasPaidStakingRewards(List.of(Pair.of("staker", 2L)))))),
                 cryptoCreate("staker").stakedNodeId(0).balance(ONE_HBAR),
                 waitUntilStartOfNextStakingPeriod(1),
@@ -124,13 +117,17 @@ public class RepeatableStakingTests {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1L)),
                 doWithStartupConfig(
                         "consensus.handle.maxPrecedingRecords",
-                        value -> sleepToExactly(secondBoundary
-                                .get()
-                                // The next transaction will happen one second after the time we sleep to
-                                .minusSeconds(1)
-                                // And we adjust the nanos so the user transaction will be in this staking
-                                // period, but the triggered transaction will be in the next staking period
-                                .minusNanos(Long.parseLong(value) + 1))),
+                        maxPreceding -> doWithStartupConfig(
+                                "scheduling.reservedSystemTxnNanos",
+                                systemReservedNanos -> sleepToExactly(secondBoundary
+                                        .get()
+                                        // The next transaction will happen one second after the time we sleep to
+                                        .minusSeconds(1)
+                                        // And we adjust the nanos so the user transaction will be in this staking
+                                        // period, but the triggered transaction will be in the next staking period
+                                        .minusNanos(Long.parseLong(maxPreceding)
+                                                + 1
+                                                + Long.parseLong(systemReservedNanos))))),
                 cryptoCreate("justBeforeSecondPeriod"),
                 // Trigger block closure to ensure block is closed
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
@@ -140,7 +137,6 @@ public class RepeatableStakingTests {
     @LeakyRepeatableHapiTest(
             value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS},
             overrides = {"staking.perHbarRewardRate", "staking.rewardBalanceThreshold"})
-    @Tag(MATS)
     Stream<DynamicTest> rewardRateSmoothedToZeroSafely() {
         final AtomicLong stakerBalanceAfter = new AtomicLong();
         final AtomicLong stakerBalanceBefore = new AtomicLong();

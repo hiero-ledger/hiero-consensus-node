@@ -1,0 +1,80 @@
+// SPDX-License-Identifier: Apache-2.0
+package org.hiero.consensus.pces.impl;
+
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static java.util.Objects.requireNonNull;
+
+import com.swirlds.base.time.Time;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.io.IOIterator;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.pces.impl.common.PcesFileTracker;
+import org.hiero.consensus.pces.impl.replayer.PcesReplayer;
+import org.hiero.consensus.pces.impl.replayer.PcesReplayerWiring;
+import org.hiero.consensus.status.monitor.StatusMonitorModule;
+import org.hiero.consensus.status.monitor.actions.DoneReplayingEventsAction;
+import org.hiero.consensus.status.monitor.actions.StartedReplayingEventsAction;
+
+/**
+ * The {@link PcesCoordinator} is responsible for coordinating the replay of events from the preconsensus event stream
+ * (PCES) at startup. It reads events from the PCES files using the {@link PcesFileTracker} and feeds them into the
+ * {@link PcesReplayer} for replay. It also reports status updates to the platform and signals when PCES replay is
+ * complete.
+ */
+public class PcesCoordinator {
+
+    private static final Logger logger = LogManager.getLogger();
+
+    private final Time time;
+    private final PcesFileTracker initialPcesFiles;
+    private final PcesReplayerWiring pcesReplayerWiring;
+    private final StatusMonitorModule statusMonitorModule;
+    private final Runnable signalEndOfPcesReplay;
+
+    /**
+     * Creates a new {@link PcesCoordinator}.
+     *
+     * @param time the time source
+     * @param initialPcesFiles the {@link PcesFileTracker} to read the PCES files from
+     * @param pcesReplayerWiring the wiring for the {@link PcesReplayer}
+     * @param statusMonitorModule the {@link StatusMonitorModule} to report status updates to the platform
+     * @param signalEndOfPcesReplay a runnable that signals to the system that PCES replay is complete
+     */
+    public PcesCoordinator(
+            @NonNull final Time time,
+            @NonNull final PcesFileTracker initialPcesFiles,
+            @NonNull final PcesReplayerWiring pcesReplayerWiring,
+            @NonNull final StatusMonitorModule statusMonitorModule,
+            @NonNull final Runnable signalEndOfPcesReplay) {
+        this.time = requireNonNull(time);
+        this.initialPcesFiles = requireNonNull(initialPcesFiles);
+        this.pcesReplayerWiring = requireNonNull(pcesReplayerWiring);
+        this.statusMonitorModule = requireNonNull(statusMonitorModule);
+        this.signalEndOfPcesReplay = requireNonNull(signalEndOfPcesReplay);
+    }
+
+    /**
+     * Replays events from the preconsensus event stream starting from the given lower bound round.
+     *
+     * @param pcesReplayLowerBound the lower bound round to start replaying from (inclusive)
+     * @param startingRound the current round at the time of startup, used for logging purposes
+     */
+    public void replayPcesEvents(final long pcesReplayLowerBound, final long startingRound) {
+        requireNonNull(initialPcesFiles, "Not initialized");
+        statusMonitorModule.platformStatusActionInputWire().put(new StartedReplayingEventsAction());
+        // Flush the replay started action so that the status is up to date when rounds start reaching consensus
+        // and the ConsensusRound#pcesRound boolean is guaranteed to be accurate.
+        statusMonitorModule.flush();
+
+        final IOIterator<PlatformEvent> iterator =
+                initialPcesFiles.getEventIterator(pcesReplayLowerBound, startingRound);
+
+        logger.info(STARTUP.getMarker(), "replaying preconsensus event stream starting at {}", pcesReplayLowerBound);
+
+        pcesReplayerWiring.pcesIteratorInputWire().inject(iterator);
+        signalEndOfPcesReplay.run();
+        statusMonitorModule.platformStatusActionInputWire().put(new DoneReplayingEventsAction(time.now()));
+    }
+}

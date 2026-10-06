@@ -13,8 +13,9 @@ public class UtilityConfigurationExtension implements ConfigurationExtension {
     /**
      * {@inheritDoc}
      */
+    @Override
     @NonNull
     public Set<Class<? extends Record>> getConfigDataTypes() {
-        return Set.of(BasicConfig.class, EventConfig.class, FallenBehindConfig.class, ThreadConfig.class);
+        return Set.of(RecycleBinConfig.class);
     }
 }

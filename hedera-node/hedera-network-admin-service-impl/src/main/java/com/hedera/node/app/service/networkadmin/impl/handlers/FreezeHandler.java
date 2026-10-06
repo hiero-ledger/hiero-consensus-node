@@ -16,14 +16,10 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.freeze.FreezeTransactionBody;
 import com.hedera.hapi.node.freeze.FreezeType;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
 import com.hedera.node.app.service.networkadmin.ReadableFreezeStore;
 import com.hedera.node.app.service.networkadmin.impl.WritableFreezeStore;
-import com.hedera.node.app.service.token.ReadableStakingInfoStore;
-import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -156,8 +152,6 @@ public class FreezeHandler implements TransactionHandler {
         final var txn = context.body();
         final StoreFactory storeFactory = context.storeFactory();
         final ReadableUpgradeFileStore upgradeFileStore = storeFactory.readableStore(ReadableUpgradeFileStore.class);
-        final ReadableNodeStore nodeStore = storeFactory.readableStore(ReadableNodeStore.class);
-        final ReadableStakingInfoStore stakingInfoStore = storeFactory.readableStore(ReadableStakingInfoStore.class);
         final WritableFreezeStore freezeStore = storeFactory.writableStore(WritableFreezeStore.class);
 
         final FreezeTransactionBody freezeTxn = txn.freezeOrThrow();
@@ -168,13 +162,7 @@ public class FreezeHandler implements TransactionHandler {
         final var filesConfig = context.configuration().getConfigData(FilesConfig.class);
 
         final FreezeUpgradeActions upgradeActions = new FreezeUpgradeActions(
-                context.configuration(),
-                freezeStore,
-                freezeExecutor,
-                upgradeFileStore,
-                nodeStore,
-                stakingInfoStore,
-                entityIdFactory);
+                context.configuration(), freezeStore, freezeExecutor, upgradeFileStore, entityIdFactory);
         final Timestamp freezeStartTime = freezeTxn.startTime(); // may be null for some freeze types
 
         switch (freezeTxn.freezeType()) {
@@ -220,14 +208,6 @@ public class FreezeHandler implements TransactionHandler {
         }
     }
 
-    @NonNull
-    @Override
-    public Fees calculateFees(@NonNull final FeeContext feeContext) {
-        requireNonNull(feeContext);
-        // Can only reach consensus with a privileged account as payer
-        return Fees.FREE;
-    }
-
     /**
      * Performs checks that the entities related to this transaction exist and are valid.
      */
@@ -244,7 +224,33 @@ public class FreezeHandler implements TransactionHandler {
                 && (updateFileID == null || upgradeStore.peek(updateFileID) == null)) {
             throw new IllegalStateException("Update file not found");
         }
+
+        if (freezeTxn.freezeType() == FREEZE_UPGRADE) {
+            validatePreparedUpgrade(freezeTxn, freezeStore);
+        }
     }
+
+    /**
+     * Verifies that a {@code FREEZE_UPGRADE} confirms an upgrade that was actually prepared: an earlier
+     * {@code PREPARE_UPGRADE} must have recorded an update file hash, and the hash named by this
+     * transaction must match the recorded one. A {@code FREEZE_ABORT} clears the recorded hash, so a
+     * freeze upgrade aborted in the meantime is treated as having no prepared upgrade.
+     *
+     * @param freezeTxn the freeze transaction body being handled
+     * @param freezeStore the store holding the prepared update file hash
+     * @throws HandleException if no upgrade has been prepared, or the prepared hash does not match
+     */
+    private static void validatePreparedUpgrade(
+            @NonNull final FreezeTransactionBody freezeTxn, @NonNull final ReadableFreezeStore freezeStore) {
+        final Bytes preparedFileHash = freezeStore.updateFileHash();
+        if (preparedFileHash == null || Bytes.EMPTY.equals(preparedFileHash)) {
+            throw new HandleException(ResponseCodeEnum.NO_UPGRADE_HAS_BEEN_PREPARED);
+        }
+        if (!preparedFileHash.equals(freezeTxn.fileHash())) {
+            throw new HandleException(ResponseCodeEnum.UPDATE_FILE_HASH_DOES_NOT_MATCH_PREPARED);
+        }
+    }
+
     /**
      * For freeze types FREEZE_ONLY, FREEZE_UPGRADE, and TELEMETRY_UPGRADE, the startTime field must be set to
      * a time in the future, where future is defined as a time after the current consensus time.

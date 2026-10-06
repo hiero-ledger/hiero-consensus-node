@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows.ingest;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PLATFORM_TRANSACTION_NOT_CREATED;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
@@ -14,7 +15,6 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.hapi.node.transaction.UncheckedSubmitBody;
 import com.hedera.hapi.node.util.AtomicBatchTransactionBody;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -23,12 +23,17 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.metrics.api.Metrics;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.metrics.SpeedometerMetric;
+import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -110,8 +115,10 @@ final class SubmissionManagerTest extends AppTestBase {
         @DisplayName("Null cannot be provided as any of the 'submit' args")
         @SuppressWarnings("ConstantConditions")
         void testSubmitWithIllegalParameters() {
-            assertThatThrownBy(() -> submissionManager.submit(null, bytes)).isInstanceOf(NullPointerException.class);
-            assertThatThrownBy(() -> submissionManager.submit(txBody, null)).isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> submissionManager.submit(null, bytes, false))
+                    .isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> submissionManager.submit(txBody, null, false))
+                    .isInstanceOf(NullPointerException.class);
         }
 
         @Test
@@ -121,7 +128,7 @@ final class SubmissionManagerTest extends AppTestBase {
             when(transactionPool.submitApplicationTransaction(any())).thenReturn(true);
 
             // When we submit bytes
-            submissionManager.submit(txBody, bytes);
+            submissionManager.submit(txBody, bytes, false);
 
             // Then the platform actually receives the bytes
             verify(transactionPool).submitApplicationTransaction(bytes);
@@ -138,7 +145,7 @@ final class SubmissionManagerTest extends AppTestBase {
             when(transactionPool.submitApplicationTransaction(any())).thenReturn(false);
 
             // When we submit bytes, then we fail by exception
-            assertThatThrownBy(() -> submissionManager.submit(txBody, bytes))
+            assertThatThrownBy(() -> submissionManager.submit(txBody, bytes, false))
                     .isInstanceOf(PreCheckException.class)
                     .extracting(t -> ((PreCheckException) t).responseCode())
                     .isEqualTo(PLATFORM_TRANSACTION_NOT_CREATED);
@@ -159,211 +166,13 @@ final class SubmissionManagerTest extends AppTestBase {
 
             // When we submit a duplicate transaction twice in close succession, then the second one fails
             // with a DUPLICATE_TRANSACTION error
-            submissionManager.submit(txBody, bytes);
-            assertThatThrownBy(() -> submissionManager.submit(txBody, bytes))
+            submissionManager.submit(txBody, bytes, false);
+            assertThatThrownBy(() -> submissionManager.submit(txBody, bytes, false))
                     .isInstanceOf(PreCheckException.class)
                     .extracting(t -> ((PreCheckException) t).responseCode())
                     .isEqualTo(DUPLICATE_TRANSACTION);
             // And the deduplication cache is updated just once
             verify(deduplicationCache).add(txBody.transactionIDOrThrow());
-        }
-    }
-
-    @Nested
-    @DisplayName("Tests for unchecked transaction submission")
-    class UncheckedSubmitTest extends AppTestBase {
-        /** Mocked Metrics allowing us to see if the speedometer has been modified */
-        @Mock
-        private Metrics mockedMetrics;
-        /** The speedometer metric used by the submission manager */
-        @Mock
-        private SpeedometerMetric platformTxnRejections;
-        /** The submission manager instance */
-        private SubmissionManager submissionManager;
-        /** Representative of the raw transaction bytes */
-        private Bytes bytes;
-        /** The TransactionBody of the transaction we are submitting */
-        private TransactionBody txBody;
-        /** Representative of the unchecked transaction bytes */
-        private Bytes uncheckedBytes;
-
-        @BeforeEach
-        void setup() {
-            config = () -> new VersionedConfigImpl(
-                    HederaTestConfigBuilder.create()
-                            .withValue("hedera.profiles.active", "TEST")
-                            .withValue("ledger.id", "0x03")
-                            .getOrCreateConfig(),
-                    1);
-            when(mockedMetrics.getOrCreate(any())).thenReturn(platformTxnRejections);
-            submissionManager = new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
-
-            bytes = randomBytes(25);
-
-            final var uncheckedTx = simpleCryptoTransfer();
-            uncheckedBytes = Bytes.wrap(asByteArray(uncheckedTx));
-            txBody = TransactionBody.newBuilder()
-                    .transactionID(TransactionID.newBuilder()
-                            .transactionValidStart(asTimestamp(Instant.now()))
-                            .build())
-                    .uncheckedSubmit(UncheckedSubmitBody.newBuilder()
-                            .transactionBytes(uncheckedBytes)
-                            .build())
-                    .build();
-        }
-
-        @Test
-        @DisplayName("An unchecked transaction not in PROD mode can be submitted")
-        void testSuccessWithUncheckedSubmit() throws PreCheckException {
-            // Given a platform that will succeed in taking the *unchecked* bytes
-            when(transactionPool.submitApplicationTransaction(uncheckedBytes)).thenReturn(true);
-
-            // When we submit an unchecked transaction, and separate bytes
-            submissionManager.submit(txBody, bytes);
-
-            // Then the platform actually sees the unchecked bytes
-            verify(transactionPool).submitApplicationTransaction(uncheckedBytes);
-            // And the metrics keeping track of errors submitting are NOT touched
-            verify(platformTxnRejections, never()).cycle();
-            // And the deduplication cache is updated
-            verify(deduplicationCache).add(any());
-        }
-
-        @Test
-        @DisplayName("An unchecked transaction in PROD mode WILL FAIL")
-        void testUncheckedSubmitInProdFails() {
-            // Given we are in PROD mode
-            config = () -> new VersionedConfigImpl(
-                    HederaTestConfigBuilder.create()
-                            .withValue("hedera.profiles.active", "PROD")
-                            .withValue("ledger.id", "0x03")
-                            .getOrCreateConfig(),
-                    1);
-            submissionManager = new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
-
-            // When we submit an unchecked transaction, and separate bytes, then the
-            // submission FAILS because we are in PROD mode
-            assertThatThrownBy(() -> submissionManager.submit(txBody, bytes))
-                    .isInstanceOf(PreCheckException.class)
-                    .hasFieldOrPropertyWithValue("responseCode", PLATFORM_TRANSACTION_NOT_CREATED);
-
-            // Then the platform NEVER sees the unchecked bytes
-            verify(transactionPool, never()).submitApplicationTransaction(uncheckedBytes);
-            // We never attempted to submit this tx to the platform, so we don't increase the metric
-            verify(platformTxnRejections, never()).cycle();
-            // And the deduplication cache is not updated
-            verify(deduplicationCache, never()).add(any());
-        }
-
-        @Test
-        @DisplayName("An unchecked transaction on MainNet WILL FAIL")
-        void testUncheckedSubmitOnMainNetFails() {
-            // Given we are in PROD mode
-            config = () -> new VersionedConfigImpl(
-                    HederaTestConfigBuilder.create()
-                            .withValue("hedera.profiles.active", "TEST")
-                            .withValue("ledger.id", "0x00")
-                            .getOrCreateConfig(),
-                    1);
-            submissionManager = new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
-
-            // When we submit an unchecked transaction, and separate bytes, then the
-            // submission FAILS because we are in PROD mode
-            assertThatThrownBy(() -> submissionManager.submit(txBody, bytes))
-                    .isInstanceOf(PreCheckException.class)
-                    .hasFieldOrPropertyWithValue("responseCode", PLATFORM_TRANSACTION_NOT_CREATED);
-
-            // Then the platform NEVER sees the unchecked bytes
-            verify(transactionPool, never()).submitApplicationTransaction(uncheckedBytes);
-            // We never attempted to submit this tx to the platform, so we don't increase the metric
-            verify(platformTxnRejections, never()).cycle();
-            // And the deduplication cache is not updated
-            verify(deduplicationCache, never()).add(any());
-        }
-
-        @Test
-        @DisplayName("An unchecked transaction on TestNet WILL FAIL")
-        void testUncheckedSubmitOnTestNetFails() {
-            // Given we are in PROD mode
-            config = () -> new VersionedConfigImpl(
-                    HederaTestConfigBuilder.create()
-                            .withValue("hedera.profiles.active", "TEST")
-                            .withValue("ledger.id", "0x01")
-                            .getOrCreateConfig(),
-                    1);
-            submissionManager = new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
-
-            // When we submit an unchecked transaction, and separate bytes, then the
-            // submission FAILS because we are in PROD mode
-            assertThatThrownBy(() -> submissionManager.submit(txBody, bytes))
-                    .isInstanceOf(PreCheckException.class)
-                    .hasFieldOrPropertyWithValue("responseCode", PLATFORM_TRANSACTION_NOT_CREATED);
-
-            // Then the platform NEVER sees the unchecked bytes
-            verify(transactionPool, never()).submitApplicationTransaction(uncheckedBytes);
-            // We never attempted to submit this tx to the platform, so we don't increase the metric
-            verify(platformTxnRejections, never()).cycle();
-            // And the deduplication cache is not updated
-            verify(deduplicationCache, never()).add(any());
-        }
-
-        @Test
-        @DisplayName("An unchecked transaction on PreviewNet WILL FAIL")
-        void testUncheckedSubmitOnPreviewNetFails() {
-            // Given we are in PROD mode
-            config = () -> new VersionedConfigImpl(
-                    HederaTestConfigBuilder.create()
-                            .withValue("hedera.profiles.active", "TEST")
-                            .withValue("ledger.id", "0x02")
-                            .getOrCreateConfig(),
-                    1);
-            submissionManager = new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
-
-            // When we submit an unchecked transaction, and separate bytes, then the
-            // submission FAILS because we are in PROD mode
-            assertThatThrownBy(() -> submissionManager.submit(txBody, bytes))
-                    .isInstanceOf(PreCheckException.class)
-                    .hasFieldOrPropertyWithValue("responseCode", PLATFORM_TRANSACTION_NOT_CREATED);
-
-            // Then the platform NEVER sees the unchecked bytes
-            verify(transactionPool, never()).submitApplicationTransaction(uncheckedBytes);
-            // We never attempted to submit this tx to the platform, so we don't increase the metric
-            verify(platformTxnRejections, never()).cycle();
-            // And the deduplication cache is not updated
-            verify(deduplicationCache, never()).add(any());
-        }
-
-        // TEST: If the unchecked submit is bogus bytes, or fails the onset check in some way, then
-        // it must be rejected
-        @Test
-        @DisplayName("Send bogus bytes as an unchecked transaction and verify it fails with a PreCheckException")
-        void testBogusBytes() {
-            // Given we are in TEST mode and have a transaction with bogus bytes
-            config = () -> new VersionedConfigImpl(
-                    HederaTestConfigBuilder.create()
-                            .withValue("hedera.profiles.active", "TEST")
-                            .getOrCreateConfig(),
-                    1);
-            submissionManager = new SubmissionManager(transactionPool, deduplicationCache, config, mockedMetrics);
-            txBody = TransactionBody.newBuilder()
-                    .transactionID(TransactionID.newBuilder()
-                            .transactionValidStart(asTimestamp(Instant.now()))
-                            .build())
-                    .uncheckedSubmit(UncheckedSubmitBody.newBuilder()
-                            .transactionBytes(randomBytes(25))
-                            .build())
-                    .build();
-
-            // When we submit an unchecked transaction with bogus bytes, and separate bytes, then the
-            // submission FAILS because of the bogus bytes
-            assertThatThrownBy(() -> submissionManager.submit(txBody, bytes))
-                    .isInstanceOf(PreCheckException.class)
-                    .hasFieldOrPropertyWithValue("responseCode", PLATFORM_TRANSACTION_NOT_CREATED);
-
-            // Then the platform NEVER sees the unchecked bytes
-            verify(transactionPool, never()).submitApplicationTransaction(uncheckedBytes);
-            // And the deduplication cache is not updated
-            verify(deduplicationCache, never()).add(any());
         }
     }
 
@@ -425,7 +234,7 @@ final class SubmissionManagerTest extends AppTestBase {
             when(deduplicationCache.contains(any())).thenReturn(false);
 
             // When we submit a transaction with an atomic batch
-            submissionManager.submit(txBodyWithBatch, mainBytes);
+            submissionManager.submit(txBodyWithBatch, mainBytes, false);
 
             // Then the platform receives the main bytes
             verify(transactionPool).submitApplicationTransaction(mainBytes);
@@ -459,7 +268,7 @@ final class SubmissionManagerTest extends AppTestBase {
                     .build();
 
             // When we submit a transaction with an atomic batch containing invalid data
-            assertThatThrownBy(() -> submissionManager.submit(txBodyWithInvalidBatch, mainBytes))
+            assertThatThrownBy(() -> submissionManager.submit(txBodyWithInvalidBatch, mainBytes, false))
                     .isInstanceOf(PreCheckException.class)
                     .hasFieldOrPropertyWithValue("responseCode", INVALID_TRANSACTION);
 
@@ -491,7 +300,7 @@ final class SubmissionManagerTest extends AppTestBase {
             when(deduplicationCache.contains(any())).thenReturn(false);
 
             // When we submit a transaction with an empty atomic batch
-            submissionManager.submit(txBodyWithEmptyBatch, mainBytes);
+            submissionManager.submit(txBodyWithEmptyBatch, mainBytes, false);
 
             // Then the platform receives the main bytes
             verify(transactionPool).submitApplicationTransaction(mainBytes);
@@ -499,6 +308,87 @@ final class SubmissionManagerTest extends AppTestBase {
             // And the deduplication cache is updated for the main transaction only
             verify(deduplicationCache).add(txBodyWithEmptyBatch.transactionIDOrThrow());
             verify(deduplicationCache, times(1)).add(any());
+        }
+    }
+
+    /**
+     * End-to-end tests using a real {@link TransactionPoolNexus} (not mocked) to prove
+     * that platform unhealthiness causes {@code PLATFORM_TRANSACTION_NOT_CREATED} through
+     * the full SubmissionManager -> TransactionPoolNexus chain, and that increasing the
+     * unhealthy duration threshold prevents the rejection.
+     */
+    @Nested
+    @DisplayName("End-to-end: unhealthy duration -> pool rejection -> PLATFORM_TRANSACTION_NOT_CREATED")
+    class UnhealthyDurationEndToEndTest extends AppTestBase {
+        @Mock
+        private Metrics mockedMetrics;
+
+        @Mock
+        private SpeedometerMetric platformTxnRejections;
+
+        @Mock
+        private DeduplicationCache deduplicationCache;
+
+        private static final TransactionLimits TX_LIMITS = new TransactionLimits(6_144, 245_760);
+        private static final int TX_QUEUE_SIZE = 100_000;
+
+        private TransactionBody txBody;
+        private Bytes txBytes;
+
+        @BeforeEach
+        void setup() {
+            when(mockedMetrics.getOrCreate(any())).thenReturn(platformTxnRejections);
+            txBytes = randomBytes(25);
+            txBody = TransactionBody.newBuilder()
+                    .transactionID(TransactionID.newBuilder()
+                            .transactionValidStart(asTimestamp(Instant.now()))
+                            .build())
+                    .build();
+        }
+
+        @Test
+        @DisplayName("With default 1s threshold, unhealthy duration >= 1s causes PLATFORM_TRANSACTION_NOT_CREATED")
+        void unhealthyPlatformCausesPlatformTransactionNotCreated() {
+            // Given a real TransactionPoolNexus with the default 1-second threshold
+            final var realPool = new TransactionPoolNexus(
+                    TX_LIMITS,
+                    TX_QUEUE_SIZE,
+                    TransactionPoolNexus.DEFAULT_MAXIMUM_PERMISSIBLE_UNHEALTHY_DURATION,
+                    new NoOpMetrics(),
+                    new FakeTime());
+            realPool.updatePlatformStatus(PlatformStatus.ACTIVE);
+
+            final var submissionManager = new SubmissionManager(realPool, deduplicationCache, config, mockedMetrics);
+
+            // When the platform has been unhealthy for 2 seconds (exceeding 1s threshold)
+            realPool.reportUnhealthyDuration(Duration.ofSeconds(2));
+
+            // Then submitting a transaction throws PLATFORM_TRANSACTION_NOT_CREATED
+            assertThatThrownBy(() -> submissionManager.submit(txBody, txBytes, false))
+                    .isInstanceOf(PreCheckException.class)
+                    .extracting(t -> ((PreCheckException) t).responseCode())
+                    .isEqualTo(PLATFORM_TRANSACTION_NOT_CREATED);
+        }
+
+        @Test
+        @DisplayName("With increased 5s threshold, 2s unhealthy duration is tolerated")
+        void increasedThresholdToleratesTransientUnhealthiness() throws PreCheckException {
+            // Given a real TransactionPoolNexus with a 5-second threshold (CI override)
+            final var tolerantPool = new TransactionPoolNexus(
+                    TX_LIMITS, TX_QUEUE_SIZE, Duration.ofSeconds(5), new NoOpMetrics(), new FakeTime());
+            tolerantPool.updatePlatformStatus(PlatformStatus.ACTIVE);
+
+            final var submissionManager =
+                    new SubmissionManager(tolerantPool, deduplicationCache, config, mockedMetrics);
+
+            // When the platform has been unhealthy for 2 seconds (would fail with 1s default)
+            tolerantPool.reportUnhealthyDuration(Duration.ofSeconds(2));
+
+            // Then submitting a transaction succeeds — the increased threshold prevents rejection
+            assertThatNoException().isThrownBy(() -> submissionManager.submit(txBody, txBytes, false));
+
+            // And the deduplication cache is updated, confirming the transaction was accepted
+            verify(deduplicationCache).add(txBody.transactionIDOrThrow());
         }
     }
 }

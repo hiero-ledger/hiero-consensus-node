@@ -5,7 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_GOSSIP_CA_CERTI
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.loadResourceFile;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.readCertificatePemFile;
 import static com.hedera.node.app.service.addressbook.AddressBookHelper.writeCertificatePemFile;
-import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.validateX509Certificate;
+import static com.hedera.node.app.service.addressbook.impl.validators.AddressBookValidator.parseX509Certificate;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -45,7 +45,7 @@ class CertificatePemTest {
         assertEquals("X.509", cert.getType());
         assertArrayEquals(cert.getEncoded(), genCert.getEncoded());
         assertEquals(cert, genCert);
-        assertDoesNotThrow(() -> validateX509Certificate(Bytes.wrap(genCert.getEncoded())));
+        assertDoesNotThrow(() -> parseX509Certificate(Bytes.wrap(genCert.getEncoded())));
     }
 
     @Test
@@ -71,8 +71,8 @@ class CertificatePemTest {
         final var genPemPath = Path.of(tmpDir.getPath() + "/generated.pem");
         writeCertificatePemFile(genPemPath, Bytes.wrap("anyString").toByteArray());
         final var exception = assertThrows(IOException.class, () -> readCertificatePemFile(genPemPath));
-        assertThat(exception.getMessage()).contains("problem parsing cert: java.io.EOFException:");
-        final var msg = assertThrows(PreCheckException.class, () -> validateX509Certificate(Bytes.wrap("anyString")));
+        assertThat(exception.getMessage()).contains("problem parsing cert: ");
+        final var msg = assertThrows(PreCheckException.class, () -> parseX509Certificate(Bytes.wrap("anyString")));
         assertEquals(ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE, msg.responseCode());
     }
 
@@ -84,7 +84,7 @@ class CertificatePemTest {
         assertEquals("problem parsing cert: java.io.IOException: unknown tag 13 encountered", exception.getMessage());
 
         final byte[] certBytes = Files.readAllBytes(pemFilePath);
-        final var msg = assertThrows(PreCheckException.class, () -> validateX509Certificate(Bytes.wrap(certBytes)));
+        final var msg = assertThrows(PreCheckException.class, () -> parseX509Certificate(Bytes.wrap(certBytes)));
         assertEquals(ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE, msg.responseCode());
         final var getmsg = assertThrows(PreCheckException.class, () -> getX509Certificate(Bytes.wrap(certBytes)));
         assertEquals(ResponseCodeEnum.INVALID_GOSSIP_CA_CERTIFICATE, getmsg.responseCode());
@@ -99,7 +99,7 @@ class CertificatePemTest {
         assertEquals("SHA384withRSA", cert.getSigAlgName());
         assertEquals("X.509", cert.getType());
         assertDoesNotThrow(() -> getX509Certificate(Bytes.wrap(cert.getEncoded())));
-        assertDoesNotThrow(() -> validateX509Certificate(Bytes.wrap(cert.getEncoded())));
+        assertDoesNotThrow(() -> parseX509Certificate(Bytes.wrap(cert.getEncoded())));
 
         final byte[] certBytes = Files.readAllBytes(pemFilePath);
         assertDoesNotThrow(() -> getX509Certificate(Bytes.wrap(certBytes)));

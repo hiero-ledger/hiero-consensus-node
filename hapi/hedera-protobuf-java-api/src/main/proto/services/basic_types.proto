@@ -421,16 +421,18 @@ message TransactionID {
     /**
      * An identifier for an internal transaction.<br/>
      * An internal transaction is one that was spawned as part of handling a
-     * user transaction. These internal transactions share the
-     * transactionValidStart and accountID of the user transaction, so a nonce
-     * is necessary to give them a unique TransactionID.
+     * user transaction, or an inner transaction of an
+     * `AtomicBatchTransactionBody`. These internal transactions share the
+     * transactionValidStart and accountID of the transaction that spawned
+     * them, so a nonce is necessary to give them a unique TransactionID.
      * <p>
      * An example is when a "parent" ContractCreate or ContractCall transaction
      * calls one or more HTS precompiled contracts; each of the "child"
      * transactions spawned for a precompile has a transaction id with a
      * different nonce.
      * <p>
-     * This value MUST be unset for user-submitted transactions.
+     * This value MUST be unset for user-submitted transactions, including
+     * the inner transactions of an atomic batch.
      */
     int32 nonce = 4;
 }
@@ -1858,6 +1860,87 @@ enum HederaFunctionality {
      * (Internal-only) Publish a new ledger id and chain-of-trust key.
      */
     LedgerIdPublication = 112;
+
+    /**
+     * Create a registered node
+     */
+    RegisteredNodeCreate = 113;
+
+    /**
+     * Update a registered node
+     */
+    RegisteredNodeUpdate = 114;
+
+    /**
+     * Delete a registered node
+     */
+    RegisteredNodeDelete = 115;
+
+    /**
+     * Vote on wrapped record migration hash state.
+     */
+    MigrationRootHashVote = 116;
+
+    /**
+     * Update the local CLPR ledger configuration.
+     */
+    ClprUpdateLedgerConfiguration = 117;
+
+    /**
+     * Register a new CLPR Channel to a peer ledger.
+     */
+    ClprRegisterChannel = 118;
+
+    /**
+     * Complete a PENDING CLPR Channel (reveal phase).
+     */
+    ClprCompleteChannel = 119;
+
+    /**
+     * Initiate graceful closure of a CLPR Channel.
+     */
+    ClprCloseChannel = 120;
+
+    /**
+     * Get the current CLPR ledger configuration.
+     */
+    ClprGetLedgerConfiguration = 121;
+
+    /**
+     * Submit a bundle of cross-ledger messages from a peer sync.
+     */
+    ClprSubmitBundle = 122;
+
+    /**
+     * Redact a message from the outbound queue before delivery.
+     */
+    ClprRedactMessage = 123;
+
+    /**
+     * Register a Connector on the CLPR Service.
+     */
+    ClprRegisterConnector = 124;
+
+    /**
+     * Remove a Connector from the CLPR Service.
+     */
+    ClprDeregisterConnector = 125;
+
+    /**
+     * Complete a Connector registration (reveal phase).
+     */
+    ClprCompleteConnector = 126;
+
+    /**
+     * Self-publish a node's CLPR endpoint into a manifest construction (spec §2.4.1 /
+     * `dev-context/clpr-endpoint-self-publication-design.md`).
+     */
+    ClprEndpointPublication = 127;
+
+    /**
+     * Get the current CLPR endpoint manifest (spec §6.5).
+     */
+    ClprGetEndpointManifest = 128;
 }
 
 /**
@@ -2473,6 +2556,26 @@ message TokenAssociation {
      * An account identifier for the associated account.
      */
     AccountID account_id = 2;
+}
+
+/**
+ * An association between an account and a token; this message exists in addition
+ * to TokenAssociation because we wanted a more readable name for EntityIDPair;
+ * but for the block stream state changes, we *also* needed to preserve the relative
+ * order of the account id and token id. (TokenAssociation accidentally reversed the
+ * order of those fields, changing the serialized bytes and breaking binary-only
+ * replay of state changes.)
+ */
+message AccountTokenAssociation {
+    /**
+     * An account identifier for the associated account.
+     */
+    AccountID account_id = 1;
+
+    /**
+     * A token identifier for the associated token.
+     */
+    TokenID token_id = 2;
 }
 
 /**

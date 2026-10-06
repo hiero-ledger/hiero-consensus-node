@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.file;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.defaultHapiSpec;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
@@ -13,15 +13,17 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sendModified;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.submitModified;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedBodyIds;
 import static com.hedera.services.bdd.spec.utilops.mod.ModificationUtils.withSuccessivelyVariedQueryIds;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_FILE_SIZE_EXCEEDED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNAUTHORIZED;
 
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.spec.keys.SigControl;
 import java.util.Arrays;
 import java.util.UUID;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 public class FileAppendSuite {
     @HapiTest
@@ -34,7 +36,6 @@ public class FileAppendSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> getContentsIdVariantsTreatedAsExpected() {
         return defaultHapiSpec("getContentsIdVariantsTreatedAsExpected")
                 .given(fileCreate("file").contents("ABC"))
@@ -64,8 +65,9 @@ public class FileAppendSuite {
                 .then(getFileContents("test").hasContents(ignore -> all8k));
     }
 
-    @LeakyHapiTest(overrides = {"files.maxSizeKb"})
-    @Tag(MATS)
+    @LeakyEmbeddedHapiTest(
+            reason = NEEDS_STATE_ACCESS,
+            overrides = {"files.maxSizeKb"})
     final Stream<DynamicTest> handleRejectsOversized() {
         byte[] BYTES_3K_MINUS1 = new byte[3 * 1024 - 1];
         Arrays.fill(BYTES_3K_MINUS1, (byte) 0xAB);
@@ -76,6 +78,23 @@ public class FileAppendSuite {
                 fileCreate("file").contents(BYTES_3K_MINUS1),
                 fileAppend("file").content(BYTES_1),
                 fileAppend("file").content(BYTES_1).hasKnownStatus(MAX_FILE_SIZE_EXCEEDED));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> cannotAppendToImmutableFile() {
+        final String file1 = "FILE_1";
+        final String file2 = "FILE_2";
+        return hapiTest(
+                fileCreate(file1).contents("Hello World").unmodifiable(),
+                fileCreate(file2).contents("Hello World").waclShape(SigControl.emptyList()),
+                fileAppend(file1)
+                        .content("Goodbye World")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(UNAUTHORIZED),
+                fileAppend(file2)
+                        .content("Goodbye World")
+                        .signedBy(DEFAULT_PAYER)
+                        .hasKnownStatus(UNAUTHORIZED));
     }
 
     private final int BYTES_4K = 4 * (1 << 10);

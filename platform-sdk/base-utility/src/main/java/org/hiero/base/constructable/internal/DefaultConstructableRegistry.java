@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.base.constructable.internal;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.hiero.base.constructable.ClassConstructorPair;
@@ -10,7 +9,6 @@ import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.constructable.ConstructorRegistry;
 import org.hiero.base.constructable.NoArgsConstructor;
 import org.hiero.base.constructable.RuntimeConstructable;
-import org.hiero.base.constructable.URLClassLoaderWithLookup;
 
 public class DefaultConstructableRegistry implements ConstructableRegistry {
     private final Map<Class<?>, GenericConstructorRegistry<?>> allRegistries = new ConcurrentHashMap<>();
@@ -34,22 +32,6 @@ public class DefaultConstructableRegistry implements ConstructableRegistry {
             return null;
         }
         return (T) c.get();
-    }
-
-    @Override
-    public void registerConstructables(final String packagePrefix, final URLClassLoaderWithLookup additionalClassloader)
-            throws ConstructableRegistryException {
-        final Collection<ConstructableClasses<?>> scanResults =
-                ConstructableScanner.getConstructableClasses(packagePrefix, additionalClassloader);
-        for (final ConstructableClasses<?> constructableClasses : scanResults) {
-            getOrCreate(constructableClasses.getConstructorType())
-                    .registerConstructables(constructableClasses, additionalClassloader);
-        }
-    }
-
-    @Override
-    public void registerConstructables(final String packagePrefix) throws ConstructableRegistryException {
-        registerConstructables(packagePrefix, null);
     }
 
     @Override

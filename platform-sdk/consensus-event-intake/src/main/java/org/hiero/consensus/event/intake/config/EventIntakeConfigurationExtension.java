@@ -4,6 +4,7 @@ package org.hiero.consensus.event.intake.config;
 import com.swirlds.config.api.ConfigurationExtension;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
+import org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration;
 
 /**
  * Registers configuration types for the event intake module.
@@ -16,5 +17,14 @@ public class EventIntakeConfigurationExtension implements ConfigurationExtension
     @NonNull
     public Set<Class<? extends Record>> getConfigDataTypes() {
         return Set.of(EventIntakeWiringConfig.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Set<ConverterPair<?>> getConverters() {
+        return Set.of(new ConverterPair<>(TaskSchedulerConfiguration.class, TaskSchedulerConfiguration::parse));
     }
 }

@@ -4,7 +4,13 @@ package com.hedera.node.app.workflows.handle;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
+import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
+import static com.hedera.node.app.history.impl.ProofControllers.activeProofNeedsWork;
+import static com.hedera.node.app.history.impl.ProofControllers.freshGenesisRequested;
+import static com.hedera.node.app.history.impl.ProofControllers.groundsChainOfTrust;
+import static com.hedera.node.app.history.impl.ProofControllers.groundsGenesisProof;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
+import static com.hedera.node.app.history.impl.ProofControllers.reAnchoredLedgerId;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartEvent;
@@ -14,22 +20,25 @@ import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartU
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartUserTransactionPreHandleResultP3;
 import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRANSACTION;
 import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
+import static com.hedera.node.app.workflows.handle.record.SystemTransactions.MAX_NANOS_PER_SYSTEM_DISPATCH;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
-import static com.swirlds.platform.state.service.PlatformStateUtils.isFreezeRound;
 import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
 import static java.time.Instant.EPOCH;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.isFreezeRound;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.history.ProofKey;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -43,14 +52,26 @@ import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
+import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
+import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
+import com.hedera.node.app.service.clpr.ClprService;
+import com.hedera.node.app.service.clpr.impl.WritableEndpointManifestConstructionStore;
+import com.hedera.node.app.service.clpr.impl.WritableEndpointManifestStore;
+import com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema;
 import com.hedera.node.app.service.entityid.EntityIdService;
+import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
+import com.hedera.node.app.service.file.FileService;
+import com.hedera.node.app.service.file.impl.RetiredFeeScheduleFileMigration;
 import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.service.schedule.ExecutableTxn;
@@ -72,8 +93,11 @@ import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.store.StoreFactoryImpl;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
+import com.hedera.node.app.tss.TssHandoffCoordinator;
+import com.hedera.node.app.util.ThrottledLogging;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.TransactionInfo;
+import com.hedera.node.app.workflows.clpr.ClprEndpointManifestReconciler;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
 import com.hedera.node.app.workflows.handle.steps.HollowAccountCompletions;
@@ -83,16 +107,13 @@ import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.state.service.ReadablePlatformStateStore;
-import com.swirlds.platform.state.service.WritablePlatformStateStore;
 import com.swirlds.platform.system.InitTrigger;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
@@ -109,6 +130,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import javax.inject.Inject;
+import javax.inject.Named;
+import javax.inject.Provider;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -117,6 +140,9 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.platformstate.PlatformStateService;
+import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
+import org.hiero.consensus.platformstate.WritablePlatformStateStore;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.WritableRosterStore;
 
@@ -131,6 +157,7 @@ public class HandleWorkflow {
     public static final String ALERT_MESSAGE = "Possibly CATASTROPHIC failure";
     public static final String SYSTEM_ENTITIES_CREATED_MSG = "System entities created";
 
+    private final int txnOffsetNanos;
     private final StreamMode streamMode;
     private final NetworkInfo networkInfo;
     private final StakePeriodChanges stakePeriodChanges;
@@ -144,6 +171,7 @@ public class HandleWorkflow {
     private final HollowAccountCompletions hollowAccountCompletions;
     private final SystemTransactions systemTransactions;
     private final StakeInfoHelper stakeInfoHelper;
+    private final Provider<ClprEndpointManifestReconciler> clprEndpointManifestReconciler;
     private final HederaRecordCache recordCache;
     private final ExchangeRateManager exchangeRateManager;
     private final StakePeriodManager stakePeriodManager;
@@ -165,6 +193,11 @@ public class HandleWorkflow {
     @Nullable
     private final AtomicBoolean systemEntitiesCreatedFlag;
 
+    @Nullable
+    private Dispatch inFlightDispatch;
+
+    private boolean eventHeaderAlreadyWritten = false;
+
     // The last second since the epoch at which the metrics were updated; this does not affect transaction handling
     private long lastMetricUpdateSecond;
     // The last second for which this workflow has confirmed all scheduled transactions are executed
@@ -173,6 +206,8 @@ public class HandleWorkflow {
     private final NodeFeeManager nodeFeeManager;
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
+
+    private final ThrottledLogging tssReconcileFailureLogging = new ThrottledLogging();
 
     private record LedgerIdContext(
             @NonNull Bytes ledgerId,
@@ -200,6 +235,7 @@ public class HandleWorkflow {
             @NonNull final HollowAccountCompletions hollowAccountCompletions,
             @NonNull final SystemTransactions systemTransactions,
             @NonNull final StakeInfoHelper stakeInfoHelper,
+            @NonNull final Provider<ClprEndpointManifestReconciler> clprEndpointManifestReconciler,
             @NonNull final HederaRecordCache recordCache,
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final StakePeriodManager stakePeriodManager,
@@ -218,7 +254,9 @@ public class HandleWorkflow {
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders,
             @NonNull final QuiescenceController quiescenceController,
-            @NonNull final NodeFeeManager nodeFeeManager) {
+            @NonNull final NodeFeeManager nodeFeeManager,
+            @Named("transactionOffsetNanos") final int transactionOffsetNanos) {
+        this.txnOffsetNanos = transactionOffsetNanos;
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -231,6 +269,7 @@ public class HandleWorkflow {
         this.hollowAccountCompletions = requireNonNull(hollowAccountCompletions);
         this.systemTransactions = requireNonNull(systemTransactions);
         this.stakeInfoHelper = requireNonNull(stakeInfoHelper);
+        this.clprEndpointManifestReconciler = requireNonNull(clprEndpointManifestReconciler);
         this.recordCache = requireNonNull(recordCache);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.stakePeriodManager = requireNonNull(stakePeriodManager);
@@ -263,17 +302,22 @@ public class HandleWorkflow {
      * @param stateSignatureTxnCallback A callback to be called when encountering a {@link StateSignatureTransaction}
      */
     public void handleRound(
-            @NonNull final MerkleNodeState state,
+            @NonNull final State state,
             @NonNull final Round round,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         logStartRound(round);
         blockBufferService.ensureNewBlocksPermitted();
         cacheWarmer.warm(state, round);
+        final var firstEvent = round.iterator().next();
         if (streamMode != RECORDS) {
             blockStreamManager.startRound(round, state);
             blockStreamManager.writeItem(BlockItem.newBuilder()
                     .roundHeader(new RoundHeader(round.getRoundNum()))
                     .build());
+            // "Pull forward" the first event header to respect conventions for the position of a SignedTransaction in
+            // the block stream---we have many kinds of setup and scheduled work that happens by synthetic tx dispatch
+            writeEventHeader(firstEvent);
+            eventHeaderAlreadyWritten = true;
             if (!migrationStateChanges.isEmpty()) {
                 final var startupConsTime = systemTransactions.firstReservedSystemTimeFor(
                         round.iterator().next().getConsensusTimestamp());
@@ -294,7 +338,7 @@ public class HandleWorkflow {
                     case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
                 };
         if (isGenesis) {
-            final var genesisEventTime = round.iterator().next().getConsensusTimestamp();
+            final var genesisEventTime = firstEvent.getConsensusTimestamp();
             logger.info("Doing genesis setup before {}", genesisEventTime);
             systemTransactions.doGenesisSetup(genesisEventTime, state, this::doStreamingAllChanges);
             transactionsDispatched = true;
@@ -303,6 +347,23 @@ public class HandleWorkflow {
             }
             logger.info(SYSTEM_ENTITIES_CREATED_MSG);
             requireNonNull(systemEntitiesCreatedFlag).set(true);
+        } else {
+            try {
+                systemTransactions.maybeSubmitStartupMigrationRootHashVote(state);
+            } catch (Exception e) {
+                logger.error("Failed to submit startup migration root-hash vote", e);
+            }
+        }
+
+        // Drive the CLPR endpoint-manifest reconciler each round. The reconciler opens a
+        // construction on cold start or after a freeze restart (per design §4), gathers per-node
+        // publications routed by ClprEndpointPublicationHandler, and finalizes the manifest on
+        // close. Guarded by clpr.enabled. Wrapped in doStreamingAllChanges so both singleton
+        // mutations (manifest and construction) are externalized to the block stream.
+        try {
+            reconcileClprEndpointManifest(state, round.getConsensusTimestamp());
+        } catch (Exception e) {
+            logger.error("Failed to reconcile CLPR endpoint manifest", e);
         }
 
         // Dispatch transplant updates for the nodes in override network (non-prod environments);
@@ -337,25 +398,28 @@ public class HandleWorkflow {
             configureTssCallbacks(state, setLedgerIdContext);
             try {
                 reconcileTssState(state, round.getConsensusTimestamp());
+                resetTssReconcileFailureSuppression();
             } catch (Exception e) {
-                logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
+                logTssReconcileFailure(e);
             }
         }
+        stakePeriodManager.setCurrentStakePeriodFor(round.getConsensusTimestamp());
         final var lastUsedConsTime = blockHashSigner.isReady()
                 ? (streamMode == RECORDS
                         ? blockRecordManager.lastUsedConsensusTime()
                         : blockStreamManager.lastUsedConsensusTime())
                 : round.getConsensusTimestamp();
-        // Using the last used consensus time, we need to add 2ns, in case this triggers stake periods side effects
+        // Each of these dispatches takes the next free slot after the last used consensus time, where a slot is
+        // wide enough for the dispatch and a preceding NODE_STAKE_UPDATE if it triggers stake period side effects
         try {
-            transactionsDispatched |=
-                    nodeFeeManager.distributeFees(state, lastUsedConsTime.plusNanos(2), systemTransactions);
+            transactionsDispatched |= nodeFeeManager.distributeFees(
+                    state, lastUsedConsTime.plusNanos(MAX_NANOS_PER_SYSTEM_DISPATCH), systemTransactions);
         } catch (Exception e) {
             logger.error("{} Failed to pay node fees to nodes", ALERT_MESSAGE, e);
         }
         try {
-            transactionsDispatched |=
-                    nodeRewardManager.maybeRewardActiveNodes(state, lastUsedConsTime.plusNanos(4), systemTransactions);
+            transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(
+                    state, lastUsedConsTime.plusNanos(2L * MAX_NANOS_PER_SYSTEM_DISPATCH), systemTransactions);
         } catch (Exception e) {
             logger.error("{} Failed to reward active nodes", ALERT_MESSAGE, e);
         }
@@ -369,11 +433,14 @@ public class HandleWorkflow {
                 try {
                     final var ctx = setLedgerIdContext.get();
                     logger.info("Externalizing ledger id {}", ctx.ledgerId().toHex());
-                    // Since we must have handled a TSS tx to trigger setting the ledger id, we
-                    // know the last-used consensus time has advanced since the last system tx
+                    // Re-read the last-used time, since handling this round's transactions has advanced it
+                    // past the snapshot the earlier system transactions were dispatched from
+                    final var ledgerIdConsTime = blockHashSigner.isReady()
+                            ? blockStreamManager.lastUsedConsensusTime()
+                            : round.getConsensusTimestamp();
                     systemTransactions.externalizeLedgerId(
                             state,
-                            lastUsedConsTime.plusNanos(2),
+                            ledgerIdConsTime.plusNanos(MAX_NANOS_PER_SYSTEM_DISPATCH),
                             ctx.ledgerId(),
                             ctx.proofKeys(),
                             ctx.targetNodeWeights(),
@@ -422,10 +489,13 @@ public class HandleWorkflow {
             final int receiptEntriesBatchSize,
             @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTxnCallback) {
         boolean transactionsDispatched = false;
-        for (final var event : round) {
-            if (streamMode != RECORDS) {
+        final var iter = round.iterator();
+        while (iter.hasNext()) {
+            final var event = iter.next();
+            if (streamMode != RECORDS && !eventHeaderAlreadyWritten) {
                 writeEventHeader(event);
             }
+            eventHeaderAlreadyWritten = false;
             final var creator = networkInfo.nodeInfo(event.getCreatorId().id());
             final ShortCircuitCallback shortCircuitCallback = (stateSignatureTx, bytes) -> {
                 if (stateSignatureTx != null) {
@@ -456,9 +526,8 @@ public class HandleWorkflow {
                 // Clear tx metadata now that we won't use it again
                 platformTxn.setMetadata(null);
             }
-            if (!transactionsDispatched) {
-                // If there were no platform transactions to follow with scheduled transactions, then
-                // use the round consensus time as the execution start time for scheduled transactions
+            if (!transactionsDispatched && !iter.hasNext()) {
+                // If the entire round was empty, use the round consensus time as exec time for scheduled transactions
                 transactionsDispatched = executeScheduledTransactions(state, round.getConsensusTimestamp(), creator);
             }
             recordCache.maybeCommitReceiptsBatch(
@@ -502,7 +571,7 @@ public class HandleWorkflow {
             Optional<Integer> parentHash = blockStreamManager.getEventIndex(parent.hash());
             if (parentHash.isEmpty()) {
                 parents.add(ParentEventReference.newBuilder()
-                        .eventDescriptor(parent.eventDescriptor())
+                        .eventDescriptor(parent.toPbj())
                         .build());
             } else {
                 parents.add(ParentEventReference.newBuilder()
@@ -557,6 +626,19 @@ public class HandleWorkflow {
         if (type == POST_UPGRADE_TRANSACTION) {
             logger.info("Doing post-upgrade setup @ {}", consensusNow);
             systemTransactions.doPostUpgradeSetup(consensusNow, state);
+            try {
+                initializeMissingClprSingletons(state);
+            } catch (Exception e) {
+                logger.error("Failed to initialize CLPR singletons on upgrade", e);
+            }
+            // Node add/delete is adopted at the upgrade boundary. Self-publication handles cert/port/IP
+            // and added nodes (they re-publish on restart), but a removed node cannot self-report — so
+            // rebuild/prune the CLPR endpoint manifest against the new roster here.
+            try {
+                pruneClprEndpointManifestOnUpgrade(state, consensusNow);
+            } catch (Exception e) {
+                logger.error("Failed to prune CLPR endpoint manifest on upgrade", e);
+            }
             if (streamMode != RECORDS) {
                 blockStreamManager.confirmPendingWorkFinished();
             }
@@ -574,6 +656,26 @@ public class HandleWorkflow {
                             new WritableStakingInfoStore(
                                     writableTokenStates, new WritableEntityIdStoreImpl(writableEntityIdStates)),
                             new WritableNetworkStakingRewardsStore(writableTokenStates)));
+            final var writableNodeStates = state.getWritableStates(AddressBookService.NAME);
+            final var entityIdStore = new WritableEntityIdStoreImpl(writableEntityIdStates);
+            final var nodeStore = new WritableNodeStore(writableNodeStates, entityIdStore);
+            doStreamingOnlyKvChanges(writableNodeStates, writableEntityIdStates, () -> {
+                final var nextNodeId = entityIdStore.peekAtNextNodeId();
+                for (int i = 0; i < nextNodeId; i++) {
+                    final var node = nodeStore.get(i);
+                    if (node != null && node.deleted() && !networkInfo.containsNode(node.nodeId())) {
+                        nodeStore.remove(node.nodeId());
+                        logger.info("Node {} was removed from state", node.nodeId());
+                    }
+                }
+            });
+            // Drop the retired legacy fee schedule file from networks created before it was retired
+            final var writableFileStates = state.getWritableStates(FileService.NAME);
+            doStreamingOnlyKvChanges(
+                    writableFileStates,
+                    writableEntityIdStates,
+                    () -> RetiredFeeScheduleFileMigration.removeIfPresent(
+                            writableFileStates, entityIdStore, configProvider.getConfiguration()));
             if (streamMode == RECORDS) {
                 // Only update this if we are relying on RecordManager state for post-upgrade processing
                 blockRecordManager.markMigrationRecordsStreamed();
@@ -585,17 +687,22 @@ public class HandleWorkflow {
                 parentTxnFactory.createTopLevelTxn(state, creator, txn, consensusNow, shortCircuitCallback);
         if (topLevelTxn == null) {
             return false;
-        } else if (streamMode != BLOCKS && startsNewRecordFile) {
+        }
+        final var functionality = topLevelTxn.functionality();
+        final boolean isNodeSubmittedTransaction = functionality == HederaFunctionality.HINTS_PARTIAL_SIGNATURE
+                || functionality == HederaFunctionality.MIGRATION_ROOT_HASH_VOTE;
+        if (streamMode != BLOCKS && startsNewRecordFile && !isNodeSubmittedTransaction) {
             blockRecordManager.startUserTransaction(consensusNow, state);
         }
 
         final var handleOutput = executeSubmittedParent(topLevelTxn, eventBirthRound, state);
-        if (streamMode != BLOCKS) {
+        if (streamMode != BLOCKS && !isNodeSubmittedTransaction) {
             final var records = ((LegacyListRecordSource) handleOutput.recordSourceOrThrow()).precomputedRecords();
             blockRecordManager.endUserTransaction(records.stream(), state);
         }
         if (streamMode != RECORDS) {
-            handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
+            blockStreamManager.writeSavepointItems(
+                    handleOutput.blockRecordSourceOrThrow().blockItems(), handleOutput.lastAssignedConsensusTime());
         } else if (handleOutput.lastAssignedConsensusTime().isAfter(consensusNow)) {
             blockRecordManager.setLastUsedConsensusTime(handleOutput.lastAssignedConsensusTime(), state);
         }
@@ -603,7 +710,9 @@ public class HandleWorkflow {
         opWorkflowMetrics.updateDuration(topLevelTxn.functionality(), (int) (System.nanoTime() - handleStart));
         congestionMetrics.updateMultiplier(topLevelTxn.txnInfo(), topLevelTxn.readableStoreFactory());
 
-        executeScheduledTransactions(state, topLevelTxn.consensusNow(), topLevelTxn.creatorInfo());
+        if (!isNodeSubmittedTransaction) {
+            executeScheduledTransactions(state, topLevelTxn.consensusNow(), topLevelTxn.creatorInfo());
+        }
 
         return true;
     }
@@ -681,14 +790,11 @@ public class HandleWorkflow {
             final var config = configProvider.getConfiguration();
             final var schedulingConfig = config.getConfigData(SchedulingConfig.class);
             final var consensusConfig = config.getConfigData(ConsensusConfig.class);
-            // Since the next platform-assigned consensus time may be as early as (now + separationNanos),
-            // we must ensure that even if the last scheduled execution time is followed by the maximum
+            // We must ensure that even if the last scheduled execution time is followed by the maximum
             // number of child transactions, the last child's assigned time will be strictly before the
-            // first of the next consensus time's possible preceding children; that is, strictly before
-            // (now + separationNanos - reservedSystemTxnNanos) - (maxAfter + maxBefore + 1)
+            // first of the next consensus time's possible preceding children
             final var lastUsableTime = consensusNow.plusNanos(schedulingConfig.consTimeSeparationNanos()
-                    - schedulingConfig.reservedSystemTxnNanos()
-                    - (consensusConfig.handleMaxFollowingRecords() + consensusConfig.handleMaxPrecedingRecords() + 1));
+                    - (consensusConfig.handleMaxFollowingRecords() + txnOffsetNanos));
             // The first possible time for the next execution is strictly after the last execution time
             // consumed for the triggering user transaction; plus the maximum number of preceding children
             var lastTime = streamMode == RECORDS
@@ -700,7 +806,7 @@ public class HandleWorkflow {
             if (consensusNow.isAfter(lastTime)) {
                 lastTime = consensusNow;
             }
-            var nextTime = lastTime.plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
+            var nextTime = lastTime.plusNanos(txnOffsetNanos);
             final var entityIdWritableStates = state.getWritableStates(EntityIdService.NAME);
             final var writableEntityIdStore = new WritableEntityIdStoreImpl(entityIdWritableStates);
             // Now we construct the iterator and start executing transactions in the longest permitted
@@ -732,7 +838,9 @@ public class HandleWorkflow {
                     final var handleOutput = executeScheduled(state, nextTime, creatorInfo, executableTxn);
                     transactionsDispatched = true;
                     if (streamMode != RECORDS) {
-                        handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
+                        blockStreamManager.writeSavepointItems(
+                                handleOutput.blockRecordSourceOrThrow().blockItems(),
+                                handleOutput.lastAssignedConsensusTime());
                     } else if (handleOutput.lastAssignedConsensusTime().isAfter(consensusNow)) {
                         blockRecordManager.setLastUsedConsensusTime(handleOutput.lastAssignedConsensusTime(), state);
                     }
@@ -747,7 +855,7 @@ public class HandleWorkflow {
                 lastTime = streamMode == RECORDS
                         ? blockRecordManager.lastUsedConsensusTime()
                         : blockStreamManager.lastUsedConsensusTime();
-                nextTime = lastTime.plusNanos(consensusConfig.handleMaxPrecedingRecords() + 1);
+                nextTime = lastTime.plusNanos(txnOffsetNanos);
                 n--;
             }
             // The purgeUntilNext() iterator extension purges any schedules with wait_until_expiry=false
@@ -822,24 +930,34 @@ public class HandleWorkflow {
                 parentTxn.stack().commitTransaction(parentTxn.baseBuilder());
             } else {
                 final var dispatch = parentTxnFactory.createDispatch(parentTxn, exchangeRateManager.exchangeRates());
-                stakePeriodChanges.advanceTimeTo(parentTxn, true);
+                if (parentTxn.functionality() != HederaFunctionality.HINTS_PARTIAL_SIGNATURE
+                        && parentTxn.functionality() != HederaFunctionality.MIGRATION_ROOT_HASH_VOTE) {
+                    stakePeriodChanges.advanceTimeTo(parentTxn, true);
+                }
                 logPreDispatch(parentTxn);
-                hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
-                dispatchProcessor.processDispatch(dispatch);
+                final var hollowAccountCompletionsDetails =
+                        hollowAccountCompletions.completeHollowAccounts(parentTxn, dispatch);
+                // In case a TSS callback needs access to the current dispatch's savepoint stack
+                this.inFlightDispatch = dispatch;
+                dispatchProcessor.processDispatch(dispatch, hollowAccountCompletionsDetails);
                 updateWorkflowMetrics(parentTxn);
             }
-            final var handleOutput =
-                    parentTxn.stack().buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates());
+            final var blockNumber = currentBlockNumber();
+            final var handleOutput = parentTxn
+                    .stack()
+                    .buildHandleOutput(parentTxn.consensusNow(), exchangeRateManager.exchangeRates(), blockNumber);
             recordCache.addRecordSource(
                     parentTxn.creatorInfo().nodeId(),
                     parentTxn.txnInfo().transactionID(),
                     parentTxn.preHandleResult().dueDiligenceFailure(),
-                    handleOutput.preferringBlockRecordSource());
+                    handleOutput.preferredRecordSource());
             return handleOutput;
-        } catch (final Exception e) {
+        } catch (Exception e) {
             logger.error("{} - exception thrown while handling user transaction", ALERT_MESSAGE, e);
             return HandleOutput.failInvalidStreamItems(
                     parentTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
+        } finally {
+            this.inFlightDispatch = null;
         }
     }
 
@@ -870,20 +988,30 @@ public class HandleWorkflow {
         stakePeriodChanges.advanceTimeTo(scheduledTxn, true);
         try {
             dispatchProcessor.processDispatch(dispatch);
+            final var blockNumber = currentBlockNumber();
             final var handleOutput = scheduledTxn
                     .stack()
-                    .buildHandleOutput(scheduledTxn.consensusNow(), exchangeRateManager.exchangeRates());
+                    .buildHandleOutput(scheduledTxn.consensusNow(), exchangeRateManager.exchangeRates(), blockNumber);
             recordCache.addRecordSource(
                     scheduledTxn.creatorInfo().nodeId(),
                     scheduledTxn.txnInfo().transactionID(),
                     DueDiligenceFailure.NO,
-                    handleOutput.preferringBlockRecordSource());
+                    handleOutput.preferredRecordSource());
             return handleOutput;
         } catch (final Exception e) {
             logger.error("{} - exception thrown while handling scheduled transaction", ALERT_MESSAGE, e);
             return HandleOutput.failInvalidStreamItems(
                     scheduledTxn, exchangeRateManager.exchangeRates(), streamMode, recordCache);
         }
+    }
+
+    /**
+     * Helper method to get the current block number only when the block stream owns receipt block numbers.
+     *
+     * @return the current block number, or null outside {@link StreamMode#BLOCKS}
+     */
+    private @Nullable Long currentBlockNumber() {
+        return streamMode == BLOCKS ? blockStreamManager.blockNo() : null;
     }
 
     /**
@@ -1026,43 +1154,204 @@ public class HandleWorkflow {
                         // We just finished the genesis proof, so we use it immediately
                         final var proof = construction.targetProofOrThrow();
                         historyService.setLatestHistoryProof(proof);
-                        // And set the ledger id
-                        final var ledgerId = proof.targetHistoryOrThrow().addressBookHash();
-                        historyStore.setLedgerId(ledgerId);
-                        logger.info("Set ledger id to '{}'", ledgerId);
-                        // Record its context for later externalization
-                        setLedgerIdContext.set(
-                                new LedgerIdContext(ledgerId, proof.targetProofKeys(), targetNodeWeights));
+                        // And set the ledger id if needed
+                        if (historyStore.getLedgerId() == null) {
+                            final var ledgerId = proof.targetHistoryOrThrow().addressBookHash();
+                            historyStore.setLedgerId(ledgerId);
+                            logger.info("Set ledger id to '{}'", ledgerId);
+                            // Record its context for later externalization
+                            setLedgerIdContext.set(
+                                    new LedgerIdContext(ledgerId, proof.targetProofKeys(), targetNodeWeights));
+                        }
                         return;
                     }
-                    // WRAPS genesis is the first proof that bootstraps the chain of trust; but it takes a long time
-                    // to finish, so we make do right after network genesis with a list-of-signatures block proof
-                    final boolean isWrapsGenesis =
-                            tssConfig.wrapsEnabled() && !isWrapsExtensible(activeConstruction.targetProof());
+                    // WRAPS genesis is the proof that grounds a chain of trust; but it takes a long time to
+                    // finish, so we make do in the meantime with a list-of-signatures block proof. The same
+                    // holds for a fresh genesis proof built to replace the active one at the current roster.
+                    final boolean isWrapsGenesis = tssConfig.wrapsEnabled()
+                            && (!isWrapsExtensible(activeConstruction.targetProof())
+                                    || groundsChainOfTrust(construction));
                     if (isWrapsGenesis || rosterStore.candidateIsWeightRotation()) {
-                        historyStore.handoff(
-                                requireNonNull(rosterStore.getActiveRoster()),
-                                rosterStore.getCandidateRoster(),
-                                isWrapsGenesis ? null : requireNonNull(rosterStore.getCandidateRosterHash()));
-                        // Make sure we include the latest chain-of-trust proof in following block proofs
-                        historyService.setLatestHistoryProof(construction.targetProofOrThrow());
-                        // Finishing WRAPS genesis has no actual implications for hinTS
-                        if (!isWrapsGenesis) {
-                            final var writableHintsStates = state.getWritableStates(HintsService.NAME);
-                            final var writableEntityStates = state.getWritableStates(EntityIdService.NAME);
+                        final var activeRoster = requireNonNull(rosterStore.getActiveRoster());
+                        final var candidateRoster = rosterStore.getCandidateRoster();
+                        final var candidateRosterHash =
+                                isWrapsGenesis ? null : requireNonNull(rosterStore.getCandidateRosterHash());
+                        if (!isWrapsGenesis && TssHandoffCoordinator.usesJointForcedHandoff(tssConfig)) {
+                            final var stack = requireNonNull(inFlightDispatch).stack();
+                            final var writableHintsStates = stack.getWritableStates(HintsService.NAME);
+                            final var writableEntityStates = stack.getWritableStates(EntityIdService.NAME);
                             final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
                             final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
-                            hintsService.handoff(
+                            TssHandoffCoordinator.tryForcedJointHandoff(
+                                    historyStore,
                                     hintsStore,
-                                    requireNonNull(rosterStore.getActiveRoster()),
-                                    requireNonNull(rosterStore.getCandidateRoster()),
-                                    requireNonNull(rosterStore.getCandidateRosterHash()),
-                                    tssConfig.forceHandoffs());
+                                    historyService,
+                                    hintsService,
+                                    activeRoster,
+                                    requireNonNull(candidateRoster),
+                                    requireNonNull(candidateRosterHash),
+                                    tssConfig);
+                        } else if (historyStore.handoff(activeRoster, candidateRoster, candidateRosterHash)) {
+                            // Make sure we include the latest chain-of-trust proof in following block proofs
+                            historyService.setLatestHistoryProof(construction.targetProofOrThrow());
+                            if (isWrapsGenesis) {
+                                // The ledger id is the hash of the address book a genesis proof grounds itself
+                                // in; it must be in state before the recursive proof is voted on against it
+                                final var proof = construction.targetProofOrThrow();
+                                final var newLedgerId = reAnchoredLedgerId(proof, historyStore.getLedgerId());
+                                if (newLedgerId != null) {
+                                    logger.info("Re-anchored chain of trust, ledger id is now '{}'", newLedgerId);
+                                    historyStore.setLedgerId(newLedgerId);
+                                }
+                                // Republish even when the anchor is unchanged, since the publication also
+                                // carries the verification key and proof keys the new chain of trust uses
+                                setLedgerIdContext.set(new LedgerIdContext(
+                                        requireNonNull(historyStore.getLedgerId()),
+                                        proof.targetProofKeys(),
+                                        targetNodeWeights));
+                            }
+                            // Finishing WRAPS genesis has no actual implications for hinTS
+                            if (!isWrapsGenesis) {
+                                // Accumulate the changes in the same SavepointStack used by the HistoryProofVote tx
+                                final var stack =
+                                        requireNonNull(inFlightDispatch).stack();
+                                final var writableHintsStates = stack.getWritableStates(HintsService.NAME);
+                                final var writableEntityStates = stack.getWritableStates(EntityIdService.NAME);
+                                final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
+                                final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
+                                hintsService.handoff(
+                                        hintsStore,
+                                        activeRoster,
+                                        requireNonNull(rosterStore.getCandidateRoster()),
+                                        requireNonNull(rosterStore.getCandidateRosterHash()),
+                                        tssConfig.forceHandoffs());
+                            }
                         }
                     }
                 });
             }
         }
+    }
+
+    /**
+     * Drive the CLPR endpoint-manifest reconciler for one round. No-op when CLPR is disabled,
+     * when the endpoint-manifest feature flag is off, or when the active roster is unavailable.
+     */
+    private void reconcileClprEndpointManifest(@NonNull final State state, @NonNull final Instant now) {
+        final var maybeCtx = clprManifestContextIfEnabled(state);
+        if (maybeCtx.isEmpty()) {
+            return;
+        }
+        final var ctx = maybeCtx.get();
+        final var reconciler = clprEndpointManifestReconciler.get();
+        final long selfNodeId = networkInfo.selfNodeInfo().nodeId();
+
+        // Startup-gated self-publication: until this node's current endpoint is present in the
+        // manifest, re-publish it (throttled by clpr.manifestSubmissionRetryDelay, not once per round).
+        // This is the per-node "I just (re)started, has my cert/port/IP changed?" check; the handler
+        // turns a differing publication into a construction deterministically. The "settled" latch is
+        // owned by the reconciler, which no-ops once this node's endpoint is present in the manifest.
+        reconciler.openConstructionIfSelfChangedUntilSettled(
+                selfNodeId,
+                ctx.manifestStore().get(),
+                ctx.constructionStore().get(),
+                ctx.nodeStore(),
+                ctx.clprConfig(),
+                now);
+
+        // Fill any open construction (side-effect only): if a construction targets this node but does
+        // not yet contain its publication, publish this node's current endpoint. This makes a
+        // construction a full all-hands snapshot so the non-restarted target nodes contribute their own
+        // node-local endpoint (mtlsPort + CA cert) rather than being reconstructed by IP-keyed
+        // carry-over — which cannot distinguish nodes sharing an IP (e.g. a partial rotation).
+        reconciler.contributeSelfToConstruction(
+                selfNodeId, ctx.constructionStore().get(), ctx.nodeStore(), ctx.clprConfig(), now);
+
+        // Per-round construction close driving (state write ⇒ streamed).
+        doStreamingAllChanges(
+                ctx.clprWritableStates(),
+                null,
+                () -> reconciler.reconcile(now, ctx.manifestStore(), ctx.constructionStore(), ctx.clprConfig()));
+    }
+
+    /**
+     * Common setup shared by {@link #reconcileClprEndpointManifest} and
+     * {@link #pruneClprEndpointManifestOnUpgrade}: the {@code clpr.enabled} /
+     * {@code clpr.endpointManifestEnabled} feature-flag gate, the active roster, the node store, and
+     * the writable CLPR stores. Returns {@link Optional#empty()} when the feature is disabled or the
+     * active roster is unavailable, in which case callers should no-op.
+     */
+    @NonNull
+    private Optional<ClprManifestContext> clprManifestContextIfEnabled(@NonNull final State state) {
+        final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
+        if (!clprConfig.enabled() || !clprConfig.endpointManifestEnabled()) {
+            return Optional.empty();
+        }
+        final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
+        final var activeRoster = rosterStore.getActiveRoster();
+        if (activeRoster == null) {
+            return Optional.empty();
+        }
+        final var nodeStore = new ReadableNodeStoreImpl(
+                state.getReadableStates(AddressBookService.NAME),
+                new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME)));
+        final var clprWritableStates = state.getWritableStates(ClprService.NAME);
+        return Optional.of(new ClprManifestContext(
+                activeRoster,
+                nodeStore,
+                clprWritableStates,
+                new WritableEndpointManifestStore(clprWritableStates),
+                new WritableEndpointManifestConstructionStore(clprWritableStates),
+                clprConfig));
+    }
+
+    /** Bundle of the CLPR endpoint-manifest state accessors resolved once per round. */
+    private record ClprManifestContext(
+            @NonNull Roster activeRoster,
+            @NonNull ReadableNodeStore nodeStore,
+            @NonNull WritableStates clprWritableStates,
+            @NonNull WritableEndpointManifestStore manifestStore,
+            @NonNull WritableEndpointManifestConstructionStore constructionStore,
+            @NonNull ClprConfig clprConfig) {}
+
+    /**
+     * Initializes any CLPR singletons missing from the given state, streaming the resulting changes. Genesis
+     * setup initializes them for new networks; this covers networks upgrading from a version without them. It
+     * runs at handle time so that network properties such as {@code clpr.chainId} are already in effect.
+     *
+     * @param state the state to initialize the singletons in
+     */
+    private void initializeMissingClprSingletons(@NonNull final State state) {
+        final var clprWritableStates = state.getWritableStates(ClprService.NAME);
+        doStreamingAllChanges(
+                clprWritableStates,
+                null,
+                () -> V0780ClprSchema.initializeSingletons(clprWritableStates, configProvider.getConfiguration()));
+    }
+
+    /**
+     * At the upgrade boundary (where node add/delete is adopted), open a CLPR endpoint-manifest
+     * construction if the active roster's composition no longer matches the manifest — so a removed
+     * node's stale entry is pruned and any added node is picked up. No-op when CLPR/manifest is
+     * disabled, the roster is unavailable, or the composition is unchanged.
+     */
+    private void pruneClprEndpointManifestOnUpgrade(@NonNull final State state, @NonNull final Instant now) {
+        final var maybeCtx = clprManifestContextIfEnabled(state);
+        if (maybeCtx.isEmpty()) {
+            return;
+        }
+        final var ctx = maybeCtx.get();
+        final var reconciler = clprEndpointManifestReconciler.get();
+        doStreamingAllChanges(
+                ctx.clprWritableStates(),
+                null,
+                () -> reconciler.openConstructionOnRosterChange(
+                        now,
+                        ctx.activeRoster(),
+                        ctx.manifestStore(),
+                        ctx.constructionStore(),
+                        ctx.nodeStore(),
+                        ctx.clprConfig()));
     }
 
     /**
@@ -1074,11 +1363,37 @@ public class HandleWorkflow {
      * @param roundTimestamp the current round timestamp
      */
     private void reconcileTssState(@NonNull final State state, @NonNull final Instant roundTimestamp) {
-        final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
+        final var config = configProvider.getConfiguration();
+        final var tssConfig = config.getConfigData(TssConfig.class);
         if (tssConfig.hintsEnabled() || tssConfig.historyEnabled()) {
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
             final var entityCounters = new WritableEntityIdStoreImpl(state.getWritableStates(EntityIdService.NAME));
-            final var activeRosters = ActiveRosters.from(rosterStore);
+            final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
+            final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
+            final var readableHistoryStore = new ReadableHistoryStoreImpl(historyWritableStates);
+            // Requested in the first round after an upgrade, before the post-upgrade transaction is handled
+            final boolean freshGenesisRequested = freshGenesisRequested(
+                    tssConfig,
+                    config.getConfigData(BlockStreamConfig.class),
+                    blockStreamManager.pendingWork() == POST_UPGRADE_WORK);
+            if (freshGenesisRequested) {
+                logger.info("Fresh genesis WRAPS proof requested for the current roster");
+            }
+            final var activeRosters = ActiveRosters.from(
+                    rosterStore,
+                    tssConfig.historyEnabled(),
+                    () -> !new ReadableHintsStoreImpl(hintsWritableStates, entityCounters)
+                            .getActiveConstruction()
+                            .hasHintsScheme(),
+                    !tssConfig.historyEnabled()
+                            ? null
+                            // A construction that must ground a genesis proof takes the bootstrap phase,
+                            // which holds the candidate roster back until the chain of trust exists
+                            : () -> activeProofNeedsWork(
+                                    readableHistoryStore.getActiveConstruction(),
+                                    readableHistoryStore.getNextConstruction(),
+                                    tssConfig,
+                                    freshGenesisRequested));
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
                 final var crsWritableStates = state.getWritableStates(HintsService.NAME);
@@ -1088,8 +1403,10 @@ public class HandleWorkflow {
                         crsWritableStates,
                         null,
                         () -> hintsService.executeCrsWork(
-                                new WritableHintsStoreImpl(crsWritableStates, entityCounters), workTime, isActive));
-                final var hintsWritableStates = state.getWritableStates(HintsService.NAME);
+                                new WritableHintsStoreImpl(crsWritableStates, entityCounters),
+                                workTime,
+                                isActive,
+                                networkInfo));
                 doStreamingOnlyKvChanges(
                         hintsWritableStates,
                         null,
@@ -1100,22 +1417,20 @@ public class HandleWorkflow {
                                 tssConfig,
                                 isActive));
                 if (tssConfig.historyEnabled()) {
-                    final var historyWritableStates = state.getWritableStates(HistoryService.NAME);
                     final var hintsStore = new ReadableHintsStoreImpl(hintsWritableStates, entityCounters);
                     final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);
-                    // If we are doing a chain-of-trust proof, this is the verification key we are proving;
-                    // at genesis (including WRAPS genesis), the active hinTS construction's key---otherwise,
-                    // the next hinTS construction's key...note that even when this is null, the controller
-                    // can still make progress on publishing proof keys as needed
+                    // If we are doing a chain-of-trust proof, this is the verification key we are proving.
+                    // A construction that grounds a genesis proof proves the key of the roster it is
+                    // grounded in, so it takes the ACTIVE hinTS construction's key; one that extends the
+                    // chain to a new roster takes the NEXT construction's. Note that even when this is
+                    // null, the controller can still make progress on publishing proof keys as needed.
                     final var vk = Optional.ofNullable(
-                                    (historyStore.getLedgerId() == null
-                                                    || (tssConfig.wrapsEnabled()
-                                                            && historyStore
-                                                                    .getActiveConstruction()
-                                                                    .hasTargetProof()
-                                                            && !isWrapsExtensible(historyStore
-                                                                    .getActiveConstruction()
-                                                                    .targetProof())))
+                                    groundsGenesisProof(
+                                                    historyStore.getActiveConstruction(),
+                                                    historyStore.getNextConstruction(),
+                                                    historyStore.getLedgerId(),
+                                                    tssConfig,
+                                                    freshGenesisRequested)
                                             ? hintsStore.getActiveConstruction().hintsScheme()
                                             : hintsStore.getNextConstruction().hintsScheme())
                             .map(s -> s.preprocessedKeysOrThrow().verificationKey())
@@ -1127,10 +1442,11 @@ public class HandleWorkflow {
                                     activeRosters,
                                     vk,
                                     historyStore,
-                                    blockStreamManager.lastUsedConsensusTime(),
+                                    workTime,
                                     tssConfig,
                                     isActive,
-                                    hintsService.activeConstruction()));
+                                    hintsService.activeConstruction(),
+                                    freshGenesisRequested));
                 }
             }
         }
@@ -1145,6 +1461,17 @@ public class HandleWorkflow {
             logStartUserTransactionPreHandleResultP2(parentTxn.preHandleResult());
             logStartUserTransactionPreHandleResultP3(parentTxn.preHandleResult());
         }
+    }
+
+    private void logTssReconcileFailure(@NonNull final Exception e) {
+        if (!tssReconcileFailureLogging.shouldLog(e)) {
+            return;
+        }
+        logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
+    }
+
+    private void resetTssReconcileFailureSuppression() {
+        tssReconcileFailureLogging.reset();
     }
 
     /**

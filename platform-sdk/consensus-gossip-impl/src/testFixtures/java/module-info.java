@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: Apache-2.0
+open module org.hiero.consensus.gossip.impl.test.fixtures {
+    // The test fixtures in this module expose internal classes
+    // and can therefore not be used by other modules.
+    exports org.hiero.consensus.gossip.impl.test.fixtures.communication to
+            org.hiero.consensus.gossip.impl;
+    exports org.hiero.consensus.gossip.impl.test.fixtures.communication.multithreaded to
+            org.hiero.consensus.gossip.impl;
+    exports org.hiero.consensus.gossip.impl.test.fixtures.network to
+            org.hiero.consensus.gossip.impl;
+    exports org.hiero.consensus.gossip.impl.test.fixtures.sync to
+            org.hiero.consensus.gossip.impl;
+
+    requires transitive com.swirlds.base;
+    requires transitive com.swirlds.config.api;
+    requires transitive org.hiero.base.crypto;
+    requires transitive org.hiero.base.utility;
+    requires transitive org.hiero.consensus.gossip.impl;
+    requires transitive org.hiero.consensus.model;
+    requires transitive org.junit.jupiter.api;
+    requires com.swirlds.config.extensions.test.fixtures;
+    requires org.hiero.consensus.model.test.fixtures;
+    requires java.desktop;
+    requires static transitive com.github.spotbugs.annotations;
+}

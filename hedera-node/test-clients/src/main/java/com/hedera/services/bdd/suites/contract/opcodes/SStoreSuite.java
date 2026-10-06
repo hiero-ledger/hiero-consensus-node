@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.contract.opcodes;
 
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SMART_CONTRACT;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts.isLiteralResult;
@@ -46,7 +45,6 @@ public class SStoreSuite {
 
     // This test is failing with CONSENSUS_GAS_EXHAUSTED prior the refactor.
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> multipleSStoreOpsSucceed() {
         final var contract = "GrowArray";
         final var GAS_TO_OFFER = 6_000_000L;
@@ -83,7 +81,6 @@ public class SStoreSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> childStorage() {
         // Successfully exceeds deprecated max contract storage of 1 KB
         final var contract = "ChildStorage";

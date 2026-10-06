@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state;
 
-import com.swirlds.common.FastCopyable;
+import com.swirlds.base.state.Mutable;
+import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.base.Releasable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Hashable;
 
@@ -16,7 +18,7 @@ import org.hiero.base.crypto.Hashable;
  * structures provided by the hashgraph platform. But most of our code doesn't need to know that
  * detail, and are happy with just the API provided by this interface.
  */
-public interface State extends FastCopyable, Hashable {
+public interface State extends Mutable, Releasable, Hashable {
     /**
      * Returns a {@link ReadableStates} for the given named service. If such a service doesn't
      * exist, an empty {@link ReadableStates} is returned.
@@ -59,15 +61,6 @@ public interface State extends FastCopyable, Hashable {
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @NonNull
-    @Override
-    default State copy() {
-        throw new UnsupportedOperationException();
-    }
-
-    /**
      * Returns a calculated hash of the state.
      */
     @NonNull
@@ -97,5 +90,36 @@ public interface State extends FastCopyable, Hashable {
      */
     default String getInfoJson() {
         return "";
+    }
+
+    /**
+     * Commit all singleton states for every registered service.
+     */
+    default void commitSingletons() {}
+
+    /**
+     * Initializes the defined service state.
+     *
+     * @param md The metadata associated with the state.
+     */
+    default void initializeState(@NonNull StateMetadata<?, ?> md) {}
+
+    /**
+     * Removes the node and metadata from the state merkle tree.
+     *
+     * @param serviceName The service name. Cannot be null.
+     * @param stateId The state ID
+     */
+    default void removeServiceState(@NonNull String serviceName, int stateId) {}
+
+    /**
+     * Determines if an object/copy is immutable or not.
+     * Only the most recent copy must be mutable.
+     *
+     * @return Whether the object is immutable or not
+     */
+    @Override
+    default boolean isImmutable() {
+        return true;
     }
 }

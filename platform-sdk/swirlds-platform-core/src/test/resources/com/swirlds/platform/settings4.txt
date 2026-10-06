@@ -30,13 +30,12 @@ statsSkipSeconds, 70
 thread.threadPrioritySync, 10
 transaction.transactionMaxBytes, 7000
 transaction.maxAddressSizeAllowed, 2048
-loadKeysFromPfxFiles, false
 transaction.maxTransactionBytesPerEvent, 300000
 transaction.maxTransactionCountPerEvent, 300000
 benchmark.csvOutputFolder, csvFolder
 benchmark.csvFileName, csvFile
 benchmark.csvWriteFrequency, 4000
-benchmark.csvAppend, true
+benchmark.csvOverwrite, false
 event.eventIntakeQueueThrottleSize, 2000
 event.eventIntakeQueueSize, 15000
 event.randomEventProbability, 1

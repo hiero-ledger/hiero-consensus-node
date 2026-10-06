@@ -30,6 +30,14 @@ public interface StartupNetworks {
     Optional<Network> overrideNetworkFor(long roundNumber, Configuration platformConfig);
 
     /**
+     * Returns the last override network sourced and confirmed used via {@link #setOverrideRound(long)} by the roster
+     * transplant schema; only called in non-prod environments.
+     * @param platformConfig the current node's configuration
+     * @return the last-used override network
+     */
+    Optional<Network> lastUsedOverrideNetwork(Configuration platformConfig);
+
+    /**
      * Called by a node after applying override network details to the state from a given round.
      *
      * @param roundNumber the round number for which the override was applied
@@ -40,6 +48,14 @@ public interface StartupNetworks {
      * Archives any assets used in constructing this instance. Maybe a no-op.
      */
     void archiveStartupNetworks();
+
+    /**
+     * Clears any parsed network information cached while startup assets may be read by multiple services.
+     * Maybe a no-op.
+     */
+    default void clearCachedNetworks() {
+        // No-op
+    }
 
     /**
      * Called by a node at an upgrade boundary that finds itself with an empty Roster service state, and is

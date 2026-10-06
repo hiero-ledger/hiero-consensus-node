@@ -3,7 +3,7 @@
     "baseFee": 100000,
     "extras": [
       {
-        "name": "BYTES", "includedCount": 1024
+        "name": "PROCESSING_BYTES", "includedCount": 1350
       },
       {
         "name": "SIGNATURES", "includedCount": 1
@@ -19,12 +19,12 @@
 
   "extras": [
     { "name":  "SIGNATURES",                     "fee": 100000 },
-    { "name":  "BYTES",                          "fee": 110000 },
+    { "name":  "STATE_BYTES",                    "fee": 1000000 },
+    { "name":  "PROCESSING_BYTES",               "fee": 10000 },
     { "name":  "KEYS",                           "fee": 100000000 },
     { "name":  "NFT_SERIALS",                    "fee": 8900000 },
     { "name":  "ACCOUNTS",                       "fee": 1000000 },
-    { "name":  "FUNGIBLE_TOKENS",                 "fee": 1000000 },
-    { "name":  "NON_FUNGIBLE_TOKENS",            "fee": 1000000 },
+    { "name":  "TOKEN_TYPES",                    "fee": 1000000 },
     { "name":  "GAS",                            "fee": 852 },
     { "name":  "ALLOWANCES",                     "fee": 500000000 },
     { "name":  "TOKEN_ASSOCIATE",                "fee": 500000000 },
@@ -38,7 +38,9 @@
     { "name":  "TOKEN_TRANSFER_BASE",                       "fee": 9000000 },
     { "name":  "TOKEN_TRANSFER_BASE_CUSTOM_FEES",           "fee": 19000000 },
     { "name":  "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE",    "fee": 19900000000 },
-    { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE",  "fee": 492000000},
+    { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE",  "fee": 498300000},
+    { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES", "fee": 1000000},
+    { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES", "fee": 6800},
     { "name":  "SCHEDULE_CREATE_CONTRACT_CALL_BASE",        "fee": 900000000},
     { "name":  "HOOK_EXECUTION",                            "fee": 50000000 },
     { "name":  "HOOK_SLOT_UPDATE",                          "fee": 50000000 }
@@ -100,8 +102,7 @@
             {  "name": "HOOK_EXECUTION",                  "includedCount": 0 },
             {  "name": "GAS",                             "includedCount": 0 },
             {  "name": "ACCOUNTS",                        "includedCount": 2 },
-            {  "name": "FUNGIBLE_TOKENS",                 "includedCount": 1 },
-            {  "name": "NON_FUNGIBLE_TOKENS",             "includedCount": 1 }
+            {  "name": "TOKEN_TYPES",                     "includedCount": 1 }
           ]
         },
         {
@@ -131,16 +132,17 @@
         {
           "name": "CryptoGetAccountBalance",
           "baseFee": 0,
-          "extras": []
+          "extras": [],
+          "free": true
         },
         {
           "name": "CryptoGetInfo",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": []
         },
         {
           "name": "CryptoGetAccountRecords",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": []
         }
       ]
@@ -187,10 +189,11 @@
         },
         {
           "name": "ConsensusSubmitMessage",
-          "baseFee": 7000000,
+          "baseFee": 700000,
           "extras": [
-            { "name": "BYTES",      "includedCount": 1024 },
-            { "name": "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE", "includedCount": 0 }
+            { "name": "CONSENSUS_SUBMIT_MESSAGE_WITHOUT_CUSTOM_FEE_BYTES",  "includedCount": 100 },
+            { "name": "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE_BYTES",     "includedCount": 1024 },
+            { "name": "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE",           "includedCount": 0 }
           ]
         },
         {
@@ -201,7 +204,7 @@
         },
         {
           "name": "ConsensusGetTopicInfo",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": []
         }
       ]
@@ -214,7 +217,7 @@
           "baseFee": 499000000,
           "extras": [
             { "name": "KEYS", "includedCount": 1},
-            { "name": "BYTES", "includedCount": 1000}
+            { "name": "STATE_BYTES", "includedCount": 1000}
           ],
           "highVolumeRates": {
             "maxMultiplier": 200000,
@@ -244,14 +247,14 @@
           "baseFee": 499000000,
           "extras": [
             { "name": "KEYS", "includedCount": 1},
-            { "name": "BYTES", "includedCount": 1000}
+            { "name": "STATE_BYTES", "includedCount": 1000}
           ]
         },
         {
           "name": "FileAppend",
           "baseFee": 499000000,
           "extras": [
-            { "name": "BYTES", "includedCount": 1000}
+            { "name": "STATE_BYTES", "includedCount": 1000}
           ],
           "highVolumeRates": {
             "maxMultiplier": 200000,
@@ -283,14 +286,14 @@
         },
         {
           "name": "FileGetContents",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": [
-            { "name": "BYTES", "includedCount": 1000}
+            { "name": "PROCESSING_BYTES", "includedCount": 1000}
           ]
         },
         {
           "name": "FileGetInfo",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": []
         }
       ]
@@ -415,9 +418,9 @@
         },
         {
           "name": "TokenAirdrop",
-          "baseFee": 1000000000,
+          "baseFee": 0,
           "extras": [
-            { "name": "AIRDROPS", "includedCount": 1 }
+            { "name": "AIRDROPS", "includedCount": 0 }
           ],
           "highVolumeRates": {
             "maxMultiplier": 100000,
@@ -514,13 +517,13 @@
         },
         {
           "name": "TokenGetInfo",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": [
           ]
         },
         {
           "name": "TokenGetNftInfo",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": [
           ]
         }
@@ -568,7 +571,7 @@
         },
         {
           "name": "ScheduleGetInfo",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": []
         }
       ]
@@ -578,12 +581,12 @@
       "schedule": [
         {
           "name": "GetVersionInfo",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": []
         },
         {
           "name": "TransactionGetRecord",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": [
             {
               "name": "RECORDS",
@@ -594,10 +597,21 @@
         {
           "name": "TransactionGetReceipt",
           "baseFee": 0,
-          "extras": []
+          "extras": [],
+          "free": true
         },
         {
           "name": "GetByKey",
+          "baseFee": 84,
+          "extras": []
+        },
+        {
+          "name": "SystemDelete",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "SystemUndelete",
           "baseFee": 0,
           "extras": []
         }
@@ -624,7 +638,8 @@
         {
           "name": "ContractCall",
           "baseFee": 0,
-          "extras": []
+          "extras": [],
+          "nodeNetworkFeeExempt": true
         },
         {
           "name": "ContractUpdate",
@@ -717,20 +732,24 @@
         {
           "name": "ContractCallLocal",
           "baseFee": 9000000,
-          "extras": []
+          "extras": [
+            {
+              "name": "GAS", "includedCount": 0
+            }
+          ]
         },
         {
           "name": "ContractGetBytecode",
           "baseFee": 499000000,
           "extras": [
             {
-              "name": "BYTES", "includedCount": 1000
+              "name": "PROCESSING_BYTES", "includedCount": 20000
             }
           ]
         },
         {
           "name": "ContractGetInfo",
-          "baseFee": 0,
+          "baseFee": 84,
           "extras": []
         }
       ]
@@ -752,6 +771,77 @@
           "name": "NodeDelete",
           "baseFee": 9000000,
           "extras": []
+        },
+        {
+          "name": "RegisteredNodeCreate",
+          "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "RegisteredNodeUpdate",
+          "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "RegisteredNodeDelete",
+          "baseFee": 9000000,
+          "extras": []
+        }
+      ]
+    },
+    {
+      "name": "Clpr",
+      "schedule": [
+        {
+          "name": "ClprUpdateLedgerConfiguration",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprRegisterChannel",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprCompleteChannel",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprCloseChannel",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprSubmitBundle",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprRedactMessage",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprRegisterConnector",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprCompleteConnector",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprDeregisterConnector",
+          "baseFee": 10000000,
+          "extras": []
+        },
+        {
+          "name": "ClprEndpointPublication",
+          "baseFee": 0,
+          "extras": [],
+          "nodeNetworkFeeExempt": true
         }
       ]
     }

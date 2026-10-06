@@ -2,53 +2,54 @@
 package org.hiero.consensus.pcli.recovery;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.eventhandling.DefaultTransactionPrehandler.NO_OP_CONSUMER;
-import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.freezeTimeOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.updateLastFrozenTime;
-import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
+import static org.hiero.consensus.constructable.ConstructableRegistration.setupConstructableRegistry;
+import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.bulkUpdateOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.consensusTimestampOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.creationSoftwareVersionOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.freezeTimeOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.legacyRunningEventHashOf;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.updateLastFrozenTime;
+import static org.hiero.consensus.transaction.handling.TransactionHandlingModule.NO_OP_CONSUMER;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.JudgeId;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.hedera.pbj.runtime.ParseException;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.notification.NotificationEngine;
-import com.swirlds.common.stream.RunningHashCalculatorForStream;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.recovery.internal.EventStreamRoundIterator;
-import com.swirlds.platform.recovery.internal.StreamedRound;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.state.snapshot.DeserializedSignedState;
-import com.swirlds.platform.state.snapshot.SignedStateFileReader;
-import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateListener;
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateNotification;
-import com.swirlds.platform.util.HederaUtils;
-import com.swirlds.state.MerkleNodeState;
-import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.merkle.VirtualMapStateLifecycleManager;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.LongStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
+import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
+import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.crypto.DefaultEventHasher;
+import org.hiero.consensus.event.stream.RunningHashCalculatorForStream;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.hashgraph.impl.consensus.SyntheticSnapshot;
+import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
+import org.hiero.consensus.hashgraph.impl.consensus.ConsensusUtils;
 import org.hiero.consensus.io.IOIterator;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.ConsensusEvent;
@@ -59,6 +60,15 @@ import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.pces.config.PcesFileWriterType;
 import org.hiero.consensus.pces.impl.common.PcesFile;
 import org.hiero.consensus.pces.impl.common.PcesMutableFile;
+import org.hiero.consensus.pcli.recovery.internal.EventStreamRoundIterator;
+import org.hiero.consensus.pcli.recovery.internal.StreamedRound;
+import org.hiero.consensus.pcli.utility.HederaUtils;
+import org.hiero.consensus.round.RoundCalculationUtils;
+import org.hiero.consensus.state.SignedStateFileReader;
+import org.hiero.consensus.state.SignedStateFileWriter;
+import org.hiero.consensus.state.saved.DeserializedSignedState;
+import org.hiero.consensus.state.signed.ReservedSignedState;
+import org.hiero.consensus.state.signed.SignedState;
 
 /**
  * Handles the event stream recovery workflow.
@@ -73,8 +83,11 @@ public final class EventRecoveryWorkflow {
      * Read a signed state from disk and apply events from an event stream on disk. Write the resulting signed state to
      * disk.
      *
-     * @param platformContext         the platform context
-     * @param signedStateDir         the bootstrap signed state file
+     * @param configuration           the configuration of the node
+     * @param metrics                 the metrics instance for the node
+     * @param time                    the source of time
+     * @param fileSystemManager       the file manager for writing to disk
+     * @param signedStateDir          the bootstrap signed state file
      * @param eventStreamDirectory    a directory containing the event stream
      * @param finalRound              stop reapplying events after this round has been generated
      * @param resultingStateDirectory the location where the resulting state will be written
@@ -84,16 +97,23 @@ public final class EventRecoveryWorkflow {
      * @param loadSigningKeys         if true then load the signing keys
      */
     public static void recoverState(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final Path signedStateDir,
             @NonNull final Path eventStreamDirectory,
             @NonNull final Boolean allowPartialRounds,
             @NonNull final Long finalRound,
             @NonNull final Path resultingStateDirectory,
             @NonNull final NodeId selfId,
-            final boolean loadSigningKeys)
+            final boolean loadSigningKeys,
+            final long transactionOffsetNanos)
             throws IOException, ParseException {
-        Objects.requireNonNull(platformContext);
+        Objects.requireNonNull(configuration);
+        Objects.requireNonNull(metrics);
+        Objects.requireNonNull(time);
+        Objects.requireNonNull(fileSystemManager);
         Objects.requireNonNull(signedStateDir, "signedStateDir must not be null");
         Objects.requireNonNull(eventStreamDirectory, "eventStreamDirectory must not be null");
         Objects.requireNonNull(allowPartialRounds, "allowPartialRounds must not be null");
@@ -109,16 +129,13 @@ public final class EventRecoveryWorkflow {
 
         logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateDir);
         // FUTURE-WORK: Follow Browser approach
-        final SwirldMain<? extends MerkleNodeState> hederaApp = HederaUtils.createHederaAppMain(platformContext);
+        final SwirldMain hederaApp = HederaUtils.createHederaAppMain(configuration, time);
 
-        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(),
-                platformContext.getTime(),
-                virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
-                platformContext.getConfiguration());
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
 
         final DeserializedSignedState deserializedSignedState =
-                SignedStateFileReader.readState(signedStateDir, platformContext, stateLifecycleManager);
+                SignedStateFileReader.readState(signedStateDir, configuration, stateLifecycleManager);
 
         try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {
             HederaUtils.updateStateHash(hederaApp, deserializedSignedState);
@@ -133,12 +150,16 @@ public final class EventRecoveryWorkflow {
                     initialState.get().getRoster(),
                     eventStreamDirectory,
                     initialState.get().getRound() + 1,
-                    allowPartialRounds);
+                    allowPartialRounds,
+                    transactionOffsetNanos);
 
             logger.info(STARTUP.getMarker(), "Reapplying transactions");
 
             final RecoveredState recoveredState = reapplyTransactions(
-                    platformContext,
+                    configuration,
+                    metrics,
+                    time,
+                    fileSystemManager,
                     initialState.getAndReserve("recoverState()"),
                     hederaApp,
                     roundIterator,
@@ -151,15 +172,15 @@ public final class EventRecoveryWorkflow {
                     "Finished reapplying transactions, writing state to {}",
                     resultingStateDirectory);
 
-            // Make one more copy to force the state in recoveredState to be immutable.
-            final State mutableStateCopy =
-                    recoveredState.state().get().getState().copy();
+            // forcing the state in recoveredState to be immutable.
+            stateLifecycleManager.initWithState(recoveredState.state().get().getState());
 
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext,
+                    configuration,
+                    fileSystemManager,
                     selfId,
                     resultingStateDirectory,
-                    recoveredState.state().get(),
+                    recoveredState.state(),
                     stateLifecycleManager);
 
             logger.info(STARTUP.getMarker(), "Signed state written to disk");
@@ -171,16 +192,15 @@ public final class EventRecoveryWorkflow {
                     recoveredState.judge().getBirthRound(),
                     recoveredState.state().get().getRound(),
                     resultingStateDirectory);
-            final PcesFileWriterType type = platformContext
-                    .getConfiguration()
-                    .getConfigData(PcesConfig.class)
-                    .pcesFileWriterType();
+            final PcesFileWriterType type =
+                    configuration.getConfigData(PcesConfig.class).pcesFileWriterType();
             final PcesMutableFile mutableFile = preconsensusEventFile.getMutableFile(type);
             mutableFile.writeEvent(recoveredState.judge());
             mutableFile.close();
 
             recoveredState.state().close();
-            mutableStateCopy.release();
+            stateLifecycleManager.getMutableState().release();
+            stateLifecycleManager.getLatestImmutableState().release();
 
             logger.info(STARTUP.getMarker(), "Recovery process completed");
         }
@@ -202,38 +222,50 @@ public final class EventRecoveryWorkflow {
     /**
      * Apply transactions on top of a state to produce a new state
      *
-     * @param platformContext the platform context
-     * @param initialSignedState    the starting signed state
-     * @param appMain         the {@link SwirldMain} for the app. Ignored if null.
-     * @param roundIterator   an iterator that walks over transactions
-     * @param finalRound      the last round to apply to the state (inclusive), will stop earlier if the event stream
-     *                        does not have events from the final round
-     * @param selfId          the self ID of the node
-     * @param loadSigningKeys if true then load the signing keys
+     * @param configuration      the configuration
+     * @param metrics            the metrics
+     * @param time               time source of time
+     * @param fileSystemManager  the file manager used to write to disk
+     * @param initialSignedState the starting signed state
+     * @param appMain            the {@link SwirldMain} for the app. Ignored if null.
+     * @param roundIterator      an iterator that walks over transactions
+     * @param finalRound         the last round to apply to the state (inclusive), will stop earlier if the event stream
+     *                           does not have events from the final round
+     * @param selfId             the self ID of the node
+     * @param loadSigningKeys    if true then load the signing keys
      * @return the resulting signed state
      * @throws IOException if there is a problem reading from the event stream file
      */
     @NonNull
     public static RecoveredState reapplyTransactions(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
+            @NonNull final FileSystemManager fileSystemManager,
             @NonNull final ReservedSignedState initialSignedState,
-            @NonNull final SwirldMain<? extends MerkleNodeState> appMain,
+            @NonNull final SwirldMain appMain,
             @NonNull final IOIterator<StreamedRound> roundIterator,
             final long finalRound,
             @NonNull final NodeId selfId,
             final boolean loadSigningKeys)
             throws IOException {
 
-        Objects.requireNonNull(platformContext, "platformContext must not be null");
+        Objects.requireNonNull(configuration);
+        Objects.requireNonNull(metrics);
+        Objects.requireNonNull(time);
+        Objects.requireNonNull(fileSystemManager);
         Objects.requireNonNull(initialSignedState, "initialSignedState must not be null");
         Objects.requireNonNull(appMain, "appMain must not be null");
         Objects.requireNonNull(roundIterator, "roundIterator must not be null");
         Objects.requireNonNull(selfId, "selfId must not be null");
 
-        final Configuration configuration = platformContext.getConfiguration();
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                new VirtualMapStateLifecycleManager(metrics, time, configuration, fileSystemManager);
+        stateLifecycleManager.initWithState(initialSignedState.get().getState());
 
-        final ReservedSignedState workingSignedState = ensureMutableState(initialSignedState, configuration);
-        final MerkleNodeState initialState = workingSignedState.get().getState();
+        final ReservedSignedState workingSignedState =
+                ensureMutableState(initialSignedState, stateLifecycleManager, configuration);
+        final VirtualMapState initialState = workingSignedState.get().getState();
         initialState.throwIfImmutable("initial state must be mutable");
 
         logger.info(STARTUP.getMarker(), "Initializing application state");
@@ -249,7 +281,6 @@ public final class EventRecoveryWorkflow {
                 notification -> consensusStateEventHandler.onNewRecoveredState(notification.getState()));
         consensusStateEventHandler.onStateInitialized(
                 initialState, platform, InitTrigger.EVENT_STREAM_RECOVERY, softwareVersion);
-        appMain.init(platform, platform.getSelfId());
 
         ReservedSignedState signedState = workingSignedState;
 
@@ -265,7 +296,7 @@ public final class EventRecoveryWorkflow {
                     round.getEventCount(),
                     round.getRoundNum());
 
-            signedState = handleNextRound(consensusStateEventHandler, platformContext, signedState, round);
+            signedState = handleNextRound(consensusStateEventHandler, configuration, stateLifecycleManager, round);
             platform.setLatestState(signedState.get());
             lastEvent = getLastEvent(round);
         }
@@ -283,19 +314,14 @@ public final class EventRecoveryWorkflow {
     }
 
     private static ReservedSignedState ensureMutableState(
-            @NonNull final ReservedSignedState initialSignedState, @NonNull final Configuration configuration) {
+            @NonNull final ReservedSignedState initialSignedState,
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
+            @NonNull final Configuration configuration) {
         final SignedState signedState = initialSignedState.get();
-        final MerkleNodeState state = signedState.getState();
-        if (!state.isHashed()) {
-            return initialSignedState;
-        }
-
-        // Snapshot loading hashes the map, which freezes leaf mutations; copy to regain mutability.
-        final MerkleNodeState mutableState = state.copy();
         final SignedState mutableSignedState = new SignedState(
                 configuration,
-                ConsensusCryptoUtils::verifySignature,
-                mutableState,
+                CryptoUtils::verifySignature,
+                stateLifecycleManager.getMutableState(),
                 "EventRecoveryWorkflow.ensureMutableState()",
                 signedState.isFreezeState(),
                 false,
@@ -309,52 +335,55 @@ public final class EventRecoveryWorkflow {
     /**
      * Apply a single round and generate a new state. The previous state is released.
      *
-     * @param platformContext the current context
-     * @param previousSignedState   the previous round's signed state
-     * @param round           the next round
+     * @param configuration         configuration
+     * @param stateLifecycleManager the state lifecycle manager used to manage the states
+     * @param round                 the next round
      * @return the resulting signed state
      */
     private static ReservedSignedState handleNextRound(
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
-            @NonNull final PlatformContext platformContext,
-            @NonNull final ReservedSignedState previousSignedState,
+            @NonNull final Configuration configuration,
+            @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
             @NonNull final StreamedRound round) {
 
         final Instant currentRoundTimestamp = getRoundTimestamp(round);
-        final SignedState previousState = previousSignedState.get();
-        previousState.getState().throwIfImmutable();
-        final MerkleNodeState newState = previousState.getState().copy();
+        final VirtualMapState newState = stateLifecycleManager.copyMutableState();
+        final VirtualMapState latestImmutableState = stateLifecycleManager.getLatestImmutableState();
         final PlatformEvent lastEvent = ((CesEvent) getLastEvent(round)).getPlatformEvent();
-        final ConsensusConfig config = platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
         new DefaultEventHasher().hashEvent(lastEvent);
 
+        final ConsensusConfig consensusConfig = configuration.getConfigData(ConsensusConfig.class);
         bulkUpdateOf(newState, v -> {
             v.setRound(round.getRoundNum());
             v.setLegacyRunningEventHash(getHashEventsCons(legacyRunningEventHashOf(newState), round));
             v.setConsensusTimestamp(currentRoundTimestamp);
-            v.setSnapshot(SyntheticSnapshot.generateSyntheticSnapshot(
-                    round.getRoundNum(), lastEvent.getConsensusOrder(), currentRoundTimestamp, config, lastEvent));
-            v.setCreationSoftwareVersion(creationSoftwareVersionOf(previousState.getState()));
+            v.setSnapshot(generateSyntheticSnapshot(
+                    round.getRoundNum(),
+                    lastEvent.getConsensusOrder(),
+                    currentRoundTimestamp,
+                    consensusConfig,
+                    lastEvent));
+
+            v.setCreationSoftwareVersion(creationSoftwareVersionOf(latestImmutableState));
         });
 
-        applyTransactions(consensusStateEventHandler, previousState.getState(), newState, round);
+        applyTransactions(consensusStateEventHandler, latestImmutableState, newState, round);
 
-        final boolean isFreezeState =
-                isFreezeState(previousState.getConsensusTimestamp(), currentRoundTimestamp, freezeTimeOf(newState));
+        final boolean isFreezeState = isFreezeState(
+                consensusTimestampOf(latestImmutableState), currentRoundTimestamp, freezeTimeOf(newState));
         if (isFreezeState) {
             updateLastFrozenTime(newState);
         }
 
         final SignedState signedState = new SignedState(
-                platformContext.getConfiguration(),
-                ConsensusCryptoUtils::verifySignature,
+                configuration,
+                CryptoUtils::verifySignature,
                 newState,
                 "EventRecoveryWorkflow.handleNextRound()",
                 isFreezeState,
                 false,
                 false);
         final ReservedSignedState reservedSignedState = signedState.reserve("recovery");
-        previousSignedState.close();
 
         return reservedSignedState;
     }
@@ -412,9 +441,9 @@ public final class EventRecoveryWorkflow {
      * @param round          the current round
      */
     static void applyTransactions(
-            final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
-            final MerkleNodeState immutableState,
-            final MerkleNodeState mutableState,
+            final ConsensusStateEventHandler consensusStateEventHandler,
+            final VirtualMapState immutableState,
+            final VirtualMapState mutableState,
             final Round round) {
 
         mutableState.throwIfImmutable();
@@ -447,5 +476,41 @@ public final class EventRecoveryWorkflow {
 
         return CompareTo.isLessThan(previousRoundTimestamp, freezeTime)
                 && CompareTo.isGreaterThanOrEqualTo(currentRoundTimestamp, freezeTime);
+    }
+
+    /**
+     * Generate a {@link ConsensusSnapshot} based on the supplied data. This snapshot is not the result of consensus but
+     * is instead generated to be used as a starting point for consensus. The snapshot will contain a single judge whose
+     * generation will be almost ancient. All events older than the judge will be considered ancient. The judge is the
+     * only event needed to continue consensus operations. Once the judge is added to {@link Consensus}, it will be
+     * marked as already having reached consensus beforehand, so it will not reach consensus again.
+     *
+     * @param round              the round of the snapshot
+     * @param lastConsensusOrder the last consensus order of all events that have reached consensus
+     * @param roundTimestamp     the timestamp of the round
+     * @param config             the consensus configuration
+     * @param judge              the judge event
+     * @return the synthetic snapshot
+     */
+    private static @NonNull ConsensusSnapshot generateSyntheticSnapshot(
+            final long round,
+            final long lastConsensusOrder,
+            @NonNull final Instant roundTimestamp,
+            @NonNull final ConsensusConfig config,
+            @NonNull final PlatformEvent judge) {
+        final List<MinimumJudgeInfo> minimumJudgeInfos = LongStream.range(
+                        RoundCalculationUtils.getOldestNonAncientRound(config.roundsNonAncient(), round), round + 1)
+                .mapToObj(r -> new MinimumJudgeInfo(r, judge.getBirthRound()))
+                .toList();
+        return ConsensusSnapshot.newBuilder()
+                .round(round)
+                .judgeIds(List.of(JudgeId.newBuilder()
+                        .creatorId(judge.getCreatorId().id())
+                        .judgeHash(judge.getHash().getBytes())
+                        .build()))
+                .minimumJudgeInfoList(minimumJudgeInfos)
+                .nextConsensusNumber(lastConsensusOrder + 1)
+                .consensusTimestamp(toPbjTimestamp(ConsensusUtils.calcMinTimestampForNextEvent(roundTimestamp)))
+                .build();
     }
 }

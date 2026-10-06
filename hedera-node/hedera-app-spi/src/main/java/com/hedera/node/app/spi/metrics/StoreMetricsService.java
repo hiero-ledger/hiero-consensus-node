@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.metrics;
 
-import com.swirlds.state.spi.metrics.StoreMetrics;
+import com.hedera.node.app.spi.store.StoreMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 public interface StoreMetricsService {

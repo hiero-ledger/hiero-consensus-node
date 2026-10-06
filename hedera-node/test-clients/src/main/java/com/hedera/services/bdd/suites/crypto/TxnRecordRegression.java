@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.crypto;
 
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -12,7 +11,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ifNotEmbeddedTest;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -24,7 +22,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSA
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECEIPT_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.RECORD_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.UNKNOWN;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
@@ -43,7 +40,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(CRYPTO)
 public class TxnRecordRegression {
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> recordsStillQueryableWithDeletedPayerId() {
         return hapiTest(
                 cryptoCreate("toBeDeletedPayer"),
@@ -65,15 +61,6 @@ public class TxnRecordRegression {
                 cryptoCreate("misc").via("success"),
                 usableTxnIdNamed("rightAccountWrongId").payerId("misc"),
                 getTxnRecord("rightAccountWrongId").hasAnswerOnlyPrecheck(RECORD_NOT_FOUND));
-    }
-
-    @HapiTest
-    final Stream<DynamicTest> recordUnavailableBeforeConsensus() {
-        return hapiTest(
-                cryptoCreate("misc").via("success").balance(1_000L).deferStatusResolution(),
-                // Running with embedded mode the previous transaction will often already be handled
-                // and have a record available, so this is only interesting with a live network
-                ifNotEmbeddedTest(getTxnRecord("success").hasAnswerOnlyPrecheck(RECORD_NOT_FOUND)));
     }
 
     @HapiTest
@@ -109,14 +96,6 @@ public class TxnRecordRegression {
     }
 
     @HapiTest
-    final Stream<DynamicTest> receiptUnknownBeforeConsensus() {
-        return hapiTest(
-                cryptoCreate("misc").via("success").balance(1_000L).deferStatusResolution(),
-                getReceipt("success").hasPriorityStatus(UNKNOWN));
-    }
-
-    @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> receiptAvailableWithinCacheTtl() {
         return hapiTest(
                 cryptoCreate("misc").via("success").balance(1_000L),

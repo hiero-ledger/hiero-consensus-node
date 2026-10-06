@@ -8,7 +8,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -19,8 +18,6 @@ import com.hedera.hapi.node.base.ResponseHeader;
 import com.hedera.hapi.node.contract.ContractGetInfoQuery;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.Query;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
-import com.hedera.node.app.hapi.utils.fee.SigValueObj;
 import com.hedera.node.app.service.contract.impl.handlers.ContractGetInfoHandler;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -29,17 +26,13 @@ import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
-import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TokensConfig;
-import com.hederahashgraph.api.proto.java.FeeComponents;
-import com.hederahashgraph.api.proto.java.FeeData;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.time.InstantSource;
-import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -80,9 +73,6 @@ class ContractGetInfoHandlerTest {
     private TokensConfig tokensConfig;
 
     @Mock
-    private LedgerConfig ledgerConfig;
-
-    @Mock
     private StakingConfig stakingConfig;
 
     @Mock
@@ -104,6 +94,7 @@ class ContractGetInfoHandlerTest {
     @BeforeEach
     void setUp() {
         handler = new ContractGetInfoHandler(instantSource, entityIdFactory);
+        lenient().when(context.ledgerId()).thenReturn(Bytes.fromHex("03"));
     }
 
     @Test
@@ -172,59 +163,6 @@ class ContractGetInfoHandlerTest {
         assertThat(response.contractGetInfoOrThrow().headerOrThrow()).isEqualTo(responseHeader);
     }
 
-    @Test
-    void computeFeesShouldReturnFees() {
-        // given
-        given(context.feeCalculator()).willReturn(feeCalculator);
-        when(feeCalculator.legacyCalculate(any())).thenAnswer(invocation -> new Fees(10L, 0L, 0L));
-
-        // when
-        var fees = handler.computeFees(context);
-
-        // then
-        assertThat(fees).isNotNull();
-        assertThat(fees.nodeFee()).isEqualTo(10L);
-    }
-
-    @Test
-    void computeFeesWithNullContractShouldReturnConstantFeeData() {
-        // given
-        when(context.feeCalculator()).thenReturn(feeCalculator);
-        when(context.query()).thenReturn(query);
-        when(query.contractGetInfoOrThrow()).thenReturn(contractGetInfoQuery);
-        when(accountStore.getContractById(any())).thenReturn(null);
-        when(context.createStore(ReadableAccountStore.class)).thenReturn(accountStore);
-
-        final var components = FeeComponents.newBuilder()
-                .setMax(15000)
-                .setBpt(25)
-                .setVpt(25)
-                .setRbh(25)
-                .setSbh(25)
-                .setGas(25)
-                .setTv(25)
-                .setBpr(25)
-                .setSbpr(25)
-                .setConstant(1)
-                .build();
-        final var nodeData = FeeData.newBuilder().setNodedata(components).build();
-
-        when(feeCalculator.legacyCalculate(any())).thenAnswer(invocation -> {
-            Function<SigValueObj, FeeData> function = invocation.getArgument(0);
-            final var feeData = function.apply(new SigValueObj(1, 1, 1));
-            long nodeFee = FeeBuilder.getComponentFeeInTinyCents(nodeData.getNodedata(), feeData.getNodedata());
-            return new Fees(nodeFee, 0L, 0L);
-        });
-
-        // when
-        Fees actualFees = handler.computeFees(context);
-
-        // then
-        assertThat(actualFees.nodeFee()).isEqualTo(1L);
-        assertThat(actualFees.networkFee()).isZero();
-        assertThat(actualFees.serviceFee()).isZero();
-    }
-
     private void mockContract() {
         when(context.query()).thenReturn(query);
         when(query.contractGetInfoOrThrow()).thenReturn(contractGetInfoQuery);
@@ -237,7 +175,6 @@ class ContractGetInfoHandlerTest {
     private void mockConfigurationAndStores() {
         when(context.configuration()).thenReturn(configuration);
         when(configuration.getConfigData(TokensConfig.class)).thenReturn(tokensConfig);
-        when(configuration.getConfigData(LedgerConfig.class)).thenReturn(ledgerConfig);
         when(configuration.getConfigData(StakingConfig.class)).thenReturn(stakingConfig);
         when(context.createStore(ReadableTokenStore.class)).thenReturn(tokenStore);
         when(context.createStore(ReadableStakingInfoStore.class)).thenReturn(stakingInfoStore);

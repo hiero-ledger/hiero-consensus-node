@@ -128,6 +128,12 @@ public class FeeScheduleUtils {
             }
         }
 
+        // The GAS extra is required since EVM gas pricing is derived from it
+        if (!extraNames.contains(Extra.GAS)) {
+            logger.error("The GAS extra fee is required in simple fee schedule");
+            return false;
+        }
+
         // Validate services
         Set<String> serviceNames = new HashSet<>();
         for (ServiceFeeSchedule service : feeSchedule.services()) {

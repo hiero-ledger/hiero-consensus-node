@@ -8,7 +8,6 @@ import java.time.Instant;
 import java.util.Random;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.crypto.Signature;
 import org.hiero.base.crypto.SignatureType;
 
 /**
@@ -133,7 +132,17 @@ public final class Randotron extends Random {
      */
     @NonNull
     public Hash nextHash() {
-        return new Hash(nextByteArray(DigestType.SHA_384.digestLength()), DigestType.SHA_384);
+        return nextHash(DigestType.SHA_384);
+    }
+    /**
+     *
+     * Generates a random hash
+     *
+     * @return a random hash
+     */
+    @NonNull
+    public Hash nextHash(@NonNull final DigestType digestType) {
+        return new Hash(nextByteArray(digestType.digestLength()), digestType);
     }
 
     /**
@@ -147,23 +156,13 @@ public final class Randotron extends Random {
     }
 
     /**
-     * Get a random signature (doesn't actually sign anything, just random bytes)
-     *
-     * @return a random signature
-     */
-    @NonNull
-    public Signature nextSignature() {
-        return new Signature(SignatureType.RSA, nextByteArray(SignatureType.RSA.signatureLength()));
-    }
-
-    /**
      * Get random signature bytes that is the same length as a RSA signature
      *
      * @return random signature bytes
      */
     @NonNull
     public Bytes nextSignatureBytes() {
-        return Bytes.wrap(nextByteArray(SignatureType.RSA.signatureLength()));
+        return randomBytes(SignatureType.RSA.signatureLength());
     }
 
     /**
@@ -177,6 +176,28 @@ public final class Randotron extends Random {
         final byte[] bytes = new byte[size];
         this.nextBytes(bytes);
         return bytes;
+    }
+
+    /**
+     * Generates random {@link Bytes} of the given size.
+     *
+     * @param size the number of random bytes to generate
+     * @return random bytes
+     */
+    public Bytes randomBytes(final int size) {
+        return Bytes.wrap(nextByteArray(size));
+    }
+
+    /**
+     * Generates random {@link Bytes} with a length chosen uniformly at random between {@code originSize} (inclusive)
+     * and {@code boundSize} (exclusive).
+     *
+     * @param originSize the minimum length (inclusive)
+     * @param boundSize  the maximum length (exclusive)
+     * @return random bytes of random length
+     */
+    public Bytes randomBytes(final int originSize, final int boundSize) {
+        return Bytes.wrap(nextByteArray(this.nextInt(originSize, boundSize)));
     }
 
     /**

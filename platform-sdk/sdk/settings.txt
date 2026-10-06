@@ -42,5 +42,4 @@ prometheus.endpointEnabled,               false
                                           #           Misc.           #
                                           #############################
 
-loadKeysFromPfxFiles,                     false
 crypto.enableNewKeyStoreModel,            false

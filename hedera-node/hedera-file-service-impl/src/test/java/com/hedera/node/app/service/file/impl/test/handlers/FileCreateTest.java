@@ -31,7 +31,6 @@ import com.hedera.hapi.node.file.FileCreateTransactionBody;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.hapi.fees.usage.file.FileOpsUsage;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
 import com.hedera.node.app.service.file.impl.handlers.FileCreateHandler;
@@ -84,9 +83,6 @@ class FileCreateTest extends FileTestBase {
     private HandleContext.SavepointStack stack;
 
     @Mock
-    private FileOpsUsage fileOpsUsage;
-
-    @Mock
     private EntityNumGenerator entityNumGenerator;
 
     @Mock
@@ -124,11 +120,14 @@ class FileCreateTest extends FileTestBase {
 
     @BeforeEach
     void setUp() {
-        subject = new FileCreateHandler(fileOpsUsage);
+        subject = new FileCreateHandler();
         fileStore = new WritableFileStore(writableStates, writableEntityCounters);
         config = HederaTestConfigBuilder.createConfig().getConfigData(FilesConfig.class);
         lenient().when(handleContext.configuration()).thenReturn(configuration);
         lenient().when(configuration.getConfigData(FilesConfig.class)).thenReturn(config);
+        lenient()
+                .when(configuration.getConfigData(HederaConfig.class))
+                .thenReturn(DEFAULT_CONFIG.getConfigData(HederaConfig.class));
         lenient().when(storeFactory.writableStore(WritableFileStore.class)).thenReturn(fileStore);
         lenient().when(handleContext.entityNumGenerator()).thenReturn(entityNumGenerator);
     }
@@ -313,12 +312,62 @@ class FileCreateTest extends FileTestBase {
 
         assertEquals(2, fileStore.sizeOfState());
 
-        config = new FilesConfig(1L, 1L, 1L, 1L, 1L, 1L, 1L, new LongPair(150L, 159L), 1L, 1L, 1);
-        given(configuration.getConfigData(any())).willReturn(config);
+        config = new FilesConfig(1L, 1L, 1L, 1L, 1L, 1L, new LongPair(150L, 159L), 1L, 1L, 1);
+        given(configuration.getConfigData(FilesConfig.class)).willReturn(config);
 
         final var msg = assertThrows(HandleException.class, () -> subject.handle(handleContext));
         assertEquals(ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED, msg.getStatus());
         assertEquals(0, this.fileStore.modifiedFiles().size());
+    }
+
+    @Test
+    @DisplayName("Handle rejects a shard that doesn't match the network configuration")
+    void handleRejectsMismatchedShard() {
+        final var txBody = newCreateTxn(anotherKeys, expirationTime, SHARD + 1, REALM);
+        given(handleContext.body()).willReturn(txBody);
+
+        final var failure = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.INVALID_FILE_ID, failure.getStatus());
+        assertEquals(0, fileStore.modifiedFiles().size());
+    }
+
+    @Test
+    @DisplayName("Handle rejects a realm that doesn't match the network configuration")
+    void handleRejectsMismatchedRealm() {
+        final var txBody = newCreateTxn(anotherKeys, expirationTime, SHARD, REALM + 1);
+        given(handleContext.body()).willReturn(txBody);
+
+        final var failure = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertEquals(ResponseCodeEnum.INVALID_FILE_ID, failure.getStatus());
+        assertEquals(0, fileStore.modifiedFiles().size());
+    }
+
+    @Test
+    @DisplayName("Handle uses the configured shard and realm when the body omits them")
+    void handleUsesConfiguredShardAndRealmWhenAbsent() {
+        final var txBody = TransactionBody.newBuilder()
+                .transactionID(TransactionID.newBuilder().accountID(ACCOUNT_ID_3))
+                .fileCreate(FileCreateTransactionBody.newBuilder()
+                        .keys(anotherKeys)
+                        .memo("memo")
+                        .contents(Bytes.wrap(contents))
+                        .expirationTime(Timestamp.newBuilder().seconds(expirationTime)))
+                .build();
+
+        given(handleContext.body()).willReturn(txBody);
+        given(handleContext.attributeValidator()).willReturn(validator);
+        given(storeFactory.writableStore(WritableFileStore.class)).willReturn(writableStore);
+        given(handleContext.expiryValidator()).willReturn(expiryValidator);
+        given(expiryValidator.resolveCreationAttempt(anyBoolean(), any(), any()))
+                .willReturn(new ExpiryMeta(expirationTime, NA, null));
+        given(entityNumGenerator.newEntityNum()).willReturn(1_234L);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(CreateFileStreamBuilder.class)).willReturn(recordBuilder);
+
+        subject.handle(handleContext);
+
+        assertEquals(fileId, fileStore.get(fileId).orElseThrow().fileId());
+        verify(recordBuilder).fileID(fileId);
     }
 
     public static void assertFailsWith(final ResponseCodeEnum status, final Runnable something) {

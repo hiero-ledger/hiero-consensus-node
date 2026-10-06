@@ -7,13 +7,16 @@ import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionReceipt;
 import com.hedera.hapi.node.transaction.TransactionRecord;
 import com.hedera.node.app.blocks.BlockItemsTranslator;
 import com.hedera.node.app.blocks.impl.BlockStreamBuilder;
 import com.hedera.node.app.blocks.impl.TranslationContext;
 import com.hedera.node.app.spi.records.RecordSource;
+import com.hedera.node.app.state.SingleTransactionRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
@@ -57,6 +60,26 @@ public class BlockRecordSource implements RecordSource {
     }
 
     /**
+     * Returns a list of {@link SingleTransactionRecord}s translated from the block outputs,
+     * each containing the original transaction, translated record, and empty sidecars/outputs.
+     */
+    public @NonNull List<SingleTransactionRecord> precomputedRecords() {
+        final var records = new ArrayList<SingleTransactionRecord>();
+        for (final var output : outputs) {
+            final var context = output.translationContext();
+            final var txnRecord = output.toRecord(blockItemsTranslator);
+            final var serialized = context.serializedSignedTx();
+            final var transaction = Transaction.newBuilder()
+                    .signedTransactionBytes(
+                            serialized != null ? serialized : SignedTransaction.PROTOBUF.toBytes(context.signedTx()))
+                    .build();
+            records.add(new SingleTransactionRecord(
+                    transaction, txnRecord, List.of(), new SingleTransactionRecord.TransactionOutputs(null)));
+        }
+        return records;
+    }
+
+    /**
      * For each {@link BlockItem} in the source, apply the given action.
      *
      * @param action the action to apply
@@ -64,6 +87,26 @@ public class BlockRecordSource implements RecordSource {
     public void forEachItem(@NonNull final Consumer<BlockItem> action) {
         requireNonNull(action);
         outputs.forEach(output -> output.forEachItem(action));
+    }
+
+    /**
+     * Returns all block items in this source in externalization order.
+     *
+     * @return the block items in externalization order
+     */
+    public @NonNull List<BlockItem> blockItems() {
+        final var items = new ArrayList<BlockItem>();
+        outputs.forEach(output -> items.addAll(output.blockItems()));
+        return items;
+    }
+
+    /**
+     * Returns whether this source contains any block-stream outputs.
+     *
+     * @return whether this source contains any block-stream outputs
+     */
+    public boolean hasOutputs() {
+        return !outputs.isEmpty();
     }
 
     @Override

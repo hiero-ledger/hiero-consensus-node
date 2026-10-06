@@ -21,6 +21,8 @@ package com.hedera.node.internal.network;
 
 // SPDX-License-Identifier: Apache-2.0
 import "services/state/addressbook/node.proto";
+import "services/state/hints/hints_types.proto";
+import "services/state/history/history_types.proto";
 import "services/state/roster/roster.proto";
 
 option java_package = "com.hedera.node.internal.network.legacy";
@@ -61,6 +63,89 @@ message Network {
   * A public input to every hinTS verification key proof.
   */
   bytes ledger_id = 3;
+
+  /**
+   * Dev-only TSS network-wide metadata needed to bootstrap a network from a
+   * single JSON file. If present, this includes the completed hinTS and
+   * history proof constructions that let the network immediately use TSS.
+   */
+  TssMetadata tss_metadata = 4;
+
+  /**
+   * Dev-only TSS node metadata needed to bootstrap each node's local TSS keys
+   * and public TSS roster material from a single JSON file.
+   */
+  repeated NodeTssMetadata node_tss_metadata = 5;
+}
+
+/**
+ * Dev-only network-wide TSS metadata.
+ */
+message TssMetadata {
+  /**
+   * The current CRS state.
+   */
+  com.hedera.hapi.node.state.hints.CRSState crs_state = 1;
+
+  /**
+   * The active hinTS construction.
+   */
+  com.hedera.hapi.node.state.hints.HintsConstruction active_hints_construction = 2;
+
+  /**
+   * The active history proof construction.
+   */
+  com.hedera.hapi.node.state.history.HistoryProofConstruction active_proof_construction = 3;
+
+  /**
+   * The WRAPS verification key used to validate recursive history proofs.
+   */
+  bytes history_proof_verification_key = 4;
+
+  /**
+   * The expected WRAPS proving key hash, if known.
+   */
+  bytes wraps_proving_key_hash = 5;
+}
+
+/**
+ * Dev-only node-scoped TSS metadata.
+ */
+message NodeTssMetadata {
+  /**
+   * The node id.
+   */
+  uint64 node_id = 1;
+
+  /**
+   * The node's party id in the active hinTS construction.
+   */
+  uint32 party_id = 2;
+
+  /**
+   * The node's TSS weight, which may differ from its roster weight.
+   */
+  uint64 tss_weight = 3;
+
+  /**
+   * The node's public hinTS key.
+   */
+  bytes hints_key = 4;
+
+  /**
+   * The node's private BLS key for hinTS.
+   */
+  bytes bls_private_key = 5;
+
+  /**
+   * The node's public Schnorr key for WRAPS.
+   */
+  bytes schnorr_public_key = 6;
+
+  /**
+   * The node's private Schnorr key for WRAPS.
+   */
+  bytes schnorr_private_key = 7;
 }
 
 /**

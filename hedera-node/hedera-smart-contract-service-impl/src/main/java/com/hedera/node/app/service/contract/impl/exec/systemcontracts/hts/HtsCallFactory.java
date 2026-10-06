@@ -71,6 +71,7 @@ public class HtsCallFactory implements CallFactory<HtsCallAttempt> {
                 new CallAttemptOptions<>(
                         contractID,
                         frame.getSenderAddress(),
+                        frame.getRecipientAddress(),
                         // We only need to distinguish between the EVM sender id and the
                         // "authorizing id" for qualified delegate calls; and even then, only
                         // for classic transfers. In that specific case, the qualified delegate

@@ -129,7 +129,7 @@ class CustomExtCodeCopyOperationTest {
     }
 
     private void givenWellKnownFrameWith(final Address to) {
-        given(frame.getStackItem(0)).willReturn(to);
+        given(frame.getStackItem(0)).willReturn(to.getBytes());
         given(gasCalculator.extCodeCopyOperationGasCost(eq(frame), anyLong(), anyLong()))
                 .willReturn(123L);
     }

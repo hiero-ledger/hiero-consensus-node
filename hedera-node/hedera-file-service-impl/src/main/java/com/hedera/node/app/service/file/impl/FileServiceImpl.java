@@ -16,7 +16,6 @@ import com.hedera.node.app.spi.RpcService;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.workflows.SystemContext;
-import com.hedera.node.config.data.FeesConfig;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
@@ -53,11 +52,8 @@ public final class FileServiceImpl implements FileService {
      */
     public void createSystemEntities(@NonNull final SystemContext context, @NonNull final ReadableNodeStore nodeStore) {
         fileSchema.createGenesisAddressBookAndNodeDetails(context, nodeStore);
-        fileSchema.createGenesisFeeSchedule(context);
         fileSchema.createGenesisExchangeRate(context);
-        if (context.configuration().getConfigData(FeesConfig.class).createSimpleFeeSchedule()) {
-            fileSchema.createGenesisSimpleFeesSchedule(context);
-        }
+        fileSchema.createGenesisSimpleFeesSchedule(context);
         fileSchema.createGenesisNetworkProperties(context);
         fileSchema.createGenesisHapiPermissions(context);
         fileSchema.createGenesisThrottleDefinitions(context);

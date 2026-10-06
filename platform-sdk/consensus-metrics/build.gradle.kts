@@ -3,6 +3,7 @@ plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.publish-artifactregistry")
     id("org.hiero.gradle.feature.test-timing-sensitive")
+    id("org.hiero.gradle.feature.benchmark")
 }
 
 description = "Consensus Metrics"
@@ -13,6 +14,7 @@ testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.config.extensions")
     requires("com.swirlds.config.extensions.test.fixtures")
+    requires("org.hiero.consensus.fakes")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
@@ -32,4 +34,10 @@ timingSensitiveModuleInfo {
     requires("org.junit.jupiter.api")
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
+}
+
+jmhModuleInfo {
+    requires("com.swirlds.config.extensions.test.fixtures")
+    requires("org.hiero.consensus.metrics")
+    requires("jmh.core")
 }

@@ -85,7 +85,7 @@ public class SelfNodeAccountIdManagerImpl implements SelfNodeAccountIdManager {
                 accountId.set(nodeInfo.accountId());
                 return;
             }
-            final var book = NodeAddressBook.PROTOBUF.parse(bytes);
+            final var book = NodeAddressBook.PROTOBUF.parseStrict(bytes);
             final var selfNodeId = nodeInfo.nodeId();
             final var maybeEntry = book.nodeAddress().stream()
                     .filter(addr -> addr.nodeId() == selfNodeId)

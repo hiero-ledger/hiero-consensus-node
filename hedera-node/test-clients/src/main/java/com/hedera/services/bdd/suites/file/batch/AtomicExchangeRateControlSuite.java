@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.file.batch;
 
 import static com.hedera.services.bdd.junit.TestTags.ATOMIC_BATCH;
-import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
@@ -66,7 +65,6 @@ class AtomicExchangeRateControlSuite {
     }
 
     @HapiTest
-    @Tag(MATS)
     final Stream<DynamicTest> midnightRateChangesWhenAcct50UpdatesFile112() {
         return hapiTest(
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
@@ -132,13 +130,13 @@ class AtomicExchangeRateControlSuite {
                 cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS),
                 resetRatesOp,
                 cryptoCreate("randomAccount"),
+                // The inner update is unauthorized, so the whole batch is rejected at ingest.
                 atomicBatch(fileUpdate(EXCHANGE_RATES)
                                 .contents("Should be impossible!")
                                 .payingWith("randomAccount")
-                                .hasKnownStatus(AUTHORIZATION_FAILED)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
-                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
+                        .hasPrecheck(AUTHORIZATION_FAILED));
     }
 
     @HapiTest

@@ -176,10 +176,10 @@ environment.
 
 The framework automatically builds Docker images from the DockerApp implemented in the module
 `consensus-otter-docker-app`. The Dockerfile is generated based on the contents of the `apps` and `lib` directories in
-the module. The image is built using the Eclipse Temurin base image for Java 21:
+the module. The image is built using the Eclipse Temurin base image for Java 25:
 
 ```dockerfile
-FROM eclipse-temurin:21
+FROM eclipse-temurin:25
 
 # Create non-root user and group
 RUN groupadd -r appuser && useradd -r -g appuser appuser
