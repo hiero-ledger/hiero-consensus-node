@@ -45,8 +45,7 @@ message TssSignedBlockProof {
      * The exact subset of nodes that signed SHALL neither be known nor
      * tracked, but it SHALL be cryptographically verifiable that the
      * threshold was met if the signature itself can be validated with
-     * the network identity (A.K.A. ledger ID) and network WRAPS
-     * verification key.
+     * the network identity (A.K.A. ledger ID).
      */
     bytes block_signature = 1;
 }

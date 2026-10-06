@@ -92,12 +92,6 @@ public interface ReadableHistoryStore {
     Bytes getLedgerId();
 
     /**
-     * Returns the expected WRAPS proving key hash, if set; otherwise null.
-     */
-    @Nullable
-    Bytes getWrapsProvingKeyHash();
-
-    /**
      * Gets the construction with the given ID, throwing if it does not exist.
      */
     @NonNull
@@ -119,13 +113,12 @@ public interface ReadableHistoryStore {
      * Returns whether the give roster hash is ready to be adopted.
      *
      * @param rosterHash the roster hash
-     * @param wrapsEnabled whether WRAPS is enabled in the TSS configuration
      * @return whether the give roster hash is ready to be adopted
      */
-    default boolean isReadyToAdopt(@NonNull final Bytes rosterHash, final boolean wrapsEnabled) {
+    default boolean isReadyToAdopt(@NonNull final Bytes rosterHash) {
         final var construction = getNextConstruction();
         return construction.hasTargetProof()
-                && (isWrapsExtensible(construction.targetProofOrThrow()) == wrapsEnabled)
+                && isWrapsExtensible(construction.targetProofOrThrow())
                 && construction.targetRosterHash().equals(rosterHash);
     }
 

@@ -82,8 +82,7 @@ message HistoryProof {
   History target_history = 2;
   /**
    * The proof of chain of trust from the ledger id to the target
-   * history's metadata. May be switched from AggregatedNodeSignatures
-   * to a recursive proof when one becomes available.
+   * history's metadata.
    */
   ChainOfTrustProof chain_of_trust_proof = 3;
   /**
@@ -256,8 +255,8 @@ enum WrapsPhase {
    */
   AGGREGATE = 3;
   /**
-   * Nodes are doing work that must occur in a different event loop
-   * than the one used for the above phases.
+   * No longer used; nodes now compute a proof in the AGGREGATE phase
+   * whether it grounds a chain of trust or extends one.
    */
   POST_AGGREGATION = 4;
 }
@@ -293,15 +292,13 @@ message WrapsMessageHistory {
 message ChainOfTrustProof {
     oneof proof {
         /**
-         * If there is not yet a SNARK proving the chain of trust from ledger id to
-         * the hinTS verification key, an aggregation of Schnorr signatures on
-         * the concatenation of the ledger id and genesis hinTS verification key
-         * that serve as witnesses for the SNARK prover algorithm.
+         * No longer used; every chain-of-trust proof, including the one for
+         * the genesis hinTS verification key, is now a WRAPS proof.
          */
         AggregatedNodeSignatures aggregated_node_signatures = 1;
         /**
-         * If known, a ZK-compressed SNARK proof proving the chain of trust from
-         * the ledger id to this hinTS verification key.
+         * A ZK-compressed SNARK proof proving the chain of trust from the
+         * ledger id to this hinTS verification key.
          */
         bytes wraps_proof = 2;
     }
@@ -310,9 +307,8 @@ message ChainOfTrustProof {
 /**
  * An aggregation of node signatures on some data.
  * <p>
- * Can be used to prove the genesis hinTS verification key in a block proof; but
- * not succinct and not recursive; hence in normal operations with TSS, used only
- * until the first recursive proof is available.
+ * No longer used; it once proved the genesis hinTS verification key in block
+ * proofs until the first recursive proof was available.
  */
 message AggregatedNodeSignatures {
   /**

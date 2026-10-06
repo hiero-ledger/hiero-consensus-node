@@ -3,25 +3,28 @@ package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static com.hedera.node.app.history.HistoryLibrary.MISSING_SCHNORR_KEY;
 import static com.hedera.node.app.history.HistoryService.isCompleted;
+import static com.hedera.node.app.history.impl.ProofControllers.groundsChainOfTrust;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
-import static com.hedera.node.app.history.impl.ProofVoteCategory.INVALID_RECURSIVE;
-import static com.hedera.node.app.history.impl.ProofVoteCategory.NOT_RECURSIVE;
-import static com.hedera.node.app.history.impl.ProofVoteCategory.VALID_RECURSIVE;
+import static com.hedera.node.app.history.impl.ProofVoteCategory.INVALID;
+import static com.hedera.node.app.history.impl.ProofVoteCategory.VALID;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.summingLong;
 import static java.util.stream.Collectors.toMap;
 
-import com.hedera.hapi.node.state.history.AggregatedNodeSignatures;
 import com.hedera.hapi.node.state.history.ChainOfTrustProof;
+import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
 import com.hedera.node.app.history.HistoryLibrary;
+import com.hedera.node.app.history.HistoryLibrary.AddressBook;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
 import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
 import com.hedera.node.app.history.WritableHistoryStore;
@@ -40,7 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import org.apache.logging.log4j.LogManager;
@@ -68,7 +70,7 @@ public class ProofControllerImpl implements ProofController {
 
     private final Map<Long, ExplicitProofVote> votes = new TreeMap<>();
     private final Map<Long, Bytes> targetProofKeys = new TreeMap<>();
-    private final Map<RecursiveProofValidationKey, Boolean> proofTagValidations = new HashMap<>();
+    private final Map<ProofValidationKey, Boolean> proofTagValidations = new HashMap<>();
 
     /**
      * The ongoing construction, updated in network state each time the controller makes progress.
@@ -93,18 +95,22 @@ public class ProofControllerImpl implements ProofController {
     @Nullable
     private Bytes targetMetadata;
 
+    /**
+     * If not null, the history this construction grounds a chain of trust in, as expected from this node's
+     * view of the target roster and proof keys; only set for a construction that grounds a chain of trust.
+     */
+    @Nullable
+    private History expectedGroundingHistory;
+
     private static class ExplicitProofVote {
         private final Bytes tag;
         private final HistoryProofVote historyProofVote;
 
         public ExplicitProofVote(@NonNull final HistoryProofVote historyProofVote) {
             this.historyProofVote = requireNonNull(historyProofVote);
-            final var proof = historyProofVote.proofOrThrow();
-            final var chainOfTrustProof = proof.chainOfTrustProofOrThrow();
-            tag = chainOfTrustProof.hasAggregatedNodeSignatures()
-                    ? noThrowSha384HashOf(AggregatedNodeSignatures.PROTOBUF.toBytes(
-                            chainOfTrustProof.aggregatedNodeSignaturesOrThrow()))
-                    : noThrowSha384HashOf(proof.uncompressedWrapsProof());
+            // Votes are validated (and validations cached) per tag, so the tag must commit to every
+            // field of the proof that could be finalized; not just to the WRAPS proof
+            tag = noThrowSha384HashOf(HistoryProof.PROTOBUF.toBytes(historyProofVote.proofOrThrow()));
         }
 
         public Bytes tag() {
@@ -115,24 +121,22 @@ public class ProofControllerImpl implements ProofController {
             return historyProofVote;
         }
 
-        public boolean isRecursive() {
-            return historyProofVote.proofOrThrow().chainOfTrustProofOrThrow().hasWrapsProof();
+        public HistoryProof proof() {
+            return historyProofVote.proofOrThrow();
         }
 
         public byte[] compressedProofOrEmpty() {
-            return historyProofVote
-                    .proofOrThrow()
-                    .chainOfTrustProofOrElse(ChainOfTrustProof.DEFAULT)
+            return proof().chainOfTrustProofOrElse(ChainOfTrustProof.DEFAULT)
                     .wrapsProofOrElse(Bytes.EMPTY)
                     .toByteArray();
         }
     }
 
-    private record RecursiveProofValidationKey(
+    private record ProofValidationKey(
             @NonNull Bytes proofTag,
             @NonNull Bytes ledgerId,
             @NonNull Bytes metadata) {
-        private RecursiveProofValidationKey {
+        private ProofValidationKey {
             requireNonNull(proofTag);
             requireNonNull(ledgerId);
             requireNonNull(metadata);
@@ -169,8 +173,8 @@ public class ProofControllerImpl implements ProofController {
         this.historyLibrary = requireNonNull(historyLibrary);
         this.historyService = requireNonNull(historyService);
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
-        replayPersistedVotes(votes, tssConfig);
-        if (!isCompleted(construction, tssConfig)) {
+        replayPersistedVotes(votes);
+        if (!isCompleted(construction)) {
             final var cutoffTime = construction.hasGracePeriodEndTime()
                     ? asInstant(construction.gracePeriodEndTimeOrThrow())
                     : Instant.MAX;
@@ -191,12 +195,11 @@ public class ProofControllerImpl implements ProofController {
     }
 
     @Override
-    public boolean isStillInProgress(@NonNull final TssConfig tssConfig) {
-        requireNonNull(tssConfig);
+    public boolean isStillInProgress() {
         if (construction.hasFailureReason()) {
             return false;
         }
-        return !isCompleted(construction, tssConfig);
+        return !isCompleted(construction);
     }
 
     @Override
@@ -217,7 +220,7 @@ public class ProofControllerImpl implements ProofController {
                     return;
                 }
             }
-            if (!isStillInProgress(tssConfig)) {
+            if (!isStillInProgress()) {
                 return;
             }
             // Still waiting for the hinTS verification key
@@ -252,8 +255,7 @@ public class ProofControllerImpl implements ProofController {
             switch (outcome) {
                 case HistoryProver.Outcome.InProgress ignored ->
                     construction = historyStore.getConstructionOrThrow(constructionId());
-                case HistoryProver.Outcome.Completed completed ->
-                    finishProof(historyStore, completed.proof(), now, tssConfig);
+                case HistoryProver.Outcome.Completed completed -> finishProof(historyStore, completed.proof(), now);
                 case HistoryProver.Outcome.Failed failed -> {
                     if (!retryIfRecoverableFailure(failed.reason(), historyStore, tssConfig)) {
                         log.warn("Failed construction #{} due to {}", constructionId(), failed.reason());
@@ -306,7 +308,7 @@ public class ProofControllerImpl implements ProofController {
                     construction.constructionId());
             return;
         }
-        if (!incorporateVote(nodeId, vote, tssConfig)) {
+        if (!incorporateVote(nodeId, vote)) {
             // Late arrival, proof was already finished
             return;
         }
@@ -317,55 +319,24 @@ public class ProofControllerImpl implements ProofController {
         }
         // Put the vote in state to let reconnecting nodes retrace our steps
         historyStore.addProofVote(nodeId, construction.constructionId(), vote);
-        final boolean thresholdCrossed;
-        final ProofVoteCategory category;
-        if (explicitProofVote.isRecursive()) {
-            final var ledgerId = Optional.ofNullable(historyStore.getLedgerId()).orElse(Bytes.EMPTY);
-            final var metadata = Optional.ofNullable(targetMetadata).orElse(Bytes.EMPTY);
-            final var explicitProofIsValid = isRecursiveProofValid(explicitProofVote, ledgerId, metadata);
-            category = explicitProofIsValid ? VALID_RECURSIVE : INVALID_RECURSIVE;
-            final var weightsByValidity = votes.entrySet().stream()
-                    .collect(groupingBy(
-                            entry -> isRecursiveProofValid(entry.getValue(), ledgerId, metadata),
-                            summingLong(entry -> weights.sourceWeightOf(entry.getKey()))));
-            final long validWeight =
-                    Optional.ofNullable(weightsByValidity.get(Boolean.TRUE)).orElse(0L);
-            thresholdCrossed = validWeight >= weights.sourceWeightThreshold();
-            if (thresholdCrossed) {
-                // Votes for valid recursive proofs are treated as congruent, we pick the valid proof
-                // submitted by the node with the lowest id as a tiebreaker
-                final var winningVote = votes.entrySet().stream()
-                        .filter(entry -> isRecursiveProofValid(entry.getValue(), ledgerId, metadata))
-                        .findFirst()
-                        .map(Map.Entry::getValue)
-                        .orElseThrow();
-                finishProof(historyStore, winningVote.historyProofVote().proofOrThrow(), now, tssConfig);
-            }
-        } else {
-            category = NOT_RECURSIVE;
-            final var proofWeights = votes.entrySet().stream()
-                    .collect(groupingBy(
-                            entry -> entry.getValue().tag(),
-                            summingLong(entry -> weights.sourceWeightOf(entry.getKey()))));
-            log.info(
-                    "Now have proof votes with weights {} for construction #{}",
-                    proofWeights.values(),
-                    construction.constructionId());
-            final var maybeWinningTag = proofWeights.entrySet().stream()
-                    .sorted(Map.Entry.comparingByKey())
-                    .filter(entry -> entry.getValue() >= weights.sourceWeightThreshold())
-                    .map(Map.Entry::getKey)
-                    .findFirst();
-            maybeWinningTag.ifPresent(tag -> {
-                final var proof = votes.values().stream()
-                        .filter(v -> v.tag().equals(tag))
-                        .findFirst()
-                        .orElseThrow()
-                        .historyProofVote()
-                        .proofOrThrow();
-                finishProof(historyStore, proof, now, tssConfig);
-            });
-            thresholdCrossed = maybeWinningTag.isPresent();
+        final var metadata = Optional.ofNullable(targetMetadata).orElse(Bytes.EMPTY);
+        final var ledgerId = ledgerIdToProve(historyStore, metadata);
+        final var category = isProofValid(explicitProofVote, ledgerId, metadata) ? VALID : INVALID;
+        final var weightsByValidity = votes.entrySet().stream()
+                .collect(groupingBy(
+                        entry -> isProofValid(entry.getValue(), ledgerId, metadata),
+                        summingLong(entry -> weights.sourceWeightOf(entry.getKey()))));
+        final long validWeight =
+                Optional.ofNullable(weightsByValidity.get(Boolean.TRUE)).orElse(0L);
+        final boolean thresholdCrossed = validWeight >= weights.sourceWeightThreshold();
+        if (thresholdCrossed) {
+            // Votes for valid proofs are treated as congruent, we pick the valid proof
+            // submitted by the node with the lowest id as a tiebreaker
+            final var winningVote = votes.values().stream()
+                    .filter(v -> isProofValid(v, ledgerId, metadata))
+                    .findFirst()
+                    .orElseThrow();
+            finishProof(historyStore, winningVote.proof(), now);
         }
         // Let our prover know about the vote to optimize its choice of explicit or congruent voting
         requireNonNull(prover).observeProofVote(nodeId, vote, thresholdCrossed, category);
@@ -399,19 +370,14 @@ public class ProofControllerImpl implements ProofController {
      *
      * @param nodeId the ID of the node that cast the vote
      * @param vote the vote to incorporate
-     * @param tssConfig the TSS configuration
      * @return whether the vote could still be incorporated (false once the proof is finished)
      */
-    private boolean incorporateVote(
-            final long nodeId, @NonNull final HistoryProofVote vote, @NonNull final TssConfig tssConfig) {
-        if (hasWrapsAdequateTargetProof(tssConfig)) {
+    private boolean incorporateVote(final long nodeId, @NonNull final HistoryProofVote vote) {
+        if (construction.hasTargetProof()) {
             log.info(
-                    "Skipping vote from node{} for construction #{} because the proof is already {}",
+                    "Skipping vote from node{} for construction #{} because the proof is already finished",
                     nodeId,
-                    construction.constructionId(),
-                    isWrapsExtensible(construction.targetProofOrThrow())
-                            ? "WRAPS-extensible"
-                            : "adequate with WRAPS disabled");
+                    construction.constructionId());
             return false;
         }
         if (vote.hasProof()) {
@@ -437,12 +403,10 @@ public class ProofControllerImpl implements ProofController {
      * chains such as {@code node 0 -> node 1 -> node 2 (explicit)} are rebuilt regardless of replay order.
      *
      * @param persistedVotes the votes persisted in state, keyed by the node that cast them
-     * @param tssConfig the TSS configuration
      */
-    private void replayPersistedVotes(
-            @NonNull final Map<Long, HistoryProofVote> persistedVotes, @NonNull final TssConfig tssConfig) {
-        // Mirror incorporateVote's guard: once the target proof matches the WRAPS setting, no vote is incorporated.
-        if (hasWrapsAdequateTargetProof(tssConfig)) {
+    private void replayPersistedVotes(@NonNull final Map<Long, HistoryProofVote> persistedVotes) {
+        // Mirror incorporateVote's guard: once the proof is finished, no vote is incorporated.
+        if (construction.hasTargetProof()) {
             return;
         }
         // Load every explicit vote into the tally, and index the congruent votes by the node they reference so their
@@ -485,18 +449,6 @@ public class ProofControllerImpl implements ProofController {
     }
 
     /**
-     * Returns whether the current construction already has a target proof whose WRAPS-extensibility matches the given
-     * WRAPS setting. When it does, the network will not re-vote to convert the proof and no further votes should be
-     * incorporated.
-     *
-     * @param tssConfig the TSS configuration
-     */
-    private boolean hasWrapsAdequateTargetProof(@NonNull final TssConfig tssConfig) {
-        return construction.hasTargetProof()
-                && tssConfig.wrapsEnabled() == isWrapsExtensible(construction.targetProofOrThrow());
-    }
-
-    /**
      * Finishes the active construction, commits its proof to state, and notifies the history service.
      * @param historyStore the writable history store
      * @param proof the proof
@@ -505,8 +457,7 @@ public class ProofControllerImpl implements ProofController {
     private void finishProof(
             @NonNull final WritableHistoryStore historyStore,
             @NonNull final HistoryProof proof,
-            @NonNull final Instant now,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final Instant now) {
         construction = historyStore.completeProof(construction.constructionId(), proof);
         historyProofMetrics.observeStage(constructionId(), HistoryProofMetrics.Stage.COMPLETED, now);
         historyProofMetrics.recordProofCompleted(constructionId(), construction.wrapsRetryCount());
@@ -515,32 +466,90 @@ public class ProofControllerImpl implements ProofController {
                 construction.constructionId(),
                 isWrapsExtensible(proof));
         historyService.onFinished(historyStore, construction, weights.targetNodeWeights());
-        // Clear the in-memory votes so the network can re-vote to convert this into a
-        // WRAPS-extensible proof. Only purge the PERSISTED votes when such a re-vote actually
-        // follows (wrapsEnabled != isWrapsExtensible): purging then keeps a rebuilt controller from
-        // reloading stale votes and diverging (SELF_ISS); skipping it otherwise avoids a spurious
-        // PROOF_VOTES state change that breaks block-stream/record parity (they are purged at
-        // handoff regardless).
-        if (tssConfig.wrapsEnabled() != isWrapsExtensible(proof)) {
-            historyStore.clearProofVotes(constructionId(), new TreeSet<>(votes.keySet()));
-        }
         votes.clear();
         proofTagValidations.clear();
     }
 
-    private boolean isRecursiveProofValid(
+    /**
+     * Returns the ledger id whose chain of trust a proof for this construction must establish its metadata in.
+     * <p>
+     * A construction that grounds a chain of trust proves a new ledger id; namely, the ledger id of the history
+     * this node expects it to ground. (That is, a ledger id not yet in state, or one replacing the ledger id in
+     * state.) Every other construction extends the chain of trust of the ledger id in state.
+     *
+     * @param historyStore the history store
+     * @param metadata the target metadata
+     * @return the ledger id, or empty bytes if there is not yet any ledger id to prove
+     */
+    private Bytes ledgerIdToProve(@NonNull final ReadableHistoryStore historyStore, @NonNull final Bytes metadata) {
+        if (groundsChainOfTrust(construction)) {
+            final var groundingHistory = expectedGroundingHistory(metadata);
+            return groundingHistory == null ? Bytes.EMPTY : historyLibrary.ledgerIdOf(groundingHistory);
+        }
+        return Optional.ofNullable(historyStore.getLedgerId()).orElse(Bytes.EMPTY);
+    }
+
+    /**
+     * Returns the history this construction grounds a chain of trust in, if this node can compute it; that is,
+     * the hash of the target address book with every target node's proof key (or the sentinel key for a node that
+     * did not publish one in time), paired with the given target metadata.
+     *
+     * @param metadata the target metadata
+     * @return the expected history, or null if it cannot be computed
+     */
+    private @Nullable History expectedGroundingHistory(@NonNull final Bytes metadata) {
+        if (Bytes.EMPTY.equals(metadata)) {
+            return null;
+        }
+        if (expectedGroundingHistory == null
+                || !expectedGroundingHistory.metadata().equals(metadata)) {
+            final var targetBook = AddressBook.from(weights.targetNodeWeights(), nodeId -> targetProofKeys
+                    .getOrDefault(nodeId, MISSING_SCHNORR_KEY)
+                    .toByteArray());
+            try {
+                expectedGroundingHistory =
+                        new History(Bytes.wrap(historyLibrary.hashAddressBook(targetBook)), metadata);
+            } catch (IllegalArgumentException e) {
+                log.warn("Unable to compute the history grounded by construction #{}", constructionId(), e);
+                return null;
+            }
+        }
+        return expectedGroundingHistory;
+    }
+
+    /**
+     * Returns whether the given explicit vote's proof establishes the given metadata in the chain of trust of the
+     * given ledger id; and, for a construction that grounds a chain of trust, whether its target history is the
+     * one this node expects (since that history determines the new ledger id).
+     *
+     * @param vote the explicit vote
+     * @param ledgerId the ledger id
+     * @param metadata the target metadata
+     * @return whether the vote's proof is valid
+     */
+    private boolean isProofValid(
             @NonNull final ExplicitProofVote vote, @NonNull final Bytes ledgerId, @NonNull final Bytes metadata) {
         requireNonNull(vote);
         requireNonNull(ledgerId);
         requireNonNull(metadata);
-        final var validationKey = new RecursiveProofValidationKey(vote.tag(), ledgerId, metadata);
+        final var validationKey = new ProofValidationKey(vote.tag(), ledgerId, metadata);
         return proofTagValidations.computeIfAbsent(validationKey, ignored -> {
+            final var proof = vote.proof();
+            if (groundsChainOfTrust(construction)
+                    && !proof.targetHistoryOrElse(History.DEFAULT).equals(expectedGroundingHistory(metadata))) {
+                log.info(
+                        "INVALID proof grounding a chain of trust in unexpected history {} (expected {})",
+                        proof.targetHistory(),
+                        expectedGroundingHistory(metadata));
+                return false;
+            }
+            final var compressedProof = vote.compressedProofOrEmpty();
             final boolean valid = historyLibrary.verifyCompressedProof(
-                    vote.compressedProofOrEmpty(), ledgerId.toByteArray(), metadata.toByteArray());
+                    compressedProof, ledgerId.toByteArray(), metadata.toByteArray());
             log.info(
-                    "{} compressed proof '{}' over ('{}' || '{}')",
+                    "{} compressed proof (SHA-384 '{}') over ('{}' || '{}')",
                     valid ? "VALID" : "INVALID",
-                    Bytes.wrap(vote.compressedProofOrEmpty()),
+                    Bytes.wrap(noThrowSha384HashOf(compressedProof)),
                     ledgerId,
                     metadata);
             return valid;
@@ -639,6 +648,7 @@ public class ProofControllerImpl implements ProofController {
             return;
         }
         targetProofKeys.put(nodeId, publication.proofKey());
+        expectedGroundingHistory = null;
     }
 
     /**

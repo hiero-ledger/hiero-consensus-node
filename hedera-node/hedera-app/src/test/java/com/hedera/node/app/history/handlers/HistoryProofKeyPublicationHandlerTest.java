@@ -22,9 +22,7 @@ import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.Optional;
@@ -66,12 +64,6 @@ class HistoryProofKeyPublicationHandlerTest {
     @Mock
     private PureChecksContext pureChecksContext;
 
-    @Mock
-    private TssConfig tssConfig;
-
-    @Mock
-    private Configuration configuration;
-
     private HistoryProofKeyPublicationHandler subject;
 
     @BeforeEach
@@ -92,11 +84,9 @@ class HistoryProofKeyPublicationHandlerTest {
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(context.storeFactory()).willReturn(factory);
         given(context.consensusNow()).willReturn(CONSENSUS_NOW);
-        given(context.configuration()).willReturn(configuration);
-        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
         given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
         given(store.setProofKey(NODE_ID, PROOF_KEY, CONSENSUS_NOW)).willReturn(true);
-        given(controllers.getAnyInProgress(tssConfig)).willReturn(Optional.of(controller));
+        given(controllers.getAnyInProgress()).willReturn(Optional.of(controller));
 
         subject.handle(context);
 
@@ -114,8 +104,6 @@ class HistoryProofKeyPublicationHandlerTest {
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(context.storeFactory()).willReturn(factory);
         given(context.consensusNow()).willReturn(CONSENSUS_NOW);
-        given(context.configuration()).willReturn(configuration);
-        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
         given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
         given(store.setProofKey(NODE_ID, PROOF_KEY, CONSENSUS_NOW)).willReturn(false);
 
@@ -132,9 +120,7 @@ class HistoryProofKeyPublicationHandlerTest {
         given(context.storeFactory()).willReturn(factory);
         given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
         given(context.consensusNow()).willReturn(CONSENSUS_NOW);
-        given(context.configuration()).willReturn(configuration);
-        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
-        given(controllers.getAnyInProgress(tssConfig)).willReturn(Optional.of(controller));
+        given(controllers.getAnyInProgress()).willReturn(Optional.of(controller));
         given(controller.addWrapsMessagePublication(any(ReadableHistoryStore.WrapsMessagePublication.class), eq(store)))
                 .willReturn(true);
         given(controller.constructionId()).willReturn(42L);
@@ -159,9 +145,7 @@ class HistoryProofKeyPublicationHandlerTest {
         given(context.storeFactory()).willReturn(factory);
         given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
         given(context.consensusNow()).willReturn(CONSENSUS_NOW);
-        given(context.configuration()).willReturn(configuration);
-        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
-        given(controllers.getAnyInProgress(tssConfig)).willReturn(Optional.of(controller));
+        given(controllers.getAnyInProgress()).willReturn(Optional.of(controller));
         given(controller.addWrapsMessagePublication(any(ReadableHistoryStore.WrapsMessagePublication.class), eq(store)))
                 .willReturn(false);
 

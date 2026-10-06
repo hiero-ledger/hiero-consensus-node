@@ -11,7 +11,6 @@ import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_C
 import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_KEY_SETS_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_VOTES_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
-import static com.hedera.node.app.history.schemas.V0730HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static java.util.Objects.requireNonNull;
@@ -57,7 +56,6 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     private static final Logger log = LogManager.getLogger(WritableHistoryStoreImpl.class);
 
     private final WritableSingletonState<ProtoBytes> ledgerId;
-    private final WritableSingletonState<ProtoBytes> wrapsProvingKeyHash;
     private final WritableSingletonState<HistoryProofConstruction> nextConstruction;
     private final WritableSingletonState<HistoryProofConstruction> activeConstruction;
     private final WritableKVState<NodeId, ProofKeySet> proofKeySets;
@@ -67,7 +65,6 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     public WritableHistoryStoreImpl(@NonNull final WritableStates states) {
         super(states);
         this.ledgerId = states.getSingleton(LEDGER_ID_STATE_ID);
-        this.wrapsProvingKeyHash = states.getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID);
         this.nextConstruction = states.getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID);
         this.activeConstruction = states.getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID);
         this.proofKeySets = states.get(PROOF_KEY_SETS_STATE_ID);
@@ -92,7 +89,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
         // Constructions are matched by roster hashes alone, so when a fresh genesis proof is requested the
         // completed construction that already grounds the chain of trust for this roster is matched again;
         // it holds the very proof to be replaced, so a new construction is needed
-        if (construction != null && freshGenesisRequested && isCompleted(construction, tssConfig)) {
+        if (construction != null && freshGenesisRequested && isCompleted(construction)) {
             construction = null;
         }
         if (construction == null) {
@@ -139,12 +136,6 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     public void addProofVote(final long nodeId, final long constructionId, @NonNull final HistoryProofVote vote) {
         requireNonNull(vote);
         votes.put(new ConstructionNodeId(constructionId, nodeId), vote);
-    }
-
-    @Override
-    public void clearProofVotes(final long constructionId, @NonNull final SortedSet<Long> nodeIds) {
-        requireNonNull(nodeIds);
-        nodeIds.forEach(nodeId -> votes.remove(new ConstructionNodeId(constructionId, nodeId)));
     }
 
     @Override
@@ -203,40 +194,14 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     }
 
     @Override
-    public void setWrapsProvingKeyHash(@NonNull final Bytes hash) {
-        requireNonNull(hash);
-        wrapsProvingKeyHash.put(new ProtoBytes(hash));
-    }
-
-    @Override
     public boolean handoff(
             @NonNull final Roster fromRoster, @Nullable final Roster toRoster, @Nullable final Bytes toRosterHash) {
-        return handoff(fromRoster, toRoster, toRosterHash, false);
-    }
-
-    @Override
-    public boolean handoff(
-            @NonNull final Roster fromRoster,
-            @Nullable final Roster toRoster,
-            @Nullable final Bytes toRosterHash,
-            final boolean forceHandoff) {
         requireNonNull(fromRoster);
         final var upcomingConstruction = requireNonNull(nextConstruction.get());
-        final boolean handoffMatches =
-                toRosterHash == null || upcomingConstruction.targetRosterHash().equals(toRosterHash);
-        if (!handoffMatches) {
-            if (!forceHandoff) {
-                return false;
-            }
-            if (!upcomingConstruction.hasTargetProof()) {
-                log.warn(
-                        "Ignoring forced handoff to incomplete history construction #{}",
-                        upcomingConstruction.constructionId());
-                return false;
-            }
-            log.warn(
-                    "Forcing handoff to history construction #{} with different target roster",
-                    upcomingConstruction.constructionId());
+        // A WRAPS proof binds the hash of its target address book; so even a forced handoff can only adopt
+        // a construction whose target roster is the roster being adopted
+        if (toRosterHash != null && !upcomingConstruction.targetRosterHash().equals(toRosterHash)) {
+            return false;
         }
         // The next construction is becoming the active one; so purge obsolete votes now
         final var obsoleteConstruction = requireNonNull(activeConstruction.get());

@@ -11,7 +11,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeUpgrade;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runBackgroundTrafficUntilFreezeComplete;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -59,9 +58,12 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 @OrderedInIsolation
 public class WrapsHandoffsTest implements LifecycleTest {
-    private static final String GENESIS_WRAPS_PROOF_CONSTRUCTED = "FINISHED constructing genesis WRAPS proof";
-    private static final String INCREMENTAL_WRAPS_PROOF_STARTED = "Constructing incremental WRAPS proof";
-    private static final String INCREMENTAL_WRAPS_PROOF_CONSTRUCTED = "FINISHED constructing incremental WRAPS proof";
+    /**
+     * Every node logs this when the network finalizes a WRAPS proof; though in general only one node computes it.
+     */
+    private static final String WRAPS_PROOF_FINALIZED_PATTERN =
+            "History proof constructed \\(#\\d+, WRAPS-extensible\\? true\\)";
+
     private static final String FRESH_GENESIS_REQUESTED = "Fresh genesis WRAPS proof requested for the current roster";
     /**
      * A construction grounding a new chain of trust has the same roster as source and target (the backreference),
@@ -70,14 +72,26 @@ public class WrapsHandoffsTest implements LifecycleTest {
     private static final String FRESH_GENESIS_CONSTRUCTION_PATTERN =
             "Created NEXT construction #(\\d+) for rosters \\(source=([0-9a-f]+), target=\\2\\) WITH WRAPS-extensible source proof";
     /**
+     * A construction extending the chain of trust to a new roster has different source and target rosters; this
+     * matches one only once the network has finalized its proof, and so never one that was superseded (for example,
+     * by the fresh genesis proof requested in an earlier test).
+     */
+    private static final String FINALIZED_TRANSITION_CONSTRUCTION_PATTERN =
+            "Created NEXT construction #(\\d+) for rosters \\(source=([0-9a-f]+), target=(?!\\2\\))[0-9a-f]+\\) WITH WRAPS-extensible source proof"
+                    + "(?s:.*?)History proof constructed \\(#\\1, WRAPS-extensible\\? true\\)";
+    /**
      * The upgrade that requests the fresh genesis proof also forces mock signatures, since a fresh genesis
      * proof is only requested while block proofs do not yet carry the chain of trust.
      */
     private static final Map<String, String> FRESH_GENESIS_UPGRADE_ENV =
             Map.of("tss.needsFreshGenesisWrapsProof", "true", "tss.forceMockSignatures", "true");
 
-    private static final Duration LEDGER_ID_TIMEOUT = Duration.ofMinutes(1);
-    private static final Duration WRAPS_PROOF_TIMEOUT = Duration.ofMinutes(20);
+    /**
+     * The ledger id is only established by the genesis WRAPS proof grounding the chain of trust.
+     */
+    private static final Duration LEDGER_ID_TIMEOUT = Duration.ofMinutes(5);
+
+    private static final Duration WRAPS_PROOF_TIMEOUT = Duration.ofMinutes(10);
     private static final Duration STAKE_PERIOD_DURATION = Duration.ofMinutes(25);
     private static final Duration FRESH_GENESIS_REQUEST_TIMEOUT = Duration.ofMinutes(2);
     private static final Duration LOG_POLL_INTERVAL = Duration.ofSeconds(1);
@@ -101,9 +115,6 @@ public class WrapsHandoffsTest implements LifecycleTest {
     @Order(0)
     final Stream<DynamicTest> upgradeRequestingFreshGenesisWrapsProofGroundsOne() {
         return hapiTest(sourcingContextual(spec -> {
-            if (!hasWrapsArtifactsPath()) {
-                return noOp();
-            }
             StateChangesValidator.ADAPTIVE_SIGNATURE_CHECKS_ENABLED.set(true);
             StateChangesValidator.AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED.set(true);
             final AtomicReference<String> constructionId = new AtomicReference<>();
@@ -114,9 +125,9 @@ public class WrapsHandoffsTest implements LifecycleTest {
                             LOG_POLL_INTERVAL,
                             () -> new SpecOperation[] {fundingTransfer(), sleepFor(TRANSFER_PACING_MS)},
                             this::assertAllGetInfoResponsesIncludeExternalizedLedgerId),
-                    untilHgcaaLogContainsText(
+                    untilHgcaaLogContainsPattern(
                                     allNodes(),
-                                    GENESIS_WRAPS_PROOF_CONSTRUCTED,
+                                    WRAPS_PROOF_FINALIZED_PATTERN,
                                     WRAPS_PROOF_TIMEOUT,
                                     LOG_POLL_INTERVAL,
                                     () -> new SpecOperation[] {fundingTransfer(), sleepFor(TRANSFER_PACING_MS)})
@@ -151,56 +162,33 @@ public class WrapsHandoffsTest implements LifecycleTest {
     @HapiTest
     @Order(1)
     final Stream<DynamicTest> genesisAndIncrementalWrapsProofsConstructed() {
-        return hapiTest(sourcingContextual(spec -> {
-            if (hasWrapsArtifactsPath()) {
-                StateChangesValidator.ADAPTIVE_SIGNATURE_CHECKS_ENABLED.set(true);
-                StateChangesValidator.AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED.set(true);
-                return blockingOrder(
-                        // Staking to the nodes rotates their weights at the next stake period boundary, which
-                        // is what drives the incremental proof
-                        NODE0_STAKER.getInfo(),
-                        NODE1_STAKER.getInfo(),
-                        NODE2_STAKER.getInfo(),
-                        withExternalizedLedgerIdFromHgcaaLog(
-                                byNodeId(0),
-                                LEDGER_ID_TIMEOUT,
+        return hapiTest(
+                doingContextual(spec -> {
+                    StateChangesValidator.ADAPTIVE_SIGNATURE_CHECKS_ENABLED.set(true);
+                    StateChangesValidator.AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED.set(true);
+                }),
+                // Staking to the nodes rotates their weights at the next stake period boundary, which
+                // is what drives the incremental proof
+                NODE0_STAKER.getInfo(),
+                NODE1_STAKER.getInfo(),
+                NODE2_STAKER.getInfo(),
+                withExternalizedLedgerIdFromHgcaaLog(
+                        byNodeId(0),
+                        LEDGER_ID_TIMEOUT,
+                        LOG_POLL_INTERVAL,
+                        () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)},
+                        this::assertAllGetInfoResponsesIncludeExternalizedLedgerId),
+                untilHgcaaLogContainsPattern(
+                                allNodes(), WRAPS_PROOF_FINALIZED_PATTERN, WRAPS_PROOF_TIMEOUT, LOG_POLL_INTERVAL, () ->
+                                        new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)})
+                        .loggingOff(),
+                untilHgcaaLogContainsPattern(
+                                allNodes(),
+                                FINALIZED_TRANSITION_CONSTRUCTION_PATTERN,
+                                STAKE_PERIOD_DURATION.plus(WRAPS_PROOF_TIMEOUT),
                                 LOG_POLL_INTERVAL,
-                                () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)},
-                                this::assertAllGetInfoResponsesIncludeExternalizedLedgerId),
-                        untilHgcaaLogContainsText(
-                                        allNodes(),
-                                        GENESIS_WRAPS_PROOF_CONSTRUCTED,
-                                        WRAPS_PROOF_TIMEOUT,
-                                        LOG_POLL_INTERVAL,
-                                        () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)
-                                        })
-                                .loggingOff(),
-                        untilHgcaaLogContainsText(
-                                        allNodes(),
-                                        INCREMENTAL_WRAPS_PROOF_STARTED,
-                                        STAKE_PERIOD_DURATION,
-                                        LOG_POLL_INTERVAL,
-                                        () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)
-                                        })
-                                .loggingOff(),
-                        untilHgcaaLogContainsText(
-                                        allNodes(),
-                                        INCREMENTAL_WRAPS_PROOF_CONSTRUCTED,
-                                        WRAPS_PROOF_TIMEOUT.plus(WRAPS_PROOF_TIMEOUT),
-                                        LOG_POLL_INTERVAL,
-                                        () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)
-                                        })
-                                .loggingOff());
-            } else {
-                StateChangesValidator.AT_LEAST_ONE_WRAPS_ASSERTION_ENABLED.set(false);
-                return noOp();
-            }
-        }));
-    }
-
-    private static boolean hasWrapsArtifactsPath() {
-        final var wrapsArtifactsPath = System.getProperty("hapi.spec.tssLibWrapsArtifactsPath");
-        return wrapsArtifactsPath != null && !wrapsArtifactsPath.isBlank();
+                                () -> new SpecOperation[] {randomStakerTransfer(), sleepFor(TRANSFER_PACING_MS)})
+                        .loggingOff());
     }
 
     /**

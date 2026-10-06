@@ -45,9 +45,6 @@ public record TssConfig(
 
         @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean historyEnabled,
-        // Whether to switch to the WrapsHistoryProver after the genesis block
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
-        boolean wrapsEnabled,
         // Must be true if enabling TSS while also using an override network,
         // to give express consent for breaking the address book chain of trust
         @ConfigProperty(defaultValue = "false") @NetworkProperty
@@ -59,7 +56,10 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "10") @Min(0) @NetworkProperty
         int maxWrapsRetries,
 
-        @ConfigProperty(defaultValue = "2m") Duration wrapsVoteJitterPerRank,
+        // How long each node waits, per rank it has among the source nodes (where nodes that published R1 messages for
+        // the construction rank first), before computing its own WRAPS proof instead of voting congruent with a valid
+        // proof from a higher-ranked node; should exceed the time to compute a proof and reach consensus on its vote
+        @ConfigProperty(defaultValue = "30s") Duration wrapsVoteJitterPerRank,
 
         // Whether to double-check aggregate hinTS signature during block signing
         @ConfigProperty(defaultValue = "false") @NetworkProperty
@@ -70,38 +70,9 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean forceMockSignatures,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
-        boolean wrapsProvingKeyDownloadEnabled,
-
-        @ConfigProperty(defaultValue = "data/keys/wraps.tar.gz") @NodeProperty
-        String wrapsProvingKeyPath,
-
-        @ConfigProperty(
-                defaultValue =
-                        "620cbcf69098d31a0893081cb76113ee0f72091b3417e601178cdc376c81e5c2407c1827d123df44bccb78ad4bb11fb3")
-        @NetworkProperty
-        String wrapsProvingKeyHash,
-
-        @ConfigProperty(defaultValue = "https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz")
-        @NetworkProperty
-        String wrapsProvingKeyDownloadUrl,
-
         // Whether to build a fresh genesis WRAPS proof for the current roster in the first round after an
-        // upgrade, replacing the active proof; e.g., after a TSS library or proving key change. Applies to
-        // every upgrade while set, and has no effect once block proofs carry the chain of trust
+        // upgrade, replacing the active proof; e.g., after a TSS library change that cannot extend proofs
+        // made by its predecessor. Applies to every upgrade while set, and has no effect once block proofs
+        // carry the chain of trust
         @ConfigProperty(defaultValue = "false") @NetworkProperty
-        boolean needsFreshGenesisWrapsProof,
-
-        @ConfigProperty(defaultValue = "300s") @NetworkProperty
-        Duration wrapsProvingKeyRetryInterval,
-
-        // Timeout for establishing the connection to the proving key download server
-        @ConfigProperty(defaultValue = "30s") @NodeProperty Duration wrapsProvingKeyConnectTimeout,
-
-        // Timeout for receiving the response headers once connected; bounds a server that accepts the
-        // connection and then never replies
-        @ConfigProperty(defaultValue = "60s") @NodeProperty Duration wrapsProvingKeyResponseHeadersTimeout,
-
-        // How long the download may go without receiving any bytes before it is treated as stalled; bounds a
-        // server that sends headers and then stops mid-body
-        @ConfigProperty(defaultValue = "120s") @NodeProperty Duration wrapsProvingKeyStallTimeout) {}
+        boolean needsFreshGenesisWrapsProof) {}

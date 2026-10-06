@@ -78,15 +78,16 @@ import org.junit.jupiter.api.Assertions;
 /**
  * Standalone validator for wrap-free TSS block signatures.
  *
- * <p>This intentionally implements only the narrow {@link StateChangesValidator} proof path where WRAPS is disabled:
- * direct block signatures are verified as {@code verificationKey || aggregateSig} with
- * {@link HintsLibrary#verifyAggregate(Bytes, Bytes, Bytes, long, long)}.
+ * <p>This intentionally implements only the narrow {@link StateChangesValidator} proof path where history proofs
+ * are disabled: direct block signatures are verified as {@code verificationKey || aggregateSig} with
+ * {@link HintsLibrary#verifyAggregate(Bytes, Bytes, Bytes, long, long)}. (Composite signatures, whose chain-of-trust
+ * proof is a WRAPS proof, are simply verified against the ledger id.)
  */
 @SuppressWarnings("removal")
 public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
     private static final Logger logger = LogManager.getLogger(WrapsFreeBlockSignaturesValidator.class);
     private static final int MAX_SUBSET_SEARCH_PARTIALS = 16;
-    private static final int HINTS_SIGNATURE_LENGTH = 1632;
+    private static final int HINTS_SIGNATURE_LENGTH = HintsLibraryImpl.SIGNATURE_LENGTH;
     private static final boolean DUMP_INVALID_AGGREGATE_VECTORS =
             Boolean.getBoolean("hints.dumpInvalidAggregateVectors")
                     || Boolean.parseBoolean(System.getenv("HINTS_DUMP_INVALID_AGGREGATE_VECTORS"));
@@ -356,21 +357,8 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                             final var op = parts.body().hintsPartialSignatureOrThrow();
                             observeHintsPartialSignature(eventNodeId, op);
                         } else if (parts.function() == LEDGER_ID_PUBLICATION) {
-                            final var ledgerIdPublication = parts.body().ledgerIdPublicationOrThrow();
-                            ledgerIdFromState = ledgerIdPublication.ledgerId();
-                            final int k =
-                                    ledgerIdPublication.nodeContributions().size();
-                            final long[] nodeIds = new long[k];
-                            final long[] weights = new long[k];
-                            final byte[][] publicKeys = new byte[k][];
-                            for (int j = 0; j < k; j++) {
-                                final var contribution =
-                                        ledgerIdPublication.nodeContributions().get(j);
-                                nodeIds[j] = contribution.nodeId();
-                                weights[j] = contribution.weight();
-                                publicKeys[j] = contribution.historyProofKey().toByteArray();
-                            }
-                            TSS.setAddressBook(publicKeys, weights, nodeIds);
+                            ledgerIdFromState =
+                                    parts.body().ledgerIdPublicationOrThrow().ledgerId();
                         }
                     }
                 }

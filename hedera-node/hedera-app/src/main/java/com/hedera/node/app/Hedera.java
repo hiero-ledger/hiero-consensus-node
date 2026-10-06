@@ -71,8 +71,6 @@ import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.RsaContext;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
-import com.hedera.node.app.history.HttpWrapsProvingKeyDownloader;
-import com.hedera.node.app.history.WrapsProvingKeyVerification;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.history.impl.WritableHistoryStoreImpl;
 import com.hedera.node.app.info.CurrentPlatformStatusImpl;
@@ -163,14 +161,12 @@ import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.io.File;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.InstantSource;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -377,12 +373,6 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
      */
     private final WrappedRecordBlockHashMigration wrappedRecordBlockHashMigration =
             new WrappedRecordBlockHashMigration();
-
-    /**
-     * The WRAPS proving key verification instance. Verification and state persistence
-     * both happen during {@link #onStateInitialized}.
-     */
-    private final WrapsProvingKeyVerification wrapsProvingKeyVerification = new WrapsProvingKeyVerification();
 
     /**
      * The Hashgraph Platform. This is set during state initialization.
@@ -936,11 +926,6 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
 
         initializePendingTransactions(state, trigger);
 
-        // Verify the WRAPS proving key hash (if configured)
-        if (configProvider.getConfiguration().getConfigData(TssConfig.class).wrapsEnabled()) {
-            ensureWrapsProvingKey();
-        }
-
         // Perform any service initialization that has to be postponed until Dagger is available
         // (simple boolean is usable since we're still single-threaded when `onStateInitialized` is called)
         if (!onceOnlyServiceInitializationPostDaggerHasHappened) {
@@ -979,20 +964,6 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         if (pendingTransactionsRestorer != null) {
             pendingTransactionsRestorer.onStateInitialized(trigger, roundOf(state));
         }
-    }
-
-    /**
-     * Ensures the WRAPS proving key is set up — persists the hash to state,
-     * verifies the on-disk file, and downloads if needed.
-     */
-    private void ensureWrapsProvingKey() {
-        final var config = configProvider.getConfiguration();
-        final var tssConfig = config.getConfigData(TssConfig.class);
-        final var downloader = new HttpWrapsProvingKeyDownloader(
-                tssConfig.wrapsProvingKeyConnectTimeout(),
-                tssConfig.wrapsProvingKeyResponseHeadersTimeout(),
-                tssConfig.wrapsProvingKeyStallTimeout());
-        wrapsProvingKeyVerification.ensureProvingKey(config, downloader);
     }
 
     /**
@@ -1639,41 +1610,16 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             System.exit(1);
         }
 
+        // Loading the public parameters embedded in the WRAPS library takes a few seconds, so do it now rather
+        // than when a history proof is first constructed or verified while handling transactions (note the
+        // bridge instance must load its native library before the parameters can be loaded)
         final var config = configProvider.getConfiguration();
-        if (config.getConfigData(TssConfig.class).wrapsEnabled() && !WRAPSLibraryBridge.isProofSupported()) {
-            final var wrapsArtifactPath = Optional.ofNullable(System.getenv("TSS_LIB_WRAPS_ARTIFACTS_PATH"))
-                    .orElse("");
-            if (wrapsArtifactPath.isBlank()) {
-                logger.error(
-                        "WRAPS enabled but this node cannot build recursive proofs (TSS_LIB_WRAPS_ARTIFACTS_PATH='{}')",
-                        wrapsArtifactPath);
-            } else {
-                logger.error(
-                        "WRAPS enabled but this node cannot build recursive proofs "
-                                + "(TSS_LIB_WRAPS_ARTIFACTS_PATH='{}', contents={})",
-                        wrapsArtifactPath,
-                        wrapsArtifactPathContents(wrapsArtifactPath));
+        if (config.getConfigData(TssConfig.class).historyEnabled()) {
+            WRAPSLibraryBridge.getInstance();
+            if (!WRAPSLibraryBridge.isProofSupported()) {
+                logger.error("History proofs enabled but this node cannot load the WRAPS library public parameters");
             }
         }
-    }
-
-    private static String wrapsArtifactPathContents(@NonNull final String wrapsArtifactPath) {
-        if (wrapsArtifactPath.contains("..")) {
-            return "<not listed because path contains '..'>";
-        }
-        final File wrapsArtifactDir = new File(wrapsArtifactPath);
-        if (!wrapsArtifactDir.exists()) {
-            return "<path does not exist>";
-        }
-        if (!wrapsArtifactDir.isDirectory()) {
-            return "<path is not a directory>";
-        }
-        final var contents = wrapsArtifactDir.list();
-        if (contents == null) {
-            return "<directory contents unavailable>";
-        }
-        Arrays.sort(contents);
-        return Arrays.toString(contents);
     }
 
     private <T extends State> T withListeners(@NonNull final T state) {
@@ -1852,8 +1798,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         return (!tssConfig.hintsEnabled()
                         || new ReadableHintsStoreImpl(initState.getReadableStates(HintsService.NAME), entityCounters)
                                 .isReadyToAdopt(rosterHash))
-                && (!tssConfig.historyEnabled()
-                        || readableHistoryStore.isReadyToAdopt(rosterHash, tssConfig.wrapsEnabled()));
+                && (!tssConfig.historyEnabled() || readableHistoryStore.isReadyToAdopt(rosterHash));
     }
 
     private void onOverrideNetwork(@NonNull final Network network) {
@@ -1898,8 +1843,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                     hintsService,
                     previousRoster,
                     adoptedRoster,
-                    adoptedRosterHash,
-                    tssConfig)) {
+                    adoptedRosterHash)) {
                 ((CommittableWritableStates) writableHistoryStates).commit();
                 ((CommittableWritableStates) writableHintsStates).commit();
             }

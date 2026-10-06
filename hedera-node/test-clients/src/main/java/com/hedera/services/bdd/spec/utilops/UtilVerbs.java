@@ -1186,8 +1186,8 @@ public class UtilVerbs {
      * Returns an operation that looks up the ledger id of the target network and passes it to the given callback.
      * <p>
      * On a subprocess network with {@code tss.historyEnabled=true} the active ledger id changes once during the
-     * lifetime of the network: the configured {@code ledger.id} is replaced by the address-book hash externalized
-     * by the genesis chain-of-trust proof, and the change is announced by an {@code Externalizing ledger id} log
+     * lifetime of the network: the configured {@code ledger.id} is replaced by the ledger id externalized by the
+     * genesis chain-of-trust proof, and the change is announced by an {@code Externalizing ledger id} log
      * line. Because the proof runs asynchronously while the test framework is already issuing transactions, a
      * spec that reads the ledger id naively can observe the old configured value once and the externalized value
      * a few rounds later (failing any byte-exact assertion that captures the id early and re-reads it later). To

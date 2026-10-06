@@ -96,7 +96,7 @@ tasks.register<JavaExec>("runTestClient") {
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|GENESIS_SUBPROCESS|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD|CLPR|MULTINETWORK)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|GENESIS_SUBPROCESS|SIMPLE_FEES|ATOMIC_BATCH|CLPR|MULTINETWORK)"
 val miscTagsSerial = "$miscTags&SERIAL"
 
 val prCheckTags =
@@ -111,7 +111,6 @@ val prCheckTags =
         "hapiTestSmartContractSerial" to "(SMART_CONTRACT&SERIAL)",
         "hapiTestNDReconnect" to "ND_RECONNECT",
         "hapiTestWraps" to "WRAPS",
-        "hapiTestWrapsDownload" to "WRAPS_DOWNLOAD",
         "hapiTestCutover" to "CUTOVER",
         "hapiTestTimeConsuming" to "LONG_RUNNING",
         "hapiTestTimeConsumingSerial" to "(LONG_RUNNING&SERIAL)",
@@ -137,7 +136,6 @@ val prRemoteCheckTags =
                 listOf(
                     "hapiTestIss",
                     "hapiTestRestart",
-                    "hapiTestWrapsDownload",
                     "hapiTestToken",
                     "hapiTestTokenSerial",
                 )
@@ -154,7 +152,6 @@ val prCheckStartPorts =
         "hapiTestTimeConsuming" to "26200",
         "hapiTestWraps" to "26300",
         "hapiTestIss" to "26400",
-        "hapiTestWrapsDownload" to "26500",
         "hapiTestCutover" to "26600",
         "hapiTestMisc" to "26800",
         "hapiTestBlockNodeCommunication" to "27000",
@@ -175,7 +172,7 @@ val prCheckStartPorts =
 val prCheckPropOverrides =
     mapOf(
         "hapiTestAdhoc" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,block.stateproof.verification.enabled=true",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,block.stateproof.verification.enabled=true",
         "hapiTestToken" to
             "hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestCrypto" to
@@ -194,8 +191,6 @@ val prCheckPropOverrides =
         // value here to preserve the test's original (hints-only) TSS surface.
         "hapiTestRestart" to
             "tss.hintsEnabled=true,tss.historyEnabled=false,tss.forceHandoffs=true,tss.forceMockSignatures=false,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
-        "hapiTestWrapsDownload" to
-            "tss.wrapsEnabled=true,tss.hintsEnabled=true,tss.forceHandoffs=true,tss.initialCrsParties=16,blockStream.blockPeriod=1s,quiescence.enabled=true,block.stateproof.verification.enabled=true,tss.wrapsProvingKeyPath=data/keys/valid-wraps-proving-key.tar.gz,tss.wrapsProvingKeyHash=76bf521149f6b6a35590b8c9089c40bbd44034c4b30c17fa6ac3537a8a0b4143ebdbff25e156c8c4c1553c11f35769a1",
         "hapiTestMisc" to
             "blockStream.writerMode=FILE_AND_GRPC,blockStream.streamWrappedRecordBlocks=true,nodes.nodeRewardsEnabled=false,quiescence.enabled=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5,platform.wiring.healthLogThreshold=5s",
         "hapiTestMiscSerial" to
@@ -203,9 +198,9 @@ val prCheckPropOverrides =
         "hapiTestTimeConsuming" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestWraps" to
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=true,tss.forceMockSignatures=false,staking.periodMins=25,blockStream.maxBlockSizeBytes=0",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.forceMockSignatures=false,staking.periodMins=25,blockStream.maxBlockSizeBytes=0",
         "hapiTestCutover" to
-            "tss.hintsEnabled=false,tss.historyEnabled=false,tss.wrapsEnabled=false,tss.forceMockSignatures=false,tss.initialCrsParties=8,staking.periodMins=25,blockStream.maxBlockSizeBytes=0",
+            "tss.hintsEnabled=false,tss.historyEnabled=false,tss.forceMockSignatures=false,tss.initialCrsParties=8,staking.periodMins=25,blockStream.maxBlockSizeBytes=0",
         "hapiTestTimeConsumingSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestStateThrottling" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestMiscRecords" to
@@ -228,15 +223,6 @@ val prCheckPlatformOverrides =
             "platformStatus.observingStatusDelay=10s,reconnect.minimumTimeBetweenReconnects=10s"
     )
 val prCheckPrepareUpgradeOffsets = mapOf("hapiTestAdhoc" to "PT300S")
-// Path to the extracted WRAPS proving-key artifacts (decider_pp.bin, decider_vp.bin,
-// nova_pp.bin, nova_vp.bin); blank disables WRAPS proof assertions in the ceremony tests
-val tssLibWrapsArtifactsPath = System.getenv("TSS_LIB_WRAPS_ARTIFACTS_PATH") ?: ""
-val prCheckTssLibWrapsArtifactsPaths =
-    mapOf(
-        "hapiTestWraps" to tssLibWrapsArtifactsPath,
-        "hapiTestCutover" to tssLibWrapsArtifactsPath,
-        "hapiTestWrapsDownload" to "data/keys",
-    )
 // Use to override the default network size for a specific test task
 val prCheckNetSizeOverrides =
     mapOf(
@@ -252,11 +238,10 @@ val prCheckNetSizeOverrides =
         "hapiTestAtomicBatch" to "3",
         "hapiTestAtomicBatchSerial" to "3",
         "hapiTestStateThrottling" to "3",
-        // Each node runs a native WRAPS prover during proof construction; 3 nodes keeps
+        // A node may run a native WRAPS prover during proof construction; 3 nodes keeps
         // peak memory within the dedicated runner pool's limits
         "hapiTestWraps" to "3",
         "hapiTestCutover" to "3",
-        "hapiTestWrapsDownload" to "3",
     )
 
 val embeddedBaseTags =
@@ -482,12 +467,6 @@ fun TaskContainer.registerHapiTest(
                 .systemProperty("hapi.spec.quiet.mode")
                 .getOrElse(if (ciTagExpression.isNotBlank()) "true" else "false"),
         )
-        if (prCheckTssLibWrapsArtifactsPaths.containsKey(name)) {
-            systemProperty(
-                "hapi.spec.tssLibWrapsArtifactsPath",
-                prCheckTssLibWrapsArtifactsPaths.getValue(name),
-            )
-        }
         // Pass a system property "KEY=VALUE" to the test JVM via "-PsysProp.KEY=VALUE"
         providers.gradlePropertiesPrefixedBy("sysProp.").get().forEach { (k, v) ->
             systemProperty(k.removePrefix("sysProp."), v)

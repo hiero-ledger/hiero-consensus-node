@@ -591,27 +591,24 @@ public class SystemTransactions {
     }
 
     /**
-     * Externalizes the ledger id and associated verification key for recursive chain-of-trust proofs.
+     * Externalizes the ledger id and the node contributions to the chain of trust it identifies.
      *
      * @param state the current state
      * @param now the consensus time for the synthetic transaction
      * @param ledgerId the new ledger id
      * @param proofKeys the proof keys for the new ledger id
      * @param targetNodeWeights the weights of the nodes in the target roster
-     * @param historyProofVerificationKey the verification key for the new ledger id
      */
     public void externalizeLedgerId(
             @NonNull final State state,
             @NonNull final Instant now,
             @NonNull final Bytes ledgerId,
             @NonNull final List<ProofKey> proofKeys,
-            @NonNull final SortedMap<Long, Long> targetNodeWeights,
-            @NonNull final Bytes historyProofVerificationKey) {
+            @NonNull final SortedMap<Long, Long> targetNodeWeights) {
         requireNonNull(now);
         requireNonNull(ledgerId);
         requireNonNull(proofKeys);
         requireNonNull(targetNodeWeights);
-        requireNonNull(historyProofVerificationKey);
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
         final List<LedgerIdNodeContribution> contributions = proofKeys.stream()
@@ -625,7 +622,6 @@ public class SystemTransactions {
                 .ledgerIdPublication(LedgerIdPublicationTransactionBody.newBuilder()
                         .ledgerId(ledgerId)
                         .nodeContributions(contributions)
-                        .historyProofVerificationKey(historyProofVerificationKey)
                         .build()));
     }
 

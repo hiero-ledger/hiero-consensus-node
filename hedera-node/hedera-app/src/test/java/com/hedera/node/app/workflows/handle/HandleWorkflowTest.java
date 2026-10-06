@@ -1141,7 +1141,9 @@ class HandleWorkflowTest {
         final var afterEvents = beforeEvents.plusSeconds(1);
         final var ledgerId = Bytes.wrap("LEDGER_ID");
         final var proof = HistoryProof.newBuilder()
-                .targetHistory(History.newBuilder().addressBookHash(ledgerId).build())
+                .targetHistory(History.newBuilder()
+                        .addressBookHash(Bytes.wrap("ADDRESS_BOOK_HASH"))
+                        .build())
                 .build();
         final var construction = HistoryProofConstruction.newBuilder()
                 .constructionId(1L)
@@ -1157,7 +1159,7 @@ class HandleWorkflowTest {
                 })
                 .given(historyService)
                 .onFinishedConstruction(any());
-        given(historyService.historyProofVerificationKey()).willReturn(Bytes.EMPTY);
+        given(historyService.ledgerIdOf(proof)).willReturn(ledgerId);
         given(state.getReadableStates(RosterService.NAME)).willReturn(mock(ReadableStates.class));
 
         final var creatorId = NodeId.of(0L);
@@ -1228,12 +1230,11 @@ class HandleWorkflowTest {
                             invocation.getArgument(1),
                             invocation.getArgument(2),
                             invocation.getArgument(3),
-                            invocation.getArgument(4),
-                            invocation.getArgument(5));
+                            invocation.getArgument(4));
                     return null;
                 })
                 .given(systemTransactions)
-                .externalizeLedgerId(any(), any(), any(), any(), any(), any());
+                .externalizeLedgerId(any(), any(), any(), any(), any());
 
         subject.handleRound(state, round, txns -> {});
 

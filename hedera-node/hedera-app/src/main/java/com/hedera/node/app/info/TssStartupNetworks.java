@@ -11,7 +11,6 @@ import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.PROOF_KEY_SETS_STATE_ID;
-import static com.hedera.node.app.history.schemas.V0730HistorySchema.WRAPS_PROVING_KEY_HASH_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.hints.CRSState;
@@ -28,7 +27,6 @@ import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.history.HistoryService;
-import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.ReadableHistoryStoreImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
@@ -100,9 +98,6 @@ public final class TssStartupNetworks {
                     .crsState(hintsStore.getCrsState())
                     .activeHintsConstruction(activeHintsConstruction)
                     .activeProofConstruction(activeProofConstruction)
-                    .historyProofVerificationKey(Bytes.wrap(new HistoryLibraryImpl().wrapsVerificationKey()))
-                    .wrapsProvingKeyHash(Optional.ofNullable(historyStore.getWrapsProvingKeyHash())
-                            .orElse(Bytes.EMPTY))
                     .build();
 
             final var nodeMetadata = nodeTssMetadataFrom(
@@ -201,9 +196,6 @@ public final class TssStartupNetworks {
         historyStates
                 .<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID)
                 .put(HistoryProofConstruction.DEFAULT);
-        historyStates
-                .<ProtoBytes>getSingleton(WRAPS_PROVING_KEY_HASH_STATE_ID)
-                .put(new ProtoBytes(tssMetadata.wrapsProvingKeyHash()));
 
         final WritableKVState<NodeId, ProofKeySet> proofKeys = historyStates.get(PROOF_KEY_SETS_STATE_ID);
         var restoredProofKeys = 0;
@@ -222,7 +214,7 @@ public final class TssStartupNetworks {
                 "Initialized dev-only history startup state: construction #{}, ledgerId={}, "
                         + "restoredPublicKeys={}, hasTargetProof={}, targetProofKeys={}, "
                         + "hasChainOfTrustProof={}, chainOfTrustProof={}, chainOfTrustProofBytes={}, "
-                        + "uncompressedWrapsProofBytes={}, wrapsProvingKeyHashBytes={}",
+                        + "uncompressedWrapsProofBytes={}",
                 activeConstruction.constructionId(),
                 network.ledgerId().length() > 0 ? network.ledgerId().toHex() : "<empty>",
                 restoredProofKeys,
@@ -231,8 +223,7 @@ public final class TssStartupNetworks {
                 hasChainOfTrustProof(activeConstruction),
                 chainOfTrustProofKind(activeConstruction),
                 chainOfTrustProofBytes(activeConstruction),
-                uncompressedWrapsProofBytes(activeConstruction),
-                tssMetadata.wrapsProvingKeyHash().length());
+                uncompressedWrapsProofBytes(activeConstruction));
         return activeConstruction;
     }
 

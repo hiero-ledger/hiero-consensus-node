@@ -53,22 +53,8 @@ When the volley starts from Alice (like in the diagram below), Alice sends the "
 
 - JDK 25 (Temurin): `brew install --cask temurin@25`
 - `jq`: `brew install jq`
-- WRAPS native library (see step 1)
 
-### Step 1 — Download the WRAPS library
-
-The TSS/WRAPS library is a native binary that the Hedera (Hiero) node loads at startup to generate
-block proofs. Without it the node starts but never produces state proofs and the
-CLPR steps further down will hang or fail.
-
-```bash
-curl -L -o /tmp/wraps-v1.0.0.tar.gz \
-  https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz && \
-mkdir -p ~/wraps-v1.0.0 && \
-tar -xzf /tmp/wraps-v1.0.0.tar.gz -C ~/wraps-v1.0.0
-```
-
-### Step 2 — Set up two working directories with git worktrees
+### Step 1 — Set up two working directories with git worktrees
 
 Each node needs its own working directory because the two processes write independent
 state to `../../../hedera-app/build/node` — node data, signing keys, and logs.
@@ -82,7 +68,7 @@ cd clpr-hiero-alice && git checkout clpr && cd ..
 git -C clpr-hiero-alice worktree add --detach ../clpr-hiero-bob clpr
 ```
 
-### Step 3 — Configure network B on different ports with a distinct chain ID
+### Step 2 — Configure network B on different ports with a distinct chain ID
 
 Network A (alice) uses the defaults already baked into the code. Network B (bob)
 needs different ports so the two nodes don't collide, and a distinct chain ID so
@@ -116,23 +102,23 @@ sed -i '' 's/"port": 31013/"port": 31014/g' \
   clpr-hiero-bob/hedera-node/configuration/dev/genesis-network.json
 ```
 
-### Step 4 — Start both networks
+### Step 3 — Start both networks
 
-Open two terminals and start each network. Both can run in parallel — the genesis
-WRAPS proof (~15 min) on each is independent.
+Open two terminals and start each network. Both can run in parallel — each network
+constructs its own genesis WRAPS proof.
 
 **Terminal 1 — alice (ports 50211 / 50212 / 50213):**
 
 ```bash
 cd clpr-hiero-alice
-TSS_LIB_WRAPS_ARTIFACTS_PATH=~/wraps-v1.0.0 ./gradlew :app:run
+./gradlew :app:run
 ```
 
 **Terminal 2 — bob (ports 50311 / 50312 / 50313):**
 
 ```bash
 cd clpr-hiero-bob
-TSS_LIB_WRAPS_ARTIFACTS_PATH=~/wraps-v1.0.0 ./gradlew :app:run
+./gradlew :app:run
 ```
 
 Confirm each is accepting connections:
@@ -142,12 +128,12 @@ lsof -nP -iTCP:50211 -sTCP:LISTEN   # alice
 lsof -nP -iTCP:50311 -sTCP:LISTEN   # bob
 ```
 
-### Step 5 — Wait for WRAPS readiness (~15–20 minutes per network)
+### Step 4 — Wait for WRAPS readiness (about a minute per network)
 
-There are three stages. Do **not** proceed to step 9 until all three are complete
+There are three stages. Do **not** proceed to step 8 until all three are complete
 on **both** networks.
 
-**Stage 1 — Genesis WRAPS proof (~15 min)**
+**Stage 1 — Genesis WRAPS proof (tens of seconds)**
 
 The node generates a genesis WRAPS proof from scratch the first time it starts.
 
@@ -164,10 +150,10 @@ grep "WrapsHistoryProver" \
 Wait for the **FINISHED** line on each:
 
 ```
-WrapsHistoryProver - FINISHED constructing genesis WRAPS proof -> WRAPS{...} - took 13m 32s
+WrapsHistoryProver - FINISHED constructing genesis WRAPS proof -> WRAPS{...} - took 0m 22.181s
 ```
 
-**Stage 2 — WRAPS proof embedded in a block (~a few minutes after stage 1)**
+**Stage 2 — WRAPS proof embedded in a block (seconds after stage 1)**
 
 The FINISHED log means the proof was constructed, but it has not yet been embedded
 in a block signature. Cross-network TSS verification only works once the proof is
@@ -190,7 +176,7 @@ Wait for this line on each:
 [CLPR-SYNC-POINT] block #N is the first to embed the WRAPS recursive proof
 ```
 
-### Step 6 — Build yahcli
+### Step 5 — Build yahcli
 
 `yahcli` is the command line utility used to send requests to hiero nodes. All `../../yahcli` commands in this tutorial run from alice's clone. The
 `../../config.yml` in `../..` already defines both `alice` (50211) and
@@ -215,7 +201,7 @@ From here on, all commands run from (inside alice's repository):
 cd hedera-node/yahcli
 ```
 
-### Step 7 — Copy the treasury key into the yahcli key directories
+### Step 6 — Copy the treasury key into the yahcli key directories
 
 yahcli authenticates transactions using the private key for the payer account. The
 key for account `0.0.2` (the treasury) lives in the test-clients directory; the
@@ -234,7 +220,7 @@ cp ../test-clients/yahcli/localhost/keys/account2.pem bob/keys/
 Everything from here is about setting up the CLPR relationship between alice and
 bob. Work through each step in order; later steps reference values captured here.
 
-### Step 8 — Prime node account 0.0.3 on both networks
+### Step 7 — Prime node account 0.0.3 on both networks
 
 Every `ClprSubmitBundle` that the sync pipeline internally submits is paid by
 account `0.0.3`. If this account runs out of hbar the connector silently stops
@@ -253,7 +239,7 @@ also paying the transaction fee. The two accounts used are:
 
 ---
 
-### Step 9 — Publish each network's ledger configuration
+### Step 8 — Publish each network's ledger configuration
 
 **What this does:** Every CLPR network publishes a signed *ledger configuration*
 that describes itself: its chain ID, a trust anchor (the public key that signs its
@@ -272,7 +258,7 @@ Push each network's config to itself:
 
 ---
 
-### Step 10 — Pull each network's ledger configuration and state proof
+### Step 9 — Pull each network's ledger configuration and state proof
 
 **What this does:** Fetches the on-chain ledger configuration along with a
 TSS-signed *state proof*. The proof cryptographically binds the config to the
@@ -289,7 +275,7 @@ on-chain.
 ```
 
 If `--proof-path` writes 0 bytes the genesis WRAPS proof has not finished yet.
-Wait for the FINISHED line from step 5 and retry.
+Wait for the FINISHED line from step 4 and retry.
 
 Verify the observed configs have a trust anchor **and** at least one endpoint before
 proceeding — if either field is missing, `complete-channel` will fail:
@@ -303,7 +289,7 @@ jq '.configuration.endpoints | length' bob-observed-config.json      # must be >
 
 ---
 
-### Step 11 — Generate a channel security identity
+### Step 10 — Generate a channel security identity
 
 **What this does:** This step is not really part of the protocol itself. It
 generates data required to establish a channel between the two ledgers: a
@@ -332,7 +318,7 @@ echo "Commitment: $CHANNEL_COMMIT"
 
 ---
 
-### Step 12 — Register the channel on both networks (commit phase)
+### Step 11 — Register the channel on both networks (commit phase)
 
 **What this does:** Submits the commitment hash to each network's CLPR state,
 indicating the interest in establishing a channel. Locking in the commitment
@@ -347,15 +333,15 @@ channel is open yet.
 
 ---
 
-### Step 13 — Complete the channel on both networks (reveal phase)
+### Step 12 — Complete the channel on both networks (reveal phase)
 
 **What this does:** Completes the channel on both networks, using the
 identity generated previously to identify the channel. Trust anchors are
 exchanged between the ledgers, so they can verify each other's messages.
 This step verifies that:
 
-1. The commitment hash matches what was registered in step 11.
-2. The peer's state proof (pulled in step 9) validates against the peer's
+1. The commitment hash matches what was registered in step 10.
+2. The peer's state proof (pulled in step 8) validates against the peer's
    trust anchor using the CLPR verifier system contract at `0.0.366`.
 
 Completing the channel for Alice network:
@@ -385,7 +371,7 @@ echo "Channel ID: $CHANNEL_ID"
 
 ---
 
-### Step 14 — Deploy the passthrough connector on both networks
+### Step 13 — Deploy the passthrough connector on both networks
 
 **What this does:** Deploys `PassThroughAuth`, the connector contract. The connector
 is the CLPR-layer entity responsible for authorising outbound messages and paying for
@@ -415,7 +401,7 @@ echo "PassThroughAuth on bob:   $PASSTHROUGH_B"
 
 ---
 
-### Step 15 — Generate a connector identity
+### Step 14 — Generate a connector identity
 
 **What this does:** Creates a cryptographic identity for the connector — the
 entity responsible for relaying bundles between the two chains. Like the
@@ -439,7 +425,7 @@ echo "Connector ID:         $CONNECTOR_ID"
 
 ---
 
-### Step 16 — Register the connector on both networks (commit phase)
+### Step 15 — Register the connector on both networks (commit phase)
 
 **What this does:** Submits the connector commitment to each network. Same
 principle as the channel's commit phase — locks in the hash before revealing
@@ -452,7 +438,7 @@ the identity.
 
 ---
 
-### Step 17 — Complete the connector on both networks (reveal phase)
+### Step 16 — Complete the connector on both networks (reveal phase)
 
 **What this does:** Associates the connector identity with the PassThroughAuth
 contract and locks the stake. From this point, PassThroughAuth is the authorised
@@ -476,7 +462,7 @@ The CLPR channel + connector are now fully established on both chains.
 
 ---
 
-### Step 18 — Deploy PingPong on both networks
+### Step 17 — Deploy PingPong on both networks
 
 **What this does:** Deploys the [PingPong application contract](../../../test-clients/src/main/resources/contract/contracts/PingPong/PingPong.sol). PingPong is a CLPR
 application — it implements `onClprMessage` (receives cross-ledger messages and
@@ -503,7 +489,7 @@ echo "PingPong on bob:   $PINGPONG_B"
 
 ---
 
-### Step 19 — Encode the serve() call
+### Step 18 — Encode the serve() call
 
 **What this does:** Builds the ABI calldata for one `serve()` invocation on alice's
 PingPong. The on-chain signature is
@@ -518,13 +504,13 @@ PingPong. The on-chain signature is
 > the sync loop then logs `[CLPR-SYNC-MANAGER] skipping empty outbound queue … nextMsgId=1`
 > forever. Keep `connectorId` a static `bytes32`.
 
-Capture the ids (from steps 11 & 15), pick bob's PingPong as the target, and set the payload:
+Capture the ids (from steps 10 & 14), pick bob's PingPong as the target, and set the payload:
 
 ```bash
 CHANNEL_ID=$(jq -r .channelId channel.json)
 CONNECTOR_ID=$(jq -r .connectorId connector.json)
 
-# bob's PingPong (from step 18) as a 20-byte long-zero address, no 0x prefix
+# bob's PingPong (from step 17) as a 20-byte long-zero address, no 0x prefix
 TARGET_APP=$(printf '%040x' "${PINGPONG_B##*.}")
 # message payload, hex-encoded (no 0x)
 MESSAGE_DATA=$(printf '%s' "Hello world" | xxd -p -c 1000000 | tr -d '\n')
@@ -587,7 +573,7 @@ Each hop is logged on the side that runs the callback: bob's `onClprMessage`
 this is to **tail both logs live in one terminal** and **trigger the volley from
 another** — you watch the ping-pong bounce in real time.
 
-### Step 20 — Terminal A: start the live volley watcher
+### Step 19 — Terminal A: start the live volley watcher
 
 Open a **second terminal**, `cd` into `clpr-hiero-alice/hedera-node/yahcli`, and
 start the watcher. It follows both nodes' logs and prints one friendly line per
@@ -621,9 +607,9 @@ watch_volley
 
 `tail -n 0` means it shows only *new* activity, so start it **before** you serve.
 
-### Step 21 — Terminal B: kick off the volley
+### Step 20 — Terminal B: kick off the volley
 
-Back in your original terminal, run the serve from Step 19 (re-run it any time to
+Back in your original terminal, run the serve from Step 18 (re-run it any time to
 start a fresh volley):
 
 ```bash
@@ -664,22 +650,22 @@ cd clpr-hiero-bob/hedera-node/yahcli/scripts/clpre2e  && HAPI_PORT=50311 ./start
 
 ## Troubleshooting
 
-|                                                                                        Symptom                                                                                         |                                                                           Cause                                                                           |                                                                                         Fix                                                                                          |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `proof-path` writes 0 bytes                                                                                                                                                            | Genesis WRAPS proof not finished                                                                                                                          | Wait for "FINISHED" in step 5 and retry step 10                                                                                                                                      |
-| `CLPR_VERIFIER_CONFIG_FAILED` at `complete-channel` — "no peer endpoints"                                                                                                              | Config published with the wrong JSON key (`seedEndpoints` instead of `endpoints`); the parser silently ignores unknown fields, storing zero endpoints     | Re-run step 9 using the repo-provided `../../alice-config.json` / `../../bob-config.json` (now fixed); verify `jq '.configuration.endpoints \| length'` ≥ 1 after re-running step 10 |
-| `CLPR_VERIFIER_CONFIG_FAILED` at `complete-channel` — trust anchor empty                                                                                                               | Step 9 ran before the `[CLPR-SYNC-POINT]` log appeared — block proofs didn't yet carry the WRAPS recursive material needed for cross-network verification | Wait for `[CLPR-SYNC-POINT]` on both networks, wait 30 s, then re-run steps 9 and 10; verify `jq '.configuration.initial_trust_anchor'` is non-null before retrying                  |
-| `INSUFFICIENT_PAYER_BALANCE` in hgcaa.log                                                                                                                                              | Account 0.0.3 ran out of hbar                                                                                                                             | Repeat step 8                                                                                                                                                                        |
-| Bob's node never starts / port 50311 not listening                                                                                                                                     | Properties not copied to build dir                                                                                                                        | Verify `clpr-hiero-bob/hedera-node/hedera-app/build/node/data/config/application.properties` contains the port overrides; re-run `./gradlew :app:run`                                |
-| `BindException: Address already in use` on port 31013 in `swirlds.log`; bob's node never reaches consensus and CLPR steps fail (e.g. `INVALID_TRANSACTION_BODY` at `complete-channel`) | Both networks ship the same `genesis-network.json` gossip port (31013) and collide on `127.0.0.1`                                                         | Change bob's gossip port in `genesis-network.json` per step 3, then `./gradlew :app:cleanRun`                                                                                        |
-| `yahcli exited non-zero` at register-channel                                                                                                                                           | Channel already registered from a prior run                                                                                                               | Clean the node state (`./gradlew :app:cleanRun`) and restart both networks                                                                                                           |
+|                                                                                        Symptom                                                                                         |                                                                           Cause                                                                           |                                                                                         Fix                                                                                         |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `proof-path` writes 0 bytes                                                                                                                                                            | Genesis WRAPS proof not finished                                                                                                                          | Wait for "FINISHED" in step 4 and retry step 9                                                                                                                                      |
+| `CLPR_VERIFIER_CONFIG_FAILED` at `complete-channel` — "no peer endpoints"                                                                                                              | Config published with the wrong JSON key (`seedEndpoints` instead of `endpoints`); the parser silently ignores unknown fields, storing zero endpoints     | Re-run step 8 using the repo-provided `../../alice-config.json` / `../../bob-config.json` (now fixed); verify `jq '.configuration.endpoints \| length'` ≥ 1 after re-running step 9 |
+| `CLPR_VERIFIER_CONFIG_FAILED` at `complete-channel` — trust anchor empty                                                                                                               | Step 8 ran before the `[CLPR-SYNC-POINT]` log appeared — block proofs didn't yet carry the WRAPS recursive material needed for cross-network verification | Wait for `[CLPR-SYNC-POINT]` on both networks, wait 30 s, then re-run steps 8 and 9; verify `jq '.configuration.initial_trust_anchor'` is non-null before retrying                  |
+| `INSUFFICIENT_PAYER_BALANCE` in hgcaa.log                                                                                                                                              | Account 0.0.3 ran out of hbar                                                                                                                             | Repeat step 7                                                                                                                                                                       |
+| Bob's node never starts / port 50311 not listening                                                                                                                                     | Properties not copied to build dir                                                                                                                        | Verify `clpr-hiero-bob/hedera-node/hedera-app/build/node/data/config/application.properties` contains the port overrides; re-run `./gradlew :app:run`                               |
+| `BindException: Address already in use` on port 31013 in `swirlds.log`; bob's node never reaches consensus and CLPR steps fail (e.g. `INVALID_TRANSACTION_BODY` at `complete-channel`) | Both networks ship the same `genesis-network.json` gossip port (31013) and collide on `127.0.0.1`                                                         | Change bob's gossip port in `genesis-network.json` per step 2, then `./gradlew :app:cleanRun`                                                                                       |
+| `yahcli exited non-zero` at register-channel                                                                                                                                           | Channel already registered from a prior run                                                                                                               | Clean the node state (`./gradlew :app:cleanRun`) and restart both networks                                                                                                          |
 
 ---
 
 ## Speedrun
 
 Already understand the flow and just want to watch it run? With **both nodes up and the
-WRAPS proof ready** (Part 1 complete — see step 5), `cd` into
+WRAPS proof ready** (Part 1 complete — see step 4), `cd` into
 `clpr-hiero-alice/hedera-node/yahcli` and run the two packaged scripts — the first
 deploys PingPong on both networks, the second runs the whole prime → channel →
 connector → `serve()` flow end to end (here the PingPong contract acts as its own
@@ -703,5 +689,5 @@ grep -hE "step10 DATA ABI unwrap OK|onClprResponse dispatch SUCCESS" \
 
 Each `step10 DATA ABI unwrap OK … receivedMsgId=N` is bob's `onClprMessage` receiving a
 ping; each `onClprResponse dispatch SUCCESS` is alice re-serving. For the friendly live
-view, run `watch_volley` from [Step 20](#step-20--terminal-a-start-the-live-volley-watcher)
+view, run `watch_volley` from [Step 19](#step-19--terminal-a-start-the-live-volley-watcher)
 in a second terminal *before* you serve.
