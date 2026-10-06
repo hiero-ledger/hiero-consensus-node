@@ -27,7 +27,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Client side of the streaming sync protocol: one {@code streamingSync} stream per call to {@link #synchronize}.
+ * Client side of the streaming sync protocol: one streaming {@code sync} call per call to {@link #synchronize}.
  *
  * <p>Example of an exchange:
  *
@@ -158,7 +158,7 @@ public final class ClprStreamingSynchronizer implements ClprSynchronizer {
                     endpoint.tlsCertificate(),
                     leafCertManager.leafCredentials());
             final boolean completed;
-            try (var call = client.streamingSync(timeout)) {
+            try (var call = client.sync(timeout)) {
                 completed = new Exchange(call, channel, peerId)
                         .run(localEndpointManifestVersion, peerObservedManifestVersion);
             }

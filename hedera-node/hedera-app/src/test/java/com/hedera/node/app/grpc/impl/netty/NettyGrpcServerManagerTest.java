@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.state.clpr.ClprDiscoverEndpointsRequest;
-import com.hedera.hapi.node.state.clpr.ClprSyncPayload;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition;
 import com.hedera.node.app.services.ServicesRegistry;
@@ -30,8 +29,12 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import io.grpc.MethodDescriptor;
+import io.grpc.MethodDescriptor.MethodType;
+import io.grpc.ServerMethodDefinition;
 import io.grpc.ServerServiceDefinition;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.inject.Provider;
@@ -73,8 +76,6 @@ final class NettyGrpcServerManagerTest {
         this.userQueryWorkflow = (req, res) -> {};
         this.operatorQueryWorkflow = (req, res) -> {};
         this.clprSyncWorkflow = new ClprSyncWorkflow() {
-            @Override
-            public void handleSync(Bytes req, BufferedData res) {}
 
             @Override
             public void handleDiscovery(Bytes req, BufferedData res) {}
@@ -214,9 +215,11 @@ final class NettyGrpcServerManagerTest {
     @Test
     @DisplayName("isClprSyncMethod matches only the CLPR sync method")
     void isClprSyncMethodMatchesOnlySync() {
-        assertThat(NettyGrpcServerManager.isClprSyncMethod(
-                        new RpcMethodDefinition<>("sync", ClprSyncPayload.class, ClprSyncPayload.class)))
-                .isTrue();
+        final var sync = ClprEndpointServiceDefinition.INSTANCE.methods().stream()
+                .filter(m -> "sync".equals(m.path()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(NettyGrpcServerManager.isClprSyncMethod(sync)).isTrue();
         // discoverEndpoints is CLPR but not sync — it stays on the shared (non-mTLS) ports.
         assertThat(NettyGrpcServerManager.isClprSyncMethod(new RpcMethodDefinition<>(
                         "discoverEndpoints", ClprDiscoverEndpointsRequest.class, ClprDiscoverEndpointsRequest.class)))
@@ -230,13 +233,13 @@ final class NettyGrpcServerManagerTest {
     }
 
     @Test
-    @DisplayName("streaming and unary sync share ports when mtls is disabled")
-    void streamingSyncSharesTheListenerWithSyncWhenMtlsIsOff() {
+    @DisplayName("given mtls disabled, then sync is served only as a bidirectional stream on the shared ports")
+    void givenMtlsDisabled_thenSyncIsServedOnlyAsABidirectionalStreamOnTheSharedPorts() {
         // No CLPR CA is configured, so mTLS is off and the CLPR endpoint service stays on the shared HAPI ports.
         final var subject = managerWithClprEndpointService(configProvider, clprLeafCertManager);
 
-        assertThat(fullMethodNames(subject.hapiServices()))
-                .contains(SYNC_FULL_METHOD_NAME, ClprEndpointServiceDefinition.STREAMING_SYNC_FULL_METHOD_NAME);
+        // Exactly one registration: the bidi stream, never a unary sync alongside it.
+        assertThat(syncMethodTypes(subject.hapiServices())).containsExactly(MethodType.BIDI_STREAMING);
         assertThat(subject.clprSyncServices()).isEmpty();
     }
 
@@ -253,14 +256,13 @@ final class NettyGrpcServerManagerTest {
 
         final var subject = managerWithClprEndpointService(provider, unusedLeafCertManager);
 
-        assertThat(fullMethodNames(subject.hapiServices()))
-                .contains(SYNC_FULL_METHOD_NAME, ClprEndpointServiceDefinition.STREAMING_SYNC_FULL_METHOD_NAME);
+        assertThat(fullMethodNames(subject.hapiServices())).contains(SYNC_FULL_METHOD_NAME);
         assertThat(subject.clprSyncServices()).isEmpty();
     }
 
     @Test
-    @DisplayName("streaming and unary sync share dedicated ports when mtls is enabled")
-    void streamingSyncFollowsSyncToTheMtlsListener(@TempDir final Path tempDir) throws Exception {
+    @DisplayName("given mtls enabled, then the streaming sync moves to the dedicated ports")
+    void givenMtlsEnabled_thenStreamingSyncMovesToTheMtlsListener(@TempDir final Path tempDir) throws Exception {
         final var caCrt = tempDir.resolve("clpr-ca.crt");
         final var caKey = tempDir.resolve("clpr-ca.key");
         new ClprTestCa("test-clpr-ca").writePem(caCrt, caKey);
@@ -276,12 +278,11 @@ final class NettyGrpcServerManagerTest {
 
         final var subject = managerWithClprEndpointService(provider, () -> leafCertManager);
 
-        // Both sync methods move to the dedicated listener together — the streaming one must not be left
-        // behind on the shared ports, where peers dialing the advertised ClprEndpoint port would never find it.
-        assertThat(fullMethodNames(subject.clprSyncServices()))
-                .contains(SYNC_FULL_METHOD_NAME, ClprEndpointServiceDefinition.STREAMING_SYNC_FULL_METHOD_NAME);
+        // The streaming sync must move to the dedicated listener, not be left behind on the shared ports, where
+        // peers dialing the advertised ClprEndpoint port would never find it.
+        assertThat(syncMethodTypes(subject.clprSyncServices())).containsExactly(MethodType.BIDI_STREAMING);
         assertThat(fullMethodNames(subject.hapiServices()))
-                .doesNotContain(SYNC_FULL_METHOD_NAME, ClprEndpointServiceDefinition.STREAMING_SYNC_FULL_METHOD_NAME)
+                .doesNotContain(SYNC_FULL_METHOD_NAME)
                 // discoverEndpoints is CLPR but not sync, so it stays on the shared ports.
                 .contains(ClprEndpointServiceDefinition.SERVICE_NAME + "/discoverEndpoints");
     }
@@ -362,6 +363,16 @@ final class NettyGrpcServerManagerTest {
         // does not null the field.
         assertThat(subject.clprSyncPort()).isEqualTo(-1);
         assertThat(subject.clprSyncServer.isTerminated()).isTrue();
+    }
+
+    /** The method types registered under the CLPR sync method name, one per registration. */
+    private static List<MethodType> syncMethodTypes(final Set<ServerServiceDefinition> definitions) {
+        return definitions.stream()
+                .flatMap(d -> d.getMethods().stream())
+                .map(ServerMethodDefinition::getMethodDescriptor)
+                .filter(descriptor -> SYNC_FULL_METHOD_NAME.equals(descriptor.getFullMethodName()))
+                .map(MethodDescriptor::getType)
+                .toList();
     }
 
     private static Set<String> fullMethodNames(final Set<ServerServiceDefinition> definitions) {

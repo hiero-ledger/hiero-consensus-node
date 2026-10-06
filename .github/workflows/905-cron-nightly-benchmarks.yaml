@@ -1,0 +1,79 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "905: [CRON] Nightly Benchmarks"
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "The branch, tag or SHA to benchmark (default: the selected branch)."
+        type: string
+        required: false
+        default: ""
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-benchmarks-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
+  GRADLE_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Runs on the candidate benchmark runner. Until the runner is evaluated, it only keeps the results as an artifact;
+  # it publishes nothing.
+  jmh:
+    name: JMH Benchmarks
+    runs-on: hl-cn-benchmark-lin
+    timeout-minutes: 45
+    needs:
+      - extract-jdk-version
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || github.ref }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-java: "true"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+          java-distribution: "temurin"
+          setup-gradle: "true"
+          gradle-cache-read-only: "true"
+
+      # A separate Gradle invocation, so that nothing compiles while the benchmarks measure
+      - name: Build Benchmark Jar
+        run: ./gradlew :consensus-hashgraph-impl:jmhJarWithMergedServiceFiles
+
+      # Only this module's benchmarks are tracked; "./gradlew jmh" would also run those of other modules. Without
+      # "nice", which other workflows use and which would lower the benchmarks' priority on a shared node.
+      - name: Run Benchmarks
+        id: jmh
+        run: ./gradlew :consensus-hashgraph-impl:jmh
+
+      - name: Upload Results
+        if: ${{ always() && steps.jmh.outcome != 'skipped' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: jmh-results
+          # every module's results, so a module added to the steps above cannot be left out here
+          path: platform-sdk/*/build/results/jmh/results.json
+          if-no-files-found: error
+          retention-days: 90

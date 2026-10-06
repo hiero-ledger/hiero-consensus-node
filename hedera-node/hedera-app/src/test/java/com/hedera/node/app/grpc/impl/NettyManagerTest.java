@@ -37,8 +37,6 @@ final class NettyManagerTest extends GrpcTestBase {
                 (req, res) -> {},
                 (req, res) -> {},
                 new ClprSyncWorkflow() {
-                    @Override
-                    public void handleSync(Bytes req, BufferedData res) {}
 
                     @Override
                     public void handleDiscovery(Bytes req, BufferedData res) {}
