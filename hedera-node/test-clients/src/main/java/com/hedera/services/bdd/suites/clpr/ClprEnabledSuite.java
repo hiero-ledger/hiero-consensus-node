@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.clpr;
 
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
@@ -170,9 +170,9 @@ public class ClprEnabledSuite {
     @HapiTest
     @DisplayName("Native CLPR contracts reach proof validation when enabled")
     final Stream<DynamicTest> nativeClprContractsReachValidation() {
-        // Deliberately invalid proof with the supported shared bundle selector. Enabled execution reverts; the disabled
-        // native
-        // contract halts with the distinct CLPR_NOT_ENABLED status, so it cannot satisfy this test.
+        // Deliberately invalid proof with the supported shared bundle selector. Enabled execution reverts; a disabled
+        // native contract's address behaves as a plain system account and succeeds without executing anything, so it
+        // cannot satisfy this test.
         return hapiTest(CLPR_SYSTEM_CONTRACT_NUMS.stream()
                 .map(num -> contractCallWithFunctionAbi(
                                 num, VERIFY_CONFIG_WITH_SEED_ENDPOINTS.toJson(false), new byte[] {1}, new byte[32])
@@ -232,20 +232,18 @@ public class ClprEnabledSuite {
                         .usePlaintext()
                         .build();
                 try {
-                    for (final var method : List.of("sync", "discoverEndpoints")) {
-                        final var error = assertThrows(
-                                StatusRuntimeException.class,
-                                () -> ClientCalls.blockingUnaryCall(
-                                        channel,
-                                        peerMethod(method, MethodDescriptor.MethodType.UNARY),
-                                        CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS),
-                                        new byte[0]));
-                        assertInvalidPeerRequest(error.getStatus());
-                    }
+                    final var error = assertThrows(
+                            StatusRuntimeException.class,
+                            () -> ClientCalls.blockingUnaryCall(
+                                    channel,
+                                    peerMethod("discoverEndpoints", MethodDescriptor.MethodType.UNARY),
+                                    CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS),
+                                    new byte[0]));
+                    assertInvalidPeerRequest(error.getStatus());
                     final var status = new CompletableFuture<Status>();
                     final var stream = ClientCalls.asyncBidiStreamingCall(
                             channel.newCall(
-                                    peerMethod("streamingSync", MethodDescriptor.MethodType.BIDI_STREAMING),
+                                    peerMethod("sync", MethodDescriptor.MethodType.BIDI_STREAMING),
                                     CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS)),
                             new StreamObserver<byte[]>() {
                                 @Override

@@ -116,7 +116,7 @@ public class ClprGetLedgerConfigurationHandler extends FreeQueryHandler {
             return proofBytes;
         }
         try {
-            final var stateProof = StateProof.PROTOBUF.parse(proofBytes.toReadableSequentialData());
+            final var stateProof = StateProof.PROTOBUF.parseStrict(proofBytes.toReadableSequentialData());
             // Throws IllegalStateException if any path is structurally invalid (bad sibling
             // counts, mismatched parent pointers, etc).
             final byte[] rootHash = StateProofVerifier.computeBlockRootHash(stateProof);

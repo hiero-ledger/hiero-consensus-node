@@ -1551,7 +1551,7 @@ public abstract class HieroToHieroBase implements LifecycleTest {
     /**
      * 20-byte EVM address of the Hiero CLPR system contract precompile
      * ({@code 0x000000000000000000000000000000000000016e}) — same value the reconciler
-     * pre-populates into the endpoint manifest at genesis (see {@code V0770ClprSchema}).
+     * pre-populates into the endpoint manifest at genesis (see {@code V0780ClprSchema}).
      * Using it here keeps {@code config.service_address == manifest.service_address}, an
      * invariant the manifest-aware verifier enforces (spec §4.8). {@link ClprCrypto} also
      * incorporates it into the connector signature.

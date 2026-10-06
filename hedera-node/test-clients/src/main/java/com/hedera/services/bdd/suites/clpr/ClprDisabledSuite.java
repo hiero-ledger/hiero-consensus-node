@@ -3,11 +3,11 @@ package com.hedera.services.bdd.suites.clpr;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.protoToPbj;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.CHANNELS_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.CONNECTORS_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
@@ -43,6 +43,7 @@ import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toConfigProofBy
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static java.util.stream.Collectors.toSet;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -176,17 +177,18 @@ public class ClprDisabledSuite {
     }
 
     @HapiTest
-    @DisplayName("Every native CLPR contract halts with CLPR_NOT_ENABLED when disabled")
-    final Stream<DynamicTest> nativeClprContractsAreRejected() {
-        // A direct call exposes the native halt reason, rather than a wrapper's generic revert.
-        // Enabled execution reaches selector/proof validation and cannot satisfy this assertion.
+    @DisplayName("Every native CLPR contract address behaves as a plain system account when disabled")
+    final Stream<DynamicTest> nativeClprContractsAreInactive() {
+        // While disabled, the EVM treats these addresses exactly as it did before the native contracts
+        // existed, so a direct call succeeds without executing anything. Enabled execution reaches
+        // selector/proof validation and cannot satisfy this assertion.
         return hapiTest(CLPR_SYSTEM_CONTRACT_NUMS.stream()
                 .map(num -> contractCallWithFunctionAbi(
                                 num, VERIFY_CONFIG_WITH_SEED_ENDPOINTS.toJson(false), new byte[] {1}, new byte[32])
                         .payingWith(GENESIS)
                         .gas(GAS_TO_OFFER)
                         .refusingEthConversion()
-                        .hasKnownStatus(CLPR_NOT_ENABLED))
+                        .hasKnownStatus(SUCCESS))
                 .toArray(SpecOperation[]::new));
     }
 
@@ -223,20 +225,18 @@ public class ClprDisabledSuite {
                         .usePlaintext()
                         .build();
                 try {
-                    for (final var method : List.of("sync", "discoverEndpoints")) {
-                        final var error = assertThrows(
-                                StatusRuntimeException.class,
-                                () -> ClientCalls.blockingUnaryCall(
-                                        channel,
-                                        peerMethod(method, MethodDescriptor.MethodType.UNARY),
-                                        CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS),
-                                        new byte[0]));
-                        assertPeerServiceDisabled(error.getStatus());
-                    }
+                    final var error = assertThrows(
+                            StatusRuntimeException.class,
+                            () -> ClientCalls.blockingUnaryCall(
+                                    channel,
+                                    peerMethod("discoverEndpoints", MethodDescriptor.MethodType.UNARY),
+                                    CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS),
+                                    new byte[0]));
+                    assertPeerServiceDisabled(error.getStatus());
                     final var status = new CompletableFuture<Status>();
                     final var stream = ClientCalls.asyncBidiStreamingCall(
                             channel.newCall(
-                                    peerMethod("streamingSync", MethodDescriptor.MethodType.BIDI_STREAMING),
+                                    peerMethod("sync", MethodDescriptor.MethodType.BIDI_STREAMING),
                                     CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS)),
                             new StreamObserver<byte[]>() {
                                 @Override
