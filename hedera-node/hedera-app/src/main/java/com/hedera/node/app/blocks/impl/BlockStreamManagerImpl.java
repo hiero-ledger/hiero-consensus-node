@@ -44,7 +44,6 @@ import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
-import com.hedera.node.app.blocks.BlockSizeIngestGate;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
@@ -196,8 +195,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private long bytesAtCutoff;
     private long signedTransactionCount;
 
-    private final BlockSizeIngestGate blockSizeIngestGate;
-
     // Block merkle subtrees and leaves
     private IncrementalStreamingHasher previousBlockHashes;
     private IncrementalStreamingHasher consensusHeaderHasher;
@@ -282,8 +279,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     private final Counter blockSizeCircuitBreakerTripsCounter;
     private final Counter maxBlockSizeThrottleTripsCounter;
-    private final org.hiero.consensus.transaction.TransactionPoolNexus transactionPool;
-    private boolean pauseApplicationTransactionsOnBlockFull;
 
     @Inject
     public BlockStreamManagerImpl(
@@ -299,11 +294,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final Lifecycle lifecycle,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
             @NonNull final Metrics metrics,
-            @NonNull final BlockStreamingObs streamingObs,
-            @NonNull final BlockSizeIngestGate blockSizeIngestGate,
-            @NonNull final org.hiero.consensus.transaction.TransactionPoolNexus transactionPool) {
-        this.transactionPool = requireNonNull(transactionPool);
-        this.blockSizeIngestGate = requireNonNull(blockSizeIngestGate);
+            @NonNull final BlockStreamingObs streamingObs) {
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.platform = requireNonNull(platform);
         this.quiescenceController = requireNonNull(quiescenceController);
@@ -544,13 +535,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             submittedAtCutoff = 0;
             bytesAtCutoff = 0;
             signedTransactionCount = 0;
-            if (pauseApplicationTransactionsOnBlockFull) {
-                transactionPool.setApplicationTransactionInclusionPaused(false);
-            }
-            pauseApplicationTransactionsOnBlockFull =
-                    maxBlockSizeThrottleEnabled && blockStreamConfig.pauseApplicationTransactionsOnBlockFull();
-            blockSizeIngestGate.onBlockStarted();
-
             writer = writerSupplier.get();
             blockTimestamp = asTimestamp(firstConsensusTimestampOf(round));
 
@@ -1152,10 +1136,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             submittedAtCutoff = submittedTransactionCount;
             bytesAtCutoff = currentThrottleBlockSizeBytes;
             maxBlockSizeReached = true;
-            blockSizeIngestGate.onBlockSizeLimitReached();
-            if (pauseApplicationTransactionsOnBlockFull) {
-                transactionPool.setApplicationTransactionInclusionPaused(true);
-            }
             maxBlockSizeThrottleTripsCounter.increment();
             log.warn(
                     "Block #{} reached a serialized size of {} bytes after adding {} bytes, exceeding the "

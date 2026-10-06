@@ -46,29 +46,6 @@ class TransactionPoolNexusTest {
         nexus.updatePlatformStatus(PlatformStatus.ACTIVE);
     }
 
-    @Test
-    void pausedInclusionRetainsApplicationsAndStillDrainsPriorityTransactions() {
-        final var first = Bytes.wrap(new byte[] {1});
-        final var second = Bytes.wrap(new byte[] {2});
-        final var priority = Bytes.wrap(new byte[] {3});
-        assertTrue(nexus.submitApplicationTransaction(first));
-        nexus.setApplicationTransactionInclusionPaused(true);
-        assertTrue(nexus.submitApplicationTransaction(second));
-        nexus.submitPriorityTransaction(priority);
-        assertEquals(
-                List.of(priority),
-                nexus.getTransactionsForEvent().stream()
-                        .map(TimestampedTransaction::transaction)
-                        .toList());
-        assertTrue(nexus.getTransactionsForEvent().isEmpty());
-        nexus.setApplicationTransactionInclusionPaused(false);
-        assertEquals(
-                List.of(first, second),
-                nexus.getTransactionsForEvent().stream()
-                        .map(TimestampedTransaction::transaction)
-                        .toList());
-    }
-
     @ParameterizedTest
     @MethodSource("testSubmitApplicationTransactionArgs")
     void testSubmitApplicationTransaction(final int txNumBytes, final boolean shouldSucceed) {

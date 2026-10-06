@@ -10,7 +10,6 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_DELETE_LIVE_H
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
-import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HOOK_STORE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SCHEDULE_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.SYSTEM_DELETE;
@@ -47,7 +46,6 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
 import com.hedera.node.app.blocks.BlockHashSigner;
-import com.hedera.node.app.blocks.BlockSizeIngestGate;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fees.context.IngestFeeContext;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
@@ -74,7 +72,6 @@ import com.hedera.node.app.workflows.TransactionChecker.RequireMinValidLifetimeB
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
-import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
@@ -117,7 +114,6 @@ public final class IngestChecker {
 
     private final CurrentPlatformStatus currentPlatformStatus;
     private final BlockHashSigner blockHashSigner;
-    private final BlockSizeIngestGate blockSizeIngestGate;
     private final TransactionChecker transactionChecker;
     private final SolvencyPreCheck solvencyPreCheck;
     private final SignatureVerifier signatureVerifier;
@@ -175,7 +171,6 @@ public final class IngestChecker {
      * @param feeManager the {@link FeeManager} that manages {@link com.hedera.node.app.spi.fees.FeeCalculator}s
      * @param synchronizedThrottleAccumulator the {@link SynchronizedThrottleAccumulator} that checks transaction should be throttled
      * @param instantSource the {@link InstantSource} that provides the current time
-     * @param blockSizeIngestGate the expiring block-full signal published by handle
      * @param workflowMetrics the {@link OpWorkflowMetrics} that manages the metrics for all operations
      * @throws NullPointerException if one of the arguments is {@code null}
      */
@@ -196,9 +191,7 @@ public final class IngestChecker {
             @NonNull final SynchronizedThrottleAccumulator synchronizedThrottleAccumulator,
             @NonNull final InstantSource instantSource,
             @NonNull final OpWorkflowMetrics workflowMetrics,
-            @Nullable final AtomicBoolean systemEntitiesCreatedFlag,
-            @NonNull final BlockSizeIngestGate blockSizeIngestGate) {
-        this.blockSizeIngestGate = requireNonNull(blockSizeIngestGate);
+            @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
         this.networkInfo = requireNonNull(networkInfo, "networkInfo must not be null");
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus, "currentPlatformStatus must not be null");
         this.blockHashSigner = blockHashSigner;
@@ -393,15 +386,6 @@ public final class IngestChecker {
         final var hooksConfig = configuration.getConfigData(HooksConfig.class);
         final var networkAdminConfig = configuration.getConfigData(NetworkAdminConfig.class);
         assertThrottlingPreconditions(txInfo, hederaConfig, hooksConfig, networkAdminConfig);
-        final var blockStreamConfig = configuration.getConfigData(BlockStreamConfig.class);
-        // Reject before reserving throttle capacity or submitting to consensus, avoiding consensus fees.
-        if (hederaConfig.ingestThrottleEnabled()
-                && blockStreamConfig.maxBlockSizeLimitEnabled()
-                && txInfo.functionality() != HINTS_PARTIAL_SIGNATURE
-                && blockSizeIngestGate.shouldReject(blockStreamConfig.maxBlockSizeIngestGateMaxAge())) {
-            workflowMetrics.incrementThrottled(txInfo.functionality());
-            throw new PreCheckException(BUSY);
-        }
         if (hederaConfig.ingestThrottleEnabled()
                 && synchronizedThrottleAccumulator.shouldThrottle(txInfo, state, throttleUsages)) {
             workflowMetrics.incrementThrottled(txInfo.functionality());

@@ -50,8 +50,6 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
      */
     private int bufferedSignatureTransactionCount = 0;
 
-    private boolean applicationTransactionInclusionPaused;
-
     /**
      * The maximum number of bytes of transactions that can be put in an event.
      */
@@ -207,14 +205,6 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
     }
 
     /**
-     * Pauses application transaction inclusion without removing queued transactions or stopping priority output.
-     * Uses the same monitor as event selection: an already selected event is unaffected.
-     */
-    public synchronized void setApplicationTransactionInclusionPaused(final boolean paused) {
-        applicationTransactionInclusionPaused = paused;
-    }
-
-    /**
      * Get the next transaction that should be inserted into an event, or null if there is no available transaction.
      *
      * @param currentEventSize the current size in bytes of the event being constructed
@@ -235,8 +225,7 @@ public class TransactionPoolNexus implements EventTransactionSupplier {
             return priorityBufferedTransactions.poll();
         }
 
-        if (!applicationTransactionInclusionPaused
-                && !bufferedTransactions.isEmpty()
+        if (!bufferedTransactions.isEmpty()
                 && bufferedTransactions.peek().transaction().length() <= maxSize) {
             return bufferedTransactions.poll();
         }

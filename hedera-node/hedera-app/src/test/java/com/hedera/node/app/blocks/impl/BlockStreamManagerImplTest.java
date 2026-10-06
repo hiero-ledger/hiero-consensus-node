@@ -31,13 +31,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -60,7 +58,6 @@ import com.hedera.hapi.node.state.history.ChainOfTrustProof;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.blocks.BlockItemWriter;
-import com.hedera.node.app.blocks.BlockSizeIngestGate;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
@@ -126,14 +123,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class BlockStreamManagerImplTest {
-    @Mock
-    private BlockSizeIngestGate blockSizeIngestGate;
-
-    private boolean pauseApplicationTransactionsOnBlockFull;
-
-    @Mock
-    private org.hiero.consensus.transaction.TransactionPoolNexus transactionPool;
-
     private static final SemanticVersion CREATION_VERSION = new SemanticVersion(1, 2, 3, "alpha.1", "2");
     private static final long ROUND_NO = 123L;
     private static final long N_MINUS_2_BLOCK_NO = 664L;
@@ -352,8 +341,6 @@ class BlockStreamManagerImplTest {
 
         assertFalse(subject.isSavepointOutputSuppressed());
         assertFalse(subject.hasReachedMaxBlockSize());
-        verify(blockSizeIngestGate, never()).onBlockSizeLimitReached();
-        verify(transactionPool, never()).setApplicationTransactionInclusionPaused(true);
         assertEquals(lastAssignedTime, subject.lastUsedConsensusTime());
         verify(aWriter).writePbjItemAndBytes(eq(FAKE_SIGNED_TRANSACTION), any());
     }
@@ -380,9 +367,6 @@ class BlockStreamManagerImplTest {
         // breaker — the item that tripped it is still written: StreamMode.BLOCKS is canonical, so its output
         // can never be silently dropped once already committed.
         assertTrue(subject.hasReachedMaxBlockSize());
-        verify(transactionPool, never()).setApplicationTransactionInclusionPaused(anyBoolean());
-        verify(blockSizeIngestGate).onBlockStarted();
-        verify(blockSizeIngestGate).onBlockSizeLimitReached();
         assertFalse(subject.isSavepointOutputSuppressed());
         assertEquals(lastAssignedTime, subject.lastUsedConsensusTime());
         verify(aWriter).writePbjItemAndBytes(eq(FAKE_SIGNED_TRANSACTION), any());
@@ -423,12 +407,10 @@ class BlockStreamManagerImplTest {
             field.setAccessible(true);
             assertEquals(entry.getValue().longValue(), field.getLong(subject), entry.getKey());
         }
-        verify(blockSizeIngestGate).onBlockSizeLimitReached();
     }
 
     @Test
     void maxBlockSizeThrottleNeverEngagesInBothMode() {
-        pauseApplicationTransactionsOnBlockFull = true;
         givenSubjectWith(
                 1,
                 0,
@@ -446,13 +428,10 @@ class BlockStreamManagerImplTest {
         // but the independent, BLOCKS-only throttle must never engage here.
         assertTrue(subject.isSavepointOutputSuppressed());
         assertFalse(subject.hasReachedMaxBlockSize());
-        verify(blockSizeIngestGate, never()).onBlockSizeLimitReached();
-        verify(transactionPool, never()).setApplicationTransactionInclusionPaused(true);
     }
 
     @Test
     void maxBlockSizeThrottleNeverEngagesWhenFeatureFlagDisabled() {
-        pauseApplicationTransactionsOnBlockFull = true;
         givenSubjectWith(
                 1,
                 0,
@@ -473,41 +452,6 @@ class BlockStreamManagerImplTest {
         // Even though maxBlockSizeBytes is exceeded, the feature flag being off keeps the throttle from
         // ever engaging, regardless of stream mode.
         assertFalse(subject.hasReachedMaxBlockSize());
-        verify(blockSizeIngestGate, never()).onBlockSizeLimitReached();
-        verify(transactionPool, never()).setApplicationTransactionInclusionPaused(true);
-    }
-
-    @Test
-    void pausesApplicationInclusionAtCutoffAndResumesAtNextBlockEvenIfFlagDisabled() {
-        pauseApplicationTransactionsOnBlockFull = true;
-        givenSubjectWith(
-                1,
-                0,
-                StreamMode.BLOCKS,
-                1,
-                blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION),
-                platformStateWithFreezeTime(null),
-                aWriter,
-                bWriter);
-        givenEndOfRoundSetup();
-        given(blockHashSigner.isReady()).willReturn(true);
-        given(blockHashSigner.sign(any(), any()))
-                .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
-        given(mockSigningFuture.thenAcceptAsync(any())).willReturn(completedFuture(null));
-        subject.init(state, FAKE_RESTART_BLOCK_HASH);
-        subject.startRound(round, state);
-        subject.writeItem(FAKE_SIGNED_TRANSACTION);
-        verify(transactionPool).setApplicationTransactionInclusionPaused(true);
-        subject.endRound(state, ROUND_NO);
-        pauseApplicationTransactionsOnBlockFull = false;
-        given(configProvider.getConfiguration()).willReturn(versionedConfigWith(StreamMode.BLOCKS, 0, 2L));
-        given(round.getRoundNum()).willReturn(ROUND_NO + 1);
-        given(round.getConsensusTimestamp()).willReturn(CONSENSUS_NOW.plusSeconds(1));
-        subject.startRound(round, state);
-        final var order = inOrder(transactionPool);
-        order.verify(transactionPool).setApplicationTransactionInclusionPaused(true);
-        order.verify(transactionPool).setApplicationTransactionInclusionPaused(false);
-        order.verifyNoMoreInteractions();
     }
 
     @Test
@@ -604,9 +548,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
-                streamingObs,
-                blockSizeIngestGate,
-                transactionPool);
+                streamingObs);
         assertSame(EPOCH, subject.lastIntervalProcessTime());
         subject.setLastIntervalProcessTime(CONSENSUS_NOW);
         assertEquals(CONSENSUS_NOW, subject.lastIntervalProcessTime());
@@ -633,9 +575,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
-                streamingObs,
-                blockSizeIngestGate,
-                transactionPool);
+                streamingObs);
 
         final var recovered = subject.recoverableSuffixOf(
                 List.of(onDiskPendingBlock(100L), onDiskPendingBlock(101L), onDiskPendingBlock(102L)));
@@ -677,9 +617,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
-                streamingObs,
-                blockSizeIngestGate,
-                transactionPool);
+                streamingObs);
 
         final var recovered = subject.recoverableSuffixOf(List.of(
                 onDiskPendingBlock(100L),
@@ -723,9 +661,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
-                streamingObs,
-                blockSizeIngestGate,
-                transactionPool);
+                streamingObs);
 
         final var recovered = subject.recoverableSuffixOf(List.of(
                 onDiskPendingBlock(100L),
@@ -754,9 +690,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
-                streamingObs,
-                blockSizeIngestGate,
-                transactionPool);
+                streamingObs);
         assertThrows(IllegalStateException.class, () -> subject.startRound(round, state));
     }
 
@@ -2154,9 +2088,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
-                streamingObs,
-                blockSizeIngestGate,
-                transactionPool);
+                streamingObs);
 
         // init with HASH_OF_ZERO should NOT read from BlockRecordService at all
         subject.init(state, HASH_OF_ZERO, true);
@@ -2192,9 +2124,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
-                streamingObs,
-                blockSizeIngestGate,
-                transactionPool);
+                streamingObs);
 
         final var blockRecordReadable = mock(ReadableStates.class);
         given(blockRecordReadable.<BlockInfo>getSingleton(BLOCKS_STATE_ID))
@@ -2246,9 +2176,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
-                streamingObs,
-                blockSizeIngestGate,
-                transactionPool);
+                streamingObs);
 
         final var blockRecordReadable = mock(ReadableStates.class);
         given(blockRecordReadable.<BlockInfo>getSingleton(BLOCKS_STATE_ID))
@@ -2298,9 +2226,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
-                streamingObs,
-                blockSizeIngestGate,
-                transactionPool);
+                streamingObs);
 
         final var blockRecordReadable = mock(ReadableStates.class);
         lenient()
@@ -2349,9 +2275,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
-                streamingObs,
-                blockSizeIngestGate,
-                transactionPool);
+                streamingObs);
 
         final var blockRecordReadable = mock(ReadableStates.class);
         given(blockRecordReadable.<BlockInfo>getSingleton(BLOCKS_STATE_ID))
@@ -2460,9 +2384,7 @@ class BlockStreamManagerImplTest {
                 lifecycle,
                 quiescedHeartbeat,
                 metrics,
-                streamingObs,
-                blockSizeIngestGate,
-                transactionPool);
+                streamingObs);
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.getSingleton(PLATFORM_STATE_STATE_ID)).willReturn(platformStateReadableSingletonState);
         lenient().when(state.getReadableStates(FreezeServiceImpl.NAME)).thenReturn(readableStates);
@@ -2491,8 +2413,6 @@ class BlockStreamManagerImplTest {
                 .withValue("blockStream.streamMode", streamMode.name())
                 .withValue("blockStream.maxBlockSizeBytes", maxBlockSizeBytes)
                 .withValue("blockStream.maxBlockSizeLimitEnabled", maxBlockSizeLimitEnabled)
-                .withValue(
-                        "blockStream.pauseApplicationTransactionsOnBlockFull", pauseApplicationTransactionsOnBlockFull)
                 .getOrCreateConfig();
         return new VersionedConfigImpl(config, version);
     }

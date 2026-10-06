@@ -12,14 +12,13 @@ import org.junit.jupiter.api.Test;
 class BlockStreamConfigTest {
 
     @Test
-    void maxBlockSizeBytesDefaultsTo50Mebibytes() {
+    void maxBlockSizeBytesDefaultsTo100Mebibytes() {
         final var config = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .getOrCreateConfig()
                 .getConfigData(BlockStreamConfig.class);
 
-        assertThat(config.maxBlockSizeBytes()).isEqualTo(50L * 1024 * 1024);
-        assertThat(config.maxBlockSizeIngestGateMaxAge()).isEqualTo(Duration.ofSeconds(2));
+        assertThat(config.maxBlockSizeBytes()).isEqualTo(100L * 1024 * 1024);
     }
 
     @Test
@@ -30,7 +29,6 @@ class BlockStreamConfigTest {
                 .getConfigData(BlockStreamConfig.class);
 
         assertThat(config.maxBlockSizeLimitEnabled()).isTrue();
-        assertThat(config.pauseApplicationTransactionsOnBlockFull()).isFalse();
     }
 
     @Test
@@ -65,8 +63,6 @@ class BlockStreamConfigTest {
                 1,
                 Duration.ofSeconds(2),
                 0,
-                Duration.ofSeconds(2),
-                false,
                 false,
                 8192,
                 Duration.ofMillis(10),
