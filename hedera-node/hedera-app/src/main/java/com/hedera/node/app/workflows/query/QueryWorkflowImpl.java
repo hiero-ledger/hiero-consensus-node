@@ -352,6 +352,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     break;
                 case UnknownFieldException ignored:
                     break;
+                case null: // default: won't cover null, so we cover it explicitly
                 default:
                     logger.warn("Unexpected ParseException while parsing protobuf", e);
             }
