@@ -1130,7 +1130,7 @@ jobs:
           echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/longevity"
 
   longevity-tests-finish-restart:
-    name: Read results of Longevity test
+    name: Restore state and re-run Longevity test
     runs-on: hl-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
     needs:
@@ -1216,6 +1216,8 @@ jobs:
       - name: Restore archived state
         if: ${{ !cancelled() }}
         run: |
+          set +e
+          set +x
           cd "${{ github.workspace }}"/
 
           #convert URL to GS path
