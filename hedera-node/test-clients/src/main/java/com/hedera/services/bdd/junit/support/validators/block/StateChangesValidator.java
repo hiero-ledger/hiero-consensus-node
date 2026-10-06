@@ -381,7 +381,7 @@ public class StateChangesValidator implements BlockStreamValidator {
     @Override
     public void validateBlocks(@NonNull final List<Block> blocks) {
         logger.info("Beginning validation of expected root hash {}", expectedRootHash);
-        var previousBlockHash = BlockStreamManager.HASH_OF_ZERO_384;
+        var previousBlockHash = BlockStreamManager.hashOfZero(digestType);
         var startOfStateHash = requireNonNull(initializedGenesisStateHash).getBytes();
         var incrementalBlockHashes = new IncrementalStreamingHasher(digest(), List.of(), 0);
 

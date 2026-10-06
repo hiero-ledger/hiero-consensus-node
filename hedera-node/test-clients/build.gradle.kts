@@ -127,6 +127,7 @@ val prCheckTags =
         "hapiTestAtomicBatchSerial" to "(ATOMIC_BATCH&SERIAL)",
         "hapiTestStateThrottling" to "(STATE_THROTTLING&SERIAL)",
         "hapiTestClpr" to "CLPR",
+        "hapiTestBlockHashingSha256" to "BLOCK_HASHING|STREAM_VALIDATION",
         "hapiTestClprMultinetwork" to "MULTINETWORK",
     )
 
@@ -171,6 +172,7 @@ val prCheckStartPorts =
         "hapiTestAtomicBatchSerial" to "29200",
         "hapiTestSmartContractSerial" to "29400",
         "hapiTestClpr" to "29600",
+        "hapiTestBlockHashingSha256" to "29800",
     )
 val prCheckPropOverrides =
     mapOf(
@@ -220,6 +222,8 @@ val prCheckPropOverrides =
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         "hapiTestClpr" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
+        "hapiTestBlockHashingSha256" to
+            "blockStream.digestType=SHA_256,blockStream.streamWrappedRecordBlocks=true,block.stateproof.verification.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
     )
 // hapiTestRestart reconnects the same node repeatedly; the 10m production throttle would starve it.
 val prCheckPlatformOverrides =
@@ -257,6 +261,7 @@ val prCheckNetSizeOverrides =
         "hapiTestWraps" to "3",
         "hapiTestCutover" to "3",
         "hapiTestWrapsDownload" to "3",
+        "hapiTestBlockHashingSha256" to "3",
     )
 
 val embeddedBaseTags =

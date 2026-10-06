@@ -1032,6 +1032,37 @@ final class BlockRecordManagerTest extends AppTestBase {
         }
 
         @Test
+        void matchesManualComputationWithSha256() {
+            final var sha256 = DigestType.SHA_256;
+            final var prevBlockHash = randomHash(sha256.digestLength());
+            final var allPrevRootHash = randomHash(sha256.digestLength());
+            final var outputHash = randomHash(sha256.digestLength());
+            final var consensusHash = randomHash(sha256.digestLength());
+
+            // The same tree as matchesManualComputation, built independently with SHA-256 throughout
+            final Bytes empty = Bytes.wrap(sha256.buildDigest().digest(new byte[] {0x0}));
+            final Bytes emptyPair = BlockImplUtils.hashInternalNode(sha256.buildDigest(), empty, empty);
+            final Bytes emptyQuad = BlockImplUtils.hashInternalNode(sha256.buildDigest(), emptyPair, emptyPair);
+            final Bytes reservedHalf = BlockImplUtils.hashInternalNode(sha256.buildDigest(), emptyQuad, emptyQuad);
+            final Bytes branches12 =
+                    BlockImplUtils.hashInternalNode(sha256.buildDigest(), prevBlockHash, allPrevRootHash);
+            final Bytes branches56 = BlockImplUtils.hashInternalNode(sha256.buildDigest(), empty, outputHash);
+            final Bytes branches1234 = BlockImplUtils.hashInternalNode(sha256.buildDigest(), branches12, emptyPair);
+            final Bytes branches5678 = BlockImplUtils.hashInternalNode(sha256.buildDigest(), branches56, emptyPair);
+            final Bytes assignedHalf =
+                    BlockImplUtils.hashInternalNode(sha256.buildDigest(), branches1234, branches5678);
+            final Bytes subtreesRoot =
+                    BlockImplUtils.hashInternalNode(sha256.buildDigest(), assignedHalf, reservedHalf);
+            final Bytes expected = BlockImplUtils.hashInternalNode(sha256.buildDigest(), consensusHash, subtreesRoot);
+
+            final var actual = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    sha256, prevBlockHash, allPrevRootHash, entryWith(outputHash, consensusHash));
+
+            assertThat(actual).isEqualTo(expected);
+            assertThat(actual.length()).isEqualTo(sha256.digestLength());
+        }
+
+        @Test
         void chainedComputationsProduceDifferentResults() {
             final var allPrevRootHash = randomHash();
             final var entry = entryWith(randomHash(), randomHash());
@@ -1056,7 +1087,11 @@ final class BlockRecordManagerTest extends AppTestBase {
         }
 
         private Bytes randomHash() {
-            final var bytes = new byte[SHA_384_HASH_SIZE];
+            return randomHash(SHA_384_HASH_SIZE);
+        }
+
+        private Bytes randomHash(final int size) {
+            final var bytes = new byte[size];
             new SecureRandom().nextBytes(bytes);
             return Bytes.wrap(bytes);
         }
