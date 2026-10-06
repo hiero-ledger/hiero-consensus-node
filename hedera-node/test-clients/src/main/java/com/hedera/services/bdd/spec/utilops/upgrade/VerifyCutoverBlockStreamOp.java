@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.DigestType;
 
 /**
@@ -127,8 +128,7 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
         }
         log.info("Computed running hashes through {} TRANSACTION_RESULT items", resultCount);
         assertTrue(resultCount > 0, "First post-cutover block should contain at least one transaction result");
-        // Running hashes remain chained SHA-384 (48 bytes), independent of the block-root Merkle tree's
-        // HASH_SIZE (SHA-256-sized), so use the size-parameterized appendHash overload
+        // Running hashes here are chained SHA-384 (48 bytes)
         Bytes expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus3), Bytes.EMPTY, 4);
         expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus2), expectedOutputHashes, 4);
         expectedOutputHashes = BlockImplUtils.appendHash(Bytes.wrap(nMinus1), expectedOutputHashes, 4);
@@ -203,7 +203,7 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
 
             if (i == 0) {
                 assertNotEquals(
-                        Bytes.wrap(new byte[BlockImplUtils.HASH_SIZE]),
+                        Bytes.wrap(new byte[Cryptography.DEFAULT_DIGEST_TYPE.digestLength()]),
                         footer.startOfBlockStateRootHash(),
                         "Block #" + blockNum + " footer.startOfBlockStateRootHash" + " should not be the hash of zero");
             }

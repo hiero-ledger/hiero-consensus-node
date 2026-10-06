@@ -2,7 +2,7 @@
 package com.hedera.node.app.blocks.schemas;
 
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
-import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
+import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.RECORD_HASH_SIZE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -44,11 +44,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class V0740BlockStreamSchemaTest {
+    private static final int SHA_384_HASH_SIZE = DigestType.SHA_384.digestLength();
 
-    // RunningHashes (HASH_A-D) remain chained SHA-384 (48 bytes), independent of the block-root Merkle
-    // tree's HASH_SIZE (SHA-256-sized, 32 bytes) used for classic BlockInfo.blockHashes/WRAPPED_HASH.
+    // RunningHashes (HASH_A-D) are record-stream running hashes, which stay SHA-384.
     private static final int RUNNING_HASH_SIZE = DigestType.SHA_384.digestLength();
-    private static final Bytes WRAPPED_HASH = Bytes.wrap(new byte[HASH_SIZE]);
+    private static final Bytes WRAPPED_HASH = Bytes.wrap(new byte[SHA_384_HASH_SIZE]);
     private static final Bytes HASH_A = Bytes.fromHex("aa".repeat(RUNNING_HASH_SIZE));
     private static final Bytes HASH_B = Bytes.fromHex("bb".repeat(RUNNING_HASH_SIZE));
     private static final Bytes HASH_C = Bytes.fromHex("cc".repeat(RUNNING_HASH_SIZE));
@@ -218,9 +218,9 @@ class V0740BlockStreamSchemaTest {
                 blockInfo.wrappedIntermediatePreviousBlockRootHashes(), written.intermediatePreviousBlockRootHashes());
         assertEquals(blockInfo.wrappedIntermediateBlockRootsLeafCount(), written.intermediateBlockRootsLeafCount());
 
-        // Trailing block hashes should be blockHashes minus last HASH_SIZE
+        // Trailing block hashes should be blockHashes minus last RECORD_HASH_SIZE
         final var fullHashes = blockInfo.blockHashes().toByteArray();
-        final var expectedTrailing = Bytes.wrap(fullHashes, 0, fullHashes.length - HASH_SIZE);
+        final var expectedTrailing = Bytes.wrap(fullHashes, 0, fullHashes.length - RECORD_HASH_SIZE);
         assertEquals(expectedTrailing, written.trailingBlockHashes());
 
         // Tree hashes should be zeroed
@@ -401,7 +401,7 @@ class V0740BlockStreamSchemaTest {
     void preservesStartOfBlockStateHashFromPreviewBsi() {
         final var blockInfo = validBlockInfo();
         final var runningHashes = validRunningHashes();
-        final var stateHash = Bytes.fromHex("ef".repeat(HASH_SIZE));
+        final var stateHash = Bytes.fromHex("ef".repeat(SHA_384_HASH_SIZE));
         final var previewBsi = BlockStreamInfo.newBuilder()
                 .blockNumber(50)
                 .startOfBlockStateHash(stateHash)
@@ -420,9 +420,9 @@ class V0740BlockStreamSchemaTest {
 
     @Test
     void trailingBlockHashesEmptyWhenBlockHashesExactlyOneHash() {
-        // When blockHashes is exactly HASH_SIZE, the trailing should be empty
+        // When blockHashes is exactly RECORD_HASH_SIZE, the trailing should be empty
         // (the single hash is the "last" one that gets trimmed)
-        final var singleHash = new byte[HASH_SIZE];
+        final var singleHash = new byte[RECORD_HASH_SIZE];
         final var blockInfo = BlockInfo.newBuilder()
                 .lastBlockNumber(1)
                 .blockHashes(Bytes.wrap(singleHash))
@@ -456,10 +456,10 @@ class V0740BlockStreamSchemaTest {
     @Test
     void trailingBlockHashesCorrectWithManyHashes() {
         // 5 hashes total; trailing should contain the first 4
-        final var fiveHashes = new byte[HASH_SIZE * 5];
+        final var fiveHashes = new byte[RECORD_HASH_SIZE * 5];
         for (int i = 0; i < 5; i++) {
-            for (int j = 0; j < HASH_SIZE; j++) {
-                fiveHashes[i * HASH_SIZE + j] = (byte) (i + 1);
+            for (int j = 0; j < RECORD_HASH_SIZE; j++) {
+                fiveHashes[i * RECORD_HASH_SIZE + j] = (byte) (i + 1);
             }
         }
         final var blockInfo = BlockInfo.newBuilder()
@@ -489,14 +489,14 @@ class V0740BlockStreamSchemaTest {
         final var written = captor.getValue();
 
         // First 4 hashes should be in trailing, 5th (last) trimmed
-        final var expectedTrailing = Bytes.wrap(fiveHashes, 0, HASH_SIZE * 4);
+        final var expectedTrailing = Bytes.wrap(fiveHashes, 0, RECORD_HASH_SIZE * 4);
         assertEquals(expectedTrailing, written.trailingBlockHashes());
     }
 
     @Test
     void throwsWhenBlockHashesShorterThanOneHash() {
         // Fewer bytes than a single hash should fail the guard
-        final var partialHash = new byte[HASH_SIZE - 1];
+        final var partialHash = new byte[RECORD_HASH_SIZE - 1];
         final var blockInfo = BlockInfo.newBuilder()
                 .lastBlockNumber(100)
                 .blockHashes(Bytes.wrap(partialHash))
@@ -524,10 +524,10 @@ class V0740BlockStreamSchemaTest {
 
     @Test
     void copiesMultipleIntermediatePreviousBlockRootHashes() {
-        final var hashE = Bytes.fromHex("ee".repeat(HASH_SIZE));
-        final var hashF = Bytes.fromHex("ff".repeat(HASH_SIZE));
+        final var hashE = Bytes.fromHex("ee".repeat(SHA_384_HASH_SIZE));
+        final var hashF = Bytes.fromHex("ff".repeat(SHA_384_HASH_SIZE));
         final var intermediateHashes = List.of(WRAPPED_HASH, hashE, hashF);
-        final var twoHashes = new byte[HASH_SIZE * 2];
+        final var twoHashes = new byte[RECORD_HASH_SIZE * 2];
         final var blockInfo = BlockInfo.newBuilder()
                 .lastBlockNumber(300)
                 .blockHashes(Bytes.wrap(twoHashes))
@@ -560,7 +560,7 @@ class V0740BlockStreamSchemaTest {
 
     @Test
     void copiesEmptyIntermediatePreviousBlockRootHashes() {
-        final var twoHashes = new byte[HASH_SIZE * 2];
+        final var twoHashes = new byte[RECORD_HASH_SIZE * 2];
         final var blockInfo = BlockInfo.newBuilder()
                 .lastBlockNumber(300)
                 .blockHashes(Bytes.wrap(twoHashes))
@@ -672,8 +672,8 @@ class V0740BlockStreamSchemaTest {
     }
 
     private static BlockInfo validBlockInfo() {
-        // blockHashes needs at least 2*HASH_SIZE bytes (cutover trims the last HASH_SIZE)
-        final var twoHashes = new byte[HASH_SIZE * 2];
+        // blockHashes needs at least 2*RECORD_HASH_SIZE bytes (cutover trims the last RECORD_HASH_SIZE)
+        final var twoHashes = new byte[RECORD_HASH_SIZE * 2];
         return BlockInfo.newBuilder()
                 .lastBlockNumber(100)
                 .blockHashes(Bytes.wrap(twoHashes))

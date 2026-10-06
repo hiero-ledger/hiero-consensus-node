@@ -10,7 +10,6 @@ import static com.hedera.node.app.blocks.BlockHashSigner.Request.SUCCINCT_SIGNAT
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.NONE;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.HASH_SIZE;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.cleanUpPendingBlock;
@@ -18,6 +17,7 @@ import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.load
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
+import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.RECORD_HASH_SIZE;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static com.hedera.node.config.types.StreamMode.BOTH;
@@ -365,17 +365,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .<BlockInfo>getSingleton(BLOCKS_STATE_ID)
                     .get();
             final var fullBlockHashes = lastBlockInfoEver.blockHashes().toByteArray();
-            if (fullBlockHashes.length < HASH_SIZE) {
+            if (fullBlockHashes.length < RECORD_HASH_SIZE) {
                 throw new IllegalStateException(
                         "Cutover requires at least one record block hash in BlockInfo.blockHashes, but found "
-                                + fullBlockHashes.length + " bytes (need >= " + HASH_SIZE + ")");
+                                + fullBlockHashes.length + " bytes (need >= " + RECORD_HASH_SIZE + ")");
             }
             final List<Bytes> wrappedPrevRecordBlockRootHashes =
                     lastBlockInfoEver.wrappedIntermediatePreviousBlockRootHashes();
             effectiveLastBlockHash = lastBlockInfoEver.previousWrappedRecordBlockRootHash();
 
             // Update in-memory vars
-            this.cutoverTrailingBlockHash = Bytes.wrap(fullBlockHashes, fullBlockHashes.length - HASH_SIZE, HASH_SIZE);
+            this.cutoverTrailingBlockHash =
+                    Bytes.wrap(fullBlockHashes, fullBlockHashes.length - RECORD_HASH_SIZE, RECORD_HASH_SIZE);
             this.previousBlockHashes = new IncrementalStreamingHasher(
                     digestOrThrow(),
                     wrappedPrevRecordBlockRootHashes.stream()

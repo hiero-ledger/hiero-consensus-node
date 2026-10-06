@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.Arrays;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.Test;
 
 class PartialPathBuilderTest {
@@ -48,16 +50,20 @@ class PartialPathBuilderTest {
         var actualRoot = startingStateHash;
         for (final var sibling : path.siblings()) {
             actualRoot = sibling.isLeft()
-                    ? BlockImplUtils.hashInternalNode(sibling.hash(), actualRoot)
-                    : BlockImplUtils.hashInternalNode(actualRoot, sibling.hash());
+                    ? BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), sibling.hash(), actualRoot)
+                    : BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), actualRoot, sibling.hash());
         }
-        final var previousBranchesRoot = BlockImplUtils.hashInternalNode(previousBlockHash, previousBlockRootsHash);
+        final var previousBranchesRoot =
+                BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), previousBlockHash, previousBlockRootsHash);
         final var startingStateAndConsensusRoot =
-                BlockImplUtils.hashInternalNode(startingStateHash, consensusHeaderRootHash);
+                BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), startingStateHash, consensusHeaderRootHash);
         final var assignedBranchesRoot = BlockImplUtils.hashInternalNode(
-                BlockImplUtils.hashInternalNode(previousBranchesRoot, startingStateAndConsensusRoot),
+                sha384DigestOrThrow(),
+                BlockImplUtils.hashInternalNode(
+                        sha384DigestOrThrow(), previousBranchesRoot, startingStateAndConsensusRoot),
                 branchesFiveThroughEightRoot);
-        final var expectedRoot = BlockImplUtils.hashInternalNode(assignedBranchesRoot, reservedBranchesRoot);
+        final var expectedRoot =
+                BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), assignedBranchesRoot, reservedBranchesRoot);
         assertThat(actualRoot).isEqualTo(expectedRoot);
     }
 
@@ -66,7 +72,7 @@ class PartialPathBuilderTest {
     }
 
     private static Bytes hashWithByte(final int value) {
-        final var hash = new byte[BlockImplUtils.HASH_SIZE];
+        final var hash = new byte[DigestType.SHA_384.digestLength()];
         Arrays.fill(hash, (byte) value);
         return Bytes.wrap(hash);
     }

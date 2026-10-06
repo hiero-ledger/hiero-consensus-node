@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl;
 
-import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -30,6 +29,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class WrappedRecordBlockHashMigrationTest {
+    private static final int SHA_384_HASH_SIZE = DigestType.SHA_384.digestLength();
 
     public static final String RECORDS = "RECORDS";
 
@@ -153,12 +153,12 @@ class WrappedRecordBlockHashMigrationTest {
         // hashCount=5 but only 1 subtree hash provided
         final var badConfig = new BlockStreamJumpstartConfig(
                 100,
-                Bytes.wrap(new byte[HASH_SIZE]),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]),
                 4,
                 5,
-                List.of(Bytes.wrap(new byte[HASH_SIZE])),
-                Bytes.wrap(new byte[HASH_SIZE]),
-                Bytes.wrap(new byte[HASH_SIZE]));
+                List.of(Bytes.wrap(new byte[SHA_384_HASH_SIZE])),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]));
         subject.execute(StreamMode.RECORDS, config, badConfig, false, DigestType.SHA_384);
         assertNull(subject.result());
     }
@@ -221,7 +221,7 @@ class WrappedRecordBlockHashMigrationTest {
         final var result = subject.result();
         assertThat(result).isNotNull();
         assertThat(result.previousWrappedRecordBlockRootHash()).isNotNull();
-        assertThat(result.previousWrappedRecordBlockRootHash().length()).isEqualTo(HASH_SIZE);
+        assertThat(result.previousWrappedRecordBlockRootHash().length()).isEqualTo(SHA_384_HASH_SIZE);
         assertThat(result.wrappedIntermediateBlockRootsLeafCount()).isGreaterThan(0);
     }
 
@@ -247,7 +247,7 @@ class WrappedRecordBlockHashMigrationTest {
         final var result = subject.result();
         assertThat(result).isNotNull();
         assertThat(result.previousWrappedRecordBlockRootHash()).isNotNull();
-        assertThat(result.previousWrappedRecordBlockRootHash().length()).isEqualTo(HASH_SIZE);
+        assertThat(result.previousWrappedRecordBlockRootHash().length()).isEqualTo(SHA_384_HASH_SIZE);
         // Hasher started with 31 leaves and processed 64 blocks (46–109, > jumpstart block 45)
         assertThat(result.wrappedIntermediateBlockRootsLeafCount()).isEqualTo(31 + 64);
     }
@@ -294,15 +294,15 @@ class WrappedRecordBlockHashMigrationTest {
     @Test
     void returnsEarlyWhenPreviousBlockHashHasWrongLength() throws Exception {
         final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
-        // previousWrappedRecordBlockHash has an invalid length: one byte short of HASH_SIZE
+        // previousWrappedRecordBlockHash has an invalid length: one byte short of SHA_384_HASH_SIZE
         final var badConfig = new BlockStreamJumpstartConfig(
                 100,
-                Bytes.wrap(new byte[HASH_SIZE - 1]),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE - 1]),
                 4,
                 1,
-                List.of(Bytes.wrap(new byte[HASH_SIZE])),
-                Bytes.wrap(new byte[HASH_SIZE]),
-                Bytes.wrap(new byte[HASH_SIZE]));
+                List.of(Bytes.wrap(new byte[SHA_384_HASH_SIZE])),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]));
         subject.execute(StreamMode.RECORDS, config, badConfig, false, DigestType.SHA_384);
         assertNull(subject.result());
     }
@@ -310,22 +310,22 @@ class WrappedRecordBlockHashMigrationTest {
     @Test
     void returnsEarlyWhenSubtreeHashHasWrongLength() throws Exception {
         final var config = enabledRecordsConfig(createRecentHashesDir(List.of(entry(100), entry(101))));
-        // One subtree hash has an invalid length: one byte short of HASH_SIZE
+        // One subtree hash has an invalid length: one byte short of SHA_384_HASH_SIZE
         final var badConfig = new BlockStreamJumpstartConfig(
                 100,
-                Bytes.wrap(new byte[HASH_SIZE]),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]),
                 4,
                 2,
-                List.of(Bytes.wrap(new byte[HASH_SIZE]), Bytes.wrap(new byte[HASH_SIZE - 1])),
-                Bytes.wrap(new byte[HASH_SIZE]),
-                Bytes.wrap(new byte[HASH_SIZE]));
+                List.of(Bytes.wrap(new byte[SHA_384_HASH_SIZE]), Bytes.wrap(new byte[SHA_384_HASH_SIZE - 1])),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]));
         subject.execute(StreamMode.RECORDS, config, badConfig, false, DigestType.SHA_384);
         assertNull(subject.result());
     }
 
     @Test
     void returnsEarlyWhenJumpstartConsensusTimestampHashMismatches() throws Exception {
-        final var matchingOutputHash = Bytes.wrap(new byte[HASH_SIZE]);
+        final var matchingOutputHash = Bytes.wrap(new byte[SHA_384_HASH_SIZE]);
         final var fileTimestampHash = fillHash((byte) 0xAA);
         final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
         for (long i = 90; i <= 100; i++) {
@@ -336,10 +336,10 @@ class WrappedRecordBlockHashMigrationTest {
         // Jumpstart config provides a different consensus-timestamp hash for block 98
         final var badConfig = new BlockStreamJumpstartConfig(
                 98,
-                Bytes.wrap(new byte[HASH_SIZE]),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]),
                 4,
                 1,
-                List.of(Bytes.wrap(new byte[HASH_SIZE])),
+                List.of(Bytes.wrap(new byte[SHA_384_HASH_SIZE])),
                 fillHash((byte) 0x11),
                 matchingOutputHash);
 
@@ -349,7 +349,7 @@ class WrappedRecordBlockHashMigrationTest {
 
     @Test
     void returnsEarlyWhenJumpstartOutputItemsTreeRootHashMismatches() throws Exception {
-        final var matchingTimestampHash = Bytes.wrap(new byte[HASH_SIZE]);
+        final var matchingTimestampHash = Bytes.wrap(new byte[SHA_384_HASH_SIZE]);
         final var fileOutputHash = fillHash((byte) 0xBB);
         final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
         for (long i = 90; i <= 100; i++) {
@@ -360,10 +360,10 @@ class WrappedRecordBlockHashMigrationTest {
         // Jumpstart config provides a different output-items tree root hash for block 98
         final var badConfig = new BlockStreamJumpstartConfig(
                 98,
-                Bytes.wrap(new byte[HASH_SIZE]),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]),
                 4,
                 1,
-                List.of(Bytes.wrap(new byte[HASH_SIZE])),
+                List.of(Bytes.wrap(new byte[SHA_384_HASH_SIZE])),
                 matchingTimestampHash,
                 fillHash((byte) 0x22));
 
@@ -383,10 +383,10 @@ class WrappedRecordBlockHashMigrationTest {
 
         final var jsConfig = new BlockStreamJumpstartConfig(
                 98,
-                Bytes.wrap(new byte[HASH_SIZE]),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]),
                 4,
                 1,
-                List.of(Bytes.wrap(new byte[HASH_SIZE])),
+                List.of(Bytes.wrap(new byte[SHA_384_HASH_SIZE])),
                 Bytes.EMPTY,
                 Bytes.EMPTY);
 
@@ -417,9 +417,9 @@ class WrappedRecordBlockHashMigrationTest {
                 Bytes.EMPTY,
                 4,
                 1,
-                List.of(Bytes.wrap(new byte[HASH_SIZE])),
-                Bytes.wrap(new byte[HASH_SIZE]),
-                Bytes.wrap(new byte[HASH_SIZE]));
+                List.of(Bytes.wrap(new byte[SHA_384_HASH_SIZE])),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]));
         subject.execute(StreamMode.RECORDS, config, badConfig, false, DigestType.SHA_384);
         assertNull(subject.result());
     }
@@ -428,7 +428,7 @@ class WrappedRecordBlockHashMigrationTest {
     void loadRecentHashesParsesLargeFileWithoutException() throws Exception {
         final int entryCount = 4_000_000;
         final var entries = new ArrayList<WrappedRecordFileBlockHashes>(entryCount);
-        final byte[] fakeHash = new byte[HASH_SIZE];
+        final byte[] fakeHash = new byte[SHA_384_HASH_SIZE];
         final var hashBytes = Bytes.wrap(fakeHash);
         for (int i = 0; i < entryCount; i++) {
             entries.add(WrappedRecordFileBlockHashes.newBuilder()
@@ -504,12 +504,12 @@ class WrappedRecordBlockHashMigrationTest {
         // previousWrappedRecordBlockHash has the wrong length, so validation fails before any hashes are computed.
         final var badConfig = new BlockStreamJumpstartConfig(
                 100,
-                Bytes.wrap(new byte[HASH_SIZE - 1]),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE - 1]),
                 4,
                 1,
-                List.of(Bytes.wrap(new byte[HASH_SIZE])),
-                Bytes.wrap(new byte[HASH_SIZE]),
-                Bytes.wrap(new byte[HASH_SIZE]));
+                List.of(Bytes.wrap(new byte[SHA_384_HASH_SIZE])),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]));
 
         subject.execute(StreamMode.RECORDS, config, badConfig, false, DigestType.SHA_384);
 
@@ -565,7 +565,8 @@ class WrappedRecordBlockHashMigrationTest {
     }
 
     private WrappedRecordFileBlockHashes entry(long blockNumber) {
-        return entryWithHashes(blockNumber, Bytes.wrap(new byte[HASH_SIZE]), Bytes.wrap(new byte[HASH_SIZE]));
+        return entryWithHashes(
+                blockNumber, Bytes.wrap(new byte[SHA_384_HASH_SIZE]), Bytes.wrap(new byte[SHA_384_HASH_SIZE]));
     }
 
     private WrappedRecordFileBlockHashes entryWithHashes(
@@ -578,7 +579,7 @@ class WrappedRecordBlockHashMigrationTest {
     }
 
     private static Bytes fillHash(byte b) {
-        final var bytes = new byte[HASH_SIZE];
+        final var bytes = new byte[SHA_384_HASH_SIZE];
         java.util.Arrays.fill(bytes, b);
         return Bytes.wrap(bytes);
     }
@@ -606,26 +607,26 @@ class WrappedRecordBlockHashMigrationTest {
     private static BlockStreamJumpstartConfig defaultJumpstartConfig() {
         return new BlockStreamJumpstartConfig(
                 -1,
-                Bytes.wrap(new byte[HASH_SIZE]),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]),
                 0,
                 0,
                 List.of(),
-                Bytes.wrap(new byte[HASH_SIZE]),
-                Bytes.wrap(new byte[HASH_SIZE]));
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]));
     }
 
     private static BlockStreamJumpstartConfig jumpstartConfig(long blockNumber, long leafCount, int numHashes) {
         final List<Bytes> subtreeHashes = new ArrayList<>(numHashes);
         for (int i = 0; i < numHashes; i++) {
-            subtreeHashes.add(Bytes.wrap(new byte[HASH_SIZE]));
+            subtreeHashes.add(Bytes.wrap(new byte[SHA_384_HASH_SIZE]));
         }
         return new BlockStreamJumpstartConfig(
                 blockNumber,
-                Bytes.wrap(new byte[HASH_SIZE]),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]),
                 leafCount,
                 numHashes,
                 subtreeHashes,
-                Bytes.wrap(new byte[HASH_SIZE]),
-                Bytes.wrap(new byte[HASH_SIZE]));
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]),
+                Bytes.wrap(new byte[SHA_384_HASH_SIZE]));
     }
 }

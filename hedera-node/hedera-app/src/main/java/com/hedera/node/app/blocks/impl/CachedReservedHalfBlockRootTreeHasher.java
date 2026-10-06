@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
@@ -38,7 +41,8 @@ public final class CachedReservedHalfBlockRootTreeHasher implements BlockRootTre
      * <p>When a reserved branch is first assigned, this shortcut no longer holds and this implementation must
      * fold that half for real, as {@link StreamingBlockRootTreeHasher} already does.
      */
-    public static final Bytes EMPTY_RESERVED_HALF = StreamingBlockRootTreeHasher.streamedRootOf(reservedSlots());
+    public static final Bytes EMPTY_RESERVED_HALF =
+            StreamingBlockRootTreeHasher.streamedRootOf(CommonUtils::sha384DigestOrThrow, reservedSlots());
 
     @Override
     public RootAndSiblingHashes computeRootAndSiblings(
@@ -53,16 +57,19 @@ public final class CachedReservedHalfBlockRootTreeHasher implements BlockRootTre
             }
         }
 
-        final var branches12 = BlockImplUtils.hashInternalNode(slots[0], slots[1]);
-        final var branches34 = BlockImplUtils.hashInternalNode(slots[2], slots[3]);
-        final var branches56 = BlockImplUtils.hashInternalNode(slots[4], slots[5]);
-        final var branches78 = BlockImplUtils.hashInternalNode(slots[6], slots[7]);
-        final var branches1234 = BlockImplUtils.hashInternalNode(branches12, branches34);
-        final var branches5678 = BlockImplUtils.hashInternalNode(branches56, branches78);
-        final var assignedHalfRootHash = BlockImplUtils.hashInternalNode(branches1234, branches5678);
+        final var branches12 = BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), slots[0], slots[1]);
+        final var branches34 = BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), slots[2], slots[3]);
+        final var branches56 = BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), slots[4], slots[5]);
+        final var branches78 = BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), slots[6], slots[7]);
+        final var branches1234 = BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), branches12, branches34);
+        final var branches5678 = BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), branches56, branches78);
+        final var assignedHalfRootHash =
+                BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), branches1234, branches5678);
 
-        final var subtreesRootHash = BlockImplUtils.hashInternalNode(assignedHalfRootHash, EMPTY_RESERVED_HALF);
-        final var blockRootHash = BlockImplUtils.hashInternalNode(timestampLeafHash, subtreesRootHash);
+        final var subtreesRootHash =
+                BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), assignedHalfRootHash, EMPTY_RESERVED_HALF);
+        final var blockRootHash =
+                BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), timestampLeafHash, subtreesRootHash);
 
         // The right sibling of branch 1's ancestor at each level, bottom-up
         final var siblings = new MerkleSiblingHash[] {

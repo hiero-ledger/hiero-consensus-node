@@ -128,18 +128,6 @@ public final class BlockRootTree {
     }
 
     /**
-     * Computes a block's root hash from an unhashed consensus timestamp.
-     *
-     * @param consensusTimestamp the block's first consensus timestamp
-     * @param slots the assigned branch roots
-     * @return the block root hash
-     */
-    public static Bytes computeBlockRootHash(
-            @NonNull final Timestamp consensusTimestamp, @NonNull final Bytes... slots) {
-        return computeBlockRootHash(hashTimestampLeaf(consensusTimestamp), slots);
-    }
-
-    /**
      * Computes a block's root hash using the given digest, for callers that need a configurable hash algorithm.
      *
      * @param digestFactory supplies a fresh {@link MessageDigest} for each hashing step
@@ -177,16 +165,6 @@ public final class BlockRootTree {
         final var paddedSlots = withReservedSlots(slots, BlockRootTreeHasher.emptySubtreeFor(digestFactory.get()));
         final var subtreesRootHash = StreamingBlockRootTreeHasher.streamedRootOf(digestFactory, paddedSlots);
         return BlockImplUtils.hashInternalNode(digestFactory.get(), timestampLeafHash, subtreesRootHash);
-    }
-
-    /**
-     * Hashes a consensus timestamp as the block root's left-hand leaf.
-     *
-     * @param consensusTimestamp the timestamp to hash
-     * @return the leaf hash
-     */
-    public static Bytes hashTimestampLeaf(@NonNull final Timestamp consensusTimestamp) {
-        return BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(requireNonNull(consensusTimestamp)));
     }
 
     /**

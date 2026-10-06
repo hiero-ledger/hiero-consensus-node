@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.freeze;
 
-import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
+import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.RECORD_HASH_SIZE;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.services.bdd.junit.TestTags.RESTART;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_STREAMS_DIR;
@@ -361,12 +361,12 @@ class JumpstartFileSuite implements LifecycleTest {
         // Verify block stream info fields derived from BlockInfo
         assertTrue(log.contains("Cutover initial BlockStreamInfo:"), "Log should contain cutover BSI dump");
         assertLogContains(log, "blockNumber", bi.lastBlockNumber());
-        // trailingBlockHashes = blockHashes minus last HASH_SIZE (off-by-one)
+        // trailingBlockHashes = blockHashes minus the last record hash (off-by-one)
         final var fullBlockHashes = bi.blockHashes().toByteArray();
-        final var expectedTrailingBlockHashes = Bytes.wrap(fullBlockHashes, 0, fullBlockHashes.length - HASH_SIZE);
+        final var expectedTrailingBlockHashes =
+                Bytes.wrap(fullBlockHashes, 0, fullBlockHashes.length - RECORD_HASH_SIZE);
         assertLogContains(log, "trailingBlockHashes", expectedTrailingBlockHashes.toHex());
-        // trailingOutputHashes must be exactly the final four record stream running hashes; these remain
-        // chained SHA-384 (48 bytes), independent of the block-root Merkle tree's HASH_SIZE (SHA-256-sized)
+        // trailingOutputHashes must be exactly the final four record stream running hashes (SHA-384)
         final var rh = capturedRunningHashes.get();
         Bytes expectedOutputHashes =
                 BlockImplUtils.appendHash(Bytes.wrap(rh.nMinus3RunningHash().toByteArray()), Bytes.EMPTY, 4);

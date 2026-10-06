@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.impl;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.MessageDigest;
@@ -37,8 +38,9 @@ public final class StreamingBlockRootTreeHasher implements BlockRootTreeHasher {
             @NonNull final Bytes timestampLeafHash, @NonNull final Bytes... slots) {
         BlockRootTreeHasher.validate(timestampLeafHash, slots);
 
-        final var subtreesRootHash = streamedRootOf(slots);
-        final var blockRootHash = BlockImplUtils.hashInternalNode(timestampLeafHash, subtreesRootHash);
+        final var subtreesRootHash = streamedRootOf(CommonUtils::sha384DigestOrThrow, slots);
+        final var blockRootHash =
+                BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), timestampLeafHash, subtreesRootHash);
 
         // Branch 1 is the leftmost leaf, so the sibling at level i is the root of the branch range
         // [2^i, 2^(i+1)) — the half of branch 1's ancestor that branch 1 is not in
@@ -46,23 +48,10 @@ public final class StreamingBlockRootTreeHasher implements BlockRootTreeHasher {
         for (int level = 0; level < SIBLING_COUNT; level++) {
             final int from = 1 << level;
             final int to = from << 1;
-            siblings[level] = new MerkleSiblingHash(false, streamedRootOf(Arrays.copyOfRange(slots, from, to)));
+            siblings[level] = new MerkleSiblingHash(
+                    false, streamedRootOf(CommonUtils::sha384DigestOrThrow, Arrays.copyOfRange(slots, from, to)));
         }
         return new RootAndSiblingHashes(blockRootHash, siblings);
-    }
-
-    /**
-     * Folds pre-hashed nodes into a single root with {@link IncrementalStreamingHasher}.
-     *
-     * @param nodes the pre-hashed nodes
-     * @return the root hash
-     */
-    public static Bytes streamedRootOf(@NonNull final Bytes[] nodes) {
-        final var hasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0);
-        for (final var node : nodes) {
-            hasher.addNodeByHash(node.toByteArray());
-        }
-        return Bytes.wrap(hasher.computeRootHash());
     }
 
     /**

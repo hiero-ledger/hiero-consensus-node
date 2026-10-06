@@ -8,6 +8,7 @@ import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.FINAL_NEX
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.ROOT_HASH_MERKLE_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.SIGNED_BLOCK_SIBLING_COUNT;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.UNSIGNED_BLOCK_SIBLING_COUNT;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -776,7 +777,7 @@ class IndirectProofSequenceValidator {
                                                 "2d1149d3e744ac28a809b89959869d7432f29f5998d1000abe92a28501a8369f9af2d9cc8ae7ae7f308d3258ccac955c"))
                                 .build()
                     };
-            final var hashedTs9Bytes = hashLeaf(BLOCK_9.timestampBytes());
+            final var hashedTs9Bytes = hashLeaf(sha384DigestOrThrow(), BLOCK_9.timestampBytes());
             final var proof8 = BlockProof.newBuilder()
                     .block(8)
                     .blockStateProof(StateProof.newBuilder()

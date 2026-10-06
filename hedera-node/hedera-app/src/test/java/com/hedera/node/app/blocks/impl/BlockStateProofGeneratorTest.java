@@ -7,6 +7,7 @@ import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.EXPECTED_
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.FINAL_NEXT_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.ROOT_HASH_MERKLE_PATH_INDEX;
 import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.UNSIGNED_BLOCK_SIBLING_COUNT;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
@@ -288,7 +289,7 @@ class BlockStateProofGeneratorTest {
         for (int i = 0; i < paths.size(); i++) {
             final var path = paths.get(i);
             if (path.hasTimestampLeaf()) {
-                pathHashes[i] = BlockImplUtils.hashLeaf(path.timestampLeafOrThrow());
+                pathHashes[i] = BlockImplUtils.hashLeaf(sha384DigestOrThrow(), path.timestampLeafOrThrow());
             } else if (!path.siblings().isEmpty()) {
                 // In a valid state proof only mp2 (BLOCK_CONTENTS_PATH_INDEX) carries siblings.
                 // If mp3 or mp4 were to have siblings the hash check below would incorrectly pass
@@ -303,9 +304,9 @@ class BlockStateProofGeneratorTest {
                 for (final SiblingNode sibling : path.siblings()) {
                     if (sibling.isLeft()) {
                         // Left sibling is an indirect block's consensus timestamp
-                        current = BlockImplUtils.hashInternalNode(sibling.hash(), current);
+                        current = BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), sibling.hash(), current);
                     } else {
-                        current = BlockImplUtils.hashInternalNode(current, sibling.hash());
+                        current = BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), current, sibling.hash());
                     }
                 }
                 pathHashes[i] = current;
@@ -324,7 +325,8 @@ class BlockStateProofGeneratorTest {
                     }
                 }
                 if (timestampChildHash != null && otherChildHash != null) {
-                    pathHashes[i] = BlockImplUtils.hashInternalNode(timestampChildHash, otherChildHash);
+                    pathHashes[i] =
+                            BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), timestampChildHash, otherChildHash);
                 }
             }
         }
@@ -453,15 +455,17 @@ class BlockStateProofGeneratorTest {
                 final var currentSibling = allMp2Hashes.get(i);
                 if (currentSibling.isLeft()) {
                     // Left sibling is an indirect block's consensus timestamp
-                    finalHash = BlockImplUtils.hashInternalNode(currentSibling.hash(), finalHash);
+                    finalHash =
+                            BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), currentSibling.hash(), finalHash);
                 } else {
-                    finalHash = BlockImplUtils.hashInternalNode(finalHash, currentSibling.hash());
+                    finalHash =
+                            BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), finalHash, currentSibling.hash());
                 }
             }
 
             // Combine the signed block's sub-tree root with its timestamp to reach the signed block root hash
-            final var expectedHashedTsBytes = BlockImplUtils.hashLeaf(expectedSignedTsBytes);
-            finalHash = BlockImplUtils.hashInternalNode(expectedHashedTsBytes, finalHash);
+            final var expectedHashedTsBytes = BlockImplUtils.hashLeaf(sha384DigestOrThrow(), expectedSignedTsBytes);
+            finalHash = BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), expectedHashedTsBytes, finalHash);
             Assertions.assertThat(finalHash).isEqualTo(expectedFinalBlockHash);
             System.out.println("Verified merkle path two for block " + outerCurrentBlockNum
                     + " produces expected signed block hash " + expectedFinalBlockHash);

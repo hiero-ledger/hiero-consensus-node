@@ -7,7 +7,7 @@ import static com.hedera.node.app.blocks.BlockHashSigner.Request.LIST_OF_PARTIAL
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.BlockRecordService.GENESIS_BLOCK_INFO;
 import static com.hedera.node.app.records.BlockRecordService.GENESIS_RUNNING_HASHES;
-import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
+import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.RECORD_HASH_SIZE;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
@@ -310,7 +310,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         // Get static configuration that is assumed not to change while the node is running
         final var recordStreamConfig = configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class);
         this.blockPeriodInSeconds = recordStreamConfig.logPeriod();
-        this.numBlockHashesToKeepBytes = recordStreamConfig.numOfBlockHashesInState() * HASH_SIZE;
+        this.numBlockHashesToKeepBytes = recordStreamConfig.numOfBlockHashesInState() * RECORD_HASH_SIZE;
         this.maxSideCarSizeInBytes = recordStreamConfig.sidecarMaxSizeMb() * 1024 * 1024;
         this.recordFileVersion = recordStreamConfig.recordFileVersion();
 
@@ -1307,15 +1307,21 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         byte[] newBlockHashesBytes;
         if (blockHashesBytes.length < numBlockHashesToKeepBytes) {
             // append new hash bytes to end
-            newBlockHashesBytes = new byte[blockHashesBytes.length + HASH_SIZE];
+            newBlockHashesBytes = new byte[blockHashesBytes.length + RECORD_HASH_SIZE];
             System.arraycopy(blockHashesBytes, 0, newBlockHashesBytes, 0, blockHashesBytes.length);
-            hashOfJustFinishedBlock.getBytes(0, newBlockHashesBytes, newBlockHashesBytes.length - HASH_SIZE, HASH_SIZE);
+            hashOfJustFinishedBlock.getBytes(
+                    0, newBlockHashesBytes, newBlockHashesBytes.length - RECORD_HASH_SIZE, RECORD_HASH_SIZE);
         } else {
-            // shift bytes left by HASH_SIZE and then set new hash bytes to at end HASH_SIZE bytes
+            // shift bytes left by RECORD_HASH_SIZE and then set new hash bytes to at end RECORD_HASH_SIZE bytes
             newBlockHashesBytes = blockHashesBytes;
             System.arraycopy(
-                    newBlockHashesBytes, HASH_SIZE, newBlockHashesBytes, 0, newBlockHashesBytes.length - HASH_SIZE);
-            hashOfJustFinishedBlock.getBytes(0, newBlockHashesBytes, newBlockHashesBytes.length - HASH_SIZE, HASH_SIZE);
+                    newBlockHashesBytes,
+                    RECORD_HASH_SIZE,
+                    newBlockHashesBytes,
+                    0,
+                    newBlockHashesBytes.length - RECORD_HASH_SIZE);
+            hashOfJustFinishedBlock.getBytes(
+                    0, newBlockHashesBytes, newBlockHashesBytes.length - RECORD_HASH_SIZE, RECORD_HASH_SIZE);
         }
         return new BlockInfo(
                 justFinishedBlockNumber,
@@ -1348,14 +1354,20 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final byte[] blockHashesBytes = lastBlockInfo.blockHashes().toByteArray();
         byte[] newBlockHashesBytes;
         if (blockHashesBytes.length < numBlockHashesToKeepBytes) {
-            newBlockHashesBytes = new byte[blockHashesBytes.length + HASH_SIZE];
+            newBlockHashesBytes = new byte[blockHashesBytes.length + RECORD_HASH_SIZE];
             System.arraycopy(blockHashesBytes, 0, newBlockHashesBytes, 0, blockHashesBytes.length);
-            hashOfJustFinishedBlock.getBytes(0, newBlockHashesBytes, newBlockHashesBytes.length - HASH_SIZE, HASH_SIZE);
+            hashOfJustFinishedBlock.getBytes(
+                    0, newBlockHashesBytes, newBlockHashesBytes.length - RECORD_HASH_SIZE, RECORD_HASH_SIZE);
         } else {
             newBlockHashesBytes = blockHashesBytes;
             System.arraycopy(
-                    newBlockHashesBytes, HASH_SIZE, newBlockHashesBytes, 0, newBlockHashesBytes.length - HASH_SIZE);
-            hashOfJustFinishedBlock.getBytes(0, newBlockHashesBytes, newBlockHashesBytes.length - HASH_SIZE, HASH_SIZE);
+                    newBlockHashesBytes,
+                    RECORD_HASH_SIZE,
+                    newBlockHashesBytes,
+                    0,
+                    newBlockHashesBytes.length - RECORD_HASH_SIZE);
+            hashOfJustFinishedBlock.getBytes(
+                    0, newBlockHashesBytes, newBlockHashesBytes.length - RECORD_HASH_SIZE, RECORD_HASH_SIZE);
         }
         return new BlockInfo(
                 justFinishedBlockNumber,

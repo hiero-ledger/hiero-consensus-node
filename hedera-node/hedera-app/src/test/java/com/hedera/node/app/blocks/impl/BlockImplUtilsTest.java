@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -18,7 +19,7 @@ class BlockImplUtilsTest {
     void testCombineNormalCase() throws NoSuchAlgorithmException {
         byte[] leftHash = MessageDigest.getInstance("SHA-256").digest("left".getBytes());
         byte[] rightHash = MessageDigest.getInstance("SHA-256").digest("right".getBytes());
-        byte[] combinedHash = BlockImplUtils.combine(leftHash, rightHash);
+        byte[] combinedHash = BlockImplUtils.combine(sha384DigestOrThrow(), leftHash, rightHash);
 
         assertNotNull(combinedHash);
         assertEquals(48, combinedHash.length); // no digest specified defaults to SHA-384, 48-byte hash
@@ -27,7 +28,7 @@ class BlockImplUtilsTest {
     @Test
     void testCombineEmptyHashes() throws NoSuchAlgorithmException {
         byte[] emptyHash = MessageDigest.getInstance("SHA-256").digest(new byte[0]);
-        byte[] combinedHash = BlockImplUtils.combine(emptyHash, emptyHash);
+        byte[] combinedHash = BlockImplUtils.combine(sha384DigestOrThrow(), emptyHash, emptyHash);
 
         assertNotNull(combinedHash);
         assertEquals(48, combinedHash.length); // no digest specified defaults to SHA-384, 48-byte hash
@@ -37,8 +38,8 @@ class BlockImplUtilsTest {
     void testCombineDifferentHashes() throws NoSuchAlgorithmException {
         byte[] leftHash = MessageDigest.getInstance("SHA-256").digest("left".getBytes());
         byte[] rightHash = MessageDigest.getInstance("SHA-256").digest("right".getBytes());
-        byte[] combinedHash1 = BlockImplUtils.combine(leftHash, rightHash);
-        byte[] combinedHash2 = BlockImplUtils.combine(rightHash, leftHash);
+        byte[] combinedHash1 = BlockImplUtils.combine(sha384DigestOrThrow(), leftHash, rightHash);
+        byte[] combinedHash2 = BlockImplUtils.combine(sha384DigestOrThrow(), rightHash, leftHash);
 
         assertNotNull(combinedHash1);
         assertNotNull(combinedHash2);
@@ -48,21 +49,23 @@ class BlockImplUtilsTest {
     @SuppressWarnings("DataFlowIssue")
     @Test
     void testCombineWithNull() {
-        assertThrows(NullPointerException.class, () -> BlockImplUtils.combine(null, new byte[0]));
-        assertThrows(NullPointerException.class, () -> BlockImplUtils.combine(new byte[0], null));
+        assertThrows(
+                NullPointerException.class, () -> BlockImplUtils.combine(sha384DigestOrThrow(), null, new byte[0]));
+        assertThrows(
+                NullPointerException.class, () -> BlockImplUtils.combine(sha384DigestOrThrow(), new byte[0], null));
     }
 
     @SuppressWarnings("DataFlowIssue")
     @Test
     void hashLeafByteArrayWithNullParamsThrows() {
-        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf((byte[]) null));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf(sha384DigestOrThrow(), (byte[]) null));
         assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf(sha256DigestOrThrow(), (byte[]) null));
     }
 
     @SuppressWarnings("DataFlowIssue")
     @Test
     void hashLeafBytesWithNullParamsThrows() {
-        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf((Bytes) null));
+        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf(sha384DigestOrThrow(), (Bytes) null));
         assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf(sha256DigestOrThrow(), (Bytes) null));
         assertThrows(NullPointerException.class, () -> BlockImplUtils.hashLeaf(null, Bytes.EMPTY));
     }
@@ -81,11 +84,11 @@ class BlockImplUtilsTest {
         assertEquals(expected, computed);
 
         // Test the Bytes overload (no digest specified defaults to SHA-384)
-        final Bytes actual = BlockImplUtils.hashLeaf(data);
+        final Bytes actual = BlockImplUtils.hashLeaf(sha384DigestOrThrow(), data);
         assertEquals(expectedDefaultDigest, actual);
 
         // Test the byte array overload (no digest specified defaults to SHA-384)
-        final byte[] actualArray = BlockImplUtils.hashLeaf(data.toByteArray());
+        final byte[] actualArray = BlockImplUtils.hashLeaf(sha384DigestOrThrow(), data.toByteArray());
         assertArrayEquals(expectedDefaultDigest.toByteArray(), actualArray);
 
         // Test byte array + digest overload
@@ -97,22 +100,34 @@ class BlockImplUtilsTest {
     @SuppressWarnings("DataFlowIssue")
     @Test
     void hashInternalNodeBytesWithNullParamsThrows() {
-        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(null, Bytes.EMPTY));
-        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(Bytes.EMPTY, (Bytes) null));
+        assertThrows(
+                NullPointerException.class,
+                () -> BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), null, Bytes.EMPTY));
+        assertThrows(
+                NullPointerException.class,
+                () -> BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), Bytes.EMPTY, (Bytes) null));
     }
 
     @SuppressWarnings("DataFlowIssue")
     @Test
     void hashInternalNodeByteArrayWithNullParamsThrows() {
-        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode((byte[]) null, new byte[0]));
-        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(new byte[0], null));
+        assertThrows(
+                NullPointerException.class,
+                () -> BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), (byte[]) null, new byte[0]));
+        assertThrows(
+                NullPointerException.class,
+                () -> BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), new byte[0], null));
     }
 
     @SuppressWarnings("DataFlowIssue")
     @Test
     void hashInternalNodeMixedWithNullParamsThrows() {
-        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode((Bytes) null, new byte[0]));
-        assertThrows(NullPointerException.class, () -> BlockImplUtils.hashInternalNode(Bytes.EMPTY, (byte[]) null));
+        assertThrows(
+                NullPointerException.class,
+                () -> BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), (Bytes) null, new byte[0]));
+        assertThrows(
+                NullPointerException.class,
+                () -> BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), Bytes.EMPTY, (byte[]) null));
     }
 
     @SuppressWarnings("DataFlowIssue")
@@ -144,13 +159,13 @@ class BlockImplUtilsTest {
         assertEquals(expected, computed);
 
         // Test the Bytes overload (no digest specified defaults to SHA-384)
-        final Bytes actualFromBytes = BlockImplUtils.hashInternalNode(data1, data2);
+        final Bytes actualFromBytes = BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), data1, data2);
         assertEquals(expectedDefaultDigest, actualFromBytes);
 
         // Test the byte arrays overload (no digest specified defaults to SHA-384)
         final byte[] data1Array = data1.toByteArray();
         final byte[] data2Array = data2.toByteArray();
-        final byte[] actualFromArrays = BlockImplUtils.hashInternalNode(data1Array, data2Array);
+        final byte[] actualFromArrays = BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), data1Array, data2Array);
         assertArrayEquals(expectedDefaultDigest.toByteArray(), actualFromArrays);
 
         // Test the explicit digest overload
@@ -266,8 +281,9 @@ class BlockImplUtilsTest {
         digest.update(BlockImplUtils.LEAF_PREFIX);
         // 70de4281b61ccc51ce0d1ef69cd28a4e28c2e6be36dc0be230d9d090ce07c94a
         final var computedLeafPrefix = Bytes.wrap(digest.digest(data.toByteArray()));
-        // BlockImplUtils.hashLeaf(Bytes) with no digest specified defaults to SHA-384, not SHA-256
-        final var actualLeafPrefix = BlockImplUtils.hashLeaf(data);
+        // BlockImplUtils.hashLeaf(sha384DigestOrThrow(), Bytes) with no digest specified defaults to SHA-384, not
+        // SHA-256
+        final var actualLeafPrefix = BlockImplUtils.hashLeaf(sha384DigestOrThrow(), data);
         assertNotEquals(computedLeafPrefix, actualLeafPrefix);
         assertNotEquals(computedNoPrefix, actualLeafPrefix);
 
@@ -277,13 +293,15 @@ class BlockImplUtilsTest {
         data.writeTo(digest);
         // f7396629d18804df928e70c1c54085a482ecba86e676349433d6eb2d357ba252
         final var computedInternalNodePrefix = Bytes.wrap(digest.digest());
-        // BlockImplUtils.hashInternalNode(Bytes, Bytes) with no digest specified defaults to SHA-384, not SHA-256
-        final var actualInternalNodePrefix = BlockImplUtils.hashInternalNode(data, data);
+        // BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), Bytes, Bytes) with no digest specified defaults to
+        // SHA-384, not SHA-256
+        final var actualInternalNodePrefix = BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), data, data);
         assertNotEquals(computedInternalNodePrefix, actualInternalNodePrefix);
         assertNotEquals(computedNoPrefix, actualInternalNodePrefix);
 
         // Test the mixed param types variant
-        final var actualInternalMixedPrefix = BlockImplUtils.hashInternalNode(data, data.toByteArray());
+        final var actualInternalMixedPrefix =
+                BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), data, data.toByteArray());
         // Only equality check needed, as previous checks already guarantee the no prefix case is different
         assertEquals(actualInternalNodePrefix, actualInternalMixedPrefix);
     }

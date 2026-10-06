@@ -2,7 +2,6 @@
 package com.hedera.node.app.records.impl;
 
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
-import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -49,7 +48,7 @@ class BlockStreamInfoImplTest {
 
     /** A distinct, deterministic 48-byte (SHA-384-length) hash filled with the given byte. */
     private static Bytes hash(final int seed) {
-        final var bytes = new byte[HASH_SIZE];
+        final var bytes = new byte[DigestType.SHA_384.digestLength()];
         java.util.Arrays.fill(bytes, (byte) seed);
         return Bytes.wrap(bytes);
     }

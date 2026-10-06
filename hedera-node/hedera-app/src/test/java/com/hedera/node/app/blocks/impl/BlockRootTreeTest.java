@@ -5,13 +5,16 @@ import static com.hedera.node.app.blocks.BlockStreamManager.NUM_SIBLINGS_PER_BLO
 import static com.hedera.node.app.blocks.impl.BlockRootTreeHasher.ASSIGNED_SLOT_COUNT;
 import static com.hedera.node.app.blocks.impl.BlockRootTreeHasher.EMPTY_SUBTREE;
 import static com.hedera.node.app.blocks.impl.BlockRootTreeHasher.SLOT_COUNT;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.Arrays;
 import java.util.SplittableRandom;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -21,6 +24,8 @@ import org.junit.jupiter.api.Test;
  */
 class BlockRootTreeTest {
     private static final Timestamp A_TIMESTAMP = new Timestamp(1_700_000_000L, 123_456_789);
+    private static final Bytes A_TIMESTAMP_LEAF =
+            BlockImplUtils.hashLeaf(sha384DigestOrThrow(), Timestamp.PROTOBUF.toBytes(A_TIMESTAMP));
 
     @Test
     @DisplayName("the assigned branches are padded with empty reserved branches")
@@ -31,7 +36,7 @@ class BlockRootTreeTest {
         System.arraycopy(assigned, 0, allSlots, 0, ASSIGNED_SLOT_COUNT);
         Arrays.fill(allSlots, ASSIGNED_SLOT_COUNT, SLOT_COUNT, EMPTY_SUBTREE);
 
-        final var timestampLeaf = BlockRootTree.hashTimestampLeaf(A_TIMESTAMP);
+        final var timestampLeaf = A_TIMESTAMP_LEAF;
         assertThat(BlockRootTree.computeBlockRootHash(timestampLeaf, assigned))
                 .isEqualTo(StreamingBlockRootTreeHasher.INSTANCE.computeBlockRootHash(timestampLeaf, allSlots));
     }
@@ -40,22 +45,14 @@ class BlockRootTreeTest {
     @DisplayName("the timestamp overload matches hashing the timestamp leaf first")
     void timestampOverloadMatchesTheHashedLeaf() {
         final var assigned = randomSlots(ASSIGNED_SLOT_COUNT);
-        assertThat(BlockRootTree.computeBlockRootHash(A_TIMESTAMP, assigned))
-                .isEqualTo(BlockRootTree.computeBlockRootHash(BlockRootTree.hashTimestampLeaf(A_TIMESTAMP), assigned));
-    }
-
-    @Test
-    @DisplayName("the timestamp leaf is the protobuf encoding hashed as a leaf")
-    void timestampLeafIsTheHashedProtobufEncoding() {
-        assertThat(BlockRootTree.hashTimestampLeaf(A_TIMESTAMP))
-                .isEqualTo(BlockImplUtils.hashLeaf(Timestamp.PROTOBUF.toBytes(A_TIMESTAMP)));
+        assertThat(BlockRootTree.computeBlockRootHash(CommonUtils::sha384DigestOrThrow, A_TIMESTAMP, assigned))
+                .isEqualTo(BlockRootTree.computeBlockRootHash(A_TIMESTAMP_LEAF, assigned));
     }
 
     @Test
     @DisplayName("a block carries NUM_SIBLINGS_PER_BLOCK siblings")
     void siblingCountMatchesTheProofConstant() {
-        assertThat(BlockRootTree.computeRootAndSiblings(
-                                BlockRootTree.hashTimestampLeaf(A_TIMESTAMP), randomSlots(ASSIGNED_SLOT_COUNT))
+        assertThat(BlockRootTree.computeRootAndSiblings(A_TIMESTAMP_LEAF, randomSlots(ASSIGNED_SLOT_COUNT))
                         .siblingHashes())
                 .hasSize(NUM_SIBLINGS_PER_BLOCK);
         assertThat(BlockRootTree.siblingCount()).isEqualTo(NUM_SIBLINGS_PER_BLOCK);
@@ -72,7 +69,7 @@ class BlockRootTreeTest {
     @Test
     @DisplayName("callers must supply exactly the assigned branches, not the full tree")
     void wrongAssignedSlotCountThrows() {
-        final var timestampLeaf = BlockRootTree.hashTimestampLeaf(A_TIMESTAMP);
+        final var timestampLeaf = A_TIMESTAMP_LEAF;
         final var allSixteen = randomSlots(SLOT_COUNT);
         assertThatThrownBy(() -> BlockRootTree.computeBlockRootHash(timestampLeaf, allSixteen))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -84,7 +81,7 @@ class BlockRootTreeTest {
     private static Bytes[] randomSlots(final int n) {
         final var slots = new Bytes[n];
         Arrays.setAll(slots, i -> {
-            final var bytes = new byte[BlockImplUtils.HASH_SIZE];
+            final var bytes = new byte[DigestType.SHA_384.digestLength()];
             for (int j = 0; j < bytes.length; j++) {
                 bytes[j] = (byte) RANDOM.nextInt(256);
             }

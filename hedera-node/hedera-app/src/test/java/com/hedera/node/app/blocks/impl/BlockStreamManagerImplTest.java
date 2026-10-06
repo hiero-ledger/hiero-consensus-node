@@ -14,7 +14,8 @@ import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashLeaf;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_LABEL;
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
+import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.RECORD_HASH_SIZE;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_LABEL;
 import static java.time.Instant.EPOCH;
@@ -127,6 +128,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class BlockStreamManagerImplTest {
+    private static final int SHA_384_HASH_SIZE = DigestType.SHA_384.digestLength();
 
     private static final SemanticVersion CREATION_VERSION = new SemanticVersion(1, 2, 3, "alpha.1", "2");
     private static final long ROUND_NO = 123L;
@@ -146,7 +148,8 @@ class BlockStreamManagerImplTest {
     // Effective last block hash computed by the restart path from blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION)
     private static final Bytes FAKE_EMPTY_RESULTS_RESTART_HASH = Bytes.fromHex(
             "4ee4a6159b50ecf7a5de17d0bc9e088a2a756167cc237158ce1cf6d969a1c33b9c5d715ba808fac80a082280c6f90b1f");
-    private static final Bytes N_MINUS_2_BLOCK_HASH = hashLeaf(Bytes.wrap((new byte[] {(byte) 0xAB})));
+    private static final Bytes N_MINUS_2_BLOCK_HASH =
+            hashLeaf(sha384DigestOrThrow(), Bytes.wrap((new byte[] {(byte) 0xAB})));
     private static final Bytes NONZERO_PREV_BLOCK_HASH =
             BlockImplUtils.appendHash(N_MINUS_2_BLOCK_HASH, Bytes.EMPTY, 256);
     private static final Bytes FIRST_FAKE_SIGNATURE = Bytes.fromHex("ff".repeat(48));
@@ -748,8 +751,8 @@ class BlockStreamManagerImplTest {
                 N_BLOCK_NO,
                 asTimestamp(CONSENSUS_NOW),
                 appendHash(
-                        combine(Bytes.wrap(new byte[HASH_SIZE]), FAKE_RESULT_HASH),
-                        appendHash(Bytes.wrap(new byte[HASH_SIZE]), Bytes.EMPTY, 4),
+                        combine(sha384DigestOrThrow(), Bytes.wrap(new byte[SHA_384_HASH_SIZE]), FAKE_RESULT_HASH),
+                        appendHash(Bytes.wrap(new byte[SHA_384_HASH_SIZE]), Bytes.EMPTY, 4),
                         4),
                 appendHash(FAKE_PATCH_RESTART_HASH, NONZERO_PREV_BLOCK_HASH, 256),
                 FAKE_SIGNED_TRANSACTION_HASHED,
@@ -1189,7 +1192,10 @@ class BlockStreamManagerImplTest {
         final var expectedBlockInfo = new BlockStreamInfo(
                 N_BLOCK_NO,
                 asTimestamp(CONSENSUS_NOW),
-                appendHash(combine(Bytes.fromHex("dd".repeat(48)), FAKE_RESULT_HASH), resultHashes, 4),
+                appendHash(
+                        combine(sha384DigestOrThrow(), Bytes.fromHex("dd".repeat(48)), FAKE_RESULT_HASH),
+                        resultHashes,
+                        4),
                 appendHash(FAKE_NON_EMPTY_RESULTS_RESTART_HASH, NONZERO_PREV_BLOCK_HASH, 256),
                 FAKE_SIGNED_TRANSACTION_HASHED,
                 HASH_OF_ZERO_384,
@@ -2197,8 +2203,8 @@ class BlockStreamManagerImplTest {
     void cutoverLoadsInMemoryStateWhenSchemaExecuted() {
         // When enableCutover=true, previewStreamOverwritten=true, and BlockStreamInfo.blockNumber matches
         // BlockInfo.lastBlockNumber, init should load in-memory structures from BlockInfo
-        final var wrappedHash = Bytes.wrap(new byte[HASH_SIZE]);
-        final var twoHashes = new byte[HASH_SIZE * 2];
+        final var wrappedHash = Bytes.wrap(new byte[SHA_384_HASH_SIZE]);
+        final var twoHashes = new byte[RECORD_HASH_SIZE * 2];
         final var blockInfo = BlockInfo.newBuilder()
                 .lastBlockNumber(100)
                 .blockHashes(Bytes.wrap(twoHashes))
@@ -2545,7 +2551,7 @@ class BlockStreamManagerImplTest {
     }
 
     private static Bytes leafHashOfItem(@NonNull final BlockItem item) {
-        return hashLeaf(BlockItem.PROTOBUF.toBytes(item));
+        return hashLeaf(sha384DigestOrThrow(), BlockItem.PROTOBUF.toBytes(item));
     }
 
     private void mockRoundWithTxnTimestamp(Instant timestamp) {

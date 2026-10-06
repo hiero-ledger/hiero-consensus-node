@@ -2,23 +2,17 @@
 package com.hedera.node.app.blocks.impl;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.hashOfAll;
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384HashOf;
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha384HashOfAll;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.MessageDigest;
-import org.hiero.base.crypto.DigestType;
 
 /**
  * Utility methods for block implementation.
  */
 public class BlockImplUtils {
-    /** The size in bytes of a single SHA-384 block hash. */
-    public static final int HASH_SIZE = DigestType.SHA_384.digestLength();
-
     public static final byte[] LEAF_PREFIX = {0x0};
     public static final Bytes LEAF_PREFIX_BYTES = Bytes.wrap(LEAF_PREFIX);
     public static final byte[] INTERNAL_NODE_PREFIX = {0x2};
@@ -57,22 +51,6 @@ public class BlockImplUtils {
     }
 
     /**
-     * Given a concatenated sequence of 48-byte block hashes, where the rightmost hash was for the given last block
-     * number, returns either the hash of the block at the given block number, or null if the block number is out of
-     * range. This is block-format agnostic: it is used both for the legacy {@code BlockInfo.blockHashes} and for the
-     * {@code BlockStreamInfo.trailingBlockHashes}.
-     *
-     * @param blockHashes the concatenated sequence of block hashes
-     * @param lastBlockNo the block number of the rightmost hash in the sequence
-     * @param blockNo the block number of the hash to return
-     * @return the hash of the block at the given block number if available, null otherwise
-     */
-    public static @Nullable Bytes blockHashByBlockNumber(
-            @NonNull final Bytes blockHashes, final long lastBlockNo, final long blockNo) {
-        return blockHashByBlockNumber(blockHashes, lastBlockNo, blockNo, HASH_SIZE);
-    }
-
-    /**
      * Given a concatenated sequence of fixed-size block hashes, where the rightmost hash was for the given last block
      * number, returns either the hash of the block at the given block number, or null if the block number is out of
      * range.
@@ -104,52 +82,12 @@ public class BlockImplUtils {
         }
     }
 
-    /**
-     * Hashes the given left and right hashes. Note: this method does <b>not</b> add any byte prefixes
-     * @param leftHash the left hash
-     * @param rightHash the right hash
-     * @return the combined hash
-     */
-    public static Bytes combine(@NonNull final Bytes leftHash, @NonNull final Bytes rightHash) {
-        return Bytes.wrap(combine(leftHash.toByteArray(), rightHash.toByteArray()));
-    }
-
-    /**
-     * Hashes the given left and right hashes. Note: this method does <b>not</b> add any byte prefixes
-     * @param leftHash the left hash
-     * @param rightHash the right hash
-     * @return the combined hash
-     */
-    public static byte[] combine(@NonNull final byte[] leftHash, @NonNull final byte[] rightHash) {
-        return sha384HashOfAll(leftHash, rightHash).toByteArray();
-    }
-
-    public static byte[] hashLeaf(@NonNull final byte[] leafData) {
-        return sha384HashOf(LEAF_PREFIX, leafData);
-    }
-
-    public static Bytes hashLeaf(@NonNull final Bytes leafData) {
-        return sha384HashOfAll(LEAF_PREFIX_BYTES, leafData);
-    }
-
     public static Bytes hashLeaf(@NonNull final MessageDigest digest, @NonNull final Bytes leafData) {
         return hashOfAll(digest, LEAF_PREFIX_BYTES, leafData);
     }
 
     public static byte[] hashLeaf(@NonNull final MessageDigest digest, @NonNull final byte[] leafData) {
         return hashOfAll(digest, LEAF_PREFIX, leafData);
-    }
-
-    public static Bytes hashInternalNode(@NonNull final Bytes leftHash, @NonNull final byte[] rightHash) {
-        return sha384HashOf(INTERNAL_NODE_PREFIX_BYTES, leftHash, rightHash);
-    }
-
-    public static Bytes hashInternalNode(@NonNull final Bytes leftHash, @NonNull final Bytes rightHash) {
-        return sha384HashOfAll(INTERNAL_NODE_PREFIX_BYTES, leftHash, rightHash);
-    }
-
-    public static byte[] hashInternalNode(@NonNull final byte[] leftHash, @NonNull final byte[] rightHash) {
-        return sha384HashOfAll(INTERNAL_NODE_PREFIX, leftHash, rightHash).toByteArray();
     }
 
     public static byte[] hashInternalNode(

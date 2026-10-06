@@ -5,6 +5,7 @@ import static com.hedera.node.app.blocks.impl.BlockRootTreeHasher.ASSIGNED_SLOT_
 import static com.hedera.node.app.blocks.impl.BlockRootTreeHasher.EMPTY_SUBTREE;
 import static com.hedera.node.app.blocks.impl.BlockRootTreeHasher.SIBLING_COUNT;
 import static com.hedera.node.app.blocks.impl.BlockRootTreeHasher.SLOT_COUNT;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.SplittableRandom;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -46,7 +48,8 @@ class BlockRootTreeHasherTest {
             "5028fe48c7fca408b16bd62b8089c8644be351cbc653e6786136ce144055d18f9495864b270772f664004eed7b97e6b7");
 
     private static final Timestamp A_TIMESTAMP = new Timestamp(1_700_000_000L, 123_456_789);
-    private static final Bytes A_TIMESTAMP_LEAF = BlockRootTree.hashTimestampLeaf(A_TIMESTAMP);
+    private static final Bytes A_TIMESTAMP_LEAF =
+            BlockImplUtils.hashLeaf(sha384DigestOrThrow(), Timestamp.PROTOBUF.toBytes(A_TIMESTAMP));
 
     /** Every implementation of the contract, so each test below runs against all of them. */
     static Stream<Arguments> allImplementations() {
@@ -69,7 +72,8 @@ class BlockRootTreeHasherTest {
         void reservedHalfMatchesSpec() {
             assertThat(CachedReservedHalfBlockRootTreeHasher.EMPTY_RESERVED_HALF)
                     .isEqualTo(EXPECTED_EMPTY_RESERVED_HALF);
-            assertThat(StreamingBlockRootTreeHasher.streamedRootOf(emptySlots(SLOT_COUNT / 2)))
+            assertThat(StreamingBlockRootTreeHasher.streamedRootOf(
+                            CommonUtils::sha384DigestOrThrow, emptySlots(SLOT_COUNT / 2)))
                     .isEqualTo(EXPECTED_EMPTY_RESERVED_HALF);
         }
 
@@ -77,7 +81,8 @@ class BlockRootTreeHasherTest {
         @MethodSource("com.hedera.node.app.blocks.impl.BlockRootTreeHasherTest#allImplementations")
         @DisplayName("a tree of sixteen empty branches matches the spec")
         void allEmptyRootMatchesSpec(final String name, final BlockRootTreeHasher hasher) {
-            final var expected = BlockImplUtils.hashInternalNode(A_TIMESTAMP_LEAF, EXPECTED_ALL_EMPTY_ROOT);
+            final var expected =
+                    BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), A_TIMESTAMP_LEAF, EXPECTED_ALL_EMPTY_ROOT);
             assertThat(hasher.computeBlockRootHash(A_TIMESTAMP_LEAF, emptySlots(SLOT_COUNT)))
                     .isEqualTo(expected);
         }
@@ -167,9 +172,9 @@ class BlockRootTreeHasherTest {
                 assertThat(sibling.isFirst())
                         .withFailMessage("Every sibling on branch 1's path is a right sibling")
                         .isFalse();
-                hash = BlockImplUtils.hashInternalNode(hash, sibling.siblingHash());
+                hash = BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), hash, sibling.siblingHash());
             }
-            hash = BlockImplUtils.hashInternalNode(A_TIMESTAMP_LEAF, hash);
+            hash = BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), A_TIMESTAMP_LEAF, hash);
 
             assertThat(hash).isEqualTo(actual.blockRootHash());
         }
@@ -182,9 +187,12 @@ class BlockRootTreeHasherTest {
 
             final var expected = List.of(
                     slots[1],
-                    StreamingBlockRootTreeHasher.streamedRootOf(Arrays.copyOfRange(slots, 2, 4)),
-                    StreamingBlockRootTreeHasher.streamedRootOf(Arrays.copyOfRange(slots, 4, 8)),
-                    StreamingBlockRootTreeHasher.streamedRootOf(Arrays.copyOfRange(slots, 8, 16)));
+                    StreamingBlockRootTreeHasher.streamedRootOf(
+                            CommonUtils::sha384DigestOrThrow, Arrays.copyOfRange(slots, 2, 4)),
+                    StreamingBlockRootTreeHasher.streamedRootOf(
+                            CommonUtils::sha384DigestOrThrow, Arrays.copyOfRange(slots, 4, 8)),
+                    StreamingBlockRootTreeHasher.streamedRootOf(
+                            CommonUtils::sha384DigestOrThrow, Arrays.copyOfRange(slots, 8, 16)));
 
             final var actual = Arrays.stream(hasher.computeRootAndSiblings(A_TIMESTAMP_LEAF, slots)
                             .siblingHashes())
@@ -239,7 +247,8 @@ class BlockRootTreeHasherTest {
         @DisplayName("streamedRootOf with SHA-256 differs from SHA-384 for the same input")
         void streamedRootOfSha256DiffersFromSha384() {
             final var slots = emptySlots(4);
-            final Bytes sha384Root = StreamingBlockRootTreeHasher.streamedRootOf(slots);
+            final Bytes sha384Root =
+                    StreamingBlockRootTreeHasher.streamedRootOf(CommonUtils::sha384DigestOrThrow, slots);
             final Bytes sha256Root =
                     StreamingBlockRootTreeHasher.streamedRootOf(CommonUtils::sha256DigestOrThrow, slots);
             assertThat(sha256Root).isNotEqualTo(sha384Root);
@@ -300,7 +309,7 @@ class BlockRootTreeHasherTest {
     private static final SplittableRandom RANDOM = new SplittableRandom(1_234_567L);
 
     private static Bytes randomHash() {
-        final var bytes = new byte[BlockImplUtils.HASH_SIZE];
+        final var bytes = new byte[DigestType.SHA_384.digestLength()];
         for (int i = 0; i < bytes.length; i++) {
             bytes[i] = (byte) RANDOM.nextInt(256);
         }

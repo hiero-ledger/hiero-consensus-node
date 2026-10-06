@@ -5,7 +5,7 @@ import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.appendHash;
 import static com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.blockDirFor;
 import static com.hedera.node.app.blocks.schemas.V0560BlockStreamSchema.BLOCK_STREAM_INFO_STATE_ID;
-import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
+import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.RECORD_HASH_SIZE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -117,12 +117,12 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
         // 2.1. Record block hashes (excluding the last hash); BlockHashManager.startBlock() will append
         // prevBlockHash to trailingBlockHashes, so write all but the final record hash to avoid an off-by-one
         final var fullBlockHashes = blockInfo.blockHashes().toByteArray();
-        if (fullBlockHashes.length < HASH_SIZE) {
+        if (fullBlockHashes.length < RECORD_HASH_SIZE) {
             throw new IllegalStateException(
                     "Cutover requires at least one record block hash in BlockInfo.blockHashes, but found "
-                            + fullBlockHashes.length + " bytes (need >= " + HASH_SIZE + ")");
+                            + fullBlockHashes.length + " bytes (need >= " + RECORD_HASH_SIZE + ")");
         }
-        final Bytes lastBlockHashes = Bytes.wrap(fullBlockHashes, 0, fullBlockHashes.length - HASH_SIZE);
+        final Bytes lastBlockHashes = Bytes.wrap(fullBlockHashes, 0, fullBlockHashes.length - RECORD_HASH_SIZE);
         Bytes lastFourHashes =
                 appendHash(Bytes.wrap(runningHashes.nMinus3RunningHash().toByteArray()), Bytes.EMPTY, 4);
         lastFourHashes =
