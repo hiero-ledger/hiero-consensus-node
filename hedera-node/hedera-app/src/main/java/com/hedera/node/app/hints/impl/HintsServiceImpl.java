@@ -273,8 +273,8 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         final var maybeGenesisNetwork = genesisTssNetwork(configuration);
         if (maybeGenesisNetwork.isPresent()) {
             logger.warn("Initializing dev-only hinTS genesis state and runtime from startup network JSON");
-            final var activeConstruction =
-                    TssStartupNetworks.initializeHintsState(writableStates, maybeGenesisNetwork.orElseThrow());
+            final var activeConstruction = TssStartupNetworks.initializeHintsState(
+                    writableStates, maybeGenesisNetwork.orElseThrow(), configuration);
             if (activeConstruction.hasHintsScheme()) {
                 setActiveConstruction(activeConstruction);
             }

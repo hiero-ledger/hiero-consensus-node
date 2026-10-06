@@ -197,8 +197,8 @@ public class HistoryServiceImpl implements HistoryService {
         final var maybeGenesisNetwork = genesisTssNetwork(configuration);
         if (maybeGenesisNetwork.isPresent()) {
             logger.warn("Initializing dev-only history genesis state and runtime from startup network JSON");
-            final var activeConstruction =
-                    TssStartupNetworks.initializeHistoryState(writableStates, maybeGenesisNetwork.orElseThrow());
+            final var activeConstruction = TssStartupNetworks.initializeHistoryState(
+                    writableStates, maybeGenesisNetwork.orElseThrow(), configuration);
             if (activeConstruction.hasTargetProof()) {
                 setLatestHistoryProof(activeConstruction.targetProofOrThrow());
             }

@@ -2,6 +2,8 @@
 package com.hedera.node.app.info;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -9,8 +11,10 @@ import com.hedera.node.app.tss.TssKeyFiles;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeTssMetadata;
+import com.hedera.node.internal.network.TssMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.state.spi.WritableStates;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
@@ -28,6 +32,52 @@ class TssStartupNetworksTest {
 
     @TempDir
     private Path tempDir;
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void doesNotInitializeHintsStateUnderProdProfile(final boolean globalMetadata) {
+        final var states = mock(WritableStates.class);
+        final var network = globalMetadata
+                ? Network.newBuilder()
+                        .tssMetadata(TssMetadata.newBuilder().activeHintsConstruction(hintsConstruction()))
+                        .build()
+                : networkWithSelfPrivateKeys();
+
+        assertThat(TssStartupNetworks.initializeHintsState(states, network, config("PROD")))
+                .isEqualTo(HintsConstruction.DEFAULT);
+
+        verifyNoInteractions(states);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void doesNotInitializeHistoryStateUnderProdProfile(final boolean globalMetadata) {
+        final var states = mock(WritableStates.class);
+        final var network = globalMetadata
+                ? Network.newBuilder()
+                        .tssMetadata(TssMetadata.newBuilder().activeProofConstruction(proofConstruction()))
+                        .build()
+                : networkWithSelfPrivateKeys();
+
+        assertThat(TssStartupNetworks.initializeHistoryState(states, network, config("PROD")))
+                .isEqualTo(HistoryProofConstruction.DEFAULT);
+
+        verifyNoInteractions(states);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"DEV", "TEST", "PROD"})
+    void doesNotInitializeStateWithoutTssMetadata(final String profile) {
+        final var states = mock(WritableStates.class);
+        final var config = config(profile);
+
+        assertThat(TssStartupNetworks.initializeHintsState(states, Network.DEFAULT, config))
+                .isEqualTo(HintsConstruction.DEFAULT);
+        assertThat(TssStartupNetworks.initializeHistoryState(states, Network.DEFAULT, config))
+                .isEqualTo(HistoryProofConstruction.DEFAULT);
+
+        verifyNoInteractions(states);
+    }
 
     @Test
     void embedsSelfPrivateKeysUnderNonProdProfile() {

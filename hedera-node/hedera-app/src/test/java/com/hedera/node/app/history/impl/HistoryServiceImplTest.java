@@ -40,7 +40,6 @@ import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeTssMetadata;
 import com.hedera.node.internal.network.TssMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
@@ -103,9 +102,6 @@ class HistoryServiceImplTest {
 
     @Mock
     private WritableKVState<NodeId, ProofKeySet> proofKeys;
-
-    @Mock
-    private Configuration configuration;
 
     private HistoryServiceImpl subject;
 

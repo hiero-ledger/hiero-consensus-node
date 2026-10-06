@@ -147,10 +147,13 @@ public final class TssStartupNetworks {
      * @return the active hinTS construction loaded from the network
      */
     public static HintsConstruction initializeHintsState(
-            @NonNull final WritableStates hintsStates, @NonNull final Network network) {
+            @NonNull final WritableStates hintsStates,
+            @NonNull final Network network,
+            @NonNull final Configuration config) {
         requireNonNull(hintsStates);
         requireNonNull(network);
-        if (!hasTssMetadata(network)) {
+        requireNonNull(config);
+        if (!shouldImportTssMetadata(network, config)) {
             return HintsConstruction.DEFAULT;
         }
         final var tssMetadata = network.tssMetadataOrElse(TssMetadata.DEFAULT);
@@ -200,10 +203,13 @@ public final class TssStartupNetworks {
      * @return the active history proof construction loaded from the network
      */
     public static HistoryProofConstruction initializeHistoryState(
-            @NonNull final WritableStates historyStates, @NonNull final Network network) {
+            @NonNull final WritableStates historyStates,
+            @NonNull final Network network,
+            @NonNull final Configuration config) {
         requireNonNull(historyStates);
         requireNonNull(network);
-        if (!hasTssMetadata(network)) {
+        requireNonNull(config);
+        if (!shouldImportTssMetadata(network, config)) {
             return HistoryProofConstruction.DEFAULT;
         }
         final var tssMetadata = network.tssMetadataOrElse(TssMetadata.DEFAULT);

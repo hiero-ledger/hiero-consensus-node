@@ -1798,10 +1798,12 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         }
         logger.warn("Initializing dev-only TSS state, runtime, and local private keys from override network JSON");
         final var writableHintsStates = initState.getWritableStates(HintsService.NAME);
-        final var activeHintsConstruction = TssStartupNetworks.initializeHintsState(writableHintsStates, network);
+        final var activeHintsConstruction =
+                TssStartupNetworks.initializeHintsState(writableHintsStates, network, config);
         ((CommittableWritableStates) writableHintsStates).commit();
         final var writableHistoryStates = initState.getWritableStates(HistoryService.NAME);
-        final var activeProofConstruction = TssStartupNetworks.initializeHistoryState(writableHistoryStates, network);
+        final var activeProofConstruction =
+                TssStartupNetworks.initializeHistoryState(writableHistoryStates, network, config);
         ((CommittableWritableStates) writableHistoryStates).commit();
         TssStartupNetworks.initializeRuntime(
                 activeHintsConstruction, activeProofConstruction, hintsService, historyService);
