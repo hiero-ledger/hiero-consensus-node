@@ -6,7 +6,6 @@ import com.hedera.hapi.node.base.TokenAssociation;
 import com.hedera.hapi.node.transaction.AssessedCustomFee;
 import com.hedera.node.app.service.token.impl.handlers.transfer.customfees.ItemizedAssessedFee;
 import com.hedera.node.app.spi.workflows.HandleContext;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Map;
 
@@ -32,10 +31,10 @@ public interface TransferContext {
      * Creates an account from the given alias. This is called when the account associated with alias
      * is not found in the account store.
      *
-     * @param alias                  the alias of the account
+     * @param aliasedId              the full account ID containing the alias
      * @param reqMaxAutoAssociations the maximum number of auto-associations allowed for the account
      */
-    void createFromAlias(Bytes alias, int reqMaxAutoAssociations);
+    void createFromAlias(AccountID aliasedId, int reqMaxAutoAssociations);
 
     /**
      * Returns the number of auto-creation of accounts in current transfer.
@@ -50,10 +49,12 @@ public interface TransferContext {
     int numOfLazyCreations();
 
     /**
-     * Returns the resolved accounts with alias and its account ID.
-     * @return the resolved accounts with alias and its account ID
+     * Returns resolutions keyed by the full input account ID, including shard and realm.
+     * Alias bytes alone are insufficient: long-zero aliases in different shards or realms
+     * can refer to different accounts, or to no account at all.
+     * @return the full aliased IDs and their canonical account IDs
      */
-    Map<Bytes, AccountID> resolutions();
+    Map<AccountID, AccountID> resolutions();
 
     /**
      * Returns whether the account was created from an alias in this transfer.

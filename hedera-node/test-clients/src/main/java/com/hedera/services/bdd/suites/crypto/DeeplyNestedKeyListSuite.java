@@ -77,7 +77,7 @@ public class DeeplyNestedKeyListSuite {
                 .key(deeplyNestedKeyList)
                 .payingWith(GENESIS)
                 .signedBy(GENESIS)
-                .hasPrecheck(BAD_ENCODING));
+                .hasKnownStatus(BAD_ENCODING));
     }
 
     @HapiTest

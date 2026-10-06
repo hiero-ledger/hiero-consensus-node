@@ -209,8 +209,6 @@ public abstract class GrpcTestBase extends TestBase {
                 userQueryWorkflow,
                 operatorQueryWorkflow,
                 new ClprSyncWorkflow() {
-                    @Override
-                    public void handleSync(Bytes req, BufferedData res) {}
 
                     @Override
                     public void handleDiscovery(Bytes req, BufferedData res) {}

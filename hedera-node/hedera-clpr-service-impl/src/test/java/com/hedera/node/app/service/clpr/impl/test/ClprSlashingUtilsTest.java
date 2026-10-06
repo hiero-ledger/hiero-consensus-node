@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.test;
 
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.CONNECTORS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.lenient;
@@ -106,7 +106,18 @@ class ClprSlashingUtilsTest {
     }
 
     @Test
-    @DisplayName("computePenalty handles overflow by capping at lockedStake")
+    @DisplayName("computePenalty caps at lockedStake when the intermediate product would overflow long")
+    void computePenaltyOverflowCapsAtLockedStake() {
+        // lockedStake = Long.MAX_VALUE ensures the `penalty >= lockedStake` guard never fires
+        // before the signed multiplication wraps. With basePenalty=1B and multiplier=3, overflow
+        // occurs at iteration 21 (1B * 3^20 ≈ 3.49e18 > Long.MAX_VALUE/3; next multiply wraps
+        // negative). The buggy code returns a negative value; correct code returns lockedStake.
+        assertThat(ClprSlashingUtils.computePenalty(1_000_000_000L, 3, 21, Long.MAX_VALUE))
+                .isEqualTo(Long.MAX_VALUE);
+    }
+
+    @Test
+    @DisplayName("computePenalty handles overflow by capping at lockedStake (small lockedStake)")
     void computePenaltyOverflow() {
         assertThat(ClprSlashingUtils.computePenalty(BASE_PENALTY, MULTIPLIER, 60, 100_000_000L))
                 .isEqualTo(100_000_000L);

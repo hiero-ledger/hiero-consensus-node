@@ -28,7 +28,8 @@ public class HashTests {
 
     @BeforeAll
     public static void setUp() throws ConstructableRegistryException {
-        ConstructableRegistry.getInstance().registerConstructable(new ClassConstructorPair(Hash.class, Hash::new));
+        ConstructableRegistry.getInstance()
+                .registerConstructable(new ClassConstructorPair(Hash.class, () -> new Hash(DigestType.SHA_384)));
     }
 
     @Test
@@ -38,7 +39,7 @@ public class HashTests {
 
         final Hash hash = new Hash(DigestType.SHA_384);
 
-        assertDoesNotThrow((ThrowingSupplier<Hash>) Hash::new);
+        assertDoesNotThrow((ThrowingSupplier<Hash>) () -> new Hash(DigestType.SHA_384));
         assertDoesNotThrow(() -> new Hash(nonZeroHashValue));
         assertDoesNotThrow(() -> new Hash(DigestType.SHA_384));
         assertDoesNotThrow(() -> new Hash(DigestType.SHA_512));
@@ -64,7 +65,7 @@ public class HashTests {
         ioStream.getOutput().writeSerializable(original, true);
         ioStream.startReading();
 
-        final Hash copy = ioStream.getInput().readSerializable(true, Hash::new);
+        final Hash copy = ioStream.getInput().readSerializable(true, () -> new Hash(DigestType.SHA_384));
         assertEquals(original, copy);
     }
 

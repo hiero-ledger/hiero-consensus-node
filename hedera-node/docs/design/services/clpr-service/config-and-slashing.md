@@ -23,7 +23,7 @@ others are node-local.
 |            Key            |            Default            | Network? |                                  Purpose                                   |
 |---------------------------|-------------------------------|----------|----------------------------------------------------------------------------|
 | `minLockedStake`          | `100 000 000` tinybars        | yes      | Required stake for `completeConnector`; transferred to `stakingAccount`.   |
-| `stakingAccount`          | `0.0.803` (account num `803`) | yes      | Custodian for locked connector stake; created at genesis or on upgrade.    |
+| `stakingAccount`          | `0.0.803` (account num `803`) | yes      | Holds locked connector stake; created at genesis/upgrade if CLPR enabled.  |
 | `slashBasePenalty`        | `10 000 000` tinybars         | yes      | Base slash on first offence.                                               |
 | `slashMultiplier`         | `2`                           | yes      | Geometric escalation factor per repeat offence.                            |
 | `slashBanThreshold`       | `5`                           | yes      | Cumulative offences after which a connector is banned.                     |
