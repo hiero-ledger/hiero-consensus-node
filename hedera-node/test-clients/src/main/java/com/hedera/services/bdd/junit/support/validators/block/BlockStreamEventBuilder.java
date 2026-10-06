@@ -32,6 +32,7 @@ import java.util.Map;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.HashingOutputStream;
+import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 
@@ -81,7 +82,7 @@ public class BlockStreamEventBuilder {
         /** Returns the parent event hash. */
         @NonNull
         public Hash parentHash() {
-            return new Hash(parentDescriptor.hash(), DigestType.SHA_384);
+            return EventHashFactory.hash(parentDescriptor.hash());
         }
     }
 
