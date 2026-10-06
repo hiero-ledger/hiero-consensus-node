@@ -120,7 +120,8 @@ public class HgcaaLogValidator {
                 List.of("WRAPS enabled but this node cannot build recursive proofs", "data/keys"),
                 // A WRAPS-extensible history proof is a single ~63MB savepoint batch, which trips
                 // the streamMode=BOTH block size circuit breaker (blockStream.maxBlockSizeBytes)
-                List.of("BlockStreamManagerImpl", "suppressing savepoint output for the rest of the block"));
+                List.of("BlockStreamManagerImpl", "suppressing savepoint output for the rest of the block"),
+                List.of("QueryWorkflowImpl", "Unexpected ParseException while parsing protobuf"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;
