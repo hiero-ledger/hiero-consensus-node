@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "202: [USER] CITR SDLT Ctrl Adhoc"
+name: "207: [USER] CITR Save state"
+trigger
 on:
   workflow_dispatch:
     inputs:
