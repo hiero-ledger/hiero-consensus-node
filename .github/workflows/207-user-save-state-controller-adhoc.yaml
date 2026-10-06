@@ -258,7 +258,6 @@ jobs:
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
       add-settings: "${{ inputs.add-settings }}"
-      reconnect-uptime: "${{ inputs.reconnect-uptime }}"
       allocation-id: ${{ needs.acquire-kubernetes-resources.outputs.allocation-id }}
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       nlg-version: "${{ needs.extract-citr-vars.outputs.nlg-version }}"
