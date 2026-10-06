@@ -6,9 +6,11 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.Query;
+import com.hedera.node.app.grpc.impl.ClprDiscoveryMethod;
 import com.hedera.node.app.grpc.impl.MethodBase;
 import com.hedera.node.app.grpc.impl.QueryMethod;
 import com.hedera.node.app.grpc.impl.TransactionMethod;
+import com.hedera.node.app.workflows.clpr.ClprSyncWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
@@ -17,6 +19,7 @@ import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import io.grpc.Metadata;
 import io.grpc.MethodDescriptor;
 import io.grpc.MethodDescriptor.MethodType;
@@ -79,6 +82,14 @@ final class GrpcServiceBuilder {
     private final QueryWorkflow queryWorkflow;
 
     /**
+     * The {@link ClprSyncWorkflow} to invoke for CLPR endpoint discovery methods, or {@code null} if
+     * no CLPR discovery methods are registered on this service. The CLPR {@code sync} RPC is a bidirectional stream
+     * and is registered outside this builder, by {@code NettyGrpcServerManager}.
+     */
+    @Nullable
+    private final ClprSyncWorkflow clprSyncWorkflow;
+
+    /**
      * The set of transaction method names that need corresponding service method definitions generated.
      *
      * <p>Initially this set is empty, and is populated by calls to {@link #transaction(String)}. Then,
@@ -95,24 +106,32 @@ final class GrpcServiceBuilder {
     private final Set<String> queryMethodNames = new HashSet<>();
 
     /**
+     * The set of CLPR discovery method names that need corresponding service method definitions generated.
+     */
+    private final Set<String> clprDiscoveryMethodNames = new HashSet<>();
+
+    /**
      * Creates a new builder. Typically only a single builder instance is created per service.
      *
      * @param serviceName The name of the service. Cannot be null or blank.
      * @param ingestWorkflow The workflow to use for handling all transaction ingestion API calls
      * @param queryWorkflow The workflow to use for handling all queries
+     * @param clprSyncWorkflow The workflow to use for handling CLPR endpoint calls, or null
      * @param marshaller The marshaller to use for reading/writing byte arrays to/from InputStreams
      * @param jumboMarshaller The marshaller to use for handling jumbo transactions
-     * @throws NullPointerException if any of the parameters are null
+     * @throws NullPointerException if any of the non-nullable parameters are null
      * @throws IllegalArgumentException if the serviceName is blank
      */
     public GrpcServiceBuilder(
             @NonNull final String serviceName,
             @NonNull final IngestWorkflow ingestWorkflow,
             @NonNull final QueryWorkflow queryWorkflow,
+            @Nullable final ClprSyncWorkflow clprSyncWorkflow,
             @NonNull final DataBufferMarshaller marshaller,
             @NonNull final DataBufferMarshaller jumboMarshaller) {
         this.ingestWorkflow = requireNonNull(ingestWorkflow);
         this.queryWorkflow = requireNonNull(queryWorkflow);
+        this.clprSyncWorkflow = clprSyncWorkflow;
         this.serviceName = requireNonNull(serviceName);
         if (serviceName.isBlank()) {
             throw new IllegalArgumentException("serviceName cannot be blank");
@@ -158,6 +177,24 @@ final class GrpcServiceBuilder {
     }
 
     /**
+     * Register the creation of a new gRPC method for handling CLPR endpoint discovery calls with
+     * the given name. This call is idempotent.
+     *
+     * @param methodName The name of the CLPR discovery method. Cannot be null or blank.
+     * @return A reference to the builder.
+     * @throws NullPointerException if the methodName is null
+     * @throws IllegalArgumentException if the methodName is blank
+     */
+    public @NonNull GrpcServiceBuilder clprDiscovery(@NonNull final String methodName) {
+        if (requireNonNull(methodName).isBlank()) {
+            throw new IllegalArgumentException("The gRPC method name cannot be blank");
+        }
+
+        clprDiscoveryMethodNames.add(methodName);
+        return this;
+    }
+
+    /**
      * Build a grpc {@link ServerServiceDefinition} for each transaction and query method registered with this builder.
      *
      * @param metrics Used for recording metrics for the transaction or query methods
@@ -192,6 +229,16 @@ final class GrpcServiceBuilder {
         queryMethodNames.forEach(methodName -> {
             logger.debug("Registering gRPC query method {}.{}", serviceName, methodName);
             final var method = new QueryMethod(serviceName, methodName, queryWorkflow, metrics, messageMaxSize);
+            addMethod(builder, serviceName, methodName, method, marshaller);
+        });
+        clprDiscoveryMethodNames.forEach(methodName -> {
+            logger.debug("Registering gRPC CLPR discovery method {}.{}", serviceName, methodName);
+            if (clprSyncWorkflow == null) {
+                throw new IllegalStateException(
+                        "ClprSyncWorkflow is required for CLPR discovery methods but was not provided");
+            }
+            final var method =
+                    new ClprDiscoveryMethod(serviceName, methodName, clprSyncWorkflow, metrics, messageMaxSize);
             addMethod(builder, serviceName, methodName, method, marshaller);
         });
         return builder.build();

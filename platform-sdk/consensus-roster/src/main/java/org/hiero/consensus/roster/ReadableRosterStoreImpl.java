@@ -2,6 +2,7 @@
 package org.hiero.consensus.roster;
 
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toMap;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -15,9 +16,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 
 /**
  * Provides read-only methods for interacting with the underlying data storage mechanisms for
@@ -67,7 +67,7 @@ public class ReadableRosterStoreImpl implements ReadableRosterStore {
     @Nullable
     @Override
     public Roster getActiveRoster() {
-        final var activeRosterHash = getCurrentRosterHash();
+        final var activeRosterHash = getActiveRosterHash();
         if (activeRosterHash == null) {
             return null;
         }
@@ -88,7 +88,7 @@ public class ReadableRosterStoreImpl implements ReadableRosterStore {
      */
     @Nullable
     @Override
-    public Bytes getCurrentRosterHash() {
+    public Bytes getActiveRosterHash() {
         final RosterState rosterStateSingleton = rosterState.get();
         if (rosterStateSingleton == null) {
             return null;
@@ -118,14 +118,14 @@ public class ReadableRosterStoreImpl implements ReadableRosterStore {
      */
     @NonNull
     @Override
-    public RosterHistory getRosterHistory() {
-        final List<RoundRosterPair> roundRosterPairs =
-                requireNonNull(rosterState.get()).roundRosterPairs();
-        final Map<Bytes, Roster> mappedRosterMap = roundRosterPairs.stream()
-                .collect(Collectors.toMap(
-                        RoundRosterPair::activeRosterHash,
-                        pair -> Objects.requireNonNull(get(pair.activeRosterHash()))));
-        return new RosterHistory(roundRosterPairs, mappedRosterMap);
+    public ConsensusLayerRosterInputs getConsensusLayerRosterInputs() {
+        final RosterState rosterState = requireNonNull(this.rosterState.get());
+        final List<RoundRosterPair> history = rosterState.roundRosterPairs();
+        final Map<Bytes, Roster> rosterMap = history.stream()
+                .collect(
+                        toMap(RoundRosterPair::activeRosterHash, pair -> requireNonNull(get(pair.activeRosterHash()))));
+
+        return new ConsensusLayerRosterInputs(history, rosterMap);
     }
 
     /**

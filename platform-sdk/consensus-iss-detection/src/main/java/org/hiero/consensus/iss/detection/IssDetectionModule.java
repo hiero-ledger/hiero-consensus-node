@@ -2,7 +2,6 @@
 package org.hiero.consensus.iss.detection;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.iss.detection.internal.IssDetector.DO_NOT_IGNORE_ROUNDS;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -26,7 +25,6 @@ import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.pces.config.PcesConfig;
 import org.hiero.consensus.scratchpad.Scratchpad;
-import org.hiero.consensus.state.config.StateConfig;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.wiring.framework.component.ComponentWiring;
 import org.hiero.consensus.wiring.framework.component.InputWireLabel;
@@ -108,15 +106,8 @@ public class IssDetectionModule {
             ignorePreconsensusSignatures = issRound != null && issRound.getValue() >= initialStateRound;
         }
 
-        // A round that we will completely skip ISS detection for. Needed for tests that process state modification
-        // without a software upgrade (in production this feature should not be used).
-        final long roundToIgnore =
-                configuration.getConfigData(StateConfig.class).validateInitialState()
-                        ? DO_NOT_IGNORE_ROUNDS
-                        : initialStateRound;
-
         final IssDetector issDetector = new DefaultIssDetector(
-                time, configuration, metrics, roster, ignorePreconsensusSignatures, roundToIgnore, latestFreezeRound);
+                time, configuration, metrics, roster, ignorePreconsensusSignatures, latestFreezeRound);
         issDetectorWiring.bind(issDetector);
         final IssHandler issHandler = new DefaultIssHandler(configuration, fatalErrorConsumer, issScratchpad);
         issHandlerWiring.bind(issHandler);

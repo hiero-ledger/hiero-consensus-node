@@ -28,36 +28,6 @@ on:
         type: string
         required: false
         default: "false"
-      enable-hapi-tests-misc-records-crypto-and-serial:
-        description: "HAPI Testing (Misc Records, Crypto & Misc Serial) Enabled"
-        type: string
-        required: false
-        default: "false"
-      enable-hapi-tests-token-and-time-consuming:
-        description: "HAPI Testing (Token & Time Consuming) Enabled"
-        type: string
-        required: false
-        default: "false"
-      enable-hapi-tests-simple-fees-and-nd-reconnect:
-        description: "HAPI Testing (Simple Fees & ND Reconnect) Enabled"
-        type: string
-        required: false
-        default: "false"
-      enable-hapi-tests-atomic-batch:
-        description: "HAPI Testing (Atomic Batch) Enabled"
-        type: string
-        required: false
-        default: "false"
-      enable-hapi-tests-smart-contract-and-iss:
-        description: "HAPI Testing (Smart Contracts & ISS) Enabled"
-        type: string
-        required: false
-        default: "false"
-      enable-hapi-tests-state-throttling:
-        description: "HAPI Testing (State Throttling) Enabled"
-        type: string
-        required: false
-        default: "false"
       enable-otter-tests:
         description: "Otter Tests Enabled"
         type: string
@@ -65,6 +35,11 @@ on:
         default: "false"
       enable-snyk-scan:
         description: "Snyk Scan Enabled"
+        type: string
+        required: false
+        default: "false"
+      enable-benchmark-smoke:
+        description: "Benchmark Smoke Run Enabled"
         type: string
         required: false
         default: "false"
@@ -219,7 +194,7 @@ jobs:
   mats-hapi-tests:
     name: HAPI Tests
     if: ${{ inputs.enable-hapi-tests == 'true' }}
-    uses: ./.github/workflows/805-call-execute-hapi-tests.yaml
+    uses: ./.github/workflows/810-call-execute-mats-hapi.yaml
     needs:
       - commit-info
       - compile-and-spotless
@@ -227,14 +202,6 @@ jobs:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: "${{ inputs.java-version }}"
       java-distribution: "${{ inputs.java-distribution }}"
-      enable-hapi-tests-misc: "${{ inputs.enable-hapi-tests == 'true' }}"
-      enable-hapi-tests-misc-records-crypto-and-serial: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-misc-records-crypto-and-serial == 'true' }}"
-      enable-hapi-tests-token-and-time-consuming: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-token-and-time-consuming == 'true' }}"
-      enable-hapi-tests-simple-fees-and-nd-reconnect: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-simple-fees-and-nd-reconnect == 'true' }}"
-      enable-hapi-tests-atomic-batch: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-atomic-batch == 'true' }}"
-      enable-hapi-tests-smart-contract-and-iss: "${{ inputs.enable-hapi-tests == 'true' || inputs.enable-hapi-tests-smart-contract-and-iss == 'true' }}"
-      enable-hapi-tests-restart: "${{ inputs.enable-hapi-tests == 'true' }}"
-      enable-hapi-tests-state-throttling: "${{ inputs.enable-hapi-tests-state-throttling == 'true' }}"
       enable-network-log-capture: "true"
     secrets:
       access-token: ${{ secrets.access-token }}
@@ -247,12 +214,11 @@ jobs:
     needs:
       - commit-info
       - compile-and-spotless
-    uses: ./.github/workflows/808-call-execute-otter-tests.yaml
+    uses: ./.github/workflows/811-call-execute-mats-otter.yaml
     with:
       ref: ${{ needs.commit-info.outputs.sha || '' }}
       java-version: "${{ inputs.java-version }}"
       java-distribution: "${{ inputs.java-distribution }}"
-      enable-fast-otter-tests: ${{ inputs.enable-otter-tests == 'true' }}
       enable-network-log-capture: true
     secrets:
       access-token: ${{ secrets.access-token }}
@@ -275,6 +241,22 @@ jobs:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
       snyk-token: ${{ secrets.snyk-token }}
+
+  mats-benchmark-smoke:
+    name: Benchmark Smoke
+    if: ${{ inputs.enable-benchmark-smoke == 'true' }}
+    needs:
+      - commit-info
+      - compile-and-spotless
+    uses: ./.github/workflows/812-call-benchmark-smoke.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha || '' }}
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   mats-gradle-determinism:
     name: Gradle Determinism
@@ -323,6 +305,7 @@ jobs:
       - mats-hapi-tests
       - mats-otter-tests
       - mats-snyk-scan
+      - mats-benchmark-smoke
       - mats-gradle-determinism
       - mats-docker-determinism
     if: ${{ always() }}
@@ -345,6 +328,7 @@ jobs:
             ${{ needs.mats-hapi-tests.result }}
             ${{ needs.mats-otter-tests.result }}
             ${{ needs.mats-snyk-scan.result }}
+            ${{ needs.mats-benchmark-smoke.result }}
             ${{ needs.mats-gradle-determinism.result }}
             ${{ needs.mats-docker-determinism.result }}
           INPUT_JOB_FAILURE_MODES: >-
@@ -356,6 +340,7 @@ jobs:
             ${{ needs.mats-hapi-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-otter-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-snyk-scan.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-benchmark-smoke.outputs.failure-mode || 'none' }}
             ${{ needs.mats-gradle-determinism.outputs.failure-mode || 'none' }}
             ${{ needs.mats-docker-determinism.outputs.failure-mode || 'none' }}
           INPUT_JOB_NAMES: >-
@@ -367,6 +352,7 @@ jobs:
             mats-hapi-tests
             mats-otter-tests
             mats-snyk-scan
+            mats-benchmark-smoke
             mats-gradle-determinism
             mats-docker-determinism
         run: bash .github/workflows/support/scripts/set-failure-mode.sh

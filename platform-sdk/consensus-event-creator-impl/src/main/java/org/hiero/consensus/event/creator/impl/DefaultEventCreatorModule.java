@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.wiring.framework.wires.SolderType.INJECT;
 import static org.hiero.consensus.wiring.framework.wires.SolderType.OFFER;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -26,6 +25,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
@@ -57,7 +57,7 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
             @NonNull final Time time,
             @NonNull final SecureRandom random,
             @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final Roster roster,
+            @NonNull final RosterWrapper roster,
             @NonNull final NodeId selfId,
             @NonNull final EventTransactionSupplier transactionSupplier,
             @NonNull final SignatureTransactionCheck signatureTransactionCheck) {

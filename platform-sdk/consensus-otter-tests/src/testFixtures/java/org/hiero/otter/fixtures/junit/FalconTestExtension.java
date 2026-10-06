@@ -5,6 +5,7 @@ import static org.hiero.otter.fixtures.junit.AnnotationUtils.findAnnotation;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.otter.fixtures.FalconTest;
@@ -18,6 +19,9 @@ import org.junit.jupiter.api.extension.TestTemplateInvocationContextProvider;
  * <p>By default a Falcon test runs as a sweep of many repetitions, each with its own randomly drawn seed that is
  * reported in the display name of the repetition. Setting {@link FalconTest#randomSeed()} switches to replaying a
  * single repetition with exactly that seed, which is how a failing repetition of a sweep is reproduced.
+ *
+ * <p>Setting {@link FalconTest#failureThreshold()} cuts a sweep short: once that many repetitions have failed, the
+ * remaining ones are skipped instead of run.
  */
 public class FalconTestExtension implements TestTemplateInvocationContextProvider {
 
@@ -41,10 +45,14 @@ public class FalconTestExtension implements TestTemplateInvocationContextProvide
             return Stream.of(FalconInvocationContext.replay(pinnedSeed));
         }
 
-        final int repetitions = repetitionsFor(context.getRequiredTestMethod().getName(), falconTest);
+        final String testName = context.getRequiredTestMethod().getName();
+        final int repetitions = repetitionsFor(testName, falconTest);
+        final int failureThreshold = failureThresholdFor(testName, falconTest);
+        final AtomicInteger failureCount = new AtomicInteger();
         final Random random = new Random();
         return IntStream.rangeClosed(1, repetitions)
-                .mapToObj(index -> FalconInvocationContext.sweep(index, repetitions, random.nextLong()));
+                .mapToObj(index -> FalconInvocationContext.sweep(
+                        index, repetitions, random.nextLong(), failureCount, failureThreshold));
     }
 
     /**
@@ -74,6 +82,29 @@ public class FalconTestExtension implements TestTemplateInvocationContextProvide
                     .formatted(testName, repetitions));
         }
         return repetitions;
+    }
+
+    /**
+     * Determines the number of failed repetitions that stops a sweep.
+     *
+     * <p>The threshold is validated against the number of repetitions declared in the annotation rather than against the
+     * effective number of repetitions, so that {@link #SYSTEM_PROPERTY_FALCON_REPETITIONS} can lower the repetition
+     * count of a build without turning a valid declaration into a configuration error.
+     *
+     * @param testName the name of the test method, used in error messages
+     * @param falconTest the annotation of the test method
+     * @return the number of failed repetitions that stops the sweep
+     */
+    private static int failureThresholdFor(@NonNull final String testName, @NonNull final FalconTest falconTest) {
+        final int failureThreshold = falconTest.failureThreshold();
+        if (failureThreshold != Integer.MAX_VALUE
+                && (failureThreshold < 1 || failureThreshold >= falconTest.repetitions())) {
+            throw new IllegalArgumentException(
+                    ("Falcon test %s must declare a failure threshold greater than zero and less than its %d "
+                                    + "repetitions, but %d was requested")
+                            .formatted(testName, falconTest.repetitions(), failureThreshold));
+        }
+        return failureThreshold;
     }
 
     /**

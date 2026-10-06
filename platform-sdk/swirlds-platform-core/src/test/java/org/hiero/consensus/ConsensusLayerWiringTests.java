@@ -12,10 +12,15 @@ import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpStatus
 import static com.swirlds.platform.builder.ConsensusNoOpModules.createNoOpTransactionHandlingModule;
 import static com.swirlds.platform.state.NoOpConsensusStateEventHandler.NO_OP_CONSENSUS_STATE_EVENT_HANDLER;
 import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
-import static org.hiero.consensus.fakes.noop.FakeRosterFactory.fakeRosterHistory;
+import static org.hiero.consensus.fakes.noop.FakeRosterFactory.fakeRosterInputs;
+import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
+import static org.hiero.consensus.model.status.PlatformStatus.FREEZING;
 import static org.hiero.consensus.wiring.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.base.time.Time;
@@ -52,6 +57,9 @@ import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.iss.detection.IssDetectionModule;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
+import org.hiero.consensus.model.roster.RosterWrapperHistory;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -61,6 +69,7 @@ import org.hiero.consensus.wiring.framework.component.ComponentWiring;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
 import org.hiero.consensus.wiring.framework.model.WiringModelBuilder;
 import org.hiero.consensus.wiring.framework.transformers.WireTransformer;
+import org.hiero.consensus.wiring.framework.wires.output.StandardOutputWire;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -94,12 +103,16 @@ class ConsensusLayerWiringTests {
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
         final TestFileSystemManager fileSystemManager = new TestFileSystemManager(tmpDir);
+        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
+                spy(new NoOpStateLifecycleManager<>());
+
+        final ConsensusLayerRosterInputs rosterInputs = fakeRosterInputs();
 
         final ConsensusLayerInputs inputs = new ConsensusLayerInputs(
                 configuration,
                 new NoOpMetrics(),
                 Time.getCurrent(),
-                fakeRosterHistory(),
+                rosterInputs,
                 KeysAndCertsGenerator.generate(NodeId.FIRST_NODE_ID),
                 NodeId.FIRST_NODE_ID,
                 new NoOpRecycleBin(),
@@ -107,7 +120,7 @@ class ConsensusLayerWiringTests {
                 mock(ExecutionLayer.class),
                 NO_OP_CONSENSUS_STATE_EVENT_HANDLER,
                 ReservedSignedState.createNullReservation(),
-                null,
+                stateLifecycleManager,
                 SemanticVersion.DEFAULT,
                 "testApp",
                 "123",
@@ -130,8 +143,6 @@ class ConsensusLayerWiringTests {
 
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
-        final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
-                new NoOpStateLifecycleManager<>();
 
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
@@ -150,6 +161,7 @@ class ConsensusLayerWiringTests {
         final ConsensusLayerBuildingBlocks buildingBlocks = new ConsensusLayerBuildingBlocks(
                 model,
                 configuration,
+                RosterWrapperHistory.of(rosterInputs),
                 eventCreatorModule,
                 eventIntakeModule,
                 pcesModule,
@@ -176,6 +188,15 @@ class ConsensusLayerWiringTests {
 
         model.start();
         assertFalse(model.checkForUnboundInputWires());
+
+        final StandardOutputWire<PlatformStatus> platformStatusOutput =
+                (StandardOutputWire<PlatformStatus>) statusMonitorModule.platformStatusOutputWire();
+        platformStatusOutput.forward(ACTIVE);
+        verify(stateLifecycleManager, never()).prepareForFreeze();
+
+        platformStatusOutput.forward(FREEZING);
+        verify(stateLifecycleManager).prepareForFreeze();
+
         model.stop();
     }
 }

@@ -20,7 +20,7 @@ import com.hedera.statevalidation.validator.listener.ValidationListener;
 import com.hedera.statevalidation.validator.model.DiskDataItem.Type;
 import com.hedera.statevalidation.validator.pipeline.ValidationPipelineExecutor;
 import com.hedera.statevalidation.validator.util.ValidationException;
-import com.swirlds.merkledb.MerkleDbDataSource;
+import com.swirlds.merkledb.internal.MerkleDbDataSource;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import java.util.List;

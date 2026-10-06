@@ -149,6 +149,7 @@ public class IngestFeeContext implements FeeContext {
                 consensusTime,
                 null, // This is only used when dispatching synthetic transactions,
                 // so no signatures to verify
+                0,
                 numSignatures,
                 function));
     }

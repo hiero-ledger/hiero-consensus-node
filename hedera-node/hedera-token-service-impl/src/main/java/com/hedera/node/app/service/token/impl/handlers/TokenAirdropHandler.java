@@ -11,6 +11,7 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.AssociateTokenRecipientsStep.PLACEHOLDER_SYNTHETIC_ASSOCIATION;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.AssociateTokenRecipientsStep.PLACEHOLDER_SYNTHETIC_ASSOCIATION_HV;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.AssociateTokenRecipientsStep.associationFeeFor;
+import static com.hedera.node.app.service.token.impl.handlers.transfer.EnsureAliasesStep.isAlias;
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.createAccountPendingAirdrop;
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.createFirstAccountPendingAirdrop;
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.createFungibleTokenPendingAirdropId;
@@ -131,18 +132,32 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
         var tokensConfig = context.configuration().getConfigData(TokensConfig.class);
         List<TokenTransferList> tokenTransferList = new ArrayList<>();
 
-        // validate the transaction body token transfers and NFT transfers
-        validator.validateSemantics(context, op, accountStore, tokenStore, tokenRelStore, nftStore);
-
-        // If the transaction is valid, charge custom fees in advance
         var convertedOp = CryptoTransferTransactionBody.newBuilder()
                 .tokenTransfers(op.tokenTransfers())
                 .build();
+        final var isHighVolume = context.body().highVolume();
+        final var transferContext = new TransferContextImpl(context, convertedOp, true, isHighVolume);
+
+        // Custom-fee validation and assessment compare account IDs directly, so use canonical account IDs in all
+        // subsequent steps. The shared context also retains the alias resolutions needed by custom-fee assessment.
+        if (containsAliases(convertedOp)) {
+            final var syntheticCryptoTransferTxn = TransactionBody.newBuilder()
+                    .highVolume(isHighVolume)
+                    .cryptoTransfer(convertedOp)
+                    .build();
+            convertedOp = ensureAndReplaceAliasesInOp(syntheticCryptoTransferTxn, transferContext);
+        }
+        final var resolvedAirdropOp =
+                op.copyBuilder().tokenTransfers(convertedOp.tokenTransfers()).build();
+
+        // validate the transaction body token transfers and NFT transfers
+        validator.validateSemantics(context, resolvedAirdropOp, accountStore, tokenStore, tokenRelStore, nftStore);
 
         // after charging custom fees, the original transfer may be reduced (in case of fractional fee with
         // netOfTransfers = false)
         // so we should use the new transfer value instead of the original one
-        var opBodyAfterCustomFeesAssessment = assessAndChargeCustomFee(context, convertedOp);
+        var opBodyAfterCustomFeesAssessment = assessAndChargeCustomFee(context, convertedOp, transferContext);
+        validator.validatePostCustomFeeAssessment(opBodyAfterCustomFeesAssessment);
         for (final var xfers : opBodyAfterCustomFeesAssessment.tokenTransfers()) {
             throwIfReceiverCannotClaimAirdrop(xfers, accountStore);
 
@@ -190,6 +205,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
                     shouldExecuteCryptoTransfer = true;
                     addTransfersToTransferList(
                             fungibleLists.transferFungibleAmounts(),
+                            tokenId,
                             senderId,
                             senderAccountAmount.get().isApproval(),
                             transferListBuilder);
@@ -231,7 +247,10 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
 
         // transfer tokens, that are not in pending state, if any...
         if (!tokenTransferList.isEmpty()) {
-            executeAirdropCryptoTransfer(context, tokenTransferList, recordBuilder);
+            executeAirdropCryptoTransfer(context, tokenTransferList, transferContext, recordBuilder);
+        } else {
+            // With no executable transfers, the normal transfer path cannot externalize the custom fees charged above.
+            externalizeTransferContext(transferContext, recordBuilder);
         }
     }
 
@@ -393,21 +412,33 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
      * the credits for the receivers.
      *
      * @param fungibleAmounts the fungible airdrop amounts
+     * @param tokenId the token being transferred
      * @param sender the sender account id
      * @param isApproval is approval
      * @param transferListBuilder the transfer list builder
      */
     private void addTransfersToTransferList(
             @NonNull final List<AccountAmount> fungibleAmounts,
+            @NonNull final TokenID tokenId,
             @NonNull final AccountID sender,
             final boolean isApproval,
             @NonNull final TokenTransferList.Builder transferListBuilder) {
         List<AccountAmount> amounts = new LinkedList<>();
         final var receiversAmountList =
                 fungibleAmounts.stream().filter(item -> item.amount() > 0).toList();
-        var senderAmount =
-                receiversAmountList.stream().mapToLong(AccountAmount::amount).sum();
-        var newSenderAccountAmount = createAccountAmount(sender, -senderAmount, isApproval);
+        final long senderDebit;
+        try {
+            final var senderAmount = receiversAmountList.stream()
+                    .mapToLong(AccountAmount::amount)
+                    .reduce(0L, Math::addExact);
+            senderDebit = Math.negateExact(senderAmount);
+        } catch (final ArithmeticException e) {
+            throw new IllegalStateException(
+                    "Executable fungible airdrop credits for token " + tokenId
+                            + " cannot be represented as a sender debit for " + sender,
+                    e);
+        }
+        var newSenderAccountAmount = createAccountAmount(sender, senderDebit, isApproval);
         amounts.add(newSenderAccountAmount);
         amounts.addAll(receiversAmountList);
         transferListBuilder.transfers(amounts);
@@ -461,14 +492,29 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
      * </p>
      */
     private CryptoTransferTransactionBody assessAndChargeCustomFee(
-            @NonNull final HandleContext context, @NonNull final CryptoTransferTransactionBody body) {
+            @NonNull final HandleContext context,
+            @NonNull final CryptoTransferTransactionBody body,
+            @NonNull final TransferContextImpl transferContext) {
         final var isHighVolume = context.body().highVolume();
         final var syntheticCryptoTransferTxn = TransactionBody.newBuilder()
                 .highVolume(isHighVolume)
                 .cryptoTransfer(body)
                 .build();
-        final var transferContext = new TransferContextImpl(context, body, true, isHighVolume);
         return chargeCustomFeeForAirdrops(syntheticCryptoTransferTxn, transferContext);
+    }
+
+    private static boolean containsAliases(@NonNull final CryptoTransferTransactionBody body) {
+        for (final var tokenTransfers : body.tokenTransfers()) {
+            if (tokenTransfers.transfers().stream().anyMatch(adjustment -> isAlias(adjustment.accountIDOrThrow()))) {
+                return true;
+            }
+            if (tokenTransfers.nftTransfers().stream()
+                    .anyMatch(transfer -> isAlias(transfer.senderAccountIDOrThrow())
+                            || isAlias(transfer.receiverAccountIDOrThrow()))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

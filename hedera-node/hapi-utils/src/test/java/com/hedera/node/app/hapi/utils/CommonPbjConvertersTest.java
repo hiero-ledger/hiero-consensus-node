@@ -2,16 +2,42 @@
 package com.hedera.node.app.hapi.utils;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
+import com.google.protobuf.UnknownFieldSet;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class CommonPbjConvertersTest {
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void transactionBodyRejectsUnknownFields(final boolean nested) {
+        final var unknownFields = UnknownFieldSet.newBuilder()
+                .addField(1000, UnknownFieldSet.Field.newBuilder().addVarint(1).build())
+                .build();
+        final var builder = com.hederahashgraph.api.proto.java.TransactionBody.newBuilder();
+        if (nested) {
+            builder.setTransactionID(com.hederahashgraph.api.proto.java.TransactionID.newBuilder()
+                    .setUnknownFields(unknownFields));
+        } else {
+            builder.setUnknownFields(unknownFields);
+        }
+
+        assertThatThrownBy(() -> toPbj(builder.build()))
+                .isInstanceOf(RuntimeException.class)
+                .hasCauseInstanceOf(ParseException.class)
+                .hasRootCauseInstanceOf(UnknownFieldException.class);
+    }
 
     @Test
     void keyFromProtoToPbj() {

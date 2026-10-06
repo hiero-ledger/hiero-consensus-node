@@ -107,7 +107,7 @@ class V0530TokenSchemaTest {
 
         final var schema = new V0530TokenSchema();
         schema.migrate(new MigrationContextImpl(
-                previousStates, newStates, config, config, null, 0L, new HashMap<>(), startupNetworks));
+                previousStates, newStates, config, config, null, 0L, new HashMap<>(), startupNetworks, false));
 
         final var updatedStates = newStates.get(STAKING_INFOS_STATE_ID);
         // sets minStake on all nodes to 0

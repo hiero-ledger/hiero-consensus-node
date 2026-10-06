@@ -151,7 +151,7 @@ public class CodeDelegationType4TransactionTest extends CodeDelegationTestBase {
                     spec,
                     getTxnRecord(DELEGATION_SET)
                             .andAllChildRecords()
-                            .hasChildRecordCount(5)
+                            .hasNonStakingChildRecordCount(5)
                             .logged(),
                     sourcing(() -> ethereumCall(CONTRACT, "getAddress")
                             .signingWith(DELEGATING_ACCOUNT)
