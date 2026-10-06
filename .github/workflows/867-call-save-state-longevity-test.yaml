@@ -98,6 +98,7 @@ env:
   NUM_OF_BLOCK_NODES: 3
   GS_ROOT_SAVED_STATES_DIR: gs://performance-engineering-reports/permanent/saved_states
   GS_ROOT_SAVED_STATES_HTTPS: https://perf.analytics.eng.hashgraph.io/permanent/saved_states
+  APP_ROOT: /opt/hgcapp/services-hedera/HapiApp2.0
 
 jobs:
   get-chewie-jwt:
@@ -1069,20 +1070,20 @@ jobs:
 
       - name: Copy CN state
         run: |
-          kubectl -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec -it network-node1-0 -c root-container -- bash -c \
+          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec -it network-node1-0 -c root-container -- bash -c \
             "last=\$(ls -1t ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/0/123 | head -n 1);\
              cd ${{ env.APP_ROOT }}/data/saved/com.hedera.services.ServicesMain/0/123/; tar cfz /tmp/lastSnapshot.tgz \$last"
 
-          kubectl -n "${{ needs.longevity-tests-start.outputs.namespace }}" cp network-node1-0:/tmp/lastSnapshot.tgz "${{ github.workspace }}"/state/lastSnapshot.tgz
+          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp network-node1-0:/tmp/lastSnapshot.tgz "${{ github.workspace }}"/state/lastSnapshot.tgz
 
       - name: Copy NLG state
         run: |
-          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" exec ${nlgpod} -- bash -c \
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -- bash -c \
           "cd /app; tar cfz NLG_state.tgz saved"
 
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.longevity-tests-start.outputs.namespace }}" cp ${nlgpod}:/app/NLG_state.tgz "${{ github.workspace }}"/state/NLG_state.tgz
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/NLG_state.tgz "${{ github.workspace }}"/state/NLG_state.tgz
 
       - name: Extract benchmark score of NftTransferLoadTest test
         id: NftTransferLoadTestLogs
@@ -1140,8 +1141,8 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/longevity"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/longevity"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${REF}_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}"_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/longevity"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${REF}_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}"_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/longevity"
 
       - name: Archive state
         if: ${{ !cancelled() }}
@@ -1158,8 +1159,8 @@ jobs:
           echo "Size of state dir:"
           du -sk state
 
-          gcloud --no-user-output-enabled storage cp --recursive state "${{ env.GS_ROOT_SAVED_STATES_DIR }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/"
-          echo Done: see results in "${{ env.GS_ROOT_SAVED_STATES_HTTPS }}/${{ inputs.ref }}_${{ inputs.test-asset }}_${{ github.run_number }}/"
+          gcloud --no-user-output-enabled storage cp --recursive state "${{ env.GS_ROOT_SAVED_STATES_DIR }}/${{ inputs.ref }}_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}"_${{ github.run_number }}/"
+          echo Done: see results in "${{ env.GS_ROOT_SAVED_STATES_HTTPS }}/${{ inputs.ref }}_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}"_${{ github.run_number }}/"
 
   # Send this output back to the caller workflow
   single-day-longevity-test-result:

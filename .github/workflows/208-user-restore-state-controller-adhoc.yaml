@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "208: [USER] CITR Restore state"
-trigger
 on:
   workflow_dispatch:
     inputs:
@@ -48,11 +47,10 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
-      reconnect-uptime:
-        required: false
-        default: "600"
+      saved-gs-dir:
+        required: true
+        description: "Java JDK Version:"
         type: string
-        description: "Reconnect uptime (secs). Downtime is Uptime x 3"
       duration-minutes:
         required: false
         default: "1440"
@@ -262,6 +260,7 @@ jobs:
       allocation-id: ${{ needs.acquire-kubernetes-resources.outputs.allocation-id }}
       java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
       nlg-version: "${{ needs.extract-citr-vars.outputs.nlg-version }}"
+      saved-gs-dir: "${{ inputs.saved-gs-dir }}"
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
