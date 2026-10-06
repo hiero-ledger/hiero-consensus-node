@@ -121,7 +121,7 @@ public class BesuQBFTVerifyConfigCall extends AbstractCall {
         final ClprEndpointManifest manifest;
         if (provenManifestBytes.length > 0) {
             try {
-                manifest = ClprEndpointManifest.PROTOBUF.parse(
+                manifest = ClprEndpointManifest.PROTOBUF.parseStrict(
                         Bytes.wrap(provenManifestBytes).toReadableSequentialData());
             } catch (final Exception e) {
                 log.warn("verifyConfig (QBFT): proven manifest bytes are not a ClprEndpointManifest", e);

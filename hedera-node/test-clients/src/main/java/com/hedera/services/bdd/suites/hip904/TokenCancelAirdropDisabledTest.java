@@ -39,6 +39,6 @@ public class TokenCancelAirdropDisabledTest extends TokenAirdropBase {
     @DisplayName("not supported")
     final Stream<DynamicTest> notSupported() {
         return hapiTest(tokenCancelAirdrop(pendingAirdrop(OWNER, RECEIVER_WITH_0_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN))
-                .hasPrecheck(ResponseCodeEnum.NOT_SUPPORTED));
+                .hasKnownStatus(ResponseCodeEnum.NOT_SUPPORTED));
     }
 }

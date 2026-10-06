@@ -213,7 +213,7 @@ public final class SeiCometBftProofVerifier {
 
         final SeiTrustAnchor anchor;
         try {
-            anchor = SeiTrustAnchor.PROTOBUF.parse(Bytes.wrap(trustAnchor).toReadableSequentialData());
+            anchor = SeiTrustAnchor.PROTOBUF.parseStrict(Bytes.wrap(trustAnchor).toReadableSequentialData());
         } catch (final Exception e) {
             throw ProofException.sei("trustAnchor is not a valid SeiTrustAnchor: " + e.getMessage(), e);
         }

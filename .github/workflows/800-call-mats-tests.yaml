@@ -38,6 +38,11 @@ on:
         type: string
         required: false
         default: "false"
+      enable-benchmark-smoke:
+        description: "Benchmark Smoke Run Enabled"
+        type: string
+        required: false
+        default: "false"
       enable-gradle-determinism:
         description: "Gradle Build Determinism Check Enabled"
         type: string
@@ -237,6 +242,22 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
       snyk-token: ${{ secrets.snyk-token }}
 
+  mats-benchmark-smoke:
+    name: Benchmark Smoke
+    if: ${{ inputs.enable-benchmark-smoke == 'true' }}
+    needs:
+      - commit-info
+      - compile-and-spotless
+    uses: ./.github/workflows/812-call-benchmark-smoke.yaml
+    with:
+      ref: ${{ needs.commit-info.outputs.sha || '' }}
+      java-version: "${{ inputs.java-version }}"
+      java-distribution: "${{ inputs.java-distribution }}"
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
   mats-gradle-determinism:
     name: Gradle Determinism
     if: ${{ inputs.enable-gradle-determinism == 'true' && !github.event.repository.fork }}
@@ -284,6 +305,7 @@ jobs:
       - mats-hapi-tests
       - mats-otter-tests
       - mats-snyk-scan
+      - mats-benchmark-smoke
       - mats-gradle-determinism
       - mats-docker-determinism
     if: ${{ always() }}
@@ -306,6 +328,7 @@ jobs:
             ${{ needs.mats-hapi-tests.result }}
             ${{ needs.mats-otter-tests.result }}
             ${{ needs.mats-snyk-scan.result }}
+            ${{ needs.mats-benchmark-smoke.result }}
             ${{ needs.mats-gradle-determinism.result }}
             ${{ needs.mats-docker-determinism.result }}
           INPUT_JOB_FAILURE_MODES: >-
@@ -317,6 +340,7 @@ jobs:
             ${{ needs.mats-hapi-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-otter-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-snyk-scan.outputs.failure-mode || 'none' }}
+            ${{ needs.mats-benchmark-smoke.outputs.failure-mode || 'none' }}
             ${{ needs.mats-gradle-determinism.outputs.failure-mode || 'none' }}
             ${{ needs.mats-docker-determinism.outputs.failure-mode || 'none' }}
           INPUT_JOB_NAMES: >-
@@ -328,6 +352,7 @@ jobs:
             mats-hapi-tests
             mats-otter-tests
             mats-snyk-scan
+            mats-benchmark-smoke
             mats-gradle-determinism
             mats-docker-determinism
         run: bash .github/workflows/support/scripts/set-failure-mode.sh

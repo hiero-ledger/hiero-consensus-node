@@ -63,7 +63,7 @@ public class UpdateAccountEnabledTest {
                 nodeCreate("testNode", nodeAccount)
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                nodeUpdate("testNode").accountId("").hasPrecheck(INVALID_NODE_ACCOUNT_ID));
+                nodeUpdate("testNode").accountId("").hasKnownStatus(INVALID_NODE_ACCOUNT_ID));
     }
 
     @HapiTest
@@ -75,7 +75,7 @@ public class UpdateAccountEnabledTest {
                 nodeCreate("testNode", nodeAccount)
                         .adminKey("adminKey")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
-                nodeUpdate("testNode").aliasAccountId("alias").hasPrecheck(INVALID_NODE_ACCOUNT_ID));
+                nodeUpdate("testNode").aliasAccountId("alias").hasKnownStatus(INVALID_NODE_ACCOUNT_ID));
     }
 
     @LeakyEmbeddedHapiTest(

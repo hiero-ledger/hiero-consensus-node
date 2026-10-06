@@ -36,7 +36,7 @@ import org.openjdk.jmh.annotations.Warmup;
 
 @State(Scope.Thread)
 @Fork(
-        value = 20,
+        value = 3,
         jvmArgsAppend = {"-Xms8g", "-Xmx8g", "-XX:+AlwaysPreTouch"})
 @Warmup(iterations = 5, time = 5)
 @Measurement(iterations = 5, time = 5)

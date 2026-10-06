@@ -353,9 +353,11 @@ public class SystemTransactions {
                                 .build())
                         .build(),
                 accountsConfig.feeCollectionAccount());
-        // Create the CLPR staking account even while CLPR is disabled, so it already exists
-        // whenever the flag is turned on; networks that predate it get it on upgrade
-        dispatchClprStakingAccountCreation(systemContext, systemAutoRenewPeriod, config);
+        // Create the CLPR staking account only if CLPR is enabled at genesis; otherwise post-upgrade
+        // setup creates it at the upgrade that enables CLPR
+        if (config.getConfigData(ClprConfig.class).enabled()) {
+            dispatchClprStakingAccountCreation(systemContext, systemAutoRenewPeriod, config);
+        }
         // Create the miscellaneous accounts
         final var hederaConfig = config.getConfigData(HederaConfig.class);
         for (long i : LongStream.range(FIRST_MISC_ACCOUNT_NUM, hederaConfig.firstUserEntity())
@@ -512,7 +514,11 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
-        createClprStakingAccountIfMissing(systemContext, state, config);
+        // Use the configuration as of now, so the upgrade's property overrides can enable CLPR
+        final var currentConfig = configProvider.getConfiguration();
+        if (isClprStakingAccountMissing(state, currentConfig)) {
+            createClprStakingAccount(systemContext, currentConfig);
+        }
         startupNetworks.clearCachedNetworks();
     }
 
@@ -648,30 +654,32 @@ public class SystemTransactions {
     }
 
     /**
-     * Creates the CLPR staking account if it does not exist yet, whether or not CLPR is enabled.
+     * Returns whether CLPR is enabled but its staking account does not exist yet. Reads no state while CLPR is
+     * disabled.
      *
-     * <p>Genesis setup creates this account, but networks that predate it never run genesis setup. Like the
-     * CLPR singletons, it must exist before {@code clpr.enabled} is turned on, and no upgrade runs when that
-     * network property changes.
-     *
-     * @param systemContext the context to dispatch the creation in
      * @param state the current state
      * @param config the current configuration
+     * @return whether the CLPR staking account needs to be created
      */
-    private void createClprStakingAccountIfMissing(
-            @NonNull final SystemContext systemContext,
-            @NonNull final State state,
-            @NonNull final Configuration config) {
-        final var stakingAccountId =
-                idFactory.newAccountId(config.getConfigData(ClprConfig.class).stakingAccount());
-        final var accounts = state.getReadableStates(TokenService.NAME).<AccountID, Account>get(ACCOUNTS_STATE_ID);
-        if (accounts.get(stakingAccountId) == null) {
-            log.info("Creating CLPR staking account {} (upgrading from a version without it)", stakingAccountId);
-            dispatchClprStakingAccountCreation(
-                    systemContext,
-                    new Duration(config.getConfigData(LedgerConfig.class).autoRenewPeriodMaxDuration()),
-                    config);
+    private boolean isClprStakingAccountMissing(@NonNull final State state, @NonNull final Configuration config) {
+        final var clprConfig = config.getConfigData(ClprConfig.class);
+        if (!clprConfig.enabled()) {
+            return false;
         }
+        final var stakingAccountId = idFactory.newAccountId(clprConfig.stakingAccount());
+        final var accounts = state.getReadableStates(TokenService.NAME).<AccountID, Account>get(ACCOUNTS_STATE_ID);
+        return accounts.get(stakingAccountId) == null;
+    }
+
+    private void createClprStakingAccount(
+            @NonNull final SystemContext systemContext, @NonNull final Configuration config) {
+        log.info(
+                "Creating CLPR staking account {}",
+                idFactory.newAccountId(config.getConfigData(ClprConfig.class).stakingAccount()));
+        dispatchClprStakingAccountCreation(
+                systemContext,
+                new Duration(config.getConfigData(LedgerConfig.class).autoRenewPeriodMaxDuration()),
+                config);
     }
 
     private static void dispatchClprStakingAccountCreation(
