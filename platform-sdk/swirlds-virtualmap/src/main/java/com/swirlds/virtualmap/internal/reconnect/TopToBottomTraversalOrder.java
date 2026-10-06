@@ -80,11 +80,24 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
      * Returns the number of ranks between a chunk root and the rank, where the chunk's initial
      * internals are seeded.
      *
-     * @param chunkHeight the number of ranks between the chunk root and the chunk leaf rank
+     * <p>If the target bottom gap is zero, internals are seeded at the chunk midpoint rank. Otherwise
+     * the seed rank is moved down from the midpoint by up to {@code RANK_STEP - 1} ranks, so that dirty
+     * internals drilled down by {@link #RANK_STEP} ranks end exactly the target bottom gap above the
+     * chunk leaf rank. Moving the seed rank down rather than up doesn't add a drill-down step, but
+     * increases the number of seeded internals by up to {@code 2^(RANK_STEP - 1)} times.
+     *
+     * @param chunkHeight     the number of ranks between the chunk root and the chunk leaf rank
+     * @param targetBottomGap the target bottom gap, from 1 to {@link #RANK_STEP}, or zero to seed
+     *                        internals at the chunk midpoint rank
      * @return the seed rank offset from the chunk root rank
      */
-    static int seedRankOffset(final int chunkHeight) {
-        return chunkHeight / 2;
+    static int seedRankOffset(final int chunkHeight, final int targetBottomGap) {
+        final int midpoint = chunkHeight / 2;
+        final int seedToLeafDistance = chunkHeight - midpoint;
+        if ((targetBottomGap == 0) || (seedToLeafDistance <= targetBottomGap)) {
+            return midpoint;
+        }
+        return midpoint + Math.floorMod(seedToLeafDistance - targetBottomGap, RANK_STEP);
     }
 
     /**
@@ -189,9 +202,9 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
 
         /**
          * The rank at which initial chunk internals are seeded, equal to
-         * {@code chunkRootRank + (chunkLastRank - chunkRootRank) / 2} — the midpoint
-         * of the chunk. Used by {@code skipCleanPaths} to bound how far up the tree
-         * it walks looking for clean ancestors.
+         * {@code chunkRootRank + seedRankOffset(chunkLastRank - chunkRootRank, targetBottomGap)}
+         * — the midpoint of the chunk, or up to {@code RANK_STEP - 1} ranks below it. Used by
+         * {@code skipCleanPaths} to bound how far up the tree it walks looking for clean ancestors.
          */
         final int chunkFirstCheckedRank;
 
@@ -220,12 +233,14 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
          * @param chunkLastRank    the leaf rank of this chunk
          * @param oldFirstLeafPath the first leaf path of the old range (teacher's leaf path range)
          * @param oldLastLeafPath  the last leaf path of the old range (teacher's leaf path range)
+         * @param targetBottomGap  the target bottom gap, see {@link TopToBottomTraversalOrder#seedRankOffset(int, int)}
          */
         ChunkState(
                 final long chunkRootPath,
                 final int chunkLastRank,
                 final long oldFirstLeafPath,
-                final long oldLastLeafPath) {
+                final long oldLastLeafPath,
+                final int targetBottomGap) {
             this.chunkRootPath = chunkRootPath;
             this.chunkLastRank = chunkLastRank;
             final int chunkRootRank = MerklePathUtils.getRank(chunkRootPath);
@@ -233,7 +248,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
                     MerklePathUtils.getRightGrandChildPath(chunkRootPath, chunkLastRank - chunkRootRank);
 
             final int chunkHeight = chunkLastRank - chunkRootRank;
-            final int skipRanks = seedRankOffset(chunkHeight);
+            final int skipRanks = seedRankOffset(chunkHeight, targetBottomGap);
             this.chunkFirstCheckedRank = chunkRootRank + skipRanks;
             final long firstPath = MerklePathUtils.getLeftGrandChildPath(chunkRootPath, skipRanks);
             final long lastPath = MerklePathUtils.getRightGrandChildPath(chunkRootPath, skipRanks);
@@ -251,6 +266,36 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
     // ═══════════════════════════════════════════════════════════════════════
     // Global (tree-level) state — not per-chunk
     // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * The target distance between the lowest checked internal rank and the chunk leaf rank, from 1 to
+     * {@link #RANK_STEP}, or zero to seed chunk internals at the chunk midpoint rank. See
+     * {@link #seedRankOffset(int, int)}.
+     */
+    private final int targetBottomGap;
+
+    /**
+     * Creates a traversal order, which seeds chunk internals at the chunk midpoint rank.
+     */
+    public TopToBottomTraversalOrder() {
+        this(0);
+    }
+
+    /**
+     * Creates a traversal order with the given target bottom gap.
+     *
+     * @param targetBottomGap the target distance between the lowest checked internal rank and the
+     *                        chunk leaf rank, from 1 to {@link #RANK_STEP}, or zero to seed chunk
+     *                        internals at the chunk midpoint rank
+     * @throws IllegalArgumentException if the target bottom gap is out of range
+     */
+    public TopToBottomTraversalOrder(final int targetBottomGap) {
+        if ((targetBottomGap < 0) || (targetBottomGap > RANK_STEP)) {
+            throw new IllegalArgumentException(
+                    "Target bottom gap must be between 0 and " + RANK_STEP + ", got " + targetBottomGap);
+        }
+        this.targetBottomGap = targetBottomGap;
+    }
 
     /**
      * When the number of nodes is low, it doesn't make sense to use chunks, just send all
@@ -345,15 +390,19 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             final long startingLeaf = Math.max(firstLeafPath, oldFirstLeafPath);
             final int chunkLastRank = MerklePathUtils.getRank(startingLeaf);
             final long chunkRootPath = MerklePathUtils.getGrandParentPath(startingLeaf, chunkLastRank - chunkRootRank);
-            activeChunks.addLast(new ChunkState(chunkRootPath, chunkLastRank, oldFirstLeafPath, oldLastLeafPath));
+            activeChunks.addLast(
+                    new ChunkState(chunkRootPath, chunkLastRank, oldFirstLeafPath, oldLastLeafPath, targetBottomGap));
             chunks.increment();
 
             final int firstChunkHeight = firstLeafRank - chunkRootRank;
+            final int firstSeedOffset = seedRankOffset(firstChunkHeight, targetBottomGap);
             final int lastChunkHeight = lastLeafRank - chunkRootRank;
+            final int lastSeedOffset = seedRankOffset(lastChunkHeight, targetBottomGap);
             logger.info(
                     RECONNECT.getMarker(),
                     "Pull start: learner leaves=[{}, {}], teacher leaves=[{}, {}], teacher leaf ranks={}/{}, "
-                            + "chunk root rank={}, leaf rank {} chunks: seed rank={}, bottom gap={}, "
+                            + "chunk root rank={}, target bottom gap={}, "
+                            + "leaf rank {} chunks: seed rank={}, bottom gap={}, "
                             + "leaf rank {} chunks: seed rank={}, bottom gap={}",
                     oldFirstLeafPath,
                     oldLastLeafPath,
@@ -362,12 +411,13 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
                     firstLeafRank,
                     lastLeafRank,
                     chunkRootRank,
+                    targetBottomGap,
                     firstLeafRank,
-                    chunkRootRank + seedRankOffset(firstChunkHeight),
-                    bottomGap(firstChunkHeight - seedRankOffset(firstChunkHeight)),
+                    chunkRootRank + firstSeedOffset,
+                    bottomGap(firstChunkHeight - firstSeedOffset),
                     lastLeafRank,
-                    chunkRootRank + seedRankOffset(lastChunkHeight),
-                    bottomGap(lastChunkHeight - seedRankOffset(lastChunkHeight)));
+                    chunkRootRank + lastSeedOffset,
+                    bottomGap(lastChunkHeight - lastSeedOffset));
         }
     }
 
@@ -656,7 +706,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
             nextChunkLastRank = lastLeafRank;
         }
         chunks.increment();
-        return new ChunkState(nextChunkRootPath, nextChunkLastRank, oldFirstLeafPath, oldLastLeafPath);
+        return new ChunkState(nextChunkRootPath, nextChunkLastRank, oldFirstLeafPath, oldLastLeafPath, targetBottomGap);
     }
 
     /**
@@ -664,7 +714,7 @@ public class TopToBottomTraversalOrder implements NodeTraversalOrder {
      * the old leaf range and the next chunk does not cross the rank-change boundary.
      *
      * <p>At most one chunk is seeded per invocation: seeding allocates a {@link ChunkState} and
-     * inserts its initial internals ({@code 2^(chunkHeight/2)} entries) under the view's sync lock, so
+     * inserts its initial internals ({@code 2^seedRankOffset} entries) under the view's sync lock, so
      * seeding several at once would hold that lock proportionally longer and block other senders.
      * Sender threads cycle back quickly, so a subsequent stall seeds the subsequent chunk if still
      * warranted. Pre-fetch is unbounded — sustained stalls grow the deque one chunk per stall.

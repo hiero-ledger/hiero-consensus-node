@@ -77,7 +77,8 @@ public class LearningSynchronizer {
 
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PULL_TOP_TO_BOTTOM ->
-                new LearnerTreeExchanger(vmapLearner, new TopToBottomTraversalOrder(), syncMetrics);
+                new LearnerTreeExchanger(
+                        vmapLearner, new TopToBottomTraversalOrder(virtualMapConfig.reconnectBottomGap()), syncMetrics);
             case VirtualMapReconnectMode.PULL_TWO_PHASE_PESSIMISTIC ->
                 new LearnerTreeExchanger(vmapLearner, new TwoPhasePessimisticTraversalOrder(), syncMetrics);
             case VirtualMapReconnectMode.PULL_PARALLEL_SYNC ->

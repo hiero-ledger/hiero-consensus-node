@@ -6,6 +6,7 @@ import static com.swirlds.virtualmap.internal.reconnect.NodeTraversalOrder.PATH_
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.virtualmap.MerklePathUtils;
@@ -1776,13 +1777,13 @@ class TopToBottomTraversalOrderTest {
         void seedRankOffsetAndBottomGap() {
             // Large trees: chunk height 23 (last leaf rank) and 22 (first leaf rank), both seeded 11 ranks
             // below the chunk root, i.e. 12 and 11 ranks above the leaves
-            assertEquals(11, TopToBottomTraversalOrder.seedRankOffset(23));
-            assertEquals(11, TopToBottomTraversalOrder.seedRankOffset(22));
+            assertEquals(11, TopToBottomTraversalOrder.seedRankOffset(23, 0));
+            assertEquals(11, TopToBottomTraversalOrder.seedRankOffset(22, 0));
             assertEquals(3, TopToBottomTraversalOrder.bottomGap(12)); // 12, 9, 6, 3
             assertEquals(2, TopToBottomTraversalOrder.bottomGap(11)); // 11, 8, 5, 2
             assertEquals(1, TopToBottomTraversalOrder.bottomGap(10)); // 10, 7, 4, 1
             // Chunk-mode reference tree: chunk height 9, seeded at rank 5, 5 ranks above the leaves
-            assertEquals(4, TopToBottomTraversalOrder.seedRankOffset(9));
+            assertEquals(4, TopToBottomTraversalOrder.seedRankOffset(9, 0));
             assertEquals(2, TopToBottomTraversalOrder.bottomGap(5)); // 5, 2
             // Seeds within RANK_STEP of the leaves are never drilled down
             assertEquals(3, TopToBottomTraversalOrder.bottomGap(3));
@@ -1868,6 +1869,118 @@ class TopToBottomTraversalOrderTest {
                     stats.contains("leaf rank 26: leaves=0, cleanLeaves=0, "
                             + "internals by distance to leaf rank (total/clean)=[11="),
                     stats);
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // Group 15 — Target bottom gap
+    //
+    // Large tree from group 13: rank-28 leaves, chunkRootRank = 5, chunkHeight = 23.
+    //   Gap 0 (midpoint): seeds at rank 16 (12 above leaves) → 16, 19, 22, 25 (bottom gap 3)
+    //   Gap 3:            same as gap 0
+    //   Gap 2:            seeds at rank 17 (11 above leaves) → 17, 20, 23, 26 (bottom gap 2)
+    //   Gap 1:            seeds at rank 18 (10 above leaves) → 18, 21, 24, 27 (bottom gap 1)
+    // ═════════════════════════════════════════════════════════════════════════
+
+    @Nested
+    @DisplayName("Group 15 — Target bottom gap")
+    class TargetBottomGapTests {
+
+        private static final long L15_FIRST = 268_435_455L; // 2^28 - 1, rank 28
+        private static final long L15_LAST = 2L * L15_FIRST; // rank 28
+
+        @Test
+        @DisplayName("15.1 — Seed rank offset moves the seed down from the midpoint to match the target gap")
+        void seedRankOffsetForTargetGap() {
+            // Chunk height 23: midpoint offset 11, 12 ranks above the leaves
+            assertEquals(11, TopToBottomTraversalOrder.seedRankOffset(23, 3));
+            assertEquals(12, TopToBottomTraversalOrder.seedRankOffset(23, 2));
+            assertEquals(13, TopToBottomTraversalOrder.seedRankOffset(23, 1));
+            // Chunk height 22: midpoint offset 11, 11 ranks above the leaves
+            assertEquals(13, TopToBottomTraversalOrder.seedRankOffset(22, 3));
+            assertEquals(11, TopToBottomTraversalOrder.seedRankOffset(22, 2));
+            assertEquals(12, TopToBottomTraversalOrder.seedRankOffset(22, 1));
+            // Every target gap is reached exactly, and the seed is never moved more than 2 ranks down
+            for (int height = 9; height <= 40; height++) {
+                for (int gap = 1; gap <= 3; gap++) {
+                    final int offset = TopToBottomTraversalOrder.seedRankOffset(height, gap);
+                    final int shift = offset - height / 2;
+                    assertEquals(
+                            gap,
+                            TopToBottomTraversalOrder.bottomGap(height - offset),
+                            "height=" + height + ", gap=" + gap);
+                    assertTrue((shift >= 0) && (shift <= 2), "height=" + height + ", gap=" + gap);
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("15.2 — Out of range target gap is rejected")
+        void outOfRangeGapRejected() {
+            assertThrows(IllegalArgumentException.class, () -> new TopToBottomTraversalOrder(-1));
+            assertThrows(IllegalArgumentException.class, () -> new TopToBottomTraversalOrder(4));
+        }
+
+        @Test
+        @DisplayName("15.3 — Gap 2: 4096 seeds at rank 17")
+        void gap2SeedsAtRank17() {
+            final var order = new TopToBottomTraversalOrder(2);
+            order.start(L15_FIRST, L15_LAST, L15_FIRST, L15_LAST);
+
+            final List<Long> init = drainInternals(order);
+
+            assertEquals(4096, init.size(), "Must seed 2^12 initial internals");
+            for (final long p : init) {
+                assertEquals(17, MerklePathUtils.getRank(p), "All initial internals must be at rank 17");
+            }
+        }
+
+        @Test
+        @DisplayName("15.4 — Gap 2: dirty rank-23 node drills down to rank 26, dirty rank-26 node enables 4 leaves")
+        void gap2DrillDownEndsTwoRanksAboveLeaves() {
+            final var order = new TopToBottomTraversalOrder(2);
+            order.start(L15_FIRST, L15_LAST, L15_FIRST, L15_LAST);
+            drainInternals(order);
+
+            // Rank-23 ancestor of the first leaf is 5 ranks above the leaves, so it's drilled down
+            final long rank23 = MerklePathUtils.getGrandParentPath(L15_FIRST, 5);
+            order.nodeReceived(rank23, false);
+            final List<Long> next = drainInternals(order);
+            assertEquals(8, next.size(), "Dirty rank-23 node must enqueue 8 rank-26 grand-children");
+            for (final long p : next) {
+                assertEquals(26, MerklePathUtils.getRank(p), "Grand-children must be at rank 26");
+            }
+
+            // Rank-26 node is 2 ranks above the leaves, it isn't drilled down, its 4 leaves become sendable
+            order.nodeReceived(next.getFirst(), false);
+            assertTrue(drainInternals(order).isEmpty(), "Dirty rank-26 node must not be drilled down");
+            for (int i = 0; i < 4; i++) {
+                assertEquals(L15_FIRST + i, order.getNextLeafPathToSend(), "Leaves under rank-26 node must be sent");
+            }
+            assertEquals(PATH_NOT_AVAILABLE_YET, order.getNextLeafPathToSend(), "5th leaf status must be unknown");
+        }
+
+        @Test
+        @DisplayName("15.5 — Gap 1, fully dirty tree: both leaf ranks are checked 1 rank above the leaves")
+        void gap1FullyDirtyTwoLeafRanks() {
+            // Rank-10 leaves 1500–2046 and rank-11 leaves 2047–3000, chunkRootRank = 1. Midpoint seeding
+            // checks both leaf ranks 5 and 2 ranks above the leaves, gap 1 moves it to 4 and 1
+            final long first = 1500L;
+            final long last = 3000L;
+            final var order = new TopToBottomTraversalOrder(1);
+            order.start(first, last, first, last);
+
+            final List<Long> leaves = driveAllDirty(order);
+            for (final long leaf : leaves) {
+                order.nodeReceived(leaf, false);
+            }
+
+            assertEquals(last - first + 1, leaves.size(), "All leaves must be sent in a fully dirty tree");
+            final String stats = order.getStatistics();
+            final String rank11 = stats.substring(stats.indexOf("leaf rank 11"), stats.indexOf("; leaf rank 10"));
+            final String rank10 = stats.substring(stats.indexOf("leaf rank 10"));
+            assertTrue(rank11.matches("leaf rank 11: leaves=954, cleanLeaves=0, .*\\[4=\\d+/0, 1=\\d+/0]"), stats);
+            assertTrue(rank10.matches("leaf rank 10: leaves=547, cleanLeaves=0, .*\\[4=\\d+/0, 1=\\d+/0]"), stats);
         }
     }
 

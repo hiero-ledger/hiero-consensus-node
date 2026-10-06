@@ -45,6 +45,10 @@ import com.swirlds.config.api.validation.annotation.Min;
  * @param valueParseMaxSizeBytes
  *      Maximum allowed size for parsing a delimited virtual-map value payload.
  * @param fullRehashTimeoutMs the number of milliseconds to wait for the full leaf rehash to finish before it fail with an exception.
+ * @param reconnectBottomGap
+ *      Used by the {@code pullTopToBottom} reconnect mode on the learner side. The distance, in ranks, between
+ *      the lowest internal nodes checked in each reconnect chunk and the chunk leaf rank, from 1 to 3. If zero,
+ *      chunk internals are seeded at the chunk midpoint rank, and the distance is defined by the chunk height.
  */
 // spotless:off
 @ConfigData("virtualMap")
@@ -59,7 +63,8 @@ public record VirtualMapConfig(
         @Min(-1) @Max(100) @ConfigProperty(defaultValue = "10.0") double familyThrottlePercent,
         @Min(-1) @ConfigProperty(defaultValue = "-1") long familyThrottleThreshold,
         @Min(1) @ConfigProperty(defaultValue = "37748736") int valueParseMaxSizeBytes,
-        @Min(0) @ConfigProperty(defaultValue = "600000") int fullRehashTimeoutMs) {
+        @Min(0) @ConfigProperty(defaultValue = "600000") int fullRehashTimeoutMs,
+        @Min(0) @Max(3) @ConfigProperty(defaultValue = "2") int reconnectBottomGap) {
 
     // spotless:on
 
