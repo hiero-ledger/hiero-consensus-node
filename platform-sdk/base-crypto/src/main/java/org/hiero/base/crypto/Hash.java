@@ -26,31 +26,10 @@ public class Hash implements Comparable<Hash>, SerializableWithKnownLength, Seri
     private DigestType digestType;
 
     /**
-     * Zero arg constructor. Creates a hash without any data using the default digest type ({@link DigestType#SHA_384}).
-     */
-    public Hash() {
-        this(DigestType.SHA_384);
-    }
-
-    /**
      * Same as {@link #Hash(Bytes, DigestType)} but with an empty byte array.
      */
     public Hash(@NonNull final DigestType digestType) {
         this(Bytes.wrap(new byte[digestType.digestLength()]), digestType);
-    }
-
-    /**
-     * Same as {@link #Hash(Bytes, DigestType)} but with a digest type ({@link DigestType#SHA_384}) and wrapping the byte array.
-     */
-    public Hash(@NonNull final byte[] value) {
-        this(Bytes.wrap(value), DigestType.SHA_384);
-    }
-
-    /**
-     * Same as {@link #Hash(Bytes, DigestType)} but with a digest type ({@link DigestType#SHA_384})
-     */
-    public Hash(@NonNull final Bytes value) {
-        this(value, DigestType.SHA_384);
     }
 
     /**

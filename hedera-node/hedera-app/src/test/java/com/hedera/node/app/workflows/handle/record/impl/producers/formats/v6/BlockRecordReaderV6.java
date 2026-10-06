@@ -23,6 +23,7 @@ import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.zip.GZIPInputStream;
+import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
@@ -51,7 +52,7 @@ public class BlockRecordReaderV6 {
             ByteBuffer buf = ByteBuffer.allocate(Long.BYTES + Integer.BYTES);
             buf.order(ByteOrder.LITTLE_ENDIAN);
             buf.putLong(Hash.CLASS_ID);
-            buf.putInt(new Hash().getVersion());
+            buf.putInt(new Hash(Cryptography.DEFAULT_DIGEST_TYPE).getVersion());
             HASH_HEADER = buf.array();
             if (!Arrays.equals(HASH_HEADER, HexFormat.of().parseHex("1e7451a283da22f401000000"))) {
                 throw new IllegalStateException("Hash object header is not the expected 1e7451a283da22f401000000");

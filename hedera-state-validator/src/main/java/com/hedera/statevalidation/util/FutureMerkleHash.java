@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.util;
 
+import static org.hiero.base.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -100,7 +102,7 @@ public class FutureMerkleHash implements Future<Hash> {
      */
     public synchronized void set(byte[] hash) {
         if (exception == null) {
-            this.hash = new Hash(hash);
+            this.hash = new Hash(hash, DEFAULT_DIGEST_TYPE);
             latch.countDown();
         }
     }
