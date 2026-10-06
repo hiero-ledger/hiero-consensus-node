@@ -22,12 +22,17 @@ import org.apache.logging.log4j.Logger;
 /**
  * A {@link VirtualHashListener} that is used during a full leaf rehash of a {@link VirtualMap}.
  *
- * <p>This listener collects hashed leaf records and internal node hashes produced by the {@link VirtualHasher}
- * and flushes them to the underlying {@link VirtualDataSource}.
+ * <p>This listener collects complete hash chunks, typically produced by {@link HashChunkCollector}
+ * during a full rehash, and flushes them to the underlying {@link VirtualDataSource}. Leaf records
+ * are not changed during a full rehash, so they are never flushed.
  *
  * <p>To avoid keeping all hashes in memory during a full rehash (which could involve billions of leaves),
- * this listener flushes data in batches once a threshold ({@code DEFAULT_FLUSH_INTERVAL}) is reached.
- * It also ensures a final flush is performed when hashing is completed.
+ * this listener flushes chunks in batches once the number of hash slots in collected chunks, i.e.
+ * {@code number of chunks * 2 ^ chunkHeight}, reaches the flush interval. Flushes are executed in
+ * the threads that call {@link #onHashChunkHashed(VirtualHashChunk)}, outside of any locks. At most
+ * one flush runs at a time. While a flush is in progress, chunks are still collected, and there is
+ * no limit on how many of them are collected, so the next batch may be larger than the flush interval.
+ * A final flush is performed when hashing is completed.
  */
 public class FullLeafRehashHashListener implements VirtualHashListener {
 
@@ -40,7 +45,7 @@ public class FullLeafRehashHashListener implements VirtualHashListener {
     private List<VirtualHashChunk> hashes;
     private final int flushInterval;
 
-    // Flushes are initiated from onNodeHashed(). While a flush is in progress, other nodes
+    // Flushes are initiated from onHashChunkHashed(). While a flush is in progress, other nodes
     // are still hashed in parallel, so it may happen that enough nodes are hashed to
     // start a new flush, while the previous flush is not complete yet. This flag is
     // protection from that
@@ -59,6 +64,10 @@ public class FullLeafRehashHashListener implements VirtualHashListener {
      * 		The data source where new hashes and leaf records will be saved. Cannot be null.
      * @param statistics
      *      Statistics object to record flush latency. Cannot be null.
+     * @param flushInterval
+     *      The number of hash slots in collected chunks to trigger a flush. A flush is started
+     *      once {@code number of chunks * 2 ^ chunkHeight} reaches this value. If it's 1 or less,
+     *      every chunk is flushed separately, unless a previous flush is still in progress.
      */
     public FullLeafRehashHashListener(
             final long firstLeafPath,
@@ -96,7 +105,7 @@ public class FullLeafRehashHashListener implements VirtualHashListener {
      */
     @Override
     public void onHashChunkHashed(@NonNull final VirtualHashChunk chunk) {
-        assert hashes != null : "onNodeHashed called without onHashingStarted";
+        assert hashes != null : "onHashChunkHashed called without onHashingStarted";
         final List<VirtualHashChunk> dirtyHashesToFlush;
         synchronized (this) {
             hashes.add(chunk);
@@ -130,7 +139,7 @@ public class FullLeafRehashHashListener implements VirtualHashListener {
     private void flush(@NonNull final List<VirtualHashChunk> hashesToFlush) {
         assert flushInProgress.get() : "Flush in progress flag must be set";
         try {
-            logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Flushing {} hashes", hashesToFlush.size());
+            logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Flushing {} hash chunks", hashesToFlush.size());
             // flush it down
             final long start = System.currentTimeMillis();
             try {
