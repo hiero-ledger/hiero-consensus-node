@@ -194,6 +194,9 @@ gradlew.bat                                         %github-maintainers
 # Self-protection for root CODEOWNERS files (this file should not exist and should definitely require approval)
 /CODEOWNERS                                         %github-maintainers
 
+# Self-protection for this file - changes to ownership itself must be approved
+/.codeowners                                        %github-maintainers
+
 # Protect the repository root files
 /README.md                                          %github-maintainers %hiero-consensus-node-foundation-codeowners %hiero-consensus-node-execution-codeowners %hiero-consensus-node-consensus-codeowners
 **/LICENSE                                          %github-maintainers
