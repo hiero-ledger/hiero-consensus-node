@@ -60,19 +60,16 @@ public final class BlockStreamInfoImpl implements BlockRecordInfo {
         this.digestType = requireNonNull(digestType);
     }
 
-    // Chained SHA-384 over stream items, independent of the block-root Merkle tree's HASH_SIZE (SHA-256-sized);
-    // do not conflate the two. Mirrors BlockStreamManagerImpl.RunningHashManager.RUNNING_HASH_SIZE.
-    private static final int RUNNING_HASH_SIZE = DigestType.SHA_384.digestLength();
-
     /** {@inheritDoc} */
     @Nullable
     @Override
     public Bytes prngSeed() {
         // Mirrors BlockStreamManagerImpl.RunningHashManager: the n-minus-3 running hash is the seed, and is the
-        // leftmost RUNNING_HASH_SIZE bytes of the trailing output hashes once at least four hashes are present.
+        // leftmost hash of the trailing output hashes once at least four hashes are present.
+        final var hashSize = digestType.digestLength();
         final var hashes = blockStreamInfo.trailingOutputHashes();
-        final var n = (int) (hashes.length() / RUNNING_HASH_SIZE);
-        return n < 4 ? null : hashes.slice(0, RUNNING_HASH_SIZE);
+        final var n = (int) (hashes.length() / hashSize);
+        return n < 4 ? null : hashes.slice(0, hashSize);
     }
 
     /** {@inheritDoc} */
@@ -102,8 +99,8 @@ public final class BlockStreamInfoImpl implements BlockRecordInfo {
         // The last completed block's own hash is not persisted in its own state, so the state-resident trailing
         // hashes only reach blockNumber - 1. Reconstruct it and append so the set covers up to blockNumber, letting
         // queries resolve blockhash(block.number - 1) for the most recent block exactly as BlockRecordInfoImpl does.
-        final int hashSize = digestType == DigestType.SHA_256 ? 32 : 48;
-        return BlockImplUtils.blockHashByBlockNumber(extendedBlockHashes(), lastCompleted, blockNo, hashSize);
+        return BlockImplUtils.blockHashByBlockNumber(
+                extendedBlockHashes(), lastCompleted, blockNo, digestType.digestLength());
     }
 
     private Bytes extendedBlockHashes() {

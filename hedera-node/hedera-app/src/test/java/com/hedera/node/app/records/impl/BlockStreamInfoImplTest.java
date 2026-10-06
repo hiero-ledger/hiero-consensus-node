@@ -54,10 +54,13 @@ class BlockStreamInfoImplTest {
         return Bytes.wrap(bytes);
     }
 
-    // trailingOutputHashes are chained SHA-384 running hashes (48 bytes), independent of the block-root
-    // Merkle tree's HASH_SIZE (SHA-256-sized, 32 bytes) used for trailingBlockHashes/blockHashes above.
+    // trailingOutputHashes are chained running hashes whose size follows the configured digest type.
     private static Bytes runningHash(final int seed) {
-        final var bytes = new byte[DigestType.SHA_384.digestLength()];
+        return runningHash(seed, DigestType.SHA_384);
+    }
+
+    private static Bytes runningHash(final int seed, final DigestType digestType) {
+        final var bytes = new byte[digestType.digestLength()];
         java.util.Arrays.fill(bytes, (byte) seed);
         return Bytes.wrap(bytes);
     }
@@ -135,6 +138,25 @@ class BlockStreamInfoImplTest {
                                 .trailingOutputHashes(Bytes.EMPTY)
                                 .build(),
                         DigestType.SHA_384)
+                .prngSeed());
+    }
+
+    @Test
+    void prngSeedUsesConfiguredDigestLength() {
+        final var sha256 = DigestType.SHA_256;
+        final var four =
+                concat(runningHash(1, sha256), runningHash(2, sha256), runningHash(3, sha256), runningHash(4, sha256));
+        assertEquals(
+                runningHash(1, sha256),
+                new BlockStreamInfoImpl(
+                                BlockStreamInfo.newBuilder()
+                                        .trailingOutputHashes(four)
+                                        .build(),
+                                sha256)
+                        .prngSeed());
+        final var three = concat(runningHash(1, sha256), runningHash(2, sha256), runningHash(3, sha256));
+        assertNull(new BlockStreamInfoImpl(
+                        BlockStreamInfo.newBuilder().trailingOutputHashes(three).build(), sha256)
                 .prngSeed());
     }
 
