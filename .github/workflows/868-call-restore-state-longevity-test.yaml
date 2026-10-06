@@ -1203,15 +1203,99 @@ jobs:
       - name: Setup Google Cloud SDK
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          ref: ${{ github.ref }}
-
       - name: Create report dir
         shell: bash
         run: |
           mkdir "${{ github.workspace }}"/report
+
+      - name: Create state dir
+        shell: bash
+        run: |
+          mkdir "${{ github.workspace }}"/state
+
+      - name: State size
+        id: state-size
+        run: |
+          set +x
+          set +e
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
+                      exec -it network-node1-0 -c root-container -- bash -c "cd ${{ env.APP_ROOT }}/data/saved; d=\$(date +%Y-%d-%mT%T); s=\$(du -sk swirlds-tmp ); a=\$(du -sk .); echo \"\${d} \${s} \${a}\""
+
+      - name: Run Validator
+        id: validator-status
+        run: |
+          set +x
+          set +e
+          kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
+            exec -it network-node1-0 -c root-container -- bash -c "cd ${{ env.APP_ROOT }}; sh checkValidatorNode.sh 0" 2>&1 | tee "${{ github.workspace }}"/report/validator_status.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
+            cp network-node1-0:${{ env.APP_ROOT }}/data/saved/validation.tmp/validator.log "${{ github.workspace }}"/report/validator.log
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" \
+            cp network-node1-0:${{ env.APP_ROOT }}/data/saved/validation.tmp/validatorRun.log "${{ github.workspace }}"/report/validatorRun.log
+          grep -E 'validation .* is OK' "${{ github.workspace }}"/report/validator_status.log
+          echo "value=${?}" >> "${GITHUB_OUTPUT}"
+
+      - name: Copy logs
+        run: |
+          nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
+          sleep 300 # known: to let all benchmark write down logs
+
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
+          cat "${{ github.workspace }}"/report/client.log | perl -pne '~s/\b([A-Z_]+[\:]\d+)\b/\n$1\n/g' | perl "${{ github.workspace }}"/.github/workflows/support/citr/collectNLG_Errors.pl > "${{ github.workspace }}"/report/client.stats.txt
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "$${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
+          cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" "${{ github.workspace }}"/report/
+
+      - name: Extract benchmark score of NftTransferLoadTest test
+        id: NftTransferLoadTestLogs
+        run: |
+          grep -E 'Finished NftTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
+          grep -E 'Finished NftTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
+
+      - name: Extract benchmark score of HeliSwapLoadTest test
+        id: HeliSwapLoadTestLogs
+        run: |
+          grep -E 'Finished HeliSwapLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
+          grep -E 'Finished HeliSwapLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
+
+      - name: Extract benchmark score of CryptoTransferLoadTest test
+        id: CryptoTransferLoadTestLogs
+        run: |
+          grep -E 'Finished CryptoTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
+          grep -E 'Finished CryptoTransferLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
+
+      - name: Extract benchmark score of HCSLoadTest test
+        id: HCSLoadTestLogs
+        run: |
+          grep -E 'Finished HCSLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
+          grep -E 'Finished HCSLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
+
+      - name: Extract benchmark score of SmartContractLoadTest test
+        id: SmartContractLoadTestLogs
+        run: |
+          grep -E 'Finished SmartContractLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
+          grep -E 'Finished SmartContractLoadTest' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' | grep -E 'value=[0-9][0-9]*'
+
+      - name: Publish logs of smoke run
+        if: ${{ !cancelled() }}
+        run: |
+          cd "${{ github.workspace }}"/
+
+          gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports 2>/dev/null | grep permanent >/dev/null 2>&1
+          if [[ ${?} -ne 0 ]]
+          then
+            sleep 10
+            gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports | grep permanent >/dev/null
+          fi
+
+          echo "Size of report dir:"
+          du -sk report
+
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${{ inputs.ref }}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{ github.run_number }}/report/smoketest"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${{ inputs.ref }}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{ github.run_number }}/report/smoketest"
+
+          echo "Truncating logs for next test..."
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/resetCNlogs.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
 
       - name: Restore archived state
         if: ${{ !cancelled() }}
