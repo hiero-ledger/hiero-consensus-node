@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.DELEGATING_SPENDER_DOES_NOT_HAVE_APPROVE_FOR_ALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_ALLOWANCES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALLOWANCE_OWNER_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALLOWANCE_SPENDER_ID;
@@ -8,13 +9,17 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_DELEGATING_SPEN
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ALLOWANCES_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NEGATIVE_ALLOWANCE_AMOUNT;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.NFT_IN_FUNGIBLE_TOKEN_ALLOWANCES;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SENDER_DOES_NOT_OWN_NFT_SERIAL_NO;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_NOT_ASSOCIATED_TO_ACCOUNT;
 import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.NFTS_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
+import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -27,6 +32,7 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.NftID;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
@@ -49,6 +55,7 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.Collections;
@@ -80,6 +87,12 @@ class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
     @Mock
     private PureChecksContext pureChecksContext;
 
+    @Mock(strictness = Strictness.LENIENT)
+    private HandleContext.SavepointStack stack;
+
+    @Mock(strictness = Strictness.LENIENT)
+    private StreamBuilder streamBuilder;
+
     private CryptoApproveAllowanceHandler subject;
 
     @Override
@@ -92,6 +105,9 @@ class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
         given(handleContext.expiryValidator()).willReturn(expiryValidator);
         given(expiryValidator.expirationStatus(any(), anyBoolean(), anyLong())).willReturn(OK);
         given(handleContext.payer()).willReturn(payerId);
+        given(handleContext.savepointStack()).willReturn(stack);
+        given(stack.getBaseBuilder(StreamBuilder.class)).willReturn(streamBuilder);
+        given(streamBuilder.category()).willReturn(USER);
 
         subject = new CryptoApproveAllowanceHandler(validator);
     }
@@ -682,29 +698,34 @@ class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
     }
 
     @Test
-    void existingAllowancesDeletedWithAmountZeroWhenSpenderNamedByKeyAlias() {
+    void amountZeroNamingSpenderByKeyAliasIsRejected() {
         writableAccountStore.putAlias(SPENDER_KEY_ALIAS, spenderId);
 
-        assertAmountZeroDeletesExistingAllowances(idFactory.newAccountIdWithAlias(SPENDER_KEY_ALIAS));
+        assertAmountZeroIsRejected(idFactory.newAccountIdWithAlias(SPENDER_KEY_ALIAS));
     }
 
     @Test
-    void existingAllowancesDeletedWithAmountZeroWhenSpenderNamedByEvmAddress() {
+    void amountZeroNamingSpenderByEvmAddressIsRejected() {
         writableAccountStore.putAlias(SPENDER_EVM_ADDRESS, spenderId);
 
-        assertAmountZeroDeletesExistingAllowances(idFactory.newAccountIdWithAlias(SPENDER_EVM_ADDRESS));
+        assertAmountZeroIsRejected(idFactory.newAccountIdWithAlias(SPENDER_EVM_ADDRESS));
     }
 
     @Test
-    void existingAllowancesDeletedWithAmountZeroWhenSpenderNamedByLongZeroAddress() {
+    void amountZeroNamingSpenderByLongZeroAddressIsRejected() {
         // A long-zero address encodes the account number itself, so it needs no entry in the alias map
         final var longZeroAddress = Bytes.wrap(asEvmAddress(spenderId.accountNumOrThrow()));
 
-        assertAmountZeroDeletesExistingAllowances(idFactory.newAccountIdWithAlias(longZeroAddress));
+        assertAmountZeroIsRejected(idFactory.newAccountIdWithAlias(longZeroAddress));
     }
 
     @Test
-    void settingApproveForAllToFalseRemovesAllowanceWhenSpenderNamedByAlias() {
+    void amountZeroNamingSpenderByUnknownAliasIsRejected() {
+        assertAmountZeroIsRejected(idFactory.newAccountIdWithAlias(UNKNOWN_EVM_ADDRESS));
+    }
+
+    @Test
+    void settingApproveForAllToFalseNamingSpenderByAliasIsRejected() {
         writableAccountStore.putAlias(SPENDER_KEY_ALIAS, spenderId);
         final var revoke = NftAllowance.newBuilder()
                 .owner(ownerId)
@@ -714,48 +735,22 @@ class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
                 .build();
         final var txn = cryptoApproveAllowanceTransaction(payerId, false, List.of(), List.of(), List.of(revoke));
         given(handleContext.body()).willReturn(txn);
+        final var grant = AccountApprovalForAllAllowance.newBuilder()
+                .tokenId(nonFungibleTokenId)
+                .spenderId(spenderId)
+                .build();
         assertThat(writableAccountStore.getAccountById(ownerId).approveForAllNftAllowances())
-                .containsExactly(AccountApprovalForAllAllowance.newBuilder()
-                        .tokenId(nonFungibleTokenId)
-                        .spenderId(spenderId)
-                        .build());
+                .containsExactly(grant);
 
-        subject.handle(handleContext);
-
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INVALID_ALLOWANCE_SPENDER_ID));
         assertThat(writableAccountStore.getAccountById(ownerId).approveForAllNftAllowances())
-                .isEmpty();
-    }
-
-    @Test
-    void amountZeroForUnknownSpenderAliasChangesNothing() {
-        // An alias that names no account cannot match any allowance, so this stays a successful no-op
-        final var unknownSpender = idFactory.newAccountIdWithAlias(UNKNOWN_EVM_ADDRESS);
-        final var txn = cryptoApproveAllowanceTransaction(
-                payerId,
-                false,
-                List.of(cryptoAllowance
-                        .copyBuilder()
-                        .spender(unknownSpender)
-                        .amount(0)
-                        .build()),
-                List.of(tokenAllowance
-                        .copyBuilder()
-                        .spender(unknownSpender)
-                        .amount(0)
-                        .build()),
-                List.of());
-        given(handleContext.body()).willReturn(txn);
-
-        subject.handle(handleContext);
-
-        final var owner = writableAccountStore.getAccountById(ownerId);
-        assertThat(owner.cryptoAllowances()).hasSize(1);
-        assertThat(owner.tokenAllowances()).hasSize(1);
+                .containsExactly(grant);
     }
 
     @Test
     void allowanceCannotBeGrantedToSpenderNamedByAlias() {
-        // Only a revocation resolves an aliased spender; a grant still has to name the spender by account number
         writableAccountStore.putAlias(SPENDER_KEY_ALIAS, spenderId);
         final var txn = cryptoApproveAllowanceTransaction(
                 payerId,
@@ -773,7 +768,193 @@ class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
                 .has(responseCode(INVALID_ALLOWANCE_SPENDER_ID));
     }
 
-    private void assertAmountZeroDeletesExistingAllowances(final AccountID spenderAlias) {
+    @Test
+    void contractDispatchedRevocationForUnknownAliasSucceeds() {
+        given(streamBuilder.category()).willReturn(CHILD);
+        final var spenderAlias = idFactory.newAccountIdWithAlias(UNKNOWN_EVM_ADDRESS);
+        final var txn = cryptoApproveAllowanceTransaction(
+                payerId,
+                false,
+                List.of(cryptoAllowance
+                        .copyBuilder()
+                        .spender(spenderAlias)
+                        .amount(0)
+                        .build()),
+                List.of(tokenAllowance
+                        .copyBuilder()
+                        .spender(spenderAlias)
+                        .amount(0)
+                        .build()),
+                List.of(NftAllowance.newBuilder()
+                        .owner(ownerId)
+                        .spender(spenderAlias)
+                        .tokenId(nonFungibleTokenId)
+                        .approvedForAll(Boolean.FALSE)
+                        .build()));
+        given(handleContext.body()).willReturn(txn);
+        final var existingOwner = writableAccountStore.getAccountById(ownerId);
+
+        subject.handle(handleContext);
+
+        final var owner = writableAccountStore.getAccountById(ownerId);
+        assertThat(owner.cryptoAllowances()).isEqualTo(existingOwner.cryptoAllowances());
+        assertThat(owner.tokenAllowances()).isEqualTo(existingOwner.tokenAllowances());
+        assertThat(owner.approveForAllNftAllowances()).isEqualTo(existingOwner.approveForAllNftAllowances());
+    }
+
+    @Test
+    void ownerFailuresTakePrecedenceOverAliasedSpender() {
+        final var aliasedSpender = idFactory.newAccountIdWithAlias(UNKNOWN_EVM_ADDRESS);
+        final var nftRevocation = nftAllowance
+                .copyBuilder()
+                .spender(aliasedSpender)
+                .approvedForAll(Boolean.FALSE)
+                .serialNumbers(List.of())
+                .build();
+
+        assertHandleFailsWith(
+                List.of(),
+                List.of(tokenAllowance
+                        .copyBuilder()
+                        .owner(delegatingSpenderId)
+                        .spender(aliasedSpender)
+                        .amount(0)
+                        .build()),
+                List.of(),
+                TOKEN_NOT_ASSOCIATED_TO_ACCOUNT);
+        assertHandleFailsWith(
+                List.of(),
+                List.of(),
+                List.of(nftRevocation.copyBuilder().owner(delegatingSpenderId).build()),
+                TOKEN_NOT_ASSOCIATED_TO_ACCOUNT);
+        assertHandleFailsWith(
+                List.of(),
+                List.of(),
+                List.of(nftRevocation
+                        .copyBuilder()
+                        .owner(idFactory.newAccountId(999_999L))
+                        .build()),
+                INVALID_ALLOWANCE_OWNER_ID);
+    }
+
+    @Test
+    void delegationFailuresTakePrecedenceOverAliasedSpender() {
+        final var nftRevocation = nftAllowance
+                .copyBuilder()
+                .spender(idFactory.newAccountIdWithAlias(UNKNOWN_EVM_ADDRESS))
+                .approvedForAll(Boolean.FALSE)
+                .serialNumbers(List.of())
+                .build();
+
+        assertHandleFailsWith(
+                List.of(),
+                List.of(),
+                List.of(nftRevocation
+                        .copyBuilder()
+                        .delegatingSpender(idFactory.newAccountId(999_999L))
+                        .build()),
+                INVALID_DELEGATING_SPENDER);
+        assertHandleFailsWith(
+                List.of(),
+                List.of(),
+                List.of(nftRevocation
+                        .copyBuilder()
+                        .delegatingSpender(delegatingSpenderId)
+                        .build()),
+                DELEGATING_SPENDER_DOES_NOT_HAVE_APPROVE_FOR_ALL);
+        assertHandleFailsWith(
+                List.of(),
+                List.of(),
+                List.of(nftRevocation.copyBuilder().delegatingSpender(spenderId).build()),
+                EMPTY_ALLOWANCES);
+    }
+
+    @Test
+    void laterAllowanceFailureTakesPrecedenceOverAliasedSpender() {
+        assertHandleFailsWith(
+                List.of(cryptoAllowance
+                        .copyBuilder()
+                        .spender(idFactory.newAccountIdWithAlias(UNKNOWN_EVM_ADDRESS))
+                        .amount(0)
+                        .build()),
+                List.of(tokenAllowance.copyBuilder().tokenId(nonFungibleTokenId).build()),
+                List.of(),
+                NFT_IN_FUNGIBLE_TOKEN_ALLOWANCES);
+    }
+
+    @Test
+    void nftOwnershipFailureTakesPrecedenceOverAliasedSpender() {
+        // The payer does not own serial 1, which is only detected while the allowances are applied
+        assertHandleFailsWith(
+                List.of(cryptoAllowance
+                        .copyBuilder()
+                        .spender(idFactory.newAccountIdWithAlias(UNKNOWN_EVM_ADDRESS))
+                        .amount(0)
+                        .build()),
+                List.of(),
+                List.of(NftAllowance.newBuilder()
+                        .spender(spenderId)
+                        .tokenId(nonFungibleTokenId)
+                        .serialNumbers(List.of(1L))
+                        .build()),
+                SENDER_DOES_NOT_OWN_NFT_SERIAL_NO);
+    }
+
+    @Test
+    void allowanceLimitFailureTakesPrecedenceOverAliasedSpender() {
+        final var aliasedSpender = idFactory.newAccountIdWithAlias(UNKNOWN_EVM_ADDRESS);
+        // The owner holds three allowances, so a new grant exceeds a limit of three
+        givenMaxAccountAllowances(3);
+        assertHandleFailsWith(
+                List.of(
+                        cryptoAllowance
+                                .copyBuilder()
+                                .spender(aliasedSpender)
+                                .amount(0)
+                                .build(),
+                        cryptoAllowance
+                                .copyBuilder()
+                                .spender(delegatingSpenderId)
+                                .build()),
+                List.of(),
+                List.of(),
+                MAX_ALLOWANCES_EXCEEDED);
+        // and is already over a limit of two
+        givenMaxAccountAllowances(2);
+        assertHandleFailsWith(
+                List.of(),
+                List.of(),
+                List.of(nftAllowance
+                        .copyBuilder()
+                        .spender(aliasedSpender)
+                        .approvedForAll(Boolean.FALSE)
+                        .serialNumbers(List.of())
+                        .build()),
+                MAX_ALLOWANCES_EXCEEDED);
+    }
+
+    private void givenMaxAccountAllowances(final int limit) {
+        given(handleContext.configuration())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("hedera.allowances.maxAccountLimit", limit)
+                        .getOrCreateConfig());
+    }
+
+    private void assertHandleFailsWith(
+            final List<CryptoAllowance> cryptoAllowances,
+            final List<TokenAllowance> tokenAllowances,
+            final List<NftAllowance> nftAllowances,
+            final ResponseCodeEnum status) {
+        given(handleContext.body())
+                .willReturn(cryptoApproveAllowanceTransaction(
+                        payerId, false, cryptoAllowances, tokenAllowances, nftAllowances));
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(status));
+    }
+
+    private void assertAmountZeroIsRejected(final AccountID spenderAlias) {
         final var txn = cryptoApproveAllowanceTransaction(
                 payerId,
                 false,
@@ -789,16 +970,12 @@ class CryptoApproveAllowanceHandlerTest extends CryptoTokenHandlerTestBase {
                         .build()),
                 List.of());
         given(handleContext.body()).willReturn(txn);
-        // Both allowances were granted to the spender by account number
         final var existingOwner = writableAccountStore.getAccountById(ownerId);
-        assertThat(existingOwner.cryptoAllowances().getFirst().spenderId()).isEqualTo(spenderId);
-        assertThat(existingOwner.tokenAllowances().getFirst().spenderId()).isEqualTo(spenderId);
 
-        subject.handle(handleContext);
-
-        final var modifiedOwner = writableAccountStore.getAccountById(ownerId);
-        assertThat(modifiedOwner.cryptoAllowances()).isEmpty();
-        assertThat(modifiedOwner.tokenAllowances()).isEmpty();
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(INVALID_ALLOWANCE_SPENDER_ID));
+        assertThat(writableAccountStore.getAccountById(ownerId)).isEqualTo(existingOwner);
     }
 
     @Test
