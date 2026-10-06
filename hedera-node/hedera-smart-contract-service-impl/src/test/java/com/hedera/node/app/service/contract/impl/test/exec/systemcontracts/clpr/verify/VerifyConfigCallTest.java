@@ -22,16 +22,21 @@ import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verify.VerifyConfigCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verify.VerifyConfigTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
+import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayDeque;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -50,6 +55,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
  */
 @ExtendWith(MockitoExtension.class)
 class VerifyConfigCallTest extends CallTestBase {
+
+    @BeforeEach
+    void setUpFrame() {
+        final Configuration config = HederaTestConfigBuilder.create().getOrCreateConfig();
+        given(frame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
+        given(frame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE)).willReturn(config);
+    }
 
     /**
      * Reads {@code stateProofFile} from disk and runs a {@link VerifyConfigCall}, returning

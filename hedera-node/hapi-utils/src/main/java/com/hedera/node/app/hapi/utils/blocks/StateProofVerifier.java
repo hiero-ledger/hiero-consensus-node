@@ -20,13 +20,14 @@ import org.apache.logging.log4j.Logger;
 /**
  * Utility class for validating {@link StateProof} messages.
  *
- * <p>Provides Merkle-path reconstruction helpers — {@link #computeBlockRootHash(StateProof)},
- * {@link #computeBlockRootHashFromPath(MerklePath)}, and {@link #verifyPath(MerklePath, byte[])} —
- * that callers combine with a {@link TssVerifier} (e.g. {@link NativeTssVerifier}) to perform the
- * BLS aggregate signature check against the peer ledger's verification key.
+ * <p>Provides Merkle-path reconstruction helpers — {@link #computeBlockRootHash(StateProof, MessageDigest)},
+ * {@link #computeBlockRootHashFromPath(MerklePath, MessageDigest)}, and
+ * {@link #verifyPath(MerklePath, byte[], MessageDigest)} — that callers combine with a {@link TssVerifier}
+ * (e.g. {@link NativeTssVerifier}) to perform the BLS aggregate signature check against the peer ledger's
+ * verification key.
  *
- * <p>{@link #verifyPath(MerklePath, byte[])} performs Merkle reconstruction only and only accepts
- * {@code stateItemLeaf} paths (the only leaf type CLPR produces).
+ * <p>{@link #verifyPath(MerklePath, byte[], MessageDigest)} performs Merkle reconstruction only and only
+ * accepts {@code stateItemLeaf} paths (the only leaf type CLPR produces).
  */
 public final class StateProofVerifier {
 
@@ -43,20 +44,6 @@ public final class StateProofVerifier {
      * Computes the block root hash from the proof's Merkle paths without performing any
      * signature check. Used by callers (e.g. CLPR system-contract verifiers) that need the
      * hash to hand off to an external TSS verifier.
-     *
-     * @param stateProof the state proof to compute the root hash of
-     * @return the computed block root hash
-     * @throws NullPointerException  if {@code stateProof} is null
-     * @throws IllegalStateException if the paths are structurally invalid
-     */
-    @NonNull
-    public static byte[] computeBlockRootHash(@NonNull final StateProof stateProof) {
-        return computeBlockRootHash(stateProof, HashUtils.newMessageDigest(true));
-    }
-
-    /**
-     * Same as {@link #computeBlockRootHash(StateProof)} but hashes with the supplied {@link MessageDigest}
-     * instead of the default SHA-256 (e.g. to match a block-root tree hashed with SHA-384).
      *
      * @param stateProof the state proof to compute the root hash of
      * @param digest the digest instance to hash with
@@ -82,24 +69,10 @@ public final class StateProofVerifier {
      * {@link MerklePath} — the form used by CLPR bundle paths, where each path independently
      * authenticates to the block root and has {@code nextPathIndex = -1}.
      *
-     * <p>Unlike {@link #computeBlockRootHash(StateProof)} (which expects a single connected
+     * <p>Unlike {@link #computeBlockRootHash(StateProof, MessageDigest)} (which expects a single connected
      * proof tree), this works on one independent path; callers should subsequently verify the
-     * remaining bundle paths against the returned hash via {@link #verifyPath(MerklePath, byte[])}.
-     *
-     * @param path the merkle path to compute the block root hash from
-     * @return the computed block root hash
-     * @throws NullPointerException  if {@code path} is null
-     * @throws IllegalStateException if the path has no leaf or explicit hash
-     */
-    @NonNull
-    public static byte[] computeBlockRootHashFromPath(@NonNull final MerklePath path) {
-        return computeBlockRootHashFromPath(path, HashUtils.newMessageDigest(true));
-    }
-
-    /**
-     * Same as {@link #computeBlockRootHashFromPath(MerklePath)} but hashes with the supplied
-     * {@link MessageDigest} instead of the default SHA-256 (e.g. to match a block-root tree hashed with
-     * SHA-384).
+     * remaining bundle paths against the returned hash via
+     * {@link #verifyPath(MerklePath, byte[], MessageDigest)}.
      *
      * @param path the merkle path to compute the block root hash from
      * @param digest the digest instance to hash with
@@ -128,24 +101,13 @@ public final class StateProofVerifier {
      * Verifies a single independent {@link MerklePath} against an expected block-root hash.
      *
      * <p>Use this for CLPR bundle paths, which are each fully self-contained leaf-to-block-root
-     * paths with {@code nextPathIndex = -1}. Passing them to {@link #computeBlockRootHash(StateProof)}
-     * would fail because the stack-based reconstruction requires a single root entry; N independent
-     * paths leave N entries on the stack and throw {@link IllegalStateException}.
+     * paths with {@code nextPathIndex = -1}. Passing them to
+     * {@link #computeBlockRootHash(StateProof, MessageDigest)} would fail because the stack-based
+     * reconstruction requires a single root entry; N independent paths leave N entries on the stack
+     * and throw {@link IllegalStateException}.
      *
      * <p>The leaf hash is computed via {@link HashUtils#computeVirtualMapStateLeafHash} —
      * CLPR state proofs contain only {@code stateItemLeaf} paths from VirtualMap.
-     *
-     * @param path the merkle path to verify (must have a leaf or explicit hash)
-     * @param expectedBlockRootHash the expected block root hash to compare against
-     * @return {@code true} if the path correctly authenticates to {@code expectedBlockRootHash}
-     */
-    public static boolean verifyPath(@NonNull final MerklePath path, @NonNull final byte[] expectedBlockRootHash) {
-        return verifyPath(path, expectedBlockRootHash, HashUtils.newMessageDigest(true));
-    }
-
-    /**
-     * Same as {@link #verifyPath(MerklePath, byte[])} but hashes with the supplied {@link MessageDigest}
-     * instead of the default SHA-256 (e.g. to match a block-root tree hashed with SHA-384).
      *
      * @param path the merkle path to verify (must have a leaf or explicit hash)
      * @param expectedBlockRootHash the expected block root hash to compare against

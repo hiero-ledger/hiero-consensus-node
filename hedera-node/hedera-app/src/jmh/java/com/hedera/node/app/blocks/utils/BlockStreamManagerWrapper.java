@@ -45,6 +45,7 @@ import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
@@ -131,11 +132,11 @@ public class BlockStreamManagerWrapper {
                 null,
                 new BlockStreamingObs(configProvider));
 
-        final boolean useSha256 = configProvider
+        final DigestType digestType = configProvider
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
-                .useSha256();
-        manager.init(state, BlockStreamManager.hashOfZero(useSha256));
+                .digestType();
+        manager.init(state, BlockStreamManager.hashOfZero(digestType));
     }
 
     public void startBlock(long blockNumber, BlockItem header) {

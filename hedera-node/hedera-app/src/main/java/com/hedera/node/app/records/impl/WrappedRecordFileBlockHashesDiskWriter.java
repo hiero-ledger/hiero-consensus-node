@@ -72,7 +72,7 @@ public class WrappedRecordFileBlockHashesDiskWriter implements AutoCloseable {
         return CommonUtils.digestOrThrow(configProvider
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
-                .useSha256());
+                .digestType());
     }
 
     /**

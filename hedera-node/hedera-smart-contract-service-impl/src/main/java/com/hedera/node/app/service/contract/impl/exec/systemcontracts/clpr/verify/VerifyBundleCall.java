@@ -40,6 +40,7 @@ import java.util.Comparator;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -100,9 +101,9 @@ public class VerifyBundleCall extends AbstractCall {
                 bundlePayload.length,
                 GAS_REQUIREMENT);
 
-        final boolean useSha256 =
-                configOf(frame).getConfigData(BlockStreamConfig.class).useSha256();
-        final MessageDigest digest = CommonUtils.digestOrThrow(useSha256);
+        final DigestType digestType =
+                configOf(frame).getConfigData(BlockStreamConfig.class).digestType();
+        final MessageDigest digest = CommonUtils.digestOrThrow(digestType);
 
         final StateProof proof;
         try {

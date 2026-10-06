@@ -51,6 +51,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * A {@link HistoryProver} that uses the WRAPS protocol to construct a {@link HistoryProof} that uses a
@@ -78,7 +79,7 @@ public class WrapsHistoryProver implements HistoryProver {
     private final HistoryLibrary historyLibrary;
     private final HistorySubmissions submissions;
     private final WrapsMpcStateMachine machine;
-    private final boolean useSha256;
+    private final DigestType digestType;
     private final Object voteLock = new Object();
 
     private final Map<WrapsPhase, SortedMap<Long, WrapsMessagePublication>> phaseMessages =
@@ -260,7 +261,7 @@ public class WrapsHistoryProver implements HistoryProver {
                 historyLibrary,
                 submissions,
                 machine,
-                false);
+                DigestType.SHA_384);
     }
 
     public WrapsHistoryProver(
@@ -275,7 +276,7 @@ public class WrapsHistoryProver implements HistoryProver {
             @NonNull final HistoryLibrary historyLibrary,
             @NonNull final HistorySubmissions submissions,
             @NonNull final WrapsMpcStateMachine machine,
-            final boolean useSha256) {
+            @NonNull final DigestType digestType) {
         this.selfId = selfId;
         this.sourceProof = sourceProof;
         this.wrapsMessageGracePeriod = requireNonNull(wrapsMessageGracePeriod);
@@ -287,7 +288,7 @@ public class WrapsHistoryProver implements HistoryProver {
         this.historyLibrary = requireNonNull(historyLibrary);
         this.submissions = requireNonNull(submissions);
         this.machine = requireNonNull(machine);
-        this.useSha256 = useSha256;
+        this.digestType = requireNonNull(digestType);
     }
 
     @NonNull
@@ -408,7 +409,8 @@ public class WrapsHistoryProver implements HistoryProver {
             switch (proofVoteCategory) {
                 case NOT_RECURSIVE -> {
                     // Always store a hash – useful if we haven't finished our own proof yet
-                    final var hash = hashOf(proof);
+                    final var hash = Bytes.wrap(
+                            noThrowHashOf(HistoryProof.PROTOBUF.toBytes(proof).toByteArray(), digestType));
                     final CompletableFuture<VoteDecision> decisionFuture;
                     synchronized (voteLock) {
                         explicitHistoryProofHashes.put(nodeId, hash);
@@ -673,7 +675,8 @@ public class WrapsHistoryProver implements HistoryProver {
             return;
         }
         final var proofKind = proofKindOf(proof);
-        final var selfProofHash = hashOf(proof);
+        final var selfProofHash =
+                Bytes.wrap(noThrowHashOf(HistoryProof.PROTOBUF.toBytes(proof).toByteArray(), digestType));
         final var decisionFuture = new CompletableFuture<VoteDecision>();
         final var submissionFuture = decisionFuture.thenCompose(decision -> switch (decision.choice()) {
             case SKIP -> CompletableFuture.completedFuture(null);
@@ -982,7 +985,13 @@ public class WrapsHistoryProver implements HistoryProver {
     }
 
     private Bytes selfProofHashOrThrow() {
-        return explicitHistoryProofHashes.computeIfAbsent(selfId, k -> hashOf(requireNonNull(historyProof)));
+        return explicitHistoryProofHashes.computeIfAbsent(
+                selfId,
+                k -> Bytes.wrap(noThrowHashOf(
+                        HistoryProof.PROTOBUF
+                                .toBytes(requireNonNull(historyProof))
+                                .toByteArray(),
+                        digestType)));
     }
 
     private static ProofKind proofKindOf(@NonNull final HistoryProof proof) {
@@ -993,10 +1002,5 @@ public class WrapsHistoryProver implements HistoryProver {
 
     private static ProofKind proofKindOf(@NonNull final ProofVoteCategory category) {
         return category == ProofVoteCategory.NOT_RECURSIVE ? ProofKind.NON_RECURSIVE : ProofKind.RECURSIVE;
-    }
-
-    private Bytes hashOf(@NonNull final HistoryProof proof) {
-        final var bytes = HistoryProof.PROTOBUF.toBytes(proof).toByteArray();
-        return Bytes.wrap(noThrowHashOf(bytes, useSha256));
     }
 }

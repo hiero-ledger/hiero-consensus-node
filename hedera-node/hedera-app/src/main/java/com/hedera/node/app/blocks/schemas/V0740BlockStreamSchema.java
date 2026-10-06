@@ -180,7 +180,7 @@ public class V0740BlockStreamSchema extends Schema<SemanticVersion> {
         log.info(
                 "Using current preview stream state hash {} as the starting state hash for first block after cutover",
                 lastBlockStreamInfo.startOfBlockStateHash());
-        final var emptySubtreeRoot = BlockStreamManager.hashOfZero(config.useSha256());
+        final var emptySubtreeRoot = BlockStreamManager.hashOfZero(config.digestType());
         final var cutoverBlockStreamInfo = lastBlockStreamInfo
                 .copyBuilder()
                 .blockNumber(blockInfo.lastBlockNumber())

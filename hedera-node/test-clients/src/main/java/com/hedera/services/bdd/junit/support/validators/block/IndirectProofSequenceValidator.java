@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 
 class IndirectProofSequenceValidator {
     private static final Logger log = LogManager.getLogger(IndirectProofSequenceValidator.class);
@@ -74,26 +75,18 @@ class IndirectProofSequenceValidator {
     private boolean endOfSequenceReached = false;
 
     /**
-     * Whether block hashes in this sequence were produced with SHA-256 (32-byte) rather than the SHA-384 (48-byte)
-     * default, per {@code BlockStreamConfig.useSha256}. Must match the digest the block stream under validation was
-     * produced with, or every recomputed merkle hash will mismatch.
+     * Which digest algorithm block hashes in this sequence were produced with, per {@code BlockStreamConfig.digestType}.
+     * Must match the digest the block stream under validation was produced with, or every recomputed merkle hash will
+     * mismatch.
      */
-    private final boolean useSha256;
+    private final DigestType digestType;
 
-    IndirectProofSequenceValidator(final boolean useSha256) {
-        this.useSha256 = useSha256;
-    }
-
-    /**
-     * Creates a validator for the legacy SHA-384 path. Retained for the development {@link TestCase} harness, whose
-     * fixtures are SHA-384.
-     */
-    IndirectProofSequenceValidator() {
-        this(false);
+    IndirectProofSequenceValidator(final DigestType digestType) {
+        this.digestType = digestType;
     }
 
     private MessageDigest digest() {
-        return CommonUtils.digestOrThrow(useSha256);
+        return CommonUtils.digestOrThrow(digestType);
     }
 
     /**
@@ -104,7 +97,7 @@ class IndirectProofSequenceValidator {
      * @param ignore not used
      */
     public static void main(String[] ignore) {
-        TestCase.run();
+        TestCase.run(); // Only works for sha384
     }
 
     boolean containsIndirectProofs() {
@@ -547,7 +540,7 @@ class IndirectProofSequenceValidator {
          * Runs the indirect proof sequence test case
          */
         static void run() {
-            final var validator = new IndirectProofSequenceValidator();
+            final var validator = new IndirectProofSequenceValidator(DigestType.SHA_384);
 
             validator.registerProof(
                     8L, BLOCK_8.proof, BLOCK_8_HASH, INITIAL_PREV_BLOCK_HASH, BLOCK_8.timestamp, BLOCK_8.siblings);

@@ -112,6 +112,7 @@ import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
@@ -1187,7 +1188,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             configProvider
                                     .getConfiguration()
                                     .getConfigData(BlockStreamConfig.class)
-                                    .useSha256());
+                                    .digestType());
                 } catch (final IllegalStateException e) {
                     // This block can't be proven (e.g. a gap in the pending queue) and has already been polled from
                     // pendingBlocks, so release its writer and drop any on-disk pending files here — no later path
@@ -1803,21 +1804,22 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         return CommonUtils.digestOrThrow(configProvider
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
-                .useSha256());
+                .digestType());
     }
 
     private Bytes hashOfZero() {
         return BlockStreamManager.hashOfZero(configProvider
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
-                .useSha256());
+                .digestType());
     }
 
     private BlockHashAlgorithm blockHashAlgorithm() {
         return configProvider
-                        .getConfiguration()
-                        .getConfigData(BlockStreamConfig.class)
-                        .useSha256()
+                                .getConfiguration()
+                                .getConfigData(BlockStreamConfig.class)
+                                .digestType()
+                        == DigestType.SHA_256
                 ? SHA2_256
                 : SHA2_384;
     }

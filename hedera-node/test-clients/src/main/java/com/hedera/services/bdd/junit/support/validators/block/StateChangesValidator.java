@@ -92,6 +92,7 @@ import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Mnemonics;
 import org.hiero.base.file.FileSystemManager;
@@ -114,7 +115,7 @@ public class StateChangesValidator implements BlockStreamValidator {
     public static final AtomicBoolean ADAPTIVE_SIGNATURE_CHECKS_ENABLED = new AtomicBoolean(false);
 
     // The saved-state root hash in the state-metadata file is the platform signed-state Merkle root, hashed with the
-    // platform digest Cryptography.DEFAULT_DIGEST_TYPE (NOT BlockStreamConfig.useSha256). Tracking the platform digest
+    // platform digest Cryptography.DEFAULT_DIGEST_TYPE (NOT BlockStreamConfig.digestType). Tracking the platform digest
     // length directly means this auto-adjusts (48 -> 32) if/when that digest flips to SHA-256, without coupling to the
     // block-stream flag, which moves on a different (though related) switch.
     private static final int HASH_SIZE = Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
@@ -138,7 +139,7 @@ public class StateChangesValidator implements BlockStreamValidator {
     private static final Pattern NUMBER_PATTERN = Pattern.compile("\\d+");
 
     private final long hintsThresholdDenominator;
-    private final boolean useSha256;
+    private final DigestType digestType;
     private final boolean assertAtLeastOneWraps;
     private final Hash initializedGenesisStateHash;
     private final Path pathToNode0SwirldsLog;
@@ -228,7 +229,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 realm,
                 CutoverEnabled.NO,
                 null,
-                Boolean.getBoolean("blockStream.useSha256"));
+                DigestType.valueOf(System.getProperty("blockStream.digestType", "SHA_384")));
         final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(
                 node0Dir.resolve("data/blockStreams/block-%d.%d.3".formatted(shard, realm)));
         validator.validateBlocks(blocks);
@@ -309,7 +310,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                 spec.realm(),
                 isCutoverEnabled ? CutoverEnabled.YES : CutoverEnabled.NO,
                 preservedPreviewBlocksDir,
-                nodeStartupProperties.getBoolean("blockStream.useSha256"));
+                DigestType.valueOf(Optional.ofNullable(nodeStartupProperties.get("blockStream.digestType"))
+                        .orElse("SHA_384")));
     }
 
     public StateChangesValidator(
@@ -326,11 +328,11 @@ public class StateChangesValidator implements BlockStreamValidator {
             final long realm,
             @NonNull final CutoverEnabled cutoverEnabled,
             @Nullable final Path preservedPreviewBlocksDir,
-            final boolean useSha256) {
+            @NonNull final DigestType digestType) {
         this.expectedRootHash = requireNonNull(expectedRootHash);
         this.pathToNode0SwirldsLog = requireNonNull(pathToNode0SwirldsLog);
         this.hintsThresholdDenominator = hintsThresholdDenominator;
-        this.useSha256 = useSha256;
+        this.digestType = requireNonNull(digestType);
         this.assertAtLeastOneWraps = assertAtLeastOneWraps;
         this.cutoverEnabled = requireNonNull(cutoverEnabled);
         this.preservedPreviewBlocksDir = preservedPreviewBlocksDir;
@@ -370,7 +372,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         this.historyLibrary = (historyEnabled == HistoryEnabled.YES) ? new HistoryLibraryImpl() : null;
         this.wrapsEnabled = wrapsEnabled;
         this.proofSeqFactory = (stateProofsEnabled == StateProofsEnabled.YES)
-                ? () -> new IndirectProofSequenceValidator(useSha256)
+                ? () -> new IndirectProofSequenceValidator(digestType)
                 : () -> null;
 
         logger.info("Registered all Service and migrated state definitions to version {}", servicesVersion);
@@ -814,7 +816,7 @@ public class StateChangesValidator implements BlockStreamValidator {
     }
 
     private MessageDigest digest() {
-        return useSha256 ? sha256DigestOrThrow() : sha384DigestOrThrow();
+        return digestType == DigestType.SHA_256 ? sha256DigestOrThrow() : sha384DigestOrThrow();
     }
 
     private Bytes hashLeaf(final Bytes leafData) {
@@ -1017,9 +1019,9 @@ public class StateChangesValidator implements BlockStreamValidator {
     }
 
     private void assertMockSignature(@NonNull final BlockProof proof, @NonNull final Bytes expectedBlockHash) {
-        // The node's mock signature is noThrowHashOf(blockHash, useSha256) (TssBlockHashSigner.sign), so it follows
+        // The node's mock signature is noThrowHashOf(blockHash, digestType) (TssBlockHashSigner.sign), so it follows
         // the block-stream digest flag, not the platform digest.
-        final var expectedMockSignature = Bytes.wrap(noThrowHashOf(expectedBlockHash.toByteArray(), useSha256));
+        final var expectedMockSignature = Bytes.wrap(noThrowHashOf(expectedBlockHash.toByteArray(), digestType));
         assertEquals(
                 expectedMockSignature,
                 proof.signedBlockProofOrThrow().blockSignature(),

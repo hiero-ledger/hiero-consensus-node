@@ -43,6 +43,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -881,18 +882,18 @@ class WrapsHistoryProverTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void storedProofHashLengthFollowsUseSha256Flag() {
+    void storedProofHashLengthFollowsDigestType() {
         final var proof = HistoryProof.newBuilder()
                 .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
                 .build();
         final var vote = HistoryProofVote.newBuilder().proof(proof).build();
 
-        subject = newProverWithUseSha256(false);
+        subject = newProverWithDigestType(DigestType.SHA_384);
         setField("voteDecisionFuture", new CompletableFuture<>());
         subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
         final var sha384Hash = ((Map<Long, Bytes>) getField("explicitHistoryProofHashes")).get(OTHER_NODE_ID);
 
-        subject = newProverWithUseSha256(true);
+        subject = newProverWithDigestType(DigestType.SHA_256);
         setField("voteDecisionFuture", new CompletableFuture<>());
         subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
         final var sha256Hash = ((Map<Long, Bytes>) getField("explicitHistoryProofHashes")).get(OTHER_NODE_ID);
@@ -902,7 +903,7 @@ class WrapsHistoryProverTest {
         assertNotEquals(sha384Hash, sha256Hash);
     }
 
-    private WrapsHistoryProver newProverWithUseSha256(final boolean useSha256) {
+    private WrapsHistoryProver newProverWithDigestType(final DigestType digestType) {
         return new WrapsHistoryProver(
                 SELF_ID,
                 GRACE_PERIOD,
@@ -915,7 +916,7 @@ class WrapsHistoryProverTest {
                 historyLibrary,
                 submissions,
                 new WrapsMpcStateMachine(),
-                useSha256);
+                digestType);
     }
 
     @Test

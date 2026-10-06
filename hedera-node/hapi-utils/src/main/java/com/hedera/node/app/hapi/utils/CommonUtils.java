@@ -111,24 +111,24 @@ public final class CommonUtils {
     }
 
     /**
-     * Returns a {@link MessageDigest} for SHA-256 if {@code useSha256} is true, or SHA-384 otherwise. Centralizes
-     * the choice driven by {@code BlockStreamConfig.useSha256} so callers don't each re-derive the same ternary.
-     * @param useSha256 whether to use SHA-256 instead of the SHA-384 default
+     * Returns a {@link MessageDigest} for the algorithm specified by {@code digestType}. Centralizes
+     * the choice driven by {@code BlockStreamConfig.digestType} so callers don't each re-derive the same lookup.
+     * @param digestType the digest algorithm to use
      * @return the selected {@link MessageDigest}
      */
-    public static MessageDigest digestOrThrow(final boolean useSha256) {
-        return useSha256 ? sha256DigestOrThrow() : sha384DigestOrThrow();
+    public static MessageDigest digestOrThrow(final DigestType digestType) {
+        return digestType.buildDigest();
     }
 
     /**
-     * Hashes the given bytes with the digest selected by {@code useSha256} (see {@link #digestOrThrow(boolean)}).
+     * Hashes the given bytes with the digest selected by {@code digestType} (see {@link #digestOrThrow(DigestType)}).
      * @param byteArray the bytes to hash
-     * @param useSha256 whether to use SHA-256 instead of the SHA-384 default
+     * @param digestType the digest algorithm to use
      * @return the resulting hash
      */
-    public static byte[] noThrowHashOf(@NonNull final byte[] byteArray, final boolean useSha256) {
+    public static byte[] noThrowHashOf(@NonNull final byte[] byteArray, final DigestType digestType) {
         requireNonNull(byteArray);
-        return digestOrThrow(useSha256).digest(byteArray);
+        return digestOrThrow(digestType).digest(byteArray);
     }
 
     // SHA-256 hash functions with the default-provided message digest

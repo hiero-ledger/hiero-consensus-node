@@ -1515,11 +1515,11 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         }
         if (blockStreamEnabled) {
             notifications.register(StateHashedListener.class, daggerApp.blockStreamManager());
-            final var useSha256 = configProvider
+            final var digestType = configProvider
                     .getConfiguration()
                     .getConfigData(BlockStreamConfig.class)
-                    .useSha256();
-            final var lastBlockHash = (trigger == GENESIS) ? BlockStreamManager.hashOfZero(useSha256) : null;
+                    .digestType();
+            final var lastBlockHash = (trigger == GENESIS) ? BlockStreamManager.hashOfZero(digestType) : null;
             daggerApp
                     .blockStreamManager()
                     .init(state, lastBlockHash, blockStreamService.consumeBsiSchemaOverwriteExecuted());

@@ -31,6 +31,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.CompletableFuture;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -171,18 +172,18 @@ class TssBlockHashSignerTest {
     }
 
     @Test
-    void mockSignatureHashLengthFollowsUseSha256() {
+    void mockSignatureHashLengthFollowsDigestType() {
         // The forced-mock-signature path "signs" by hashing the block hash with the digest selected by
-        // BlockStreamConfig.useSha256: SHA-384 (48 bytes) when false, SHA-256 (32 bytes) when true.
+        // BlockStreamConfig.digestType: SHA-384 (48 bytes) for SHA_384, SHA-256 (32 bytes) for SHA_256.
         given(configProvider.getConfiguration())
-                .willReturn(new VersionedConfigImpl(mockSignatureConfigWithUseSha256(false), 123));
+                .willReturn(new VersionedConfigImpl(mockSignatureConfigWithDigestType(DigestType.SHA_384), 123));
         subject = new TssBlockHashSigner(hintsService, historyService, configProvider);
         final var sha384Sig = subject.sign(FAKE_BLOCK_HASH, SUCCINCT_SIGNATURE)
                 .signatureFuture()
                 .join();
 
         given(configProvider.getConfiguration())
-                .willReturn(new VersionedConfigImpl(mockSignatureConfigWithUseSha256(true), 123));
+                .willReturn(new VersionedConfigImpl(mockSignatureConfigWithDigestType(DigestType.SHA_256), 123));
         subject = new TssBlockHashSigner(hintsService, historyService, configProvider);
         final var sha256Sig = subject.sign(FAKE_BLOCK_HASH, SUCCINCT_SIGNATURE)
                 .signatureFuture()
@@ -190,18 +191,19 @@ class TssBlockHashSignerTest {
 
         assertEquals(48L, sha384Sig.length(), "SHA-384 mock signature is 48 bytes");
         assertEquals(32L, sha256Sig.length(), "SHA-256 mock signature is 32 bytes");
-        assertEquals(Bytes.wrap(CommonUtils.noThrowHashOf(FAKE_BLOCK_HASH.toByteArray(), true)), sha256Sig);
+        assertEquals(
+                Bytes.wrap(CommonUtils.noThrowHashOf(FAKE_BLOCK_HASH.toByteArray(), DigestType.SHA_256)), sha256Sig);
         assertNotEquals(sha384Sig, sha256Sig);
         verifyNoInteractions(hintsService, historyService);
     }
 
-    private Configuration mockSignatureConfigWithUseSha256(final boolean useSha256) {
+    private Configuration mockSignatureConfigWithDigestType(final DigestType digestType) {
         return HederaTestConfigBuilder.create()
                 .withValue("tss.hintsEnabled", "true")
                 .withValue("tss.historyEnabled", "true")
                 .withValue("tss.forceMockSignatures", "true")
                 .withValue("blockStream.streamMode", StreamMode.BOTH.name())
-                .withValue("blockStream.useSha256", "" + useSha256)
+                .withValue("blockStream.digestType", digestType.name())
                 .getOrCreateConfig();
     }
 

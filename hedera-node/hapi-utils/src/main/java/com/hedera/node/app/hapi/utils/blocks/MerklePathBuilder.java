@@ -4,7 +4,6 @@ package com.hedera.node.app.hapi.utils.blocks;
 import static com.hedera.node.app.hapi.utils.blocks.HashUtils.computeSingleChildHash;
 import static com.hedera.node.app.hapi.utils.blocks.HashUtils.computeVirtualMapStateLeafHash;
 import static com.hedera.node.app.hapi.utils.blocks.HashUtils.joinHashes;
-import static com.hedera.node.app.hapi.utils.blocks.HashUtils.newMessageDigest;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.MerklePath;
@@ -52,36 +51,14 @@ public final class MerklePathBuilder {
     private int nextPathIndex = -1;
 
     /**
-     * Constructs an empty Merkle path builder using the default SHA-256 digest. One of
+     * Constructs an empty Merkle path builder that hashes with the supplied {@link MessageDigest}. One of
      * {@link #setStateItemLeaf(Bytes)}, {@link #setHash(Bytes)}, or a merge operation that produces a
      * start hash must be invoked before hash accessors are used.
-     */
-    public MerklePathBuilder() {
-        this(newMessageDigest(true));
-    }
-
-    /**
-     * Constructs an empty Merkle path builder that hashes with the supplied {@link MessageDigest} (e.g. a
-     * SHA-384 digest obtained via {@code CommonUtils.digestOrThrow(useSha256)} when the caller must match a
-     * block-root tree hashed with a non-default algorithm). One of {@link #setStateItemLeaf(Bytes)},
-     * {@link #setHash(Bytes)}, or a merge operation that produces a start hash must be invoked before hash
-     * accessors are used.
      *
      * @param digest the digest instance this builder (and any builders it derives) will hash with
      */
     public MerklePathBuilder(@NonNull final MessageDigest digest) {
         this.digest = requireNonNull(digest, "digest must not be null");
-    }
-
-    /**
-     * Creates a new builder from a State API {@link MerkleProof}, hashing with the default SHA-256 digest.
-     *
-     * @param merkleProof the Merkle proof obtained from the state
-     * @return a new builder instance
-     */
-    @NonNull
-    public static MerklePathBuilder fromStateApi(@NonNull final MerkleProof merkleProof) {
-        return fromStateApi(merkleProof, newMessageDigest(true));
     }
 
     /**

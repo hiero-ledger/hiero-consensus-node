@@ -64,6 +64,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -234,7 +235,7 @@ class ConsensusSubmitMessageHandlerTest extends ConsensusTestBase {
                     @NonNull final TransactionBody txn,
                     @NonNull final Topic topic,
                     @Nullable Instant consensusNow,
-                    final boolean useSha256)
+                    @NonNull final DigestType digestType)
                     throws IOException {
                 throw new IOException();
             }

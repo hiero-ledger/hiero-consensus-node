@@ -22,6 +22,7 @@ import com.swirlds.state.State;
 import com.swirlds.state.binary.MerkleProof;
 import java.util.List;
 import java.util.Optional;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -97,9 +98,10 @@ class ClprStateProofManagerTest {
     }
 
     @Test
-    @DisplayName("blockStream.useSha256=true -> proof still built correctly, hashing with SHA-256 end-to-end")
+    @DisplayName("blockStream.digestType=SHA_256 -> proof still built correctly, hashing with SHA-256 end-to-end")
     void sha256ConfiguredBuildsValidProof() throws Exception {
-        subject = new ClprStateProofManager(snapshotProvider, tssVerifier, configProviderWithUseSha256(true));
+        subject = new ClprStateProofManager(
+                snapshotProvider, tssVerifier, configProviderWithDigestType(DigestType.SHA_256));
         final var manifest = ClprEndpointManifest.newBuilder().version(5L).build();
         givenProvableSnapshot();
         given(binaryState.getSingleton(ENDPOINT_MANIFEST_STATE_ID))
@@ -113,9 +115,9 @@ class ClprStateProofManagerTest {
         assertThat(proof.paths()).hasSize(1);
     }
 
-    private static ConfigProvider configProviderWithUseSha256(final boolean useSha256) {
+    private static ConfigProvider configProviderWithDigestType(final DigestType digestType) {
         final var config = HederaTestConfigBuilder.create()
-                .withValue("blockStream.useSha256", useSha256)
+                .withValue("blockStream.digestType", digestType.name())
                 .getOrCreateConfig();
         final var versioned = new VersionedConfigImpl(config, 0);
         return () -> versioned;

@@ -44,6 +44,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -144,7 +145,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
     }
 
     @Test
@@ -184,7 +185,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         assertFalse(subject.isStillInProgress(DEFAULT_TSS_CONFIG));
     }
@@ -213,7 +214,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         assertFalse(subject.isStillInProgress(DEFAULT_TSS_CONFIG));
     }
@@ -242,7 +243,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         subject.advanceConstruction(Instant.EPOCH, METADATA, writableHistoryStore, true, tssConfig);
 
@@ -291,7 +292,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 tssConfig,
-                false);
+                DigestType.SHA_384);
 
         verify(proverFactory)
                 .create(
@@ -352,7 +353,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 tssConfig,
-                false);
+                DigestType.SHA_384);
 
         subject.advanceConstruction(Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, tssConfig);
 
@@ -421,7 +422,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
         given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any(), anyBoolean()))
@@ -458,7 +459,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
         given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any(), anyBoolean()))
@@ -497,7 +498,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         final var proof = aValidProof();
 
@@ -539,7 +540,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         final var reason = "test-failure";
 
@@ -580,7 +581,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         final var proof = aValidProof();
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
@@ -624,7 +625,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         final var reason = "test-failure";
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
@@ -664,7 +665,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         final var restarted = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
@@ -711,7 +712,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         final var restarted = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
@@ -760,7 +761,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         final var restarted = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
@@ -803,7 +804,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         subject.advanceConstruction(
                 Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
@@ -836,7 +837,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         subject.advanceConstruction(
                 Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, true, DEFAULT_TSS_CONFIG);
@@ -900,7 +901,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         final var publication = new ProofKeyPublication(SELF_ID, PROOF_KEY_1, Instant.EPOCH);
 
@@ -961,7 +962,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         final var publication = new WrapsMessagePublication(SELF_ID, Bytes.EMPTY, R1, Instant.EPOCH);
 
@@ -1008,7 +1009,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         final var vote = HistoryProofVote.newBuilder().proof(aValidProof()).build();
 
@@ -1035,14 +1036,14 @@ class ProofControllerImplTest {
     }
 
     @Test
-    void storedVoteDedupTagLengthFollowsUseSha256() throws Exception {
+    void storedVoteDedupTagLengthFollowsDigestType() throws Exception {
         // The dedup tag for a stored explicit vote is a hash of the proof bytes, so its length is
-        // 48 bytes under SHA-384 (useSha256=false) and 32 bytes under SHA-256 (useSha256=true).
-        assertEquals(48, storedVoteDedupTagLength(false));
-        assertEquals(32, storedVoteDedupTagLength(true));
+        // 48 bytes under SHA-384 (digestType=SHA_384) and 32 bytes under SHA-256 (digestType=SHA_256).
+        assertEquals(48, storedVoteDedupTagLength(DigestType.SHA_384));
+        assertEquals(32, storedVoteDedupTagLength(DigestType.SHA_256));
     }
 
-    private int storedVoteDedupTagLength(final boolean useSha256) throws Exception {
+    private int storedVoteDedupTagLength(final DigestType digestType) throws Exception {
         final var proof = aValidProof();
         final var vote = HistoryProofVote.newBuilder().proof(proof).build();
         // A high threshold with the default (0) source weight keeps the vote from finishing, so the
@@ -1066,7 +1067,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                useSha256);
+                digestType);
 
         controller.addProofVote(SELF_ID, vote, Instant.EPOCH, writableHistoryStore, tssConfig);
 
@@ -1154,7 +1155,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         final var congruentVote =
                 HistoryProofVote.newBuilder().congruentNodeId(OTHER_NODE_ID).build();
@@ -1192,7 +1193,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         reset(writableHistoryStore, prover);
 
@@ -1273,7 +1274,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         final var lowerNodeVote =
                 HistoryProofVote.newBuilder().proof(lowerNodeProof).build();
@@ -1355,7 +1356,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
         final var proof = recursiveProof("compressed", "uncompressed");
         final var vote = HistoryProofVote.newBuilder().proof(proof).build();
         final var ledgerId = Bytes.wrap("ledger");
@@ -1411,7 +1412,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         given(tssConfig.wrapsEnabled()).willReturn(true);
 
@@ -1466,7 +1467,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         given(weights.numTargetNodesInSource()).willReturn(2);
 
@@ -1511,7 +1512,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         // Nodes 0, 1, and 2 must all be counted (weight 30). With a threshold of 35 the proof is not yet complete,
         // but one more congruent vote (node 3) crosses it. Had node 0 or node 1 been dropped during replay, the tally
@@ -1554,7 +1555,7 @@ class ProofControllerImplTest {
                 sourceProof,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         verify(proverFactory)
                 .create(
@@ -1638,7 +1639,7 @@ class ProofControllerImplTest {
                 null,
                 historyProofMetrics,
                 DEFAULT_TSS_CONFIG,
-                false);
+                DigestType.SHA_384);
 
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
         given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any(), anyBoolean()))

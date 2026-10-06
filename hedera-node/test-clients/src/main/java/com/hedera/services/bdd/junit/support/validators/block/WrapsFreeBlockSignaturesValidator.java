@@ -71,6 +71,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
@@ -93,7 +94,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                     || Boolean.parseBoolean(System.getenv("HINTS_DUMP_INVALID_AGGREGATE_VECTORS"));
 
     private final long hintsThresholdDenominator;
-    private final boolean useSha256;
+    private final DigestType digestType;
     private final HintsLibrary hintsLibrary;
     private final Metrics metrics;
 
@@ -217,8 +218,8 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
             System.out.printf(
                     "Loaded epoch %d with %d block(s) from %s%n", i + 1, blocks.size(), blockStreamDirs.get(i));
         }
-        final var useSha256 = Boolean.getBoolean("blockStream.useSha256");
-        final var validator = new WrapsFreeBlockSignaturesValidator(hintsThresholdDenominator, useSha256);
+        final var digestType = DigestType.valueOf(System.getProperty("blockStream.digestType", "SHA_384"));
+        final var validator = new WrapsFreeBlockSignaturesValidator(hintsThresholdDenominator, digestType);
         validator.validateBlockEpochs(blockEpochs);
 
         System.out.printf(
@@ -234,9 +235,9 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                 validator.canonicalBlockHashMismatches);
     }
 
-    public WrapsFreeBlockSignaturesValidator(final long hintsThresholdDenominator, final boolean useSha256) {
+    public WrapsFreeBlockSignaturesValidator(final long hintsThresholdDenominator, final DigestType digestType) {
         this.hintsThresholdDenominator = hintsThresholdDenominator;
-        this.useSha256 = useSha256;
+        this.digestType = digestType;
 
         metrics = new NoOpMetrics();
         final var platformConfig = ServicesMain.buildPlatformConfig();
@@ -286,7 +287,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
             logger.info(
                     "Discovered {}-byte ledger id for block #0 signature verification", discoveredLedgerId.length());
         }
-        var previousBlockHash = BlockStreamManager.hashOfZero(useSha256);
+        var previousBlockHash = BlockStreamManager.hashOfZero(digestType);
         var incrementalBlockHashes = new IncrementalStreamingHasher(digest(), List.of(), 0);
 
         for (int epochIndex = 0; epochIndex < blockEpochs.size(); epochIndex++) {
@@ -588,7 +589,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
                     proof.hasBlockStateProof(),
                     "Indirect proof for block #%s is missing a block state proof".formatted(blockNumber));
             if (indirectProofSeq == null) {
-                indirectProofSeq = new IndirectProofSequenceValidator(useSha256);
+                indirectProofSeq = new IndirectProofSequenceValidator(digestType);
             }
             indirectProofSeq.registerProof(
                     blockNumber, proof, expectedBlockHash, previousBlockHash, blockTimestamp, expectedSiblingHashes);
@@ -1347,10 +1348,10 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
      * The root of the eight empty reserved branches 9-16, derived here rather than read from production.
      * Under the SHA-384 default the expected value is
      * {@code cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8};
-     * under {@code useSha256} it is the SHA-256 analogue computed from {@code hashOfZero(true)}.
+     * under {@code digestType=SHA_256} it is the SHA-256 analogue computed from {@code hashOfZero(DigestType.SHA_256)}.
      */
     private Bytes emptyReservedHalf() {
-        final var emptyLeaf = BlockStreamManager.hashOfZero(useSha256);
+        final var emptyLeaf = BlockStreamManager.hashOfZero(digestType);
         final var pairOfEmpties = BlockImplUtils.hashInternalNode(digest(), emptyLeaf, emptyLeaf);
         final var fourEmpties = BlockImplUtils.hashInternalNode(digest(), pairOfEmpties, pairOfEmpties);
         return BlockImplUtils.hashInternalNode(digest(), fourEmpties, fourEmpties);
@@ -1386,7 +1387,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
     }
 
     private MessageDigest digest() {
-        return useSha256 ? sha256DigestOrThrow() : sha384DigestOrThrow();
+        return digestType == DigestType.SHA_256 ? sha256DigestOrThrow() : sha384DigestOrThrow();
     }
 
     private @Nullable Bytes persistedBlockHashFrom(@NonNull final Block block) {

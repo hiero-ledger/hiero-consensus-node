@@ -123,7 +123,7 @@ public class QueryContextImpl implements QueryContext {
             final var blockStreamConfig = configuration.getConfigData(BlockStreamConfig.class);
             final var streamMode = blockStreamConfig.streamMode();
             blockRecordInfo = streamMode == StreamMode.BLOCKS
-                    ? BlockStreamInfoImpl.from(state, blockStreamConfig.useSha256())
+                    ? BlockStreamInfoImpl.from(state, blockStreamConfig.digestType())
                     : BlockRecordInfoImpl.from(state);
         }
         return blockRecordInfo;

@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Verifies that the cutover correctly transferred record stream state into the block stream.
@@ -150,9 +151,10 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
                 "Footer previousBlockRootHash should match" + " block info's previousWrappedRecordBlockRootHash");
 
         // === Verify hash chain by computing block root hashes from items ===
-        final boolean useSha256 = spec.startupProperties().getBoolean("blockStream.useSha256");
+        final var digestTypeName = spec.startupProperties().get("blockStream.digestType");
+        final var digestType = digestTypeName != null ? DigestType.valueOf(digestTypeName) : DigestType.SHA_384;
         final var prevBlockHashesTree = new IncrementalStreamingHasher(
-                CommonUtils.digestOrThrow(useSha256),
+                CommonUtils.digestOrThrow(digestType),
                 capturedBlockInfo.get().wrappedIntermediatePreviousBlockRootHashes().stream()
                         .map(Bytes::toByteArray)
                         .toList(),
@@ -206,7 +208,7 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
                         "Block #" + blockNum + " footer.startOfBlockStateRootHash" + " should not be the hash of zero");
             }
 
-            final var computedRootHash = computeBlockRootHash(block, prevBlockHash, prevBlockHashesTree, useSha256);
+            final var computedRootHash = computeBlockRootHash(block, prevBlockHash, prevBlockHashesTree, digestType);
             log.info("Block #{}: computed root hash {}", blockNum, computedRootHash.toHex());
 
             prevBlockHash = computedRootHash;
@@ -221,14 +223,15 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
             final Block block,
             final Bytes previousBlockHash,
             final IncrementalStreamingHasher prevBlockHashesTree,
-            final boolean useSha256) {
-        final var inputTreeHasher = new IncrementalStreamingHasher(CommonUtils.digestOrThrow(useSha256), List.of(), 0);
-        final var outputTreeHasher = new IncrementalStreamingHasher(CommonUtils.digestOrThrow(useSha256), List.of(), 0);
+            final DigestType digestType) {
+        final var inputTreeHasher = new IncrementalStreamingHasher(CommonUtils.digestOrThrow(digestType), List.of(), 0);
+        final var outputTreeHasher =
+                new IncrementalStreamingHasher(CommonUtils.digestOrThrow(digestType), List.of(), 0);
         final var consensusHeaderHasher =
-                new IncrementalStreamingHasher(CommonUtils.digestOrThrow(useSha256), List.of(), 0);
+                new IncrementalStreamingHasher(CommonUtils.digestOrThrow(digestType), List.of(), 0);
         final var stateChangesHasher =
-                new IncrementalStreamingHasher(CommonUtils.digestOrThrow(useSha256), List.of(), 0);
-        final var traceDataHasher = new IncrementalStreamingHasher(CommonUtils.digestOrThrow(useSha256), List.of(), 0);
+                new IncrementalStreamingHasher(CommonUtils.digestOrThrow(digestType), List.of(), 0);
+        final var traceDataHasher = new IncrementalStreamingHasher(CommonUtils.digestOrThrow(digestType), List.of(), 0);
 
         Timestamp blockTimestamp = null;
         for (final var item : block.items()) {
@@ -265,33 +268,33 @@ public class VerifyCutoverBlockStreamOp extends UtilOp {
         // production: if it did, any error in that implementation would be reproduced here and the check
         // would pass regardless. Branches 1-8 carry data, branches 9-16 are reserved and empty.
         final var branches12 = BlockImplUtils.hashInternalNode(
-                CommonUtils.digestOrThrow(useSha256), previousBlockHash, prevBlockRootsHash);
+                CommonUtils.digestOrThrow(digestType), previousBlockHash, prevBlockRootsHash);
         final var branches34 = BlockImplUtils.hashInternalNode(
-                CommonUtils.digestOrThrow(useSha256), startOfBlockStateHash, consensusHeaderHash);
+                CommonUtils.digestOrThrow(digestType), startOfBlockStateHash, consensusHeaderHash);
         final var branches56 =
-                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(useSha256), inputsHash, outputsHash);
+                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(digestType), inputsHash, outputsHash);
         final var branches78 =
-                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(useSha256), stateChangesHash, traceDataHash);
+                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(digestType), stateChangesHash, traceDataHash);
         final var branches1234 =
-                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(useSha256), branches12, branches34);
+                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(digestType), branches12, branches34);
         final var branches5678 =
-                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(useSha256), branches56, branches78);
+                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(digestType), branches56, branches78);
         final var assignedHalf =
-                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(useSha256), branches1234, branches5678);
+                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(digestType), branches1234, branches5678);
 
         final var subtreesRoot = BlockImplUtils.hashInternalNode(
-                CommonUtils.digestOrThrow(useSha256), assignedHalf, emptyReservedHalf(useSha256));
+                CommonUtils.digestOrThrow(digestType), assignedHalf, emptyReservedHalf(digestType));
         final var timestampLeaf = BlockImplUtils.hashLeaf(
-                CommonUtils.digestOrThrow(useSha256), Timestamp.PROTOBUF.toBytes(blockTimestamp));
-        return BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(useSha256), timestampLeaf, subtreesRoot);
+                CommonUtils.digestOrThrow(digestType), Timestamp.PROTOBUF.toBytes(blockTimestamp));
+        return BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(digestType), timestampLeaf, subtreesRoot);
     }
 
-    private static Bytes emptyReservedHalf(final boolean useSha256) {
-        final var empty = BlockRootTreeHasher.emptySubtreeFor(CommonUtils.digestOrThrow(useSha256));
-        final var pairOfEmpties = BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(useSha256), empty, empty);
+    private static Bytes emptyReservedHalf(final DigestType digestType) {
+        final var empty = BlockRootTreeHasher.emptySubtreeFor(CommonUtils.digestOrThrow(digestType));
+        final var pairOfEmpties = BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(digestType), empty, empty);
         final var fourEmpties =
-                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(useSha256), pairOfEmpties, pairOfEmpties);
-        return BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(useSha256), fourEmpties, fourEmpties);
+                BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(digestType), pairOfEmpties, pairOfEmpties);
+        return BlockImplUtils.hashInternalNode(CommonUtils.digestOrThrow(digestType), fourEmpties, fourEmpties);
     }
 
     @Override

@@ -726,7 +726,7 @@ class V0740BlockStreamSchemaTest {
         return HederaTestConfigBuilder.create()
                 .withValue("blockStream.enableCutover", true)
                 .withValue("blockStream.blockFileDir", blockDir.toString())
-                .withValue("blockStream.useSha256", true)
+                .withValue("blockStream.digestType", "SHA_256")
                 .getOrCreateConfig();
     }
 }

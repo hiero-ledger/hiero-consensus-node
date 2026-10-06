@@ -168,8 +168,8 @@ public class ProofControllers {
             final var selfId = selfNodeInfoSupplier.get().nodeId();
             final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
             final var sourceProof = activeProofConstruction.targetProof();
-            final boolean useSha256 =
-                    configSupplier.get().getConfigData(BlockStreamConfig.class).useSha256();
+            final var digestType =
+                    configSupplier.get().getConfigData(BlockStreamConfig.class).digestType();
             final HistoryProver.Factory proverFactory = (s, t, k, p, w, r, x, l, m) -> new WrapsHistoryProver(
                     s,
                     t.wrapsMessageGracePeriod(),
@@ -182,7 +182,7 @@ public class ProofControllers {
                     l,
                     m,
                     machine,
-                    useSha256);
+                    digestType);
             return new ProofControllerImpl(
                     selfId,
                     schnorrKeyPair,
@@ -200,7 +200,7 @@ public class ProofControllers {
                     sourceProof,
                     historyProofMetrics,
                     tssConfig,
-                    useSha256);
+                    digestType);
         }
     }
 

@@ -45,6 +45,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Default implementation of {@link ProofController}.
@@ -53,7 +54,7 @@ public class ProofControllerImpl implements ProofController {
     private static final Logger log = LogManager.getLogger(ProofControllerImpl.class);
 
     private final long selfId;
-    private final boolean useSha256;
+    private final DigestType digestType;
 
     private final Executor executor;
     private final SchnorrKeyPair schnorrKeyPair;
@@ -98,7 +99,8 @@ public class ProofControllerImpl implements ProofController {
         private final Bytes tag;
         private final HistoryProofVote historyProofVote;
 
-        public ExplicitProofVote(@NonNull final HistoryProofVote historyProofVote, final boolean useSha256) {
+        public ExplicitProofVote(
+                @NonNull final HistoryProofVote historyProofVote, @NonNull final DigestType digestType) {
             this.historyProofVote = requireNonNull(historyProofVote);
             final var proof = historyProofVote.proofOrThrow();
             final var chainOfTrustProof = proof.chainOfTrustProofOrThrow();
@@ -108,7 +110,7 @@ public class ProofControllerImpl implements ProofController {
                                             chainOfTrustProof.aggregatedNodeSignaturesOrThrow())
                                     : proof.uncompressedWrapsProof())
                             .toByteArray(),
-                    useSha256));
+                    digestType));
         }
 
         public Bytes tag() {
@@ -160,10 +162,10 @@ public class ProofControllerImpl implements ProofController {
             @Nullable final HistoryProof sourceProof,
             @NonNull final HistoryProofMetrics historyProofMetrics,
             @NonNull final TssConfig tssConfig,
-            final boolean useSha256) {
+            @NonNull final DigestType digestType) {
         requireNonNull(machine);
         requireNonNull(tssConfig);
-        this.useSha256 = useSha256;
+        this.digestType = requireNonNull(digestType);
         this.selfId = selfId;
         this.executor = requireNonNull(executor);
         this.submissions = requireNonNull(submissions);
@@ -421,7 +423,7 @@ public class ProofControllerImpl implements ProofController {
             return false;
         }
         if (vote.hasProof()) {
-            votes.put(nodeId, new ExplicitProofVote(vote, useSha256));
+            votes.put(nodeId, new ExplicitProofVote(vote, digestType));
         } else if (vote.hasCongruentNodeId()) {
             final var congruentVote = votes.get(vote.congruentNodeIdOrThrow());
             if (congruentVote != null) {
@@ -457,7 +459,7 @@ public class ProofControllerImpl implements ProofController {
         final Deque<Long> resolvedVoters = new ArrayDeque<>();
         persistedVotes.forEach((nodeId, vote) -> {
             if (vote.hasProof()) {
-                votes.put(nodeId, new ExplicitProofVote(vote, useSha256));
+                votes.put(nodeId, new ExplicitProofVote(vote, digestType));
                 resolvedVoters.add(nodeId);
             } else if (vote.hasCongruentNodeId()) {
                 congruentVotersByReferent

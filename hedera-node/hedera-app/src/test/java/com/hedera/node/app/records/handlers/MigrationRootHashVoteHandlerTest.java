@@ -31,6 +31,7 @@ import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.util.List;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.roster.ReadableRosterStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -221,7 +222,7 @@ class MigrationRootHashVoteHandlerTest {
 
         lenient().when(context.configuration()).thenReturn(configuration);
         lenient().when(configuration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
-        lenient().when(blockStreamConfig.useSha256()).thenReturn(true);
+        lenient().when(blockStreamConfig.digestType()).thenReturn(DigestType.SHA_256);
         given(context.storeFactory()).willReturn(storeFactory);
         given(context.body()).willReturn(body);
         given(context.creatorInfo()).willReturn(nodeInfo);
@@ -428,7 +429,7 @@ class MigrationRootHashVoteHandlerTest {
 
         lenient().when(context.configuration()).thenReturn(configuration);
         lenient().when(configuration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
-        lenient().when(blockStreamConfig.useSha256()).thenReturn(true);
+        lenient().when(blockStreamConfig.digestType()).thenReturn(DigestType.SHA_256);
         given(context.storeFactory()).willReturn(storeFactory);
         given(context.body()).willReturn(body);
         given(context.creatorInfo()).willReturn(nodeInfo);
@@ -602,7 +603,7 @@ class MigrationRootHashVoteHandlerTest {
 
         lenient().when(context.configuration()).thenReturn(configuration);
         lenient().when(configuration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
-        lenient().when(blockStreamConfig.useSha256()).thenReturn(true);
+        lenient().when(blockStreamConfig.digestType()).thenReturn(DigestType.SHA_256);
         given(context.storeFactory()).willReturn(storeFactory);
         given(context.body()).willReturn(body);
         given(context.creatorInfo()).willReturn(nodeInfo);

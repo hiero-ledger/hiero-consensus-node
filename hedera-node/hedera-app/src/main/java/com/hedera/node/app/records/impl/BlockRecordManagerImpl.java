@@ -622,7 +622,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         return CommonUtils.digestOrThrow(configProvider
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
-                .useSha256());
+                .digestType());
     }
 
     /**

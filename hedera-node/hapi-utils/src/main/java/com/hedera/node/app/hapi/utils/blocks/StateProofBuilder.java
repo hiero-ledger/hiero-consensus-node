@@ -29,15 +29,7 @@ public final class StateProofBuilder {
     }
 
     /**
-     * @return a new builder that hashes with the default SHA-256 digest
-     */
-    public static StateProofBuilder newBuilder() {
-        return new StateProofBuilder(HashUtils.newMessageDigest(true));
-    }
-
-    /**
-     * @param digest the digest instance to hash with (e.g. a SHA-384 digest when the caller must match a
-     *               block-root tree hashed with a non-default algorithm)
+     * @param digest the digest instance to hash with
      * @return a new builder that hashes with the supplied digest
      */
     public static StateProofBuilder newBuilder(@NonNull final MessageDigest digest) {

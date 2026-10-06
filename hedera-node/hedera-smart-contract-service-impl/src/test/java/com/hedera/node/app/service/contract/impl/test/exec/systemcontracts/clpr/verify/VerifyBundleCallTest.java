@@ -24,6 +24,7 @@ import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.platform.state.StateItem;
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
+import com.hedera.node.app.hapi.utils.blocks.HashUtils;
 import com.hedera.node.app.hapi.utils.blocks.NativeTssVerifier;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
@@ -47,6 +48,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.DigestType;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
@@ -128,7 +130,8 @@ class VerifyBundleCallTest {
                 if (!path.hasStateItemLeaf()) {
                     continue;
                 }
-                blockRootHash = StateProofVerifier.computeBlockRootHashFromPath(path);
+                blockRootHash = StateProofVerifier.computeBlockRootHashFromPath(
+                        path, HashUtils.newMessageDigest(DigestType.SHA_256));
                 break;
             }
             assertThat(blockRootHash)

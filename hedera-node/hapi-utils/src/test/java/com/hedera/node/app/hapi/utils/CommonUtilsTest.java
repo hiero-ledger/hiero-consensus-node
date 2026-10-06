@@ -998,4 +998,25 @@ class CommonUtilsTest {
         final var result = CommonUtils.inputOrNullHash(Bytes.EMPTY);
         assertEquals(NULL_HASH.getBytes(), result);
     }
+
+    @Test
+    void digestOrThrowWithDigestTypeSha256ReturnsSha256MessageDigest() {
+        final var digest = CommonUtils.digestOrThrow(org.hiero.base.crypto.DigestType.SHA_256);
+        assertEquals("SHA-256", digest.getAlgorithm());
+        assertEquals(32, digest.digest(new byte[0]).length);
+    }
+
+    @Test
+    void digestOrThrowWithDigestTypeSha384ReturnsSha384MessageDigest() {
+        final var digest = CommonUtils.digestOrThrow(org.hiero.base.crypto.DigestType.SHA_384);
+        assertEquals("SHA-384", digest.getAlgorithm());
+        assertEquals(48, digest.digest(new byte[0]).length);
+    }
+
+    @Test
+    void noThrowHashOfWithDigestTypeProducesCorrectDigestLength() {
+        final byte[] input = new byte[] {1, 2, 3};
+        assertEquals(32, CommonUtils.noThrowHashOf(input, org.hiero.base.crypto.DigestType.SHA_256).length);
+        assertEquals(48, CommonUtils.noThrowHashOf(input, org.hiero.base.crypto.DigestType.SHA_384).length);
+    }
 }

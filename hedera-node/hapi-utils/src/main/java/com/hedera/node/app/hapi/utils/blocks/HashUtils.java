@@ -3,9 +3,10 @@ package com.hedera.node.app.hapi.utils.blocks;
 
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Shared hashing helpers for Merkle path construction and verification.
@@ -17,31 +18,22 @@ import java.security.NoSuchAlgorithmException;
  *   <li>Single-child (internal) nodes: prefixed with 0x01</li>
  *   <li>Two-child (internal) nodes: prefixed with 0x02</li>
  * </ul>
- *
- * <p>All hashing uses SHA-256, matching the block root Merkle tree algorithm.
  */
 public final class HashUtils {
-
-    private static final String SHA_256 = "SHA-256";
-    private static final String SHA_384 = "SHA-384";
 
     private HashUtils() {
         throw new UnsupportedOperationException("Utility class");
     }
 
     /**
-     * Returns a new {@link MessageDigest} instance.
+     * Returns a new {@link MessageDigest} instance for the given digest type.
      *
-     * @param useSha256 {@code true} for SHA-256 (32-byte output, used for block-root Merkle trees);
-     *                  {@code false} for SHA-384 (48-byte output, legacy algorithm)
+     * @param digestType the digest algorithm to use (e.g. {@link DigestType#SHA_256} for 32-byte output,
+     *                   {@link DigestType#SHA_384} for 48-byte output)
      */
-    static MessageDigest newMessageDigest(final boolean useSha256) {
-        final String algorithm = useSha256 ? SHA_256 : SHA_384;
-        try {
-            return MessageDigest.getInstance(algorithm);
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(algorithm + " algorithm not found", e);
-        }
+    @VisibleForTesting
+    public static MessageDigest newMessageDigest(final DigestType digestType) {
+        return digestType.buildDigest();
     }
 
     /**

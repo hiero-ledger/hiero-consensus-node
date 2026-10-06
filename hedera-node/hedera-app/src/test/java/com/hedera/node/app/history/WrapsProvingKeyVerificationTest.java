@@ -47,6 +47,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPOutputStream;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -99,8 +100,8 @@ class WrapsProvingKeyVerificationTest {
         Mockito.lenient()
                 .when(configuration.getConfigData(BlockStreamConfig.class))
                 .thenReturn(blockStreamConfig);
-        // Default to SHA-384 (useSha256=false), matching the HASH_A expectation
-        Mockito.lenient().when(blockStreamConfig.useSha256()).thenReturn(false);
+        // Default to SHA-384 (digestType=SHA_384), matching the HASH_A expectation
+        Mockito.lenient().when(blockStreamConfig.digestType()).thenReturn(DigestType.SHA_384);
         Mockito.lenient().when(tssConfig.wrapsProvingKeyRetryInterval()).thenReturn(Duration.ofSeconds(60));
     }
 
@@ -502,24 +503,24 @@ class WrapsProvingKeyVerificationTest {
         verify(scheduledFuture, Mockito.never()).cancel(Mockito.anyBoolean());
     }
 
-    // ===== hash algorithm follows useSha256 =====
+    // ===== hash algorithm follows digestType =====
 
     @Test
-    void hashFileAlgorithmFollowsUseSha256(final EnvironmentVariables environment) throws Exception {
+    void hashFileAlgorithmFollowsDigestType(final EnvironmentVariables environment) throws Exception {
         final var path = tempDir.resolve("proving.key");
         Files.write(path, CONTENT_A);
         // The configured hash is the SHA-256 digest of the file contents
         givenConfigWithHashAndPath(HASH_A_SHA256.toHex(), path);
         setArtifactsEnvVar(environment);
 
-        // useSha256=true: the file is hashed with SHA-256, which matches the configured hash -> no download
-        given(blockStreamConfig.useSha256()).willReturn(true);
+        // digestType=SHA_256: the file is hashed with SHA-256, which matches the configured hash -> no download
+        given(blockStreamConfig.digestType()).willReturn(DigestType.SHA_256);
         subject.ensureProvingKey(configuration, downloader);
         verifyNoInteractions(downloader);
 
-        // useSha256=false: the file is hashed with SHA-384, which does NOT match the SHA-256
+        // digestType=SHA_384: the file is hashed with SHA-384, which does NOT match the SHA-256
         // configured hash -> a download is triggered.
-        given(blockStreamConfig.useSha256()).willReturn(false);
+        given(blockStreamConfig.digestType()).willReturn(DigestType.SHA_384);
         givenDownloaderWritesContent(path, CONTENT_A);
         subject.ensureProvingKey(configuration, downloader);
         verify(downloader).download(DOWNLOAD_URL, path);

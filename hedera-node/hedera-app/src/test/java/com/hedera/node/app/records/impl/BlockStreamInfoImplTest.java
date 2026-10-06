@@ -98,16 +98,19 @@ class BlockStreamInfoImplTest {
 
     @Test
     void blockNoIsBlockNumberPlusOne() {
-        assertEquals(0L, new BlockStreamInfoImpl(info(-1L, Bytes.EMPTY)).blockNo(), "genesis matches records");
-        assertEquals(1L, new BlockStreamInfoImpl(info(0L, Bytes.EMPTY)).blockNo());
-        assertEquals(667L, new BlockStreamInfoImpl(info(666L, hash(1))).blockNo());
+        assertEquals(
+                0L,
+                new BlockStreamInfoImpl(info(-1L, Bytes.EMPTY), DigestType.SHA_384).blockNo(),
+                "genesis matches records");
+        assertEquals(1L, new BlockStreamInfoImpl(info(0L, Bytes.EMPTY), DigestType.SHA_384).blockNo());
+        assertEquals(667L, new BlockStreamInfoImpl(info(666L, hash(1)), DigestType.SHA_384).blockNo());
     }
 
     @Test
     void blockTimestampUsesBlockTimeWithDefaultFallback() {
-        assertEquals(BLOCK_TIME, new BlockStreamInfoImpl(info(5L, hash(1))).blockTimestamp());
+        assertEquals(BLOCK_TIME, new BlockStreamInfoImpl(info(5L, hash(1)), DigestType.SHA_384).blockTimestamp());
         final var noTime = BlockStreamInfo.newBuilder().blockNumber(5L).build();
-        assertEquals(Timestamp.DEFAULT, new BlockStreamInfoImpl(noTime).blockTimestamp());
+        assertEquals(Timestamp.DEFAULT, new BlockStreamInfoImpl(noTime, DigestType.SHA_384).blockTimestamp());
     }
 
     @Test
@@ -116,24 +119,28 @@ class BlockStreamInfoImplTest {
         final var four = concat(runningHash(1), runningHash(2), runningHash(3), runningHash(4));
         assertEquals(
                 runningHash(1),
-                new BlockStreamInfoImpl(BlockStreamInfo.newBuilder()
-                                .trailingOutputHashes(four)
-                                .build())
+                new BlockStreamInfoImpl(
+                                BlockStreamInfo.newBuilder()
+                                        .trailingOutputHashes(four)
+                                        .build(),
+                                DigestType.SHA_384)
                         .prngSeed());
         // Fewer than four: not yet available.
         final var three = concat(runningHash(1), runningHash(2), runningHash(3));
         assertNull(new BlockStreamInfoImpl(
-                        BlockStreamInfo.newBuilder().trailingOutputHashes(three).build())
+                        BlockStreamInfo.newBuilder().trailingOutputHashes(three).build(), DigestType.SHA_384)
                 .prngSeed());
-        assertNull(new BlockStreamInfoImpl(BlockStreamInfo.newBuilder()
-                        .trailingOutputHashes(Bytes.EMPTY)
-                        .build())
+        assertNull(new BlockStreamInfoImpl(
+                        BlockStreamInfo.newBuilder()
+                                .trailingOutputHashes(Bytes.EMPTY)
+                                .build(),
+                        DigestType.SHA_384)
                 .prngSeed());
     }
 
     @Test
     void blockHashByBlockNumberIsNullAtGenesis() {
-        final var subject = new BlockStreamInfoImpl(info(-1L, Bytes.EMPTY));
+        final var subject = new BlockStreamInfoImpl(info(-1L, Bytes.EMPTY), DigestType.SHA_384);
         assertNull(subject.blockHashByBlockNumber(0L));
         assertNull(subject.blockHashByBlockNumber(-1L));
     }
@@ -143,7 +150,7 @@ class BlockStreamInfoImplTest {
         // blockNumber = 3, trailing covers blocks 1 and 2; block 3's own hash is not in state.
         final var trailing = concat(hash(1), hash(2));
         final var blockStreamInfo = info(3L, trailing);
-        final var subject = new BlockStreamInfoImpl(blockStreamInfo);
+        final var subject = new BlockStreamInfoImpl(blockStreamInfo, DigestType.SHA_384);
         final var reconstructedLast =
                 BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo, CommonUtils::sha384DigestOrThrow);
 
@@ -158,7 +165,7 @@ class BlockStreamInfoImplTest {
     void blockHashByBlockNumberReconstructsTheVeryFirstBlock() {
         // blockNumber = 0: no prior trailing hashes; block 0's hash is reconstructed from genesis.
         final var blockStreamInfo = info(0L, Bytes.EMPTY);
-        final var subject = new BlockStreamInfoImpl(blockStreamInfo);
+        final var subject = new BlockStreamInfoImpl(blockStreamInfo, DigestType.SHA_384);
         final var reconstructedLast =
                 BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo, CommonUtils::sha384DigestOrThrow);
 
@@ -169,25 +176,25 @@ class BlockStreamInfoImplTest {
 
     @Test
     void extendedHashesAreStableAcrossRepeatedCalls() {
-        final var subject = new BlockStreamInfoImpl(info(3L, concat(hash(1), hash(2))));
+        final var subject = new BlockStreamInfoImpl(info(3L, concat(hash(1), hash(2))), DigestType.SHA_384);
         assertEquals(subject.blockHashByBlockNumber(3L), subject.blockHashByBlockNumber(3L));
         assertEquals(subject.blockHashByBlockNumber(2L), subject.blockHashByBlockNumber(2L));
     }
 
     @Test
-    void blockHashByBlockNumberLengthFollowsUseSha256() {
+    void blockHashByBlockNumberLengthFollowsDigestType() {
         // At blockNumber == 0 the single resolvable hash is the reconstructed last-block hash, whose digest
-        // algorithm (and therefore byte length) is selected by useSha256: 48 bytes for SHA-384, 32 for SHA-256.
+        // algorithm (and therefore byte length) is selected by digestType: 48 bytes for SHA-384, 32 for SHA-256.
         final var blockStreamInfo = info(0L, Bytes.EMPTY);
-        final var sha384 = new BlockStreamInfoImpl(blockStreamInfo, false);
-        final var sha256 = new BlockStreamInfoImpl(blockStreamInfo, true);
+        final var sha384 = new BlockStreamInfoImpl(blockStreamInfo, DigestType.SHA_384);
+        final var sha256 = new BlockStreamInfoImpl(blockStreamInfo, DigestType.SHA_256);
 
         assertEquals(48, (int) sha384.blockHashByBlockNumber(0L).length(), "SHA-384 block hash is 48 bytes");
         assertEquals(32, (int) sha256.blockHashByBlockNumber(0L).length(), "SHA-256 block hash is 32 bytes");
         assertNotEquals(
                 sha384.blockHashByBlockNumber(0L),
                 sha256.blockHashByBlockNumber(0L),
-                "flipping useSha256 changes the reconstructed block hash");
+                "changing digestType changes the reconstructed block hash");
     }
 
     @Test
@@ -197,7 +204,7 @@ class BlockStreamInfoImplTest {
                 .willReturn(singletonState);
         given(singletonState.get()).willReturn(info(10L, hash(1)));
 
-        final var subject = BlockStreamInfoImpl.from(state, false);
+        final var subject = BlockStreamInfoImpl.from(state, DigestType.SHA_384);
 
         assertEquals(11L, subject.blockNo());
         assertEquals(BLOCK_TIME, subject.blockTimestamp());
@@ -206,7 +213,8 @@ class BlockStreamInfoImplTest {
     @Test
     void blockNoHasFullParityWithRecordsAcrossLifecycle() {
         for (final long lastCompleted : new long[] {-1L, 0L, 5L, 665L}) {
-            final var blocks = new BlockStreamInfoImpl(info(lastCompleted, lastCompleted < 0 ? Bytes.EMPTY : hash(1)));
+            final var blocks = new BlockStreamInfoImpl(
+                    info(lastCompleted, lastCompleted < 0 ? Bytes.EMPTY : hash(1)), DigestType.SHA_384);
             final var records = new BlockRecordInfoImpl(
                     BlockInfo.newBuilder()
                             .lastBlockNumber(lastCompleted)
@@ -223,7 +231,7 @@ class BlockStreamInfoImplTest {
         // Blocks-mode view: blockNumber = 3, trailing covers blocks 1 and 2.
         final var trailing = concat(hash(1), hash(2));
         final var blockStreamInfo = info(3L, trailing);
-        final var blocks = new BlockStreamInfoImpl(blockStreamInfo);
+        final var blocks = new BlockStreamInfoImpl(blockStreamInfo, DigestType.SHA_384);
         final var lastBlockHash =
                 BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo, CommonUtils::sha384DigestOrThrow);
 

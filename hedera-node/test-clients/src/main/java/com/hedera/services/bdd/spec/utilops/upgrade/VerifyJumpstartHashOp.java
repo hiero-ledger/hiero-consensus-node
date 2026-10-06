@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.Assertions;
 
 /**
@@ -47,8 +48,9 @@ public class VerifyJumpstartHashOp extends UtilOp {
         final long freezeBlock = Long.parseLong(freezeBlockNum);
         final long jumpstartBlockNum = jumpstartConfig.blockNum();
         final Bytes prevHash = jumpstartConfig.previousWrappedRecordBlockHash();
-        final boolean useSha256 = spec.startupProperties().getBoolean("blockStream.useSha256");
-        final var hasher = createHasherFromConfig(jumpstartConfig, useSha256);
+        final var digestTypeName = spec.startupProperties().get("blockStream.digestType");
+        final var digestType = digestTypeName != null ? DigestType.valueOf(digestTypeName) : DigestType.SHA_384;
+        final var hasher = createHasherFromConfig(jumpstartConfig, digestType);
 
         log.info(
                 "[VerifyJumpstartHash] Jumpstart block={}, prevHash={}, freeze block={}",
@@ -57,7 +59,7 @@ public class VerifyJumpstartHashOp extends UtilOp {
                 freezeBlock);
 
         final var rcdResult =
-                RcdFileBlockHashReplay.replay(spec, jumpstartBlockNum, freezeBlock, prevHash, hasher, useSha256);
+                RcdFileBlockHashReplay.replay(spec, jumpstartBlockNum, freezeBlock, prevHash, hasher, digestType);
 
         log.info(
                 "[VerifyJumpstartHash] .rcd replay processed {} blocks, final hash: {}",
@@ -81,13 +83,13 @@ public class VerifyJumpstartHashOp extends UtilOp {
     }
 
     private static IncrementalStreamingHasher createHasherFromConfig(
-            @NonNull final BlockStreamJumpstartConfig config, final boolean useSha256) {
+            @NonNull final BlockStreamJumpstartConfig config, final DigestType digestType) {
         final var subtreeHashes = config.streamingHasherSubtreeHashes();
         final List<byte[]> hashes = new ArrayList<>(subtreeHashes.size());
         for (final var hash : subtreeHashes) {
             hashes.add(hash.toByteArray());
         }
         return new IncrementalStreamingHasher(
-                CommonUtils.digestOrThrow(useSha256), hashes, config.streamingHasherLeafCount());
+                CommonUtils.digestOrThrow(digestType), hashes, config.streamingHasherLeafCount());
     }
 }

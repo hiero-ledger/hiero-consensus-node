@@ -291,8 +291,8 @@ class BlockImplUtilsTest {
     @Test
     void blockHashByBlockNumberSliceLengthFollowsHashSize() {
         // Three consecutive block hashes, laid out back-to-back. The caller selects the per-hash stride via
-        // hashSize: 48 bytes for SHA-384 (the useSha256=false path) or 32 bytes for SHA-256 (useSha256=true).
-        // This is the mechanism BlockStreamInfoImpl relies on to honor the useSha256 flag.
+        // hashSize: 48 bytes for SHA-384 (the digestType=SHA_384 path) or 32 bytes for SHA-256 (digestType=SHA_256).
+        // This is the mechanism BlockStreamInfoImpl relies on to honor the digestType setting.
         final long lastBlockNo = 5L;
         final long requestedBlockNo = 4L; // the middle of the three available hashes
 

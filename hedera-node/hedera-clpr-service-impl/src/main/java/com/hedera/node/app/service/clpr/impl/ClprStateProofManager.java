@@ -92,7 +92,7 @@ public class ClprStateProofManager {
 
     /**
      * Returns a fresh {@link MessageDigest} matching the block-root Merkle tree's current hashing algorithm
-     * ({@code BlockStreamConfig.useSha256}), so CLPR state-proof construction/verification always hashes with the
+     * ({@code BlockStreamConfig.digestType}), so CLPR state-proof construction/verification always hashes with the
      * same algorithm as the live tree being proved. Mirrors
      * {@code BlockStreamManagerImpl.digestOrThrow()}.
      */
@@ -100,7 +100,7 @@ public class ClprStateProofManager {
         return CommonUtils.digestOrThrow(configProvider
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
-                .useSha256());
+                .digestType());
     }
 
     /**

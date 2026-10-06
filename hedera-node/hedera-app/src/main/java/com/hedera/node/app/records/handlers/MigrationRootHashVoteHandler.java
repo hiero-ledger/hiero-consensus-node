@@ -30,6 +30,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.roster.ReadableRosterStore;
 
 /**
@@ -146,12 +147,12 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
             return;
         }
 
-        final var useSha256 =
-                context.configuration().getConfigData(BlockStreamConfig.class).useSha256();
+        final var digestType =
+                context.configuration().getConfigData(BlockStreamConfig.class).digestType();
 
         // Defense-in-depth: never feed a structurally inconsistent winning vote into the streaming hasher,
         // which would otherwise fold past the available pending state and crash the handle thread.
-        if (!isStructurallyValid(op, useSha256)) {
+        if (!isStructurallyValid(op, digestType)) {
             log.error(
                     "Ignoring migration root hash vote finalization from node{} because the winning vote body is structurally invalid",
                     nodeId);
@@ -160,7 +161,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
 
         var previousWrappedRecordBlockRootHash = op.previousWrappedRecordBlockRootHash();
         final var hasher = new IncrementalStreamingHasher(
-                CommonUtils.digestOrThrow(useSha256),
+                CommonUtils.digestOrThrow(digestType),
                 op.wrappedIntermediatePreviousBlockRootHashes().stream()
                         .map(Bytes::toByteArray)
                         .toList(),
@@ -168,7 +169,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
         for (final var queuedHashes : store.wrappedHashesInOrder()) {
             final var allPrevBlocksRootHash = Bytes.wrap(hasher.computeRootHash());
             final var blockRootHash = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
-                    () -> CommonUtils.digestOrThrow(useSha256),
+                    () -> CommonUtils.digestOrThrow(digestType),
                     previousWrappedRecordBlockRootHash,
                     allPrevBlocksRootHash,
                     WrappedRecordFileBlockHashes.newBuilder()
@@ -206,7 +207,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
 
     /**
      * Returns whether a vote body is internally consistent for a context-free check (e.g. {@code pureChecks},
-     * which has no {@code Configuration} and so cannot know the current {@code BlockStreamConfig.useSha256} setting):
+     * which has no {@code Configuration} and so cannot know the current {@code BlockStreamConfig.digestType} setting):
      * both the previous root hash and every intermediate-state hash must be a plausible block-root hash
      * length (32 bytes for SHA-256 or 48 bytes for SHA-384), the leaf count must be a sane non-negative
      * value, and the number of intermediate hashes must equal the number of set bits in the leaf count (the
@@ -220,17 +221,17 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
     }
 
     /**
-     * Returns whether a vote body is internally consistent given the current {@code BlockStreamConfig.useSha256}
+     * Returns whether a vote body is internally consistent given the current {@code BlockStreamConfig.digestType}
      * setting, per {@link #isStructurallyValid(MigrationRootHashVoteTransactionBody)} but requiring exactly
      * the currently-active digest's length rather than any plausible one.
      *
      * @param op the vote body
-     * @param useSha256 whether the wrapped-record-block-root tree currently uses SHA-256
+     * @param digestType the currently configured digest algorithm
      * @return true if the body is structurally consistent
      */
     private static boolean isStructurallyValid(
-            @NonNull final MigrationRootHashVoteTransactionBody op, final boolean useSha256) {
-        final int expectedLength = CommonUtils.digestOrThrow(useSha256).getDigestLength();
+            @NonNull final MigrationRootHashVoteTransactionBody op, @NonNull final DigestType digestType) {
+        final int expectedLength = CommonUtils.digestOrThrow(digestType).getDigestLength();
         return isStructurallyValid(op, length -> length == expectedLength);
     }
 

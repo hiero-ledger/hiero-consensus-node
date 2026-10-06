@@ -109,6 +109,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.consensus.model.event.ConsensusEvent;
@@ -243,7 +244,7 @@ class BlockStreamManagerImplTest {
 
     private boolean clprEnabled = false;
 
-    private boolean useSha256 = false;
+    private DigestType digestType = DigestType.SHA_384;
 
     @BeforeEach
     void setUp() {
@@ -267,7 +268,7 @@ class BlockStreamManagerImplTest {
     @Test
     @SuppressWarnings("unchecked")
     void blockRootHashIsThirtyTwoBytesWithSha256() {
-        useSha256 = true;
+        digestType = DigestType.SHA_256;
         givenSubjectWith(
                 1,
                 0,
@@ -303,7 +304,7 @@ class BlockStreamManagerImplTest {
     @Test
     @SuppressWarnings("unchecked")
     void trailingOutputHashesAreThirtyTwoBytesPerEntryWithSha256() {
-        useSha256 = true;
+        digestType = DigestType.SHA_256;
         givenSubjectWith(
                 1, 0, blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION), platformStateWithFreezeTime(null), aWriter);
         givenEndOfRoundSetup();
@@ -2121,13 +2122,13 @@ class BlockStreamManagerImplTest {
 
     @Test
     void recognizesSha256GenesisSentinel() {
-        // With useSha256=true the genesis last-block-hash sentinel is the 32-byte sha256(0x00), not the
+        // With digestType=SHA_256 the genesis last-block-hash sentinel is the 32-byte sha256(0x00), not the
         // 48-byte HASH_OF_ZERO_384. The genesis branch must detect it; otherwise init falls through to read
         // the (unmocked) BlockStreamService singleton and throws.
         final var config = HederaTestConfigBuilder.create()
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.roundsPerBlock", 1)
-                .withValue("blockStream.useSha256", true)
+                .withValue("blockStream.digestType", "SHA_256")
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
         subject = new BlockStreamManagerImpl(
@@ -2146,7 +2147,7 @@ class BlockStreamManagerImplTest {
                 null,
                 streamingObs);
 
-        final var sha256Genesis = hashOfZero(true);
+        final var sha256Genesis = hashOfZero(DigestType.SHA_256);
         assertEquals(32, sha256Genesis.length());
         // Must take the genesis branch without reading BlockStreamService state (which is unmocked here).
         assertDoesNotThrow(() -> subject.init(state, sha256Genesis, true));
@@ -2451,7 +2452,7 @@ class BlockStreamManagerImplTest {
                 .withValue("blockStream.blockPeriod", Duration.of(blockPeriod, ChronoUnit.SECONDS))
                 .withValue("blockStream.streamMode", streamMode.name())
                 .withValue("blockStream.maxBlockSizeBytes", maxBlockSizeBytes)
-                .withValue("blockStream.useSha256", useSha256)
+                .withValue("blockStream.digestType", digestType.name())
                 .withValue("clpr.enabled", clprEnabled)
                 .getOrCreateConfig();
         return new VersionedConfigImpl(config, version);
@@ -3069,7 +3070,7 @@ class BlockStreamManagerImplTest {
                 .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         given(mockSigningFuture.thenAcceptAsync(any())).willReturn(postAcceptFuture);
 
-        // useSha256=false → SHA2_384 in the block header
+        // digestType=SHA_384 → SHA2_384 in the block header
         subject.init(state, FAKE_RESTART_BLOCK_HASH);
         subject.startRound(round, state);
         subject.endRound(state, ROUND_NO);
@@ -3079,7 +3080,7 @@ class BlockStreamManagerImplTest {
     @Test
     @SuppressWarnings("unchecked")
     void blockHeaderHashAlgorithmIsSha256() {
-        useSha256 = true;
+        digestType = DigestType.SHA_256;
         final var headerRef = new AtomicReference<BlockHeader>();
         givenSubjectWith(
                 1, 0, blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION), platformStateWithFreezeTime(null), aWriter);
@@ -3092,7 +3093,7 @@ class BlockStreamManagerImplTest {
                 .willReturn(new BlockHashSigner.Attempt(null, null, mockSigningFuture));
         given(mockSigningFuture.thenAcceptAsync(any())).willReturn(postAcceptFuture);
 
-        // useSha256=true → SHA2_256 in the block header
+        // digestType=SHA_256 → SHA2_256 in the block header
         subject.init(state, FAKE_RESTART_BLOCK_HASH);
         subject.startRound(round, state);
         subject.endRound(state, ROUND_NO);

@@ -28,7 +28,7 @@ import org.apache.logging.log4j.Logger;
  *     <ul>
  *         <li>Is always ready to sign.</li>
  *         <li>To sign, schedules async delivery of the hash (SHA-384 or SHA-256, per
- *         {@code BlockStreamConfig.useSha256}) of the block hash as its "signature".</li>
+ *         {@code BlockStreamConfig.digestType}) of the block hash as its "signature".</li>
  *     </ul>
  *     <li><b>If only hinTS is enabled:</b>
  *     <ul>
@@ -134,15 +134,15 @@ public class TssBlockHashSigner implements BlockHashSigner {
         }
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         if (tssConfig.forceMockSignatures() || hintsService == null) {
-            final var useSha256 = configProvider
+            final var digestType = configProvider
                     .getConfiguration()
                     .getConfigData(BlockStreamConfig.class)
-                    .useSha256();
+                    .digestType();
             return new Attempt(
                     null,
                     null,
                     CompletableFuture.supplyAsync(
-                            () -> Bytes.wrap(CommonUtils.noThrowHashOf(blockHash.toByteArray(), useSha256))));
+                            () -> Bytes.wrap(CommonUtils.noThrowHashOf(blockHash.toByteArray(), digestType))));
         } else {
             final var signingResult = hintsService.sign(blockHash);
             if (!(signingResult.signing() instanceof HintsContext.Signing signing)) {

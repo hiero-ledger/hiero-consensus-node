@@ -15,6 +15,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.stream.Streams;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Generator for state proofs used in indirect block proofs.
@@ -64,9 +65,8 @@ public class BlockStateProofGenerator {
      * @param latestSignedBlockSignature the signature of the latest signed block
      * @param remainingPendingBlocks stream of remaining pending blocks after the current one. This queue is
      *                               passed for <b>read-only</b> purposes; don't dequeue from it.
-     * @param useSha256 whether intermediate-block timestamp leaves are hashed with SHA-256 (32-byte) instead of the
-     *                  SHA-384 (48-byte) default, per {@code BlockStreamConfig.useSha256}. Must match the digest the
-     *                  signed block's own siblings and timestamp leaf were produced with, or the proof will not verify.
+     * @param digestType the digest algorithm, per {@code BlockStreamConfig.digestType}. Must match the digest the
+     *                   signed block's own siblings and timestamp leaf were produced with, or the proof will not verify.
      * @return the constructed state proof
      * @throws IllegalStateException if the latest signed block is not strictly after the current pending block, if the
      *                               pending blocks contain duplicate block numbers or do not cover every block from the
@@ -79,7 +79,7 @@ public class BlockStateProofGenerator {
             final Bytes latestSignedBlockSignature,
             final Timestamp latestSignedBlockTimestamp,
             @NonNull final Stream<PendingBlock> remainingPendingBlocks,
-            final boolean useSha256) {
+            @NonNull final DigestType digestType) {
 
         // Construct the necessary merkle paths for all blocks from [current, blockNumber - 1]. This makes it necessary
         // to read each pending block, but not dequeue them. The current pending block was already polled from the
@@ -148,7 +148,7 @@ public class BlockStateProofGenerator {
                         .build());
             }
             final var hashedTs = BlockImplUtils.hashLeaf(
-                    CommonUtils.digestOrThrow(useSha256), Timestamp.PROTOBUF.toBytes(block.blockTimestamp()));
+                    CommonUtils.digestOrThrow(digestType), Timestamp.PROTOBUF.toBytes(block.blockTimestamp()));
             siblings.add(SiblingNode.newBuilder().isLeft(true).hash(hashedTs).build());
         }
 
