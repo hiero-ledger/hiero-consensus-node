@@ -36,7 +36,7 @@ class FreezeCompleteStateStatusLogicTests {
     void irrelevantActions() {
         assertNoTransition(logic, new StartedReplayingEventsAction(), logic.getStatus());
         assertNoTransition(logic, new DoneReplayingEventsAction(time.now()), logic.getStatus());
-        assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now()), logic.getStatus());
+        assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now(), true), logic.getStatus());
         assertNoTransition(logic, new FreezePeriodEnteredAction(0), logic.getStatus());
         assertNoTransition(logic, new FallenBehindAction(), logic.getStatus());
         assertNoTransition(logic, new ReconnectCompleteAction(0), logic.getStatus());

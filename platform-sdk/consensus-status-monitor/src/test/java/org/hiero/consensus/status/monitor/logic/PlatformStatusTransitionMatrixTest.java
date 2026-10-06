@@ -62,7 +62,7 @@ class PlatformStatusTransitionMatrixTest {
     private static final FreezePeriodEnteredAction FREEZE_ENTERED = new FreezePeriodEnteredAction(0);
     private static final ReconnectCompleteAction RECONNECT_COMPLETE = new ReconnectCompleteAction(0);
     private static final SelfEventReachedConsensusAction SELF_EVENT_CONSENSUS =
-            new SelfEventReachedConsensusAction(DEFAULT_INSTANT);
+            new SelfEventReachedConsensusAction(DEFAULT_INSTANT, true);
     private static final StartedReplayingEventsAction STARTED_REPLAYING = new StartedReplayingEventsAction();
     private static final StateWrittenToDiskAction FREEZE_STATE_WRITTEN = new StateWrittenToDiskAction(0, true);
     private static final StateWrittenToDiskAction NON_FREEZE_STATE_WRITTEN = new StateWrittenToDiskAction(0, false);

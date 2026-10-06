@@ -50,12 +50,19 @@ public class CheckingStatusLogic extends AbstractStatusLogic {
     }
 
     /**
-     * {@link PlatformStatus#CHECKING} status unconditionally transitions to {@link PlatformStatus#ACTIVE} when a
-     * {@link SelfEventReachedConsensusAction} is processed.
+     * {@link PlatformStatus#CHECKING} transitions to {@link PlatformStatus#ACTIVE} when a
+     * {@link SelfEventReachedConsensusAction} is processed iff
+     * {@link SelfEventReachedConsensusAction#hasRuntimeSelfEvent()} is {@code true}. Self
+     * events reaching consensus only via replay from local storage or gossip do not
+     * represent event-creation liveness in this session and leave the platform in
+     * {@link PlatformStatus#CHECKING}.
      */
     @NonNull
     @Override
     protected PlatformStatusLogic onSelfEventReachedConsensus(@NonNull final SelfEventReachedConsensusAction action) {
+        if (!action.hasRuntimeSelfEvent()) {
+            return this;
+        }
         return new ActiveStatusLogic(action.wallClockTime(), config);
     }
 

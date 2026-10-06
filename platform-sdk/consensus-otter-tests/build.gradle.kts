@@ -105,3 +105,27 @@ tasks.register<JavaExec>("generateSavedState") {
     classpath = sourceSets.testFixtures.get().runtimeClasspath
     mainClass = "org.hiero.otter.fixtures.tools.GenerateStateTool"
 }
+
+// Task to generate the post-freeze base fixture consumed by
+// PostFreezeStakeThresholdFlipTest. Produces state + full PCES; the symmetric filter step
+// below then trims online-creator events past the checkpoint round.
+tasks.register<JavaExec>("generatePostFreezeSavedState") {
+    group = "otter"
+    description = "Generate the post-freeze base saved state for PostFreezeStakeThresholdFlipTest"
+    modularity.inferModulePath = true
+    classpath = sourceSets.testFixtures.get().runtimeClasspath
+    mainModule = "org.hiero.otter.fixtures"
+    mainClass = "org.hiero.otter.fixtures.tools.GeneratePostFreezeStateTool"
+}
+
+// Symmetric filter: single fixture, online-creator events past R dropped. All online nodes
+// load the same PCES; each recreates its own post-R events live at restart. Consumed by
+// testNoSpuriousFlipWithSymmetricFilteredFixture.
+tasks.register<JavaExec>("partitionPostFreezeFixtureSymmetric") {
+    group = "otter"
+    description = "Produce a symmetric filtered fixture (online creators dropped past R)"
+    modularity.inferModulePath = true
+    classpath = sourceSets.testFixtures.get().runtimeClasspath
+    mainModule = "org.hiero.otter.fixtures"
+    mainClass = "org.hiero.otter.fixtures.tools.PartitionPostFreezeFixtureSymmetric"
+}

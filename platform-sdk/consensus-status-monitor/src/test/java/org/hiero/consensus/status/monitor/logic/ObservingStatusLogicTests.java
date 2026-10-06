@@ -109,7 +109,7 @@ class ObservingStatusLogicTests {
     @DisplayName("Irrelevant actions shouldn't cause transitions")
     void irrelevantActions() {
         assertNoTransition(logic, new StateWrittenToDiskAction(0, false), logic.getStatus());
-        assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now()), logic.getStatus());
+        assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now(), true), logic.getStatus());
     }
 
     @Test

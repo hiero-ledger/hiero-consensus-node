@@ -51,9 +51,15 @@ class CheckingStatusLogicTests {
     }
 
     @Test
-    @DisplayName("Go to ACTIVE")
+    @DisplayName("Go to ACTIVE when the triggering round has a runtime-created self event")
     void toActive() {
-        assertTransition(logic, new SelfEventReachedConsensusAction(time.now()), PlatformStatus.ACTIVE);
+        assertTransition(logic, new SelfEventReachedConsensusAction(time.now(), true), PlatformStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("Stay in CHECKING when no runtime-created self event is in the round")
+    void stayCheckingWhenNoRuntimeSelfEvent() {
+        assertNoTransition(logic, new SelfEventReachedConsensusAction(time.now(), false), logic.getStatus());
     }
 
     @Test

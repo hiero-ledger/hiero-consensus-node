@@ -180,6 +180,21 @@ public interface Network extends Configurable<Network> {
     void start();
 
     /**
+     * Perform the network's one-time setup (roster generation, connection wiring, roster assignment to every node) and
+     * then start only the given subset of nodes. Unlike {@link #start()}, this method does <b>not</b> wait for
+     * all-nodes-{@code ACTIVE} — it returns as soon as each started node has been launched. Remaining nodes can be
+     * started later via {@link Node#start()} or a subsequent call to this method.
+     *
+     * <p>Intended for tests that intentionally boot with less than the full roster online (for example, to reproduce
+     * stake-threshold-gated behaviour on restart from a freeze state).
+     *
+     * @param nodesToStart the nodes to start; must be a non-empty subset of {@link #nodes()}
+     * @throws IllegalArgumentException if {@code nodesToStart} is empty or contains a node not in this network
+     * @throws IllegalStateException    if the network is already running
+     */
+    void startSubset(@NonNull Collection<Node> nodesToStart);
+
+    /**
      * Sets the quiescence command of the network.
      *
      * <p>The default command is {@link QuiescenceCommand#DONT_QUIESCE}.

@@ -118,7 +118,7 @@ class PlatformStatusStateMachineTests {
                 CHECKING,
                 stateMachine.submitStatusAction(new TimeElapsedAction(
                         time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
-        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now())));
+        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now(), true)));
         assertEquals(FREEZE_COMPLETE, stateMachine.submitStatusAction(new StateWrittenToDiskAction(2, true)));
     }
 
@@ -132,7 +132,7 @@ class PlatformStatusStateMachineTests {
                 CHECKING,
                 stateMachine.submitStatusAction(new TimeElapsedAction(
                         time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
-        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now())));
+        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now(), true)));
         final var before = time.now();
         time.tick(Duration.ofSeconds(11));
         assertEquals(
@@ -151,7 +151,7 @@ class PlatformStatusStateMachineTests {
                 CHECKING,
                 stateMachine.submitStatusAction(new TimeElapsedAction(
                         time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
-        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now())));
+        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now(), true)));
         assertEquals(BEHIND, stateMachine.submitStatusAction(new FallenBehindAction()));
     }
 
@@ -165,7 +165,7 @@ class PlatformStatusStateMachineTests {
                 CHECKING,
                 stateMachine.submitStatusAction(new TimeElapsedAction(
                         time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
-        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now())));
+        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now(), true)));
         assertEquals(FREEZING, stateMachine.submitStatusAction(new FreezePeriodEnteredAction(2)));
     }
 
@@ -286,7 +286,7 @@ class PlatformStatusStateMachineTests {
                 CHECKING,
                 stateMachine.submitStatusAction(new TimeElapsedAction(
                         time.now(), new TimeElapsedAction.QuiescingStatus(quiescing, time.now()))));
-        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now())));
+        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now(), true)));
         assertEquals(CATASTROPHIC_FAILURE, stateMachine.submitStatusAction(new CatastrophicFailureAction()));
     }
 
@@ -347,7 +347,7 @@ class PlatformStatusStateMachineTests {
                 CHECKING,
                 stateMachine.submitStatusAction(
                         new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now()))));
-        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now())));
+        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now(), true)));
         time.tick(Duration.ofSeconds(15));
         // When quiescing, should remain ACTIVE despite time elapsed
         assertNull(stateMachine.submitStatusAction(
@@ -364,7 +364,7 @@ class PlatformStatusStateMachineTests {
                 CHECKING,
                 stateMachine.submitStatusAction(
                         new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(false, time.now()))));
-        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now())));
+        assertEquals(ACTIVE, stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now(), true)));
         final var before = time.now();
         time.tick(Duration.ofSeconds(5));
         // Should remain ACTIVE when not enough time has passed since quiescence command (5s < 10s delay)
@@ -393,7 +393,7 @@ class PlatformStatusStateMachineTests {
         // Should remain ACTIVE since not enough time has pass
         assertNull(stateMachine.submitStatusAction(
                 new TimeElapsedAction(time.now(), new TimeElapsedAction.QuiescingStatus(true, before))));
-        assertNull(stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now())));
+        assertNull(stateMachine.submitStatusAction(new SelfEventReachedConsensusAction(time.now(), true)));
         time.tick(Duration.ofSeconds(5));
         // Should remain ACTIVE when not enough time has passed since quiescence command
         assertNull(stateMachine.submitStatusAction(
