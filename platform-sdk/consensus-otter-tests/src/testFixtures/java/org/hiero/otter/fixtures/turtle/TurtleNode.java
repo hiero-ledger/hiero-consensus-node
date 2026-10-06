@@ -192,7 +192,10 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
             // Uses a platform logger to ensure it routes through per-node appenders
             startupLogger.info(LogMarker.STARTUP.getMarker(), "\n\n" + StaticPlatformBuilder.STARTUP_MESSAGE + "\n");
 
-            if (savedStateDirectory != null) {
+            // Only copy the saved state on the first start. On restart, the node must resume from its own files;
+            // copying again would restore the original PCES files alongside the ones the node has since written
+            // or compacted.
+            if (lifeCycle == INIT && savedStateDirectory != null) {
                 try {
                     OtterSavedStateUtils.copySaveState(selfId, savedStateDirectory, outputDirectory);
                 } catch (final IOException exception) {
