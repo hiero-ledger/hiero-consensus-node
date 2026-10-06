@@ -437,10 +437,7 @@ public class WrappedRecordBlockHashMigration {
         for (final var recentWrappedRecordHashes : neededRecentWrappedRecords) {
             final Bytes allPrevBlocksHash = Bytes.wrap(allPrevBlocksHasher.computeRootHash());
             final Bytes finalBlockHash = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
-                    () -> CommonUtils.digestOrThrow(digestType),
-                    prevWrappedBlockHash,
-                    allPrevBlocksHash,
-                    recentWrappedRecordHashes);
+                    digestType, prevWrappedBlockHash, allPrevBlocksHash, recentWrappedRecordHashes);
             if (wrappedRecordsProcessed != 0 && wrappedRecordsProcessed % 10000 == 0) {
                 log.info("Processed {} wrapped record file block hashes", wrappedRecordsProcessed);
             }

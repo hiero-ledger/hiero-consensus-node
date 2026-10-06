@@ -10,22 +10,21 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.blocks.impl.BlockRootTreeHasher.RootAndSiblingHashes;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.security.MessageDigest;
 import java.util.Arrays;
-import java.util.function.Supplier;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * The block-stream-facing entry point to the block root tree, used by block production, the wrapped record
  * block path.
  *
  * <p>Callers supply only the {@link BlockRootTreeHasher#ASSIGNED_SLOT_COUNT} branches that carry data; this
- * class pads the reserved branches with {@link BlockRootTreeHasher#EMPTY_SUBTREE} and delegates to
+ * class pads the reserved branches with the empty subtree for the given digest type and delegates to
  * {@link CachedReservedHalfBlockRootTreeHasher}. It is the single place that knows which branches are
  * assigned, so it is the place to change when a reserved branch is first used.
  *
  * <table border="1">
  *   <caption>Block root tree branches</caption>
- *   <tr><th>Branch</th><th>Content</th><th>{@code EMPTY_SUBTREE} when</th></tr>
+ *   <tr><th>Branch</th><th>Content</th><th>Empty subtree when</th></tr>
  *   <tr><td>1</td><td>previous block root hash</td><td>genesis, by value (block -1 is the empty tree)</td></tr>
  *   <tr><td>2</td><td>root of the tree of all previous block root hashes</td><td>block 0</td></tr>
  *   <tr><td>3</td><td>start of block state root hash</td><td>wrapped record blocks, block 0</td></tr>
@@ -42,14 +41,14 @@ import java.util.function.Supplier;
  *
  * <h2>Assigning a reserved branch</h2>
  * <p>The tree's shape does not change when branch 9 is first used — its value simply stops being
- * {@link BlockRootTreeHasher#EMPTY_SUBTREE}, and no other branch moves. The code does need three changes,
+ * the empty subtree, and no other branch moves. The code does need three changes,
  * all of them here or one level down, because this class fixes the caller-facing arity at
  * {@link BlockRootTreeHasher#ASSIGNED_SLOT_COUNT} and {@link CachedReservedHalfBlockRootTreeHasher} caches
  * the reserved half:
  * <ol>
  *   <li>Raise {@link BlockRootTreeHasher#ASSIGNED_SLOT_COUNT}, so callers pass the extra branch root and
  *       {@link #withReservedSlots} pads one fewer.</li>
- *   <li>Point {@code HASHER} at {@link StreamingBlockRootTreeHasher}, which folds all sixteen branches and
+ *   <li>Use {@link StreamingBlockRootTreeHasher}, which folds all sixteen branches and
  *       assumes nothing about which are empty, or extend
  *       {@link CachedReservedHalfBlockRootTreeHasher} to fold the branches it no longer knows to be empty.
  *       That implementation rejects a populated reserved branch rather than silently hashing the cached
@@ -59,14 +58,6 @@ import java.util.function.Supplier;
  * The wire format, the sibling count and every existing branch's proof path are unaffected.
  */
 public final class BlockRootTree {
-    /**
-     * The hash of an empty branch, to pass for any assigned branch with no content. Re-exported from
-     * {@link BlockRootTreeHasher#EMPTY_SUBTREE} so callers need only this class.
-     */
-    public static final Bytes EMPTY_SUBTREE = BlockRootTreeHasher.EMPTY_SUBTREE;
-
-    private static final BlockRootTreeHasher HASHER = CachedReservedHalfBlockRootTreeHasher.INSTANCE;
-
     private BlockRootTree() {
         throw new UnsupportedOperationException("Utility Class");
     }
@@ -75,113 +66,58 @@ public final class BlockRootTree {
      * Computes a block's root hash and the sibling hashes an indirect proof needs to climb from branch 1 to
      * that root.
      *
+     * @param digestType the digest type to build the tree with
      * @param timestampLeafHash the already-hashed timestamp leaf, {@code hashLeaf(Timestamp.PROTOBUF.toBytes(ts))}
      * @param slots the {@link BlockRootTreeHasher#ASSIGNED_SLOT_COUNT} assigned branch roots, each already
      *              hashed as a leaf or an internal node and so not hashed again here; use
-     *              {@link BlockRootTreeHasher#EMPTY_SUBTREE} for a branch with no leaves
+     *              {@link BlockRootTreeHasher#emptySubtreeFor(DigestType)} for a branch with no leaves
      * @return the block root hash and the sibling hashes on branch 1's path
      */
     public static RootAndSiblingHashes computeRootAndSiblings(
-            @NonNull final Bytes timestampLeafHash, @NonNull final Bytes... slots) {
-        return HASHER.computeRootAndSiblings(timestampLeafHash, withReservedSlots(slots));
-    }
-
-    /**
-     * Computes a block's root hash and sibling hashes using the given digest algorithm.
-     *
-     * @param digestFactory supplies a fresh {@link MessageDigest} for each hashing step
-     * @param timestampLeafHash the already-hashed timestamp leaf
-     * @param slots the {@link BlockRootTreeHasher#ASSIGNED_SLOT_COUNT} assigned branch roots
-     * @return the block root hash and the sibling hashes on branch 1's path
-     */
-    public static RootAndSiblingHashes computeRootAndSiblings(
-            @NonNull final Supplier<MessageDigest> digestFactory,
+            @NonNull final DigestType digestType,
             @NonNull final Bytes timestampLeafHash,
             @NonNull final Bytes... slots) {
-        requireNonNull(digestFactory);
-        requireNonNull(timestampLeafHash);
-        final var paddedSlots = withReservedSlots(slots, BlockRootTreeHasher.emptySubtreeFor(digestFactory.get()));
-        final var subtreesRootHash = StreamingBlockRootTreeHasher.streamedRootOf(digestFactory, paddedSlots);
-        final var blockRootHash =
-                BlockImplUtils.hashInternalNode(digestFactory.get(), timestampLeafHash, subtreesRootHash);
-        final var siblings = new MerkleSiblingHash[BlockRootTreeHasher.SIBLING_COUNT];
-        for (int level = 0; level < BlockRootTreeHasher.SIBLING_COUNT; level++) {
-            final int from = 1 << level;
-            final int to = from << 1;
-            siblings[level] = new MerkleSiblingHash(
-                    false,
-                    StreamingBlockRootTreeHasher.streamedRootOf(
-                            digestFactory, Arrays.copyOfRange(paddedSlots, from, to)));
-        }
-        return new RootAndSiblingHashes(blockRootHash, siblings);
+        final var hasher = CachedReservedHalfBlockRootTreeHasher.of(digestType);
+        return hasher.computeRootAndSiblings(timestampLeafHash, withReservedSlots(slots, hasher.emptySubtree()));
     }
 
     /**
      * Computes a block's root hash, for callers that do not need the sibling hashes.
      *
+     * @param digestType the digest type to build the tree with
      * @param timestampLeafHash the already-hashed timestamp leaf
      * @param slots the assigned branch roots
      * @return the block root hash
      */
-    public static Bytes computeBlockRootHash(@NonNull final Bytes timestampLeafHash, @NonNull final Bytes... slots) {
-        return HASHER.computeBlockRootHash(timestampLeafHash, withReservedSlots(slots));
+    public static Bytes computeBlockRootHash(
+            @NonNull final DigestType digestType,
+            @NonNull final Bytes timestampLeafHash,
+            @NonNull final Bytes... slots) {
+        return computeRootAndSiblings(digestType, timestampLeafHash, slots).blockRootHash();
     }
 
     /**
-     * Computes a block's root hash using the given digest, for callers that need a configurable hash algorithm.
+     * Computes a block's root hash from an unhashed consensus timestamp.
      *
-     * @param digestFactory supplies a fresh {@link MessageDigest} for each hashing step
+     * @param digestType the digest type to build the tree with
      * @param consensusTimestamp the block's first consensus timestamp
      * @param slots the assigned branch roots
      * @return the block root hash
      */
     public static Bytes computeBlockRootHash(
-            @NonNull final Supplier<MessageDigest> digestFactory,
+            @NonNull final DigestType digestType,
             @NonNull final Timestamp consensusTimestamp,
             @NonNull final Bytes... slots) {
-        requireNonNull(digestFactory);
+        requireNonNull(digestType);
         requireNonNull(consensusTimestamp);
         final var timestampLeafHash =
-                BlockImplUtils.hashLeaf(digestFactory.get(), Timestamp.PROTOBUF.toBytes(consensusTimestamp));
-        return computeBlockRootHash(digestFactory, timestampLeafHash, slots);
-    }
-
-    /**
-     * Computes a block's root hash using the given digest and an already-hashed timestamp leaf, for callers
-     * that need a configurable hash algorithm (e.g. the wrapped-record-block-root family, which hashes the
-     * timestamp leaf once and reuses it).
-     *
-     * @param digestFactory supplies a fresh {@link MessageDigest} for each hashing step
-     * @param timestampLeafHash the already-hashed timestamp leaf
-     * @param slots the assigned branch roots
-     * @return the block root hash
-     */
-    public static Bytes computeBlockRootHash(
-            @NonNull final Supplier<MessageDigest> digestFactory,
-            @NonNull final Bytes timestampLeafHash,
-            @NonNull final Bytes... slots) {
-        requireNonNull(digestFactory);
-        requireNonNull(timestampLeafHash);
-        final var paddedSlots = withReservedSlots(slots, BlockRootTreeHasher.emptySubtreeFor(digestFactory.get()));
-        final var subtreesRootHash = StreamingBlockRootTreeHasher.streamedRootOf(digestFactory, paddedSlots);
-        return BlockImplUtils.hashInternalNode(digestFactory.get(), timestampLeafHash, subtreesRootHash);
-    }
-
-    /**
-     * Expands the assigned branches to the full tree by padding the reserved branches with
-     * {@link BlockRootTreeHasher#EMPTY_SUBTREE}.
-     *
-     * @param assignedSlots the assigned branch roots
-     * @return all {@link BlockRootTreeHasher#SLOT_COUNT} branch roots
-     */
-    private static Bytes[] withReservedSlots(final Bytes[] assignedSlots) {
-        return withReservedSlots(assignedSlots, EMPTY_SUBTREE);
+                BlockImplUtils.hashLeaf(digestType.buildDigest(), Timestamp.PROTOBUF.toBytes(consensusTimestamp));
+        return computeBlockRootHash(digestType, timestampLeafHash, slots);
     }
 
     /**
      * Expands the assigned branches to the full tree by padding the reserved branches with the given
-     * empty-branch value, computed for whichever digest is currently in use (see
-     * {@link BlockRootTreeHasher#emptySubtreeFor(java.security.MessageDigest)}).
+     * empty-branch value.
      *
      * @param assignedSlots the assigned branch roots
      * @param emptyValue the value to pad reserved branches with
@@ -203,11 +139,12 @@ public final class BlockRootTree {
     /**
      * A convenience for building the assigned branches of a block whose sub-trees are mostly empty.
      *
+     * @param digestType the digest type the empty branches are hashed with
      * @return an array of {@link BlockRootTreeHasher#ASSIGNED_SLOT_COUNT} empty branch hashes
      */
-    public static Bytes[] emptyAssignedSlots() {
+    public static Bytes[] emptyAssignedSlots(@NonNull final DigestType digestType) {
         final var slots = new Bytes[ASSIGNED_SLOT_COUNT];
-        Arrays.fill(slots, EMPTY_SUBTREE);
+        Arrays.fill(slots, CachedReservedHalfBlockRootTreeHasher.of(digestType).emptySubtree());
         return slots;
     }
 

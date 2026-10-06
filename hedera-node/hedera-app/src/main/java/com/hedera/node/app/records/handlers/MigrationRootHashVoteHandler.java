@@ -169,7 +169,7 @@ public class MigrationRootHashVoteHandler implements TransactionHandler {
         for (final var queuedHashes : store.wrappedHashesInOrder()) {
             final var allPrevBlocksRootHash = Bytes.wrap(hasher.computeRootHash());
             final var blockRootHash = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
-                    () -> CommonUtils.digestOrThrow(digestType),
+                    digestType,
                     previousWrappedRecordBlockRootHash,
                     allPrevBlocksRootHash,
                     WrappedRecordFileBlockHashes.newBuilder()

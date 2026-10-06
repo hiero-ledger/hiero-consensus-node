@@ -65,7 +65,6 @@ import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.InitialStateHash;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter.OnDiskPendingBlock;
 import com.hedera.node.app.blocks.impl.streaming.obs.BlockStreamingObs;
-import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hints.impl.HintsContext;
 import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
@@ -263,8 +262,7 @@ class BlockStreamManagerImplTest {
     @Test
     void reconstructLastBlockHashWithSha256DigestSupplierReturns32ByteHash() {
         final var blockStreamInfo = blockStreamInfoWith(Bytes.EMPTY, CREATION_VERSION);
-        final Bytes hash =
-                BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo, CommonUtils::sha256DigestOrThrow);
+        final Bytes hash = BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo, DigestType.SHA_256);
         assertEquals(32, hash.length());
     }
 

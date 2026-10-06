@@ -923,7 +923,7 @@ final class BlockRecordManagerTest extends AppTestBase {
         @Test
         void producesHashOfCorrectSize() {
             final var result = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
-                    HASH_OF_ZERO_384, HASH_OF_ZERO_384, entryWithZeroHashes());
+                    DigestType.SHA_384, HASH_OF_ZERO_384, HASH_OF_ZERO_384, entryWithZeroHashes());
 
             assertThat(result.length()).isEqualTo(SHA_384_HASH_SIZE);
         }
@@ -934,10 +934,10 @@ final class BlockRecordManagerTest extends AppTestBase {
             final var allPrevRootHash = randomHash();
             final var entry = entryWith(randomHash(), randomHash());
 
-            final var first =
-                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(prevBlockHash, allPrevRootHash, entry);
-            final var second =
-                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(prevBlockHash, allPrevRootHash, entry);
+            final var first = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    DigestType.SHA_384, prevBlockHash, allPrevRootHash, entry);
+            final var second = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    DigestType.SHA_384, prevBlockHash, allPrevRootHash, entry);
 
             assertThat(first).isEqualTo(second);
         }
@@ -947,10 +947,10 @@ final class BlockRecordManagerTest extends AppTestBase {
             final var allPrevRootHash = randomHash();
             final var entry = entryWith(randomHash(), randomHash());
 
-            final var resultA =
-                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(randomHash(), allPrevRootHash, entry);
-            final var resultB =
-                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(randomHash(), allPrevRootHash, entry);
+            final var resultA = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    DigestType.SHA_384, randomHash(), allPrevRootHash, entry);
+            final var resultB = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    DigestType.SHA_384, randomHash(), allPrevRootHash, entry);
 
             assertThat(resultA).isNotEqualTo(resultB);
         }
@@ -960,10 +960,10 @@ final class BlockRecordManagerTest extends AppTestBase {
             final var prevBlockHash = randomHash();
             final var entry = entryWith(randomHash(), randomHash());
 
-            final var resultA =
-                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(prevBlockHash, randomHash(), entry);
-            final var resultB =
-                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(prevBlockHash, randomHash(), entry);
+            final var resultA = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    DigestType.SHA_384, prevBlockHash, randomHash(), entry);
+            final var resultB = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    DigestType.SHA_384, prevBlockHash, randomHash(), entry);
 
             assertThat(resultA).isNotEqualTo(resultB);
         }
@@ -975,9 +975,9 @@ final class BlockRecordManagerTest extends AppTestBase {
             final var consensusHash = randomHash();
 
             final var resultA = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
-                    prevBlockHash, allPrevRootHash, entryWith(randomHash(), consensusHash));
+                    DigestType.SHA_384, prevBlockHash, allPrevRootHash, entryWith(randomHash(), consensusHash));
             final var resultB = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
-                    prevBlockHash, allPrevRootHash, entryWith(randomHash(), consensusHash));
+                    DigestType.SHA_384, prevBlockHash, allPrevRootHash, entryWith(randomHash(), consensusHash));
 
             assertThat(resultA).isNotEqualTo(resultB);
         }
@@ -989,9 +989,9 @@ final class BlockRecordManagerTest extends AppTestBase {
             final var outputHash = randomHash();
 
             final var resultA = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
-                    prevBlockHash, allPrevRootHash, entryWith(outputHash, randomHash()));
+                    DigestType.SHA_384, prevBlockHash, allPrevRootHash, entryWith(outputHash, randomHash()));
             final var resultB = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
-                    prevBlockHash, allPrevRootHash, entryWith(outputHash, randomHash()));
+                    DigestType.SHA_384, prevBlockHash, allPrevRootHash, entryWith(outputHash, randomHash()));
 
             assertThat(resultA).isNotEqualTo(resultB);
         }
@@ -1025,8 +1025,8 @@ final class BlockRecordManagerTest extends AppTestBase {
 
             final Bytes expected = BlockImplUtils.hashInternalNode(sha384DigestOrThrow(), consensusHash, subtreesRoot);
 
-            final var actual =
-                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(prevBlockHash, allPrevRootHash, entry);
+            final var actual = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    DigestType.SHA_384, prevBlockHash, allPrevRootHash, entry);
 
             assertThat(actual).isEqualTo(expected);
         }
@@ -1036,10 +1036,10 @@ final class BlockRecordManagerTest extends AppTestBase {
             final var allPrevRootHash = randomHash();
             final var entry = entryWith(randomHash(), randomHash());
 
-            final var block1Hash =
-                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(HASH_OF_ZERO_384, allPrevRootHash, entry);
-            final var block2Hash =
-                    BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(block1Hash, allPrevRootHash, entry);
+            final var block1Hash = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    DigestType.SHA_384, HASH_OF_ZERO_384, allPrevRootHash, entry);
+            final var block2Hash = BlockRecordManagerImpl.computeWrappedRecordBlockRootHash(
+                    DigestType.SHA_384, block1Hash, allPrevRootHash, entry);
 
             assertThat(block1Hash).isNotEqualTo(block2Hash);
         }

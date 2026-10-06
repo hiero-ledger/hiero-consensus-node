@@ -1398,9 +1398,8 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
         if (blockStreamInfo == null || blockStreamInfo.blockNumber() != blockNumberOf(block)) {
             return null;
         }
-        // This validator reconstructs the block root Merkle tree with SHA-256 throughout (see the
-        // IncrementalStreamingHasher instances above); reconstruct the persisted last-block hash the same way.
-        return BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo, this::digest);
+        // Reconstruct the persisted last-block hash with the same digest type the validator hashes blocks with
+        return BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo, digestType);
     }
 
     private static @Nullable BlockProof proofFrom(@NonNull final Block block) {

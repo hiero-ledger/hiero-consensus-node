@@ -370,7 +370,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 for (final MigrationWrappedHashes queued : queuedHashes) {
                     final var allPrevBlocksRootHash = Bytes.wrap(this.prevWrappedRecordBlockHashes.computeRootHash());
                     final var blockRootHash = computeWrappedRecordBlockRootHash(
-                            this::digestOrThrow,
+                            digestType(),
                             this.previousWrappedRecordBlockRootHash,
                             allPrevBlocksRootHash,
                             WrappedRecordFileBlockHashes.newBuilder()
@@ -618,38 +618,22 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         lastBlockInfo = updatedBlockInfo;
     }
 
-    private MessageDigest digestOrThrow() {
-        return CommonUtils.digestOrThrow(configProvider
+    private DigestType digestType() {
+        return configProvider
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
-                .digestType());
+                .digestType();
     }
 
-    /**
-     * Computes the wrapped record block root hash for a single block from its constituent hashes, using the
-     * SHA-384 default. Kept for callers/tests without config access; see
-     * {@link #computeWrappedRecordBlockRootHash(Supplier, Bytes, Bytes, WrappedRecordFileBlockHashes)} for the
-     * flag-aware overload production uses.
-     *
-     * @param previousWrappedRecordBlockRootHash the root hash of the previous wrapped record block
-     * @param allPrevBlocksRootHash the Merkle root of all previous block root hashes
-     * @param entry the wrapped record file block hashes for the current block
-     * @return the computed block root hash
-     */
-    @VisibleForTesting
-    public static Bytes computeWrappedRecordBlockRootHash(
-            @NonNull final Bytes previousWrappedRecordBlockRootHash,
-            @NonNull final Bytes allPrevBlocksRootHash,
-            @NonNull final WrappedRecordFileBlockHashes entry) {
-        return computeWrappedRecordBlockRootHash(
-                CommonUtils::sha384DigestOrThrow, previousWrappedRecordBlockRootHash, allPrevBlocksRootHash, entry);
+    private MessageDigest digestOrThrow() {
+        return CommonUtils.digestOrThrow(digestType());
     }
 
     /**
      * Computes the wrapped record block root hash for a single block from its constituent hashes.
      *
-     * @param digestFactory supplies a fresh {@link MessageDigest} for each hashing step; must match whichever
-     *                      digest {@code entry}'s hashes were computed with
+     * @param digestType the digest type to build the tree with; must match whichever digest {@code entry}'s
+     *                   hashes were computed with
      * @param previousWrappedRecordBlockRootHash the root hash of the previous wrapped record block
      * @param allPrevBlocksRootHash the Merkle root of all previous block root hashes
      * @param entry the wrapped record file block hashes for the current block
@@ -657,16 +641,16 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      */
     @VisibleForTesting
     public static Bytes computeWrappedRecordBlockRootHash(
-            @NonNull final Supplier<MessageDigest> digestFactory,
+            @NonNull final DigestType digestType,
             @NonNull final Bytes previousWrappedRecordBlockRootHash,
             @NonNull final Bytes allPrevBlocksRootHash,
             @NonNull final WrappedRecordFileBlockHashes entry) {
         // A wrapped record block fills the same branches as any other block; only the previous block root, the
         // all-previous-block-roots tree and the output items tree carry data. The consensus timestamp leaf
         // is already hashed on the entry.
-        final var emptySubtree = BlockRootTreeHasher.emptySubtreeFor(digestFactory.get());
+        final var emptySubtree = BlockRootTreeHasher.emptySubtreeFor(digestType);
         return BlockRootTree.computeBlockRootHash(
-                digestFactory,
+                digestType,
                 entry.consensusTimestampHash(),
                 // Branch 1: previous wrapped record block root hash
                 previousWrappedRecordBlockRootHash,
@@ -850,8 +834,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         final Bytes allPrevBlocksRootHash = Bytes.wrap(prevWrappedRecordBlockHashes.computeRootHash());
 
         // Compute the wrapped record block root hash for this block
-        final Bytes blockRootHash = computeWrappedRecordBlockRootHash(
-                this::digestOrThrow, previousBlockRootHash, allPrevBlocksRootHash, entry);
+        final Bytes blockRootHash =
+                computeWrappedRecordBlockRootHash(digestType(), previousBlockRootHash, allPrevBlocksRootHash, entry);
 
         // Update running state: add this block's root hash as a leaf to the streaming hasher
         prevWrappedRecordBlockHashes.addNodeByHash(requireNonNull(blockRootHash).toByteArray());

@@ -10,14 +10,11 @@ import com.hedera.hapi.node.state.blockstream.BlockStreamInfo;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.blocks.impl.BlockImplUtils;
 import com.hedera.node.app.blocks.impl.BlockStreamManagerImpl;
-import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.security.MessageDigest;
-import java.util.function.Supplier;
 import org.hiero.base.crypto.DigestType;
 
 /**
@@ -105,10 +102,7 @@ public final class BlockStreamInfoImpl implements BlockRecordInfo {
 
     private Bytes extendedBlockHashes() {
         if (extendedBlockHashes == null) {
-            final Supplier<MessageDigest> digestFactory = digestType == DigestType.SHA_256
-                    ? CommonUtils::sha256DigestOrThrow
-                    : CommonUtils::sha384DigestOrThrow;
-            final var lastBlockHash = BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo, digestFactory);
+            final var lastBlockHash = BlockStreamManagerImpl.reconstructLastBlockHash(blockStreamInfo, digestType);
             extendedBlockHashes = appendHash(lastBlockHash, blockStreamInfo.trailingBlockHashes(), NUM_TRAILING_BLOCKS);
         }
         return extendedBlockHashes;

@@ -406,7 +406,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             .map(Bytes::toByteArray)
                             .toList(),
                     blockStreamInfo.intermediateBlockRootsLeafCount());
-            effectiveLastBlockHash = reconstructLastBlockHash(blockStreamInfo, this::digestOrThrow);
+            effectiveLastBlockHash = reconstructLastBlockHash(blockStreamInfo, digestType());
         }
         this.lastBlockHash = effectiveLastBlockHash;
         if (!previousBlockHashesUpdated && !Objects.equals(effectiveLastBlockHash, hashOfZero())) {
@@ -415,22 +415,22 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     }
 
     public static Bytes reconstructLastBlockHash(
-            @NonNull final BlockStreamInfo blockStreamInfo, @NonNull final Supplier<MessageDigest> digestFactory) {
+            @NonNull final BlockStreamInfo blockStreamInfo, @NonNull final DigestType digestType) {
         requireNonNull(blockStreamInfo);
-        requireNonNull(digestFactory);
+        requireNonNull(digestType);
         if (blockStreamInfo.blockNumber() < 0L) {
-            return BlockRootTreeHasher.emptySubtreeFor(digestFactory.get());
+            return BlockRootTreeHasher.emptySubtreeFor(digestType);
         }
-        final int hashSize = digestFactory.get().getDigestLength();
+        final int hashSize = digestType.digestLength();
         final var prevBlockHash = blockStreamInfo.blockNumber() == 0L
-                ? BlockRootTreeHasher.emptySubtreeFor(digestFactory.get())
+                ? BlockRootTreeHasher.emptySubtreeFor(digestType)
                 : BlockImplUtils.blockHashByBlockNumber(
                         blockStreamInfo.trailingBlockHashes(),
                         blockStreamInfo.blockNumber() - 1,
                         blockStreamInfo.blockNumber() - 1,
                         hashSize);
         final var prevBlocksHasher = new IncrementalStreamingHasher(
-                digestFactory.get(),
+                digestType.buildDigest(),
                 blockStreamInfo.intermediatePreviousBlockRootHashes().stream()
                         .map(Bytes::toByteArray)
                         .toList(),
@@ -440,7 +440,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // The final state-changes subtree root isn't persisted directly (only the penultimate roots are), so
         // reconstruct the final state-change block item that wrote this very singleton and complete the subtree.
         final var stateChangesHasher = new IncrementalStreamingHasher(
-                digestFactory.get(),
+                digestType.buildDigest(),
                 blockStreamInfo.rightmostPrecedingStateChangesTreeHashes().stream()
                         .map(Bytes::toByteArray)
                         .toList(),
@@ -461,7 +461,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // Straight to BlockRootTree rather than through combine(), which also derives the sibling hashes
         // that only a pending proof needs
         return BlockRootTree.computeBlockRootHash(
-                digestFactory,
+                digestType,
                 blockStreamInfo.blockTimeOrThrow(),
                 prevBlockHash,
                 allPrevBlocksHash,
@@ -1801,11 +1801,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         traceDataHasher = new IncrementalStreamingHasher(digestOrThrow(), List.of(), 0);
     }
 
-    private MessageDigest digestOrThrow() {
-        return CommonUtils.digestOrThrow(configProvider
+    private DigestType digestType() {
+        return configProvider
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
-                .digestType());
+                .digestType();
+    }
+
+    private MessageDigest digestOrThrow() {
+        return CommonUtils.digestOrThrow(digestType());
     }
 
     private Bytes hashOfZero() {
@@ -1854,7 +1858,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final var timestampLeafHash =
                 BlockImplUtils.hashLeaf(digestOrThrow(), Timestamp.PROTOBUF.toBytes(firstConsensusTimeOfCurrentBlock));
         return BlockRootTree.computeRootAndSiblings(
-                this::digestOrThrow,
+                digestType(),
                 timestampLeafHash,
                 prevBlockHash,
                 prevBlockRootsHash,
