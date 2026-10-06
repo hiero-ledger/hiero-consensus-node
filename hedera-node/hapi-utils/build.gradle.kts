@@ -6,7 +6,6 @@ description = "Hedera Services API Utilities"
 mainModuleInfo { annotationProcessor("dagger.compiler") }
 
 testModuleInfo {
-    requires("org.hiero.base.crypto")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")

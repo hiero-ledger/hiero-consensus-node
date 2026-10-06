@@ -36,7 +36,6 @@ import com.hedera.hapi.node.transaction.FixedCustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
-import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
 import com.hedera.node.app.service.consensus.impl.handlers.customfee.ConsensusCustomFeeAssessor;
@@ -73,7 +72,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.hiero.base.crypto.DigestType;
 
 /**
  * This class contains all workflow-related functionality regarding
@@ -161,8 +159,7 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
         }
 
         try {
-            final var updatedTopic =
-                    updateRunningHashAndSequenceNumber(txn, topic, handleContext.consensusNow(), DigestType.SHA_384);
+            final var updatedTopic = updateRunningHashAndSequenceNumber(txn, topic, handleContext.consensusNow());
 
             /* --- Put the modified topic. It will be in underlying state's modifications map.
             It will not be committed to state until commit is called on the state.--- */
@@ -252,19 +249,14 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
      * @param txn the {@link TransactionBody} of the active transaction
      * @param topic the topic to which the message is being submitted
      * @param consensusNow the consensus time of the active transaction
-     * @param digestType the digest algorithm to use, per {@code BlockStreamConfig.digestType}
      * @return the updated topic
      * @throws IOException if there is an error while updating the running hash
      */
     public Topic updateRunningHashAndSequenceNumber(
-            @NonNull final TransactionBody txn,
-            @NonNull final Topic topic,
-            @Nullable Instant consensusNow,
-            @NonNull final DigestType digestType)
+            @NonNull final TransactionBody txn, @NonNull final Topic topic, @Nullable Instant consensusNow)
             throws IOException {
         requireNonNull(txn);
         requireNonNull(topic);
-        requireNonNull(digestType);
 
         final var submitMessage = txn.consensusSubmitMessageOrThrow();
         final var payer = txn.transactionIDOrElse(TransactionID.DEFAULT).accountIDOrElse(AccountID.DEFAULT);
@@ -296,9 +288,9 @@ public class ConsensusSubmitMessageHandler implements TransactionHandler {
             topicBuilder.sequenceNumber(++sequenceNumber);
 
             out.writeLong(sequenceNumber);
-            out.writeObject(CommonUtils.noThrowHashOf(message, digestType));
+            out.writeObject(noThrowSha384HashOf(message));
             out.flush();
-            runningHash = Bytes.wrap(CommonUtils.noThrowHashOf(boas.toByteArray(), digestType));
+            runningHash = Bytes.wrap(noThrowSha384HashOf(boas.toByteArray()));
 
             /* Update the running hash */
             topicBuilder.runningHash(runningHash);
