@@ -7,7 +7,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.grpc.impl.ClprDiscoveryMethod;
-import com.hedera.node.app.grpc.impl.ClprMethod;
 import com.hedera.node.app.grpc.impl.MethodBase;
 import com.hedera.node.app.grpc.impl.QueryMethod;
 import com.hedera.node.app.grpc.impl.TransactionMethod;
@@ -83,8 +82,9 @@ final class GrpcServiceBuilder {
     private final QueryWorkflow queryWorkflow;
 
     /**
-     * The {@link ClprSyncWorkflow} to invoke for CLPR endpoint sync methods, or {@code null} if
-     * no CLPR sync methods are registered on this service.
+     * The {@link ClprSyncWorkflow} to invoke for CLPR endpoint discovery methods, or {@code null} if
+     * no CLPR discovery methods are registered on this service. The CLPR {@code sync} RPC is a bidirectional stream
+     * and is registered outside this builder, by {@code NettyGrpcServerManager}.
      */
     @Nullable
     private final ClprSyncWorkflow clprSyncWorkflow;
@@ -106,14 +106,6 @@ final class GrpcServiceBuilder {
     private final Set<String> queryMethodNames = new HashSet<>();
 
     /**
-     * The set of CLPR sync method names that need corresponding service method definitions generated.
-     *
-     * <p>Initially this set is empty, and is populated by calls to {@link #clprSync(String)}. Then,
-     * when {@link #build(Metrics, int)} is called, the set is used to create the CLPR sync service method definitions.
-     */
-    private final Set<String> clprSyncMethodNames = new HashSet<>();
-
-    /**
      * The set of CLPR discovery method names that need corresponding service method definitions generated.
      */
     private final Set<String> clprDiscoveryMethodNames = new HashSet<>();
@@ -124,7 +116,7 @@ final class GrpcServiceBuilder {
      * @param serviceName The name of the service. Cannot be null or blank.
      * @param ingestWorkflow The workflow to use for handling all transaction ingestion API calls
      * @param queryWorkflow The workflow to use for handling all queries
-     * @param clprSyncWorkflow The workflow to use for handling CLPR endpoint sync calls, or null
+     * @param clprSyncWorkflow The workflow to use for handling CLPR endpoint calls, or null
      * @param marshaller The marshaller to use for reading/writing byte arrays to/from InputStreams
      * @param jumboMarshaller The marshaller to use for handling jumbo transactions
      * @throws NullPointerException if any of the non-nullable parameters are null
@@ -185,24 +177,6 @@ final class GrpcServiceBuilder {
     }
 
     /**
-     * Register the creation of a new gRPC method for handling CLPR endpoint sync calls with the
-     * given name. This call is idempotent.
-     *
-     * @param methodName The name of the CLPR sync method. Cannot be null or blank.
-     * @return A reference to the builder.
-     * @throws NullPointerException if the methodName is null
-     * @throws IllegalArgumentException if the methodName is blank
-     */
-    public @NonNull GrpcServiceBuilder clprSync(@NonNull final String methodName) {
-        if (requireNonNull(methodName).isBlank()) {
-            throw new IllegalArgumentException("The gRPC method name cannot be blank");
-        }
-
-        clprSyncMethodNames.add(methodName);
-        return this;
-    }
-
-    /**
      * Register the creation of a new gRPC method for handling CLPR endpoint discovery calls with
      * the given name. This call is idempotent.
      *
@@ -256,16 +230,6 @@ final class GrpcServiceBuilder {
             logger.debug("Registering gRPC query method {}.{}", serviceName, methodName);
             final var method = new QueryMethod(serviceName, methodName, queryWorkflow, metrics, messageMaxSize);
             addMethod(builder, serviceName, methodName, method, marshaller);
-        });
-        clprSyncMethodNames.forEach(methodName -> {
-            logger.debug("Registering gRPC CLPR sync method {}.{}", serviceName, methodName);
-            if (clprSyncWorkflow == null) {
-                throw new IllegalStateException(
-                        "ClprSyncWorkflow is required for CLPR sync methods but was not provided");
-            }
-            // CLPR sync payloads can be large; use the jumbo marshaller to accommodate max_sync_bytes
-            final var method = new ClprMethod(serviceName, methodName, clprSyncWorkflow, metrics, jumboTxnMaxSize);
-            addMethod(builder, serviceName, methodName, method, jumboMarshaller);
         });
         clprDiscoveryMethodNames.forEach(methodName -> {
             logger.debug("Registering gRPC CLPR discovery method {}.{}", serviceName, methodName);

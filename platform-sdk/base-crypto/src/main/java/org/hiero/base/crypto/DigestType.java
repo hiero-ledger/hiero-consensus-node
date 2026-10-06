@@ -5,7 +5,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
 
 public enum DigestType {
     /** 256-bit SHA2 message digest meeting current CNSA standards */
@@ -97,10 +96,12 @@ public enum DigestType {
      */
     @Nullable
     public static DigestType digestLengthToDigestType(final int digestLength) {
-        return Arrays.stream(DigestType.values())
-                .filter(d -> d.outputLength == digestLength)
-                .findFirst()
-                .orElse(null);
+        return switch (digestLength) {
+            case 32 -> SHA_256;
+            case 48 -> SHA_384;
+            case 64 -> SHA_512;
+            default -> null;
+        };
     }
 
     /**
