@@ -55,7 +55,6 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterStateId;
-import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.wiring.framework.model.DeterministicWiringModel;
