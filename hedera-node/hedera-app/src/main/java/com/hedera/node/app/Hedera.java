@@ -118,6 +118,9 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.clpr.ClprSyncWorkflow;
 import com.hedera.node.app.workflows.handle.HandleWorkflow;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
+import com.hedera.node.app.workflows.ingest.pending.DiskPendingTransactionsStore;
+import com.hedera.node.app.workflows.ingest.pending.PendingTransactionsRestorer;
+import com.hedera.node.app.workflows.ingest.pending.PendingTransactionsSaver;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow.ShortCircuitCallback;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
@@ -160,6 +163,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
 import java.nio.charset.Charset;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.InstantSource;
@@ -173,6 +177,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiPredicate;
@@ -233,6 +238,8 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
     private static final Logger logger = LogManager.getLogger(Hedera.class);
 
     private static final java.time.Duration SHUTDOWN_TIMEOUT = java.time.Duration.ofSeconds(10);
+
+    private static final java.time.Duration PENDING_TXNS_RETRY_BACKOFF = java.time.Duration.ofMillis(100);
 
     /**
      * The application name from the platform's perspective. This is currently locked in at the old main class name and
@@ -353,6 +360,14 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
     private final TransactionLimits transactionLimits;
     /** the transaction pool, stores transactions that should be submitted to the network */
     private final TransactionPoolNexus transactionPool;
+
+    /** Saves pending user transactions at a freeze; null if disabled. */
+    @Nullable
+    private final PendingTransactionsSaver pendingTransactionsSaver;
+
+    /** Resubmits pending user transactions after a restart; null if disabled. */
+    @Nullable
+    private final PendingTransactionsRestorer pendingTransactionsRestorer;
 
     /**
      * The wrapped record block hash migration instance, shared between ServicesMain (compute) and
@@ -614,6 +629,19 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 metrics,
                 instantSource);
 
+        final var hederaConfig = bootstrapConfig.getConfigData(HederaConfig.class);
+        if (hederaConfig.pendingTransactionsPersistenceEnabled()) {
+            final var store = new DiskPendingTransactionsStore(Path.of(hederaConfig.pendingTransactionsDirectory()));
+            final var executor = Executors.newThreadPerTaskExecutor(
+                    Thread.ofVirtual().name("pending-txns-", 0).factory());
+            pendingTransactionsSaver = new PendingTransactionsSaver(transactionPool, store, executor);
+            pendingTransactionsRestorer =
+                    new PendingTransactionsRestorer(store, executor, instantSource, PENDING_TXNS_RETRY_BACKOFF);
+        } else {
+            pendingTransactionsSaver = null;
+            pendingTransactionsRestorer = null;
+        }
+
         // Register all service schema RuntimeConstructable factories before platform init
         Set.of(
                         new EntityIdServiceImpl(),
@@ -720,6 +748,15 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             case ACTIVE -> {
                 startGrpcServer();
                 daggerApp.clprRuntime().start();
+                if (pendingTransactionsRestorer != null) {
+                    final long maxValidSecs = configProvider
+                            .getConfiguration()
+                            .getConfigData(HederaConfig.class)
+                            .transactionMaxValidDuration();
+                    pendingTransactionsRestorer.restoreAsync(
+                            bytes -> ingestWorkflow().submitRestoredTransaction(bytes),
+                            java.time.Duration.ofSeconds(maxValidSecs));
+                }
             }
             case FREEZE_COMPLETE -> {
                 logger.info("Platform status is now FREEZE_COMPLETE");
@@ -749,7 +786,12 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                 }
             }
             case BEHIND -> BlockHashSigning.cancelAndRemoveAll(rsaSignings);
-            case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING, FREEZING -> {
+            case FREEZING -> {
+                if (pendingTransactionsSaver != null) {
+                    pendingTransactionsSaver.drain();
+                }
+            }
+            case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING -> {
                 // Nothing to do here, just enumerate for completeness
             }
         }
@@ -890,6 +932,8 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         // With the States API grounded in the working state, we can create the object graph from it
         initializeDagger(state, trigger);
 
+        initializePendingTransactions(state, trigger);
+
         // Verify the WRAPS proving key hash (if configured)
         if (configProvider.getConfiguration().getConfigData(TssConfig.class).wrapsEnabled()) {
             ensureWrapsProvingKey();
@@ -922,6 +966,17 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         // It is possible a network interrupt could make a node reconnect in a window where
         // the hinTS signing scheme was changed; so we clear the cached assets just-in-case
         HintsLibraryBridge.getInstance().resetCache();
+    }
+
+    /**
+     * Keeps or discards pending user transactions saved at a freeze, based on the round the state just initialized
+     * from. Uses the null-safe {@link org.hiero.consensus.platformstate.PlatformStateUtils#roundOf}, since at
+     * {@code GENESIS} the platform state singleton is still empty.
+     */
+    void initializePendingTransactions(@NonNull final State state, @NonNull final InitTrigger trigger) {
+        if (pendingTransactionsRestorer != null) {
+            pendingTransactionsRestorer.onStateInitialized(trigger, roundOf(state));
+        }
     }
 
     /**
@@ -1648,7 +1703,10 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             }
         }
         if (isLatestFreezeRound(round, state)) {
-            awaitFreezeRoundBlockProofsAndAcks(round);
+            final CompletableFuture<Void> pendingTransactionsSaved = pendingTransactionsSaver == null
+                    ? completedFuture(null)
+                    : pendingTransactionsSaver.drainAndSaveAsync(round.getRoundNum());
+            awaitFreezeRoundBlockProofsAndAcks(round, pendingTransactionsSaved);
         }
         return sealClosedBoundary;
     }
@@ -1659,7 +1717,8 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         return platformStateStore.getLatestFreezeRound() == round.getRoundNum();
     }
 
-    private void awaitFreezeRoundBlockProofsAndAcks(@NonNull final Round round) {
+    void awaitFreezeRoundBlockProofsAndAcks(
+            @NonNull final Round round, @NonNull final CompletableFuture<Void> pendingTransactionsSaved) {
         final var config = configProvider.getConfiguration();
         final var nowFrozenWriteTimeout =
                 config.getConfigData(HederaConfig.class).nowFrozenWriteTimeout();
@@ -1682,37 +1741,45 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                     "Freeze round {} sealed; waiting up to {} for pending block proofs, WRB writers, "
                             + "and block node acknowledgements if enabled "
                             + "before returning the freeze state to the platform; "
-                            + "blockStreamFutureDone={}, wrbWritersFutureDone={}, waitForBlockNodeAck={}",
+                            + "blockStreamFutureDone={}, wrbWritersFutureDone={}, waitForBlockNodeAck={}, "
+                            + "pendingTxnsSavedDone={}",
                     round.getRoundNum(),
                     nowFrozenWriteTimeout,
                     blockStreamFuture.isDone(),
                     wrbWritersFuture.isDone(),
-                    waitsForBlockNodeAcknowledgements(blockStreamConfig));
-            freezeStateReadyFuture.get(nowFrozenWriteTimeout.toNanos(), NANOSECONDS);
+                    waitsForBlockNodeAcknowledgements(blockStreamConfig),
+                    pendingTransactionsSaved.isDone());
+            // The save runs in parallel with the signing and acknowledgement waits
+            CompletableFuture.allOf(freezeStateReadyFuture, pendingTransactionsSaved)
+                    .get(nowFrozenWriteTimeout.toNanos(), NANOSECONDS);
         } catch (final TimeoutException e) {
             logger.warn(
-                    "Timed out waiting for pending block proofs, WRB writers, or block node acknowledgements "
+                    "Timed out waiting for pending block proofs, WRB writers, block node acknowledgements, "
+                            + "or the pending transactions save "
                             + "after sealing freeze round {}; "
                             + "returning the freeze state to the platform anyway",
                     round.getRoundNum());
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             logger.warn(
-                    "Interrupted while waiting for pending block proofs, WRB writers, or block node acknowledgements "
+                    "Interrupted while waiting for pending block proofs, WRB writers, block node acknowledgements, "
+                            + "or the pending transactions save "
                             + "after sealing freeze round {}; "
                             + "returning the freeze state to the platform anyway",
                     round.getRoundNum(),
                     e);
         } catch (final ExecutionException e) {
             logger.warn(
-                    "Pending block proof, WRB writer, or block node acknowledgement future completed exceptionally "
+                    "Pending block proof, WRB writer, block node acknowledgement, or pending transactions save "
+                            + "future completed exceptionally "
                             + "after sealing freeze round {}; "
                             + "returning the freeze state to the platform anyway",
                     round.getRoundNum(),
                     e.getCause());
         } catch (final RuntimeException e) {
             logger.warn(
-                    "Unable to get pending block proof, WRB writer, or block node acknowledgement future "
+                    "Unable to get pending block proof, WRB writer, block node acknowledgement, "
+                            + "or pending transactions save future "
                             + "after sealing freeze round {}; "
                             + "returning the freeze state to the platform anyway",
                     round.getRoundNum(),

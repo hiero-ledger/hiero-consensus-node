@@ -218,4 +218,38 @@ class TransactionPoolNexusTest {
         tolerantNexus.reportUnhealthyDuration(Duration.ofSeconds(5));
         assertFalse(tolerantNexus.submitApplicationTransaction(tx));
     }
+
+    @Test
+    void drainReturnsOnlyApplicationTransactionsAndKeepsPriorityOnes() {
+        final Bytes app1 = Bytes.wrap(new byte[] {1});
+        final Bytes app2 = Bytes.wrap(new byte[] {2});
+        final Bytes priority = Bytes.wrap(new byte[] {3});
+        assertTrue(nexus.submitApplicationTransaction(app1));
+        assertTrue(nexus.submitApplicationTransaction(app2));
+        nexus.submitPriorityTransaction(priority);
+
+        assertEquals(List.of(app1, app2), nexus.drainApplicationTransactions());
+
+        final List<TimestampedTransaction> forEvent = nexus.getTransactionsForEvent();
+        assertEquals(1, forEvent.size());
+        assertEquals(priority, forEvent.getFirst().transaction());
+        assertTrue(nexus.getTransactionsForEvent().isEmpty());
+    }
+
+    @Test
+    void rejectsApplicationTransactionsAfterDrainButKeepsAcceptingPriorityOnes() {
+        nexus.drainApplicationTransactions();
+
+        assertFalse(nexus.submitApplicationTransaction(Bytes.wrap(new byte[] {1})));
+        nexus.submitPriorityTransaction(Bytes.wrap(new byte[] {2}));
+        assertTrue(nexus.hasBufferedSignatureTransactions());
+    }
+
+    @Test
+    void secondDrainReturnsEmpty() {
+        assertTrue(nexus.submitApplicationTransaction(Bytes.wrap(new byte[] {1})));
+
+        assertEquals(1, nexus.drainApplicationTransactions().size());
+        assertTrue(nexus.drainApplicationTransactions().isEmpty());
+    }
 }
