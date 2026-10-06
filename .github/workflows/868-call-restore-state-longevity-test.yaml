@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "833: [CALL] CITR Exec SDLT"
-
+name: "833: [CALL] CITR Restore the state and run SDLT"
+trigger
 on:
   workflow_call:
     inputs:
