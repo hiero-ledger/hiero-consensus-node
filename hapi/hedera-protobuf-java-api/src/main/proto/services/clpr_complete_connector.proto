@@ -1,0 +1,77 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/clpr_complete_channel.proto";
+
+/**
+ * Phase 2 (Reveal): Complete a pending connector commitment.
+ *
+ * Permissionless. The handler:
+ *   1. Re-derives connectorId = keccak256(channelId || publicKey || salt).
+ *   2. Verifies keccak256(connectorId || publicKey) was committed.
+ *   3. Verifies sig over keccak256(connectorId || 0x000000000000000000000000000000000000016e).
+ *   4. Creates the Connector in state keyed by (channelId, connectorId).
+ */
+message ClprCompleteConnectorTransactionBody {
+    /**
+     * The Connector ID the caller claims: keccak256(channelId || publicKey || salt).
+     * Must be exactly 32 bytes. The handler re-derives and compares.
+     */
+    bytes connector_id = 1;
+
+    /**
+     * Public key proving ownership of the commitment.
+     * Encoding depends on signature_scheme:
+     *   ECDSA_SECP256K1: 64 bytes (uncompressed x||y without 0x04 prefix)
+     *   ED25519: 32 bytes
+     */
+    bytes public_key = 2;
+
+    /**
+     * Signature over keccak256(connectorId || 0x000000000000000000000000000000000000016e).
+     * Always 64 bytes regardless of scheme.
+     */
+    bytes signature = 3;
+
+    /**
+     * The signature scheme used for public_key and signature.
+     * Defaults to ECDSA_SECP256K1.
+     */
+    ClprSignatureScheme signature_scheme = 4;
+
+    /**
+     * Operator-chosen 32-byte label differentiating connectors on the same
+     * channel for the same operator. Use all-zeros for a single Connector.
+     */
+    bytes salt = 5;
+
+    /**
+     * The 32-byte Channel ID this Connector is bound to.
+     */
+    bytes channel_id = 6;
+
+    /**
+     * Local authorization contract that governs message dispatch for this
+     * Connector. Must refer to a deployed smart contract.
+     */
+    proto.ContractID connector_contract = 7;
+
+    /**
+     * Key that authorizes administrative operations on this Connector.
+     * Required.
+     */
+    proto.Key admin_key = 8;
+
+    /**
+     * Slashable bond (in tinybars) to lock at registration.
+     * Must be >= clpr.minLockedStake.
+     */
+    uint64 locked_stake = 9;
+}

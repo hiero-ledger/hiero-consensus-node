@@ -6,6 +6,8 @@ import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CON
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
@@ -51,6 +53,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.file.File;
@@ -80,6 +84,7 @@ import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.file.FileService;
@@ -103,6 +108,7 @@ import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
+import com.hedera.node.app.workflows.clpr.ClprEndpointManifestReconciler;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
 import com.hedera.node.app.workflows.handle.record.MigrationRootHashSubmissions;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
@@ -131,6 +137,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.hiero.base.crypto.Hash;
@@ -238,6 +245,11 @@ class HandleWorkflowTest {
     private StakeInfoHelper stakeInfoHelper;
 
     @Mock
+    private ClprEndpointManifestReconciler clprEndpointManifestReconciler;
+
+    private final AtomicInteger clprEndpointManifestReconcilerProviderCalls = new AtomicInteger();
+
+    @Mock
     private ParentTxnFactory parentTxnFactory;
 
     @Mock
@@ -289,6 +301,7 @@ class HandleWorkflowTest {
 
     @BeforeEach
     void setUp() {
+        clprEndpointManifestReconcilerProviderCalls.set(0);
         final ReadableStates readableStates = mock(ReadableStates.class);
         final ReadableSingletonState singletonState = mock(ReadableSingletonState.class);
         lenient()
@@ -460,6 +473,24 @@ class HandleWorkflowTest {
         assertNull(files.get(retiredFileId), "retired fee schedule file must be removed from state");
         assertNotNull(files.get(simpleFeesFileId), "unrelated system files must survive");
         assertEquals(1, counts.get().numFiles(), "file entity counter must be decremented");
+    }
+
+    @Test
+    void disabledClprDoesNotInstantiateEndpointManifestReconciler() throws Exception {
+        givenSubjectWith(
+                RECORDS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("clpr.enabled", "false", "clpr.endpointManifestEnabled", "true"));
+
+        for (final var methodName : List.of("reconcileClprEndpointManifest", "pruneClprEndpointManifestOnUpgrade")) {
+            final var method =
+                    HandleWorkflow.class.getDeclaredMethod(methodName, com.swirlds.state.State.class, Instant.class);
+            method.setAccessible(true);
+            method.invoke(subject, state, NOW);
+        }
+
+        assertEquals(0, clprEndpointManifestReconcilerProviderCalls.get());
     }
 
     @Test
@@ -732,6 +763,10 @@ class HandleWorkflowTest {
                 hollowAccountCompletions,
                 systemTransactions,
                 stakeInfoHelper,
+                () -> {
+                    clprEndpointManifestReconcilerProviderCalls.incrementAndGet();
+                    return clprEndpointManifestReconciler;
+                },
                 recordCache,
                 exchangeRateManager,
                 stakePeriodManager,
@@ -871,6 +906,28 @@ class HandleWorkflowTest {
                 BlockStreamWriterMode.FILE,
                 emptyList(),
                 Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void initializesMissingClprSingletonsOnUpgrade() throws Exception {
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
+        final var clprStates = mock(WritableStates.class);
+        final WritableSingletonState<ClprLedgerConfiguration> ledgerConfiguration = mock(WritableSingletonState.class);
+        final WritableSingletonState<ClprEndpointManifest> manifest = mock(WritableSingletonState.class);
+        given(state.getWritableStates(ClprService.NAME)).willReturn(clprStates);
+        given(clprStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                .willReturn(ledgerConfiguration);
+        given(clprStates.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
+                .willReturn(manifest);
+
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "initializeMissingClprSingletons", com.swirlds.state.State.class);
+        method.setAccessible(true);
+        method.invoke(subject, state);
+
+        verify(ledgerConfiguration).put(any(ClprLedgerConfiguration.class));
+        verify(manifest).put(any(ClprEndpointManifest.class));
     }
 
     @Test

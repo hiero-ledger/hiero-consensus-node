@@ -73,6 +73,10 @@ public class GrpcUtils {
                 clients.getNetworkSvcStub(nodeAccountId, false, asNodeOperator).getExecutionTime(query);
             case GetAccountDetails ->
                 clients.getNetworkSvcStub(nodeAccountId, false, asNodeOperator).getAccountDetails(query);
+            case ClprGetLedgerConfiguration ->
+                clients.getClprSvcStub(nodeAccountId, false, asNodeOperator).getLedgerConfiguration(query);
+            case ClprGetEndpointManifest ->
+                clients.getClprSvcStub(nodeAccountId, false, asNodeOperator).getEndpointManifest(query);
             default -> throw new IllegalArgumentException(functionality + " is not a query");
         };
     }
@@ -216,6 +220,24 @@ public class GrpcUtils {
                 clients.getTokenSvcStub(nodeAccountId, false, false).claimAirdrop(transaction);
             case AtomicBatch ->
                 clients.getUtilSvcStub(nodeAccountId, false, false).atomicBatch(transaction);
+            case ClprRegisterChannel ->
+                clients.getClprSvcStub(nodeAccountId, false, false).registerChannel(transaction);
+            case ClprCompleteChannel ->
+                clients.getClprSvcStub(nodeAccountId, false, false).completeChannel(transaction);
+            case ClprCloseChannel ->
+                clients.getClprSvcStub(nodeAccountId, false, false).closeChannel(transaction);
+            case ClprSubmitBundle ->
+                clients.getClprSvcStub(nodeAccountId, false, false).submitBundle(transaction);
+            case ClprRedactMessage ->
+                clients.getClprSvcStub(nodeAccountId, false, false).redactMessage(transaction);
+            case ClprRegisterConnector ->
+                clients.getClprSvcStub(nodeAccountId, false, false).registerConnector(transaction);
+            case ClprCompleteConnector ->
+                clients.getClprSvcStub(nodeAccountId, false, false).completeConnector(transaction);
+            case ClprDeregisterConnector ->
+                clients.getClprSvcStub(nodeAccountId, false, false).deregisterConnector(transaction);
+            case ClprUpdateLedgerConfiguration ->
+                clients.getClprSvcStub(nodeAccountId, false, false).updateLedgerConfiguration(transaction);
             case StateSignatureTransaction,
                     HintsPreprocessingVote,
                     HintsKeyPublication,

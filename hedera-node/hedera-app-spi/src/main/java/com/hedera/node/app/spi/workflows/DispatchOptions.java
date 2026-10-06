@@ -249,6 +249,35 @@ public record DispatchOptions<T extends StreamBuilder>(
         return stepDispatch(
                 payerId, body, streamBuilderType, signedTxCustomizer, ReversingBehavior.REMOVABLE, EMPTY_METADATA);
     }
+
+    /**
+     * Returns options for a dispatch that is a step in the parent dispatch's business logic, but only appropriate
+     * to externalize if the parent succeeds, using the given fee charging strategy.
+     *
+     * @param payerId the account to pay for the dispatch
+     * @param body the transaction to dispatch
+     * @param streamBuilderType the type of stream builder to use for the dispatch
+     * @param signedTxCustomizer the customizer for the transaction
+     * @param customFeeCharging the custom fee charging strategy for the dispatch
+     * @return the options for the sub-dispatch
+     * @param <T> the type of stream builder to use for the dispatch
+     */
+    public static <T extends StreamBuilder> DispatchOptions<T> stepDispatch(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final Class<T> streamBuilderType,
+            @NonNull final StreamBuilder.SignedTxCustomizer signedTxCustomizer,
+            @NonNull final FeeCharging customFeeCharging) {
+        return stepDispatch(
+                payerId,
+                body,
+                streamBuilderType,
+                signedTxCustomizer,
+                ReversingBehavior.REMOVABLE,
+                EMPTY_METADATA,
+                customFeeCharging);
+    }
+
     /**
      * Returns options for a dispatch that is a step in the parent dispatch's business logic, but only appropriate
      * to externalize if the parent succeeds.
@@ -272,6 +301,38 @@ public record DispatchOptions<T extends StreamBuilder>(
             @NonNull final StreamBuilder.SignedTxCustomizer signedTxCustomizer,
             @NonNull final ReversingBehavior reversingBehavior,
             @NonNull final DispatchMetadata metadata) {
+        return stepDispatch(
+                payerId,
+                body,
+                streamBuilderType,
+                signedTxCustomizer,
+                reversingBehavior,
+                metadata,
+                UNIVERSAL_NOOP_FEE_CHARGING);
+    }
+
+    /**
+     * Returns options for a dispatch that is a step in the parent dispatch's business logic, but only appropriate
+     * to externalize if the parent succeeds, using the given fee charging strategy.
+     *
+     * @param <T> the type of stream builder to use for the dispatch
+     * @param payerId the account to pay for the dispatch
+     * @param body the transaction to dispatch
+     * @param streamBuilderType the type of stream builder to use for the dispatch
+     * @param signedTxCustomizer the customizer for the transaction
+     * @param reversingBehavior the reversing behavior for the dispatch
+     * @param metadata the metadata for the dispatch
+     * @param customFeeCharging the custom fee charging strategy for the dispatch
+     * @return the options for the sub-dispatch
+     */
+    public static <T extends StreamBuilder> DispatchOptions<T> stepDispatch(
+            @NonNull final AccountID payerId,
+            @NonNull final TransactionBody body,
+            @NonNull final Class<T> streamBuilderType,
+            @NonNull final StreamBuilder.SignedTxCustomizer signedTxCustomizer,
+            @NonNull final ReversingBehavior reversingBehavior,
+            @NonNull final DispatchMetadata metadata,
+            @NonNull final FeeCharging customFeeCharging) {
         return new DispatchOptions<>(
                 Commit.WITH_PARENT,
                 payerId,
@@ -285,7 +346,7 @@ public record DispatchOptions<T extends StreamBuilder>(
                 reversingBehavior,
                 signedTxCustomizer,
                 metadata,
-                UNIVERSAL_NOOP_FEE_CHARGING);
+                customFeeCharging);
     }
 
     /**

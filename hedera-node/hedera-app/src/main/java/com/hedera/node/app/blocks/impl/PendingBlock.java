@@ -22,6 +22,11 @@ import java.util.List;
  * @param proofBuilder the block proof builder
  * @param writer the block item writer
  * @param blockTimestamp the block timestamp
+ * @param startingStateHash the state root hash at the start of this block; used to register CLPR
+ *                          block metadata; may be {@link Bytes#EMPTY} for recovered blocks
+ * @param consensusHeaderRootHash the consensus header subroot hash for this block; used to build
+ *                                the CLPR partial Merkle path; may be {@link Bytes#EMPTY} for
+ *                                recovered blocks
  * @param siblingHashes the sibling hashes needed to compute a block's root hash for an indirect proof
  */
 public record PendingBlock(
@@ -32,6 +37,8 @@ public record PendingBlock(
         @NonNull BlockProof.Builder proofBuilder,
         @NonNull BlockItemWriter writer,
         @NonNull Timestamp blockTimestamp,
+        @NonNull Bytes startingStateHash,
+        @NonNull Bytes consensusHeaderRootHash,
         @NonNull MerkleSiblingHash... siblingHashes) {
     /**
      * Flushes this pending block to disk, including the sibling hashes needed

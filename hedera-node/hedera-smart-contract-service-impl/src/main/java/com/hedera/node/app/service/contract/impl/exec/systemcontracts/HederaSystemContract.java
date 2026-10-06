@@ -30,4 +30,15 @@ public interface HederaSystemContract extends PrecompiledContract {
             @NonNull ContractID contractID, @NonNull Bytes input, @NonNull MessageFrame messageFrame) {
         return new FullResult(computePrecompile(input, messageFrame), gasRequirement(input), null);
     }
+
+    /**
+     * Returns whether this system contract is disabled in the given frame. The EVM treats the address of a
+     * disabled system contract exactly as if no system contract were registered there.
+     *
+     * @param messageFrame the message frame
+     * @return whether this system contract is disabled
+     */
+    default boolean isDisabled(@NonNull MessageFrame messageFrame) {
+        return false;
+    }
 }

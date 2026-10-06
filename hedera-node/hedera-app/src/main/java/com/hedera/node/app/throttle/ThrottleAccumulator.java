@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.throttle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL_LOCAL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
@@ -63,6 +64,7 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
@@ -581,7 +583,12 @@ public class ThrottleAccumulator {
         // exemption
         // but this is only possible for the case of triggered transactions which is not yet implemented (see
         // MonoMultiplierSources.java)
-        final boolean isPayerThrottleExempt = throttleExempt(txnInfo.payerID(), configuration);
+        // While CLPR is enabled, node-generated bundles must consume the dedicated CLPR capacity
+        // even though their node-account payers are otherwise exempt from throttling.
+        final boolean consumesClprBundleCapacity = function == CLPR_SUBMIT_BUNDLE
+                && configuration.getConfigData(ClprConfig.class).enabled();
+        final boolean isPayerThrottleExempt =
+                !consumesClprBundleCapacity && throttleExempt(txnInfo.payerID(), configuration);
         if (isPayerThrottleExempt) {
             return false;
         }

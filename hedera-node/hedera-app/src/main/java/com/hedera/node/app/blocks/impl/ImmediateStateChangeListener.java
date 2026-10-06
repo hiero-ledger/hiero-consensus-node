@@ -25,6 +25,11 @@ import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.addressbook.RegisteredNode;
+import com.hedera.hapi.node.state.clpr.ClprChannel;
+import com.hedera.hapi.node.state.clpr.ClprConnector;
+import com.hedera.hapi.node.state.clpr.ClprConnectorKey;
+import com.hedera.hapi.node.state.clpr.ClprMessageKey;
+import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.state.common.EntityIDPair;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.consensus.Topic;
@@ -238,6 +243,10 @@ public class ImmediateStateChangeListener implements StateChangeListener {
             case EvmHookSlotKey evmHookSlotKey ->
                 new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.EVM_HOOK_SLOT_KEY, evmHookSlotKey));
             case HookId HookId -> new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.HOOK_ID_KEY, HookId));
+            case ClprMessageKey clprMessageKey ->
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.CLPR_MESSAGE_KEY, clprMessageKey));
+            case ClprConnectorKey clprConnectorKey ->
+                new MapChangeKey(new OneOf<>(MapChangeKey.KeyChoiceOneOfType.CLPR_CONNECTOR_KEY, clprConnectorKey));
             default ->
                 throw new IllegalStateException(
                         "Unrecognized key type " + key.getClass().getSimpleName());
@@ -319,6 +328,17 @@ public class ImmediateStateChangeListener implements StateChangeListener {
             case RegisteredNode registeredNode ->
                 new MapChangeValue(
                         new OneOf<>(MapChangeValue.ValueChoiceOneOfType.REGISTERED_NODE_VALUE, registeredNode));
+            case ClprChannel clprChannel ->
+                new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.CLPR_CHANNEL_VALUE, clprChannel));
+            case ClprMessageValue clprMessageValue ->
+                new MapChangeValue(
+                        new OneOf<>(MapChangeValue.ValueChoiceOneOfType.CLPR_MESSAGE_VALUE, clprMessageValue));
+            case ClprConnector clprConnector ->
+                new MapChangeValue(
+                        new OneOf<>(MapChangeValue.ValueChoiceOneOfType.CLPR_CONNECTOR_VALUE, clprConnector));
+            case ProtoBytes protoBytes ->
+                new MapChangeValue(
+                        new OneOf<>(MapChangeValue.ValueChoiceOneOfType.PROTO_BYTES_VALUE, protoBytes.value()));
             default ->
                 throw new IllegalStateException(
                         "Unexpected value: " + value.getClass().getSimpleName());

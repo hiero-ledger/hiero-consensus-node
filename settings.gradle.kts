@@ -26,6 +26,8 @@ javaModules {
         module("hedera-app") { artifact = "app" }
         module("hedera-app-spi") { artifact = "app-spi" }
         module("hedera-config") { artifact = "config" }
+        module("hedera-clpr-service") { artifact = "app-service-clpr" }
+        module("hedera-clpr-service-impl") { artifact = "app-service-clpr-impl" }
         module("hedera-consensus-service") { artifact = "app-service-consensus" }
         module("hedera-consensus-service-impl") { artifact = "app-service-consensus-impl" }
         module("hedera-file-service") { artifact = "app-service-file" }

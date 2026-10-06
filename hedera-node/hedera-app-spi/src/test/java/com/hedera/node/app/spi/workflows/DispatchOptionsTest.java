@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.workflows;
 
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.CUSTOM_FEE_CHARGING;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -13,6 +15,18 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 class DispatchOptionsTest {
+    @Test
+    void stepDispatchCanUseCustomFeeCharging() {
+        final var options = DispatchOptions.stepDispatch(
+                AccountID.DEFAULT,
+                TransactionBody.DEFAULT,
+                StreamBuilder.class,
+                NOOP_SIGNED_TX_CUSTOMIZER,
+                DISPATCH_ONLY_NOOP_FEE_CHARGING);
+
+        assertSame(DISPATCH_ONLY_NOOP_FEE_CHARGING, options.customFeeCharging());
+    }
+
     @Test
     void propagatesSubDispatchCustomFeeChargingViaExpectedKeyIfRequested() {
         final var options = DispatchOptions.subDispatch(

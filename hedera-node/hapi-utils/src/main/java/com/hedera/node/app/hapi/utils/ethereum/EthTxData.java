@@ -388,6 +388,7 @@ public record EthTxData(
     @NonNull
     @Override
     public String toString() {
+
         return MoreObjects.toStringHelper(this)
                 .add("rawTx", rawTx == null ? null : HexFormat.of().formatHex(rawTx))
                 .add("type", type)

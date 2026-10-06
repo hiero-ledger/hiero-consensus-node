@@ -13,6 +13,15 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecSetup;
 import com.hedera.services.bdd.spec.utilops.mod.BodyMutation;
 import com.hederahashgraph.api.proto.java.AtomicBatchTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprCloseChannelTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprCompleteChannelTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprCompleteConnectorTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprDeregisterConnectorTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprRedactMessageTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprRegisterChannelTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprRegisterConnectorTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprSubmitBundleTransactionBody;
+import com.hederahashgraph.api.proto.java.ClprUpdateLedgerConfigurationTransactionBody;
 import com.hederahashgraph.api.proto.java.ConsensusCreateTopicTransactionBody;
 import com.hederahashgraph.api.proto.java.ConsensusDeleteTopicTransactionBody;
 import com.hederahashgraph.api.proto.java.ConsensusSubmitMessageTransactionBody;
@@ -334,6 +343,43 @@ public class TxnFactory {
     }
 
     public Consumer<NodeDeleteTransactionBody.Builder> defaultDefNodeDeleteTransactionBody() {
+        return builder -> {};
+    }
+
+    public Consumer<ClprUpdateLedgerConfigurationTransactionBody.Builder>
+            defaultDefClprUpdateLedgerConfigurationTransactionBody() {
+        return builder -> {};
+    }
+
+    public Consumer<ClprCloseChannelTransactionBody.Builder> defaultDefClprCloseChannelTransactionBody() {
+        return builder -> {};
+    }
+
+    public Consumer<ClprRegisterChannelTransactionBody.Builder> defaultDefClprRegisterChannelTransactionBody() {
+        return builder -> {};
+    }
+
+    public Consumer<ClprCompleteChannelTransactionBody.Builder> defaultDefClprCompleteChannelTransactionBody() {
+        return builder -> {};
+    }
+
+    public Consumer<ClprRegisterConnectorTransactionBody.Builder> defaultDefClprRegisterConnectorTransactionBody() {
+        return builder -> {};
+    }
+
+    public Consumer<ClprCompleteConnectorTransactionBody.Builder> defaultDefClprCompleteConnectorTransactionBody() {
+        return builder -> {};
+    }
+
+    public Consumer<ClprDeregisterConnectorTransactionBody.Builder> defaultDefClprDeregisterConnectorTransactionBody() {
+        return builder -> {};
+    }
+
+    public Consumer<ClprRedactMessageTransactionBody.Builder> defaultDefClprRedactMessageTransactionBody() {
+        return builder -> {};
+    }
+
+    public Consumer<ClprSubmitBundleTransactionBody.Builder> defaultDefClprSubmitBundleTransactionBody() {
         return builder -> {};
     }
 

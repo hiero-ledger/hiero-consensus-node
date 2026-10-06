@@ -1,0 +1,102 @@
+/**
+ * # CLPR Endpoint Manifest Construction
+ *
+ * Hiero-internal coordination singleton. Tracks the in-progress construction that gathers
+ * endpoint publications from every roster node so a new {@code ClprEndpointManifest} can be
+ * finalized deterministically. Absent when no construction is in flight.
+ *
+ * See {@code dev-context/clpr-endpoint-self-publication-design.md} §3 (state model) and §4
+ * (lifecycle).
+ *
+ * ### Cross-ledger note
+ *
+ * This message is **NOT** part of the cross-ledger CLPR spec. It is a Hiero implementation
+ * detail — the target set uses Hiero {@code node_id} keys and never crosses the ledger
+ * boundary. Only the finalized {@code ClprEndpointManifest} is portable.
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.node.state.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.state.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/timestamp.proto";
+import "services/state/clpr/clpr_ledger_configuration.proto";
+
+/**
+ * Snapshot of a single node's publication within an active construction: the publishing node's
+ * current {@code ClprEndpoint}. Mirrors {@code ClprEndpointPublicationTransactionBody}.
+ */
+message ClprEndpointPublication {
+    /**
+     * Fresh publication: the publishing node's current CLPR endpoint. At construction close, this
+     * replaces whatever the previous manifest carried for that node.
+     */
+    com.hedera.hapi.node.state.clpr.ClprEndpoint endpoint = 1;
+}
+
+/**
+ * A publication entry within a construction, tagging the publishing node's Hiero
+ * {@code node_id}. Together the repeated entries act as a node_id → publication map (PBJ's
+ * map codegen has an open bug with mixed repeated + map fields; a repeated wrapper works
+ * around it and gives us deterministic ordering for free).
+ */
+message ClprEndpointPublicationEntry {
+    /**
+     * Publishing node's Hiero {@code node_id}, attributed via
+     * {@code HandleContext.creatorInfo().nodeId()} at handle time. A node cannot publish on
+     * another node's behalf.
+     */
+    uint64 node_id = 1;
+
+    /**
+     * The publication payload — either a fresh endpoint or a no-change acknowledgment.
+     */
+    ClprEndpointPublication publication = 2;
+}
+
+/**
+ * In-progress endpoint manifest construction. Opened when a node self-publishes an endpoint
+ * the manifest does not already contain, or when the roster's endpoint composition changes;
+ * deleted on close (either advance or no-op). Never exposed to cross-ledger consumers.
+ */
+message ClprEndpointManifestConstruction {
+    /**
+     * Monotonically increasing identifier. First construction is {@code 1}; each subsequent
+     * construction bumps by 1 regardless of advance-vs-no-op outcome. Present so that in a
+     * partial-restart scenario the reconciler can distinguish a stale from a fresh
+     * construction singleton.
+     */
+    uint64 construction_id = 1;
+
+    /**
+     * Hiero {@code node_id}s the reconciler is waiting on. Publications from nodes outside
+     * this set are dropped by the handler. Populated once at construction open from the
+     * active roster and kept sorted ascending for deterministic serialization.
+     */
+    repeated uint64 target_node_ids = 2;
+
+    /**
+     * Publications gathered so far, one per publishing node. Entries are kept sorted
+     * ascending by {@code node_id} so the wire form is deterministic. Last-write-wins per
+     * design §7.2.
+     */
+    repeated ClprEndpointPublicationEntry gathered_publications = 3;
+
+    /**
+     * Current grace-period deadline. Set on open to {@code now + clpr.manifestGracePeriod};
+     * extended by {@code clpr.manifestGraceExtension} on each grace-extension tick up to
+     * {@code clpr.manifestMaxGraceExtensions} total extensions (design §4.3).
+     */
+    proto.Timestamp grace_period_end_time = 4;
+
+    /**
+     * Number of grace-period extensions consumed so far. Once this reaches
+     * {@code clpr.manifestMaxGraceExtensions}, the next grace-period expiry forces a timeout
+     * close per §4.3.
+     */
+    uint32 grace_extensions_used = 5;
+}

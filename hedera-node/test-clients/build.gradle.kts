@@ -96,7 +96,7 @@ tasks.register<JavaExec>("runTestClient") {
 }
 
 val miscTags =
-    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|GENESIS_SUBPROCESS|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD)"
+    "!(INTEGRATION|CRYPTO|TOKEN|RESTART|UPGRADE|SMART_CONTRACT|ND_RECONNECT|LONG_RUNNING|STATE_THROTTLING|ISS|BLOCK_NODE|GENESIS_SUBPROCESS|SIMPLE_FEES|ATOMIC_BATCH|WRAPS_DOWNLOAD|CLPR|MULTINETWORK)"
 val miscTagsSerial = "$miscTags&SERIAL"
 
 val prCheckTags =
@@ -126,6 +126,8 @@ val prCheckTags =
         "hapiTestAtomicBatch" to "ATOMIC_BATCH",
         "hapiTestAtomicBatchSerial" to "(ATOMIC_BATCH&SERIAL)",
         "hapiTestStateThrottling" to "(STATE_THROTTLING&SERIAL)",
+        "hapiTestClpr" to "CLPR",
+        "hapiTestClprMultinetwork" to "MULTINETWORK",
     )
 
 val remoteCheckTags =
@@ -168,6 +170,7 @@ val prCheckStartPorts =
         "hapiTestSimpleFeesSerial" to "29000",
         "hapiTestAtomicBatchSerial" to "29200",
         "hapiTestSmartContractSerial" to "29400",
+        "hapiTestClpr" to "29600",
     )
 val prCheckPropOverrides =
     mapOf(
@@ -216,6 +219,7 @@ val prCheckPropOverrides =
         "hapiTestAtomicBatch" to
             "nodes.nodeRewardsEnabled=false,quiescence.enabled=true,hedera.transaction.maximumPermissibleUnhealthySeconds=5",
         "hapiTestAtomicBatchSerial" to "nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
+        "hapiTestClpr" to "hedera.transaction.maximumPermissibleUnhealthySeconds=5",
     )
 // hapiTestRestart reconnects the same node repeatedly; the 10m production throttle would starve it.
 val prCheckPlatformOverrides =
@@ -265,6 +269,7 @@ val embeddedBaseTags =
         "hapiTestSimpleFeesEmbedded" to "EMBEDDED&SIMPLE_FEES",
         "hapiTestCryptoEmbedded" to "EMBEDDED&CRYPTO",
         "hapiTestAtomicBatchEmbedded" to "EMBEDDED&ATOMIC_BATCH",
+        "hapiTestClprEmbedded" to "EMBEDDED&CLPR",
     )
 val prEmbeddedCheckTags = embeddedBaseTags.mapValues { (_, tags) -> "($tags)" }
 
@@ -407,8 +412,8 @@ tasks.registerHapiTest(
 tasks.registerHapiTest(
     "testEmbedded",
     prEmbeddedCheckTags,
-    "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS)",
-    ciDefaultTags = "|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS",
+    "none()|!(RESTART|ND_RECONNECT|UPGRADE|REPEATABLE|ONLY_SUBPROCESS|ISS|CLPR)",
+    ciDefaultTags = "|STREAM_VALIDATION|LOG_VALIDATION)&!(INTEGRATION|ISS|CLPR",
     // Tell our launcher to target a concurrent embedded network
     embeddedMode = "concurrent",
     junitParallelMode = "same_thread",
@@ -480,7 +485,7 @@ fun TaskContainer.registerHapiTest(
                 "com.hedera.cryptography.libsodium"
         )
         // Isolate each subtask's working directory so logs are not overwritten
-        if (subtaskName.isNotBlank()) {
+        if (subtaskName.isNotBlank() && ciTags[subtaskName] != "MULTINETWORK") {
             systemProperty("hapi.spec.subtask.name", subtaskName)
         }
         if (testOverrides.isNotBlank()) {
@@ -527,11 +532,15 @@ fun TaskContainer.registerHapiTest(
             } else {
                 includeTags(
                     if (ciTagExpression.isBlank()) defaultTags
+                    else if (name == "testEmbedded" && ciTagExpression.contains("CLPR"))
+                        "(${ciTagExpression})"
                     // We don't want to run stream or log validation for ISS or BLOCK_NODE cases
                     else if (
                         ciDefaultTagsWithoutStreamAndLogValidation != null &&
                             (ciTagExpression.contains("ISS") ||
-                                ciTagExpression.contains("BLOCK_NODE"))
+                                ciTagExpression.contains("BLOCK_NODE") ||
+                                ciTagExpression.contains("CLPR") ||
+                                ciTagExpression.contains("MULTINETWORK"))
                     )
                         "(${ciTagExpression}${ciDefaultTagsWithoutStreamAndLogValidation})"
                     else "(${ciTagExpression}${ciDefaultTags})"
@@ -552,6 +561,10 @@ fun TaskContainer.registerHapiTest(
                 "junit.jupiter.testclass.order.default",
                 "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
             )
+        }
+        if (ciTagExpression.contains("CLPR") || ciTagExpression.contains("MULTINETWORK")) {
+            // Preserve the failed subprocess network's logs for CLPR diagnostics.
+            failFast = true
         }
         if (junitFixedParallelism != null) {
             systemProperty("junit.jupiter.execution.parallel.config.strategy", "fixed")
