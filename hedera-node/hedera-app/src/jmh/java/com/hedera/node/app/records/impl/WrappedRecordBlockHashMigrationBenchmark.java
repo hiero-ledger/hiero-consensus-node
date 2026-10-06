@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records.impl;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.sha256DigestOrThrow;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
@@ -18,6 +18,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import org.hiero.base.crypto.DigestType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -89,7 +90,7 @@ public class WrappedRecordBlockHashMigrationBenchmark {
 
         // Construct jumpstart config directly (matching the production config-property path)
         final var rng = new Random();
-        final var hasher = new IncrementalStreamingHasher(sha256DigestOrThrow(), List.of(), 0L);
+        final var hasher = new IncrementalStreamingHasher(sha384DigestOrThrow(), List.of(), 0L);
         var prevHash = new byte[HASH_SIZE];
         for (int i = 0; i < HASH_COUNT; i++) {
             final var randomHash = new byte[HASH_SIZE];
@@ -135,7 +136,8 @@ public class WrappedRecordBlockHashMigrationBenchmark {
 
     @Benchmark
     public void execute() {
-        new WrappedRecordBlockHashMigration().execute(StreamMode.BOTH, config, jumpstartConfig, false, false);
+        new WrappedRecordBlockHashMigration()
+                .execute(StreamMode.BOTH, config, jumpstartConfig, false, DigestType.SHA_384);
     }
 
     public static void main(String... args) throws Exception {
