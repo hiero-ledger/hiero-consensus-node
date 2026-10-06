@@ -128,6 +128,17 @@ import org.hiero.base.file.FileUtils;
  */
 public final class VirtualMap extends AbstractVirtualRoot implements Labeled, VirtualRoot {
 
+    /// Desired number of hash chunk flushes per full rehash. Every flush has a fixed cost (a new
+    /// data file, metadata update, etc.), and every flush creates a new data file to compact later,
+    /// so for small and mid-size states the number of flushes shouldn't depend on the state size
+    private static final long FULL_REHASH_TARGET_FLUSHES = 128;
+    /// Min flush interval, in hash slots (~24MB of heap). Small states are flushed in batches of
+    /// at least this size.
+    private static final long FULL_REHASH_MIN_FLUSH_INTERVAL = 500_000;
+    /// Max flush interval, in hash slots (~192MB of heap). Large states are flushed in batches of
+    /// about this size, unless flushes are slower than hashing, see method javadoc
+    private static final long FULL_REHASH_MAX_FLUSH_INTERVAL = 4_000_000;
+
     /**
      * Hardcoded virtual map label
      */
@@ -469,12 +480,15 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             }
         };
 
-        // thread pool to run full rehash tasks, closed as soon as the rehash is complete.
+        // Thread pool to run full rehash tasks, shut down as soon as the rehash is complete.
         // It must not be in async mode, see TaskPerNodeFullRehasher javadoc for details
+        // Use one less than the number of available processors to avoid saturating the CPU and leaving no room for
+        // other tasks.
         final ForkJoinPool rehashPool = ExecutorFactory.create(
                         "VirtualMapFullRehash",
                         (_, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during full rehash", e))
-                .createForkJoinPool(Math.max(1, Runtime.getRuntime().availableProcessors()), false);
+                .createForkJoinPool(Math.max(1, Runtime.getRuntime().availableProcessors() - 1), false);
+
         try {
             final long start = System.currentTimeMillis();
             hashListener.onHashingStarted(firstLeafPath, lastLeafPath);
@@ -490,29 +504,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             logger.info(
                     STARTUP.getMarker(), "Full rehash took {} seconds", (System.currentTimeMillis() - start) / 1000);
         } finally {
-            shutdownFullRehashPool(rehashPool);
-        }
-    }
-
-    /// Shuts down the full rehash pool and waits for running tasks to complete, so nothing is
-    /// written to the data source after full rehash is over. Waits for at most 1 minute, then interrupts remaining
-    /// tasks.
-    /// On success, all rehash tasks are complete, and the pool terminates immediately. On failure, the rehasher
-    /// stops remaining tasks, but some of them may still be running, e.g. flushing hash chunks
-    /// to the data source.
-    ///
-    /// @param pool the pool to shut down
-    private static void shutdownFullRehashPool(@NonNull final ForkJoinPool pool) {
-        // Not shutdownNow(), as it would interrupt running tasks, e.g. hash chunk flushes
-        pool.shutdown();
-        try {
-            if (!pool.awaitTermination(1, MINUTES)) {
-                logger.error(EXCEPTION.getMarker(), "Full rehash pool didn't terminate in time, interrupting it");
-                pool.shutdownNow();
-            }
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            pool.shutdownNow();
+            // On success, all rehash tasks are already complete. On failure, tasks that are still running, e.g.
+            // hash chunk flushes, are left to finish on their own, and the pool terminates after that
+            rehashPool.shutdown();
         }
     }
 
@@ -533,19 +527,12 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
     /// @param chunkHeight hash chunk height
     /// @return the flush interval, in hash slots
     private static int fullRehashFlushInterval(final long lastLeafPath, final int chunkHeight) {
-        // Desired number of hash chunk flushes per full rehash. Every flush has a fixed cost (a new
-        // data file, metadata update, etc.), and every flush creates a new data file to compact later,
-        // so for small and mid-size states the number of flushes shouldn't depend on the state size
-        final long targetFlushes = 128;
-        // Min flush interval, in hash slots (~24MB of heap). Small states are flushed in batches of
-        // at least this size.
-        final long minFlushInterval = 500_000;
-        // Max flush interval, in hash slots (~192MB of heap). Large states are flushed in batches of
-        // about this size, unless flushes are slower than hashing, see method javadoc
-        final long maxFlushInterval = 4_000_000;
         final long totalChunks = VirtualHashChunk.lastChunkIdForPaths(lastLeafPath, chunkHeight) + 1;
         final long totalHashSlots = totalChunks * VirtualHashChunk.getChunkSize(chunkHeight);
-        return (int) Math.clamp(totalHashSlots / targetFlushes, minFlushInterval, maxFlushInterval);
+        return (int) Math.clamp(
+                totalHashSlots / FULL_REHASH_TARGET_FLUSHES,
+                FULL_REHASH_MIN_FLUSH_INTERVAL,
+                FULL_REHASH_MAX_FLUSH_INTERVAL);
     }
 
     // Test only

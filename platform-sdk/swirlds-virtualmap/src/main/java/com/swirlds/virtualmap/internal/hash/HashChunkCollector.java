@@ -30,15 +30,23 @@ public final class HashChunkCollector implements TaskPerNodeFullRehasher.Listene
 
     private static final Logger logger = LogManager.getLogger(HashChunkCollector.class);
 
+    // The height of the hash chunks. Hashes of nodes at the last chunk ranks are stored in chunks
     private final int chunkHeight;
+    // The listener to pass complete chunks to
     private final VirtualHashListener chunkListener;
 
-    // Chunks that are being hashed, by chunk path
+    // Chunks that are being hashed, by chunk path; removed from this map when the chunk is complete and passed to the
+    // chunk listener
     private final Map<Long, VirtualHashChunk> chunksInProgress = new ConcurrentHashMap<>();
 
+    // The first leaf path in the virtual tree
     private long firstLeafPath;
-    private long onePercent;
-    private final AtomicLong hashedLeaves = new AtomicLong();
+    // The last leaf path in the virtual tree
+    private long lastLeafPath;
+    // The number of leaves that make 1% of the total leaves. Used to log hashing progress
+    private long onePercentLeavesCount;
+    // The number of hashed leaves. Used to log hashing progress
+    private final AtomicLong hashedLeavesCount = new AtomicLong();
 
     /// Creates a new chunk collector.
     ///
@@ -58,8 +66,9 @@ public final class HashChunkCollector implements TaskPerNodeFullRehasher.Listene
     /// @param lastLeafPath the last leaf path in the virtual tree
     public void onHashingStarted(final long firstLeafPath, final long lastLeafPath) {
         this.firstLeafPath = firstLeafPath;
-        this.onePercent = (lastLeafPath - firstLeafPath) / 100 + 1;
-        hashedLeaves.set(0);
+        this.lastLeafPath = lastLeafPath;
+        this.onePercentLeavesCount = (lastLeafPath - firstLeafPath) / 100 + 1;
+        hashedLeavesCount.set(0);
         chunkListener.onHashingStarted(firstLeafPath, lastLeafPath);
     }
 
@@ -71,6 +80,10 @@ public final class HashChunkCollector implements TaskPerNodeFullRehasher.Listene
     /// @param hash the node hash bytes
     @Override
     public void onHashed(final long path, @NonNull final byte[] hash) {
+        assert path <= lastLeafPath
+                : "Hashed path must <= to the last leaf path, path = " + path + ", lastLeafPath = " + lastLeafPath;
+        assert path >= 0 : "Hashed path must be non-negative, path = " + path;
+
         final boolean leaf = path >= firstLeafPath;
         final boolean chunkRank = MerklePathUtils.getRank(path) % chunkHeight == 0;
 
@@ -97,9 +110,9 @@ public final class HashChunkCollector implements TaskPerNodeFullRehasher.Listene
         }
 
         if (leaf) {
-            final long hashed = hashedLeaves.incrementAndGet();
-            if (hashed % onePercent == 0) {
-                logger.info(STARTUP.getMarker(), "Full rehash progress: {}%", hashed / onePercent);
+            final long hashed = hashedLeavesCount.incrementAndGet();
+            if (hashed % onePercentLeavesCount == 0) {
+                logger.info(STARTUP.getMarker(), "Full rehash progress: {}%", hashed / onePercentLeavesCount);
             }
         }
     }

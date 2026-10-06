@@ -90,7 +90,7 @@ public final class ConfigUtils {
 
     public static String JOB_URL = System.getProperty("job.url");
 
-    public static final String FULL_REHASH_TIMEOUT_MS = System.getProperty("fullRehashTimeoutMs", "600000");
+    public static final String FULL_REHASH_TIMEOUT_MS = System.getProperty("fullRehashTimeoutMs", "1800000");
 
     private static Configuration configuration;
 

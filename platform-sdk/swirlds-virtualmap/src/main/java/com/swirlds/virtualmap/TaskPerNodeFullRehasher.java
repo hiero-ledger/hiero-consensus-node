@@ -122,11 +122,9 @@ public final class TaskPerNodeFullRehasher {
         private final Listener listener;
 
         // Completed with the root hash bytes, or exceptionally with the first exception thrown
-        // by any task
+        // by any task, or cancelled on timeout or interrupt. Tasks check if it's completed
+        // exceptionally to avoid doing any more work
         private final CompletableFuture<byte[]> result = new CompletableFuture<>();
-
-        // Set when hashing fails or times out. Tasks check it to avoid doing any more work
-        private volatile boolean cancelled = false;
 
         Run(
                 final long firstLeafPath,
@@ -145,23 +143,23 @@ public final class TaskPerNodeFullRehasher {
                 final byte[] rootHash = result.get(timeoutMs, MILLISECONDS);
                 return new Hash(rootHash, Cryptography.DEFAULT_DIGEST_TYPE);
             } catch (final ExecutionException e) {
-                cancelled = true;
                 // Always wrap, so the exception has the caller thread stack trace, not just the
                 // hashing thread stack trace of the cause
                 throw new RuntimeException(
                         "Failed to get hash during full rehashing", e.getCause() != null ? e.getCause() : e);
             } catch (final InterruptedException e) {
-                cancelled = true;
                 Thread.currentThread().interrupt();
                 throw new RuntimeException("Interrupted while full rehashing", e);
             } catch (final TimeoutException e) {
-                cancelled = true;
                 throw new RuntimeException("Wasn't able to finish full rehashing in time", e);
+            } finally {
+                // No-op if the run has already succeeded or failed. On timeout or interrupt, the result
+                // is still pending, so this makes the tasks that are still running stop at their next check
+                result.cancel(false);
             }
         }
 
         void fail(final Throwable t) {
-            cancelled = true;
             result.completeExceptionally(t);
         }
 
@@ -179,7 +177,7 @@ public final class TaskPerNodeFullRehasher {
 
             @Override
             protected boolean onExecute() {
-                if (cancelled) {
+                if (result.isCompletedExceptionally()) {
                     return true;
                 }
                 long nodePath = path;
@@ -203,7 +201,7 @@ public final class TaskPerNodeFullRehasher {
                     throw new IllegalStateException("Leaf record not found, path = " + nodePath);
                 }
                 final byte[] hash = MerkleHasher.threadSafeDefault().leafNodeHashBytes(leaf);
-                if (cancelled) {
+                if (result.isCompletedExceptionally()) {
                     return true;
                 }
                 // Must be called before the hash is passed to the parent node, see class javadoc
@@ -244,7 +242,7 @@ public final class TaskPerNodeFullRehasher {
 
             @Override
             protected boolean onExecute() {
-                if (cancelled) {
+                if (result.isCompletedExceptionally()) {
                     return true;
                 }
                 final byte[] hash = MerkleHasher.threadSafeDefault().internalNodeHashBytes(leftHash, rightHash);
