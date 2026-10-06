@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history;
 
-import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowHashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.history.WrapsProvingKeyVerification.artifactsAlreadyPresent;
 import static com.hedera.node.app.history.WrapsProvingKeyVerification.artifactsInstalledAndVerified;
@@ -25,7 +24,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
-import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
@@ -47,7 +45,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPOutputStream;
-import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -65,7 +62,6 @@ class WrapsProvingKeyVerificationTest {
     private static final byte[] CONTENT_A = "test-content-a-for-proving-key".getBytes();
     private static final byte[] CONTENT_B = "test-content-b-different-key!!".getBytes();
     private static final Bytes HASH_A = noThrowSha384HashOf(Bytes.wrap(CONTENT_A));
-    private static final Bytes HASH_A_SHA256 = Bytes.wrap(noThrowHashOf(CONTENT_A, DigestType.SHA_256));
     private static final String DOWNLOAD_URL = "https://s3.example.com/bucket/proving-key.tar.gz";
 
     @Mock
@@ -73,9 +69,6 @@ class WrapsProvingKeyVerificationTest {
 
     @Mock
     private TssConfig tssConfig;
-
-    @Mock
-    private BlockStreamConfig blockStreamConfig;
 
     @Mock
     private HttpWrapsProvingKeyDownloader downloader;
@@ -97,11 +90,6 @@ class WrapsProvingKeyVerificationTest {
         // Use synchronous executor so async downloads run inline for testing
         subject = new WrapsProvingKeyVerification(Runnable::run);
         Mockito.lenient().when(configuration.getConfigData(TssConfig.class)).thenReturn(tssConfig);
-        Mockito.lenient()
-                .when(configuration.getConfigData(BlockStreamConfig.class))
-                .thenReturn(blockStreamConfig);
-        // Default to SHA-384 (digestType=SHA_384), matching the HASH_A expectation
-        Mockito.lenient().when(blockStreamConfig.digestType()).thenReturn(DigestType.SHA_384);
         Mockito.lenient().when(tssConfig.wrapsProvingKeyRetryInterval()).thenReturn(Duration.ofSeconds(60));
     }
 
@@ -501,29 +489,6 @@ class WrapsProvingKeyVerificationTest {
 
         assertDoesNotThrow(() -> retryCaptor.getValue().run());
         verify(scheduledFuture, Mockito.never()).cancel(Mockito.anyBoolean());
-    }
-
-    // ===== hash algorithm follows digestType =====
-
-    @Test
-    void hashFileAlgorithmFollowsDigestType(final EnvironmentVariables environment) throws Exception {
-        final var path = tempDir.resolve("proving.key");
-        Files.write(path, CONTENT_A);
-        // The configured hash is the SHA-256 digest of the file contents
-        givenConfigWithHashAndPath(HASH_A_SHA256.toHex(), path);
-        setArtifactsEnvVar(environment);
-
-        // digestType=SHA_256: the file is hashed with SHA-256, which matches the configured hash -> no download
-        given(blockStreamConfig.digestType()).willReturn(DigestType.SHA_256);
-        subject.ensureProvingKey(configuration, downloader);
-        verifyNoInteractions(downloader);
-
-        // digestType=SHA_384: the file is hashed with SHA-384, which does NOT match the SHA-256
-        // configured hash -> a download is triggered.
-        given(blockStreamConfig.digestType()).willReturn(DigestType.SHA_384);
-        givenDownloaderWritesContent(path, CONTENT_A);
-        subject.ensureProvingKey(configuration, downloader);
-        verify(downloader).download(DOWNLOAD_URL, path);
     }
 
     // ===== hash file logic =====
