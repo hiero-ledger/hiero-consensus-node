@@ -351,10 +351,15 @@ public class BlockStreamEventBuilder {
     }
 
     private static class RedactedEventHasher {
-        /** The hashing stream for the event. */
-        private final MessageDigest eventDigest = DigestType.SHA_384.buildDigest();
 
-        final WritableSequentialData eventStream = new WritableStreamingData(new HashingOutputStream(eventDigest));
+        private final MessageDigest sha256EventDigest = DigestType.SHA_256.buildDigest();
+        private final MessageDigest sha384EventDigest = DigestType.SHA_384.buildDigest();
+
+        private final WritableSequentialData sha256EventStream =
+                new WritableStreamingData(new HashingOutputStream(sha256EventDigest));
+        private final WritableSequentialData sha384EventStream =
+                new WritableStreamingData(new HashingOutputStream(sha384EventDigest));
+
         /** The hashing stream for the transactions. */
         private final MessageDigest transactionDigest = DigestType.SHA_384.buildDigest();
 
@@ -366,23 +371,35 @@ public class BlockStreamEventBuilder {
                 @NonNull final EventCore eventCore,
                 @NonNull final List<EventDescriptor> parents,
                 @NonNull final List<TransactionWrapper> wrappedTransactions) {
-
+            final DigestType digestType;
+            final MessageDigest eventDigest;
+            final WritableSequentialData eventStream;
+            if (EventHashFactory.isBirthRoundPostCutover(eventCore.birthRound())) {
+                digestType = DigestType.SHA_256;
+                eventDigest = sha256EventDigest;
+                eventStream = sha256EventStream;
+            } else {
+                digestType = DigestType.SHA_384;
+                eventDigest = sha384EventDigest;
+                eventStream = sha384EventStream;
+            }
             try {
                 EventCore.PROTOBUF.write(eventCore, eventStream);
                 for (final EventDescriptor parent : parents) {
                     EventDescriptor.PROTOBUF.write(parent, eventStream);
                 }
                 for (final TransactionWrapper transaction : wrappedTransactions) {
-                    processTransactionHash(transaction);
+                    processTransactionHash(eventStream, transaction);
                 }
             } catch (final IOException e) {
                 throw new RuntimeException("An exception occurred while trying to hash an event!", e);
             }
 
-            return new Hash(eventDigest.digest(), DigestType.SHA_384);
+            return new Hash(eventDigest.digest(), digestType);
         }
 
-        private void processTransactionHash(@NonNull final TransactionWrapper wrappedTransaction) {
+        private void processTransactionHash(
+                final WritableSequentialData eventStream, @NonNull final TransactionWrapper wrappedTransaction) {
             if (wrappedTransaction.isTransaction()) {
                 transactionStream.writeBytes(wrappedTransaction.transaction());
                 final byte[] hash = transactionDigest.digest();
