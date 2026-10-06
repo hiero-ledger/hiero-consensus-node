@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "207: [USER] CITR Save state"
-trigger
 on:
   workflow_dispatch:
     inputs:
@@ -48,11 +47,6 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
-      reconnect-uptime:
-        required: false
-        default: "600"
-        type: string
-        description: "Reconnect uptime (secs). Downtime is Uptime x 3"
       duration-minutes:
         required: false
         default: "1440"
