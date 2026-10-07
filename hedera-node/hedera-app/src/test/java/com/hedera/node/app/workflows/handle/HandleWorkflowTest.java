@@ -409,11 +409,7 @@ class HandleWorkflowTest {
 
     @Test
     void disabledClprDoesNotInstantiateEndpointManifestReconciler() throws Exception {
-        givenSubjectWith(
-                RECORDS,
-                BlockStreamWriterMode.FILE,
-                emptyList(),
-                Map.of("clpr.enabled", "false", "clpr.endpointManifestEnabled", "true"));
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList(), Map.of("clpr.enabled", "false"));
 
         for (final var methodName : List.of("reconcileClprEndpointManifest", "pruneClprEndpointManifestOnUpgrade")) {
             final var method =

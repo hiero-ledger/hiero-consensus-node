@@ -3,13 +3,13 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.besuqbft.
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN;
+import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.VERIFY_BUNDLE_RETURN;
 import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.absentMetadataTuple;
 import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.manifestStructTuple;
+import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.metadataTuple;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.ordinalRevertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -23,10 +23,8 @@ import com.hedera.node.app.service.clpr.impl.verifier.Rlp;
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
-import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.math.BigInteger;
 import java.util.HexFormat;
 import java.util.List;
 import org.apache.logging.log4j.LogManager;
@@ -63,8 +61,8 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
  * <p>Decoding and Merkle-proof verification are delegated to
  * {@link BesuQbftVerifier#verifyBundle(byte[], byte[])}; the verifier returns the verbatim
  * {@code ClprBundleContent} bytes from the proof's final RLP item, which this call converts
- * into the metadata, messages and trust-anchor return tuple. When endpoint manifests are
- * enabled, the proven manifest is appended as the fifth tuple member.
+ * into the metadata, messages and trust-anchor return tuple. The proven manifest is appended as the
+ * fifth tuple member.
  */
 public class BesuQBFTVerifyBundleCall extends AbstractCall {
     private static final Logger log = LogManager.getLogger(BesuQBFTVerifyBundleCall.class);
@@ -148,12 +146,9 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
         final var bundleContentBytes = verified.bundleContentBytes();
 
         // Manifest-only recovery bundle (spec §8.1.4): the verifier proved an endpoint manifest with no
-        // bundle content. Accepted only on the manifest-enabled path so the CLPR Service
-        // can apply the manifest update out-of-band; with the feature off this stays a hard rejection.
+        // bundle content. Accepted so the CLPR Service can apply the manifest update out-of-band.
         if (bundleContentBytes.length == 0) {
-            final boolean manifestEnabled =
-                    configOf(frame).getConfigData(ClprConfig.class).endpointManifestEnabled();
-            if (manifestEnabled && verified.newEndpointManifestBytes().length > 0) {
+            if (verified.newEndpointManifestBytes().length > 0) {
                 return manifestOnlySuccess(verified.newEndpointManifestBytes());
             }
             return fail();
@@ -195,16 +190,20 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
                 trustAnchorBytes,
                 Bytes.wrap(verified.blockHash32()),
                 finalBundleContentBytes.length);
-        final boolean manifestEnabled =
-                configOf(frame).getConfigData(ClprConfig.class).endpointManifestEnabled();
-        return bundleSuccess(finalBundleContentBytes, verified.newEndpointManifestBytes(), manifestEnabled);
+        // Source endpointManifestVersion from the PROVEN queue metadata (SC-189 Channel offset 16), never from
+        // the relayed content: a relay could otherwise inflate it to make the peer look up-to-date and suppress
+        // our manifest re-pushes (spec §4.5, liveness).
+        return bundleSuccess(
+                finalBundleContentBytes,
+                verified.newEndpointManifestBytes(),
+                verified.queueMetadata().endpointManifestVersion());
     }
 
     @NonNull
     private PricedResult bundleSuccess(
             @NonNull final byte[] finalBundleContentBytes,
             @NonNull final byte[] newEndpointManifestBytes,
-            final boolean manifestEnabled) {
+            final long provenEndpointManifestVersion) {
         final ClprBundleContent outContent;
         try {
             outContent = ClprBundleContent.PROTOBUF.parseStrict(
@@ -214,49 +213,36 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
             return fail();
         }
         final ClprQueueMetadata meta = outContent.metadataOrElse(ClprQueueMetadata.DEFAULT);
-        final Tuple metaTuple = Tuple.of(
-                BigInteger.valueOf(meta.nextMessageId()),
-                meta.sentRunningHash().toByteArray(),
-                BigInteger.valueOf(meta.receivedMessageId()),
-                meta.receivedRunningHash().toByteArray(),
-                meta.status().protoOrdinal());
+        final Tuple metaTuple = metadataTuple(meta, provenEndpointManifestVersion);
+        if (metaTuple == null) {
+            log.warn("verifyBundle (QBFT): queue metadata is not ABI-encodable");
+            return fail();
+        }
         final byte[][] messageBytes = outContent.messages().stream()
                 .map(msg -> ClprMessagePayload.PROTOBUF.toBytes(msg).toByteArray())
                 .toArray(byte[][]::new);
         final byte[] newTrustAnchor = outContent.newTrustAnchor().toByteArray();
         final byte[] newTrustAnchorId = outContent.newTrustAnchorId().toByteArray();
-        if (manifestEnabled) {
-            // §4.2 Step 1b: the QBFT verifier extracts the manifest into newEndpointManifestBytes;
-            // append it as the 5th member (empty bytes → version 0 = absent).
-            ClprEndpointManifest manifest = ClprEndpointManifest.DEFAULT;
-            if (newEndpointManifestBytes.length > 0) {
-                try {
-                    manifest = ClprEndpointManifest.PROTOBUF.parseStrict(
-                            Bytes.wrap(newEndpointManifestBytes).toReadableSequentialData());
-                } catch (final Exception e) {
-                    log.warn(
-                            "verifyBundleWithManifest (QBFT): newEndpointManifestBytes are not a ClprEndpointManifest",
-                            e);
-                    return fail();
-                }
+        // §4.2 Step 1b: the QBFT verifier extracts the manifest into newEndpointManifestBytes;
+        // append it as the 5th member (empty bytes → version 0 = absent).
+        ClprEndpointManifest manifest = ClprEndpointManifest.DEFAULT;
+        if (newEndpointManifestBytes.length > 0) {
+            try {
+                manifest = ClprEndpointManifest.PROTOBUF.parseStrict(
+                        Bytes.wrap(newEndpointManifestBytes).toReadableSequentialData());
+            } catch (final Exception e) {
+                log.warn("verifyBundleWithManifest (QBFT): newEndpointManifestBytes are not a ClprEndpointManifest", e);
+                return fail();
             }
-            return gasOnly(
-                    successResult(
-                            VERIFY_BUNDLE_WITH_MANIFEST_RETURN.encode(Tuple.of(
-                                    metaTuple,
-                                    messageBytes,
-                                    newTrustAnchor,
-                                    newTrustAnchorId,
-                                    manifestStructTuple(manifest))),
-                            GAS_REQUIREMENT),
-                    SUCCESS,
-                    true);
         }
         return gasOnly(
                 successResult(
-                        BesuQBFTVerifyBundleTranslator.VERIFY_BUNDLE
-                                .getOutputs()
-                                .encode(Tuple.of(metaTuple, messageBytes, newTrustAnchor, newTrustAnchorId)),
+                        VERIFY_BUNDLE_RETURN.encode(Tuple.of(
+                                metaTuple,
+                                messageBytes,
+                                newTrustAnchor,
+                                newTrustAnchorId,
+                                manifestStructTuple(manifest))),
                         GAS_REQUIREMENT),
                 SUCCESS,
                 true);
@@ -282,7 +268,7 @@ public class BesuQBFTVerifyBundleCall extends AbstractCall {
         final Tuple absentMetadata = absentMetadataTuple();
         return gasOnly(
                 successResult(
-                        VERIFY_BUNDLE_WITH_MANIFEST_RETURN.encode(Tuple.of(
+                        VERIFY_BUNDLE_RETURN.encode(Tuple.of(
                                 absentMetadata,
                                 new byte[0][],
                                 new byte[0],

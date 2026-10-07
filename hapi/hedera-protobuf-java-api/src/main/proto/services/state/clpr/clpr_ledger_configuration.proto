@@ -27,6 +27,13 @@ message ClprLedgerConfiguration {
 
     /**
      * On-ledger address of this ledger's CLPR Service.
+     *
+     * For a Hiero ledger this MUST be the 20-byte EVM address of the CLPR
+     * system contract (0x000000000000000000000000000000000000016e): the
+     * service_address fixed in the ledger's ClprEndpointManifest, which peers
+     * require this field to match (see §4.8). ClprUpdateLedgerConfiguration
+     * rejects any other non-empty value and defaults this field to that
+     * address when it is omitted.
      */
     bytes service_address = 3;
 
