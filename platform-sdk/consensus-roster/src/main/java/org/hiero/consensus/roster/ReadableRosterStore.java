@@ -8,6 +8,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 
 /**
  * Read-only implementation for accessing rosters states.
@@ -62,12 +63,12 @@ public interface ReadableRosterStore {
     Roster get(@NonNull Bytes rosterHash);
 
     /**
-     * Gets the roster history.
+     * Gets the raw roster data wrapped in {@link ConsensusLayerRosterInputs}.
      *
-     * @return the roster history
+     * @return the {@code ConsensusLayerRosterInputs}
      */
     @NonNull
-    RosterHistory getRosterHistory();
+    ConsensusLayerRosterInputs getConsensusLayerRosterInputs();
 
     /**
      * Get the active roster hash.

@@ -553,6 +553,17 @@ class SeiCometBftProofVerifierTest {
         }
 
         @Test
+        void unknownFieldInTrustAnchorRejected() {
+            final var chain = bundleChain(VALIDATORS, VALIDATORS);
+            final byte[] payload = bundlePayload(chain, null);
+            final byte[] anchorWithUnknown = appendUnknownField(anchorBytes());
+
+            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchorWithUnknown))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("trustAnchor is not a valid SeiTrustAnchor");
+        }
+
+        @Test
         void trustAnchorServiceAddressMustBeTwentyBytes() {
             final var chain = bundleChain(VALIDATORS, VALIDATORS);
             final byte[] anchor = SeiTrustAnchor.PROTOBUF
