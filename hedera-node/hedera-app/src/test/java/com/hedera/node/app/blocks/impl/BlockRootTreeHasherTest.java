@@ -28,22 +28,40 @@ import org.junit.jupiter.params.provider.MethodSource;
  * Tests the {@link BlockRootTreeHasher} contract against every implementation and every block digest type, and
  * asserts the implementations agree with each other and with the cross-repo conformance constants.
  *
- * <p>The hex constants below are the SHA-384 values agreed with the Block Node implementation. They are the
- * single check that both repos build the same tree, so they are written out literally here rather than
- * recomputed from the code under test.
+ * <p>The hex constants below are the values agreed with the Block Node implementation for each block digest type.
+ * They are the single check that both repos build the same tree, so they are written out literally here rather
+ * than recomputed from the code under test.
  */
 class BlockRootTreeHasherTest {
-    /** {@code sha384(0x00)} — the hash of an empty branch under SHA-384. */
-    private static final Bytes EXPECTED_EMPTY_SUBTREE = Bytes.fromHex(
-            "bec021b4f368e3069134e012c2b4307083d3a9bdd206e24e5f0d86e13d6636655933ec2b413465966817a9c208a11717");
+    /**
+     * The conformance constants for one block digest type.
+     *
+     * @param digestType the digest type
+     * @param emptySubtree the hash of an empty branch, {@code hash(0x00)}
+     * @param emptyReservedHalf the root of the eight reserved branches 9-16, all empty
+     * @param allEmptyRoot the root of all sixteen branches, all empty
+     */
+    private record Expected(DigestType digestType, Bytes emptySubtree, Bytes emptyReservedHalf, Bytes allEmptyRoot) {
+        @Override
+        public String toString() {
+            return digestType.name();
+        }
+    }
 
-    /** The root of the eight reserved branches 9-16, all empty, under SHA-384. */
-    private static final Bytes EXPECTED_EMPTY_RESERVED_HALF = Bytes.fromHex(
-            "cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8");
+    private static final Expected EXPECTED_SHA_384 = new Expected(
+            DigestType.SHA_384,
+            Bytes.fromHex(
+                    "bec021b4f368e3069134e012c2b4307083d3a9bdd206e24e5f0d86e13d6636655933ec2b413465966817a9c208a11717"),
+            Bytes.fromHex(
+                    "cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8"),
+            Bytes.fromHex(
+                    "5028fe48c7fca408b16bd62b8089c8644be351cbc653e6786136ce144055d18f9495864b270772f664004eed7b97e6b7"));
 
-    /** The root of all sixteen branches, all empty, under SHA-384. */
-    private static final Bytes EXPECTED_ALL_EMPTY_ROOT = Bytes.fromHex(
-            "5028fe48c7fca408b16bd62b8089c8644be351cbc653e6786136ce144055d18f9495864b270772f664004eed7b97e6b7");
+    private static final Expected EXPECTED_SHA_256 = new Expected(
+            DigestType.SHA_256,
+            Bytes.fromHex("6e340b9cffb37a989ca544e6bb780a2c78901d3fb33738768511a30617afa01d"),
+            Bytes.fromHex("ececb642184ad1483e673c83ad0c6c593976b441d072f90a5323cf3cbfb70197"),
+            Bytes.fromHex("65d350d061d90fe6150bcda9bd28548fb4cdaf4766a15d7e4af5f92f6b7a8202"));
 
     private static final Timestamp A_TIMESTAMP = new Timestamp(1_700_000_000L, 123_456_789);
 
@@ -60,6 +78,11 @@ class BlockRootTreeHasherTest {
                                 CachedReservedHalfBlockRootTreeHasher.of(digestType))));
     }
 
+    /** The conformance constants of every block digest type. */
+    static Stream<Expected> conformanceConstants() {
+        return Stream.of(EXPECTED_SHA_384, EXPECTED_SHA_256);
+    }
+
     /** Every combination of block digest type and populated/empty assigned branches. */
     static Stream<Arguments> everyDigestTypeAndSlotPresenceCombination() {
         return BLOCK_DIGEST_TYPES.stream().flatMap(digestType -> IntStream.range(0, 1 << ASSIGNED_SLOT_COUNT)
@@ -69,37 +92,41 @@ class BlockRootTreeHasherTest {
     @Nested
     @DisplayName("Cross-repo conformance constants")
     class ConformanceConstants {
-        @Test
-        @DisplayName("an empty sub-tree hashes to sha384(0x00) under SHA-384")
-        void emptySubtreeMatchesSpec() {
-            assertThat(CachedReservedHalfBlockRootTreeHasher.of(DigestType.SHA_384)
-                            .emptySubtree())
-                    .isEqualTo(EXPECTED_EMPTY_SUBTREE);
-            assertThat(BlockRootTreeHasher.emptySubtreeFor(DigestType.SHA_384)).isEqualTo(EXPECTED_EMPTY_SUBTREE);
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("com.hedera.node.app.blocks.impl.BlockRootTreeHasherTest#conformanceConstants")
+        @DisplayName("an empty sub-tree hashes to hash(0x00)")
+        void emptySubtreeMatchesSpec(final Expected expected) {
+            final var digestType = expected.digestType();
+            assertThat(CachedReservedHalfBlockRootTreeHasher.of(digestType).emptySubtree())
+                    .isEqualTo(expected.emptySubtree());
+            assertThat(BlockRootTreeHasher.emptySubtreeFor(digestType)).isEqualTo(expected.emptySubtree());
         }
 
-        @Test
-        @DisplayName("the reserved branches 9-16 hash to the spec's value under SHA-384")
-        void reservedHalfMatchesSpec() {
-            assertThat(CachedReservedHalfBlockRootTreeHasher.of(DigestType.SHA_384)
-                            .emptyReservedHalf())
-                    .isEqualTo(EXPECTED_EMPTY_RESERVED_HALF);
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("com.hedera.node.app.blocks.impl.BlockRootTreeHasherTest#conformanceConstants")
+        @DisplayName("the reserved branches 9-16 hash to the spec's value")
+        void reservedHalfMatchesSpec(final Expected expected) {
+            final var digestType = expected.digestType();
+            assertThat(CachedReservedHalfBlockRootTreeHasher.of(digestType).emptyReservedHalf())
+                    .isEqualTo(expected.emptyReservedHalf());
             assertThat(StreamingBlockRootTreeHasher.streamedRootOf(
-                            DigestType.SHA_384::buildDigest, emptySlots(SLOT_COUNT / 2, DigestType.SHA_384)))
-                    .isEqualTo(EXPECTED_EMPTY_RESERVED_HALF);
+                            digestType::buildDigest, emptySlots(SLOT_COUNT / 2, digestType)))
+                    .isEqualTo(expected.emptyReservedHalf());
         }
 
-        @Test
-        @DisplayName("a tree of sixteen empty branches matches the spec under SHA-384")
-        void allEmptyRootMatchesSpec() {
-            final var timestampLeaf = timestampLeaf(DigestType.SHA_384);
-            final var expected = BlockImplUtils.hashInternalNode(
-                    DigestType.SHA_384.buildDigest(), timestampLeaf, EXPECTED_ALL_EMPTY_ROOT);
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("com.hedera.node.app.blocks.impl.BlockRootTreeHasherTest#conformanceConstants")
+        @DisplayName("a tree of sixteen empty branches matches the spec")
+        void allEmptyRootMatchesSpec(final Expected expected) {
+            final var digestType = expected.digestType();
+            final var timestampLeaf = timestampLeaf(digestType);
+            final var expectedRoot =
+                    BlockImplUtils.hashInternalNode(digestType.buildDigest(), timestampLeaf, expected.allEmptyRoot());
             for (final BlockRootTreeHasher hasher : List.of(
-                    StreamingBlockRootTreeHasher.of(DigestType.SHA_384),
-                    CachedReservedHalfBlockRootTreeHasher.of(DigestType.SHA_384))) {
-                assertThat(hasher.computeBlockRootHash(timestampLeaf, emptySlots(SLOT_COUNT, DigestType.SHA_384)))
-                        .isEqualTo(expected);
+                    StreamingBlockRootTreeHasher.of(digestType),
+                    CachedReservedHalfBlockRootTreeHasher.of(digestType))) {
+                assertThat(hasher.computeBlockRootHash(timestampLeaf, emptySlots(SLOT_COUNT, digestType)))
+                        .isEqualTo(expectedRoot);
             }
         }
     }
