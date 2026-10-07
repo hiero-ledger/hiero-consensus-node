@@ -70,7 +70,7 @@ dependencies.constraints {
     api("io.grpc:grpc-netty-shaded:$grpc") { because("io.grpc.netty.shaded") }
     api("com.esaulpaugh:headlong:13.3.1") { because("com.esaulpaugh.headlong") }
     api("info.picocli:picocli:4.7.7") { because("info.picocli") }
-    api("io.github.classgraph:classgraph:4.8.184") { because("io.github.classgraph") }
+    api("io.github.classgraph:classgraph:4.8.195") { because("io.github.classgraph") }
     api("io.perfmark:perfmark-api:0.27.0") { because("io.perfmark") }
     api("io.prometheus:simpleclient:$prometheusSimpleclient") { because("simpleclient") }
     api("io.prometheus:simpleclient_httpserver:$prometheusSimpleclient") {
