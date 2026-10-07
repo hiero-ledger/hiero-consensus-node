@@ -42,6 +42,9 @@ import org.hiero.base.crypto.Hash;
 /// Every node hash is reported to a [Listener] **before** it's passed to the parent
 /// task. This is important, because the listener may store hash chunks, and the parent task
 /// may be executed in a different thread, so the listener must see the hash before the parent task is executed.
+/// The same applies to the root node: the root hash is reported to the listener, and the listener call returns,
+/// before the root hash is returned from [#hash]. A listener may rely on it, for example, to flush all collected
+/// data in the root node call, so all data is flushed by the time the root hash is returned.
 ///
 /// This class is stateless, a single instance may be used to hash multiple trees, even in
 /// parallel.
@@ -69,7 +72,8 @@ public final class TaskPerNodeFullRehasher {
     /// Hashes the whole virtual tree with the given leaf path range and returns the root hash.
     ///
     /// The listener, if not `null`, is notified about every node in the tree, from hashing
-    /// threads, possibly in parallel. If hashing fails, a [RuntimeException] is thrown. Its
+    /// threads, possibly in parallel. This method returns only after all listener calls are
+    /// complete, including the call for the root node. If hashing fails, a [RuntimeException] is thrown. Its
     /// cause is the original exception thrown by the leaf reader or the listener, or a
     /// [TimeoutException] in case of a timeout, or an [InterruptedException] if the calling
     /// thread is interrupted. In the latter case, the thread interrupted flag is restored.
@@ -83,7 +87,8 @@ public final class TaskPerNodeFullRehasher {
     /// @param leafReader a function to read leaf records by path. Must not return nulls for
     ///     paths in `[firstLeafPath, lastLeafPath]` range. Called from hashing threads
     /// @param listener node hash listener, may be `null`
-    /// @param timeoutMs the max number of milliseconds to wait for hashing to complete
+    /// @param timeoutMs the max number of milliseconds to wait for hashing to complete, including
+    ///     the time spent in listener calls
     /// @return the root hash, or `null` if the tree is empty, i.e. `firstLeafPath` is less than `1`
     /// @throws IllegalArgumentException if `firstLeafPath` is greater than `lastLeafPath`
     /// @throws RuntimeException if hashing fails, times out, or is interrupted. If the leaf reader
@@ -273,7 +278,8 @@ public final class TaskPerNodeFullRehasher {
         /// Called after every node, either a leaf or an internal node, is hashed. Called from
         /// hashing threads, possibly in parallel. For every internal node, this method is called
         /// for both its children before it's called for the node itself, and the children calls
-        /// happen-before the node call.
+        /// happen-before the node call. The call for the root node happens-before the root hash
+        /// is returned from [TaskPerNodeFullRehasher#hash].
         ///
         /// If this method throws an exception, the whole hashing run fails with this exception
         /// as the cause. This method may block, for example, to flush collected data. Blocking

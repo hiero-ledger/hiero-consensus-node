@@ -57,12 +57,11 @@ class HashChunkCollectorTest extends VirtualTestBase {
         }
 
         final RecordingListener chunkListener = new RecordingListener();
-        final HashChunkCollector collector = new HashChunkCollector(chunkHeight, chunkListener);
+        final HashChunkCollector collector =
+                new HashChunkCollector(chunkHeight, firstLeafPath, lastLeafPath, chunkListener);
         final ForkJoinPool pool = new ForkJoinPool(8);
         try {
-            collector.onHashingStarted(firstLeafPath, lastLeafPath);
             new TaskPerNodeFullRehasher(pool).hash(firstLeafPath, lastLeafPath, reader, collector, 60_000);
-            collector.onHashingCompleted();
         } finally {
             pool.shutdownNow();
         }
@@ -90,11 +89,12 @@ class HashChunkCollectorTest extends VirtualTestBase {
     @DisplayName("Completion fails if some chunks are incomplete")
     void incompleteChunksDetected() {
         final RecordingListener chunkListener = new RecordingListener();
-        final HashChunkCollector collector = new HashChunkCollector(3, chunkListener);
-        collector.onHashingStarted(7, 14);
-        // A leaf hash, but its chunk root (path 0) is never hashed
-        collector.onHashed(7, hashes(7, 14)[7]);
-        assertThrows(IllegalStateException.class, collector::onHashingCompleted);
+        final HashChunkCollector collector = new HashChunkCollector(3, 15, 30, chunkListener);
+        final byte[][] hashes = hashes(15, 30);
+        // A leaf hash, but its chunk root (path 7) is never hashed
+        collector.onHashed(15, hashes[15]);
+        // The root hash completes hashing, but the chunk at path 7 is still incomplete
+        assertThrows(IllegalStateException.class, () -> collector.onHashed(0, hashes[0]));
         assertEquals(0, chunkListener.completed.get(), "Chunk listener must not be completed");
         assertTrue(chunkListener.chunks.isEmpty(), "No chunks must be reported");
     }
@@ -102,7 +102,7 @@ class HashChunkCollectorTest extends VirtualTestBase {
     @Test
     @DisplayName("Wrong chunk heights are rejected")
     void wrongChunkHeight() {
-        assertThrows(IllegalArgumentException.class, () -> new HashChunkCollector(0, new RecordingListener()));
+        assertThrows(IllegalArgumentException.class, () -> new HashChunkCollector(0, 7, 14, new RecordingListener()));
     }
 
     private byte[][] hashes(final long firstLeafPath, final long lastLeafPath) {

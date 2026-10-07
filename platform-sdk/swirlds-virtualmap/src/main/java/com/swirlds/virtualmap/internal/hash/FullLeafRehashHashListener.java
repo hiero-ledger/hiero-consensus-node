@@ -33,6 +33,10 @@ import org.apache.logging.log4j.Logger;
  * one flush runs at a time. While a flush is in progress, chunks are still collected, and there is
  * no limit on how many of them are collected, so the next batch may be larger than the flush interval.
  * A final flush is performed when hashing is completed.
+ *
+ * <p>All flushes, including the final one, are synchronous: {@link #onHashChunkHashed(VirtualHashChunk)}
+ * and {@link #onHashingCompleted()} return only after flushed hashes are written to the data source.
+ * If a flush fails, or the flushing thread is interrupted, these methods throw an exception.
  */
 public class FullLeafRehashHashListener implements VirtualHashListener {
 
@@ -139,12 +143,16 @@ public class FullLeafRehashHashListener implements VirtualHashListener {
     private void flush(@NonNull final List<VirtualHashChunk> hashesToFlush) {
         assert flushInProgress.get() : "Flush in progress flag must be set";
         try {
+            throwIfInterrupted();
             logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Flushing {} hash chunks", hashesToFlush.size());
             // flush it down
             final long start = System.currentTimeMillis();
             try {
                 dataSource.saveRecords(
                         firstLeafPath, lastLeafPath, hashesToFlush.stream(), Stream.empty(), Stream.empty(), true);
+                // If interrupted, saveRecords() restores the interrupted flag and returns normally,
+                // possibly before all hashes are written. This must not be treated as a success
+                throwIfInterrupted();
                 final long end = System.currentTimeMillis();
                 statistics.recordFlush(end - start);
                 logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Flushed in {} ms", end - start);
@@ -153,6 +161,14 @@ public class FullLeafRehashHashListener implements VirtualHashListener {
             }
         } finally {
             flushInProgress.set(false);
+        }
+    }
+
+    // Fails the flush, and therefore the whole rehash, if the current thread is interrupted.
+    // The interrupted flag is left set
+    private static void throwIfInterrupted() {
+        if (Thread.currentThread().isInterrupted()) {
+            throw new IllegalStateException("Interrupted while flushing hash chunks");
         }
     }
 }

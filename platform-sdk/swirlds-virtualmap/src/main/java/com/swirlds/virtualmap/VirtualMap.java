@@ -418,7 +418,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * the two values.
      * <p>
      * If the hashes differ, the method iterates over every leaf node directly from disk
-     * and rehashes them.
+     * and rehashes them. All new hashes are written to the data source before the new
+     * root hash is set and this method returns. If rehashing or any flush fails, times out,
+     * or the current thread is interrupted, an exception is thrown, and the root hash isn't set.
      * <p>
      * The main difference from {@link #computeHash()} is that {@code computeHash()}
      * only updates hashes for dirty leaves that are already in the in-memory cache,
@@ -470,7 +472,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         final int flushInterval = fullRehashFlushInterval(lastLeafPath, hashChunkHeight);
         final FullLeafRehashHashListener chunkListener =
                 new FullLeafRehashHashListener(firstLeafPath, lastLeafPath, dataSource, statistics, flushInterval);
-        final HashChunkCollector hashListener = new HashChunkCollector(hashChunkHeight, chunkListener);
+        final HashChunkCollector hashListener =
+                new HashChunkCollector(hashChunkHeight, firstLeafPath, lastLeafPath, chunkListener);
 
         final LongFunction<VirtualLeafBytes<?>> leafReader = path -> {
             try {
@@ -491,7 +494,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         try {
             final long start = System.currentTimeMillis();
-            hashListener.onHashingStarted(firstLeafPath, lastLeafPath);
             final Hash rootHash = new TaskPerNodeFullRehasher(rehashPool)
                     .hash(
                             firstLeafPath,
@@ -499,7 +501,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                             leafReader,
                             hashListener,
                             virtualMapConfig.fullRehashTimeoutMs());
-            hashListener.onHashingCompleted();
             setHashPrivate(rootHash);
             logger.info(
                     STARTUP.getMarker(), "Full rehash took {} seconds", (System.currentTimeMillis() - start) / 1000);

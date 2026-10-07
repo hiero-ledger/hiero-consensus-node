@@ -25,6 +25,12 @@ import org.apache.logging.log4j.Logger;
 /// passed to [VirtualHashListener#onHashChunkHashed(VirtualHashChunk)]. This way, only chunks
 /// that are being hashed at the moment are kept in memory.
 ///
+/// When the root node is hashed, all chunks are complete, and [VirtualHashListener#onHashingCompleted()]
+/// is called in the same thread. Since [TaskPerNodeFullRehasher] returns the root hash only after the
+/// root node listener call returns, the chunk listener is completed, e.g. all chunks are flushed, by
+/// the time the root hash is returned. If some chunks are not complete at that moment, an
+/// [IllegalStateException] is thrown, and hashing fails.
+///
 /// Hashing progress, the percentage of hashed leaves, is logged as well.
 public final class HashChunkCollector implements TaskPerNodeFullRehasher.Listener {
 
@@ -40,35 +46,35 @@ public final class HashChunkCollector implements TaskPerNodeFullRehasher.Listene
     private final Map<Long, VirtualHashChunk> chunksInProgress = new ConcurrentHashMap<>();
 
     // The first leaf path in the virtual tree
-    private long firstLeafPath;
+    private final long firstLeafPath;
     // The last leaf path in the virtual tree
-    private long lastLeafPath;
+    private final long lastLeafPath;
     // The number of leaves that make 1% of the total leaves. Used to log hashing progress
-    private long onePercentLeavesCount;
+    private final long onePercentLeavesCount;
     // The number of hashed leaves. Used to log hashing progress
     private final AtomicLong hashedLeavesCount = new AtomicLong();
 
-    /// Creates a new chunk collector.
+    /// Creates a chunk collector for a single hashing run of the given leaf path range, and
+    /// notifies the chunk listener that hashing is started. A collector must not be reused for
+    /// multiple hashing runs.
     ///
     /// @param chunkHeight hash chunk height
+    /// @param firstLeafPath the first leaf path in the virtual tree
+    /// @param lastLeafPath the last leaf path in the virtual tree
     /// @param chunkListener the listener to pass complete chunks to
-    public HashChunkCollector(final int chunkHeight, @NonNull final VirtualHashListener chunkListener) {
+    public HashChunkCollector(
+            final int chunkHeight,
+            final long firstLeafPath,
+            final long lastLeafPath,
+            @NonNull final VirtualHashListener chunkListener) {
         if (chunkHeight <= 0) {
             throw new IllegalArgumentException("Wrong chunk height: " + chunkHeight);
         }
         this.chunkHeight = chunkHeight;
-        this.chunkListener = requireNonNull(chunkListener);
-    }
-
-    /// Must be called before hashing is started.
-    ///
-    /// @param firstLeafPath the first leaf path in the virtual tree
-    /// @param lastLeafPath the last leaf path in the virtual tree
-    public void onHashingStarted(final long firstLeafPath, final long lastLeafPath) {
         this.firstLeafPath = firstLeafPath;
         this.lastLeafPath = lastLeafPath;
         this.onePercentLeavesCount = (lastLeafPath - firstLeafPath) / 100 + 1;
-        hashedLeavesCount.set(0);
+        this.chunkListener = requireNonNull(chunkListener);
         chunkListener.onHashingStarted(firstLeafPath, lastLeafPath);
     }
 
@@ -107,6 +113,16 @@ public final class HashChunkCollector implements TaskPerNodeFullRehasher.Listene
             if (chunk != null) {
                 chunkListener.onHashChunkHashed(chunk);
             }
+
+            if (path == ROOT_PATH) {
+                // The root chunk is complete, so all chunks are complete. The chunk listener must be
+                // completed here, before the root hash is returned from the rehasher, see class javadoc
+                if (!chunksInProgress.isEmpty()) {
+                    throw new IllegalStateException(
+                            "All chunks must be complete, remaining: " + chunksInProgress.size());
+                }
+                chunkListener.onHashingCompleted();
+            }
         }
 
         if (leaf) {
@@ -115,16 +131,5 @@ public final class HashChunkCollector implements TaskPerNodeFullRehasher.Listene
                 logger.info(STARTUP.getMarker(), "Full rehash progress: {}%", hashed / onePercentLeavesCount);
             }
         }
-    }
-
-    /// Must be called after hashing is successfully completed.
-    ///
-    /// @throws IllegalStateException if some chunks are not complete. It would mean these
-    ///     chunks are never passed to the chunk listener
-    public void onHashingCompleted() {
-        if (!chunksInProgress.isEmpty()) {
-            throw new IllegalStateException("All chunks must be complete, remaining: " + chunksInProgress.size());
-        }
-        chunkListener.onHashingCompleted();
     }
 }
