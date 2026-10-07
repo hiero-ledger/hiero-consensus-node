@@ -35,7 +35,8 @@ import org.apache.logging.log4j.Logger;
  * <p>If a jumpstart actually runs and successfully computes a {@link Result} above, {@link #execute}
  * also truncates the on-disk wrapped record hashes file to empty (when writing to it is enabled),
  * since that data has now been consumed and folded into the result. This must stay downstream of
- * the read above.
+ * the read above. {@link #truncateHashesFileOnUpgrade} does the same on an upgrade with no jumpstart
+ * configured, so a node that missed a jumpstart does not keep its stale file.
  *
  * <p>TODO: Delete this in the release after receiving/injecting the jumpstart historical hashes data.
  */
@@ -91,9 +92,28 @@ public class WrappedRecordBlockHashMigration {
             runJumpstartMigration(streamMode, recordsConfig, jumpstartConfig, migrationAlreadyApplied);
         } finally {
             if (result != null) {
-                truncateHashesFileIfWritingEnabled(recordsConfig);
+                truncateHashesFileIfWritingEnabled(recordsConfig, "now that the jumpstart migration has run");
             }
         }
+    }
+
+    /**
+     * To be called on an upgrade: truncates the on-disk wrapped record hashes file to empty (when writing
+     * to it is enabled) unless a jumpstart is configured, since nothing will consume its pre-upgrade entries.
+     *
+     * @param recordsConfig the block record stream configuration
+     * @param jumpstartConfig the jumpstart configuration properties
+     */
+    public void truncateHashesFileOnUpgrade(
+            @NonNull final BlockRecordStreamConfig recordsConfig,
+            @NonNull final BlockStreamJumpstartConfig jumpstartConfig) {
+        requireNonNull(recordsConfig);
+        requireNonNull(jumpstartConfig);
+        // A configured jumpstart owns the file, and keeps it for a retry if it failed
+        if (jumpstartConfig.blockNum() >= 0) {
+            return;
+        }
+        truncateHashesFileIfWritingEnabled(recordsConfig, "on upgrade with no jumpstart configured");
     }
 
     private void runJumpstartMigration(
@@ -125,10 +145,11 @@ public class WrappedRecordBlockHashMigration {
 
     /**
      * Truncates the on-disk wrapped record hashes file to empty when writing to it is enabled. Only
-     * called when a jumpstart actually ran and consumed the file's contents this execution (see
-     * {@link #execute}), since that is the data this truncation would otherwise discard.
+     * called once no jumpstart needs the file's contents (see {@link #execute} and
+     * {@link #truncateHashesFileOnUpgrade}).
      */
-    private void truncateHashesFileIfWritingEnabled(@NonNull final BlockRecordStreamConfig recordsConfig) {
+    private void truncateHashesFileIfWritingEnabled(
+            @NonNull final BlockRecordStreamConfig recordsConfig, @NonNull final String reason) {
         if (!recordsConfig.writeWrappedRecordFileBlockHashesToDisk()) {
             return;
         }
@@ -142,7 +163,7 @@ public class WrappedRecordBlockHashMigration {
         }
         try (final var ignored =
                 Files.newByteChannel(file, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING)) {
-            log.info("Truncated wrapped record hashes file {} now that the jumpstart migration has run", file);
+            log.info("Truncated wrapped record hashes file {} {}", file, reason);
         } catch (final IOException e) {
             log.warn("Failed to truncate wrapped record hashes file {}", file, e);
         }
