@@ -2,6 +2,7 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.node.app.hapi.utils.CommonUtils.hashOfAll;
 import static com.hedera.node.app.history.HistoryService.isCompleted;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.history.impl.ProofVoteCategory.INVALID_RECURSIVE;
@@ -19,7 +20,6 @@ import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
-import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
@@ -54,7 +54,6 @@ public class ProofControllerImpl implements ProofController {
     private static final Logger log = LogManager.getLogger(ProofControllerImpl.class);
 
     private final long selfId;
-    private final DigestType digestType;
 
     private final Executor executor;
     private final SchnorrKeyPair schnorrKeyPair;
@@ -99,18 +98,18 @@ public class ProofControllerImpl implements ProofController {
         private final Bytes tag;
         private final HistoryProofVote historyProofVote;
 
-        public ExplicitProofVote(
-                @NonNull final HistoryProofVote historyProofVote, @NonNull final DigestType digestType) {
+        public ExplicitProofVote(@NonNull final HistoryProofVote historyProofVote) {
             this.historyProofVote = requireNonNull(historyProofVote);
             final var proof = historyProofVote.proofOrThrow();
             final var chainOfTrustProof = proof.chainOfTrustProofOrThrow();
-            tag = Bytes.wrap(CommonUtils.noThrowHashOf(
-                    (chainOfTrustProof.hasAggregatedNodeSignatures()
-                                    ? AggregatedNodeSignatures.PROTOBUF.toBytes(
-                                            chainOfTrustProof.aggregatedNodeSignaturesOrThrow())
-                                    : proof.uncompressedWrapsProof())
-                            .toByteArray(),
-                    digestType));
+            // Tags are only compared within this node, so they don't follow the block digest type
+            final var digest = DigestType.SHA_256.buildDigest();
+            tag = chainOfTrustProof.hasAggregatedNodeSignatures()
+                    ? hashOfAll(
+                            digest,
+                            AggregatedNodeSignatures.PROTOBUF.toBytes(
+                                    chainOfTrustProof.aggregatedNodeSignaturesOrThrow()))
+                    : hashOfAll(digest, proof.uncompressedWrapsProof());
         }
 
         public Bytes tag() {
@@ -161,11 +160,9 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final HistoryProver.Factory proverFactory,
             @Nullable final HistoryProof sourceProof,
             @NonNull final HistoryProofMetrics historyProofMetrics,
-            @NonNull final TssConfig tssConfig,
-            @NonNull final DigestType digestType) {
+            @NonNull final TssConfig tssConfig) {
         requireNonNull(machine);
         requireNonNull(tssConfig);
-        this.digestType = requireNonNull(digestType);
         this.selfId = selfId;
         this.executor = requireNonNull(executor);
         this.submissions = requireNonNull(submissions);
@@ -423,7 +420,7 @@ public class ProofControllerImpl implements ProofController {
             return false;
         }
         if (vote.hasProof()) {
-            votes.put(nodeId, new ExplicitProofVote(vote, digestType));
+            votes.put(nodeId, new ExplicitProofVote(vote));
         } else if (vote.hasCongruentNodeId()) {
             final var congruentVote = votes.get(vote.congruentNodeIdOrThrow());
             if (congruentVote != null) {
@@ -459,7 +456,7 @@ public class ProofControllerImpl implements ProofController {
         final Deque<Long> resolvedVoters = new ArrayDeque<>();
         persistedVotes.forEach((nodeId, vote) -> {
             if (vote.hasProof()) {
-                votes.put(nodeId, new ExplicitProofVote(vote, digestType));
+                votes.put(nodeId, new ExplicitProofVote(vote));
                 resolvedVoters.add(nodeId);
             } else if (vote.hasCongruentNodeId()) {
                 congruentVotersByReferent

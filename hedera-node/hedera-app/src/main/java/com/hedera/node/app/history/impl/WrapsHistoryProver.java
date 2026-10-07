@@ -7,7 +7,7 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
-import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowHashOf;
+import static com.hedera.node.app.hapi.utils.CommonUtils.hashOfAll;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.history.HistoryLibrary.MISSING_SCHNORR_KEY;
 import static com.hedera.node.app.history.impl.ProofControllers.groundsChainOfTrust;
@@ -79,7 +79,6 @@ public class WrapsHistoryProver implements HistoryProver {
     private final HistoryLibrary historyLibrary;
     private final HistorySubmissions submissions;
     private final WrapsMpcStateMachine machine;
-    private final DigestType digestType;
     private final Object voteLock = new Object();
 
     private final Map<WrapsPhase, SortedMap<Long, WrapsMessagePublication>> phaseMessages =
@@ -249,34 +248,6 @@ public class WrapsHistoryProver implements HistoryProver {
             @NonNull final HistoryLibrary historyLibrary,
             @NonNull final HistorySubmissions submissions,
             @NonNull final WrapsMpcStateMachine machine) {
-        this(
-                selfId,
-                wrapsMessageGracePeriod,
-                schnorrKeyPair,
-                sourceProof,
-                weights,
-                proofKeys,
-                delayer,
-                executor,
-                historyLibrary,
-                submissions,
-                machine,
-                DigestType.SHA_384);
-    }
-
-    public WrapsHistoryProver(
-            final long selfId,
-            @NonNull final Duration wrapsMessageGracePeriod,
-            @NonNull final SchnorrKeyPair schnorrKeyPair,
-            @Nullable final HistoryProof sourceProof,
-            @NonNull final RosterTransitionWeights weights,
-            @NonNull final Map<Long, Bytes> proofKeys,
-            @NonNull final Delayer delayer,
-            @NonNull final Executor executor,
-            @NonNull final HistoryLibrary historyLibrary,
-            @NonNull final HistorySubmissions submissions,
-            @NonNull final WrapsMpcStateMachine machine,
-            @NonNull final DigestType digestType) {
         this.selfId = selfId;
         this.sourceProof = sourceProof;
         this.wrapsMessageGracePeriod = requireNonNull(wrapsMessageGracePeriod);
@@ -288,7 +259,6 @@ public class WrapsHistoryProver implements HistoryProver {
         this.historyLibrary = requireNonNull(historyLibrary);
         this.submissions = requireNonNull(submissions);
         this.machine = requireNonNull(machine);
-        this.digestType = requireNonNull(digestType);
     }
 
     @NonNull
@@ -409,8 +379,7 @@ public class WrapsHistoryProver implements HistoryProver {
             switch (proofVoteCategory) {
                 case NOT_RECURSIVE -> {
                     // Always store a hash – useful if we haven't finished our own proof yet
-                    final var hash = Bytes.wrap(
-                            noThrowHashOf(HistoryProof.PROTOBUF.toBytes(proof).toByteArray(), digestType));
+                    final var hash = hashOf(proof);
                     final CompletableFuture<VoteDecision> decisionFuture;
                     synchronized (voteLock) {
                         explicitHistoryProofHashes.put(nodeId, hash);
@@ -675,8 +644,7 @@ public class WrapsHistoryProver implements HistoryProver {
             return;
         }
         final var proofKind = proofKindOf(proof);
-        final var selfProofHash =
-                Bytes.wrap(noThrowHashOf(HistoryProof.PROTOBUF.toBytes(proof).toByteArray(), digestType));
+        final var selfProofHash = hashOf(proof);
         final var decisionFuture = new CompletableFuture<VoteDecision>();
         final var submissionFuture = decisionFuture.thenCompose(decision -> switch (decision.choice()) {
             case SKIP -> CompletableFuture.completedFuture(null);
@@ -985,13 +953,7 @@ public class WrapsHistoryProver implements HistoryProver {
     }
 
     private Bytes selfProofHashOrThrow() {
-        return explicitHistoryProofHashes.computeIfAbsent(
-                selfId,
-                k -> Bytes.wrap(noThrowHashOf(
-                        HistoryProof.PROTOBUF
-                                .toBytes(requireNonNull(historyProof))
-                                .toByteArray(),
-                        digestType)));
+        return explicitHistoryProofHashes.computeIfAbsent(selfId, k -> hashOf(requireNonNull(historyProof)));
     }
 
     private static ProofKind proofKindOf(@NonNull final HistoryProof proof) {
@@ -1002,5 +964,10 @@ public class WrapsHistoryProver implements HistoryProver {
 
     private static ProofKind proofKindOf(@NonNull final ProofVoteCategory category) {
         return category == ProofVoteCategory.NOT_RECURSIVE ? ProofKind.NON_RECURSIVE : ProofKind.RECURSIVE;
+    }
+
+    // Only compared within this node, so it doesn't follow the block digest type
+    private static Bytes hashOf(@NonNull final HistoryProof proof) {
+        return hashOfAll(DigestType.SHA_256.buildDigest(), HistoryProof.PROTOBUF.toBytes(proof));
     }
 }

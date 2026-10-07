@@ -43,7 +43,6 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import org.hiero.base.crypto.DigestType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -878,45 +877,6 @@ class WrapsHistoryProverTest {
 
         // The vote decision future should be completed
         assertTrue(pendingFuture.isDone());
-    }
-
-    @Test
-    @SuppressWarnings("unchecked")
-    void storedProofHashLengthFollowsDigestType() {
-        final var proof = HistoryProof.newBuilder()
-                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
-                .build();
-        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
-
-        subject = newProverWithDigestType(DigestType.SHA_384);
-        setField("voteDecisionFuture", new CompletableFuture<>());
-        subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
-        final var sha384Hash = ((Map<Long, Bytes>) getField("explicitHistoryProofHashes")).get(OTHER_NODE_ID);
-
-        subject = newProverWithDigestType(DigestType.SHA_256);
-        setField("voteDecisionFuture", new CompletableFuture<>());
-        subject.observeProofVote(OTHER_NODE_ID, vote, false, NOT_RECURSIVE);
-        final var sha256Hash = ((Map<Long, Bytes>) getField("explicitHistoryProofHashes")).get(OTHER_NODE_ID);
-
-        assertEquals(48L, sha384Hash.length(), "SHA-384 proof-identity hash is 48 bytes");
-        assertEquals(32L, sha256Hash.length(), "SHA-256 proof-identity hash is 32 bytes");
-        assertNotEquals(sha384Hash, sha256Hash);
-    }
-
-    private WrapsHistoryProver newProverWithDigestType(final DigestType digestType) {
-        return new WrapsHistoryProver(
-                SELF_ID,
-                GRACE_PERIOD,
-                KEY_PAIR,
-                null,
-                weights,
-                proofKeys,
-                delayer,
-                executor,
-                historyLibrary,
-                submissions,
-                new WrapsMpcStateMachine(),
-                digestType);
     }
 
     @Test
