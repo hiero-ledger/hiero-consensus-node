@@ -165,7 +165,7 @@ public class ReconnectHashLeafFlusherTest {
         for (int i = 0; i < len; i += Integer.BYTES) { // assuming len % Integer.BYTES == 0
             buf.putInt(h);
         }
-        return new Hash(bytes);
+        return new Hash(bytes, Cryptography.DEFAULT_DIGEST_TYPE);
     }
 
     private static VirtualLeafBytes leaf(final int path, final int k, final int v) {
