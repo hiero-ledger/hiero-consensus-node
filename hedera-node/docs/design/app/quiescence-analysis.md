@@ -73,7 +73,7 @@ Integration callbacks (caller → method):
 - `Hedera.onPreHandle` → `QuiescenceController.onPreHandle` and (for self events) `TxPipelineTracker.countLanded`.
 - `Hedera.onStaleEvent` → `QuiescenceController.staleEvent` and (for self events) `TxPipelineTracker.countLanded`.
 - `Hedera.newPlatformStatus` → `QuiescenceController.platformStatusUpdate` (only `RECONNECT_COMPLETE` triggers a state reset).
-- `HandleWorkflow.handleConsensusRound` → `QuiescenceController.inProgressBlockTransaction` per consensus txn.
+- `HandleWorkflow.handleConsensusRound` → `QuiescenceController.inProgressBlockTransaction` per consensus txn, and in RECORDS stream mode `startingBlock` for the current record block at the start of each round (a record block only opens on a user transaction).
 - `BlockRecordManagerImpl` (RECORDS stream mode) → `startingBlock`, `finishHandlingInProgressBlock`, `switchTracker`, `blockFullySigned`, and `maybeQuiesce` (the legacy poll site).
 - `BlockStreamManagerImpl` (BLOCKS stream mode) → same controller calls plus an inline copy of the `maybeQuiesce` poll in the block-signing callback. Both poll sites dispatch through the shared `QuiescenceCommands`, which owns the single canonical `lastCommand`, so the two paths cannot diverge.
 - `QuiescedHeartbeat.heartbeat` → `TctProbe.findTct`, `QuiescenceController.setNextTargetConsensusTime`, `QuiescenceController.getQuiescenceStatus`, and (when transitioning out) `Platform.quiescenceCommand`.

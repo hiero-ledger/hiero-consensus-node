@@ -131,6 +131,9 @@ public class QuiescenceController {
      * This method should be called when starting to handle a new block. It returns a block tracker that should be
      * updated with transactions and consensus time and then notified when the block is finalized. Although this class
      * is thread-safe, the returned block tracker is not thread-safe and should only be used from a single thread.
+     * <p>
+     * If the in-progress tracker is already for this block, it is kept, so transactions handled before the block
+     * opened are not dropped.
      *
      * @param blockNumber the block number being started
      * @return the block tracker for the new block
@@ -139,7 +142,9 @@ public class QuiescenceController {
         if (isDisabled()) {
             return null;
         }
-        inProgressBlockTracker = new QuiescenceBlockTracker(blockNumber, this);
+        if (inProgressBlockTracker == null || inProgressBlockTracker.getBlockNumber() != blockNumber) {
+            inProgressBlockTracker = new QuiescenceBlockTracker(blockNumber, this);
+        }
         return inProgressBlockTracker;
     }
 
@@ -200,8 +205,9 @@ public class QuiescenceController {
     }
 
     /**
-     * If there is a block in progress, switches the block tracker, synchronously marking the previous block as
-     * having finished handling transactions.
+     * Starts tracking the next block, after the caller has finished the previous one with
+     * {@link #finishHandlingInProgressBlock()}. Transactions handled before the next block opens are counted by this
+     * tracker.
      * <p>
      * Only used by the {@link BlockRecordManagerImpl}, whose concept of finality does not extend to achieving a
      * TSS signature.

@@ -327,6 +327,10 @@ public class HandleWorkflow {
                         .build()));
                 migrationStateChanges.clear();
             }
+        } else {
+            // A record block only opens on a user transaction, so make sure transactions handled before that
+            // (e.g. right after a restart) have a tracker; no-op if quiescence is disabled
+            quiescenceController.startingBlock(blockRecordManager.blockNo());
         }
         systemTransactions.resetNextDispatchNonce();
         recordCache.resetRoundReceipts();

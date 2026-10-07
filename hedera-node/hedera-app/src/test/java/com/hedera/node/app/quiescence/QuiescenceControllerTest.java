@@ -565,6 +565,29 @@ class QuiescenceControllerTest {
         assertEquals(QUIESCE, controller.getQuiescenceStatus());
     }
 
+    @Test
+    void startingBlockKeepsSwitchedInTrackerForSameBlock() {
+        // Given - block 1 is closed the way BlockRecordManagerImpl closes a record block
+        controller.onPreHandle(createTransactions(TXN_TRANSFER));
+        controller.startingBlock(1);
+        controller.inProgressBlockTransaction(createConsensusTransaction(time.now()));
+        controller.finishHandlingInProgressBlock();
+        assertTrue(controller.switchTracker(2));
+        controller.blockFullySigned(1);
+        assertEquals(QUIESCE, controller.getQuiescenceStatus());
+
+        // When - a relevant transaction is handled before block 2 opens, then block 2 opens and closes
+        controller.onPreHandle(createTransactions(TXN_TRANSFER));
+        controller.inProgressBlockTransaction(createConsensusTransaction(time.now()));
+        controller.startingBlock(2);
+        controller.finishHandlingInProgressBlock();
+        assertTrue(controller.switchTracker(3));
+        controller.blockFullySigned(2);
+
+        // Then - the transaction is released with block 2 instead of being dropped with the switched-in tracker
+        assertEquals(QUIESCE, controller.getQuiescenceStatus());
+    }
+
     /**
      * Defense-in-depth: an {@link Instant#EPOCH} TCT must NOT be treated as "already past" by the
      * threshold check inside {@link QuiescenceController#getQuiescenceStatus()}. Without the
