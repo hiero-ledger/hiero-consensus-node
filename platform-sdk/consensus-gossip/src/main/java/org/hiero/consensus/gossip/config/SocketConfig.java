@@ -29,9 +29,9 @@ import com.swirlds.config.api.ConfigProperty;
 public record SocketConfig(
         @ConfigProperty(defaultValue = "-1") int ipTos,
         @ConfigProperty(defaultValue = "8192") int bufferSize,
-        @ConfigProperty(defaultValue = "5000") int timeoutSyncClientSocket,
-        @ConfigProperty(defaultValue = "5000") int timeoutSyncClientConnect,
-        @ConfigProperty(defaultValue = "5000") int timeoutServerAcceptConnect,
+        @ConfigProperty(defaultValue = "30000") int timeoutSyncClientSocket,
+        @ConfigProperty(defaultValue = "30000") int timeoutSyncClientConnect,
+        @ConfigProperty(defaultValue = "30000") int timeoutServerAcceptConnect,
         @ConfigProperty(defaultValue = "true") boolean tcpNoDelay,
         @ConfigProperty(defaultValue = "false") boolean gzipCompression,
         @ConfigProperty(defaultValue = "10") int waitBetweenConnectionRetries,
