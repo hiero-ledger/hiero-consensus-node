@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints.schemas;
 
-import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_KEY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.BDDMockito.given;
@@ -89,7 +88,10 @@ class V060HintsSchemaTest {
 
     @Test
     void restartDoesNotSetUnfinishedConstructionInContext() {
-        given(migrationContext.appConfig()).willReturn(DEFAULT_CONFIG);
+        given(migrationContext.appConfig())
+                .willReturn(HederaTestConfigBuilder.create()
+                        .withValue("tss.hintsEnabled", "true")
+                        .getOrCreateConfig());
         given(migrationContext.isGenesis()).willReturn(false);
         given(migrationContext.newStates()).willReturn(writableStates);
         given(writableStates.<HintsConstruction>getSingleton(V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID))

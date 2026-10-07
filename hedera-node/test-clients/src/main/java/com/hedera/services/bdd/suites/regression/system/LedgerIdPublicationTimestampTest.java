@@ -14,6 +14,7 @@ import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.services.bdd.GenesisSubProcessTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.support.translators.inputs.TransactionParts;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.BlockStreamAssertion;
@@ -43,6 +44,17 @@ public class LedgerIdPublicationTimestampTest {
     private static final Duration PUBLICATION_TIMEOUT = Duration.ofMinutes(5);
 
     @HapiTest
+    @GenesisSubProcessTest(
+            subProcessNodeConfigs = {
+                @GenesisSubProcessTest.SubProcessNodeConfig(
+                        nodeId = 0,
+                        applicationPropertiesOverrides = {
+                            "tss.hintsEnabled", "true",
+                            "tss.historyEnabled", "true",
+                            "blockStream.streamMode", "BOTH",
+                            "blockStream.writerMode", "FILE"
+                        })
+            })
     final Stream<DynamicTest> ledgerIdPublicationIsNotBackdatedWithinItsBlock() {
         // TSS is deactivated and no blocks are written when streamMode=RECORDS, so nothing publishes a ledger id
         assumeFalse(targetStreamMode() == RECORDS, "No block stream to check when streamMode=RECORDS");
