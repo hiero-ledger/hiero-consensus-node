@@ -24,7 +24,9 @@ import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.event.creator.config.EventCreationConfig_;
 import org.hiero.consensus.fakes.crypto.DetRandomProvider;
 import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.state.saved.SavedStateMetadata;
+import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.OtterTest;
@@ -38,6 +40,8 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class StartFromStateTest {
+
+    private static final Path SAVED_STATE_PATH = Path.of("previous-version-state");
 
     /**
      * Starts and validates the network from a previously saved state directory. This test simulates the environment by
@@ -57,7 +61,7 @@ public class StartFromStateTest {
                 5, // one more
                 8, // double the original roster
             })
-    void migrationTest(final int numberOfNodes, @NonNull final TestEnvironment env) {
+    void migrationTest(final int numberOfNodes, @NonNull final TestEnvironment env) throws IOException {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
         final SemanticVersion currentVersion = OtterSavedStateUtils.fetchApplicationVersion();
@@ -70,9 +74,10 @@ public class StartFromStateTest {
         // fail. By increasing the event creation rate, we can ensure that the network can create enough events to reach
         // consensus in a timely manner.
         network.withConfigValue(EventCreationConfig_.MAX_CREATION_RATE, 40);
-        network.savedStateDirectory(Path.of("previous-version-state"));
+        network.savedStateDirectory(SAVED_STATE_PATH);
         network.version(
                 currentVersion.copyBuilder().minor(currentVersion.minor()).build());
+        initializeEventHashFactory(env, readSavedStateRound());
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
@@ -112,18 +117,10 @@ public class StartFromStateTest {
             throws NoSuchAlgorithmException, KeyGeneratingException, NoSuchProviderException, IOException {
         final Network network = env.network();
         network.addNodes(4); // same as saved state
-        final Path savedStatePath = Path.of("previous-version-state");
-        network.savedStateDirectory(savedStatePath);
+        network.savedStateDirectory(SAVED_STATE_PATH);
 
-        // Determine the round of the saved state
-        final long savedStateRound;
-        try (final Stream<Path> stream = Files.walk(OtterSavedStateUtils.findSaveState(savedStatePath))) {
-            final Path metadataFile = stream.filter(
-                            p -> p.getFileName().toString().equals(SavedStateMetadata.FILE_NAME))
-                    .findAny()
-                    .orElseThrow();
-            savedStateRound = SavedStateMetadata.parse(metadataFile).round();
-        }
+        final long savedStateRound = readSavedStateRound();
+        initializeEventHashFactory(env, savedStateRound);
 
         // Override the keys and certificates for all nodes
         // Otter will automatically update the roster history with the new certs
@@ -149,5 +146,36 @@ public class StartFromStateTest {
                 .waitForCondition(
                         () -> network.newConsensusResults().allNodesAdvancedToRound(savedStateRound + 20),
                         Duration.ofSeconds(120L));
+    }
+
+    /**
+     * Reads the round of the saved state the network starts from.
+     *
+     * @return the round of the saved state
+     * @throws IOException if the saved state cannot be read
+     */
+    private static long readSavedStateRound() throws IOException {
+        try (final Stream<Path> stream = Files.walk(OtterSavedStateUtils.findSaveState(SAVED_STATE_PATH))) {
+            final Path metadataFile = stream.filter(
+                            p -> p.getFileName().toString().equals(SavedStateMetadata.FILE_NAME))
+                    .findAny()
+                    .orElseThrow();
+            return SavedStateMetadata.parse(metadataFile).round();
+        }
+    }
+
+    /**
+     * Initializes the EventHashFactory on the local JVM so that events sent back in consensus rounds for assertions are
+     * hashed correctly. Starting from the saved state is an upgrade, so the nodes place the event cutover right after
+     * the saved state round.
+     *
+     * @param env             the test environment
+     * @param savedStateRound the round of the saved state
+     */
+    private static void initializeEventHashFactory(@NonNull final TestEnvironment env, final long savedStateRound) {
+        if (env.capabilities().contains(Capability.SINGLE_NODE_JVM_SHUTDOWN)) {
+            // Only required for the container environment
+            EventHashFactory.initialize(savedStateRound + 1);
+        }
     }
 }
