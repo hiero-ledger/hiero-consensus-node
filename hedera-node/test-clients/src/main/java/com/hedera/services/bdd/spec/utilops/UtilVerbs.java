@@ -1199,6 +1199,8 @@ public class UtilVerbs {
      * history disabled, {@code blockStream.streamMode=RECORDS} (which deactivates TSS regardless of
      * {@code tss.historyEnabled}), or on non-subprocess networks, the externalization log never appears and we
      * fall back to a plain {@code getAccountInfo(GENESIS)} query, which returns the configured ledger id directly.
+     * Invoke this operation before any contract call whose recorded result will be compared with the ledger id;
+     * a call made before externalization retains the old id in its result even after this wait completes.
      *
      * @param ledgerIdConsumer the callback to pass the ledger id to
      * @return the operation exposing the ledger id to the callback
