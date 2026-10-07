@@ -679,7 +679,18 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         assert currentModifyingThreadRef.compareAndSet(null, Thread.currentThread());
         try {
             requireNonNull(key, NO_NULL_KEYS_ALLOWED_MESSAGE);
-            final long path = records.findPath(key);
+            final long path;
+            VirtualLeafBytes existing = cache.lookupLeafByKey(key);
+            if (existing != null) {
+                path = existing.path();
+            } else {
+                try {
+                    path = dataSource.findKey(key);
+                } catch (final IOException ex) {
+                    throw new UncheckedIOException(ex);
+                }
+            }
+
             if (path == INVALID_PATH) {
                 // The key is not stored. So add a new entry and return.
                 add(key, value, valueCodec, valueBytes);
@@ -688,9 +699,9 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 return;
             }
 
-            // Check the leaf is in cache, so we can reuse its old path. If not, the leaf is in
-            // the data source, and the path above can be used as the old path
-            final VirtualLeafBytes<V> existing = cache.lookupLeafByPath(path);
+            if (existing == null) {
+                existing = cache.lookupLeafByPath(path);
+            }
             final VirtualLeafBytes<V> updated;
             if (existing != null) {
                 updated = valueCodec != null
