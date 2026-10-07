@@ -6,11 +6,10 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.platform.event.GossipEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.time.Duration;
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.hiero.consensus.benchmark.tools.histogram.LatencyHistogram;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
@@ -24,55 +23,30 @@ import org.hiero.consensus.model.node.NodeId;
  * one instance per round, carrying the {@link ConsensusRound#getReachedConsTimestamp() reached timestamp} of the first
  * node that reported it, so the timing of all other nodes would be lost.
  *
- * <p>The recorder is designed to be cheap enough to be always on. All nodes see the same events in a given round, so
- * the event-side aggregates of a round (number of events, sum and minimum of their creation times) are computed once,
- * by the first node that reports the round, and cached. Each node then contributes in constant time:
- * <ul>
- *     <li>sum of C2C of node {@code n} in round {@code r} = {@code count(r) * reached(n, r) - sumCreated(r)}</li>
- *     <li>max C2C of node {@code n} in round {@code r} = {@code reached(n, r) - minCreated(r)}</li>
- * </ul>
- * The cached aggregates of a round are evicted once every node has reported it, which keeps memory bounded.
+ * <p>Recording a value takes a few nanoseconds and never allocates. Every node records the events of its own rounds,
+ * which is the same order of work as the node's consensus engine does for them, so the recorder is cheap enough to be
+ * always on. Each node owns a histogram of {@link #PRECISION_BITS} precision bits and {@link #RANGE_BITS} range bits,
+ * which takes about 216 KB.
  *
- * <p>All times are kept as nanoseconds relative to the moment the network was started, so that sums over millions of
- * events cannot overflow a {@code long}.
+ * <p>All times are kept as nanoseconds relative to the moment the network was started.
  *
- * <p>This class is not thread-safe. Falcon drives all nodes sequentially from a single thread, and its deterministic
- * wiring model runs all work on that thread.
+ * <p>This class is not thread-safe, just like {@link LatencyHistogram}. Falcon drives all nodes sequentially from a
+ * single thread, and its deterministic wiring model runs all work on that thread, so the nodes can share the recorder
+ * without synchronization.
  */
 final class ConsensusLatencyRecorder {
 
-    /**
-     * The event-side aggregates of a consensus round, shared by all nodes.
-     *
-     * @param count the number of events in the round
-     * @param sumCreatedNanos the sum of the creation times of all events, relative to the start
-     * @param minCreatedNanos the earliest creation time of any event, relative to the start
-     */
-    private record RoundStats(int count, long sumCreatedNanos, long minCreatedNanos) {}
+    /** The number of precision bits of the histograms: buckets at most 2^-10 (about 0.1%) of their values wide. */
+    static final int PRECISION_BITS = 10;
 
-    /**
-     * The C2C accumulated for a single node.
-     */
-    private static final class NodeStats {
+    /** The number of range bits of the histograms: latencies up to 2^36 - 1 ns (about 68.7 s) are tracked. */
+    static final int RANGE_BITS = 36;
 
-        /** The number of events that reached consensus on this node. */
-        private long events;
+    /** The number of nanoseconds in a second. */
+    private static final long NANOS_PER_SECOND = 1_000_000_000L;
 
-        /** The sum of the C2C of all those events, in nanoseconds. */
-        private long sumC2cNanos;
-
-        /** The largest C2C of any of those events, in nanoseconds. */
-        private long maxC2cNanos;
-    }
-
-    /** The cached event-side aggregates of rounds that not every node has reported yet, by round number. */
-    private final Map<Long, RoundStats> roundStats = new HashMap<>();
-
-    /** The number of nodes that have reported each round in {@link #roundStats}, by round number. */
-    private final Map<Long, Integer> roundReports = new HashMap<>();
-
-    /** The C2C accumulated per node, in node registration order. */
-    private final Map<NodeId, NodeStats> nodeStats = new LinkedHashMap<>();
+    /** The C2C observed by each node, in node registration order. */
+    private final Map<NodeId, LatencyHistogram> nodeHistograms = new LinkedHashMap<>();
 
     /** The simulated time at which the network was started, or {@code null} if it has not been started yet. */
     @Nullable
@@ -85,13 +59,12 @@ final class ConsensusLatencyRecorder {
     private long createdBytes;
 
     /**
-     * Registers a node of the network. Must be called for every node before the network is started, so that the
-     * recorder knows when all nodes have reported a round.
+     * Registers a node of the network. Must be called for every node before the node reports any rounds.
      *
      * @param nodeId the ID of the node
      */
     void registerNode(@NonNull final NodeId nodeId) {
-        nodeStats.putIfAbsent(requireNonNull(nodeId), new NodeStats());
+        nodeHistograms.computeIfAbsent(requireNonNull(nodeId), _ -> newHistogram());
     }
 
     /**
@@ -120,35 +93,30 @@ final class ConsensusLatencyRecorder {
      * Records a consensus round reached by a node. Must be called with the node's own instance of the round, as
      * produced by its consensus engine, and not with the instance interned in the consensus round pool.
      *
+     * <p>The C2C of every event of the round is recorded in the node's histogram. An event can never reach consensus
+     * before it was created, because its creation time is derived from times the creator has already seen.
+     *
      * @param nodeId the ID of the node that reached the round
      * @param round the round, as produced by the node's consensus engine
      * @throws IllegalStateException if the network has not been started yet
-     * @throws IllegalArgumentException if the node has not been registered
+     * @throws IllegalArgumentException if the node has not been registered, or if an event of the round reached
+     * consensus before it was created
      */
     void onConsensusRound(@NonNull final NodeId nodeId, @NonNull final ConsensusRound round) {
-        final NodeStats node = nodeStats.get(nodeId);
-        if (node == null) {
+        final LatencyHistogram histogram = nodeHistograms.get(nodeId);
+        if (histogram == null) {
             throw new IllegalArgumentException("Node " + nodeId + " has not been registered");
         }
 
-        final long roundNum = round.getRoundNum();
-        final RoundStats stats = roundStats.computeIfAbsent(roundNum, _ -> computeStats(round));
-        if (stats.count() > 0) {
-            final long reachedNanos = relativeNanos(round.getReachedConsTimestamp());
-            node.events += stats.count();
-            node.sumC2cNanos += stats.count() * reachedNanos - stats.sumCreatedNanos();
-            node.maxC2cNanos = Math.max(node.maxC2cNanos, reachedNanos - stats.minCreatedNanos());
-        }
-
-        // Evict once every node has reported the round, to keep memory bounded
-        if (roundReports.merge(roundNum, 1, Integer::sum) >= nodeStats.size()) {
-            roundReports.remove(roundNum);
-            roundStats.remove(roundNum);
+        final long reachedNanos = relativeNanos(round.getReachedConsTimestamp());
+        for (final PlatformEvent event : round.getConsensusEvents()) {
+            histogram.record(reachedNanos - relativeNanos(event.getTimeCreated()));
         }
     }
 
     /**
-     * Creates a snapshot of everything recorded so far.
+     * Creates a snapshot of everything recorded so far. The snapshot is independent of the recorder: recording more
+     * rounds does not change it.
      *
      * @param now the current simulated time, which ends the measurement period
      * @return the snapshot
@@ -158,79 +126,47 @@ final class ConsensusLatencyRecorder {
     ConsensusLatencyResult snapshot(@NonNull final Instant now) {
         final long elapsedNanos = relativeNanos(now);
 
-        long totalEvents = 0;
-        long totalC2cNanos = 0;
-        long maxC2cNanos = 0;
-        final Map<NodeId, Duration> averagePerNode = new LinkedHashMap<>();
-        for (final Map.Entry<NodeId, NodeStats> entry : nodeStats.entrySet()) {
-            final NodeStats node = entry.getValue();
-            totalEvents += node.events;
-            totalC2cNanos += node.sumC2cNanos;
-            maxC2cNanos = Math.max(maxC2cNanos, node.maxC2cNanos);
-            averagePerNode.put(entry.getKey(), average(node.sumC2cNanos, node.events));
+        final LatencyHistogram network = newHistogram();
+        final Map<NodeId, LatencyHistogram> perNode = new LinkedHashMap<>();
+        for (final Map.Entry<NodeId, LatencyHistogram> entry : nodeHistograms.entrySet()) {
+            network.add(entry.getValue());
+            final LatencyHistogram copy = newHistogram();
+            copy.add(entry.getValue());
+            perNode.put(entry.getKey(), copy);
         }
 
         return new ConsensusLatencyResult(
-                nodeStats.size(),
-                average(totalC2cNanos, totalEvents),
-                Duration.ofNanos(maxC2cNanos),
+                nodeHistograms.size(),
+                network,
                 perSecond(createdEvents, elapsedNanos),
                 perSecond(createdBytes, elapsedNanos),
-                averagePerNode);
+                perNode);
     }
 
     /**
-     * Returns the number of rounds whose event-side aggregates are currently cached because not every node has reported
-     * them yet. Visible for testing the eviction of cached rounds.
+     * Creates an empty histogram with the layout used for all C2C measurements.
      *
-     * @return the number of cached rounds
-     */
-    int cachedRounds() {
-        return roundStats.size();
-    }
-
-    /**
-     * Computes the event-side aggregates of a round.
-     *
-     * @param round the round
-     * @return the aggregates
+     * @return an empty histogram
      */
     @NonNull
-    private RoundStats computeStats(@NonNull final ConsensusRound round) {
-        long sumCreatedNanos = 0;
-        long minCreatedNanos = Long.MAX_VALUE;
-        for (final PlatformEvent event : round.getConsensusEvents()) {
-            final long createdNanos = relativeNanos(event.getTimeCreated());
-            sumCreatedNanos += createdNanos;
-            minCreatedNanos = Math.min(minCreatedNanos, createdNanos);
-        }
-        return new RoundStats(round.getNumEvents(), sumCreatedNanos, minCreatedNanos);
+    private static LatencyHistogram newHistogram() {
+        return new LatencyHistogram(PRECISION_BITS, RANGE_BITS);
     }
 
     /**
-     * Converts an instant to nanoseconds relative to the start of the network.
+     * Converts an instant to nanoseconds relative to the start of the network. Does not allocate.
      *
      * @param instant the instant to convert
-     * @return the nanoseconds since the start
+     * @return the nanoseconds since the start, negative if the instant is before the start
      * @throws IllegalStateException if the network has not been started yet
      */
     private long relativeNanos(@NonNull final Instant instant) {
-        if (start == null) {
+        final Instant origin = start;
+        if (origin == null) {
             throw new IllegalStateException("The network has not been started yet");
         }
-        return Duration.between(start, instant).toNanos();
-    }
-
-    /**
-     * Computes an average duration.
-     *
-     * @param sumNanos the sum of all durations in nanoseconds
-     * @param count the number of durations
-     * @return the average, or {@link Duration#ZERO} if {@code count} is zero
-     */
-    @NonNull
-    private static Duration average(final long sumNanos, final long count) {
-        return count == 0 ? Duration.ZERO : Duration.ofNanos(sumNanos / count);
+        return (instant.getEpochSecond() - origin.getEpochSecond()) * NANOS_PER_SECOND
+                + (instant.getNano() - origin.getNano());
     }
 
     /**

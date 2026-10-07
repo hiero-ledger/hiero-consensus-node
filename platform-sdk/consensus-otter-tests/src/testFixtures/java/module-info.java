@@ -62,6 +62,7 @@ module org.hiero.otter.fixtures {
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.state.impl;
     requires transitive org.hiero.base.utility;
+    requires transitive org.hiero.consensus.benchmark.tools;
     requires transitive org.hiero.consensus.gossip.impl;
     requires transitive org.hiero.consensus.gossip;
     requires transitive org.hiero.consensus.hashgraph.impl;

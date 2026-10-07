@@ -25,7 +25,9 @@ import org.junit.jupiter.api.Disabled;
  *
  * <p>These are the Falcon counterparts of the benchmarks in {@code NetworkSimulationTest} of the
  * {@code consensus-network-simulation} module. They make no assertions on the measured values and are therefore
- * disabled; they are meant to be run manually, and print their results to standard output.
+ * disabled; they are meant to be run manually, and print their results to standard output. The creation-to-consensus
+ * latency is reported as its mean, selected percentiles and maximum, and the sweeps print semicolon-separated reports
+ * with latencies in seconds.
  *
  * <p>Every benchmark uses a pinned seed, so its results are reproducible. Parameter sweeps create a fresh
  * {@link FalconTestEnvironment} for every point of the sweep, because a Falcon test invocation provides only one
@@ -52,8 +54,11 @@ class ConsensusLatencyBenchmark {
     /** No jitter, so that the results are comparable with those of the old harness, which had none. */
     private static final Percentage NO_JITTER = Percentage.withPercentage(0);
 
-    /** The header of the CSV printed by the sweeps over the number of other parents. */
-    private static final String MOP_HEADER = "MaxParents;avgC2C;maxC2C;events/s;bytes/s";
+    /** The name of the key column of the reports of the sweeps over the number of other parents. */
+    private static final String MAX_PARENTS_COLUMN = "MaxParents";
+
+    /** The name of the key column of the reports of the sweeps over the number of nodes. */
+    private static final String NUM_NODES_COLUMN = "NumNodes";
 
     /**
      * The parameters of a single benchmark run.
@@ -101,9 +106,9 @@ class ConsensusLatencyBenchmark {
             results[maxParents] = run(SEED, setup);
         }
 
-        System.out.println(MOP_HEADER);
+        System.out.println(ConsensusLatencyResult.csvHeader(MAX_PARENTS_COLUMN));
         for (int maxParents = 1; maxParents < numNodes; maxParents++) {
-            printMillisRow(maxParents, results[maxParents]);
+            System.out.println(results[maxParents].toCsvRow(String.valueOf(maxParents)));
         }
     }
 
@@ -123,9 +128,9 @@ class ConsensusLatencyBenchmark {
             results[maxParents] = run(SEED, setup);
         }
 
-        System.out.println(MOP_HEADER);
+        System.out.println(ConsensusLatencyResult.csvHeader(MAX_PARENTS_COLUMN));
         for (int maxParents = 1; maxParents < numNodes; maxParents++) {
-            printMillisRow(maxParents, results[maxParents]);
+            System.out.println(results[maxParents].toCsvRow(String.valueOf(maxParents)));
         }
     }
 
@@ -146,22 +151,15 @@ class ConsensusLatencyBenchmark {
             results[numNodes] = run(SEED, setup);
         }
 
-        System.out.println(MOP_HEADER);
+        System.out.println(ConsensusLatencyResult.csvHeader(NUM_NODES_COLUMN));
         for (int numNodes = 2; numNodes <= maxNumNodes; numNodes++) {
-            final ConsensusLatencyResult result = results[numNodes];
-            System.out.printf(
-                    "%d;%s;%s;%d;%d%n",
-                    numNodes,
-                    toSeconds(result.averageC2C()),
-                    toSeconds(result.maxC2C()),
-                    result.eventsPerSec(),
-                    result.bytesPerSec());
+            System.out.println(results[numNodes].toCsvRow(String.valueOf(numNodes)));
         }
     }
 
     /**
      * Networks of 2 to 20 nodes with a uniform latency of 300µs, run for every possible number of other parents. Prints
-     * a matrix of the average C2C, with one row per network size and one column per number of other parents.
+     * a matrix of the mean C2C in seconds, with one row per network size and one column per number of other parents.
      */
     @FalconTest(randomSeed = SEED)
     @Disabled(DISABLED_REASON)
@@ -186,7 +184,7 @@ class ConsensusLatencyBenchmark {
         for (int numNodes = 2; numNodes <= maxNumNodes; numNodes++) {
             System.out.print(numNodes + ";");
             for (int maxParents = 1; maxParents < numNodes; maxParents++) {
-                System.out.print(toSeconds(results[numNodes][maxParents].averageC2C()) + ";");
+                System.out.print(ConsensusLatencyResult.seconds(results[numNodes][maxParents].meanC2C()) + ";");
             }
             System.out.println();
         }
@@ -285,31 +283,5 @@ class ConsensusLatencyBenchmark {
     @NonNull
     private static TopologyConfiguration uniformTopology(@NonNull final Duration latency) {
         return new MeshTopologyConfiguration(latency, NO_JITTER, BandwidthLimit.UNLIMITED_BANDWIDTH);
-    }
-
-    /**
-     * Prints one row of a sweep over the number of other parents, with latencies in seconds at millisecond precision.
-     *
-     * @param maxParents the maximum number of other parents of this row
-     * @param result the result of this row
-     */
-    private static void printMillisRow(final int maxParents, @NonNull final ConsensusLatencyResult result) {
-        System.out.printf(
-                "%d;%s;%s;%d;%d%n",
-                maxParents,
-                result.averageC2C().toMillis() / 1000.0,
-                result.maxC2C().toMillis() / 1000.0,
-                result.eventsPerSec(),
-                result.bytesPerSec());
-    }
-
-    /**
-     * Converts a duration to seconds at nanosecond precision.
-     *
-     * @param duration the duration
-     * @return the duration in seconds
-     */
-    private static double toSeconds(@NonNull final Duration duration) {
-        return duration.toNanos() / 1_000_000_000.0;
     }
 }
