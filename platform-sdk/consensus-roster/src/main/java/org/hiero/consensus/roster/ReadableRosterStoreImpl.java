@@ -17,6 +17,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 
 /**
@@ -37,14 +39,64 @@ public class ReadableRosterStoreImpl implements ReadableRosterStore {
     private final ReadableKVState<ProtoBytes, Roster> rosterMap;
 
     /**
-     * Create a new {@link ReadableRosterStore} instance.
+     * The digest type to hash rosters with while no roster hash is stored.
+     */
+    private final DigestType defaultDigestType;
+
+    /**
+     * Create a new {@link ReadableRosterStore} instance that hashes rosters with the platform's default digest type
+     * while no roster hash is stored.
      *
      * @param readableStates The state to use.
      */
     public ReadableRosterStoreImpl(@NonNull final ReadableStates readableStates) {
+        this(readableStates, Cryptography.DEFAULT_DIGEST_TYPE);
+    }
+
+    /**
+     * Create a new {@link ReadableRosterStore} instance.
+     *
+     * @param readableStates The state to use.
+     * @param defaultDigestType the digest type to hash rosters with while no roster hash is stored
+     */
+    public ReadableRosterStoreImpl(
+            @NonNull final ReadableStates readableStates, @NonNull final DigestType defaultDigestType) {
         requireNonNull(readableStates);
         this.rosterState = readableStates.getSingleton(RosterStateId.ROSTER_STATE_STATE_ID);
         this.rosterMap = readableStates.get(RosterStateId.ROSTERS_STATE_ID);
+        this.defaultDigestType = requireNonNull(defaultDigestType);
+    }
+
+    /**
+     * Hashes a roster with the digest type of the stored roster hashes, so the result can be compared with them and
+     * used to look rosters up.
+     *
+     * @param roster the roster to hash
+     * @return the roster's hash
+     */
+    @NonNull
+    public Bytes rosterHashOf(@NonNull final Roster roster) {
+        return RosterUtils.hash(roster, rosterDigestType()).getBytes();
+    }
+
+    /**
+     * Returns the digest type of the stored roster hashes, or the default one while none is stored.
+     *
+     * @return the digest type roster hashes are computed with
+     */
+    @NonNull
+    protected DigestType rosterDigestType() {
+        final var currentRosterState = rosterState.get();
+        if (currentRosterState != null) {
+            final var storedHash = currentRosterState.roundRosterPairs().isEmpty()
+                    ? currentRosterState.candidateRosterHash()
+                    : currentRosterState.roundRosterPairs().getFirst().activeRosterHash();
+            final var storedDigestType = DigestType.digestLengthToDigestType((int) storedHash.length());
+            if (storedDigestType != null) {
+                return storedDigestType;
+            }
+        }
+        return defaultDigestType;
     }
 
     /**

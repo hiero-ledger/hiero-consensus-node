@@ -13,8 +13,13 @@ import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.UnaryOperator;
+import org.hiero.base.crypto.Cryptography;
+import org.hiero.base.crypto.DigestType;
 
 /**
  * Read-write implementation for accessing rosters states.
@@ -35,12 +40,24 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
     private final WritableKVState<ProtoBytes, Roster> rosterMap;
 
     /**
-     * Constructs a new {@link WritableRosterStore} instance.
+     * Constructs a new {@link WritableRosterStore} instance that hashes rosters with the platform's default digest type
+     * while no roster hash is stored.
      *
      * @param writableStates the readable states
      */
     public WritableRosterStore(@NonNull final WritableStates writableStates) {
-        super(writableStates);
+        this(writableStates, Cryptography.DEFAULT_DIGEST_TYPE);
+    }
+
+    /**
+     * Constructs a new {@link WritableRosterStore} instance.
+     *
+     * @param writableStates the readable states
+     * @param defaultDigestType the digest type to hash rosters with while no roster hash is stored
+     */
+    public WritableRosterStore(
+            @NonNull final WritableStates writableStates, @NonNull final DigestType defaultDigestType) {
+        super(writableStates, defaultDigestType);
         requireNonNull(writableStates);
         this.rosterState = writableStates.getSingleton(RosterStateId.ROSTER_STATE_STATE_ID);
         this.rosterMap = writableStates.get(RosterStateId.ROSTERS_STATE_ID);
@@ -65,8 +82,7 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
         requireNonNull(candidateRoster);
         RosterValidator.validate(candidateRoster);
 
-        final Bytes incomingCandidateRosterHash =
-                RosterUtils.hash(candidateRoster).getBytes();
+        final Bytes incomingCandidateRosterHash = rosterHashOf(candidateRoster);
 
         // update the roster state/map
         final RosterState previousRosterState = rosterStateOrDefault();
@@ -92,7 +108,7 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
         requireNonNull(roster);
         RosterValidator.validate(roster);
 
-        final Bytes rosterHash = RosterUtils.hash(roster).getBytes();
+        final Bytes rosterHash = rosterHashOf(roster);
 
         // update the roster state
         final RosterState previousRosterState = rosterStateOrDefault();
@@ -148,6 +164,36 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
     }
 
     /**
+     * Re-keys the stored rosters under their hashes with the given digest type, and updates the hashes in the roster
+     * state to match. Rosters already stored under such a hash are left as they are.
+     *
+     * @param digestType the digest type to hash the stored rosters with
+     */
+    public void rehashRosters(@NonNull final DigestType digestType) {
+        requireNonNull(digestType);
+        final var currentRosterState = rosterState.get();
+        if (currentRosterState == null) {
+            return;
+        }
+        // The candidate can be the same roster as an active one, so each stored hash is moved only once
+        final Map<Bytes, Bytes> newHashes = new HashMap<>();
+        final UnaryOperator<Bytes> rehash =
+                hash -> hash.length() == 0 ? hash : newHashes.computeIfAbsent(hash, ignore -> rekey(hash, digestType));
+        final var newRosterState = currentRosterState
+                .copyBuilder()
+                .candidateRosterHash(rehash.apply(currentRosterState.candidateRosterHash()))
+                .roundRosterPairs(currentRosterState.roundRosterPairs().stream()
+                        .map(pair -> pair.copyBuilder()
+                                .activeRosterHash(rehash.apply(pair.activeRosterHash()))
+                                .build())
+                        .toList())
+                .build();
+        if (!newRosterState.equals(currentRosterState)) {
+            rosterState.put(newRosterState);
+        }
+    }
+
+    /**
      * Reset the roster state to an empty list and remove all entries from the roster map.
      * This method is primarily intended to be used in CLI tools that may need to reset
      * the RosterService states to a vanilla state, for example to reproduce the genesis state.
@@ -170,6 +216,28 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
     private RosterState rosterStateOrDefault() {
         RosterState state;
         return (state = rosterState.get()) == null ? RosterState.DEFAULT : state;
+    }
+
+    /**
+     * Moves the roster stored under the given hash to its hash with the given digest type.
+     *
+     * @param hash the hash the roster is stored under
+     * @param digestType the digest type to hash the roster with
+     * @return the roster's new hash, or the given hash if no roster is stored under it
+     */
+    @NonNull
+    private Bytes rekey(@NonNull final Bytes hash, @NonNull final DigestType digestType) {
+        final var oldKey = new ProtoBytes(hash);
+        final var roster = rosterMap.get(oldKey);
+        if (roster == null) {
+            return hash;
+        }
+        final var newHash = RosterUtils.hash(roster, digestType).getBytes();
+        if (!newHash.equals(hash)) {
+            rosterMap.remove(oldKey);
+            rosterMap.put(new ProtoBytes(newHash), roster);
+        }
+        return newHash;
     }
 
     /**
