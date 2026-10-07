@@ -7,14 +7,12 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.util.List;
-import java.util.Random;
 import org.hiero.consensus.hashgraph.impl.DefaultHashgraphModule;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.FlickerIntake;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.NamedEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.roster.RosterWrapper;
-import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
-import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -40,19 +38,19 @@ class FlickerIntakePinningTest {
     @Test
     @DisplayName("FlickerIntake and the production hashgraph wiring produce identical consensus rounds")
     void producesTheSameRoundsAsTheProductionHashgraphWiring() {
-        final RosterWrapper roster = RosterWrapperFactory.randomRoster(new Random(SEED), 4, WeightGenerators.BALANCED);
+        final RosterWrapper roster = LadderGraph.roster();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-        final List<LadderGraph.NamedEvent> graph = LadderGraph.build(new Random(SEED), roster);
+        final List<NamedEvent> graph = LadderGraph.build(roster);
 
         // Each harness gets its own copies. Both hash and assign nGen in place, so sharing the objects would mean the
         // second run saw state the first one left behind.
         final FlickerIntake flicker = new FlickerIntake(configuration, roster);
-        for (final LadderGraph.NamedEvent named : graph) {
+        for (final NamedEvent named : graph) {
             flicker.add(named.name(), named.event().copyGossipedData());
         }
 
         final ProductionHashgraphIntake production = new ProductionHashgraphIntake(configuration, roster);
-        for (final LadderGraph.NamedEvent named : graph) {
+        for (final NamedEvent named : graph) {
             production.addEvent(named.event().copyGossipedData());
         }
 

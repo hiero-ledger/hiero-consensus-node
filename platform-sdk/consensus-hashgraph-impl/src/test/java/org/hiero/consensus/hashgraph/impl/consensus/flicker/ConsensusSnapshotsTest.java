@@ -10,13 +10,11 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.FlickerIntake;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.NamedEvent;
 import org.hiero.consensus.model.roster.RosterWrapper;
-import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
-import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -27,18 +25,18 @@ class ConsensusSnapshotsTest {
 
     private static final long SEED = 20260925L;
 
-    private static List<LadderGraph.NamedEvent> graph(final RosterWrapper roster) {
-        return LadderGraph.build(new Random(SEED), roster);
+    private static List<NamedEvent> graph(final RosterWrapper roster) {
+        return LadderGraph.build(roster);
     }
 
     private static RosterWrapper roster() {
-        return RosterWrapperFactory.randomRoster(new Random(SEED), 4, WeightGenerators.BALANCED);
+        return LadderGraph.roster();
     }
 
     private static FlickerIntake runLadderGraph(final RosterWrapper roster) {
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final FlickerIntake intake = new FlickerIntake(configuration, roster);
-        for (final LadderGraph.NamedEvent named : graph(roster)) {
+        for (final NamedEvent named : graph(roster)) {
             intake.add(named.name(), named.event().copyGossipedData());
         }
         return intake;

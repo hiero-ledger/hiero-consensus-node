@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.test.fixtures.flicker;
 
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -19,6 +20,7 @@ import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl;
 import org.hiero.consensus.hashgraph.impl.linking.ConsensusLinker;
@@ -29,6 +31,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
+import org.hiero.consensus.round.EventWindowUtils;
 
 /**
  * A test harness that runs {@link ConsensusImpl} against a curated graph, one event at a time.
@@ -80,6 +83,9 @@ public class FlickerIntake {
     /** The window the harness is currently at. Starts at genesis and advances as rounds decide. */
     private EventWindow eventWindow = EventWindow.getGenesisEventWindow();
 
+    /** Needed to rebuild the event window when a snapshot is loaded. */
+    private final int roundsNonAncient;
+
     /**
      * Constructor. The algorithm's intermediate state is not recorded.
      *
@@ -106,6 +112,8 @@ public class FlickerIntake {
         Objects.requireNonNull(roster);
 
         this.traceLog = traceLog;
+        this.roundsNonAncient =
+                configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
         final BiFunction<PlatformEvent, List<EventImpl>, EventImpl> eventFactory = traceLog == null
                 ? EventImpl::new
                 : (event, parents) -> new RecordingEventImpl(event, parents, nameOf(event), traceLog);
@@ -215,6 +223,26 @@ public class FlickerIntake {
     @Nullable
     public EventImpl event(@NonNull final String name) {
         return linkedEventsByName.get(name);
+    }
+
+    /**
+     * Restart from a snapshot, as a node does after a restart or reconnect.
+     * <p>
+     * This is what makes the restart, init-judge and roster-change family reachable: a roster is supplied only at
+     * construction, so continuing a graph under a different roster means loading its snapshot into a second
+     * harness and replaying the same events on top.
+     *
+     * @param snapshot the snapshot to continue from
+     */
+    public void loadSnapshot(@NonNull final ConsensusSnapshot snapshot) {
+        // Mirrors DefaultConsensusEngine#outOfBandSnapshotUpdate, minus the future event buffer this harness refuses
+        // to model. The window moves to the snapshot's round, so a replay on top of it must supply events that are
+        // still non-ancient relative to that round - which add() now checks.
+        eventWindow = EventWindowUtils.createEventWindow(snapshot, roundsNonAncient);
+        linker.clear();
+        linker.setEventWindow(eventWindow);
+        orphanBuffer.setEventWindow(eventWindow);
+        consensus.loadSnapshot(snapshot);
     }
 
     /**

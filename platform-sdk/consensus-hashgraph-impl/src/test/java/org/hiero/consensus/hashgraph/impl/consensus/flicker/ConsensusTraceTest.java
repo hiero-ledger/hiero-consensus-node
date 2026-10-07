@@ -6,13 +6,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.util.List;
-import java.util.Random;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.Change.WitnessFound;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.ConsensusTraceLog;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.FlickerIntake;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.NamedEvent;
 import org.hiero.consensus.model.roster.RosterWrapper;
-import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
-import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -30,12 +28,12 @@ class ConsensusTraceTest {
     private static final long SEED = 20260925L;
 
     private ConsensusTraceLog runLadderGraph() {
-        final RosterWrapper roster = RosterWrapperFactory.randomRoster(new Random(SEED), 4, WeightGenerators.BALANCED);
+        final RosterWrapper roster = LadderGraph.roster();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final ConsensusTraceLog traceLog = new ConsensusTraceLog();
         final FlickerIntake intake = new FlickerIntake(configuration, roster, traceLog);
 
-        for (final LadderGraph.NamedEvent named : LadderGraph.build(new Random(SEED), roster)) {
+        for (final NamedEvent named : LadderGraph.build(roster)) {
             intake.add(named.name(), named.event());
         }
         return traceLog;
