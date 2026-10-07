@@ -179,6 +179,24 @@ class WritableRosterStoreRehashTest {
                 .containsExactlyInAnyOrderEntriesOf(Map.of(keyOf(CURRENT, Cryptography.DEFAULT_DIGEST_TYPE), CURRENT));
     }
 
+    @Test
+    void usesTheCandidateDigestWhenNoRosterIsActive() {
+        storedRosterState.set(rosterState(hashOf(CANDIDATE, DigestType.SHA_256), List.of()));
+
+        assertThat(new ReadableRosterStoreImpl(states, DigestType.SHA_384).rosterHashOf(CURRENT))
+                .isEqualTo(hashOf(CURRENT, DigestType.SHA_256));
+    }
+
+    @Test
+    void usesTheDefaultDigestWhenNoRosterHashIsStored() {
+        storedRosterState.set(RosterState.DEFAULT);
+
+        assertThat(new ReadableRosterStoreImpl(states, DigestType.SHA_256).rosterHashOf(CURRENT))
+                .isEqualTo(hashOf(CURRENT, DigestType.SHA_256));
+        assertThat(new ReadableRosterStoreImpl(states, DigestType.SHA_384).rosterHashOf(CURRENT))
+                .isEqualTo(hashOf(CURRENT, DigestType.SHA_384));
+    }
+
     private void rehash(final DigestType digestType) {
         new WritableRosterStore(states).rehashRosters(digestType);
         states.commit();
