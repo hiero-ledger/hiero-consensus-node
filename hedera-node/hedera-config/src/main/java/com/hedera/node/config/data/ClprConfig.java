@@ -104,17 +104,6 @@ public record ClprConfig(
         @ConfigProperty(defaultValue = "50214") @NodeProperty @Min(0) @Max(65535)
         int mtlsPort,
 
-        // --- Endpoint manifest master feature flag ---
-        // Gates the node-driven endpoint-manifest lifecycle: the reconciler that opens
-        // constructions, the ClprEndpointPublicationHandler that routes publications into the
-        // active construction, and downstream consumers (peer verifier dual-ABI dispatch, bundle
-        // Step 1b apply, sync-orchestrator staleness signalling). Default off — turned on by
-        // network governance once every peer verifier contract has migrated to the manifest-aware
-        // ABI. When off, the reconciler is a no-op, publications are dropped with an info log,
-        // and no construction singleton is ever written to state.
-        @ConfigProperty(defaultValue = "false") @NetworkProperty
-        boolean endpointManifestEnabled,
-
         // --- Endpoint manifest construction lifecycle (design doc §8.1) ---
         // Grace period, extension size, and extension budget for the manifest construction that
         // gathers per-node endpoint publications. Defaults mirror the TssConfig envelope so day-one

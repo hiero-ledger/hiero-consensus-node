@@ -30,18 +30,14 @@ import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verify.VerifyBundleCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult;
-import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigInteger;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -175,20 +171,19 @@ class VerifyBundleCallTest {
         private static final Bytes SERVICE_ADDR = Bytes.wrap(new byte[20]);
 
         @Test
-        @DisplayName("manifest-only bundle (no channel leaf, flag on) → SUCCESS with absent metadata + manifest")
-        void manifestOnlyBundleSucceedsWhenFlagOn() {
+        @DisplayName("manifest-only bundle (no channel leaf) → SUCCESS with absent metadata + manifest")
+        void manifestOnlyBundleSucceeds() {
             final var manifest = ClprEndpointManifest.newBuilder()
                     .version(2L)
                     .serviceAddress(SERVICE_ADDR)
                     .build();
-            stubManifestFlag(true);
 
             final var result = subject(singleLeafProof(manifestLeaf(manifest))).execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
             assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.COMPLETED_SUCCESS);
 
-            final var decoded = ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN.decode(
+            final var decoded = ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(
                     result.fullResult().output().toArray());
             assertThat(decoded.size()).isEqualTo(5);
             // Member 0: absent-metadata sentinel — nextMessageId == 0.
@@ -205,21 +200,6 @@ class VerifyBundleCallTest {
         }
 
         @Test
-        @DisplayName("manifest-only bundle with the endpoint-manifest flag off → CLPR_BUNDLE_VERIFICATION_FAILED")
-        void manifestOnlyBundleRejectedWhenFlagOff() {
-            final var manifest = ClprEndpointManifest.newBuilder()
-                    .version(2L)
-                    .serviceAddress(SERVICE_ADDR)
-                    .build();
-            stubManifestFlag(false);
-
-            final var result = subject(singleLeafProof(manifestLeaf(manifest))).execute(frame);
-
-            assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
-            assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
-        }
-
-        @Test
         @DisplayName("no channel leaf + a message leaf alongside the manifest → rejected (messages.isEmpty() guard)")
         void bundleWithMessageAndManifestButNoChannelRejected() {
             final var manifest = ClprEndpointManifest.newBuilder()
@@ -227,7 +207,6 @@ class VerifyBundleCallTest {
                     .serviceAddress(SERVICE_ADDR)
                     .build();
             final var message = messageValue(1);
-            stubManifestFlag(true);
 
             // Two independent leaves cannot share a self-rooting nextPathIndex=-1 root, so stub the
             // path verifier: both leaves verify against one block root and reach the branch together.
@@ -250,15 +229,6 @@ class VerifyBundleCallTest {
 
         private VerifyBundleCall subject(@NonNull final byte[] bundlePayload) {
             return new VerifyBundleCall(mockEnhancement(), gasCalculator, bundlePayload, TRUST_ANCHOR, acceptingTss());
-        }
-
-        /** Stubs {@code configOf(frame)} to a config with the given endpoint-manifest flag value. */
-        private void stubManifestFlag(final boolean enabled) {
-            final Configuration config = HederaTestConfigBuilder.create()
-                    .withValue("clpr.endpointManifestEnabled", enabled)
-                    .getOrCreateConfig();
-            given(frame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
-            given(frame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE)).willReturn(config);
         }
     }
 
@@ -292,7 +262,6 @@ class VerifyBundleCallTest {
         @Test
         @DisplayName("given messages 4 and 5 with nothing acked, then nextMessageId is 6, one past the last key")
         void givenMessagesAboveAckedPlusOne_thenNextMessageIdIsOnePastTheLastKey() {
-            stubManifestFlag();
 
             final var metadata = executeWithStubbedPaths(channelLeaf(CHANNEL), messageLeaf(4), messageLeaf(5));
 
@@ -304,7 +273,6 @@ class VerifyBundleCallTest {
         @Test
         @DisplayName("given messages 1 to 3 starting at acked + 1, then nextMessageId matches the unary formula")
         void givenMessagesStartingAtAckedPlusOne_thenNextMessageIdMatchesAckedPlusOnePlusSize() {
-            stubManifestFlag();
 
             final var metadata =
                     executeWithStubbedPaths(channelLeaf(CHANNEL), messageLeaf(1), messageLeaf(2), messageLeaf(3));
@@ -318,7 +286,6 @@ class VerifyBundleCallTest {
             // The receiver already holds messages 1..5, but the sender has only seen our ack of 1 and 2. A pure-ACK
             // bundle must end at the sender's queue tip: acked + 1 would make the receiver read 3..5 as a replayed
             // prefix the bundle does not carry, and reject it.
-            stubManifestFlag();
             final var channel = CHANNEL.copyBuilder().ackedMessageId(2).build();
 
             final var metadata = executeWithStubbedPaths(channelLeaf(channel));
@@ -351,14 +318,13 @@ class VerifyBundleCallTest {
             assertThat(channel).as("captured proof carries a channel leaf").isNotNull();
             final long expectedNextMessageId =
                     messageIds.isEmpty() ? channel.nextMessageId() : messageIds.getLast() + 1;
-            stubManifestFlag();
 
             final var result = new VerifyBundleCall(
                             mockEnhancement(), gasCalculator, proofBytes, trustAnchor, new NativeTssVerifier())
                     .execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
-            final Tuple decoded = ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN.decode(
+            final Tuple decoded = ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(
                     result.fullResult().output().toArray());
             assertThat((byte[][]) decoded.get(1)).hasNumberOfRows(messageIds.size());
             assertThat(nextMessageIdOf(decoded.get(0))).isEqualTo(expectedNextMessageId);
@@ -367,7 +333,6 @@ class VerifyBundleCallTest {
         @Test
         @DisplayName("given message leaves out of id order, then the messages are returned sorted by their proven ids")
         void givenMessageLeavesOutOfIdOrder_thenMessagesAreReturnedSortedByProvenId() throws ParseException {
-            stubManifestFlag();
 
             final var decoded = executeWithStubbedPathsForOutput(
                     channelLeaf(CHANNEL), messageLeaf(5), messageLeaf(3), messageLeaf(4));
@@ -451,7 +416,7 @@ class VerifyBundleCallTest {
         private Tuple executeWithStubbedPathsForOutput(@NonNull final Bytes... leaves) {
             final var result = executeWithStubbedPathsForResult(leaves);
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
-            return ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN.decode(
+            return ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(
                     result.fullResult().output().toArray());
         }
 
@@ -464,17 +429,6 @@ class VerifyBundleCallTest {
                                 mockEnhancement(), gasCalculator, multiLeafProof(leaves), TRUST_ANCHOR, acceptingTss())
                         .execute(frame);
             }
-        }
-
-        /**
-         * Stubs {@code configOf(frame)} with the endpoint-manifest flag on, so the manifest-aware ABI is returned.
-         */
-        private void stubManifestFlag() {
-            final Configuration config = HederaTestConfigBuilder.create()
-                    .withValue("clpr.endpointManifestEnabled", true)
-                    .getOrCreateConfig();
-            given(frame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
-            given(frame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE)).willReturn(config);
         }
 
         private byte[] loadResource(final String name) throws IOException {

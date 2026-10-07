@@ -13,7 +13,6 @@ import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
-import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
@@ -30,7 +29,7 @@ import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
- * Implements {@code verifyConfig} with seed endpoints or an endpoint manifest.
+ * Implements {@code verifyConfig} with an endpoint manifest.
  *
  * <p>The trust anchor used to authenticate the proof is the {@code initial_trust_anchor}
  * carried inside the proven {@link ClprLedgerConfiguration} — for Hiero TSS the source ledger's
@@ -53,22 +52,8 @@ public class VerifyConfigCall extends AbstractCall {
     @NonNull
     private final byte[] channelId32;
 
-    /** Non-null only on the manifest-aware path; selects manifestSuccess over seedEndpointsSuccess. */
-    @Nullable
+    @NonNull
     private final byte[] manifestProofBytes;
-
-    public VerifyConfigCall(
-            @NonNull final HederaWorldUpdater.Enhancement enhancement,
-            @NonNull final SystemContractGasCalculator gasCalculator,
-            @NonNull final byte[] stateProofBytes,
-            @NonNull final byte[] channelId32,
-            @NonNull final TssVerifier tssVerifier) {
-        super(gasCalculator, enhancement, true);
-        this.stateProofBytes = requireNonNull(stateProofBytes);
-        this.channelId32 = requireNonNull(channelId32);
-        this.tssVerifier = requireNonNull(tssVerifier);
-        this.manifestProofBytes = null;
-    }
 
     public VerifyConfigCall(
             @NonNull final HederaWorldUpdater.Enhancement enhancement,
@@ -220,59 +205,7 @@ public class VerifyConfigCall extends AbstractCall {
                 "verifyConfig EXIT: SUCCESS trustAnchor={} rootHash={}",
                 shortHex(trustAnchorBytes),
                 shortHex(Bytes.wrap(rootHash)));
-        return manifestProofBytes == null ? seedEndpointsSuccess(parsed) : manifestSuccess(parsed);
-    }
-
-    @NonNull
-    private PricedResult seedEndpointsSuccess(@NonNull final ClprLedgerConfiguration parsed) {
-        final byte[] id32 = requireNonNull(channelId32);
-        final byte[] serviceAddressBytes = parsed.serviceAddress().toByteArray();
-        final byte[] channelContextBytes = new byte[32 + serviceAddressBytes.length];
-        System.arraycopy(id32, 0, channelContextBytes, 0, 32);
-        System.arraycopy(serviceAddressBytes, 0, channelContextBytes, 32, serviceAddressBytes.length);
-
-        final ClprThrottles t = parsed.throttlesOrElse(ClprThrottles.DEFAULT);
-        final Tuple throttlesTuple = Tuple.of(
-                BigInteger.valueOf(t.maxMessagesPerBundle()),
-                BigInteger.valueOf(t.maxMessagePayloadBytes()),
-                BigInteger.valueOf(t.maxGasPerMessage()),
-                BigInteger.valueOf(t.maxQueueDepth()),
-                BigInteger.valueOf(t.maxSyncBytes()));
-
-        final Tuple[] endpointTuples = parsed.endpoints().stream()
-                .map(ep -> {
-                    final ClprServiceEndpoint se = ep.serviceEndpointOrElse(ClprServiceEndpoint.DEFAULT);
-                    return Tuple.of(
-                            se.ipAddress(),
-                            (long) se.port(),
-                            ep.tlsCertificate().toByteArray(),
-                            ep.accountId().toByteArray());
-                })
-                .toArray(Tuple[]::new);
-
-        final var ts = parsed.timestamp();
-        final long peerConfigNanos = ts != null ? ts.seconds() * 1_000_000_000L + ts.nanos() : 0L;
-
-        log.debug(
-                "verifyConfigWithSeedEndpoints EXIT: SUCCESS chainId={} endpoints={}",
-                parsed.chainId(),
-                endpointTuples.length);
-        return gasOnly(
-                successResult(
-                        VerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS
-                                .getOutputs()
-                                .encode(Tuple.from(
-                                        channelContextBytes,
-                                        parsed.chainId(),
-                                        serviceAddressBytes,
-                                        BigInteger.valueOf(peerConfigNanos),
-                                        throttlesTuple,
-                                        parsed.initialTrustAnchor().toByteArray(),
-                                        parsed.initialTrustAnchorId().toByteArray(),
-                                        endpointTuples)),
-                        GAS_REQUIREMENT),
-                SUCCESS,
-                true);
+        return manifestSuccess(parsed);
     }
 
     @NonNull
@@ -309,7 +242,7 @@ public class VerifyConfigCall extends AbstractCall {
                 manifest.endpoints().size());
         return gasOnly(
                 successResult(
-                        VerifyConfigTranslator.VERIFY_CONFIG_WITH_MANIFEST
+                        VerifyConfigTranslator.VERIFY_CONFIG
                                 .getOutputs()
                                 .encode(Tuple.from(
                                         channelContextBytes,

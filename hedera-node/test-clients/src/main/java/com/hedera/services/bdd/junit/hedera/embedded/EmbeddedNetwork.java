@@ -226,6 +226,13 @@ public class EmbeddedNetwork extends AbstractNetwork {
         final Map<String, String> effectiveOverrides = new HashMap<>(bootstrapOverrides);
         effectiveOverrides.put("tss.forceMockSignatures", "true");
         effectiveOverrides.put("staking.periodMins", "1");
+        if (mode == REPEATABLE) {
+            // With CLPR enabled, the endpoint-manifest reconciler gossips this node's ClprEndpointPublication
+            // asynchronously; repeatable mode handles only the first buffered transaction per round, so that
+            // priority publication would displace (and drop) the next user transaction and break determinism.
+            // No repeatable suite exercises CLPR; its embedded coverage runs in CONCURRENT mode.
+            effectiveOverrides.putIfAbsent("clpr.enabled", "false");
+        }
         updateBootstrapProperties(embeddedNode.getExternalPath(APPLICATION_PROPERTIES), effectiveOverrides);
         embeddedNode.start();
         // Start the embedded Hedera "network"

@@ -58,7 +58,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
 
     private static final int HASH_CHUNK_HEIGHT = 2;
 
-    private static final Hash NO_HASH = new Hash(new byte[Cryptography.DEFAULT_DIGEST_TYPE.digestLength()]);
+    private static final Hash NO_HASH = new Hash(Cryptography.DEFAULT_DIGEST_TYPE);
 
     private static final long BOGUS_KEY_ID = -7000;
 
@@ -1320,7 +1320,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
                 });
 
         final AtomicInteger chunkIdIndex = new AtomicInteger(0);
-        final Hash noHash = new Hash();
+        final Hash noHash = new Hash(Cryptography.DEFAULT_DIGEST_TYPE);
         cache1.dirtyHashesForFlush(lastLeafPath).forEach(chunk -> {
             final long chunkId = chunk.getChunkId();
             final int t = chunkIdIndex.getAndIncrement();
@@ -1331,7 +1331,7 @@ class VirtualNodeCacheTest extends VirtualTestBase {
                 // Since no hashes were put for leaves (in range [totalMutationsCount,
                 // totalMutationsCount * 2 - 1]), there should be no checks for them. The original
                 // version of the test checked that these hashes are null. I'm replacing these
-                // checks with checks against a null hash (48 zeroes)
+                // checks with checks against a null hash (all zeroes)
                 final Hash hash = chunk.getHashAtIndex(i);
                 if (path < nextMutationCount) { // mutated internal nodes
                     final byte[] internalBytes = ("OverriddenInternal" + path).getBytes(StandardCharsets.UTF_8);

@@ -3,13 +3,13 @@ package com.hedera.node.app.service.contract.impl.exec.systemcontracts.sei.verif
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
-import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN;
+import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.VERIFY_BUNDLE_RETURN;
 import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.absentMetadataTuple;
 import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.manifestStructTuple;
+import static com.hedera.node.app.service.clpr.impl.verifier.ClprVerifierAbi.metadataTuple;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.ordinalRevertResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.successResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
-import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -22,10 +22,8 @@ import com.hedera.node.app.service.clpr.impl.verifier.sei.SeiCometBftProofVerifi
 import com.hedera.node.app.service.contract.impl.exec.gas.SystemContractGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCall;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
-import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.math.BigInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -106,13 +104,6 @@ public class SeiVerifyBundleCall extends AbstractCall {
                 log.warn("verifyBundle (Sei): bundle proved neither content, a trust-anchor rotation, nor a manifest");
                 return fail();
             }
-            final boolean manifestEnabled =
-                    configOf(frame).getConfigData(ClprConfig.class).endpointManifestEnabled();
-            // Manifest-only recovery is a feature that requires endpoint manifests; reject it when the flag is off.
-            if (hasManifest && !manifestEnabled) {
-                log.warn("verifyBundle (Sei): manifest-only recovery bundle rejected (endpoint-manifest feature off)");
-                return fail();
-            }
             // Build state-update-only content: queue metadata omitted (→ absent sentinel), no messages.
             final var stateBuilder = ClprBundleContent.newBuilder();
             if (hasRotation) {
@@ -120,7 +111,7 @@ public class SeiVerifyBundleCall extends AbstractCall {
                         .newTrustAnchor(Bytes.wrap(verified.newTrustAnchor()))
                         .newTrustAnchorId(Bytes.wrap(requireNonNull(verified.newTrustAnchorId())));
             }
-            return bundleSuccess(stateBuilder.build(), verified, manifestEnabled);
+            return bundleSuccess(stateBuilder.build(), verified);
         }
 
         final ClprBundleContent content;
@@ -193,69 +184,56 @@ public class SeiVerifyBundleCall extends AbstractCall {
                     .build();
         }
 
-        final boolean manifestEnabled =
-                configOf(frame).getConfigData(ClprConfig.class).endpointManifestEnabled();
-        return bundleSuccess(outContent, verified, manifestEnabled);
+        return bundleSuccess(outContent, verified);
     }
 
     @NonNull
     private PricedResult bundleSuccess(
             @NonNull final ClprBundleContent outContent,
-            @NonNull final SeiCometBftProofVerifier.VerifiedBundle verified,
-            final boolean manifestEnabled) {
+            @NonNull final SeiCometBftProofVerifier.VerifiedBundle verified) {
         // Metadata absent (a state-update-only bundle) → the zero-nextMessageId sentinel, with full
-        // 32-byte zero hashes so it encodes against the bytes32 fields. Otherwise the proven queue state.
+        // 32-byte zero hashes so it encodes against the bytes32 fields. Otherwise the proven queue state,
+        // with endpointManifestVersion sourced from the PROVEN Channel slot (offset 16) rather than the
+        // relayed content — a relay could otherwise inflate it to suppress our manifest re-pushes (spec §4.5).
         final ClprQueueMetadata meta = outContent.metadata();
         final Tuple metaTuple = meta == null
                 ? absentMetadataTuple()
-                : Tuple.of(
-                        BigInteger.valueOf(meta.nextMessageId()),
-                        meta.sentRunningHash().toByteArray(),
-                        BigInteger.valueOf(meta.receivedMessageId()),
-                        meta.receivedRunningHash().toByteArray(),
-                        meta.status().protoOrdinal());
+                : metadataTuple(meta, requireNonNull(verified.queueMetadata()).endpointManifestVersion());
+        if (metaTuple == null) {
+            log.warn("verifyBundle (Sei): queue metadata is not ABI-encodable");
+            return fail();
+        }
         final byte[][] messageBytes = outContent.messages().stream()
                 .map(msg -> ClprMessagePayload.PROTOBUF.toBytes(msg).toByteArray())
                 .toArray(byte[][]::new);
         final byte[] newTrustAnchor = outContent.newTrustAnchor().toByteArray();
         final byte[] newTrustAnchorId = outContent.newTrustAnchorId().toByteArray();
         log.info(
-                "verifyBundle (Sei) EXIT: SUCCESS blockHash={} messages={} manifestEnabled={}",
+                "verifyBundle (Sei) EXIT: SUCCESS blockHash={} messages={}",
                 verified.blockHash32() == null ? "none" : Bytes.wrap(verified.blockHash32()),
-                messageBytes.length,
-                manifestEnabled);
-        if (manifestEnabled) {
-            // §4.2 Step 1b: append the extracted manifest as the 5th member (DEFAULT → version 0 = absent).
-            ClprEndpointManifest manifest = ClprEndpointManifest.DEFAULT;
-            final byte[] manifestBytes = verified.newEndpointManifestBytes();
-            if (manifestBytes.length > 0) {
-                try {
-                    manifest = ClprEndpointManifest.PROTOBUF.parseStrict(
-                            Bytes.wrap(manifestBytes).toReadableSequentialData());
-                } catch (final Exception e) {
-                    // The verifier already strict-parsed this preimage; a re-parse failure is a defect, not
-                    // a proof failure — surface as a bundle verification failure rather than escaping.
-                    log.warn("verifyBundle (Sei): proven manifest bytes are not a ClprEndpointManifest", e);
-                    return fail();
-                }
+                messageBytes.length);
+        // §4.2 Step 1b: append the extracted manifest as the 5th member (DEFAULT → version 0 = absent).
+        ClprEndpointManifest manifest = ClprEndpointManifest.DEFAULT;
+        final byte[] manifestBytes = verified.newEndpointManifestBytes();
+        if (manifestBytes.length > 0) {
+            try {
+                manifest = ClprEndpointManifest.PROTOBUF.parseStrict(
+                        Bytes.wrap(manifestBytes).toReadableSequentialData());
+            } catch (final Exception e) {
+                // The verifier already strict-parsed this preimage; a re-parse failure is a defect, not
+                // a proof failure — surface as a bundle verification failure rather than escaping.
+                log.warn("verifyBundle (Sei): proven manifest bytes are not a ClprEndpointManifest", e);
+                return fail();
             }
-            return gasOnly(
-                    successResult(
-                            VERIFY_BUNDLE_WITH_MANIFEST_RETURN.encode(Tuple.of(
-                                    metaTuple,
-                                    messageBytes,
-                                    newTrustAnchor,
-                                    newTrustAnchorId,
-                                    manifestStructTuple(manifest))),
-                            GAS_REQUIREMENT),
-                    SUCCESS,
-                    false);
         }
         return gasOnly(
                 successResult(
-                        SeiVerifyBundleTranslator.VERIFY_BUNDLE
-                                .getOutputs()
-                                .encode(Tuple.of(metaTuple, messageBytes, newTrustAnchor, newTrustAnchorId)),
+                        VERIFY_BUNDLE_RETURN.encode(Tuple.of(
+                                metaTuple,
+                                messageBytes,
+                                newTrustAnchor,
+                                newTrustAnchorId,
+                                manifestStructTuple(manifest))),
                         GAS_REQUIREMENT),
                 SUCCESS,
                 false);
