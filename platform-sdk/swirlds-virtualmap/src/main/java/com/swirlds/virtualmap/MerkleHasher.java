@@ -50,6 +50,9 @@ public final class MerkleHasher {
      */
     @NonNull
     public static MerkleHasher threadSafeDefault() {
+        if (Thread.currentThread() instanceof MerkleHasherAware merkleAwareThread) {
+            return merkleAwareThread.getMerkleHasher();
+        }
         return THREAD_LOCAL_DEFAULT.get();
     }
 
@@ -137,5 +140,17 @@ public final class MerkleHasher {
     @NonNull
     public Hash leafNodeHash(@NonNull final VirtualLeafBytes<?> leaf) {
         return new Hash(leafNodeHashBytes(leaf), digestType);
+    }
+
+    ///
+    /// Any object that can provide an instance of {@link MerkleHasher} for hashing.
+    ///
+    /// This interface is used in {@link #threadSafeDefault}. If the calling thread implements
+    /// the interface, it's used to get an instance of {@link MerkleHasher}. This works faster
+    /// than a lookup in a ThreadLocal object.
+    ///
+    public interface MerkleHasherAware {
+
+        public MerkleHasher getMerkleHasher();
     }
 }
