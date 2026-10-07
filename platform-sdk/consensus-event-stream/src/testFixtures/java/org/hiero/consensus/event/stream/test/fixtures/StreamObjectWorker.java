@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.stream.test.fixtures;
 
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.event.stream.test.fixtures.TestStreamType.TEST_STREAM;
 
 import java.io.IOException;
@@ -56,7 +56,8 @@ public class StreamObjectWorker {
         TimestampStreamFileWriter<ObjectForTestStream> fileWriter =
                 new TimestampStreamFileWriter<>(dirPath, logPeriodMs, signer, startWriteAtCompleteWindow, TEST_STREAM);
 
-        writeQueueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(getStaticThreadManager())
+        writeQueueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(
+                        getStaticThreadManager(), "test-queue")
                 .setForwardTo(fileWriter)
                 .build();
         writeQueueThread.start();
@@ -70,7 +71,8 @@ public class StreamObjectWorker {
         // writes objects to a stream
         WriteToStreamConsumer streamWriter = new WriteToStreamConsumer(stream, initialHash);
 
-        writeQueueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(getStaticThreadManager())
+        writeQueueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(
+                        getStaticThreadManager(), "test-queue")
                 .setForwardTo(streamWriter)
                 .build();
         writeQueueThread.start();
@@ -90,7 +92,8 @@ public class StreamObjectWorker {
         final HashCalculatorForStream<ObjectForTestStream> hashCalculator =
                 new HashCalculatorForStream<>(runningHashCalculator);
 
-        hashQueueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(getStaticThreadManager())
+        hashQueueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(
+                        getStaticThreadManager(), "test-queue")
                 .setForwardTo(hashCalculator)
                 .build();
         hashQueueThread.setRunningHash(initialHash);

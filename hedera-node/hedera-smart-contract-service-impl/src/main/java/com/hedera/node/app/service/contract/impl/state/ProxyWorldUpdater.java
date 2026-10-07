@@ -242,9 +242,8 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
 
         final var opsDurationCounter = FrameUtils.opsDurationCounter(frame);
         final var opsDurationSchedule = opsDurationCounter.schedule();
-        final var opsDurationCost = gasCost
-                * opsDurationSchedule.accountLazyCreationOpsDurationMultiplier()
-                / opsDurationSchedule.multipliersDenominator();
+        final var opsDurationCost = opsDurationSchedule.gasBasedOpsDuration(
+                gasCost, opsDurationSchedule.accountLazyCreationOpsDurationMultiplier());
         opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationCost);
 
         return Optional.empty();

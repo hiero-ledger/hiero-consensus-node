@@ -6,10 +6,10 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.virtualmap.MerklePathUtils;
+import com.swirlds.virtualmap.RecordAccessor;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.config.VirtualMapSyncConfig;
-import com.swirlds.virtualmap.internal.Path;
-import com.swirlds.virtualmap.internal.RecordAccessor;
+import com.swirlds.virtualmap.config.VirtualMapTeacherSyncConfig;
 import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeRequest;
 import com.swirlds.virtualmap.internal.reconnect.PullVirtualTreeResponse;
 import com.swirlds.virtualmap.internal.reconnect.TeacherPullVirtualTreeReceiveTask;
@@ -24,9 +24,9 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.manager.ThreadManager;
+import org.hiero.base.concurrent.pool.StandardWorkGroup;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * Performs reconnect in the role of the teacher.
@@ -39,7 +39,7 @@ public class TeachingSynchronizer {
 
     private final RecordAccessor teacherView;
     private final ThreadManager threadManager;
-    private final VirtualMapSyncConfig syncConfig;
+    private final VirtualMapTeacherSyncConfig syncConfig;
 
     /**
      * Constructs a new teaching synchronizer.
@@ -55,7 +55,8 @@ public class TeachingSynchronizer {
 
         teacherView = Objects.requireNonNull(teacherMap, "teacher map is null").detach();
         this.threadManager = Objects.requireNonNull(threadManager, "threadManager is null");
-        this.syncConfig = Objects.requireNonNull(config, "config is null").getConfigData(VirtualMapSyncConfig.class);
+        this.syncConfig =
+                Objects.requireNonNull(config, "config is null").getConfigData(VirtualMapTeacherSyncConfig.class);
     }
 
     /**
@@ -80,8 +81,11 @@ public class TeachingSynchronizer {
         try (final StandardWorkGroup workGroup = createStandardWorkGroup(threadManager, breakConnection)) {
             logger.info(RECONNECT.getMarker(), "teacher start synchronizing");
 
-            final AsyncInputStream input =
-                    new AsyncInputStream(in, syncConfig.asyncStreamBufferSize(), syncConfig.asyncStreamTimeout());
+            final AsyncInputStream input = new AsyncInputStream(
+                    in,
+                    syncConfig.asyncStreamBufferSize(),
+                    syncConfig.asyncStreamIdleTimeout(),
+                    syncConfig.maxMessageSizeBytes());
             input.start(workGroup);
             final AsyncOutputStream output = buildOutputStream(out, syncConfig);
             output.start(workGroup);
@@ -93,8 +97,7 @@ public class TeachingSynchronizer {
 
             exchangeRootNode(teacherView, input, output);
 
-            // FUTURE work: pool size config
-            final int teacherTasks = 16;
+            final int teacherTasks = syncConfig.numReceiveThreads();
             final CountDownLatch tasksDone = new CountDownLatch(teacherTasks);
             for (int i = 0; i < teacherTasks; i++) {
                 workGroup.fork(
@@ -150,12 +153,12 @@ public class TeachingSynchronizer {
      * Build the output stream. Exposed to allow unit tests to override implementation to simulate latency.
      */
     protected AsyncOutputStream buildOutputStream(
-            @NonNull final DataOutputStream out, @NonNull final VirtualMapSyncConfig syncConfig) {
+            @NonNull final DataOutputStream out, @NonNull final VirtualMapTeacherSyncConfig syncConfig) {
         return new AsyncOutputStream(
                 out,
                 syncConfig.asyncStreamBufferSize(),
                 syncConfig.asyncOutputStreamFlush(),
-                syncConfig.asyncStreamTimeout());
+                syncConfig.asyncStreamIdleTimeout());
     }
 
     /**
@@ -177,16 +180,16 @@ public class TeachingSynchronizer {
         }
         final PullVirtualTreeRequest rootRequest =
                 PullVirtualTreeRequest.parseFrom(BufferedData.wrap(rootRequestBytes));
-        if (rootRequest.path() != Path.ROOT_PATH) {
+        if (rootRequest.path() != MerklePathUtils.ROOT_PATH) {
             throw new MerkleSynchronizationException("Expected root request (path 0), got path " + rootRequest.path());
         }
 
-        final Hash teacherRootHash = teacherView.findHash(Path.ROOT_PATH);
+        final Hash teacherRootHash = teacherView.findHash(MerklePathUtils.ROOT_PATH);
         final boolean isClean = (teacherRootHash == null) || teacherRootHash.equals(rootRequest.hash());
         final long firstLeafPath = teacherView.getMetadata().getFirstLeafPath();
         final long lastLeafPath = teacherView.getMetadata().getLastLeafPath();
         final PullVirtualTreeResponse rootResponse =
-                new PullVirtualTreeResponse(Path.ROOT_PATH, isClean, firstLeafPath, lastLeafPath, null);
+                new PullVirtualTreeResponse(MerklePathUtils.ROOT_PATH, isClean, firstLeafPath, lastLeafPath, null);
 
         logger.info(
                 RECONNECT.getMarker(),

@@ -3,6 +3,7 @@ package com.hedera.node.app.service.contract.impl.test.exec.scope;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.AN_ED25519_KEY;
@@ -28,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.ArgumentMatchers.eq;
@@ -266,6 +268,8 @@ class HandleHederaOperationsTest {
 
     @Test
     void collectAndRefundGasFeesUseTheContextAndReplay() {
+        given(context.tryToCharge(RELAYER_ID, 69L)).willReturn(true);
+        given(context.tryToCharge(NON_SYSTEM_ACCOUNT_ID, 123L)).willReturn(true);
         subject.collectGasFee(RELAYER_ID, 69L, false);
         subject.collectGasFee(NON_SYSTEM_ACCOUNT_ID, 123L, true);
         subject.refundGasFee(RELAYER_ID, 12L);
@@ -287,6 +291,17 @@ class HandleHederaOperationsTest {
                         new HederaOperations.GasChargingEvent(
                                 HederaOperations.GasChargingAction.REFUND, NON_SYSTEM_ACCOUNT_ID, 42L, false)),
                 subject.gasChargingEvents());
+    }
+
+    @Test
+    void collectGasFeeFailsWhenChargeIsCappedShortOfRequestedAmount() {
+        // tryToCharge returns false when the payer balance could not cover the full amount (the
+        // charge is silently capped). collectGasFee must fail closed rather than under-collect.
+        given(context.tryToCharge(RELAYER_ID, 69L)).willReturn(false);
+        final var e = assertThrows(HandleException.class, () -> subject.collectGasFee(RELAYER_ID, 69L, false));
+        assertEquals(INSUFFICIENT_PAYER_BALANCE, e.getStatus());
+        // No charge event is recorded for a failed collection
+        assertTrue(subject.gasChargingEvents().isEmpty());
     }
 
     @Test

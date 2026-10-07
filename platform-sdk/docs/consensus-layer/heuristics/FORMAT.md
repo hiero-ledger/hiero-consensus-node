@@ -27,6 +27,7 @@ status: unvalidated                    # unvalidated | validated | retired
 confidence: medium                     # low | medium | high
 provenance: elicitation-2026-05-xx     # where this entry came from
 curated_by: Full Name (@github-handle) # the person responsible for this entry
+last_reviewed: TBD
 ---
 ```
 
@@ -46,6 +47,10 @@ Field discipline:
 - **`curated_by`** — the person responsible for this entry now. See
   [LAYOUT.md](../LAYOUT.md#curator-and-decider-conventions) for the canonical
   format and the distinction from `provenance`.
+- **`last_reviewed`** — the trailing key. `TBD` until the entry's
+  code-anchored claims have been reviewed against current code, then the date
+  of that review. Written only by the KB freshness checker's
+  `--mark-reviewed` — never by hand.
 
 ## Body
 
@@ -91,6 +96,7 @@ status: unvalidated
 confidence: medium
 provenance: ...
 curated_by: ...
+last_reviewed: TBD
 ---
 
 # HEU-NNN — Title

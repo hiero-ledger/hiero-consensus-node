@@ -1,0 +1,304 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "204: [DISP] CITR MDLT Monitor"
+run-name: "MDLT Monitor for ${{ github.event.inputs.build-tag }} (allocation ${{ github.event.inputs.allocation-id }})"
+
+# Checks the status of an in-flight MDLT run. The cluster and namespace are resolved from the Chewie
+# allocation, so the only run-specific value needed is the Allocation ID printed by the 835 kickoff.
+# Chewie owns namespace teardown, so this workflow never deletes the namespace. It does prune the
+# block nodes' live block data (files older than 59 minutes, which are already archived) unless
+# prune-block-node-data is turned off - MDLT's kickoff runner exits after launching the run, so the
+# runner-side cleaner loop SDPT uses cannot keep the BN disks in check for a multi-day run.
+# Reports one of four states to the job summary and to Slack:
+#   green  (:large_green_circle:)  - complete and passed
+#   red    (:red_circle:)          - complete but failed
+#   yellow (:large_yellow_circle:) - job in work
+#   black  (:black_circle:)        - cancelled / no longer running
+# Short-term user-triggered; longer term Chewie dispatches it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      build-tag:
+        required: true
+        description: "The build tag this MDLT run is for (e.g. build-12345)"
+        type: string
+      allocation-id:
+        required: true
+        description: "The Chewie Allocation ID for the MDLT run - from the 835 kickoff summary"
+        type: string
+      prune-block-node-data:
+        required: false
+        default: true
+        description: "Prune block node live data (*.blk* older than 59 minutes) on each block node"
+        type: boolean
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  get-chewie-jwt:
+    name: Get Chewie JWT
+    uses: ./.github/workflows/858-call-get-chewie-jwt.yaml
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
+
+  validate-chewie-jwt:
+    name: Validate Chewie JWT
+    needs: get-chewie-jwt
+    uses: ./.github/workflows/860-call-validate-chewie-jwt.yaml
+    with:
+      ref: ${{ github.ref }}
+      chewie-expiration: ${{ needs.get-chewie-jwt.outputs.expiration }}
+    secrets:
+      chewie-jwt: ${{ needs.get-chewie-jwt.outputs.jwt }}
+      checkout-token: ${{ secrets.GITHUB_TOKEN }}
+
+  monitor-mdlt:
+    name: Monitor Active MDLT Run
+    runs-on: hl-cn-mdlt-lin-sm
+    needs:
+      - get-chewie-jwt
+      - validate-chewie-jwt
+    env:
+      HOST: "${{ secrets.CHEWIE_HOST }}"
+      API_EP_COMPUTE_ALLOCATION: "api/v1/compute/allocation"
+      ALLOCATION_ID: "${{ inputs.allocation-id }}"
+    steps:
+      # Checked out at the workflow ref (not the build tag) so the Chewie support scripts are the
+      # current ones; the build tag's commit is resolved through the API instead.
+      - name: Prepare Runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-gomplate: "true"
+
+      - name: Mask Chewie JWT
+        env:
+          CHEWIE_JWT_B64: ${{ needs.get-chewie-jwt.outputs.jwt }}
+        run: |
+          # The JWT arrives here as a job output rather than through a secrets: input the way 859
+          # receives it, so nothing has registered it for redaction. Masks are job-scoped, so this
+          # has to happen in this job, ahead of every step that handles the token.
+          echo "::add-mask::${CHEWIE_JWT_B64}"
+
+      - name: Validate Allocation ID
+        run: |
+          # Chewie parses :id as a positive int64; reject anything else before spending a request on it.
+          if [[ ! "${ALLOCATION_ID}" =~ ^[0-9]+$ ]] || [[ "${ALLOCATION_ID}" -le 0 ]]; then
+            echo "::error title=Invalid Allocation ID::'${ALLOCATION_ID}' is not a positive integer."
+            exit 1
+          fi
+
+      - name: Resolve Chewie Allocation
+        id: allocation
+        env:
+          CHEWIE_JWT_B64: ${{ needs.get-chewie-jwt.outputs.jwt }}
+        run: |
+          # No -g/-x: the allocation was built by the 835 run, so let the script discover whatever
+          # instance groups Chewie recorded. Emits namespace/kubernetes-fqdn as step outputs and
+          # writes the allocation detail to the job summary.
+          .github/workflows/support/chewie/parse-chewie-allocation.sh \
+            -o "${HOST}" \
+            -e "${API_EP_COMPUTE_ALLOCATION}" \
+            -i "${ALLOCATION_ID}" \
+            -f both
+
+      - name: Verify Allocation Is Usable
+        env:
+          NAMESPACE: ${{ steps.allocation.outputs.namespace }}
+          FQDN: ${{ steps.allocation.outputs.kubernetes-fqdn }}
+          STATUS: ${{ steps.allocation.outputs.status }}
+        run: |
+          # A released/expired allocation has no cluster left to inspect; fail with the reason
+          # rather than handing an empty cluster name to Teleport.
+          if [[ -z "${NAMESPACE}" || "${NAMESPACE}" == "null" || -z "${FQDN}" || "${FQDN}" == "null" ]]; then
+            {
+              echo "## MDLT Monitor"
+              echo "- **Allocation ID**: ${ALLOCATION_ID}"
+              echo "- **Allocation Status**: \`${STATUS}\`"
+              echo "- **Status**: :black_circle: CANCELLED / NO LONGER RUNNING (allocation has no namespace)"
+            } >> "${GITHUB_STEP_SUMMARY}"
+            echo "::error title=Allocation not usable::Allocation ${ALLOCATION_ID} is '${STATUS}' and has no namespace/cluster."
+            exit 1
+          fi
+
+      - name: Install KubeCtl
+        uses: step-security/setup-kubectl@2edbf6aff97d814e9dc52827498ac51fe972e6d0 # v4.0.0
+        with:
+          version: v1.35.0
+
+      # support/citr/kubectlt resolves the real binary as "kubectl.orig", so without this rename
+      # every kubectlt call below silently runs nothing.
+      - name: kubectl wrapper
+        run: |
+          kubectl=$(which kubectl)
+          sudo mv ${kubectl} ${kubectl}.orig
+          sudo cp "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt ${kubectl}
+          sudo chmod a+rx ${kubectl}
+          which kubectl
+
+      - name: Install Teleport Client
+        uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
+        with:
+          version: 18.4.0
+
+      - name: Authorize Teleport SSH Access
+        id: auth-ssh
+        uses: teleport-actions/auth@3b365df2b4f64891358392a444ff34929ba0d0b1 # v2.1.2
+        with:
+          proxy: hashgraph.teleport.sh:443
+          token: gh-citr-performance-svcs-bot
+          certificate-ttl: 24h
+
+      - name: Authorize Teleport K8S Access
+        id: auth-k8s
+        uses: teleport-actions/auth-k8s@0f46164469ae4fcd4d359d40e06bab17d4be17c9 # v2.0.6
+        with:
+          proxy: hashgraph.teleport.sh:443
+          token: gh-citr-performance-svcs-bot
+          kubernetes-cluster: "${{ steps.allocation.outputs.kubernetes-fqdn }}"
+          certificate-ttl: 24h
+
+      - name: Resolve MDLT commit
+        id: commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BUILD_TAG: ${{ inputs.build-tag }}
+        run: |
+          # The build tag names the commit under test; resolve it through the API since this job is
+          # checked out at the workflow ref.
+          COMMIT_SHA=$(gh api "repos/${{ github.repository }}/commits/${BUILD_TAG}" --jq '.sha' 2>/dev/null || true)
+          echo "sha=${COMMIT_SHA}" >> "${GITHUB_OUTPUT}"
+
+      - name: Check MDLT run status
+        id: check-status
+        env:
+          NAMESPACE: ${{ steps.allocation.outputs.namespace }}
+          CLUSTER: ${{ steps.allocation.outputs.kubernetes-fqdn }}
+        run: |
+          set +x
+          set +e
+          kubectlt="sh ${{ github.workspace }}/.github/workflows/support/citr/kubectlt"
+
+          # Classify into one of four states:
+          #   success (green)   - load generator finished with no errors
+          #   failed  (red)     - an error / setup failure in the client log
+          #   running (yellow)  - load generator process still active
+          #   cancelled (black) - namespace gone, or process stopped with no finish/error marker
+          if ! ${kubectlt} get namespace "${NAMESPACE}" >/dev/null 2>&1; then
+            STATE="cancelled"
+          else
+            nlgpod=$(${kubectlt} -n "${NAMESPACE}" get pods | grep nlg-network-load-generator | awk '{print $1}')
+
+            echo "::group::Pods"
+            ${kubectlt} -n "${NAMESPACE}" get pods
+            echo "::endgroup::"
+
+            # Block node health is reported alongside the run state but does not change the
+            # classification below, which stays load-generator driven.
+            echo "::group::Block node pods"
+            bnpods=$(${kubectlt} -n "${NAMESPACE}" get pods | grep 'block-node' | awk '{print $1}')
+            bn_total=0
+            bn_up=0
+            for bnpod in ${bnpods}; do
+              bn_total=$((bn_total + 1))
+              if ${kubectlt} -n "${NAMESPACE}" exec "${bnpod}" -- \
+                bash -c "ps -aef | grep -w java | grep -v grep" | grep -w java > /dev/null; then
+                bn_up=$((bn_up + 1))
+                echo "${bnpod}: java process running"
+              else
+                echo "::warning title=Block node down::${bnpod} has no running java process."
+                echo "${bnpod}: NO java process"
+              fi
+            done
+            echo "::endgroup::"
+
+            echo "::group::NLG client log (tail)"
+            timeout --preserve-status --foreground 1m ${kubectlt} -n "${NAMESPACE}" exec "${nlgpod}" -c nlg -- \
+              bash -c "tail -n 100 /app/client.log" | tee client.tail.log
+            echo "::endgroup::"
+
+            ${kubectlt} -n "${NAMESPACE}" exec "${nlgpod}" -c nlg -- \
+              bash -c "ps -aef | grep -w java | grep 'com.hedera.benchmark' | grep -v grep" | grep -w java > /dev/null
+            running=${?} # 0 = still running
+
+            if grep -qE 'ERROR com.hedera.benchmark.*LoadTest - Setup|ERROR com.hedera.benchmark.*LoadTest - Test failed' client.tail.log; then
+              STATE="failed"
+            elif grep -qE 'Finished .*Test' client.tail.log; then
+              STATE="success"
+            elif [[ "${running}" -eq 0 ]]; then
+              STATE="running"
+            else
+              STATE="cancelled"
+            fi
+          fi
+
+          case "${STATE}" in
+            success)   EMOJI=":large_green_circle:";  COLOR="#2EB67D"; LABEL="RUN COMPLETE" ;;
+            failed)    EMOJI=":red_circle:";          COLOR="#E01E5A"; LABEL="RUN FAILED" ;;
+            running)   EMOJI=":large_yellow_circle:"; COLOR="#ECB22E"; LABEL="RUN IN WORK" ;;
+            *)         EMOJI=":black_circle:";        COLOR="#000000"; LABEL="CANCELLED / NO LONGER RUNNING" ;;
+          esac
+
+          echo "state=${STATE}" >> "${GITHUB_OUTPUT}"
+          echo "emoji=${EMOJI}" >> "${GITHUB_OUTPUT}"
+          echo "color=${COLOR}" >> "${GITHUB_OUTPUT}"
+
+          {
+            echo "## MDLT Monitor"
+            echo "- **Build**: ${{ inputs.build-tag }}"
+            echo "- **Allocation ID**: ${ALLOCATION_ID}"
+            echo "- **Cluster**: ${CLUSTER}"
+            echo "- **Namespace**: ${NAMESPACE}"
+            echo "- **Block Nodes Up**: ${bn_up:-0}/${bn_total:-0}"
+            echo "- **Status**: ${EMOJI} ${LABEL}"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      # One pass of the same pruning 831 runs hourly from its runner. MDLT's kickoff runner is long
+      # gone by the time this is dispatched, so pruning rides along with the monitor instead.
+      - name: Prune block node live data
+        if: ${{ inputs.prune-block-node-data && steps.check-status.outputs.state != 'cancelled' }}
+        env:
+          NAMESPACE: ${{ steps.allocation.outputs.namespace }}
+        run: |
+          set +e
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/blockNodeClean.sh "${NAMESPACE}" once
+          echo "Pruned *.blk* older than 59 minutes from the live storage of each block node."
+
+      - name: Build Slack Payload Message
+        if: ${{ always() }}
+        env:
+          BUILD_TAG: ${{ inputs.build-tag }}
+          NAMESPACE: ${{ steps.allocation.outputs.namespace }}
+          FQDN: ${{ steps.allocation.outputs.kubernetes-fqdn }}
+          STATUS_EMOJI: ${{ steps.check-status.outputs.emoji }}
+          COLOR: ${{ steps.check-status.outputs.color }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ steps.commit.outputs.sha }}
+        run: |
+          # A cancelled/errored status step may leave color/emoji empty; default to black.
+          export COLOR="${COLOR:-#000000}"
+          export STATUS_EMOJI="${STATUS_EMOJI:-:black_circle:}"
+          gomplate -f "${{ github.workspace }}"/.github/workflows/templates/slack-mdlt-status.json.tpl -o slack_payload.json
+
+      - name: Report status (slack detailed reports)
+        if: ${{ always() }}
+        uses: slackapi/slack-github-action@0d95c9a7becc1e6e297d76df9bc735c44f4cbcbc # v3.0.5
+        with:
+          webhook: ${{ secrets.SLACK_CITR_OPERATIONS_WEBHOOK }}
+          webhook-type: incoming-webhook
+          payload-templated: true
+          payload-file-path: slack_payload.json
+
+      - name: Fail on failed run
+        if: ${{ steps.check-status.outputs.state == 'failed' }}
+        run: |
+          echo "::error title=MDLT failed::Run ${{ steps.allocation.outputs.namespace }} on ${{ steps.allocation.outputs.kubernetes-fqdn }} is in a FAILED state."
+          exit 1

@@ -3,7 +3,6 @@ package org.hiero.consensus.hashgraph.impl.test.fixtures.consensus;
 
 import static org.hiero.consensus.wiring.framework.wires.SolderType.INJECT;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
@@ -23,17 +22,18 @@ import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.ConsensusEngine;
 import org.hiero.consensus.hashgraph.impl.ConsensusEngineOutput;
 import org.hiero.consensus.hashgraph.impl.DefaultConsensusEngine;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.hiero.consensus.orphan.OrphanBuffer;
 import org.hiero.consensus.round.EventWindowUtils;
@@ -65,7 +65,7 @@ public class TestIntake {
      *
      * @param roster the roster used by this intake
      */
-    public TestIntake(@NonNull final Roster roster) {
+    public TestIntake(@NonNull final RosterWrapper roster) {
         this(new TestConfigBuilder().getOrCreateConfig(), roster);
     }
 
@@ -75,7 +75,7 @@ public class TestIntake {
      * @param configuration the configuration to use for this intake.
      * @param roster the roster used by this intake
      */
-    public TestIntake(@NonNull final Configuration configuration, @NonNull final Roster roster) {
+    public TestIntake(@NonNull final Configuration configuration, @NonNull final RosterWrapper roster) {
         this(configuration, new NoOpMetrics(), Time.getCurrent(), roster);
     }
 
@@ -91,7 +91,7 @@ public class TestIntake {
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final Roster roster) {
+            @NonNull final RosterWrapper roster) {
         final NodeId selfId = NodeId.of(0);
         roundsNonAncient = configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
 
@@ -165,9 +165,9 @@ public class TestIntake {
     }
 
     /**
-     * @return a queue of all rounds that have reached consensus
+     * @return a list of all rounds that have reached consensus
      */
-    public @NonNull LinkedList<ConsensusRound> getConsensusRounds() {
+    public @NonNull List<ConsensusRound> getConsensusRounds() {
         return output.getConsensusRounds();
     }
 

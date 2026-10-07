@@ -3,12 +3,17 @@ package com.swirlds.benchmark;
 
 import static com.swirlds.benchmark.BenchmarkKeyUtils.longToKey;
 import static com.swirlds.benchmark.Utils.RUN_DELIMITER;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.virtualmap.VirtualMap;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -17,7 +22,8 @@ import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
+import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -199,8 +205,7 @@ public class CryptoBench extends VirtualMapEditBench {
                 TimeUnit.SECONDS,
                 queue,
                 new ThreadConfiguration(getStaticThreadManager())
-                        .setComponent("benchmark")
-                        .setThreadName("prefetch")
+                        .setThreadNameProvider(CompositeThreadNameProvider.createNumbered("benchmark", "prefetch"))
                         .setExceptionHandler((t, ex) -> logger.error("Uncaught exception during prefetching", ex))
                         .buildFactory());
 
@@ -280,87 +285,6 @@ public class CryptoBench extends VirtualMapEditBench {
         prefetchPool.close();
     }
 
-    static class WarmupTask extends AbstractTask {
-
-        VirtualMap currentMap;
-        long key1, key2;
-        TransferTask out;
-
-        WarmupTask(ForkJoinPool pool, VirtualMap currentMap, long key1, long key2, TransferTask out) {
-            super(pool, 1);
-            this.currentMap = currentMap;
-            this.key1 = key1;
-            this.key2 = key2;
-            this.out = out;
-        }
-
-        @Override
-        protected boolean onExecute() {
-            Bytes keyBytes1 = longToKey(key1);
-            currentMap.warm(keyBytes1);
-            Bytes keyBytes2 = longToKey(key2);
-            currentMap.warm(keyBytes2);
-            out.send(keyBytes1, keyBytes2);
-            return true;
-        }
-
-        @Override
-        protected void onException(final Throwable t) {
-            logger.error("Error occurred while executing task", t);
-        }
-    }
-
-    class TransferTask extends AbstractTask {
-
-        VirtualMap currentMap;
-        Bytes sender;
-        Bytes receiver;
-        long amount;
-        TransferTask next;
-
-        TransferTask(ForkJoinPool pool, VirtualMap currentMap) {
-            super(pool, 3);
-            this.currentMap = currentMap;
-            this.amount = Utils.randomLong(MAX_AMOUNT);
-        }
-
-        void update(Bytes key, long amount) {
-            BenchmarkValue value = currentMap.get(key, BenchmarkValueCodec.INSTANCE);
-            if (value == null) value = new BenchmarkValue(0);
-            value = value.copyBuilder().update(l -> l + amount).build();
-            currentMap.put(key, value, BenchmarkValueCodec.INSTANCE);
-        }
-
-        @Override
-        protected boolean onExecute() {
-            update(sender, -amount);
-            update(receiver, amount);
-
-            // Model fees
-            update(fixedKey1, 1);
-            update(fixedKey2, 1);
-
-            next.send();
-            return true;
-        }
-
-        @Override
-        protected void onException(final Throwable t) {
-            logger.error("Error occurred while executing task", t);
-        }
-
-        void send(TransferTask next) {
-            this.next = next;
-            send();
-        }
-
-        void send(Bytes key1, Bytes key2) {
-            sender = key1;
-            receiver = key2;
-            send();
-        }
-    }
-
     /**
      * Emulates crypto transfer.
      * Fetches a batch of "accounts" in parallel, updates the "accounts" in order by transferring
@@ -371,6 +295,7 @@ public class CryptoBench extends VirtualMapEditBench {
         logger.info(RUN_DELIMITER);
 
         final ForkJoinPool pool = new ForkJoinPool(numThreads);
+        final ForkJoinPool priorityPool = new ForkJoinPool(2);
 
         final long startTime = System.nanoTime();
         long prevTime = startTime;
@@ -379,31 +304,43 @@ public class CryptoBench extends VirtualMapEditBench {
             // Generate a new set of random keys
             generateKeySet(keys);
 
-            TransferTask prevTask = null;
-            TransferTask currentTask = new TransferTask(pool, virtualMap);
-            // This is the very first task in a daisy chain of sequential TransferTasks,
+            final MainCache mainCache = new MainCache(virtualMap);
+            FlushTask finalTask = null;
+            FlushTask currentFlushTask = new FlushTask(priorityPool, virtualMap);
+            HandleTask currentHandleTask = new HandleTask(priorityPool, mainCache, currentFlushTask);
+            // This is the very first task in a daisy chain of sequential handle/flush tasks,
             // emulate its resolved dependency from the non-existent previous task
-            currentTask.send();
+            currentHandleTask.send();
+            currentFlushTask.send();
 
             for (int j = 0; j < numRecords; ++j) {
-                long keyId1 = keys[j * KEYS_PER_RECORD];
-                long keyId2 = keys[j * KEYS_PER_RECORD + 1];
+                final long keyId1 = keys[j * KEYS_PER_RECORD];
+                final long keyId2 = keys[j * KEYS_PER_RECORD + 1];
+                final long amount = Utils.randomLong(MAX_AMOUNT);
 
                 if (verify) {
-                    verificationMap[Math.toIntExact(keyId1)] -= currentTask.amount;
-                    verificationMap[Math.toIntExact(keyId2)] += currentTask.amount;
+                    verificationMap[Math.toIntExact(keyId1)] += amount;
+                    verificationMap[Math.toIntExact(keyId2)] -= amount;
                     verificationMap[FIXED_KEY_ID1] += 1;
                     verificationMap[FIXED_KEY_ID2] += 1;
                 }
 
-                new WarmupTask(pool, virtualMap, keyId1, keyId2, currentTask).send();
-                TransferTask nextTask = new TransferTask(pool, virtualMap);
-                currentTask.send(nextTask);
-                prevTask = currentTask;
-                currentTask = nextTask;
+                // Prehandle tasks: all running in parallel
+                new PrehandleTask(pool, mainCache, keyId1, keyId2, amount, j, currentHandleTask).send();
+
+                // The chain of flushing tasks
+                final FlushTask nextFlushTask = new FlushTask(priorityPool, virtualMap);
+                currentFlushTask.send(nextFlushTask);
+                finalTask = currentFlushTask;
+                currentFlushTask = nextFlushTask;
+
+                // The chain of handling tasks
+                final HandleTask nextHandleTask = new HandleTask(priorityPool, mainCache, nextFlushTask);
+                currentHandleTask.send(nextHandleTask);
+                currentHandleTask = nextHandleTask;
             }
-            // currentTask has no associated TransferTask, can be silently dropped
-            prevTask.join();
+            finalTask.join();
+            mainCache.commit();
 
             virtualMap = copyMap(virtualMap);
 
@@ -414,6 +351,306 @@ public class CryptoBench extends VirtualMapEditBench {
         }
         totalTPS(System.nanoTime() - startTime);
         pool.close();
+        priorityPool.close();
+    }
+
+    static class PrehandleTask extends AbstractTask {
+
+        private final Cache cache;
+        private final long skey;
+        private final long rkey;
+        private final long amount;
+        private final long timestamp;
+        private final HandleTask out;
+
+        PrehandleTask(
+                final ForkJoinPool pool,
+                final Cache cache,
+                final long skey,
+                final long rkey,
+                final long amount,
+                final long timestamp,
+                final HandleTask out) {
+            super(pool, 1);
+            this.cache = cache;
+            this.skey = skey;
+            this.rkey = rkey;
+            this.amount = amount;
+            this.timestamp = timestamp;
+            this.out = out;
+        }
+
+        @Override
+        protected boolean onExecute() {
+            final Transaction txn = new Transaction(skey, rkey, amount, timestamp);
+            txn.prehandle(cache);
+            out.send(txn);
+            return true;
+        }
+
+        @Override
+        protected void onException(final Throwable t) {
+            logger.error("Error occurred while executing PrehandleTask", t);
+        }
+    }
+
+    class HandleTask extends AbstractTask {
+
+        private Transaction txn;
+        private final MainCache mainCache;
+        private HandleTask next;
+        private final FlushTask out;
+
+        // Dependencies: prev handle task is executed, pre-handle task is executed (txn
+        // is provided), next handle task is provided
+        HandleTask(final ForkJoinPool pool, final MainCache mainCache, final FlushTask out) {
+            super(pool, 3);
+            this.mainCache = mainCache;
+            this.out = out;
+        }
+
+        void update(final Bytes key, final long amount) {
+            BenchmarkValue value = mainCache.get(key).value;
+            if (value == null) {
+                value = new BenchmarkValue(0);
+            }
+            value = value.copyBuilder().update(l -> l + amount).build();
+            mainCache.put(key, new VersionedValue(value, txn.timestamp));
+        }
+
+        @Override
+        protected boolean onExecute() {
+            boolean accept = true;
+            // Check if transaction prehandle results can be reused
+            for (final Map.Entry<Bytes, VersionedValue> entry : txn.readCache.cache.entrySet()) {
+                final VersionedValue cached = mainCache.cache.get(entry.getKey());
+                if ((cached != null) && (cached.timestamp > entry.getValue().timestamp)) {
+                    // Other transactions updated the value. The transaction has to be replayed
+                    accept = false;
+                    break;
+                }
+            }
+            if (!accept) {
+                txn.handle();
+            }
+            // Schedule a flush
+            out.send(txn);
+            // Update the main cache. This has to be done before the next transaction is
+            // handled (next.send() below), since it will check the main cache
+            mainCache.putAll(txn.writeCache.cache);
+
+            // Model fees
+            update(fixedKey1, 1);
+            update(fixedKey2, 1);
+
+            // Handle the next transaction
+            next.send();
+            return true;
+        }
+
+        @Override
+        protected void onException(final Throwable t) {
+            logger.error("Error occurred while executing HandleTask", t);
+        }
+
+        void send(final HandleTask next) {
+            this.next = next;
+            send();
+        }
+
+        void send(final Transaction txn) {
+            this.txn = txn;
+            send();
+        }
+    }
+
+    static class FlushTask extends AbstractTask {
+
+        private final VirtualMap virtualMap;
+        // Even elements: keys, odd elements: versioned values. Not using a map, since
+        // the order is important
+        private List<Object> updates;
+        private FlushTask next;
+
+        // Dependencies: prev flush task is executed, handle task is executed (txn
+        // is provided), next flush task is provided
+        FlushTask(final ForkJoinPool pool, final VirtualMap virtualMap) {
+            super(pool, 3);
+            this.virtualMap = virtualMap;
+        }
+
+        @Override
+        protected boolean onExecute() {
+            for (int i = 0; i < updates.size(); i += 2) {
+                final Bytes key = (Bytes) updates.get(i);
+                final VersionedValue value = (VersionedValue) updates.get(i + 1);
+                virtualMap.put(key, value.value, BenchmarkValueCodec.INSTANCE);
+            }
+            next.send();
+            return true;
+        }
+
+        @Override
+        protected void onException(final Throwable t) {
+            logger.error("Error occurred while executing FlushTask", t);
+        }
+
+        void send(final FlushTask next) {
+            this.next = next;
+            send();
+        }
+
+        void send(final Transaction txn) {
+            this.updates = txn.getUpdates();
+            send();
+        }
+    }
+
+    record VersionedValue(BenchmarkValue value, long timestamp) {}
+
+    abstract static class Cache {
+
+        Map<Bytes, VersionedValue> cache;
+
+        abstract VersionedValue get(final Bytes key);
+
+        abstract void put(final Bytes key, final VersionedValue vval);
+    }
+
+    static class ReadCache extends Cache {
+
+        private final Cache delegate;
+
+        ReadCache(final Cache delegate) {
+            this.cache = new HashMap<>(2);
+            this.delegate = delegate;
+        }
+
+        VersionedValue get(final Bytes key) {
+            VersionedValue vv = cache.get(key);
+            if (vv != null) {
+                return vv;
+            }
+            vv = delegate.get(key);
+            cache.put(key, vv);
+            return vv;
+        }
+
+        void put(final Bytes key, final VersionedValue vval) {
+            throw new IllegalStateException("ReadCache.put() called");
+        }
+    }
+
+    static class WriteCache extends Cache {
+
+        private final Cache delegate;
+        private final List<Object> updates;
+
+        WriteCache(final Cache delegate) {
+            this.cache = new HashMap<>(2);
+            this.updates = new ArrayList<>(4);
+            this.delegate = delegate;
+        }
+
+        VersionedValue get(final Bytes key) {
+            VersionedValue vv = cache.get(key);
+            if (vv != null) {
+                return vv;
+            }
+            return delegate.get(key);
+        }
+
+        void put(final Bytes key, final VersionedValue vval) {
+            cache.put(key, vval);
+            updates.add(key);
+            updates.add(vval);
+        }
+
+        List<Object> getUpdates() {
+            return updates;
+        }
+    }
+
+    class MainCache extends Cache {
+
+        private final VirtualMap virtualMap;
+
+        MainCache(final VirtualMap virtualMap) {
+            this.cache = new ConcurrentHashMap<>(1 << 20);
+            this.virtualMap = virtualMap;
+        }
+
+        VersionedValue get(final Bytes key) {
+            final VersionedValue vv = cache.get(key);
+            if (vv != null) {
+                return vv;
+            }
+            final BenchmarkValue value = virtualMap.get(key, BenchmarkValueCodec.INSTANCE);
+            return new VersionedValue(value, -1);
+        }
+
+        void put(final Bytes key, final VersionedValue vval) {
+            cache.put(key, vval);
+        }
+
+        void putAll(final Map<Bytes, VersionedValue> source) {
+            cache.putAll(source);
+        }
+
+        void commit() {
+            virtualMap.put(fixedKey1, cache.get(fixedKey1).value, BenchmarkValueCodec.INSTANCE);
+            virtualMap.put(fixedKey2, cache.get(fixedKey2).value, BenchmarkValueCodec.INSTANCE);
+        }
+    }
+
+    static class Transaction {
+
+        private final long timestamp;
+        private final long amount;
+        private ReadCache readCache;
+        private WriteCache writeCache;
+        private final Bytes sender;
+        private final Bytes receiver;
+
+        Transaction(final long skey, final long rkey, final long amount, final long timestamp) {
+            this.timestamp = timestamp;
+            this.amount = amount;
+            this.sender = longToKey(skey);
+            this.receiver = longToKey(rkey);
+        }
+
+        // Called in parallel in prehandle tasks
+        void prehandle(final Cache delegate) {
+            readCache = new ReadCache(delegate);
+            writeCache = new WriteCache(readCache);
+            exec(writeCache);
+        }
+
+        // Called sequentially in handle tasks
+        void handle() {
+            readCache.cache.clear();
+            writeCache.cache.clear();
+            exec(writeCache);
+        }
+
+        private void exec(final Cache cache) {
+            update(cache, sender, amount);
+            update(cache, receiver, -amount);
+        }
+
+        private void update(final Cache cache, final Bytes key, final long amount) {
+            BenchmarkValue value = cache.get(key).value;
+            if (value == null) {
+                value = new BenchmarkValue(amount);
+            } else {
+                value = value.copyBuilder().update(l -> l + amount).build();
+            }
+            cache.put(key, new VersionedValue(value, timestamp));
+        }
+
+        List<Object> getUpdates() {
+            return writeCache.getUpdates();
+        }
     }
 
     static void main() throws Exception {

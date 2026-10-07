@@ -16,4 +16,9 @@ public record TssKeyPair(@NonNull Bytes privateKey, @NonNull Bytes publicKey) {
         requireNonNull(privateKey);
         requireNonNull(publicKey);
     }
+
+    @Override
+    public @NonNull String toString() {
+        return "TssKeyPair[privateKey=<redacted>, publicKey=" + publicKey + "]";
+    }
 }

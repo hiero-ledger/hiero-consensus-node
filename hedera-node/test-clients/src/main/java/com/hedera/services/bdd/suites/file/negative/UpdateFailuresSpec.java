@@ -12,9 +12,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.API_PERMISSIONS;
 import static com.hedera.services.bdd.suites.HapiSuite.APP_PROPERTIES;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATES;
 import static com.hedera.services.bdd.suites.HapiSuite.EXCHANGE_RATE_CONTROL;
-import static com.hedera.services.bdd.suites.HapiSuite.FEE_SCHEDULE;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_DETAILS;
+import static com.hedera.services.bdd.suites.HapiSuite.SIMPLE_FEE_SCHEDULE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTHORIZATION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FILE_DELETED;
@@ -67,13 +67,24 @@ public class UpdateFailuresSpec {
                 fileUpdate(NODE_DETAILS).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED),
                 fileUpdate(API_PERMISSIONS).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED),
                 fileUpdate(APP_PROPERTIES).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED),
-                fileUpdate(FEE_SCHEDULE).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED),
+                fileUpdate(SIMPLE_FEE_SCHEDULE).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED),
                 fileUpdate(EXCHANGE_RATES).payingWith(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED));
     }
 
     @HapiTest
+    final Stream<DynamicTest> unrecognizedSystemFileUpdateRejectedAtIngest() {
+        // A file number inside the system-reserved range that is not one of the recognized system
+        // files is still a privileged target: an unprivileged payer is rejected at ingest.
+        return hapiTest(
+                cryptoCreate(CIVILIAN),
+                fileUpdate("0.0.3").payingWith(CIVILIAN).signedBy(CIVILIAN).hasPrecheck(AUTHORIZATION_FAILED));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> precheckAllowsMissing() {
-        return hapiTest(fileUpdate("1.2.3")
+        // Use a non-system file number (> numReservedSystemEntities) so the update is not a
+        // privileged operation: it passes ingest and fails at consensus with INVALID_FILE_ID.
+        return hapiTest(fileUpdate("1.2.3000")
                 .payingWith(GENESIS)
                 .signedBy(GENESIS)
                 .fee(1_234_567L)
@@ -90,11 +101,11 @@ public class UpdateFailuresSpec {
     }
 
     @HapiTest
-    final Stream<DynamicTest> precheckRejectsPrematureExpiry() {
+    final Stream<DynamicTest> rejectsPrematureExpiry() {
         long now = Instant.now().getEpochSecond();
         return hapiTest(
                 fileCreate("file"),
-                fileUpdate("file").fee(A_LOT).extendingExpiryBy(-now).hasPrecheck(AUTORENEW_DURATION_NOT_IN_RANGE));
+                fileUpdate("file").fee(A_LOT).extendingExpiryBy(-now).hasKnownStatus(AUTORENEW_DURATION_NOT_IN_RANGE));
     }
 
     @HapiTest

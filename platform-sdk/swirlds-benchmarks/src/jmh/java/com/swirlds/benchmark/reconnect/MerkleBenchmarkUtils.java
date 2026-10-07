@@ -2,7 +2,7 @@
 package com.swirlds.benchmark.reconnect;
 
 import static com.swirlds.benchmark.Utils.printVirtualMap;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.benchmark.BenchmarkMetrics;
 import com.swirlds.benchmark.reconnect.network.NetworkSimulationConfig;
@@ -14,7 +14,7 @@ import com.swirlds.virtualmap.sync.LearningSynchronizer;
 import com.swirlds.virtualmap.sync.MerkleSynchronizationException;
 import com.swirlds.virtualmap.sync.TeachingSynchronizer;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
+import org.hiero.base.concurrent.pool.StandardWorkGroup;
 
 /**
  * A utility class to support benchmarks for reconnect.

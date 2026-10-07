@@ -74,6 +74,11 @@ public class ProofKeysAccessorImpl
             return new SchnorrKeyPair(Bytes.wrap(keys.privateKey()), Bytes.wrap(keys.publicKey()));
         }
 
+        @Override
+        public @NonNull String toString() {
+            return "SchnorrKeyPair[privateKey=<redacted>, publicKey=" + publicKey + "]";
+        }
+
         /**
          * Translates a byte array into a {@link SchnorrKeyPair} instance.
          * @param bytes the byte array

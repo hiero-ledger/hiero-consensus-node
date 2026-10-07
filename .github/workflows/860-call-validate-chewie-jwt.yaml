@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "860: [CALL] Validate Chewie JWT"
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref to checkout"
+        type: string
+        required: true
+      chewie-expiration:
+        description: "Chewie JWT expiration to validate"
+        type: string
+        required: true
+    secrets:
+      chewie-jwt:
+        description: "Chewie JWT to validate"
+        required: true
+      checkout-token:
+        description: "Token for checking out the repo"
+        required: true
+
+jobs:
+  validate-jwt:
+    runs-on: hl-cn-chewie-lin-sm
+    steps:
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@c96d9edf7816b4f333b558f2e07fe81ebf1e822d # v1.3.0
+        with:
+          checkout: "true"
+          checkout-token: ${{ secrets.checkout-token }}
+          checkout-ref: ${{ inputs.ref }}
+
+      - name: Validate content exists
+        env:
+          CHEWIE_JWT_B64: ${{ secrets.chewie-jwt }}
+          CHEWIE_EXPIRATION: ${{ inputs.chewie-expiration }}
+        run: |
+          CHEWIE_JWT=$(.github/workflows/support/chewie/decode-b64-jwt.sh "${CHEWIE_JWT_B64}")
+
+          if [[ -z "${CHEWIE_EXPIRATION}" ]]; then
+            echo "::error::Chewie JWT expiration is empty. Please check the Chewie key and host."
+            exit 1
+          fi
+
+          if [[ "${CHEWIE_JWT}" == Error* ]]; then
+            echo "Failed to decode Chewie JWT: ${CHEWIE_JWT}"
+            exit 1
+          fi
+
+          echo "Chewie JWT (len): ${#CHEWIE_JWT}"
+          echo "Chewie JWT Expiration: ${CHEWIE_EXPIRATION}"

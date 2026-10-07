@@ -6,13 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.wiring.framework.component.ComponentWiring;
 import org.hiero.consensus.wiring.framework.model.WiringModel;
@@ -122,7 +122,7 @@ class TransactionHandlerDataCounterTest {
         event.signalPrehandleCompletion();
 
         return new ConsensusRound(
-                RosterFactory.randomRoster(random, 4),
+                RosterWrapperFactory.randomRoster(random, 4),
                 List.of(event),
                 EventWindow.getGenesisEventWindow(),
                 GenesisSnapshotFactory.newGenesisSnapshot(),

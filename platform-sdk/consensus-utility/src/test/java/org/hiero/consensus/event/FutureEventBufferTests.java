@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Random;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;

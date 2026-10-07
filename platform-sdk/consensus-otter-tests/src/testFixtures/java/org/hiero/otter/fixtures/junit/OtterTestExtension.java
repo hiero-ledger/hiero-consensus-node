@@ -2,10 +2,10 @@
 package org.hiero.otter.fixtures.junit;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.otter.fixtures.junit.AnnotationUtils.findAnnotation;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.nio.file.Path;
@@ -38,7 +38,6 @@ import org.junit.jupiter.api.extension.TestTemplateInvocationContext;
 import org.junit.jupiter.api.extension.TestTemplateInvocationContextProvider;
 import org.junit.jupiter.api.extension.TestWatcher;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.platform.commons.support.AnnotationSupport;
 
 /**
  * A JUnit 5 extension for testing with the Otter framework.
@@ -301,21 +300,6 @@ public class OtterTestExtension
 
         final Path outputDirectory = EnvironmentUtils.getDefaultOutputDirectory("container", extensionContext);
         return new ContainerTestEnvironment(randomNodeIds, outputDirectory, proxyEnabled, gcLoggingEnabled, jvmArgs);
-    }
-
-    /**
-     * Finds an annotation on the test method first, falling back to the test class if not found on the method.
-     *
-     * @param extensionContext the extension context of the test
-     * @param annotationType the annotation type to search for
-     * @param <A> the annotation type
-     * @return an optional containing the annotation if found
-     */
-    @NonNull
-    private <A extends Annotation> Optional<A> findAnnotation(
-            @NonNull final ExtensionContext extensionContext, @NonNull final Class<A> annotationType) {
-        return AnnotationSupport.findAnnotation(extensionContext.getElement(), annotationType)
-                .or(() -> AnnotationSupport.findAnnotation(extensionContext.getTestClass(), annotationType));
     }
 
     /**

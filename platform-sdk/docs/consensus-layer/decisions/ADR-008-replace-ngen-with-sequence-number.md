@@ -17,6 +17,7 @@ deciders:
   - Lazar Petrovic (@lpetrovic05)
 curated_by: Michael Heinrichs (@netopyr)
 provenance: hiero-consensus-node#24618
+last_reviewed: TBD
 ---
 
 # ADR-008 — Adopt a monotonic event sequence number as the local ordering key, replacing nGen
@@ -72,23 +73,29 @@ fundamental need for a graph height:
   of the sequence number but a latent bug in `roundCreated` assignment
   ([#26529](https://github.com/hiero-ledger/hiero-consensus-node/issues/26529)): the
   no-parent branch of `round(x)`
-  (`consensus-hashgraph-impl/.../consensus/ConsensusImpl.java`) assigns `ROUND_FIRST`
+  (`consensus-hashgraph-impl/.../consensus/ConsensusImpl.java`) assigned `ROUND_FIRST`
   to *any* event with no non-ancient parents, but that is right only when the pending
   round is 1 — a true genesis event. When the pending round is greater than 1, a
   no-parent event sits below a decided round — a non-descendant of its judges — and
   must be terminal (`ROUND_NEGATIVE_INFINITY`), not round 1; assigning it a real
   round violates INV-015. `nGen` masked the bug by always sorting such an event below
   the frontier (short-circuited to `ROUND_NEGATIVE_INFINITY`); the sequence number
-  let it sort above the frontier and reach the branch. Fixing #26529 restores
-  INV-015, after which the sequence number is safe here (see [Why the threshold is
+  let it sort above the frontier and reach the branch. Fixed in
+  [#26604](https://github.com/hiero-ledger/hiero-consensus-node/issues/26604): the
+  branch gives `ROUND_FIRST` only while the first round is undecided and the terminal
+  value otherwise, so the sequence number is safe here (see [Why the threshold is
   safe](#why-the-threshold-is-safe-on-the-sequence-number)).
 - **Event creator `lastSelfEvent` → a branch (SCN-003).** After a fast
   reconnect a re-received self-ancestor got a higher *new* sequence number than
   the maintained latest self event and overwrote it, so the node built on an older
-  self-parent. The `lastSelfEvent` tracking can be reworked
-  ([#26530](https://github.com/hiero-ledger/hiero-consensus-node/issues/26530)) so
-  a re-received self-ancestor can never displace the latest self event, after
-  which the sequence number is safe here too.
+  self-parent. The `lastSelfEvent` tracking has since been reworked
+  ([#26530](https://github.com/hiero-ledger/hiero-consensus-node/issues/26530)) to
+  rank self events by birth round, falling back to the self-parent edge, so the
+  consumer needs no *local* ordering key at all — see [event-creator.md § Latest
+  self event](../architecture/topics/event-creator.md#latest-self-event) for the
+  rule. Birth round is agreed across the network and fixed in the signed event
+  core, so it is immune to the re-numbering described in
+  [Limitations](#limitations).
 
 Separately, the name "sequence" was already taken: `EventImpl.sequence`, assigned
 by `Sequencer` in the order events are **added to consensus**, is used only for
@@ -98,22 +105,26 @@ metrics. The new field had to be disambiguated from it.
 
 **Adopt the orphan-buffer sequence number as the canonical local ordering key and
 remove `nGen`.** Every consumer that still reads `nGen` moves to the sequence
-number; once all have, `NonDeterministicGeneration` is deleted. The migration is
-staged only by readiness — two conversions are gated on a prerequisite fix, the
-other two are unblocked:
+number — or stops needing an ordering key — and once all have,
+`NonDeterministicGeneration` is deleted. All three remaining conversions are
+unblocked; none has been made yet:
 
-|               Consumer                |                Anchor                 | Current key |                    Prerequisite to convert                     |
-|---------------------------------------|---------------------------------------|-------------|----------------------------------------------------------------|
-| Consensus-relevant threshold          | RUL-005                               | `nGen`      | #26529 (restores INV-015)                                      |
-| Event creator `lastSelfEvent` recency | `TipsetEventCreator.registerEvent`    | `nGen`      | #26530 (rework `lastSelfEvent` tracking)                       |
-| `cGen` topological sort               | `LocalConsensusGeneration.assignCGen` | `nGen`      | none — a topological order of an already-agreed round suffices |
-| Developer tools (GUI, CLI)            | `PictureMetadata`, `HashgraphPicture` | `nGen`      | none — a rendering choice, not an ordering requirement         |
+|           Consumer           |                Anchor                 | Current key |                    Prerequisite to convert                     |
+|------------------------------|---------------------------------------|-------------|----------------------------------------------------------------|
+| Consensus-relevant threshold | RUL-005                               | `nGen`      | none — INV-015 holds on either key (RUL-005)                   |
+| `cGen` topological sort      | `LocalConsensusGeneration.assignCGen` | `nGen`      | none — a topological order of an already-agreed round suffices |
+| Developer tools (GUI, CLI)   | `PictureMetadata`, `HashgraphPicture` | `nGen`      | none — a rendering choice, not an ordering requirement         |
 
 Already migrated and stable: event creation's advancement scoring and
-`ChildlessEventTracker` (#24991), and the sync send-list order (#24843).
+`ChildlessEventTracker` (#24991), and the sync send-list order (#24843). The
+event creator's `lastSelfEvent` recency is absent from the table because #26530
+retired it as a consumer of any local ordering key rather than converting it (see
+Context above).
 
 **Assignment (current code).** `PlatformEvent` carries a `sequenceNumber`,
-defaulting to `UNASSIGNED_SEQUENCE_NUMBER = -1` and first assigned as `1`.
+defaulting to
+[`EventConstants.SEQUENCE_NUMBER_UNDEFINED`](../../../consensus-model/src/main/java/org/hiero/consensus/model/event/EventConstants.java#SEQUENCE_NUMBER_UNDEFINED)
+`= -1` and first assigned as `1`.
 `DefaultOrphanBuffer` holds a single `AtomicLong` and, in `eventIsNotAnOrphan(...)`,
 calls `getAndIncrement()` for each event it emits.
 
@@ -142,9 +153,9 @@ than that judge (a parent leaves the orphan buffer before its child):
 
 The only gap was a non-descendant with **no non-ancient parents** — nothing to
 inherit terminal from, so it fell to the no-parent branch and was assigned
-`ROUND_FIRST` as though the pending round were 1 (SCN-002, #26529). Closing that gap
-— terminal, not round 1, whenever the pending round is greater than 1 — makes the
-frontier correct on either key.
+`ROUND_FIRST` as though the pending round were 1 (SCN-002, #26529). That gap is
+closed — terminal, not round 1, whenever the pending round is greater than 1 — so
+the frontier is correct on either key.
 
 ## Limitations
 
@@ -160,9 +171,7 @@ order, **not** a graph height: a structurally-low event received late gets a hig
 number. In particular the per-creator monotonicity does **not** survive a buffer
 clear — `clear()` (on reconnect) empties the parent maps but leaves the `AtomicLong`
 untouched, so a re-ingested older event is re-numbered *above* the copy released
-before the clear. This is why the `lastSelfEvent` conversion is gated on #26530
-(SCN-003): until that rework lands, a re-received self-ancestor would out-rank the
-latest self event and cause a branch.
+before the clear. That is what branched the event creator in SCN-003.
 
 ## Consequences
 
@@ -178,10 +187,10 @@ latest self event and cause a branch.
 
 ### Negative
 
-- **Two conversions are gated on external fixes.** Until #26529 (threshold) and #26530 (`lastSelfEvent`) land, those
-  consumers stay on `nGen`, so `nGen` and the
-  sequence number coexist in the meantime and a consumer that reads the wrong one,
-  or compares the two, is a live hazard.
+- **The two keys coexist until conversion completes.** All three remaining
+  conversions are unblocked, but until they are made `nGen` and the sequence number
+  coexist, and a consumer that reads the wrong one, or compares the two, is a live
+  hazard.
 
 ### Neutral
 
@@ -241,17 +250,19 @@ See **Decision** above.
 - `consensus-model/.../NonDeterministicGeneration.java` — `assignNGen`, the
   `max(parents) + 1` with `FIRST_GENERATION` fallback that produces the reset; to
   be deleted once every consumer is converted.
-- `consensus-model/.../PlatformEvent.java` — the `sequenceNumber` field,
-  `UNASSIGNED_SEQUENCE_NUMBER`, and accessors.
+- `consensus-model/.../PlatformEvent.java` — the `sequenceNumber` field and its
+  accessors; the sentinel it defaults to lives in
+  `consensus-model/.../EventConstants.java` as `SEQUENCE_NUMBER_UNDEFINED`.
 - `consensus-event-creator-impl/.../tipset/TipsetTracker.java`,
   `ChildlessEventTracker.java` — advancement scoring, on the sequence number
   (#24991).
 - `consensus-event-creator-impl/.../tipset/TipsetEventCreator.java` —
-  `registerEvent` keys `lastSelfEvent` recency on `nGen` today; converts to the
-  sequence number once #26530 reworks the tracking (SCN-003).
+  `registerEvent` reads no local ordering key since #26530; it ranks self events by
+  birth round instead (SCN-003).
 - `consensus-hashgraph-impl/.../consensus/ConsensusImpl.java` — `round(x)` and its
-  short-circuits; the no-parent branch that assigns `ROUND_FIRST` regardless of the
-  pending round is the #26529 bug behind SCN-002. `ConsensusRounds`, `RoundElections` hold the threshold
+  short-circuits; its no-parent branch assigned `ROUND_FIRST` regardless of the
+  pending round — the #26529 bug behind SCN-002, fixed in #26604.
+  `ConsensusRounds`, `RoundElections` hold the threshold
   (RUL-005); `LocalConsensusGeneration` holds the `cGen` sort. `ConsensusSorter`
   orders by the resulting `cGen`, never `nGen`.
 - `consensus-gossip-impl/.../shadowgraph/SyncUtils.java` — sorts the send list by
@@ -264,10 +275,14 @@ See **Decision** above.
   pre-existing consensus-order `sequence`, renamed `consensusSequence`.
 - `docs/core/tipset-algorithm.md` — the tipset/vector-clock description, phrased in
   terms of sequence numbers.
-- Regression guards for the two reverted stages, kept until the prerequisites land:
-  `swirlds-cli/.../pcli/MinConsensusRelevantThresholdTest.java` (threshold, #26319,
-  SCN-002) and `consensus-otter-tests/.../otter/test/ReconnectTest.java`
-  (`testSyntheticBottleneckReconnect`; `lastSelfEvent`, #26376, SCN-003).
+- Regression guards for the two reverted stages:
+  `consensus-hashgraph-impl/.../consensus/MinConsensusRelevantThresholdTest.java`
+  (threshold, #26319, SCN-002), kept as the guard for the threshold conversion; and,
+  for `lastSelfEvent` (#26376, SCN-003),
+  `consensus-otter-tests/.../otter/test/ReconnectTest.java`
+  (`testSyntheticBottleneckReconnect`) plus, in `consensus-event-creator-impl`,
+  `TipsetEventCreatorTests.selfAncestorDoesNotDisplaceLastSelfEvent`, which guards
+  the #26530 rule directly.
 - Issues:
   [#24618](https://github.com/hiero-ledger/hiero-consensus-node/issues/24618)
   (umbrella rationale and staged plan),
@@ -282,9 +297,12 @@ See **Decision** above.
   [#26376](https://github.com/hiero-ledger/hiero-consensus-node/issues/26376)
   (interim revert of the `lastSelfEvent` stage, SCN-003),
   [#26529](https://github.com/hiero-ledger/hiero-consensus-node/issues/26529)
-  (the `roundCreated` bug; prerequisite for the threshold conversion), and
+  (the `roundCreated` bug; was the prerequisite for the threshold conversion),
+  [#26604](https://github.com/hiero-ledger/hiero-consensus-node/issues/26604)
+  (the fix for it, 2026-08-06), and
   [#26530](https://github.com/hiero-ledger/hiero-consensus-node/issues/26530)
-  (`lastSelfEvent` rework; prerequisite for the event-creator conversion).
+  (`lastSelfEvent` rework; retired the event-creator consumer instead of
+  converting it).
 
 ## Notes
 
@@ -301,3 +319,17 @@ See **Decision** above.
   the threshold-safety argument and INV-015; corrected the GUI claim (`nGen` is a
   rendering choice and value label, not a required graph height) — Kelly Greco
   (@poulok).
+- 2026-08-17 — #26530 landed. The event creator's `lastSelfEvent` recency left the
+  migration table without converting: it reads no local ordering key, ranking self
+  events by birth round instead — a network-agreed value in the signed event core,
+  out of reach of the [Limitations](#limitations) re-numbering hazard. Three
+  consumers remain and only the threshold is still gated (#26529). Decision
+  unchanged; the staging table, Limitations, Negative consequences, and References
+  were refreshed to match — Kelly Greco (@poulok).
+- 2026-09-08 — #26529 landed as #26604 (2026-08-06): `round(x)`'s no-parent branch
+  now assigns `ROUND_FIRST` only while the first round is undecided and
+  `ROUND_NEGATIVE_INFINITY` otherwise, restoring INV-015. The last gate is lifted —
+  all three remaining consumers are unblocked, none converted. Decision unchanged;
+  the Context bullet, staging table, threshold-safety argument, Negative
+  consequences, and References were refreshed, and the "gated" framing removed
+  throughout — Michael Heinrichs (@netopyr).

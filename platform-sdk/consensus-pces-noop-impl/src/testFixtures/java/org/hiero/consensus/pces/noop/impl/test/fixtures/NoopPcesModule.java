@@ -192,4 +192,12 @@ public class NoopPcesModule implements PcesModule {
             final long round) {
         // no-op
     }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void destroy() {
+        // no-op
+    }
 }

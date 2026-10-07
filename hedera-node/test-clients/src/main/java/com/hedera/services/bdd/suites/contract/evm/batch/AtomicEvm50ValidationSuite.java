@@ -70,16 +70,17 @@ class AtomicEvm50ValidationSuite {
         return hapiTest(
                 uploadInitCode(contract),
                 contractCreate(contract),
-                atomicBatch(
-                                contractCall(contract, "try_transient_storage")
-                                        .gas(A_BUNCH_OF_GAS)
-                                        .batchKey(BATCH_OPERATOR),
-                                contractCall(contract, "try_mcopy")
-                                        .gas(A_BUNCH_OF_GAS)
-                                        .batchKey(BATCH_OPERATOR),
-                                contractCall(contract, "try_kzg_precompile")
-                                        .gas(A_BUNCH_OF_GAS)
-                                        .batchKey(BATCH_OPERATOR))
+                atomicBatch(contractCall(contract, "try_transient_storage")
+                                .gas(A_BUNCH_OF_GAS)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR),
+                atomicBatch(contractCall(contract, "try_mcopy")
+                                .gas(A_BUNCH_OF_GAS)
+                                .batchKey(BATCH_OPERATOR))
+                        .payingWith(BATCH_OPERATOR),
+                atomicBatch(contractCall(contract, "try_kzg_precompile")
+                                .gas(A_BUNCH_OF_GAS)
+                                .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR));
     }
 }

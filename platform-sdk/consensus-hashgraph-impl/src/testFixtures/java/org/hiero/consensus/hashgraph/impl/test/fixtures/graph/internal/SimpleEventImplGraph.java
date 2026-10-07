@@ -11,11 +11,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.event.NoOpIntakeEventCounter;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.hashgraph.impl.linking.ConsensusLinker;
 import org.hiero.consensus.hashgraph.impl.linking.NoOpLinkerLogsAndMetrics;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.graph.SimpleGraph;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 

@@ -16,9 +16,10 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
 import java.util.function.Supplier;
-import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -178,6 +179,40 @@ class RsaContextTest {
 
         assertTrue(signings.isEmpty());
         assertTrue(signing.future().isCancelled());
+    }
+
+    @Test
+    void picksUpRotatedKeyOnThreadsThatCachedTheOldVerifier() throws Exception {
+        final var oldKeys = KeysAndCertsGenerator.generate(NodeId.of(1L));
+        // Keys are a deterministic function of node id, so source a genuinely distinct RSA key pair
+        // from a different id and register it under the same roster node id 1 (a gossip key rotation).
+        final var newKeys = KeysAndCertsGenerator.generate(NodeId.of(2L));
+        final var oldRoster = new Roster(List.of(entryFor(1L, 10L, oldKeys)));
+        final var newRoster = new Roster(List.of(entryFor(1L, 10L, newKeys)));
+        final var oldSig =
+                new PlatformSigner(oldKeys).sign(MESSAGE.toByteArray()).getBytes();
+        final var newSig =
+                new PlatformSigner(newKeys).sign(MESSAGE.toByteArray()).getBytes();
+
+        final var worker = Executors.newSingleThreadExecutor();
+        try {
+            subject.initialize(oldRoster, nodeId -> 10L);
+            // Prime the worker thread's ThreadLocal verifier cache with node 1's old key.
+            assertTrue(
+                    worker.submit(() -> subject.validate(1L, MESSAGE, oldSig)).get());
+
+            // Rotate node 1's gossip key. initialize() runs on this (main) thread, so it cannot clear
+            // the worker thread's cache; correctness must come from detecting the key change on validate.
+            subject.initialize(newRoster, nodeId -> 10L);
+
+            // The worker must now accept a signature from the new key and reject the rotated-out key.
+            assertTrue(
+                    worker.submit(() -> subject.validate(1L, MESSAGE, newSig)).get());
+            assertFalse(
+                    worker.submit(() -> subject.validate(1L, MESSAGE, oldSig)).get());
+        } finally {
+            worker.shutdownNow();
+        }
     }
 
     private static RosterEntry entryFor(final long nodeId, final long weight, final KeysAndCerts keysAndCerts)

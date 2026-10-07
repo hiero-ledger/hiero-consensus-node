@@ -12,6 +12,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig_;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.TestIntake;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.framework.validation.ConsensusRoundValidator;
@@ -19,7 +20,6 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.OtherPar
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.generator.StandardGraphGenerator;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.EventSource;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.event.source.StandardEventSource;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;

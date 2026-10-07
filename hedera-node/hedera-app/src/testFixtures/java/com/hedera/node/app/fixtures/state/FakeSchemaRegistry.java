@@ -184,6 +184,11 @@ public class FakeSchemaRegistry implements SchemaRegistry<SemanticVersion> {
             }
 
             @Override
+            public boolean isReconnect() {
+                return false;
+            }
+
+            @Override
             public SemanticVersion previousVersion() {
                 return previousVersion;
             }

@@ -3,6 +3,7 @@ package com.hedera.node.app.tss;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -65,6 +66,18 @@ class TssKeyFilesTest {
 
         assertEquals(keyPair, roundTripped);
         assertArrayEquals(bytes, roundTripped.toDelimitedBytes());
+    }
+
+    @Test
+    void schnorrKeyPairToStringRedactsPrivateKey() {
+        final var privateKey = Bytes.wrap("private");
+        final var publicKey = Bytes.wrap("public");
+        final var keyPair = new TssKeyFiles.SchnorrKeyPair(privateKey, publicKey);
+
+        final var asString = keyPair.toString();
+
+        assertEquals("SchnorrKeyPair[privateKey=<redacted>, publicKey=" + publicKey + "]", asString);
+        assertFalse(asString.contains(privateKey.toString()));
     }
 
     @Test

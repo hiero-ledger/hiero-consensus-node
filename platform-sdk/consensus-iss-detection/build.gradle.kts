@@ -11,7 +11,7 @@ testModuleInfo {
     requires("com.swirlds.merkledb.test.fixtures")
     requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
-    requires("org.hiero.consensus.metrics")
+    requires("org.hiero.consensus.fakes")
     requires("org.hiero.consensus.roster.test.fixtures")
     requires("org.hiero.consensus.state.test.fixtures")
     requires("org.hiero.consensus.utility.test.fixtures")

@@ -82,6 +82,7 @@ class ChildFeeContextTest {
                 NOW,
                 verifier,
                 0,
+                0,
                 HederaFunctionality.CRYPTO_TRANSFER);
     }
 
@@ -128,10 +129,38 @@ class ChildFeeContextTest {
                 NOW,
                 verifier,
                 signatureMapSize,
+                0,
                 HederaFunctionality.CRYPTO_TRANSFER);
 
         final var expectedSize = TransactionBody.PROTOBUF.measureRecord(SAMPLE_BODY) + signatureMapSize;
         assertEquals(expectedSize, subject.numTxnBytes());
+    }
+
+    @Test
+    void returnsVerifiedSignatureCountWhenVerifierPresent() {
+        given(verifier.numSignaturesVerified()).willReturn(7);
+
+        assertEquals(7, subject.numTxnSignatures());
+    }
+
+    @Test
+    void returnsSignatureCountWhenNoVerifierPresent() {
+        final var signatureCount = 10;
+        subject = new ChildFeeContext(
+                feeManager,
+                context,
+                SAMPLE_BODY,
+                PAYER_ID,
+                true,
+                authorizer,
+                storeFactory,
+                NOW,
+                null,
+                0,
+                signatureCount,
+                HederaFunctionality.CRYPTO_TRANSFER);
+
+        assertEquals(signatureCount, subject.numTxnSignatures());
     }
 
     @Test

@@ -11,8 +11,8 @@ import org.hiero.consensus.kbfreshness.util.Patterns;
 import org.hiero.consensus.kbfreshness.worklist.WorklistEntry;
 
 /**
- * Applies {@code --mark-reviewed}: mechanically bumps a topic's {@code last_reviewed:} frontmatter
- * date after its semantic review, so the next run's worklist does not re-flag a topic whose prose was
+ * Applies {@code --mark-reviewed}: mechanically bumps a document's {@code last_reviewed:} frontmatter
+ * date after its semantic review, so the next run's worklist does not re-flag a document whose prose was
  * just read against the code. Strictly guarded like every other write: only an <em>existing</em>
  * {@code last_reviewed:} frontmatter line is rewritten (a doc without the marker is reported, never
  * invented), the entry key must resolve unambiguously, and the date must be ISO {@code yyyy-MM-dd}.
@@ -41,12 +41,13 @@ public final class ReviewedMarker {
      * @param result      the run result whose scanned documents resolve the entry keys.
      * @param repoRoot    the repository root the documents' paths are relative to.
      * @param specs       the {@code <key>[=<yyyy-MM-dd>]} specs; a bare spec (no {@code =<date>}) records
-     *                    the topic's newest anchored-source commit date — the state this run reviewed —
-     *                    falling back to {@code defaultDate} only when the topic anchors no dated source.
+     *                    the document's newest anchored-source commit date — the state this run reviewed —
+     *                    falling back to {@code defaultDate} only when the document anchors no dated source.
      *                    A key may be the full entry key ({@code topic:gossip}) or its bare slug when
      *                    unambiguous.
-     * @param defaultDate the fallback date for a bare spec with no derivable anchored date (typically
-     *                    {@code --date}).
+     * @param defaultDate the fallback for a bare spec with no derivable anchored date: the reviewed
+     *                    checkout's {@code HEAD} commit date (the state reviewed), or {@code --date} when
+     *                    git is unavailable.
      * @return a summary of what was rewritten and which specs failed.
      * @throws IOException if reading or writing a KB file fails.
      */
@@ -77,7 +78,7 @@ public final class ReviewedMarker {
     }
 
     /**
-     * Chooses the date to record: an explicit {@code =<date>} spec wins; otherwise the topic's newest
+     * Chooses the date to record: an explicit {@code =<date>} spec wins; otherwise the document's newest
      * anchored-source commit date (the state this run reviewed); otherwise {@code defaultDate}. Deriving
      * from the anchored sources rather than the wall clock is what keeps a run against a stale checkout
      * from marking commits it never reviewed as reviewed.

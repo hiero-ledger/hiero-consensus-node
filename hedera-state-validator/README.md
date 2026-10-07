@@ -1,7 +1,7 @@
 # Hedera State Validator
 
 The **Hedera State Validator** is a comprehensive tool for working with the persisted state of Hedera nodes, providing capabilities to validate state integrity, introspect state contents, export state data,
-compact state files, and apply block streams to advance state.
+compact state files, apply block streams to advance state, reconstruct and replay PCES streams, and diagnose differences between an original and a re-minted block stream.
 
 ### GCP Support
 
@@ -108,9 +108,9 @@ classDiagram
         +validate()
     }
 
-    class HashChunkValidator {
+    class HashRecordValidator {
         <<interface>>
-        +processHashRecord(VirtualHashChunk)
+        +processHashRecord(VirtualHashRecord)
     }
 
     class LeafBytesValidator {
@@ -123,11 +123,11 @@ classDiagram
         +processBucket(long, ParsedBucket)
     }
 
-    Validator <|-- HashChunkValidator
+    Validator <|-- HashRecordValidator
     Validator <|-- LeafBytesValidator
     Validator <|-- HdhmBucketValidator
 
-    HashChunkValidator <|.. HashChunkIntegrityValidator
+    HashRecordValidator <|.. HashRecordIntegrityValidator
     LeafBytesValidator <|.. LeafBytesIntegrityValidator
     LeafBytesValidator <|.. AccountAndSupplyValidator
     LeafBytesValidator <|.. TokenRelationsIntegrityValidator
@@ -157,7 +157,7 @@ Individual validators (those implementing only the base [Validator](src/main/jav
 3. **Pipeline execution** — [ValidationPipelineExecutor](src/main/java/com/hedera/statevalidation/validator/pipeline/ValidationPipelineExecutor.java) orchestrates the parallel pipeline:
 
 - **Segmentation** — Partitions data sources into segments for parallel reading; in-memory hash ranges are partitioned as well.
-- **IO threads** read segments via [ChunkedFileIterator](src/main/java/com/hedera/statevalidation/validator/pipeline/ChunkedFileIterator.java), producing batches into a bounded queue.
+- **IO threads** read segments via [ChunkedFileIterator](src/main/java/com/hedera/statevalidation/validator/pipeline/ChunkedFileIterator.java) (disk) or directly from `HashList` (memory), producing batches into a bounded queue.
 - **Processor threads** ([ProcessorTask](src/main/java/com/hedera/statevalidation/validator/pipeline/ProcessorTask.java)) consume batches, check liveness against location indexes, and dispatch live items to the appropriate validators by data type.
 - After all data is consumed, `validate()` is called on each pipeline validator.
 
@@ -165,11 +165,11 @@ Individual validators (those implementing only the base [Validator](src/main/jav
 
 ### Pipeline Data Types
 
-|   Type   |      Source       |      Content       |                                              Dispatched To                                               |
-|----------|-------------------|--------------------|----------------------------------------------------------------------------------------------------------|
-| **P2KV** | Leaf data files   | `VirtualLeafBytes` | [LeafBytesValidator](src/main/java/com/hedera/statevalidation/validator/LeafBytesValidator.java) impls   |
-| **P2H**  | Hash data files   | `VirtualHashChunk` | [HashChunkValidator](src/main/java/com/hedera/statevalidation/validator/HashChunkValidator.java) impls   |
-| **K2P**  | HDHM bucket files | `ParsedBucket`     | [HdhmBucketValidator](src/main/java/com/hedera/statevalidation/validator/HdhmBucketValidator.java) impls |
+|   Type   |                 Source                 |       Content       |                                              Dispatched To                                               |
+|----------|----------------------------------------|---------------------|----------------------------------------------------------------------------------------------------------|
+| **P2KV** | Leaf data files                        | `VirtualLeafBytes`  | [LeafBytesValidator](src/main/java/com/hedera/statevalidation/validator/LeafBytesValidator.java) impls   |
+| **P2H**  | Hash data files + in-memory `HashList` | `VirtualHashRecord` | [HashRecordValidator](src/main/java/com/hedera/statevalidation/validator/HashRecordValidator.java) impls |
+| **K2P**  | HDHM bucket files                      | `ParsedBucket`      | [HdhmBucketValidator](src/main/java/com/hedera/statevalidation/validator/HdhmBucketValidator.java) impls |
 
 ### Thread Safety
 
@@ -180,7 +180,7 @@ Individual validators (those implementing only the base [Validator](src/main/jav
 
 ### Adding a New Validator
 
-1. Create a class implementing [HashChunkValidator](src/main/java/com/hedera/statevalidation/validator/HashChunkValidator.java), [LeafBytesValidator](src/main/java/com/hedera/statevalidation/validator/LeafBytesValidator.java), [HdhmBucketValidator](src/main/java/com/hedera/statevalidation/validator/HdhmBucketValidator.java), or base [Validator](src/main/java/com/hedera/statevalidation/validator/Validator.java).
+1. Create a class implementing [HashRecordValidator](src/main/java/com/hedera/statevalidation/validator/HashRecordValidator.java), [LeafBytesValidator](src/main/java/com/hedera/statevalidation/validator/LeafBytesValidator.java), [HdhmBucketValidator](src/main/java/com/hedera/statevalidation/validator/HdhmBucketValidator.java), or base [Validator](src/main/java/com/hedera/statevalidation/validator/Validator.java).
 2. Add an instance to [ValidatorRegistry.ALL_VALIDATORS](src/main/java/com/hedera/statevalidation/validator/ValidatorRegistry.java).
 3. *(Optional)* Define a new group constant and add it to [ValidateCommand](src/main/java/com/hedera/statevalidation/ValidateCommand.java)'s parameters.
 
@@ -485,6 +485,77 @@ java -jar ./validator-<version>.jar {path-to-state1} diff {path-to-state2} \
 - Service name and state key should both be either omitted or specified.
 - When `--ignore-field` is used, the fast byte-level comparison is still performed first. Parsing and field masking only runs on entries whose raw bytes already differ, so there is no performance impact on identical entries.
 
+## Sorted Diff
+
+[SortedDiffCommand](src/main/java/com/hedera/statevalidation/SortedDiffCommand.java) compares two states and produces sorted diff output grouped by service and state key — the same layout as `sorted-export`, but containing only the entries that differ.
+
+### Usage
+
+1. Download the state files for both rounds.
+2. Run the following command to execute the sorted diff:
+
+```shell
+java -jar [-DmaxObjPerFile=<number>] ./validator-<version>.jar {path-to-state1} sorted-diff {path-to-state2} \
+  --out=<output-directory> \
+  [--service-name=<service-name> --state-key=<state-key>]
+```
+
+### Parameters
+
+- `{path-to-state1}` - Location of the first state files (required).
+- `{path-to-state2}` - Location of the second state files (required).
+
+### Options
+
+- `--out` (or `-o`) - Directory where the resulting diff files are written (required). Must exist before invocation.
+- `--service-name` (or `-s`) - Name of the service to diff. If omitted along with `--state-key`, diffs all states.
+- `--state-key` (or `-k`) - Name of the state to diff. If omitted along with `--service-name`, diffs all states.
+
+### Output Structure
+
+The command creates two subdirectories under the output directory:
+
+```
+<out>/
+  state1/
+    TokenService_ACCOUNTS_1.json
+    ContractService_STORAGE_1.json
+    ...
+  state2/
+    TokenService_ACCOUNTS_1.json
+    ContractService_STORAGE_1.json
+    ...
+```
+
+- `state1/` - entries deleted in the second state or modified (old value), as `{service}_{stateKey}_X.json`.
+- `state2/` - entries added in the second state or modified (new value), as `{service}_{stateKey}_X.json`.
+
+Each file uses the same `{"k":..., "v":...}` JSON-lines format as `sorted-export`, sorted by key bytes. Files under `state1/` and `state2/` are directly comparable file by file (e.g. `diff state1/TokenService_ACCOUNTS_1.json state2/TokenService_ACCOUNTS_1.json`).
+
+### Examples
+
+Diff all states between two rounds:
+
+```shell
+java -jar ./validator-<version>.jar /path/to/round1 sorted-diff /path/to/round2 --out=/path/to/result
+```
+
+Diff only accounts between two rounds:
+
+```shell
+java -jar ./validator-<version>.jar /path/to/round1 sorted-diff /path/to/round2 --out=/path/to/result \
+  --service-name=TokenService --state-key=ACCOUNTS
+```
+
+### Notes
+
+- Files are chunked by the sorted union of differing keys, so file `X` in `state1/` and file `X` in `state2/` cover the same key range. A modified key always lands in the same file number on both sides.
+- Because of this alignment, entry counts per file are uneven and one side's file may be empty for an add- or delete-only range.
+- Service name and state key should both be either omitted or specified.
+- The data is sorted by the **byte representation of the key** (same ordering and caveats as `sorted-export`).
+- The exporter limits the number of objects per file to 1 million; to customize the limit, use VM parameter `-DmaxObjPerFile`.
+- As with `sorted-export`, ordering is stable across state versions, which is what makes the output usable for differential testing.
+
 ## Compact
 
 [CompactionCommand](src/main/java/com/hedera/statevalidation/CompactionCommand.java) performs compaction of state files.
@@ -641,3 +712,262 @@ java -jar ./validator-<version>.jar blocks-to-pces \
   consensus never advances. The default is  configured to 26 rounds.
 - The PCES stream origin stamp (`--origin-round`) must match the round of the state snapshot
   passed to `replay-pces`, or the platform's `resolveDiscontinuities` will purge the files.
+
+## Replaying a PCES Stream (`replay-pces`)
+
+[ReplayPcesCommand](src/main/java/com/hedera/statevalidation/ReplayPcesCommand.java)
+loads a saved state snapshot, replays a PCES stream on top of it through the consensus
+node's **real** production replay mechanism, and writes the resulting state to disk.
+
+> **Important:** The `replay-pces` command requires a production platform code change from commit
+> [`140f94f`](https://github.com/hiero-ledger/hiero-consensus-node/commit/140f94fff19a3a6f809df339ed17349ef5ae3426)
+> to work properly. This commit introduces the `allowUnsignedPcesEvents` intake flag
+> which allows reconstructed (unsigned) PCES events produced by `blocks-to-pces` to pass the
+> intake signature validator. Without it, every replayed event is silently dropped at signature
+> validation and no rounds reach consensus
+
+This command builds and starts a genuine `SwirldsPlatform` — the same one `ServicesMain`
+constructs — and drives the body of `SwirldsPlatform.start()` minus gossip. The production
+`PcesModule.replayPcesEvents` path is exercised: events flow through the full
+intake → orphan buffer → hashgraph → consensus → transaction handling → block production
+pipeline before gossip starts. This is the same mechanism used for PCES disaster recovery
+(documented in `ADR-003-remove-pces-recovery-method`).
+
+Combined with `blocks-to-pces`, this enables end-to-end block stream equivalence validation:
+reconstruct PCES from a production block stream, replay it on the matching state, and compare
+the resulting state and block hashes against the originals.
+
+### Prerequisites
+
+- A saved state snapshot from the round the PCES stream was generated against
+  (`--origin-round` in `blocks-to-pces`).
+- PCES files produced by `blocks-to-pces` for that origin round.
+- The state round must match the PCES stream origin, or the platform will discard the files.
+- The `--rounds-non-ancient` extension must have been used in `blocks-to-pces` (default 26),
+  or the earliest events will be stuck in the orphan buffer and consensus will not advance.
+
+### Usage
+
+```shell
+java -jar ./validator-<version>.jar <path-to-state-round> replay-pces \
+     --pces-dir <path-to-pces-files> \
+     --target-round <round> \
+     [--out <output-dir>] \
+     [--self-id <id>] \
+     [--event-stream-name <name>] \
+     [--force-mock-signatures=<true|false>]
+```
+
+#### Example
+
+```shell
+java -jar ./validator-<version>.jar ./211155071 replay-pces \
+      --pces-dir ./out/pces-211155071-211422945 \
+      --target-round 211422945 \
+      --out ./replay-out \
+      --self-id 0
+```
+
+### Options
+
+- `<path-to-state-round>` — Directory containing the saved state snapshot to load (required).
+  Must point to the round directory directly (e.g. `./211155071/`, the directory that contains
+  `stateMetadata.txt`).
+- `--pces-dir` (or `-p`) — Directory containing the PCES files to replay (required). The
+  output of `blocks-to-pces`. Accepts either a flat directory of `.pces` files or the
+  node-id-subdirectory layout produced by `blocks-to-pces` — the command locates the files
+  automatically and stages them into the database directory the platform scans at startup.
+- `--out` (or `-o`) — Output directory for the resulting state snapshot. The snapshot is written
+  to `<out>/<round>/`, where `<round>` is the retained round. This directory can be passed directly
+  as `--state-dir` to a subsequent `replay-pces` run, or to `diff` / `sorted-diff`. Default = `./replay-out`.
+- `--self-id` (or `-id`) — Node id to run as. Must match the node id the PCES files were
+  generated for (default 0 in `blocks-to-pces`). Default = 0.
+- `--event-stream-name` (or `-es`) — Consensus event stream name (e.g. `0.0.3`). Internal platform
+  label only; does not affect replay correctness or the output path. Default = `0.0.3`.
+- `--force-mock-signatures` — Use deterministic mock TSS proofs (Tier 1 signing) instead of
+  real hinTS. No live TSS network required. Default = `true`.
+- `--target-round` (or `-t`) — The round whose state is retained as the output snapshot (required).
+  The full PCES stream is still replayed and may generate blocks for later rounds; only this round's
+  state is kept. A freeze within the replayed range halts the platform at the freeze round — if the
+  target is before the freeze it is captured when reached; if the target is at or after the freeze it
+  is never reached (replay to the freeze round and resume from the freeze state).
+
+### Output
+
+The output snapshot contains the state produced at `--target-round`, written to `<out>/<round>/`.
+Replay continues through the remaining PCES events so the complete expected block set is generated
+(block files land under `<out>/blockStreams/block-<nodeAccount>/`). To validate, compare the output
+snapshot against the original production state from the same target round (e.g. `diff` /
+`sorted-diff`, or compare `hashInfo.txt`).
+
+### Notes
+
+- The command sets `event.preconsensus.intake.allowUnsignedPcesEvents=true` automatically.
+  The reconstructed events from `blocks-to-pces` are unsigned; without this flag the intake
+  pipeline drops every event at signature validation and consensus never advances.
+- Replay uses ephemeral generated keys rather than on-disk PKCS12 keystores. Gossip is never
+  started, so real per-node keys are not needed.
+- The resulting block files will differ slightly in size from the original production blocks:
+  mock TSS proofs (Tier 1) are a different size than production hinTS signatures, and the
+  first block after a state-load boundary carries extra restart metadata. The transactions,
+  state changes, and consensus ordering are equivalent; the size delta is confined to the
+  block proof field.
+- The snapshot round in the output equals the round PCES advanced the state to. Compare the
+  `hashInfo.txt` from the output state against the original production state at that round to
+  verify equivalence.
+- If the replay ever encounters FREEZE transaction, it will be halted by the platform, and if the FREEZE round is not
+  the same as the target round, the replay will fail.
+
+## Comparing Output Records (`output-record-compare`)
+
+[OutputRecordCompareCommand](src/main/java/com/hedera/statevalidation/OutputRecordCompareCommand.java) compares two block streams transaction by transaction — typically the original production blocks and the blocks re-minted by `replay-pces` — and reports where they diverge.
+
+For each transaction it compares the full `TransactionResult`, the `TransactionOutput`s, and the net state changes of the round per state. This catches differences that a status or gas comparison misses, such as a different consensus timestamp or different state changes with the same `SUCCESS` status. Transactions are matched by their position in the round, so repeated synthetic transaction IDs (e.g. `10@0.0`) cannot be mismatched.
+
+The command does not load a state.
+
+### Usage
+
+```shell
+java -jar ./validator-<version>.jar output-record-compare \
+  --original=<original-block-dir> \
+  --reminted=<reminted-block-dir> \
+  [--from-round=<round>] [--to-round=<round>] [--all] \
+  [--round=<round> [--dump-tx=<txId>]] \
+  [--ignore-states=<service>[,<service>...]] \
+  [--threads=<n>] [--window=<n>]
+```
+
+### Options
+
+- `--original` - Directory with the original (production) block files (required).
+- `--reminted` - Directory with the re-minted block files (required). For `replay-pces` output, point it at the node's block directory (the one ending in `block-<nodeAccount>/`, e.g. `block-0.0.3/`).
+- `--from-round` - Range mode: lowest round to compare. Default = start of the block range.
+- `--to-round` - Range mode: highest round to compare. Default = end of the block range.
+- `--all` - Range mode: report every divergent block instead of stopping at the first one.
+- `--round` - Single-round mode: report every divergent transaction in this round. Cannot be combined with `--from-round`, `--to-round` or `--all`.
+- `--dump-tx` - With `--round`: print the original and re-minted values for this transaction ID.
+- `--ignore-states` - Comma-separated services whose state changes are not compared. Use `BlockStreamService,PlatformStateService,BlockRecordService` to skip the running-hash and block-hash fields, which are expected to differ after replay.
+- `--threads` - Worker threads for range mode. Default = number of available processors.
+- `--window` - Number of blocks compared per parallel batch in range mode. Default = `threads × 8`.
+
+### Modes
+
+- **Range (default):** compares only the blocks present in both directories, in ascending order, and stops at the first block that contains a divergent transaction. That transaction is the earliest divergence; everything after it is usually a consequence of it.
+- **Range with `--all`:** keeps scanning and prints one line per divergent block (the first divergent transaction in each).
+- **Single round (`--round`):** lists every divergent transaction in that round. Add `--dump-tx` to see the differing values.
+
+### Output
+
+Range mode prints progress and then either the earliest divergence or a clean result:
+
+```
+Scanning blocks [106484401, 106493184], rounds [260911703, 260933615], threads=32, window=256, ignoreStates=[...]
+... 256 blocks clean (through block 106484656)
+...
+No output-record divergence found across 8784 blocks.
+```
+
+For each divergent transaction, `diff=` shows what differs (`RESULT`, `OUTPUT`, `STATE`) and `states=` lists the affected states by name, e.g. `TokenService.ACCOUNTS`.
+
+### Examples
+
+Find the first divergence across a replayed range:
+
+```shell
+java -jar ./validator-<version>.jar output-record-compare \
+  --original=./state-validator-blocks-260911703-to-260933615-rna26-s1/ \
+  --reminted=<reminted-block-dir> \
+  --from-round=260911703 --to-round=260933615 \
+  --ignore-states=BlockStreamService,PlatformStateService,BlockRecordService \
+  --threads=32
+```
+
+List every divergent block:
+
+```shell
+java -jar ./validator-<version>.jar output-record-compare \
+  --original=<original-block-dir> --reminted=<reminted-block-dir> --all \
+  --ignore-states=BlockStreamService,PlatformStateService,BlockRecordService
+```
+
+Inspect one round and dump a transaction:
+
+```shell
+java -jar ./validator-<version>.jar output-record-compare \
+  --original=<original-block-dir> --reminted=<reminted-block-dir> \
+  --round=256533930 --dump-tx=33@1785749400.871996395
+```
+
+### Notes
+
+- Only block numbers present in both directories are compared, so the re-minted directory may be a subset of the original one.
+- `--dump-tx` looks transactions up by ID. When an ID is ambiguous (synthetic IDs such as `10@0.0`), use `tx-dump --pos` instead.
+- The exit code is `0` whether or not a divergence is found; read the output to tell the two apart.
+
+## Inspecting Block Transactions (`tx-dump`)
+
+[TxDumpCommand](src/main/java/com/hedera/statevalidation/TxDumpCommand.java) prints the block-stream content of a round: a summary of all its transactions, or the full content of one transaction. Run it against both the original and the re-minted blocks and compare the output to find the exact field that differs.
+
+The command does not load a state.
+
+### Usage
+
+```shell
+java -jar ./validator-<version>.jar tx-dump \
+  --blocks=<block-file-or-dir> \
+  --round=<round> \
+  [--tx=<txId> | --pos=<position>]
+```
+
+### Options
+
+- `--blocks` - A block file, or a directory of block files (required). For a directory, the block containing `--round` is located automatically.
+- `--round` - Round to inspect (required).
+- `--tx` - Print every transaction in the round with this ID. Synthetic IDs can match more than one transaction; each match is labelled with its position.
+- `--pos` - Print the transaction at this 0-based position in the round. Cannot be combined with `--tx`.
+  Without `--tx` or `--pos`, the command prints a summary of the round.
+
+### Output
+
+Summary mode prints one line per transaction:
+
+```
+Round 260911704 — 9 transaction(s) in 000000000000000000000000000106484401.blk.gz
+
+  pos=  0  txId=50@1788652800.974893106.n1            status=SUCCESS    outputs=0  stateChanges=36
+  pos=  1  txId=50@1788652800.974893108.n2            status=SUCCESS    outputs=0  stateChanges=20
+  ...
+```
+
+With `--tx` or `--pos`, it prints the transaction body, the transaction result, any transaction outputs, and every state change with its state name.
+
+### Examples
+
+Summary of a round:
+
+```shell
+java -jar ./validator-<version>.jar tx-dump --blocks=./state-validator-blocks-260911703-to-260933615-rna26-s1/ --round=260911704
+```
+
+Compare one transaction between the original and the re-minted blocks:
+
+```shell
+java -jar ./validator-<version>.jar tx-dump --blocks=<original-block-dir> --round=260911704 --pos=0 > orig_pos0.txt
+java -jar ./validator-<version>.jar tx-dump --blocks=<reminted-block-dir> --round=260911704 --pos=0 > reminted_pos0.txt
+diff orig_pos0.txt reminted_pos0.txt
+```
+
+### Notes
+
+- Prefer `--pos` over `--tx`: positions are unique within a round, transaction IDs are not always.
+- Comparing the two summaries first shows quickly whether both runs have the same transactions, in the same order, with the same timestamps.
+
+## Investigating a Replay Divergence
+
+When the state diff after `replay-pces` contains more than the expected hash fields:
+
+1. Run `output-record-compare` over the replayed range with `--ignore-states=BlockStreamService,PlatformStateService,BlockRecordService` to find the earliest divergent transaction.
+2. Run `tx-dump` in summary mode for that round against both block directories to check that the transactions, their order, and their timestamps match.
+3. Run `tx-dump --pos=<n>` for the divergent transaction against both directories and `diff` the output to find the exact field.
+4. Use `introspect` on the origin state to check the inputs that field depends on.

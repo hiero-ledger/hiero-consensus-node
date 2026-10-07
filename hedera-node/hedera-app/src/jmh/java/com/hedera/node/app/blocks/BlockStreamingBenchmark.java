@@ -331,7 +331,7 @@ public class BlockStreamingBenchmark {
                         "blockNode.highLatencyEventsBeforeSwitching", String.valueOf(highLatencyEventsBeforeSwitching))
                 .withValue("blockNode.maxBackoffDelay", maxBackoffDelayMs + "ms")
                 .withValue("blockNode.grpcOverallTimeout", grpcOverallTimeoutMs + "ms")
-                .withValue("blockNode.pipelineOperationTimeout", pipelineOperationTimeoutMs + "ms")
+                .withValue("blockNode.connectionManagementTimeout", pipelineOperationTimeoutMs + "ms")
                 .withValue("blockNode.minRetryIntervalMs", "5000")
                 .withValue("blockStream.enhancedObservabilityEnabled", "false")
                 .build();

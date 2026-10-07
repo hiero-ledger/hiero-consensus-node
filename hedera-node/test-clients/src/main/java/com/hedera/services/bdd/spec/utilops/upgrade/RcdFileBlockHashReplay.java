@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.utilops.upgrade;
 
-import static com.hedera.node.app.blocks.BlockStreamManager.HASH_OF_ZERO;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashInternalNode;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.hashInternalNodeSingleChild;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.internal.WrappedRecordFileBlockHashes;
@@ -11,6 +9,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.streams.RecordStreamFile;
 import com.hedera.hapi.streams.SidecarFile;
 import com.hedera.hapi.streams.TransactionSidecarRecord;
+import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.IncrementalStreamingHasher;
 import com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils;
 import com.hedera.node.app.records.impl.WrappedRecordFileBlockHashesCalculator;
@@ -43,7 +42,6 @@ public final class RcdFileBlockHashReplay {
     private static final Logger log = LogManager.getLogger(RcdFileBlockHashReplay.class);
 
     private static final int DEFAULT_MAX_SIDECAR_SIZE_BYTES = 256 * 1024 * 1024;
-    private static final Bytes EMPTY_INT_NODE = hashInternalNode(HASH_OF_ZERO, HASH_OF_ZERO);
 
     private RcdFileBlockHashReplay() {}
 
@@ -185,19 +183,31 @@ public final class RcdFileBlockHashReplay {
             @NonNull final Bytes prevWrappedBlockHash,
             @NonNull final Bytes allPrevBlocksRootHash,
             @NonNull final WrappedRecordFileBlockHashes entry) {
-        final Bytes depth5Node1 = hashInternalNode(prevWrappedBlockHash, allPrevBlocksRootHash);
-        final Bytes depth5Node2 = EMPTY_INT_NODE;
-        final Bytes depth5Node3 = hashInternalNode(HASH_OF_ZERO, entry.outputItemsTreeRootHash());
-        final Bytes depth5Node4 = EMPTY_INT_NODE;
+        // Built by hand, on purpose. This replay must not share the block root tree implementation with
+        // block production: if it did, any error in that implementation would be reproduced here and the
+        // replay would agree with production regardless. A wrapped record block populates only branches 1, 2
+        // and 6; every other branch, assigned or reserved, is the empty sub-tree hash.
+        final var empty = BlockStreamManager.HASH_OF_ZERO;
+        final var branches12 = hashInternalNode(prevWrappedBlockHash, allPrevBlocksRootHash);
+        final var branches34 = hashInternalNode(empty, empty);
+        final var branches56 = hashInternalNode(empty, entry.outputItemsTreeRootHash());
+        final var branches78 = hashInternalNode(empty, empty);
+        final var branches1234 = hashInternalNode(branches12, branches34);
+        final var branches5678 = hashInternalNode(branches56, branches78);
+        final var assignedHalf = hashInternalNode(branches1234, branches5678);
 
-        final Bytes depth4Node1 = hashInternalNode(depth5Node1, depth5Node2);
-        final Bytes depth4Node2 = hashInternalNode(depth5Node3, depth5Node4);
-        final Bytes depth3Node1 = hashInternalNode(depth4Node1, depth4Node2);
+        final var subtreesRoot = hashInternalNode(assignedHalf, emptyReservedHalf());
+        return hashInternalNode(entry.consensusTimestampHash(), subtreesRoot);
+    }
 
-        final Bytes depth2Node1 = entry.consensusTimestampHash();
-        final Bytes depth2Node2 = hashInternalNodeSingleChild(depth3Node1);
-
-        return hashInternalNode(depth2Node1, depth2Node2);
+    /**
+     * The root of the eight empty reserved branches 9-16, derived here rather than read from production.
+     * Expected value: {@code cf7e7647f57807006f4f5870d2210b5b4038d000b2bfa711bceeb7f4a327346b50c61fda4e5c68110b03ce708fb91cf8}.
+     */
+    private static Bytes emptyReservedHalf() {
+        final var pairOfEmpties = hashInternalNode(BlockStreamManager.HASH_OF_ZERO, BlockStreamManager.HASH_OF_ZERO);
+        final var fourEmpties = hashInternalNode(pairOfEmpties, pairOfEmpties);
+        return hashInternalNode(fourEmpties, fourEmpties);
     }
 
     /**

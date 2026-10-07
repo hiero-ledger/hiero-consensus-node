@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.handlers.transfer;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALIAS_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
@@ -9,6 +10,7 @@ import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 import static com.hedera.node.app.service.token.AliasUtils.isAlias;
+import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchExecution;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.isStakingAccount;
 import static com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler.chargeableGasLimit;
@@ -176,7 +178,7 @@ public class TransferExecutor extends BaseTokenHandler {
         final var topLevelPayer = context.payer();
         transferContext.validateHbarAllowances();
         // Replace all aliases in the transaction body with its account ids; use in all further steps
-        final var replacedOp = ensureAndReplaceAliasesInOp(txn, transferContext, validator);
+        final var replacedOp = ensureAndReplaceAliasesInOp(txn, transferContext);
         List<CryptoTransferTransactionBody> txns = List.of(replacedOp);
         if (!skipCustomFee) {
             txns = new CustomFeeAssessmentStep(replacedOp).assessCustomFees(transferContext);
@@ -257,6 +259,18 @@ public class TransferExecutor extends BaseTokenHandler {
             }
         }
 
+        externalizeTransferContext(transferContext, recordBuilder);
+    }
+
+    /**
+     * Externalizes the record data accumulated while processing a transfer.
+     *
+     * @param transferContext the transfer context containing accumulated record data
+     * @param recordBuilder the record builder to update
+     */
+    protected void externalizeTransferContext(
+            @NonNull final TransferContextImpl transferContext,
+            @NonNull final CryptoTransferStreamBuilder recordBuilder) {
         if (!transferContext.getAutomaticAssociations().isEmpty()) {
             transferContext.getAutomaticAssociations().forEach(recordBuilder::addAutomaticTokenAssociation);
         }
@@ -352,6 +366,7 @@ public class TransferExecutor extends BaseTokenHandler {
     protected void executeAirdropCryptoTransfer(
             @NonNull final HandleContext context,
             @NonNull final List<TokenTransferList> tokenTransferList,
+            @NonNull final TransferContextImpl transferContext,
             @NonNull final CryptoTransferStreamBuilder recordBuilder) {
         final var isHighVolume = context.body().highVolume();
         var cryptoTransferBody = CryptoTransferTransactionBody.newBuilder()
@@ -362,8 +377,6 @@ public class TransferExecutor extends BaseTokenHandler {
                 .cryptoTransfer(cryptoTransferBody)
                 .highVolume(isHighVolume)
                 .build();
-
-        final var transferContext = new TransferContextImpl(context, cryptoTransferBody, true, isHighVolume);
 
         // We should skip custom fee steps here, because they must be already prepaid
         executeCryptoTransferWithoutCustomFee(syntheticCryptoTransferTxn, transferContext, context, recordBuilder);
@@ -429,14 +442,11 @@ public class TransferExecutor extends BaseTokenHandler {
      *
      * @param txn the given transaction body
      * @param transferContext the given transfer context
-     * @param validator crypto transfer validator
      * @return the replaced transaction body with all aliases replaced with its account ids
      * @throws HandleException if any error occurs during the process
      */
-    private CryptoTransferTransactionBody ensureAndReplaceAliasesInOp(
-            @NonNull final TransactionBody txn,
-            @NonNull final TransferContextImpl transferContext,
-            @NonNull final CryptoTransferValidator validator)
+    protected CryptoTransferTransactionBody ensureAndReplaceAliasesInOp(
+            @NonNull final TransactionBody txn, @NonNull final TransferContextImpl transferContext)
             throws HandleException {
         final var op = txn.cryptoTransferOrThrow();
 
@@ -569,19 +579,21 @@ public class TransferExecutor extends BaseTokenHandler {
                         ctx.requireKeyOrThrow(account.key(), INVALID_TRANSFER_ACCOUNT_ID);
                     }
                 }
-            } else if (hbarTransfer) {
+            } else {
                 // It is possible for the transfer to be valid even if the account is not found. For example, we
                 // allow auto-creation of "hollow accounts" if you transfer value into an account *by alias* that
                 // didn't previously exist. If that is not the case, then we fail because we couldn't find the
                 // destination account.
-                if (!isCredit || !isAlias(accountId)) {
-                    // Interestingly, this means that if the transfer amount is exactly 0 and the account has a
-                    // non-existent alias, then we fail.
+                if (isDebit || !isAlias(accountId) || (hbarTransfer && !isCredit)) {
                     throw new PreCheckException(INVALID_ACCOUNT_ID);
                 }
-            } else if (isDebit) {
-                // All debited accounts must be valid
-                throw new PreCheckException(INVALID_ACCOUNT_ID);
+                // A missing long-zero address cannot be auto-created. Positive credits historically
+                // failed creation with INVALID_ALIAS_KEY; zero adjustments require an existing account.
+                if (isEntityNumAlias(accountId.aliasOrThrow())) {
+                    throw new PreCheckException(isCredit ? INVALID_ALIAS_KEY : INVALID_ACCOUNT_ID);
+                }
+                // A zero token adjustment may refer to an alias created by another credit in this transfer.
+                // Handle will reject it if no such creation occurs.
             }
         }
     }

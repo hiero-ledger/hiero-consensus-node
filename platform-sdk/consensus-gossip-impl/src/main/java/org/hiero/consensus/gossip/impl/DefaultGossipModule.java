@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.wiring.framework.wires.SolderType.INJECT;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -19,8 +18,8 @@ import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.function.Supplier;
 import org.hiero.base.concurrent.BlockingResourceProvider;
-import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.base.concurrent.manager.AdHocThreadManager;
+import org.hiero.base.concurrent.manager.ThreadManager;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.GossipModule;
 import org.hiero.consensus.gossip.ReservedSignedStateResult;
@@ -35,6 +34,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -65,7 +65,7 @@ public final class DefaultGossipModule implements GossipModule {
             @NonNull final Metrics metrics,
             @NonNull final Time time,
             @NonNull final KeysAndCerts keysAndCerts,
-            @NonNull final Roster currentRoster,
+            @NonNull final RosterWrapper activeRoster,
             @NonNull final NodeId selfId,
             @NonNull final SemanticVersion appVersion,
             @NonNull final IntakeEventCounter intakeEventCounter,
@@ -105,7 +105,7 @@ public final class DefaultGossipModule implements GossipModule {
                 time,
                 threadManager,
                 keysAndCerts,
-                currentRoster,
+                activeRoster,
                 selfId,
                 appVersion,
                 intakeEventCounter,

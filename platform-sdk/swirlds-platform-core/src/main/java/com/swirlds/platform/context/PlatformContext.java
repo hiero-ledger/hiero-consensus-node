@@ -10,9 +10,9 @@ import java.lang.Thread.UncaughtExceptionHandler;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.PathsConfig;
-import org.hiero.consensus.io.NoOpRecycleBin;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpRecycleBin;
 import org.hiero.consensus.io.RecycleBin;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 /**
  * Public interface of the platform context that provides access to all basic services and resources. By using the

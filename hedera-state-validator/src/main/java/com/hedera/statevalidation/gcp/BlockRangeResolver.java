@@ -65,7 +65,7 @@ public final class BlockRangeResolver {
     private static final int SEQUENTIAL_THRESHOLD = 1000;
 
     /** Maximum exponential probe offset (2^20 ≈ 1M blocks). */
-    private static final int MAX_EXPONENTIAL_POWER = 20;
+    private static final int MAX_EXPONENTIAL_POWER = 30;
 
     /** Thread pool for parallel probing operations. */
     private static final int PROBE_THREAD_POOL_SIZE = 16;
@@ -443,8 +443,7 @@ public final class BlockRangeResolver {
      * Sequential binary search for the block containing the target round, for small ranges.
      */
     private long sequentialBinarySearchForRound(
-            long lo, long hi, final long targetRound, final ConcurrentHashMap<Long, Long> roundCache)
-            throws IOException {
+            long lo, long hi, final long targetRound, final ConcurrentHashMap<Long, Long> roundCache) {
         while (hi - lo > 1) {
             final long mid = lo + (hi - lo) / 2;
             final long maxRound = roundCache.computeIfAbsent(mid, block -> {

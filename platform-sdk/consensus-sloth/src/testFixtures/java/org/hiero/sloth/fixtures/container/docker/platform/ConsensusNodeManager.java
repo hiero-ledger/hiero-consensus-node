@@ -6,7 +6,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.constructable.ConstructableRegistration.setupConstructableRegistry;
 import static org.hiero.sloth.fixtures.app.SlothStateUtils.initGenesisState;
 
@@ -40,9 +40,9 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
-import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -138,14 +138,14 @@ public class ConsensusNodeManager {
         rosterStore.putActiveRoster(activeRoster, platformStateStore.getRound() + 1);
         SlothStateUtils.commitState(state);
 
-        final RosterHistory rosterHistory = rosterStore.getRosterHistory();
+        final ConsensusLayerRosterInputs rosterInputs = rosterStore.getConsensusLayerRosterInputs();
         executionCallback = new SlothExecutionLayer(new Random(), metrics, time);
 
         final TestPlatformBuilder builder = new TestPlatformBuilder(
                 platformConfig,
                 platformContext.getMetrics(),
                 platformContext.getTime(),
-                rosterHistory,
+                rosterInputs,
                 keysAndCerts,
                 selfId,
                 platformContext.getRecycleBin(),

@@ -14,10 +14,10 @@ public record NumberOfConsensusRoundsValidation(int numberOfRounds) implements C
     @Override
     public void validate(@NonNull final ConsensusOutput output1, @NonNull final ConsensusOutput output2) {
         for (final ConsensusOutput output : List.of(output1, output2)) {
-            Assertions.assertThat(output.getConsensusRounds().size())
+            final int actualRounds = output.getConsensusRounds().size();
+            Assertions.assertThat(actualRounds)
                     .withFailMessage(
-                            "Expected %d rounds, but got %d",
-                            numberOfRounds, output.getConsensusRounds().size())
+                            () -> String.format("Expected %d rounds, but got %d", numberOfRounds, actualRounds))
                     .isEqualTo(numberOfRounds);
         }
     }

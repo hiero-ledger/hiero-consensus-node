@@ -18,12 +18,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.services.bdd.utils.Signing;
 import java.math.BigInteger;
 import java.util.Optional;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -257,7 +257,8 @@ class SigningTest {
                 CHAINID_TESTNET, TRUFFLE0_ADDRESS, 1, 1, new byte[0], new byte[0]);
 
         final byte[] signedTx = Signing.signMessage(
-                new Keccak.Digest256().digest(codeDelegation.calculateSignableMessage()), TRUFFLE0_PRIVATE_ECDSA_KEY);
+                MiscCryptoUtils.keccak256DigestOf(codeDelegation.calculateSignableMessage()),
+                TRUFFLE0_PRIVATE_ECDSA_KEY);
 
         final byte[] r = new byte[32];
         System.arraycopy(signedTx, 0, r, 0, 32);

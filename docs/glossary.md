@@ -110,7 +110,7 @@ include the following:
 - System Delete
 - System Undelete
 - Address Book File 0.0.101/102 updates
-- Exchange Rate File 0.0.111 updates
+- Exchange Rate File 0.0.112 updates
 - Dynamic Properties File 0.0.121 updates
 
 ## Application Accounts

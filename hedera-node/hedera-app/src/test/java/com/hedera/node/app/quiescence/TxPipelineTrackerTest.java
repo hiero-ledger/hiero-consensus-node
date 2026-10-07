@@ -24,7 +24,7 @@ import java.time.Instant;
 import java.time.InstantSource;
 import java.util.ArrayList;
 import java.util.List;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.model.transaction.TransactionWrapper;
 import org.junit.jupiter.api.BeforeEach;

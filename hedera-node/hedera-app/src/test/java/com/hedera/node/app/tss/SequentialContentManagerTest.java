@@ -86,6 +86,16 @@ class SequentialContentManagerTest {
     }
 
     @Test
+    void createContentForThrowsWhenContentAlreadyExists() {
+        subject.createContentFor(1);
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.createContentFor(1),
+                "createContentFor should reject a seqNo whose content file already exists");
+    }
+
+    @Test
     void purgeKeyPairsForConstructionsBeforeRemovesCorrectDirs() {
         subject.createContentFor(1);
         subject.createContentFor(5);

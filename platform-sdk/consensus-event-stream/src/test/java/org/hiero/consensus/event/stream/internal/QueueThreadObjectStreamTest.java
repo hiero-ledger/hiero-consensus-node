@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.stream.internal;
 
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -28,7 +28,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class QueueThreadObjectStreamTest {
-    private static final Hash initialHash = new Hash(new byte[DigestType.SHA_384.digestLength()]);
+    private static final Hash initialHash = new Hash(new byte[DigestType.SHA_384.digestLength()], DigestType.SHA_384);
     private static Cryptography cryptography;
     private static WriteToStreamConsumer consumer;
     private static QueueThreadObjectStream<ObjectForTestStream> queueThread;
@@ -49,7 +49,8 @@ class QueueThreadObjectStreamTest {
         consumer = new WriteToStreamConsumer(
                 new SerializableDataOutputStream(new BufferedOutputStream(new ByteArrayOutputStream())), initialHash);
 
-        queueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(getStaticThreadManager())
+        queueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(
+                        getStaticThreadManager(), "test-queue")
                 .setForwardTo(consumer)
                 .build();
         runningHashCalculator = new RunningHashCalculatorForStream<>(queueThread);

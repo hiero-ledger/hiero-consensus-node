@@ -29,7 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;

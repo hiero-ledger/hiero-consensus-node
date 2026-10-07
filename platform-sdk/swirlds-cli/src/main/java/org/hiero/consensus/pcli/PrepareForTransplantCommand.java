@@ -8,8 +8,8 @@ import com.swirlds.platform.state.SavedStateUtils;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Scanner;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.io.SimpleRecycleBin;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import picocli.CommandLine;
 
 @CommandLine.Command(

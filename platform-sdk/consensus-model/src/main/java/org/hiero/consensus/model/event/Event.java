@@ -2,7 +2,6 @@
 package org.hiero.consensus.model.event;
 
 import com.hedera.hapi.platform.event.EventCore;
-import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -56,7 +55,7 @@ public interface Event {
 
     /**
      * Returns the birth round of this event.
-     * @see EventDescriptor#birthRound()
+     *
      * @return the birth round of the event
      */
     long getBirthRound();

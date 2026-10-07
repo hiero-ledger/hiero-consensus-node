@@ -24,13 +24,14 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
+import org.hiero.base.concurrent.framework.StoppableThread;
+import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
+import org.hiero.base.concurrent.framework.config.StoppableThreadConfiguration;
 import org.hiero.base.concurrent.locks.AutoClosableLock;
 import org.hiero.base.concurrent.locks.Locks;
 import org.hiero.base.concurrent.locks.locked.Locked;
+import org.hiero.base.concurrent.manager.ThreadManager;
 import org.hiero.base.file.FileSystemManager;
-import org.hiero.consensus.concurrent.framework.StoppableThread;
-import org.hiero.consensus.concurrent.framework.config.StoppableThreadConfiguration;
-import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.config.RecycleBinConfig;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -92,10 +93,9 @@ public class RecycleBinImpl implements RecycleBin, Stoppable {
         this.recycledFileCountMetric.set(topLevelRecycledFileCount);
 
         this.cleanupThread = new StoppableThreadConfiguration<>(threadManager)
-                .setComponent("platform")
-                .setThreadName("recycle-bin-cleanup")
                 .setMinimumPeriod(minimumPeriod)
                 .setWork(this::cleanup)
+                .setSingleThreadName(CompositeThreadNameProvider.create("platform", "recycle-bin-cleanup"))
                 .build();
     }
 

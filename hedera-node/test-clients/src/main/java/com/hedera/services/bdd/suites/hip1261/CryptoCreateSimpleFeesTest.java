@@ -48,10 +48,12 @@ import static org.hiero.base.utility.CommonUtils.hex;
 import static org.hiero.hapi.support.fees.Extra.KEYS;
 import static org.hiero.hapi.support.fees.Extra.PROCESSING_BYTES;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
-import static org.hyperledger.besu.crypto.Hash.keccak256;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
+import com.hedera.cryptography.libsecp256k1.ContextualLibsecp256k1;
+import com.hedera.cryptography.libsecp256k1.Libsecp256k1;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -59,14 +61,11 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.foreign.MemorySegment;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
-import org.apache.tuweni.bytes.Bytes;
-import org.apache.tuweni.bytes.Bytes32;
-import org.bouncycastle.asn1.sec.SECNamedCurves;
-import org.bouncycastle.math.ec.ECPoint;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -83,6 +82,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class CryptoCreateSimpleFeesTest {
+    private static final ContextualLibsecp256k1 LIBSECP256K1 = ContextualLibsecp256k1.getInstance();
 
     private static final String PAYER = "payer";
     private static final String ADMIN_KEY = "adminKey";
@@ -235,21 +235,32 @@ public class CryptoCreateSimpleFeesTest {
                                 ecdsaKey.getECDSASecp256K1().toByteArray();
                         log.info("Compressed ECDSA key length: {}", compressedPubKey.length);
 
-                        // decompress to uncompressed format
-                        final var params = SECNamedCurves.getByName("secp256k1");
-                        final var curve = params.getCurve();
-                        final ECPoint point = curve.decodePoint(compressedPubKey);
+                        final byte[] pubkey = new byte[Libsecp256k1.PUBLIC_KEY_BYTES];
+                        final MemorySegment pubkeySeg = MemorySegment.ofArray(pubkey);
+                        if (LIBSECP256K1.secp256k1EcPubkeyParse(
+                                        pubkeySeg, MemorySegment.ofArray(compressedPubKey), compressedPubKey.length)
+                                != 1) {
+                            throw new IllegalStateException("secp256k1EcPubkeyParse failed");
+                        }
+                        final byte[] uncompressed = new byte[Libsecp256k1.PUBLIC_KEY_BYTES + 1];
+                        final long[] uncompressedLen = new long[] {uncompressed.length};
+                        if (LIBSECP256K1.secp256k1EcPubkeySerialize(
+                                        MemorySegment.ofArray(uncompressed),
+                                        MemorySegment.ofArray(uncompressedLen),
+                                        pubkeySeg,
+                                        Libsecp256k1.SECP256K1_EC_UNCOMPRESSED)
+                                != 1) {
+                            throw new IllegalStateException("secp256k1EcPubkeySerialize failed");
+                        }
 
-                        // get uncompressed public key bytes
-                        final byte[] uncompressed = point.getEncoded(false);
-                        if (uncompressed.length != 65 || uncompressed[0] != 0x04) {
+                        if (uncompressedLen[0] != 65 || uncompressed[0] != 0x04) {
                             throw new IllegalStateException("Invalid uncompressed ECDSA public key");
                         }
 
                         // compute the EVM address from the uncompressed public key
                         final byte[] raw = Arrays.copyOfRange(uncompressed, 1, uncompressed.length);
-                        final Bytes32 hash = keccak256(Bytes.wrap(raw));
-                        final byte[] evmAddress = hash.slice(12, 20).toArray();
+                        final byte[] hash = MiscCryptoUtils.keccak256DigestOf(raw);
+                        final byte[] evmAddress = Arrays.copyOfRange(hash, 12, 12 + 20);
                         final ByteString alias = ByteString.copyFrom(evmAddress);
 
                         log.info("Uncompressed ECDSA length: {}", raw.length);

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.fail;
 
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
@@ -12,6 +13,7 @@ import org.hiero.base.crypto.Hashable;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.consensus.ConsensusOutput;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.round.RoundCalculationUtils;
 
 @SuppressWarnings("unused") // issue tracked #6998
@@ -29,31 +31,33 @@ public final class OutputNoEventsLostValidation implements ConsensusOutputValida
      * neither, so they are not checked.
      */
     public void validate(@NonNull final ConsensusOutput output, @NonNull final ConsensusOutput ignored) {
-        final Map<Hash, PlatformEvent> stale =
-                output.getStaleEvents().stream().collect(Collectors.toMap(Hashable::getHash, e -> e));
-        final Map<Hash, PlatformEvent> cons = output.getConsensusRounds().stream()
-                .flatMap(r -> r.getConsensusEvents().stream())
-                .collect(Collectors.toMap(PlatformEvent::getHash, e -> e));
-        if (output.getConsensusRounds().isEmpty()) {
+        final List<ConsensusRound> consensusRounds = output.getConsensusRounds();
+        if (consensusRounds.isEmpty()) {
             // no consensus reached, nothing to check
             return;
         }
+
+        final Map<Hash, PlatformEvent> stale =
+                output.getStaleEvents().stream().collect(Collectors.toMap(Hashable::getHash, e -> e));
+        final Map<Hash, PlatformEvent> cons = consensusRounds.stream()
+                .flatMap(r -> r.getConsensusEvents().stream())
+                .collect(Collectors.toMap(PlatformEvent::getHash, e -> e));
         final long nonAncientThreshold = RoundCalculationUtils.getAncientThreshold(
-                CONFIG.roundsNonAncient(), output.getConsensusRounds().getLast().getSnapshot());
+                CONFIG.roundsNonAncient(), consensusRounds.getLast().getSnapshot());
 
         for (final PlatformEvent event : output.getAddedEvents()) {
             if (event.getBirthRound() >= nonAncientThreshold) {
                 // non-ancient events are not checked
                 continue;
             }
-            if (stale.containsKey(event.getHash()) == cons.containsKey(event.getHash())) {
+            final Hash hash = event.getHash();
+            final boolean isStale = stale.containsKey(hash);
+            final boolean isConsensus = cons.containsKey(hash);
+            if (isStale == isConsensus) {
                 fail(String.format(
                         "An ancient event should be either stale or consensus, but not both!\n"
                                 + "nonAncientGen=%d, Event %s, stale=%s, consensus=%s",
-                        nonAncientThreshold,
-                        event.getDescriptor(),
-                        stale.containsKey(event.getHash()),
-                        cons.containsKey(event.getHash())));
+                        nonAncientThreshold, event.getDescriptor(), isStale, isConsensus));
             }
         }
     }

@@ -8,6 +8,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.app.OtterStateUtils.commitState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -73,16 +74,22 @@ public class OtterApp implements ConsensusStateEventHandler {
      *
      * @param configuration the configuration to use to create the app and its services
      * @param version the software version to set in the state
+     * @param genesisRoster the roster to write to the state in the first round, if the state does not contain a roster
+     * yet
      */
-    public OtterApp(@NonNull final Configuration configuration, @NonNull final SemanticVersion version) {
+    public OtterApp(
+            @NonNull final Configuration configuration,
+            @NonNull final SemanticVersion version,
+            @NonNull final Roster genesisRoster) {
         this.version = requireNonNull(version);
 
         final OtterAppConfig appConfig = configuration.getConfigData(OtterAppConfig.class);
         this.appServices =
                 appConfig.services().stream().map(OtterApp::instantiateService).toList();
-        this.allServices = Stream.concat(
-                        appServices.stream(), Stream.of(new PlatformStateService(), new RosterService()))
-                .toList();
+        final Stream<OtterService> hederaAppServices =
+                Stream.of(new PlatformStateService(), new RosterService(genesisRoster));
+        this.allServices =
+                Stream.concat(appServices.stream(), hederaAppServices).toList();
     }
 
     @NonNull

@@ -6,8 +6,10 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.constructable.ConstructableRegistration.setupConstructableRegistry;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
+import static org.hiero.consensus.roster.RosterUtils.rosterInputsFromGenesis;
 import static org.hiero.otter.fixtures.app.OtterStateUtils.initGenesisState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -42,10 +44,8 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.otter.docker.app.metrics.ToFilePrometheusExporter;
-import org.hiero.consensus.platformstate.PlatformStateService;
-import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
-import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -118,7 +118,7 @@ public class ConsensusNodeManager {
         final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager =
                 new VirtualMapStateLifecycleManager(metrics, time, platformConfig, fileSystemManager);
 
-        otterApp = new OtterApp(platformConfig, version);
+        otterApp = new OtterApp(platformConfig, version, activeRoster);
 
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
@@ -131,26 +131,28 @@ public class ConsensusNodeManager {
                 stateLifecycleManager);
         final ReservedSignedState initialState = reservedState.state();
         final VirtualMapState state = initialState.get().getState();
+
+        final ConsensusLayerRosterInputs rosterInputs;
         if (initialState.get().isGenesisState()) {
-            initGenesisState(state, activeRoster, version, otterApp.allServices());
+            // Like in production, the genesis roster is written to the state in the first round
+            initGenesisState(state, version, otterApp.allServices());
+            rosterInputs = rosterInputsFromGenesis(activeRoster);
+        } else {
+            // Set active the roster
+            final WritableRosterStore rosterStore =
+                    new WritableRosterStore(state.getWritableStates(RosterStateId.SERVICE_NAME));
+            rosterStore.putActiveRoster(activeRoster, roundOf(state) + 1);
+            OtterStateUtils.commitState(state);
+            rosterInputs = rosterStore.getConsensusLayerRosterInputs();
         }
 
-        // Set active the roster
-        final ReadablePlatformStateStore platformStateStore =
-                new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
-        final WritableRosterStore rosterStore =
-                new WritableRosterStore(state.getWritableStates(RosterStateId.SERVICE_NAME));
-        rosterStore.putActiveRoster(activeRoster, platformStateStore.getRound() + 1);
-        OtterStateUtils.commitState(state);
-
-        final RosterHistory rosterHistory = rosterStore.getRosterHistory();
         executionCallback = new OtterExecutionLayer(new Random(), metrics, time);
 
         final TestPlatformBuilder builder = new TestPlatformBuilder(
                 platformConfig,
                 platformContext.getMetrics(),
                 platformContext.getTime(),
-                rosterHistory,
+                rosterInputs,
                 keysAndCerts,
                 selfId,
                 platformContext.getRecycleBin(),

@@ -19,7 +19,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.test.fixtures.Randotron;
 import org.hiero.consensus.wiring.framework.schedulers.TaskScheduler;
 import org.junit.jupiter.api.BeforeEach;

@@ -15,7 +15,7 @@ import com.swirlds.metrics.api.Metrics;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.roster.test.fixtures.RosterFactory;

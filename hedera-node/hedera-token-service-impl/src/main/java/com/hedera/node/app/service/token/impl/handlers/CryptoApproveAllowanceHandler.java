@@ -13,6 +13,7 @@ import static com.hedera.node.app.hapi.utils.fee.FeeConstants.CRYPTO_ALLOWANCE_S
 import static com.hedera.node.app.hapi.utils.fee.FeeConstants.LONG_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeConstants.NFT_ALLOWANCE_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeConstants.TOKEN_ALLOWANCE_SIZE;
+import static com.hedera.node.app.service.token.impl.validators.AllowanceValidator.designatesPayer;
 import static com.hedera.node.app.service.token.impl.validators.AllowanceValidator.isDelegatingSpenderPresent;
 import static com.hedera.node.app.service.token.impl.validators.AllowanceValidator.isValidOwner;
 import static com.hedera.node.app.service.token.impl.validators.AllowanceValidator.validateAllowanceLimit;
@@ -529,8 +530,7 @@ public class CryptoApproveAllowanceHandler implements TransactionHandler {
             @NonNull final AccountID payerId,
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final ExpiryValidator expiryValidator) {
-        final var ownerNum = owner != null ? owner.accountNumOrElse(0L) : 0L;
-        if (ownerNum == 0 || ownerNum == payerId.accountNumOrThrow()) {
+        if (designatesPayer(owner, payerId)) {
             // The payer would have been modified in the same transaction for previous allowances
             // So, get it from modifications map.
             return accountStore.getAccountById(payerId);

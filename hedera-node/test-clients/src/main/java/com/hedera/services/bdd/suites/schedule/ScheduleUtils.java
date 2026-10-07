@@ -153,6 +153,14 @@ public final class ScheduleUtils {
             scheduleBuilder.setTokenAssociate(txn.getTokenAssociate());
         } else if (txn.hasTokenDissociate()) {
             scheduleBuilder.setTokenDissociate(txn.getTokenDissociate());
+        } else if (txn.hasTokenUpdateNfts()) {
+            scheduleBuilder.setTokenUpdateNfts(txn.getTokenUpdateNfts());
+        } else if (txn.hasTokenAirdrop()) {
+            scheduleBuilder.setTokenAirdrop(txn.getTokenAirdrop());
+        } else if (txn.hasTokenCancelAirdrop()) {
+            scheduleBuilder.setTokenCancelAirdrop(txn.getTokenCancelAirdrop());
+        } else if (txn.hasTokenClaimAirdrop()) {
+            scheduleBuilder.setTokenClaimAirdrop(txn.getTokenClaimAirdrop());
         } else if (txn.hasScheduleDelete()) {
             scheduleBuilder.setScheduleDelete(txn.getScheduleDelete());
         } else if (txn.hasCryptoApproveAllowance()) {

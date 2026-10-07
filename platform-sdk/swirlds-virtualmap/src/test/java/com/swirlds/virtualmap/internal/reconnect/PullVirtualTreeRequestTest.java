@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
-import com.swirlds.virtualmap.internal.Path;
+import com.swirlds.virtualmap.MerklePathUtils;
 import org.hiero.base.crypto.Hash;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,7 +38,7 @@ class PullVirtualTreeRequestTest {
     @DisplayName("Round-trip serialization for root path")
     void roundTripRootPath() {
         final Hash hash = randomHash();
-        final PullVirtualTreeRequest original = new PullVirtualTreeRequest(Path.ROOT_PATH, hash);
+        final PullVirtualTreeRequest original = new PullVirtualTreeRequest(MerklePathUtils.ROOT_PATH, hash);
 
         final byte[] bytes = new byte[original.getSizeInBytes()];
         original.writeTo(BufferedData.wrap(bytes));
@@ -46,14 +46,14 @@ class PullVirtualTreeRequestTest {
         final PullVirtualTreeRequest deserialized = PullVirtualTreeRequest.parseFrom(BufferedData.wrap(bytes));
 
         assertNotNull(deserialized);
-        assertEquals(Path.ROOT_PATH, deserialized.path());
+        assertEquals(MerklePathUtils.ROOT_PATH, deserialized.path());
         assertNotNull(deserialized.hash());
     }
 
     @Test
     @DisplayName("Round-trip serialization for terminating request (INVALID_PATH, null hash)")
     void roundTripTerminatingRequest() {
-        final PullVirtualTreeRequest original = new PullVirtualTreeRequest(Path.INVALID_PATH, null);
+        final PullVirtualTreeRequest original = new PullVirtualTreeRequest(MerklePathUtils.INVALID_PATH, null);
 
         final byte[] bytes = new byte[original.getSizeInBytes()];
         original.writeTo(BufferedData.wrap(bytes));
@@ -61,7 +61,7 @@ class PullVirtualTreeRequestTest {
         final PullVirtualTreeRequest deserialized = PullVirtualTreeRequest.parseFrom(BufferedData.wrap(bytes));
 
         assertNotNull(deserialized);
-        assertEquals(Path.INVALID_PATH, deserialized.path());
+        assertEquals(MerklePathUtils.INVALID_PATH, deserialized.path());
         assertNull(deserialized.hash());
     }
 
@@ -74,7 +74,7 @@ class PullVirtualTreeRequestTest {
         withHash.writeTo(out1);
         assertEquals(withHash.getSizeInBytes(), out1.position());
 
-        final PullVirtualTreeRequest noHash = new PullVirtualTreeRequest(Path.INVALID_PATH, null);
+        final PullVirtualTreeRequest noHash = new PullVirtualTreeRequest(MerklePathUtils.INVALID_PATH, null);
         final byte[] buf2 = new byte[noHash.getSizeInBytes()];
         final BufferedData out2 = BufferedData.wrap(buf2);
         noHash.writeTo(out2);
@@ -85,7 +85,7 @@ class PullVirtualTreeRequestTest {
     @DisplayName("Request with hash is larger than request without hash")
     void sizeWithHashLargerThanWithout() {
         final PullVirtualTreeRequest withHash = new PullVirtualTreeRequest(1, randomHash());
-        final PullVirtualTreeRequest noHash = new PullVirtualTreeRequest(Path.INVALID_PATH, null);
+        final PullVirtualTreeRequest noHash = new PullVirtualTreeRequest(MerklePathUtils.INVALID_PATH, null);
 
         // With hash should include tag + varint length + 48 bytes of SHA-384 digest
         assertTrue(withHash.getSizeInBytes() > noHash.getSizeInBytes());

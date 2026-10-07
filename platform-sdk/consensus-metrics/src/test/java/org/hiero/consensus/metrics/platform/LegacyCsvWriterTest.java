@@ -25,7 +25,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
-import org.hiero.consensus.concurrent.config.BasicCommonConfig_;
+import org.hiero.base.concurrent.config.BasicCommonConfig_;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.metrics.IntegerPairAccumulator;
 import org.hiero.consensus.metrics.RunningAverageMetric;

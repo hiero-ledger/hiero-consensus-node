@@ -28,6 +28,7 @@ import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.metrics.OpsDurationMetrics;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.PrngSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import com.hedera.node.app.service.contract.impl.hevm.HEVM;
@@ -57,6 +58,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -159,19 +162,25 @@ class CustomMessageCallProcessorTest {
     }
 
     @Test
-    void callPrngSystemContractInsufficientGas() {
+    void callPrngSystemContractInsufficientGasStillRecordsOpsDuration() {
         final var opsDurationTestCounter = OpsDurationCounter.withSchedule(OPS_DURATION_TEST_SCHEDULE);
-        givenExecutingFrame();
         givenPrngCall(GAS_REQUIREMENT);
         given(frame.getValue()).willReturn(Wei.ZERO);
-        given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(opsDurationTestCounter);
-        when(contractMetrics.opsDurationMetrics()).thenReturn(mock(OpsDurationMetrics.class));
+        lenient().when(frame.getMessageFrameStack()).thenReturn(stack);
+        lenient().when(stack.getLast()).thenReturn(frame);
+        lenient().when(frame.getContextVariable(OPS_DURATION_COUNTER)).thenReturn(opsDurationTestCounter);
+        lenient().when(contractMetrics.opsDurationMetrics()).thenReturn(mock(OpsDurationMetrics.class));
 
         subject.start(frame, operationTracer);
 
-        Assertions.assertEquals(GAS_REQUIREMENT, opsDurationTestCounter.opsDurationUnitsConsumed());
+        // Unlike a native precompile, a system contract's computeFully() has already run by the time the
+        // affordability check fails - so the work was really performed and must still be metered.
         verify(prngPrecompile)
                 .computeFully(PRNG_CONTRACT_ID, TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS.getBytes(), frame);
+        Assertions.assertEquals(
+                GAS_REQUIREMENT,
+                opsDurationTestCounter.opsDurationUnitsConsumed(),
+                "work already performed by computeFully must be metered even when the call halts");
         verifyHalt(INSUFFICIENT_GAS, false);
         verify(operationTracer).tracePrecompileResult(frame, SYSTEM);
     }
@@ -189,6 +198,32 @@ class CustomMessageCallProcessorTest {
         verify(frame).setOutputData(NOOP_OUTPUT_DATA);
         verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
         verify(frame).setExceptionalHaltReason(Optional.empty());
+    }
+
+    @Test
+    void callsToDisabledSystemContractsAreHandledLikeCallsToNonExtantSystemAccounts() {
+        final var disabledSystemContract = mock(HederaSystemContract.class);
+        subject = new CustomMessageCallProcessor(
+                evm,
+                featureFlags,
+                registry,
+                addressChecks,
+                Map.of(NON_EVM_PRECOMPILE_SYSTEM_ADDRESS, disabledSystemContract),
+                contractMetrics);
+        givenCallWithCode(NON_EVM_PRECOMPILE_SYSTEM_ADDRESS);
+        given(disabledSystemContract.isDisabled(frame)).willReturn(true);
+        given(addressChecks.isSystemAccount(NON_EVM_PRECOMPILE_SYSTEM_ADDRESS)).willReturn(true);
+        when(frame.getValue()).thenReturn(Wei.ZERO);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(stack.isEmpty()).willReturn(true);
+
+        subject.start(frame, operationTracer);
+
+        verify(disabledSystemContract, never()).computeFully(any(), any(), any());
+        verify(frame).setOutputData(NOOP_OUTPUT_DATA);
+        verify(frame).setState(MessageFrame.State.COMPLETED_SUCCESS);
+        verify(frame).setExceptionalHaltReason(Optional.empty());
+        verify(operationTracer).tracePrecompileResult(frame, PRECOMPILE);
     }
 
     @Test
@@ -248,19 +283,38 @@ class CustomMessageCallProcessorTest {
 
     @Test
     void haltsAndTracesInsufficientGasIfPrecompileGasRequirementExceedsRemaining() {
-        final var opsDurationTestCounter = OpsDurationCounter.withSchedule(OPS_DURATION_TEST_SCHEDULE);
         givenEvmPrecompileCall();
         given(nativePrecompile.gasRequirement(INPUT_DATA)).willReturn(GAS_REQUIREMENT);
         given(frame.getRemainingGas()).willReturn(1L);
         given(frame.getValue()).willReturn(Wei.ZERO);
-        given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(opsDurationTestCounter);
-        when(contractMetrics.opsDurationMetrics()).thenReturn(mock(OpsDurationMetrics.class));
 
         subject.start(frame, operationTracer);
 
-        Assertions.assertEquals(GAS_REQUIREMENT, opsDurationTestCounter.opsDurationUnitsConsumed());
+        // The call cannot afford its gas requirement, so it does no work and must not record any ops duration.
+        verify(contractMetrics, never()).opsDurationMetrics();
         verifyHalt(INSUFFICIENT_GAS, false);
         verify(operationTracer).tracePrecompileResult(frame, PRECOMPILE);
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+            strings = {
+                "123", // partial selector
+                "123456" // not matching selector
+            })
+    void haltsIfInvalidInput(final String input) {
+        final var isHalted = new AtomicBoolean();
+        givenHaltableFrame(isHalted);
+        givenCallWithCode(TestHelpers.PRNG_SYSTEM_CONTRACT_ADDRESS);
+        given(frame.getValue()).willReturn(Wei.ONE);
+        given(frame.getInputData()).willReturn(Bytes.fromBase64String(input));
+
+        subject.start(frame, operationTracer);
+
+        verify(frame).setExceptionalHaltReason(Optional.of(CustomExceptionalHaltReason.INVALID_CONTRACT_ID));
+        verify(frame).setState(MessageFrame.State.EXCEPTIONAL_HALT);
+        verify(frame, never()).setState(MessageFrame.State.CODE_EXECUTING);
+        verify(operationTracer).traceNotExecuting(eq(frame));
     }
 
     @Test
@@ -286,6 +340,34 @@ class CustomMessageCallProcessorTest {
         verify(frame).setOutputData(OUTPUT_DATA);
         verify(frame).setState(MessageFrame.State.CODE_SUCCESS);
         verify(frame).setExceptionalHaltReason(Optional.empty());
+    }
+
+    @Test
+    void precompileWithSaturatedGasRequirementRecordsBoundedNonNegativeOpsDuration() {
+        // Regression: a precompile (e.g. MODEXP) whose gas quote saturates to Long.MAX_VALUE must not
+        // overflow the ops-duration accounting into a huge or negative value. With mainnet-like multipliers
+        // (precompile multiplier 1575, denominator 100) the recorded amount must stay positive and bounded.
+        final var mainnetLikeSchedule =
+                new OpsDurationSchedule(Collections.nCopies(256, 0L), 1575, 1575, 1575, 3332, 100);
+        final var opsDurationTestCounter = OpsDurationCounter.withSchedule(mainnetLikeSchedule);
+        givenEvmPrecompileCall();
+        final var successResult = new PrecompiledContract.PrecompileContractResult(
+                OUTPUT_DATA, false, MessageFrame.State.CODE_SUCCESS, Optional.empty());
+        given(nativePrecompile.computePrecompile(INPUT_DATA, frame)).willReturn(successResult);
+        given(nativePrecompile.gasRequirement(INPUT_DATA)).willReturn(Long.MAX_VALUE);
+        given(frame.getRemainingGas()).willReturn(Long.MAX_VALUE);
+        given(frame.getValue()).willReturn(Wei.ZERO);
+        given(frame.getMessageFrameStack()).willReturn(stack);
+        given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(opsDurationTestCounter);
+        given(stack.getLast()).willReturn(frame);
+        given(contractMetrics.opsDurationMetrics()).willReturn(mock(OpsDurationMetrics.class));
+
+        subject.start(frame, operationTracer);
+
+        final var recorded = opsDurationTestCounter.opsDurationUnitsConsumed();
+        assertTrue(recorded > 0L, "ops duration must not overflow to a non-positive value");
+        // saturated product (Long.MAX_VALUE) divided by the denominator (100)
+        Assertions.assertEquals(Long.MAX_VALUE / 100L, recorded);
     }
 
     @Test

@@ -60,6 +60,7 @@ import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshot;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.SignatureGenerator;
 import com.hedera.node.app.service.contract.impl.utils.SystemContractUtils;
 import com.hedera.node.app.throttle.CongestionThrottleService;
@@ -82,7 +83,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -342,7 +342,7 @@ public class RepeatableIntegrationTests {
         return withOpContext((spec, opLog) -> {
             final var message =
                     SystemContractUtils.messageFromScheduleId(CommonPbjConverters.toPbj(scheduleIdRef.get()));
-            final var messageHash = new Keccak.Digest256().digest(message.toByteArray());
+            final var messageHash = MiscCryptoUtils.keccak256DigestOf(message.toByteArray());
             final var privateKey = getEcdsaPrivateKeyFromSpec(spec, keyName);
             final var publicKey = spec.registry().getKey(keyName).getECDSASecp256K1();
             final var signedBytes = Signing.signMessage(messageHash, privateKey);

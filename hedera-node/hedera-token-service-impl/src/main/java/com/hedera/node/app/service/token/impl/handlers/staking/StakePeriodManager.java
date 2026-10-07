@@ -98,6 +98,20 @@ public class StakePeriodManager {
     }
 
     /**
+     * Returns whether the given account is rewardable on its own stake this period, based on its
+     * effective stake period start. This is the single source of truth for own-stake reward
+     * eligibility, shared by {@link StakeRewardCalculatorImpl#computePendingReward} and the
+     * stake-metadata bookkeeping in {@code StakingRewardsHandlerImpl}.
+     * @param account the account
+     * @param networkRewards the network rewards
+     * @return true if the account is rewardable on its own stake this period
+     */
+    public boolean isRewardable(
+            @NonNull final Account account, @NonNull final ReadableNetworkStakingRewardsStore networkRewards) {
+        return isRewardable(effectivePeriod(account.stakePeriodStart()), networkRewards);
+    }
+
+    /**
      * Returns the first stake period that is not rewardable. This is used to determine
      * if an account is eligible for a reward, as soon as staking rewards are activated.
      * @param rewardsStore the network rewards store

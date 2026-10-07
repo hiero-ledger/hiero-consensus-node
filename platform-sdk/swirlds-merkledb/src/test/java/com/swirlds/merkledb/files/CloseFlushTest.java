@@ -5,8 +5,9 @@ import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.DEFAULT_CONFI
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
+import com.swirlds.merkledb.internal.MerkleDbDataSource;
+import com.swirlds.merkledb.internal.MerkleDbDataSourceTestUtils;
 import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
@@ -30,6 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.file.AbstractFileManagerAwareTest;
 import org.junit.jupiter.api.AfterAll;
@@ -71,7 +73,7 @@ public class CloseFlushTest extends AbstractFileManagerAwareTest {
         final Path tmpFileDir = fileSystemManager.resolveNewTemp();
         Files.createDirectories(tmpFileDir);
         for (int j = 0; j < 100; j++) {
-            final MerkleDbDataSource dataSource = MerkleDbTestUtils.createDataSource(
+            final MerkleDbDataSource dataSource = MerkleDbDataSourceTestUtils.createDataSource(
                     DEFAULT_CONFIGURATION, fileSystemManager, "closeFlushTest", count, false, true);
             // Create a custom data source builder, which creates a custom data source to capture
             // all exceptions happened in saveRecords()
@@ -138,8 +140,8 @@ public class CloseFlushTest extends AbstractFileManagerAwareTest {
                 final boolean offlineUse) {
             return new VirtualDataSource() {
                 @Override
-                public void close(boolean keepData) throws IOException {
-                    delegate.close(keepData);
+                public void close() throws IOException {
+                    delegate.close();
                 }
 
                 @Override
@@ -214,13 +216,18 @@ public class CloseFlushTest extends AbstractFileManagerAwareTest {
                 }
 
                 @Override
+                public DigestType getLoadedHashDigestType() {
+                    return delegate.getLoadedHashDigestType();
+                }
+
+                @Override
                 public void enableBackgroundCompaction() {
                     delegate.enableBackgroundCompaction();
                 }
 
                 @Override
-                public void stopAndDisableBackgroundCompaction() {
-                    delegate.stopAndDisableBackgroundCompaction();
+                public void stopAndDisableBackgroundCompaction(final boolean waitForTasksToComplete) {
+                    delegate.stopAndDisableBackgroundCompaction(waitForTasksToComplete);
                 }
             };
         }

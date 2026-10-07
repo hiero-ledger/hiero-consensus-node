@@ -71,11 +71,19 @@ class CountingInputStreamTests {
         assertEquals(writeBytes, byteCounterOut.getCount(), "incorrect count");
 
         countIn.read(new byte[readBytes * 2]);
-        assertEquals(writeBytes, byteCounterIn.getCount(), "incorrect count");
-        assertEquals(writeBytes, byteCounterOut.getCount(), "incorrect count");
+        assertEquals(writeBytes, byteCounterIn.getAndReset(), "incorrect count");
+        assertEquals(writeBytes, byteCounterOut.getAndReset(), "incorrect count");
 
-        byteCounterIn.getAndReset();
         assertEquals(0, byteCounterIn.getCount(), "no additional bytes written");
+
+        assertEquals(writeBytes, byteCounterIn.getTotalCount(), "incorrect count");
+        assertEquals(writeBytes, byteCounterOut.getTotalCount(), "incorrect count");
+
+        countOut.write(new byte[writeBytes]);
+        countIn.read(new byte[readBytes]);
+
+        assertEquals(writeBytes + readBytes, byteCounterIn.getTotalCount(), "incorrect count");
+        assertEquals(writeBytes + writeBytes, byteCounterOut.getTotalCount(), "incorrect count");
 
         countIn.close();
         countOut.close();

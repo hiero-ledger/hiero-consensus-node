@@ -209,6 +209,11 @@ public final class TssKeyFiles {
             requireNonNull(publicKey);
         }
 
+        @Override
+        public @NonNull String toString() {
+            return "SchnorrKeyPair[privateKey=<redacted>, publicKey=" + publicKey + "]";
+        }
+
         /**
          * Translates a byte array into a {@link SchnorrKeyPair}.
          */

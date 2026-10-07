@@ -38,11 +38,9 @@ later round.
 ## In current code
 
 `RoundElections.findAllJudges`
-([`RoundElections.java`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/RoundElections.java)
-line 136). Per-event flag: `EventImpl.setJudgeTrue`. Persisted form:
+([`RoundElections.java`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/RoundElections.java#findAllJudges)). Per-event flag: `EventImpl.setJudgeTrue`. Persisted form:
 the `JudgeId` PBJ message (defined at
-[`platform_state.proto`](../../../../hapi/hedera-protobuf-java-api/src/main/proto/platform/state/platform_state.proto)
-line 168), carried inside `ConsensusSnapshot.judgeIds`.
+[`platform_state.proto`](../../../../hapi/hedera-protobuf-java-api/src/main/proto/platform/state/platform_state.proto)), carried inside `ConsensusSnapshot.judgeIds`.
 
 The paper terms these "unique famous witnesses"; the code names them
 *judges*. The two terms refer to the same set. The exact tie-break

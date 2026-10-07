@@ -11,6 +11,7 @@ import com.esaulpaugh.headlong.rlp.RLPEncoder;
 import com.esaulpaugh.headlong.util.Integers;
 import com.hedera.cryptography.libsecp256k1.ContextualLibsecp256k1;
 import com.hedera.cryptography.libsecp256k1.Libsecp256k1;
+import com.hedera.node.app.hapi.utils.MiscCryptoUtils;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
@@ -19,8 +20,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.foreign.MemorySegment;
 import java.math.BigInteger;
 import org.apache.tuweni.bytes.Bytes;
-import org.bouncycastle.jcajce.provider.digest.Keccak;
-import org.bouncycastle.math.ec.rfc8032.Ed25519;
 
 /**
  * Utility methods for signing messages
@@ -84,13 +83,6 @@ public final class Signing {
         return result;
     }
 
-    public static byte[] signMessageEd25519(final byte[] message, byte[] privateKey) {
-        byte[] signature = new byte[Ed25519.SIGNATURE_SIZE];
-        Ed25519.sign(privateKey, 0, message, 0, message.length, signature, 0);
-
-        return signature;
-    }
-
     public static Object[] signCodeDelegation(
             final byte[] chainId,
             final Address delegationTarget,
@@ -121,7 +113,7 @@ public final class Signing {
         final MemorySegment signatureSeg = MemorySegment.ofArray(signature);
         LIBSECP256K1.secp256k1EcdsaSignRecoverable(
                 signatureSeg,
-                MemorySegment.ofArray(new Keccak.Digest256().digest(signableMessage)),
+                MemorySegment.ofArray(MiscCryptoUtils.keccak256DigestOf(signableMessage)),
                 MemorySegment.ofArray(privateKey),
                 MemorySegment.NULL,
                 MemorySegment.NULL);

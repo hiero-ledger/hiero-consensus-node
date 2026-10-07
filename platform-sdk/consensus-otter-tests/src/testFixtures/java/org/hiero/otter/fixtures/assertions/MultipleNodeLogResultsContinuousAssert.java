@@ -13,6 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Marker;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.logging.StructuredLog;
 import org.hiero.otter.fixtures.result.LogSubscriber;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
@@ -104,8 +105,9 @@ public class MultipleNodeLogResultsContinuousAssert
      */
     @NonNull
     public MultipleNodeLogResultsContinuousAssert haveNoMessageWithLevelHigherThan(@NonNull final Level level) {
+        final int thresholdIntLevel = level.intLevel();
         return checkContinuously(logEntry -> {
-            if (logEntry.level().intLevel() < level.intLevel()) {
+            if (logEntry.level().intLevel() < thresholdIntLevel) {
                 failWithMessage(
                         "Expected no message with level higher than %s, but found %s in %n%s",
                         level, logEntry.level(), logEntry);
@@ -143,8 +145,10 @@ public class MultipleNodeLogResultsContinuousAssert
 
         final LogSubscriber subscriber = logEntry -> switch (state) {
             case ACTIVE -> {
-                if ((logEntry.nodeId() == null || !suppressedNodeIds.contains(logEntry.nodeId()))
-                        && (logEntry.marker() == null || !suppressedLogMarkers.contains(logEntry.marker()))) {
+                final NodeId nodeId = logEntry.nodeId();
+                final Marker marker = logEntry.marker();
+                if ((nodeId == null || !suppressedNodeIds.contains(nodeId))
+                        && (marker == null || !suppressedLogMarkers.contains(marker))) {
                     check.accept(logEntry);
                 }
                 yield CONTINUE;

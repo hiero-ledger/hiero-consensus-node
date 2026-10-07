@@ -11,7 +11,7 @@ import com.swirlds.benchmark.reconnect.network.NetworkProfile;
 import com.swirlds.benchmark.reconnect.network.NetworkSimulationConfig;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
-import com.swirlds.merkledb.MerkleDbDataSource;
+import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import java.time.Duration;
@@ -204,7 +204,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
         teacherMapCopy = null;
         teacherData = null;
 
-        await().atMost(Duration.ofSeconds(30)).until(() -> MerkleDbDataSource.getCountOfOpenDatabases() == 0);
+        await().atMost(Duration.ofSeconds(30)).until(() -> MerkleDbDataSourceBuilder.getCountOfOpenDatabases() == 0);
 
         super.onTrialTearDown();
     }

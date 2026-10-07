@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fees;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.HighVolumePricingCalculator.DEFAULT_HIGH_VOLUME_MULTIPLIER;
 
@@ -97,9 +98,10 @@ public record Fees(long nodeFee, long networkFee, long serviceFee, long highVolu
      * @return the total fee. Will be non-negative.
      */
     public long totalFee() {
-        // Safely add the three components together, such that an overflow is detected. In practice this should never
-        // happen, since the maximum number of tinybars is less than Long.MAX_VALUE.
-        return Math.addExact(totalWithoutServiceFee(), serviceFee);
+        // Saturate rather than throw on overflow. In practice a legitimate total is well under Long.MAX_VALUE,
+        // but a saturated component (from a degenerate exchange rate) must clamp the total to Long.MAX_VALUE so
+        // the operation reaches the insufficient-balance outcome instead of raising an ArithmeticException.
+        return clampedAdd(totalWithoutServiceFee(), serviceFee);
     }
 
     /**
@@ -108,7 +110,7 @@ public record Fees(long nodeFee, long networkFee, long serviceFee, long highVolu
      * @return the total without service fees. Will be non-negative.
      */
     public long totalWithoutServiceFee() {
-        return Math.addExact(nodeFee, networkFee);
+        return clampedAdd(nodeFee, networkFee);
     }
 
     /**
@@ -117,7 +119,7 @@ public record Fees(long nodeFee, long networkFee, long serviceFee, long highVolu
      * @return the total without node fees. Will be non-negative.
      */
     public long totalWithoutNodeFee() {
-        return Math.addExact(networkFee, serviceFee);
+        return clampedAdd(networkFee, serviceFee);
     }
 
     /**

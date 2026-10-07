@@ -38,10 +38,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -77,7 +81,7 @@ class FileBlockItemWriterTest {
 
     @BeforeEach
     void setUp() {
-        when(selfNodeAccountIdManager.getSelfNodeAccountId()).thenReturn(selfNodeInfo.accountId());
+        lenient().when(selfNodeAccountIdManager.getSelfNodeAccountId()).thenReturn(selfNodeInfo.accountId());
         lenient().when(blockStreamConfig.blockFileBufferOuterSizeKb()).thenReturn(4096);
         lenient().when(blockStreamConfig.blockFileBufferInnerSizeKb()).thenReturn(1024);
         lenient().when(blockStreamConfig.blockFileBufferGzipSizeKb()).thenReturn(256);
@@ -420,8 +424,9 @@ class FileBlockItemWriterTest {
         assertDoesNotThrow(subject::flushIncompleteBlock);
     }
 
-    @Test
-    void loadContiguousPendingBlocksDeserializesSignedTransaction() throws IOException {
+    @ParameterizedTest
+    @MethodSource("signedTransactionBytes")
+    void loadContiguousPendingBlocksPreservesSignedTransactionBytes(final Bytes signedTxBytes) throws IOException {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(BlockStreamConfig.class)).thenReturn(blockStreamConfig);
         when(blockStreamConfig.blockFileDir()).thenReturn(tempDir.toString());
@@ -429,9 +434,6 @@ class FileBlockItemWriterTest {
         final var subject = new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, FileSystems.getDefault());
         subject.openBlock(2);
 
-        final var signedTxBytes = SignedTransaction.PROTOBUF.toBytes(SignedTransaction.newBuilder()
-                .bodyBytes(Bytes.wrap("test-body".getBytes()))
-                .build());
         final var blockItem =
                 BlockItem.newBuilder().signedTransaction(signedTxBytes).build();
         subject.writeItem(BlockItem.PROTOBUF.toBytes(blockItem).toByteArray());
@@ -445,7 +447,8 @@ class FileBlockItemWriterTest {
                 .siblingHashesFromPrevBlockRoot(List.of(
                         new MerkleSiblingHash(true, Bytes.fromHex("1111")),
                         new MerkleSiblingHash(true, Bytes.fromHex("2222")),
-                        new MerkleSiblingHash(true, Bytes.fromHex("3333"))))
+                        new MerkleSiblingHash(true, Bytes.fromHex("3333")),
+                        new MerkleSiblingHash(true, Bytes.fromHex("4444"))))
                 .build();
         subject.flushPendingBlock(pendingProof);
 
@@ -458,5 +461,45 @@ class FileBlockItemWriterTest {
         assertEquals(1, loadedBlock.items().size());
         assertTrue(loadedBlock.items().getFirst().hasSignedTransaction());
         assertEquals(signedTxBytes, loadedBlock.items().getFirst().signedTransactionOrThrow());
+    }
+
+    private static List<Bytes> signedTransactionBytes() {
+        return List.of(
+                SignedTransaction.PROTOBUF.toBytes(SignedTransaction.newBuilder()
+                        .bodyBytes(Bytes.wrap("test-body".getBytes()))
+                        .build()),
+                // Field 1000, varint 1, either in SignedTransaction or inside its bodyBytes (field 1).
+                Bytes.fromHex("c03e01"),
+                Bytes.fromHex("0a03c03e01"));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"false, c03e01", "true, c03e01", "false, 0a03c03e01", "true, 0a03c03e01"})
+    void loadContiguousPendingBlocksRejectsUnknownFields(final boolean compressed, final String blockHex)
+            throws IOException {
+        final var dir = Files.createDirectory(tempDir.resolve("block-0.0.3"));
+        final var pendingProof = PendingProof.newBuilder()
+                .block(1)
+                .blockTimestamp(new Timestamp(1, 0))
+                .siblingHashesFromPrevBlockRoot(List.of(
+                        new MerkleSiblingHash(true, Bytes.EMPTY),
+                        new MerkleSiblingHash(true, Bytes.EMPTY),
+                        new MerkleSiblingHash(true, Bytes.EMPTY),
+                        new MerkleSiblingHash(true, Bytes.EMPTY)))
+                .build();
+        Files.writeString(dir.resolve(PENDING_PROOF_JSON), PendingProof.JSON.toJSON(pendingProof));
+        // Field 1000, varint 1, at either Block level or inside its first BlockItem (field 1).
+        final var bytes = Bytes.fromHex(blockHex).toByteArray();
+        if (compressed) {
+            try (final var out = new GZIPOutputStream(Files.newOutputStream(dir.resolve(PENDING_BLK_GZ)))) {
+                out.write(bytes);
+            }
+        } else {
+            Files.write(dir.resolve(PENDING_BLK_GZ.replace(".gz", "")), bytes);
+        }
+
+        assertThat(FileBlockItemWriter.loadContiguousPendingBlocks(
+                        tempDir, 2, Codec.DEFAULT_MAX_DEPTH, Codec.DEFAULT_MAX_SIZE))
+                .isEmpty();
     }
 }

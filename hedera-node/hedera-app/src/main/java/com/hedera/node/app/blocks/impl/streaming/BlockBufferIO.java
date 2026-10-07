@@ -179,8 +179,9 @@ public class BlockBufferIO {
                 byteBuffer.get(payload);
                 final Bytes bytes = Bytes.wrap(payload);
 
+                // Reject unknown fields while retaining the buffer's depth and size limits.
                 return BufferedBlock.PROTOBUF.parse(
-                        bytes.toReadableSequentialData(), false, false, maxReadDepth, length);
+                        bytes.toReadableSequentialData(), true, false, maxReadDepth, length);
             }
         }
     }
@@ -258,6 +259,7 @@ public class BlockBufferIO {
                     .build();
             final BufferedBlock bufferedBlock = BufferedBlock.newBuilder()
                     .blockNumber(block.blockNumber())
+                    .blockPeriodMillis(block.blockPeriodMillis())
                     .openedTimestamp(openedTimestamp)
                     .closedTimestamp(closedTimestamp)
                     .isAcknowledged(block.blockNumber() <= latestAcknowledgedBlockNumber)

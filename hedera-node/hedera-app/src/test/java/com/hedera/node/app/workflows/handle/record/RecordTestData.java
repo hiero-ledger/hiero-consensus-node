@@ -33,8 +33,8 @@ import java.util.Random;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signer;
-import org.hiero.consensus.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

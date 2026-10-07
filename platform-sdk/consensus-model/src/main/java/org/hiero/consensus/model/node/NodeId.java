@@ -2,29 +2,12 @@
 package org.hiero.consensus.model.node;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.util.Objects;
-import org.hiero.base.io.SelfSerializable;
-import org.hiero.base.io.streams.SerializableDataInputStream;
-import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
  * A class that is used to uniquely identify a Swirlds Node.
  */
-public class NodeId implements Comparable<NodeId>, SelfSerializable {
-
-    /** The class identifier for this class. */
-    private static final long CLASS_ID = 0xea520dcf050bcaadL;
-
-    /** The class version for this class. */
-    public static final class ClassVersion {
-        /**
-         * The original version of the class.
-         *
-         * @since 0.39.0
-         */
-        public static final int ORIGINAL = 1;
-    }
+public class NodeId implements Comparable<NodeId> {
 
     /** The undefined NodeId. */
     public static final NodeId UNDEFINED_NODE_ID = null;
@@ -69,30 +52,6 @@ public class NodeId implements Comparable<NodeId>, SelfSerializable {
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
-    public long getClassId() {
-        return CLASS_ID;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getVersion() {
-        return ClassVersion.ORIGINAL;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public int getMinimumSupportedVersion() {
-        return ClassVersion.ORIGINAL;
-    }
-
-    /**
      * Gets the long value of the NodeId
      *
      * @return the long value of the NodeId
@@ -132,40 +91,6 @@ public class NodeId implements Comparable<NodeId>, SelfSerializable {
     @Override
     public String toString() {
         return Long.toString(id);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void serialize(SerializableDataOutputStream out) throws IOException {
-        out.writeLong(id);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void deserialize(SerializableDataInputStream in, int version) throws IOException {
-        id = in.readLong();
-    }
-
-    /**
-     * Deserialize a NodeId from a {@link SerializableDataInputStream}.
-     *
-     * @param in the {@link SerializableDataInputStream} to read from
-     * @return the deserialized NodeId
-     * @throws IOException thrown if an exception occurs while reading from the stream or the long value is negative,
-     */
-    public static NodeId deserializeLong(SerializableDataInputStream in, boolean allowNull) throws IOException {
-        final long longValue = in.readLong();
-        if (longValue < LOWEST_NODE_NUMBER) {
-            if (allowNull) {
-                return null;
-            }
-            throw new IOException("id must be non-negative");
-        }
-        return NodeId.of(longValue);
     }
 
     /**

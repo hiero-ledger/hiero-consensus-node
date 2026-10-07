@@ -18,9 +18,9 @@ import com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall;
 import com.hederahashgraph.api.proto.java.ContractFunctionResult;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.math.BigInteger;
+import java.util.HexFormat;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.bouncycastle.util.encoders.Hex;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -188,13 +188,14 @@ public class CodeDelegationChainingTest extends CodeDelegationTestBase {
             // The inner call fails due to the delegation chain (banned opcode),
             // and executeCall propagates the revert.
             final var innerCallData = new Function("executeCall(address,uint256,bytes)")
-                    .encodeCall(Tuple.of(eoaA.evmAddress(), BigInteger.ZERO, Hex.decode("cafebabe")))
+                    .encodeCall(Tuple.of(
+                            eoaA.evmAddress(), BigInteger.ZERO, HexFormat.of().parseHex("cafebabe")))
                     .array();
 
             allRunFor(
                     spec,
                     HapiEthereumCall.explicitlyTo(contract.evmAddressBytes(), 0)
-                            .withExplicitParams(() -> Hex.toHexString(innerCallData))
+                            .withExplicitParams(() -> HexFormat.of().formatHex(innerCallData))
                             .payingWith(payer.name())
                             .signingWith(caller.keyName())
                             .gasLimit(200_000L)

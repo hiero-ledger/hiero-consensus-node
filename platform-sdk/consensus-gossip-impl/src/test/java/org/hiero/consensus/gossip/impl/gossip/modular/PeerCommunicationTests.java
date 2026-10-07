@@ -19,8 +19,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
-import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
-import org.hiero.consensus.crypto.KeysAndCertsGenerator;
+import org.hiero.base.concurrent.manager.AdHocThreadManager;
+import org.hiero.base.concurrent.throttle.StackTraceDeduplicator;
+import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.gossip.config.ProtocolConfig;
 import org.hiero.consensus.gossip.impl.network.PeerCommunication;
 import org.hiero.consensus.gossip.impl.network.PeerInfo;
@@ -28,7 +30,6 @@ import org.hiero.consensus.gossip.impl.network.communication.handshake.VersionCo
 import org.hiero.consensus.gossip.impl.network.protocol.HeartbeatProtocol;
 import org.hiero.consensus.gossip.impl.network.protocol.Protocol;
 import org.hiero.consensus.gossip.impl.network.protocol.ProtocolRunnable;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;
@@ -102,7 +103,8 @@ public class PeerCommunicationTests {
                     Time.getCurrent(),
                     new ArrayList<>(),
                     selfPeer,
-                    perNodeCerts.get(selfPeer.nodeId()));
+                    perNodeCerts.get(selfPeer.nodeId()),
+                    new StackTraceDeduplicator());
 
             final ProtocolConfig protocolConfig = configuration.getConfigData(ProtocolConfig.class);
             final VersionCompareHandshake versionCompareHandshake = new VersionCompareHandshake(

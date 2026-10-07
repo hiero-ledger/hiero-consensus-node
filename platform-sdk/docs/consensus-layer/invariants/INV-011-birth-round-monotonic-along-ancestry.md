@@ -14,6 +14,7 @@ source: The hashgraph consensus algorithm (protocol definition).
 verification: consensus-utility/src/main/java/org/hiero/consensus/event/validation/DefaultEventFieldValidator.java — `isEventBirthRoundValid` rejects an event whose birth round is below a parent's
 provenance: 2026-06-08 extraction run
 curated_by: Michael Heinrichs (@netopyr)
+last_reviewed: TBD
 ---
 
 # INV-011 — Birth round is monotonic along ancestry

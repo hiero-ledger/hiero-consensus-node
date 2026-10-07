@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.utils;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
+
 import com.hedera.node.app.service.contract.impl.hevm.OpsDurationSchedule;
 import java.util.Objects;
 
@@ -27,7 +29,13 @@ public final class OpsDurationCounter {
     }
 
     public void recordOpsDurationUnitsConsumed(final long opsDurationUnitsToConsume) {
-        this.opsDurationUnitsConsumed += opsDurationUnitsToConsume;
+        if (opsDurationUnitsToConsume <= 0L) {
+            // Never record a negative amount; zero is a no-op. This keeps the running total monotonic
+            // and non-negative even if a caller ever computes a bad (e.g. overflowed) cost.
+            return;
+        }
+        // Saturating add so the running total can never overflow to a negative value.
+        this.opsDurationUnitsConsumed = clampedAdd(this.opsDurationUnitsConsumed, opsDurationUnitsToConsume);
     }
 
     public OpsDurationSchedule schedule() {

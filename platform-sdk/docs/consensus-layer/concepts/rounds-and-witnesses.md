@@ -111,19 +111,18 @@ strongly sees a super-majority of round-1 witnesses, so *x* takes round
 
 Round assignment: `ConsensusImpl.round`
 ([`ConsensusImpl.java`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/ConsensusImpl.java)).
-Round-created recalculation: `ConsensusImpl.recalculateAndVote`
-(line 325), invoked after each election decides (call sites at
-lines 297 and 308). It walks `recentEvents` and re-derives
+Round-created recalculation: `ConsensusImpl.recalculateAndVote`,
+invoked after each election decides. It walks `recentEvents` and re-derives
 round-created and per-event scratch metadata for every event still
 in an undecided round (i.e. non-ancient, non-consensus).
 Witness predicate: `ConsensusImpl.witness`. Per-event accessors:
-`EventImpl.getRoundCreated` (line 334) and
-`EventImpl.getRoundReceived` (line 112). Per-round election state:
+`EventImpl.getRoundCreated` and
+`EventImpl.getRoundReceived`. Per-round election state:
 [`RoundElections`](../../../consensus-hashgraph-impl/src/main/java/org/hiero/consensus/hashgraph/impl/consensus/RoundElections.java),
-whose `getRound()` (line 48) is what `ConsensusRounds.getElectionRoundNumber`
+whose `getRound()` is what `ConsensusRounds.getElectionRoundNumber`
 exposes. "Voting round" is not a class or method name; it is the
 conceptual label for any round whose round-created is greater than
-the election round during `voteInAllElections` (line 506).
+the election round during `voteInAllElections`.
 
 Round bumps work the same way in the paper and in the code:
 an event's round is bumped when it strongly sees a super-majority of

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.stream;
 
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -35,7 +35,7 @@ public class TestStreamManager {
      */
     private final HashCalculatorForStream<ObjectForTestStream> hashCalculator;
     /** initial running Hash of records */
-    private Hash initialHash = new Hash(new byte[DigestType.SHA_384.digestLength()]);
+    private Hash initialHash = new Hash(new byte[DigestType.SHA_384.digestLength()], DigestType.SHA_384);
 
     public TestStreamManager(final CountDownLatch countDownLatch, final int expectedCount) {
         CountDownLatchStream<ObjectForTestStream> countDownLatchStream =
@@ -44,7 +44,8 @@ public class TestStreamManager {
         final RunningHashCalculatorForStream<ObjectForTestStream> runningHashCalculator =
                 new RunningHashCalculatorForStream<>(countDownLatchStream);
         hashCalculator = new HashCalculatorForStream<>(runningHashCalculator);
-        hashQueueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(getStaticThreadManager())
+        hashQueueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(
+                        getStaticThreadManager(), "test-queue")
                 .setForwardTo(hashCalculator)
                 .build();
         hashQueueThread.start();
@@ -58,7 +59,8 @@ public class TestStreamManager {
         final RunningHashCalculatorForStream<ObjectForTestStream> runningHashCalculator =
                 new RunningHashCalculatorForStream<>();
         hashCalculator = new HashCalculatorForStream<>(runningHashCalculator);
-        hashQueueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(getStaticThreadManager())
+        hashQueueThread = new QueueThreadObjectStreamConfiguration<ObjectForTestStream>(
+                        getStaticThreadManager(), "test-queue")
                 .setForwardTo(hashCalculator)
                 .build();
 

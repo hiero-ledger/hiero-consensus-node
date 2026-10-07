@@ -808,12 +808,15 @@ public class BaseTranslator {
                     now = asTimestamp(asInstant(now).plusNanos(1));
                 }
                 if (!executedInitcode.hasContractId()) {
-                    sidecars.add(TransactionSidecarRecord.newBuilder()
-                            .consensusTimestamp(now)
-                            .bytecode(ContractBytecode.newBuilder()
-                                    .initcode(executedInitcode.explicitInitcodeOrThrow())
-                                    .build())
-                            .build());
+                    // in case of executedInitcode.initcode.kind == UNSET
+                    if (executedInitcode.hasExplicitInitcode()) {
+                        sidecars.add(TransactionSidecarRecord.newBuilder()
+                                .consensusTimestamp(now)
+                                .bytecode(ContractBytecode.newBuilder()
+                                        .initcode(executedInitcode.explicitInitcodeOrThrow())
+                                        .build())
+                                .build());
+                    }
                 } else {
                     final var contractId = executedInitcode.contractIdOrThrow();
                     final var bytecodeBuilder = ContractBytecode.newBuilder().contractId(contractId);

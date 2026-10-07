@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
+import static com.hedera.hapi.node.base.HederaFunctionality.FILE_GET_INFO;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.FEE_SCHEDULE_FILE_PART_UPLOADED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
@@ -10,22 +12,21 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.BDDMockito.given;
 
-import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
-import com.hedera.hapi.node.base.FeeComponents;
-import com.hedera.hapi.node.base.FeeData;
-import com.hedera.hapi.node.base.FeeSchedule;
-import com.hedera.hapi.node.base.SubType;
-import com.hedera.hapi.node.base.TimestampSeconds;
-import com.hedera.hapi.node.base.TransactionFeeSchedule;
+import com.hedera.hapi.node.transaction.Query;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
+import com.hedera.node.app.spi.fees.QueryFeeCalculator;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
-import java.util.List;
 import java.util.Set;
 import org.hiero.hapi.support.fees.Extra;
+import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.NetworkFee;
 import org.hiero.hapi.support.fees.NodeFee;
-import org.jspecify.annotations.NonNull;
+import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,44 +42,26 @@ class FeeManagerTest {
     @Mock
     private CongestionMultipliers congestionMultipliers;
 
+    @Mock
+    private ServiceFeeCalculator topicCreateCalculator;
+
+    @Mock
+    private QueryFeeCalculator fileGetInfoCalculator;
+
+    @Mock
+    private ServiceFeeCalculator hookDispatchCalculator;
+
+    @Mock
+    private ServiceFeeCalculator unsetTypeCalculator;
+
+    @Mock
+    private QueryFeeCalculator unsetQueryCalculator;
+
     private FeeManager subject;
 
     @BeforeEach
     void setUp() {
         subject = new FeeManager(exchangeRateManager, congestionMultipliers, Set.of(), Set.of());
-    }
-
-    @Test
-    void updateParsesCurrentAndNextFeeSchedule() {
-        final var feeComponents = feeComponents();
-        final var feeData = FeeData.newBuilder()
-                .networkdata(feeComponents)
-                .nodedata(feeComponents)
-                .servicedata(feeComponents)
-                .subType(SubType.DEFAULT)
-                .build();
-        final var expiryTime = TimestampSeconds.newBuilder().seconds(9_999_999L).build();
-        final var txFeeSchedule = TransactionFeeSchedule.newBuilder()
-                .hederaFunctionality(CRYPTO_CREATE)
-                .fees(List.of(feeData))
-                .build();
-        final var feeSchedule = FeeSchedule.newBuilder()
-                .transactionFeeSchedule(List.of(txFeeSchedule))
-                .expiryTime(expiryTime)
-                .build();
-        final var schedules = CurrentAndNextFeeSchedule.newBuilder()
-                .currentFeeSchedule(feeSchedule)
-                .nextFeeSchedule(feeSchedule)
-                .build();
-        final var bytes = CurrentAndNextFeeSchedule.PROTOBUF.toBytes(schedules);
-
-        final var result = subject.update(bytes);
-
-        assertEquals(SUCCESS, result);
-        final var loadedFeeData = subject.getFeeData(CRYPTO_CREATE, Instant.ofEpochSecond(1L), SubType.DEFAULT);
-        assertEquals(100L, loadedFeeData.networkdataOrThrow().min());
-        assertEquals(50_000L, loadedFeeData.networkdataOrThrow().max());
-        assertEquals(1L, loadedFeeData.networkdataOrThrow().bpt());
     }
 
     @Test
@@ -140,18 +123,83 @@ class FeeManagerTest {
         assertThrows(IllegalStateException.class, () -> subject.getGasPriceInTinyCents(Instant.ofEpochSecond(1L)));
     }
 
-    private static @NonNull FeeComponents feeComponents() {
-        return FeeComponents.newBuilder()
-                .min(100L)
-                .max(50_000L)
-                .bpt(1L)
-                .vpt(2L)
-                .rbh(3L)
-                .sbh(4L)
-                .gas(5L)
-                .tv(6L)
-                .bpr(7L)
-                .sbpr(8L)
+    @Test
+    void updateSimpleFeesRejectsScheduleThatDoesNotPriceRegisteredTransactionType() {
+        given(topicCreateCalculator.getTransactionType())
+                .willReturn(TransactionBody.DataOneOfType.CONSENSUS_CREATE_TOPIC);
+        subject = new FeeManager(exchangeRateManager, congestionMultipliers, Set.of(topicCreateCalculator), Set.of());
+        final var complete =
+                scheduleWith(makeServiceFee(CRYPTO_CREATE, 100), makeServiceFee(CONSENSUS_CREATE_TOPIC, 100));
+        assertEquals(SUCCESS, subject.updateSimpleFees(toBytes(complete)));
+
+        final var incomplete = scheduleWith(makeServiceFee(CRYPTO_CREATE, 100));
+
+        assertEquals(FEE_SCHEDULE_FILE_PART_UPLOADED, subject.updateSimpleFees(toBytes(incomplete)));
+        assertEquals(complete, subject.getSimpleFeesSchedule());
+    }
+
+    @Test
+    void updateSimpleFeesRejectsScheduleThatDoesNotPriceRegisteredQueryType() {
+        given(fileGetInfoCalculator.getQueryType()).willReturn(Query.QueryOneOfType.FILE_GET_INFO);
+        subject = new FeeManager(exchangeRateManager, congestionMultipliers, Set.of(), Set.of(fileGetInfoCalculator));
+        final var complete = scheduleWith(makeServiceFee(CRYPTO_CREATE, 100), makeServiceFee(FILE_GET_INFO, 100));
+        assertEquals(SUCCESS, subject.updateSimpleFees(toBytes(complete)));
+
+        final var incomplete = scheduleWith(makeServiceFee(CRYPTO_CREATE, 100));
+
+        assertEquals(FEE_SCHEDULE_FILE_PART_UPLOADED, subject.updateSimpleFees(toBytes(incomplete)));
+        assertEquals(complete, subject.getSimpleFeesSchedule());
+    }
+
+    @Test
+    void updateSimpleFeesDoesNotRequirePriceForHandlerStepFunction() {
+        given(hookDispatchCalculator.getTransactionType()).willReturn(TransactionBody.DataOneOfType.HOOK_DISPATCH);
+        subject = new FeeManager(exchangeRateManager, congestionMultipliers, Set.of(hookDispatchCalculator), Set.of());
+        final var schedule = scheduleWith(makeServiceFee(CRYPTO_CREATE, 100));
+
+        assertEquals(SUCCESS, subject.updateSimpleFees(toBytes(schedule)));
+    }
+
+    @Test
+    void updateSimpleFeesCanInstallScheduleThatLeavesRegisteredTypeUnpriced() {
+        given(topicCreateCalculator.getTransactionType())
+                .willReturn(TransactionBody.DataOneOfType.CONSENSUS_CREATE_TOPIC);
+        subject = new FeeManager(exchangeRateManager, congestionMultipliers, Set.of(topicCreateCalculator), Set.of());
+        final var incomplete = scheduleWith(makeServiceFee(CRYPTO_CREATE, 100));
+
+        assertEquals(SUCCESS, subject.updateSimpleFees(toBytes(incomplete), false));
+        assertEquals(incomplete, subject.getSimpleFeesSchedule());
+    }
+
+    @Test
+    void updateSimpleFeesFailsForCalculatorWithUnsetTransactionType() {
+        given(unsetTypeCalculator.getTransactionType()).willReturn(TransactionBody.DataOneOfType.UNSET);
+        subject = new FeeManager(exchangeRateManager, congestionMultipliers, Set.of(unsetTypeCalculator), Set.of());
+        final var bytes = toBytes(scheduleWith(makeServiceFee(CRYPTO_CREATE, 100)));
+
+        assertThrows(IllegalStateException.class, () -> subject.updateSimpleFees(bytes));
+    }
+
+    @Test
+    void updateSimpleFeesFailsForCalculatorWithUnsetQueryType() {
+        given(unsetQueryCalculator.getQueryType()).willReturn(Query.QueryOneOfType.UNSET);
+        subject = new FeeManager(exchangeRateManager, congestionMultipliers, Set.of(), Set.of(unsetQueryCalculator));
+        final var bytes = toBytes(scheduleWith(makeServiceFee(CRYPTO_CREATE, 100)));
+
+        assertThrows(IllegalStateException.class, () -> subject.updateSimpleFees(bytes));
+    }
+
+    private static FeeSchedule scheduleWith(final ServiceFeeDefinition... fees) {
+        return FeeSchedule.DEFAULT
+                .copyBuilder()
+                .extras(makeExtraDef(Extra.GAS, 852))
+                .node(NodeFee.DEFAULT.copyBuilder().baseFee(0).build())
+                .network(NetworkFee.DEFAULT.copyBuilder().multiplier(1).build())
+                .services(makeService("Test", fees))
                 .build();
+    }
+
+    private static Bytes toBytes(final FeeSchedule schedule) {
+        return FeeSchedule.PROTOBUF.toBytes(schedule);
     }
 }

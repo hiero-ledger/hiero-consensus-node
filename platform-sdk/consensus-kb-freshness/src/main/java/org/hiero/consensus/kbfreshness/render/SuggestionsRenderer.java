@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import org.hiero.consensus.kbfreshness.engine.LineSuggestion;
 import org.hiero.consensus.kbfreshness.engine.RunResult;
 import org.hiero.consensus.kbfreshness.extract.KbDocument;
 import org.hiero.consensus.kbfreshness.findings.NearNameMatcher;
@@ -130,7 +131,59 @@ public final class SuggestionsRenderer {
             sb.append("_None._\n");
         }
         strandedProse(sb, result);
+        lineSuggestionsSection(sb, result);
         return sb.toString();
+    }
+
+    /**
+     * Appends the line-reference suggestions: {@code File.java:NN} citations {@code --fix} cannot migrate
+     * to a symbol — the line is inside a method body, or past end-of-file — each pointing at the enclosing
+     * declaration to cite instead. Advisory, grouped per entry, rendered only when at least one exists.
+     *
+     * @param sb     the buffer to append to.
+     * @param result the run result.
+     */
+    private static void lineSuggestionsSection(final StringBuilder sb, final RunResult result) {
+        final List<LineSuggestion> suggestions = result.lineSuggestions();
+        if (suggestions.isEmpty()) {
+            return;
+        }
+        sb.append("\n## Line references to anchor to a symbol\n\n");
+        sb.append("_A `File.java:NN` line reference `--fix` cannot migrate — the line is inside a method "
+                + "body, or past the file's end. Cite the enclosing symbol instead, or verify._\n\n");
+        String currentKey = null;
+        for (final LineSuggestion s : suggestions) {
+            if (!s.entryKey().equals(currentKey)) {
+                currentKey = s.entryKey();
+                sb.append("### `")
+                        .append(s.entryKey())
+                        .append("`  \n`")
+                        .append(s.entryPath())
+                        .append("`\n\n");
+            }
+            final String cite = "`" + s.basename() + ":" + s.citedLine() + "`";
+            sb.append("- KB line ").append(s.docLine()).append(": ").append(cite);
+            if (s.pastEof()) {
+                sb.append(" — line ")
+                        .append(s.citedLine())
+                        .append(" exceeds `")
+                        .append(s.basename())
+                        .append("` (")
+                        .append(s.fileLineCount())
+                        .append(" lines); the location is gone — verify.\n");
+            } else if (s.enclosingSymbol() != null) {
+                sb.append(" is inside `")
+                        .append(s.enclosingSymbol())
+                        .append("` — cite `")
+                        .append(s.basename())
+                        .append("#")
+                        .append(s.enclosingSymbol())
+                        .append("`, or verify.\n");
+            } else {
+                sb.append(" is not a declaration — cite a symbol, or verify.\n");
+            }
+        }
+        sb.append('\n');
     }
 
     /**

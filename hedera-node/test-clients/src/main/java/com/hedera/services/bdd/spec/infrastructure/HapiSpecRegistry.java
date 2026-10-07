@@ -103,8 +103,6 @@ public class HapiSpecRegistry {
         saveAccountId(setup.exchangeRatesControlName(), setup.exchangeRatesControl());
         saveKey(setup.exchangeRatesControlName(), asKeyList(genesisKey));
         /* (system 4) :: Fee Schedule */
-        saveFileId(setup.feeScheduleName(), setup.feeScheduleId());
-        saveKey(setup.feeScheduleName(), asKeyList(genesisKey));
         saveAccountId(setup.feeScheduleControlName(), setup.feeScheduleControl());
         saveKey(setup.feeScheduleControlName(), asKeyList(genesisKey));
         /* (system 4) :: Simple Fees Schedule */

@@ -33,6 +33,7 @@ import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
+import com.hedera.node.app.service.clpr.impl.ClprServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
@@ -65,7 +66,7 @@ import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ForkJoinPool;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 import org.junit.jupiter.api.BeforeEach;
@@ -178,6 +179,7 @@ class IngestComponentTest {
                 .consensusServiceImpl(new ConsensusServiceImpl())
                 .networkServiceImpl(new NetworkServiceImpl())
                 .addressBookService(new AddressBookServiceImpl())
+                .clprServiceImpl(new ClprServiceImpl())
                 .wrappedRecordBlockHashMigration(new WrappedRecordBlockHashMigration())
                 .transactionOffsetNanos(ServicesMain.transactionOffsetNanos(configuration))
                 .build();

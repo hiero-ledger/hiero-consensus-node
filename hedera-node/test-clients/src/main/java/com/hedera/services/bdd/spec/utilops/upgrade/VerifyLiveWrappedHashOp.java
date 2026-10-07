@@ -16,10 +16,6 @@ import org.junit.jupiter.api.Assertions;
  * Verifies live wrapped record block hashes by replaying {@code .rcd} files from
  * genesis through the live-hash freeze block and asserting the final chained hash
  * matches the node's persisted live hash.
- *
- * <p>Per-block entry verification against the wrapped hashes file is handled
- * separately by {@link VerifyJumpstartHashOp} in Phase 4; this operation focuses
- * solely on the end-to-end chained hash correctness.
  */
 public class VerifyLiveWrappedHashOp extends UtilOp {
 

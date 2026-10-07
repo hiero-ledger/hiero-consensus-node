@@ -31,7 +31,7 @@ import org.hiero.consensus.event.stream.LinkedObjectStream;
 import org.hiero.consensus.event.stream.RunningHashCalculatorForStream;
 import org.hiero.consensus.event.stream.config.EventConfig_;
 import org.hiero.consensus.event.stream.internal.TimestampStreamFileWriter;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -204,7 +204,7 @@ public final class EventStreamTestUtils {
                         signer,
                         false,
                         EventStreamType.getInstance()));
-        stream.setRunningHash(new Hash(new byte[DigestType.SHA_384.digestLength()]));
+        stream.setRunningHash(new Hash(new byte[DigestType.SHA_384.digestLength()], DigestType.SHA_384));
         rounds.stream().flatMap(r -> r.getStreamedEvents().stream()).forEach(stream::addObject);
         stream.close();
     }

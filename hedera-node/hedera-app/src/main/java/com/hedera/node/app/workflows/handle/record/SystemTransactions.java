@@ -12,7 +12,9 @@ import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.pars
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater.END_OF_PERIOD_MEMO;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.fromStakingInfo;
 import static com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUtils.lastInstantOfPreviousPeriodFor;
+import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.dispatchSynthNodeRewards;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INTERNAL_SYSTEM_TRANSACTION;
 import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.SYSTEM_TXN_CREATION_ENTITY_NUM;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
@@ -31,7 +33,6 @@ import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
 import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.CurrentAndNextFeeSchedule;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.Key;
@@ -45,6 +46,7 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
@@ -98,6 +100,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.BootstrapConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.data.HederaConfig;
@@ -151,6 +154,14 @@ import org.hiero.hapi.support.fees.FeeSchedule;
 public class SystemTransactions {
 
     private static final Logger log = LogManager.getLogger(SystemTransactions.class);
+
+    /**
+     * The number of consensus times a single system transaction dispatch can consume when it applies stake period
+     * side effects; one for the dispatch itself, and an earlier one for a preceding {@code NODE_STAKE_UPDATE}. A
+     * caller choosing the first free time for such a dispatch must thus advance this many nanos past the last used
+     * consensus time.
+     */
+    public static final int MAX_NANOS_PER_SYSTEM_DISPATCH = 2;
 
     private static final int DEFAULT_GENESIS_WEIGHT = 500;
     private static final long FIRST_RESERVED_SYSTEM_CONTRACT = 350L;
@@ -342,6 +353,11 @@ public class SystemTransactions {
                                 .build())
                         .build(),
                 accountsConfig.feeCollectionAccount());
+        // Create the CLPR staking account only if CLPR is enabled at genesis; otherwise post-upgrade
+        // setup creates it at the upgrade that enables CLPR
+        if (config.getConfigData(ClprConfig.class).enabled()) {
+            dispatchClprStakingAccountCreation(systemContext, systemAutoRenewPeriod, config);
+        }
         // Create the miscellaneous accounts
         final var hederaConfig = config.getConfigData(HederaConfig.class);
         for (long i : LongStream.range(FIRST_MISC_ACCOUNT_NUM, hederaConfig.firstUserEntity())
@@ -457,11 +473,6 @@ public class SystemTransactions {
         final var adminConfig = config.getConfigData(NetworkAdminConfig.class);
         final List<AutoEntityUpdate<Bytes>> autoSysFileUpdates = new ArrayList<>(List.of(
                 new AutoEntityUpdate<>(
-                        (ctx, bytes) ->
-                                dispatchSynthFileUpdate(ctx, createFileID(filesConfig.feeSchedules(), config), bytes),
-                        adminConfig.upgradeFeeSchedulesFile(),
-                        SystemTransactions::parseFeeSchedules),
-                new AutoEntityUpdate<>(
                         (ctx, bytes) -> dispatchSynthFileUpdate(
                                 ctx, createFileID(filesConfig.throttleDefinitions(), config), bytes),
                         adminConfig.upgradeThrottlesFile(),
@@ -503,6 +514,11 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
+        // Use the configuration as of now, so the upgrade's property overrides can enable CLPR
+        final var currentConfig = configProvider.getConfiguration();
+        if (isClprStakingAccountMissing(state, currentConfig)) {
+            createClprStakingAccount(systemContext, currentConfig);
+        }
         startupNetworks.clearCachedNetworks();
     }
 
@@ -635,6 +651,49 @@ public class SystemTransactions {
                 now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
 
         dispatchSynthNodeRewards(systemContext, rewardAmounts);
+    }
+
+    /**
+     * Returns whether CLPR is enabled but its staking account does not exist yet. Reads no state while CLPR is
+     * disabled.
+     *
+     * @param state the current state
+     * @param config the current configuration
+     * @return whether the CLPR staking account needs to be created
+     */
+    private boolean isClprStakingAccountMissing(@NonNull final State state, @NonNull final Configuration config) {
+        final var clprConfig = config.getConfigData(ClprConfig.class);
+        if (!clprConfig.enabled()) {
+            return false;
+        }
+        final var stakingAccountId = idFactory.newAccountId(clprConfig.stakingAccount());
+        final var accounts = state.getReadableStates(TokenService.NAME).<AccountID, Account>get(ACCOUNTS_STATE_ID);
+        return accounts.get(stakingAccountId) == null;
+    }
+
+    private void createClprStakingAccount(
+            @NonNull final SystemContext systemContext, @NonNull final Configuration config) {
+        log.info(
+                "Creating CLPR staking account {}",
+                idFactory.newAccountId(config.getConfigData(ClprConfig.class).stakingAccount()));
+        dispatchClprStakingAccountCreation(
+                systemContext,
+                new Duration(config.getConfigData(LedgerConfig.class).autoRenewPeriodMaxDuration()),
+                config);
+    }
+
+    private static void dispatchClprStakingAccountCreation(
+            @NonNull final SystemContext systemContext,
+            @NonNull final Duration autoRenewPeriod,
+            @NonNull final Configuration config) {
+        systemContext.dispatchCreation(
+                b -> b.memo("CLPR staking account creation record")
+                        .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder()
+                                .key(IMMUTABILITY_SENTINEL_KEY)
+                                .autoRenewPeriod(autoRenewPeriod)
+                                .build())
+                        .build(),
+                config.getConfigData(ClprConfig.class).stakingAccount());
     }
 
     public boolean dispatchTransplantUpdates(final State state, final Instant now, final long currentRoundNum) {
@@ -840,7 +899,7 @@ public class SystemTransactions {
         final var remainingDispatches = new AtomicInteger(
                 useReserved
                         ? (int) java.time.Duration.between(firstConsTime, now).toNanos()
-                                / (applyStakePeriodSideEffects ? 2 : 1)
+                                / (applyStakePeriodSideEffects ? MAX_NANOS_PER_SYSTEM_DISPATCH : 1)
                         : 1);
         final AtomicReference<Instant> nextConsTime = new AtomicReference<>(firstConsTime);
         final var systemAdminId = idFactory.newAccountId(
@@ -869,7 +928,7 @@ public class SystemTransactions {
                 spec.accept(builder);
                 final var body = builder.build();
                 final var output = dispatch(body, 0, triggerStakePeriodSideEffects);
-                final var statuses = output.preferringBlockRecordSource().identifiedReceipts().stream()
+                final var statuses = output.preferredRecordSource().identifiedReceipts().stream()
                         .map(RecordSource.IdentifiedReceipt::receipt)
                         .map(TransactionReceipt::status)
                         .toList();
@@ -925,7 +984,7 @@ public class SystemTransactions {
                 }
                 final boolean applyStakePeriodSideEffects =
                         triggerStakePeriodSideEffects == TriggerStakePeriodSideEffects.YES;
-                final int maxNanosUsed = applyStakePeriodSideEffects ? 2 : 1;
+                final int maxNanosUsed = applyStakePeriodSideEffects ? MAX_NANOS_PER_SYSTEM_DISPATCH : 1;
                 final var now = nextConsTime.getAndUpdate(then -> then.plusNanos(maxNanosUsed));
                 if (streamMode != BLOCKS) {
                     blockRecordManager.startUserTransaction(now, state);
@@ -945,7 +1004,9 @@ public class SystemTransactions {
                     blockRecordManager.endUserTransaction(records.stream(), state);
                 }
                 if (streamMode != RECORDS) {
-                    handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
+                    blockStreamManager.writeSavepointItems(
+                            handleOutput.blockRecordSourceOrThrow().blockItems(),
+                            handleOutput.lastAssignedConsensusTime());
                 }
                 return handleOutput;
             }
@@ -985,6 +1046,7 @@ public class SystemTransactions {
                 parentTxnFactory.createSystemTxn(state, creatorInfo, now, INTERNAL_TRANSACTION, payerId, body);
         parentTxn.initBaseBuilder(exchangeRateManager.exchangeRates());
         final var createMetadata = new HandleContext.DispatchMetadata(SYSTEM_TXN_CREATION_ENTITY_NUM, nextEntityNum);
+        createMetadata.putMetadata(INTERNAL_SYSTEM_TRANSACTION, true);
         final var dispatch = parentTxnFactory.createDispatch(
                 parentTxn, parentTxn.baseBuilder(), ignore -> true, NODE, createMetadata);
         stakePeriodChanges.advanceTimeTo(parentTxn, applyStakePeriodSideEffects);
@@ -1022,7 +1084,7 @@ public class SystemTransactions {
                     creatorInfo.nodeId(),
                     parentTxn.txnInfo().transactionID(),
                     HederaRecordCache.DueDiligenceFailure.NO,
-                    handleOutput.preferringBlockRecordSource());
+                    handleOutput.preferredRecordSource());
             return handleOutput;
         } catch (final Exception e) {
             log.error("{} - exception thrown while handling system transaction", ALERT_MESSAGE, e);
@@ -1032,16 +1094,6 @@ public class SystemTransactions {
 
     private @Nullable Long currentBlockNumber() {
         return streamMode == BLOCKS ? blockStreamManager.blockNo() : null;
-    }
-
-    private static Bytes parseFeeSchedules(@NonNull final InputStream in) {
-        try {
-            final var bytes = in.readAllBytes();
-            final var feeSchedules = V0490FileSchema.parseFeeSchedules(bytes);
-            return CurrentAndNextFeeSchedule.PROTOBUF.toBytes(feeSchedules);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 
     private static Bytes parseSimpleFeesSchedules(@NonNull final InputStream in) {

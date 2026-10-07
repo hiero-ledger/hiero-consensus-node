@@ -16,6 +16,7 @@ import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
+import com.hedera.node.app.service.clpr.impl.ClprServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer;
@@ -50,7 +51,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hyperledger.besu.evm.operation.Operation;
 
 /**
@@ -316,6 +317,7 @@ public enum TransactionExecutors {
                 .bootstrapConfigProviderImpl(bootstrapConfigProvider)
                 .fileServiceImpl(fileService)
                 .tokenServiceImpl(new TokenServiceImpl(appContext))
+                .clprServiceImpl(new ClprServiceImpl())
                 .consensusServiceImpl(new ConsensusServiceImpl())
                 .networkServiceImpl(new NetworkServiceImpl())
                 .contractServiceImpl(contractService)

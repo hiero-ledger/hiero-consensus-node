@@ -23,7 +23,7 @@ import java.util.concurrent.ExecutionException;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.consensus.PathsConfig;
 import org.hiero.consensus.constructable.ConstructableRegistration;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
 import org.hiero.consensus.platformstate.PlatformStateAccessor;
 import org.hiero.consensus.roster.RosterStateId;

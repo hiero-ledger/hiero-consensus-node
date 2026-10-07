@@ -14,6 +14,7 @@ source: The hashgraph consensus algorithm (protocol definition).
 verification: consensus-event-creator-impl/src/main/java/org/hiero/consensus/event/creator/impl/tipset/TipsetEventCreator.java — coin drawn per event from a cryptographically secure `SecureRandom`; consumed in `ConsensusUtils.coin`
 provenance: 2026-06-08 extraction run
 curated_by: Michael Heinrichs (@netopyr)
+last_reviewed: TBD
 ---
 
 # INV-013 — An honest event's coin value is unpredictable

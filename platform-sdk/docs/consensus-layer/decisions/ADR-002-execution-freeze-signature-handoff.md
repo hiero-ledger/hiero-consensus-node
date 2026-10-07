@@ -15,6 +15,7 @@ deciders:
   - Kelly Greco (@poulok)
   - Michael Tinker (@tinker-michaelj)
 curated_by: Kelly Greco (@poulok)
+last_reviewed: TBD
 ---
 
 # ADR-002 — Block `onSealConsensusRound` to Hand Off Freeze Block Signatures from Execution to Consensus
@@ -196,6 +197,11 @@ larger redesign out of scope for this decision.
 - The condition that releases the block is owned by execution: it returns once the freeze-block
   signature transaction has been added to the pool and a minimum threshold of signatures has been collected. The consensus layer does not need to know
   the release condition.
+- The same freeze-round wait is also used by execution to finish saving user transactions that were still in the
+  transaction pool when the node entered `FREEZING` (issue #26913). The write starts in
+  `hedera-app/.../PendingTransactionsSaver.java#drainAndSaveAsync` on its own thread and is awaited in parallel with
+  the signature wait in `hedera-app/.../Hedera.java#awaitFreezeRoundBlockProofsAndAcks`. Its future never fails, so
+  it may lengthen the wait up to the existing timeout but never shortens it.
 
 ## Alternatives Considered
 

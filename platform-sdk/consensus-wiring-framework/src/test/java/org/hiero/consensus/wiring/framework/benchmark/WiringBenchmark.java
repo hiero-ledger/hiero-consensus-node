@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.base.time.Time;
 import java.time.Duration;
 import java.util.concurrent.ForkJoinPool;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.wiring.framework.counters.BackpressureObjectCounter;
 import org.hiero.consensus.wiring.framework.counters.ObjectCounter;
 import org.hiero.consensus.wiring.framework.model.WiringModel;

@@ -7,9 +7,9 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.base.file.FileUtils.executeAndRename;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.getInfoString;
-import static org.hiero.consensus.state.persistence.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
-import static org.hiero.consensus.state.persistence.SignedStateFileUtils.HASH_INFO_FILE_NAME;
-import static org.hiero.consensus.state.persistence.SignedStateFileUtils.SIGNATURE_SET_FILE_NAME;
+import static org.hiero.consensus.state.SignedStateFileConstants.ACTIVE_ROSTER_FILE_NAME;
+import static org.hiero.consensus.state.SignedStateFileConstants.HASH_INFO_FILE_NAME;
+import static org.hiero.consensus.state.SignedStateFileConstants.SIGNATURE_SET_FILE_NAME;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -46,7 +46,6 @@ import org.hiero.consensus.pces.PcesModule;
 import org.hiero.consensus.pces.impl.DefaultPcesModule;
 import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.state.config.StateConfig;
-import org.hiero.consensus.state.persistence.SignedStateFileUtils;
 import org.hiero.consensus.state.saved.SavedStateMetadata;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
@@ -278,8 +277,8 @@ public final class SignedStateFileWriter {
         writeHashInfoFile(directory, signedState.getState());
         writeMetadataFile(selfId, directory, signedState);
         writeConsensusSnapshotFile(directory, signedState);
-        final Roster currentRoster = signedState.getRoster();
-        writeRosterFile(directory, currentRoster);
+        final Roster activeRoster = signedState.getRoster();
+        writeRosterFile(directory, activeRoster);
         writeSettingsUsed(directory, configuration);
     }
 
@@ -320,7 +319,7 @@ public final class SignedStateFileWriter {
      */
     private static void writeConsensusSnapshotFile(
             @NonNull final Path directory, @NonNull final SignedState signedState) {
-        final Path consensusSnapshotFile = directory.resolve(SignedStateFileUtils.CONSENSUS_SNAPSHOT_FILE_NAME);
+        final Path consensusSnapshotFile = directory.resolve(SignedStateFileConstants.CONSENSUS_SNAPSHOT_FILE_NAME);
         final ConsensusSnapshot snapshot = PlatformStateUtils.consensusSnapshotOf(signedState.getState());
         if (snapshot == null) {
             logger.error(
@@ -348,7 +347,7 @@ public final class SignedStateFileWriter {
      */
     private static void writeRosterFile(@NonNull final Path directory, @NonNull final Roster roster)
             throws IOException {
-        final Path rosterFile = directory.resolve(CURRENT_ROSTER_FILE_NAME);
+        final Path rosterFile = directory.resolve(ACTIVE_ROSTER_FILE_NAME);
 
         try (final BufferedWriter writer = new BufferedWriter(new FileWriter(rosterFile.toFile()))) {
             writer.write(Roster.JSON.toJSON(roster));

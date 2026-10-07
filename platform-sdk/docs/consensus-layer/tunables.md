@@ -32,6 +32,11 @@ Column conventions:
   otherwise blank. Blank means "not constrained beyond the type."
 - **Fragility** — reserved for SME curation; `—` until filled in.
 
+A key that exists and resolves but that no production code reads is flagged in
+an **Unread.** note under its section table, naming what governs the behaviour
+instead. Such a key stays in the catalog — it is still settable — but setting it
+has no effect.
+
 ## StateCommonConfig — removed
 
 `StateCommonConfig` (`swirlds-common`) was removed. Its sole key `state.savedStateDirectory` (TUN-001, retired) is superseded by [`paths.savedStateDir`](#paths---pathsconfig) (TUN-062). ID retired, not reused.
@@ -42,7 +47,7 @@ Column conventions:
 
 ## `platform.wiring.*` — WiringConfig
 
-Module: `consensus-wiring-framework`. Source: [WiringConfig.java](../../consensus-wiring-framework/src/main/java/com/swirlds/component/framework/WiringConfig.java).
+Module: `consensus-wiring-framework`. Source: [WiringConfig.java](../../consensus-wiring-framework/src/main/java/org/hiero/consensus/wiring/framework/WiringConfig.java).
 
 |   ID    |                       Key                        |   Type   | Default |                                                  Effect                                                   | Range | Fragility |
 |---------|--------------------------------------------------|----------|---------|-----------------------------------------------------------------------------------------------------------|-------|-----------|
@@ -58,7 +63,7 @@ Module: `consensus-wiring-framework`. Source: [WiringConfig.java](../../consensu
 
 ## `uptime.*` — UptimeConfig
 
-Module: `consensus-utility`. Source: [UptimeConfig.java](../../consensus-utility/src/main/java/org/hiero/consensus/config/UptimeConfig.java).
+Module: `consensus-status-monitor`. Source: [UptimeConfig.java](../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/config/UptimeConfig.java).
 
 |   ID    |              Key              |   Type   | Default |                                            Effect                                             | Range | Fragility |
 |---------|-------------------------------|----------|---------|-----------------------------------------------------------------------------------------------|-------|-----------|
@@ -81,7 +86,7 @@ Selects consensus module implementations via ServiceLoader. Each value is a JPMS
 
 ## `platformStatus.*` — PlatformStatusConfig
 
-Module: `consensus-utility`. Source: [PlatformStatusConfig.java](../../consensus-utility/src/main/java/org/hiero/consensus/config/PlatformStatusConfig.java).
+Module: `consensus-status-monitor`. Source: [PlatformStatusConfig.java](../../consensus-status-monitor/src/main/java/org/hiero/consensus/status/monitor/config/PlatformStatusConfig.java).
 These delays drive the status state machine; see [architecture/topics/platform-status.md](architecture/topics/platform-status.md).
 
 |   ID    |                        Key                         |   Type   | Default |                                                Effect                                                 | Range | Fragility |
@@ -125,13 +130,14 @@ Module: `swirlds-platform-core`. Source: [OSHealthCheckConfig.java](../../swirld
 
 Startup-time OS health probes; values exceeded at startup produce warning logs but do not block startup.
 
-|   ID    |                     Key                     | Type |  Default  |                                    Effect                                    | Range | Fragility |
-|---------|---------------------------------------------|------|-----------|------------------------------------------------------------------------------|-------|-----------|
-| TUN-045 | `os.health.minClockCallsPerSec`             | long | `5000000` | Minimum required calls per second to the OS clock source.                    |       | —         |
-| TUN-046 | `os.health.entropyTimeoutMillis`            | long | `10`      | Maximum milliseconds to wait for the OS entropy check to complete.           |       | —         |
-| TUN-047 | `os.health.maxRandomNumberGenerationMillis` | long | `10`      | Maximum milliseconds allowed for a single random number to be generated.     |       | —         |
-| TUN-048 | `os.health.fileReadTimeoutMillis`           | long | `50`      | Maximum milliseconds to wait for a file to be opened and a single byte read. |       | —         |
-| TUN-049 | `os.health.maxFileReadMillis`               | long | `10`      | Maximum milliseconds allowed to open a file and read the first byte.         |       | —         |
+|   ID    |                     Key                     |  Type   |  Default  |                                    Effect                                    | Range | Fragility |
+|---------|---------------------------------------------|---------|-----------|------------------------------------------------------------------------------|-------|-----------|
+| TUN-045 | `os.health.minClockCallsPerSec`             | long    | `5000000` | Minimum required calls per second to the OS clock source.                    |       | —         |
+| TUN-046 | `os.health.entropyTimeoutMillis`            | long    | `10`      | Maximum milliseconds to wait for the OS entropy check to complete.           |       | —         |
+| TUN-047 | `os.health.maxRandomNumberGenerationMillis` | long    | `10`      | Maximum milliseconds allowed for a single random number to be generated.     |       | —         |
+| TUN-048 | `os.health.fileReadTimeoutMillis`           | long    | `50`      | Maximum milliseconds to wait for a file to be opened and a single byte read. |       | —         |
+| TUN-049 | `os.health.maxFileReadMillis`               | long    | `10`      | Maximum milliseconds allowed to open a file and read the first byte.         |       | —         |
+| TUN-213 | `os.health.performOSHealthChecks`           | boolean | `true`    | Whether the OS health probes run at platform startup (adds about 1 s).       |       | —         |
 
 ## `crypto.*` — CryptoConfig
 
@@ -143,7 +149,7 @@ Module: `base-crypto`. Source: [CryptoConfig.java](../../base-crypto/src/main/ja
 
 ## BasicCommonConfig (no prefix)
 
-Module: `consensus-concurrent`. Source: [BasicCommonConfig.java](../../consensus-concurrent/src/main/java/org/hiero/consensus/concurrent/config/BasicCommonConfig.java).
+Module: `base-concurrent`. Source: [BasicCommonConfig.java](../../base-concurrent/src/main/java/org/hiero/base/concurrent/config/BasicCommonConfig.java).
 
 General properties that don't belong to a specific subsystem. Keys are bare property names.
 
@@ -184,7 +190,7 @@ Module: `swirlds-platform-core`. Source: [FallenBehindConfig.java](../../swirlds
 
 ## `paths.*` — PathsConfig
 
-Module: `consensus-utility`. Source: [PathsConfig.java](../../consensus-utility/src/main/java/org/hiero/consensus/config/PathsConfig.java).
+Module: `swirlds-platform-core`. Source: [PathsConfig.java](../../swirlds-platform-core/src/main/java/org/hiero/consensus/PathsConfig.java).
 
 |   ID    |           Key           | Type |    Default    |                                             Effect                                              | Range | Fragility |
 |---------|-------------------------|------|---------------|-------------------------------------------------------------------------------------------------|-------|-----------|
@@ -212,9 +218,10 @@ Module: `consensus-reconnect`. Source: [ReconnectConfig.java](../../consensus-re
 | TUN-067 | `reconnect.active`                                 | boolean  | `true`  | If true, a node that falls behind attempts to reconnect; if false, it dies.                                            |       | —         |
 | TUN-068 | `reconnect.reconnectWindowSeconds`                 | int      | `-1`    | Window of time after startup during which reconnect is allowed; `-1` means always (still respects `reconnect.active`). |       | —         |
 | TUN-069 | `reconnect.socketTimeout`                          | Duration | `60s`   | Socket timeout for input streams used during reconnect.                                                                |       | —         |
-| TUN-072 | `reconnect.maxAckDelay`                            | Duration | `10ms`  | Maximum time to wait for an ACK message before sending a potentially redundant node.                                   |       | —         |
 | TUN-073 | `reconnect.maximumReconnectFailuresBeforeShutdown` | int      | `10`    | Maximum number of failed reconnects in a row before shutdown.                                                          |       | —         |
 | TUN-074 | `reconnect.minimumTimeBetweenReconnects`           | Duration | `10m`   | Minimum time that must pass before a node is willing to help another node reconnect again.                             |       | —         |
+
+**Retired.** `reconnect.maxAckDelay` (TUN-072) was removed from the record as unread — no production code read it, and the only reference was the record's own declaration. No successor key. Reconnect stream flushing is governed by `reconnect.teacher.asyncOutputStreamFlush` and `reconnect.learner.asyncOutputStreamFlush`, declared in `swirlds-virtualmap` and read by [TeachingSynchronizer.java](../../swirlds-virtualmap/src/main/java/com/swirlds/virtualmap/sync/TeachingSynchronizer.java) and [LearningSynchronizer.java](../../swirlds-virtualmap/src/main/java/com/swirlds/virtualmap/sync/LearningSynchronizer.java) — outside this catalog's consensus-layer scope, so they carry no TUN ID. ID retired, not reused.
 
 ## `state.*` — StateConfig
 
@@ -237,7 +244,6 @@ The keys below come from `StateConfig` (SignedStateManager / SignedStateFileMana
 | TUN-089 | `state.debugHashDepth`                | int      | `5`     | When logging hash debug info, do not display nodes deeper than this in the merkle tree.                                                       |       | —         |
 | TUN-090 | `state.maxAgeOfFutureStateSignatures` | int      | `1000`  | Maximum number of rounds in the future for which a node will accept a state signature.                                                        |       | —         |
 | TUN-091 | `state.roundsToKeepForSigning`        | int      | `26`    | Maximum number of rounds a state is kept in memory while waiting to gather signatures.                                                        |       | —         |
-| TUN-092 | `state.roundsToKeepAfterSigning`      | int      | `0`     | Number of rounds to keep states after signing and after a newer state has become fully signed; `0` GCs immediately.                           |       | —         |
 | TUN-093 | `state.suspiciousSignedStateAgeGap`   | Duration | `5m`    | Age gap between newest and oldest signed state considered suspicious (triggers debug logging of potential state leak).                        |       | —         |
 | TUN-094 | `state.signedStateAgeNotifyRateLimit` | Duration | `10m`   | Minimum period between notifications of suspiciously old signed states.                                                                       |       | —         |
 | TUN-095 | `state.stateHistoryEnabled`           | boolean  | `false` | Keep a history of operations that modify signed-state reference counts (debug).                                                               |       | —         |
@@ -245,6 +251,8 @@ The keys below come from `StateConfig` (SignedStateManager / SignedStateFileMana
 | TUN-097 | `state.deleteInvalidStateFiles`       | boolean  | `false` | At startup, delete state files that can't be deserialized and try the next one; be very careful enabling network-wide.                        |       | —         |
 | TUN-098 | `state.validateInitialState`          | boolean  | `true`  | If false, skip ISS validation on the state loaded from disk at startup (test-only).                                                           |       | —         |
 | TUN-099 | `state.periodicSnapshotsEnabled`      | boolean  | `true`  | Create periodic snapshots of the signed state.                                                                                                |       | —         |
+
+**Retired.** `state.roundsToKeepAfterSigning` (TUN-092) was removed from the record as unread — no production code read it, and its only references were test-side. No successor key. How long a signed state is kept in memory is governed by `state.roundsToKeepForSigning` (TUN-091); how many are kept on disk by `state.signedStateDisk` (TUN-083). ID retired, not reused.
 
 ## `state.wiring.*` — StateWiringConfig
 
@@ -455,10 +463,11 @@ Module: `consensus-gossip`. Source: [BroadcastConfig.java](../../consensus-gossi
 
 Module: `consensus-gossip`. Source: [ProtocolConfig.java](../../consensus-gossip/src/main/java/org/hiero/consensus/gossip/config/ProtocolConfig.java).
 
-|   ID    |                  Key                   |  Type   | Default |                                            Effect                                             | Range | Fragility |
-|---------|----------------------------------------|---------|---------|-----------------------------------------------------------------------------------------------|-------|-----------|
-| TUN-157 | `protocol.tolerateMismatchedVersion`   | boolean | `false` | If true, tolerate peers with a different software version; if false, sever those connections. |       | —         |
-| TUN-158 | `protocol.tolerateMismatchedEpochHash` | boolean | `false` | If true, tolerate peers with a different epoch hash; if false, sever those connections.       |       | —         |
+|   ID    |                 Key                  |  Type   | Default |                                            Effect                                             | Range | Fragility |
+|---------|--------------------------------------|---------|---------|-----------------------------------------------------------------------------------------------|-------|-----------|
+| TUN-157 | `protocol.tolerateMismatchedVersion` | boolean | `false` | If true, tolerate peers with a different software version; if false, sever those connections. |       | —         |
+
+**Retired.** `protocol.tolerateMismatchedEpochHash` (TUN-158) was removed from the record as unread — nothing read it, and no epoch-hash handshake exists anywhere in `platform-sdk`. No successor key. The only handshake gossip installs is the version check — [VersionCompareHandshake](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/communication/handshake/VersionCompareHandshake.java), constructed in [SyncGossipModular](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/gossip/SyncGossipModular.java) from `protocol.tolerateMismatchedVersion` (TUN-157). ID retired, not reused.
 
 ## `socket.*` — SocketConfig
 
@@ -471,11 +480,12 @@ Module: `consensus-gossip`. Source: [SocketConfig.java](../../consensus-gossip/s
 | TUN-161 | `socket.timeoutSyncClientSocket`      | int     | `5000`  | Timeout (ms) when waiting for data on the sync client socket.                                            |         | —         |
 | TUN-162 | `socket.timeoutSyncClientConnect`     | int     | `5000`  | Timeout (ms) when establishing a sync client connection.                                                 |         | —         |
 | TUN-163 | `socket.timeoutServerAcceptConnect`   | int     | `5000`  | Timeout (ms) when the server is waiting for another member to create a connection.                       |         | —         |
-| TUN-164 | `socket.useLoopbackIp`                | boolean | `false` | Set to true when using the internet simulator.                                                           |         | —         |
 | TUN-165 | `socket.tcpNoDelay`                   | boolean | `true`  | If true, Nagle's algorithm is disabled (helps latency, costs bandwidth).                                 |         | —         |
 | TUN-166 | `socket.gzipCompression`              | boolean | `false` | Whether to gzip-compress network traffic.                                                                |         | —         |
 | TUN-167 | `socket.waitBetweenConnectionRetries` | int     | `10`    | Milliseconds to wait before retrying a broken connection; `≤0` means no sleep.                           |         | —         |
 | TUN-168 | `socket.maxSocketAcceptThreads`       | int     | `30`    | Max threads spawned to handle incoming SSL socket accepts (capped to limit DoS-style thread exhaustion). |         | —         |
+
+**Retired.** `socket.useLoopbackIp` (TUN-164) was removed from the record as unread — nothing read it, so settings files that still set the key have no effect. No successor key. Whether an address belongs to the local machine is decided from the address itself by [Network.isOwn](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/Network.java#isOwn). ID retired, not reused.
 
 ## `sync.*` — SyncConfig
 
@@ -492,7 +502,6 @@ Module: `consensus-gossip`. Source: [SyncConfig.java](../../consensus-gossip/src
 | TUN-175 | `sync.nonAncestorFilterThreshold`         | Duration | `3s`    | Minimum age before a non-self, non-ancestor event is eligible to be sent (ignored when `filterLikelyDuplicates=false`).                          |       | —         |
 | TUN-176 | `sync.ancestorFilterThreshold`            | Duration | `250ms` | Minimum age before a non-self ancestor event is eligible to be sent (ignored unless `filterLikelyDuplicates` and broadcast are enabled).         |       | —         |
 | TUN-177 | `sync.selfFilterThreshold`                | Duration | `1s`    | Minimum age before a self event is eligible to be sent (ignored unless `filterLikelyDuplicates` and broadcast are enabled).                      |       | —         |
-| TUN-178 | `sync.syncKeepalivePeriod`                | Duration | `500ms` | Send a keepalive every this many ms when reading events during a sync.                                                                           |       | —         |
 | TUN-179 | `sync.maxSyncTime`                        | Duration | `1m`    | Maximum time spent syncing with a peer; longer syncs are aborted.                                                                                |       | —         |
 | TUN-180 | `sync.maxSyncEventCount`                  | int      | `5000`  | Maximum events sent in a sync; `0` means no limit.                                                                                               |       | —         |
 | TUN-181 | `sync.unhealthyGracePeriod`               | Duration | `1s`    | How long the system can be unhealthy before sync permits start being revoked.                                                                    |       | —         |
@@ -506,3 +515,24 @@ Module: `consensus-gossip`. Source: [SyncConfig.java](../../consensus-gossip/src
 | TUN-189 | `sync.fairMinimalRoundRobinSize`          | double   | `0.3`   | Minimum past-syncs-against-different-peers before re-syncing the same peer (`(0,1]` fraction of network; `>1` absolute count).                   |       | —         |
 | TUN-190 | `sync.keepSendingEventsWhenUnhealthy`     | boolean  | `true`  | When unhealthy, stop receiving remote events but keep sending our own (instead of fully throttling syncs).                                       |       | —         |
 | TUN-191 | `sync.pingPeriod`                         | Duration | `1s`    | Period at which ping messages are sent to peers during syncs.                                                                                    |       | —         |
+| TUN-223 | `sync.rpcInputQueueCapacity`              | int      | `10000` | maximum number of parsed messages which can be waiting for the rpc dispatch thread before TPC brackpressure is applied                           |       | —         |
+
+**Retired.** `sync.syncKeepalivePeriod` (TUN-178) was removed from the record as unread — nothing read it. No successor key. The only keepalive is the negotiator's, sent by [InitialState.transition](../../consensus-gossip-impl/src/main/java/org/hiero/consensus/gossip/impl/network/communication/states/InitialState.java#transition) whenever no protocol wants to initiate — on each negotiation round, not on a timer. ID retired, not reused.
+
+## `trafficShaping.*` — TrafficShapingConfig
+
+Module: `consensus-gossip`. Source: [TrafficShapingConfig.java](../../consensus-gossip/src/main/java/org/hiero/consensus/gossip/config/TrafficShapingConfig.java).
+
+Per-peer inbound traffic shaping for the rpc gossip protocol.
+
+|   ID    |                 Key                 |   Type   |   Default   |                                                                                          Effect                                                                                           | Range | Fragility |
+|---------|-------------------------------------|----------|-------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------|-----------|
+| TUN-214 | `trafficShaping.enabled`            | boolean  | `true`      | Compute and report the per-peer byte budget; when false the shaper is entirely inert.                                                                                                     |       | —         |
+| TUN-215 | `trafficShaping.enforce`            | boolean  | `false`     | Additionally pause reading from a peer that is over budget; when false the shaper runs in shadow mode (everything measured and reported, nothing slowed down).                            |       | —         |
+| TUN-216 | `trafficShaping.peerBytesPerSecond` | long     | `20000000`  | Sustained inbound rate permitted per peer, in bytes per second; uniform across all peers, not weighted by stake or role.                                                                  |       | —         |
+| TUN-217 | `trafficShaping.peerBurstBytes`     | long     | `200000000` | Inbound bytes a peer may consume instantaneously before the sustained rate applies; also the connection grace period, since a fresh shaper starts with the full burst available.          |       | —         |
+| TUN-218 | `trafficShaping.maxReadDelay`       | Duration | `200ms`     | Maximum time reading from a peer may be paused in one step; a liveness bound that must stay well below `broadcast.disablePingThreshold` (TUN-153) or the peer will treat us as unhealthy. |       | —         |
+| TUN-219 | `trafficShaping.maxMessageBytes`    | int      | `45000000`  | Maximum permitted encoded size of a single gossip message, in bytes.                                                                                                                      |       | —         |
+| TUN-220 | `trafficShaping.lowWatermark`       | double   | `0.6`       | Fraction of the burst budget above which a rate-limited warning is logged.                                                                                                                |       | —         |
+| TUN-221 | `trafficShaping.highWatermark`      | double   | `0.9`       | Fraction of the burst budget above which a serious error is reported (and in future, peer disconnected).                                                                                  |       | —         |
+| TUN-222 | `trafficShaping.reportInterval`     | Duration | `1m`        | Minimum interval between repeated warnings for the same peer.                                                                                                                             |       | —         |

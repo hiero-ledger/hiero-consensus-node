@@ -111,7 +111,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import org.apache.tuweni.bytes.Bytes32;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Log;
 import org.hyperledger.besu.datatypes.Transaction;
@@ -501,7 +501,6 @@ public class TransactionExecutorsTest {
         return Map.of(
                 filesConfig.addressBook(), ignore -> genesisSchema.nodeStoreAddressBook(nodeStore),
                 filesConfig.nodeDetails(), ignore -> genesisSchema.nodeStoreNodeDetails(nodeStore),
-                filesConfig.feeSchedules(), genesisSchema::genesisFeeSchedules,
                 filesConfig.simpleFeesSchedules(), genesisSchema::genesisSimpleFeesSchedules,
                 filesConfig.exchangeRates(), genesisSchema::genesisExchangeRatesBytes,
                 filesConfig.networkProperties(), genesisSchema::genesisNetworkProperties,

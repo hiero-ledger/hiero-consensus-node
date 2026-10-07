@@ -2,6 +2,7 @@
 package org.hiero.consensus.model.event;
 
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndLogIfInterrupted;
+import static org.hiero.consensus.model.event.EventConstants.SEQUENCE_NUMBER_UNDEFINED;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.MIN_TRANS_TIMESTAMP_INCR_NANOS;
 
 import com.hedera.hapi.platform.event.EventConsensusData;
@@ -67,21 +68,12 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     private long nGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
 
     /**
-     * Represents an unassigned sequence number in a {@code PlatformEvent}. This constant is used as a placeholder to
-     * indicate that a specific sequence number has not yet been assigned to an event.
-     * <p>
-     * The value of {@code UNASSIGNED_SEQUENCE_NUMBER} is defined as {@code -1}. This value is chosen because sequence
-     * numbers are non-negative, making {@code -1} a clear and unambiguous indicator of the unassigned state.
-     */
-    public static final long UNASSIGNED_SEQUENCE_NUMBER = -1;
-
-    /**
      * Represents the sequence number assigned to this event. The sequence number is unique and increments with each
      * event released from orphan buffer, providing a way to identify the order of events, which can be used for
      * topological ordering. If the sequence number is not assigned, it will hold the value of
      * {@code UNASSIGNED_SEQUENCE_NUMBER}.
      */
-    private long sequenceNumber = UNASSIGNED_SEQUENCE_NUMBER;
+    private long sequenceNumber = EventConstants.SEQUENCE_NUMBER_UNDEFINED;
 
     /**
      * Construct a new instance from an unsigned event and a signature.
@@ -99,7 +91,9 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
                                 .getEventCore(),
                         Objects.requireNonNull(signature, "The signature must not be null"),
                         unsignedEvent.getTransactionsBytes(),
-                        unsignedEvent.getParents()),
+                        unsignedEvent.getParents().stream()
+                                .map(EventDescriptorWrapper::toPbj)
+                                .toList()),
                 unsignedEvent.getMetadata(),
                 // for a newly created event, the time received is the same as the time created
                 unsignedEvent.getTimeCreated(),
@@ -206,7 +200,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
     /**
      * The non-deterministic generation of this event.
      *
-     * @return the non-deterministic generation of this event. A value of {@link EventConstants#GENERATION_UNDEFINED} if
+     * @return the non-deterministic generation of this event. A value of {@link NonDeterministicGeneration#GENERATION_UNDEFINED} if
      * none has been set yet.
      */
     public long getNGen() {
@@ -246,7 +240,7 @@ public class PlatformEvent implements ConsensusEvent, Hashable {
      * @return {@code true} if the sequence number is assigned, {@code false} otherwise.
      */
     public boolean hasSequenceNumber() {
-        return sequenceNumber != UNASSIGNED_SEQUENCE_NUMBER;
+        return sequenceNumber != SEQUENCE_NUMBER_UNDEFINED;
     }
 
     /**

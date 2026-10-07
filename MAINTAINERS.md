@@ -30,6 +30,8 @@ Maintainers are assigned the following scopes in this repository:
 | Kelly Greco           | poulok             |       |      |            |       | Hashgraph           |
 | Luke Lee              | lukelee-sl         |       |      |            |       | Hashgraph           |
 | Roger Barker          | rbarker-dev        |       |      |            |       | Hashgraph           |
+| Jasper Potts          | jasperpotts        |       |      |            |       | Hashgraph           |
+| Richard Bair          | rbair23            |       |      |            |       | Hashgraph           |
 
 ## Emeritus Maintainers
 

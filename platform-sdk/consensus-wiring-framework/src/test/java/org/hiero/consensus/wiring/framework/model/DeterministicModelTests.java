@@ -28,7 +28,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import org.hiero.base.utility.NonCryptographicHashing;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.wiring.framework.schedulers.SequentialTaskSchedulerAliveThreadCleanup;
 import org.hiero.consensus.wiring.framework.schedulers.TaskScheduler;
 import org.hiero.consensus.wiring.framework.wires.input.BindableInputWire;

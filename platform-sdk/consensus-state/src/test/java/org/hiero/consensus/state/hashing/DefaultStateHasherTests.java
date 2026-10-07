@@ -6,7 +6,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.state.merkle.VirtualMapState;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;

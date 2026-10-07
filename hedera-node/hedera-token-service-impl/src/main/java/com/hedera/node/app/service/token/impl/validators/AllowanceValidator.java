@@ -142,7 +142,7 @@ public class AllowanceValidator {
             @NonNull final Account payer,
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final ExpiryValidator expiryValidator) {
-        if (owner == null || owner.accountNumOrElse(0L) == 0L || owner.equals(payer.accountId())) {
+        if (designatesPayer(owner, payer.accountIdOrThrow())) {
             return payer;
         } else {
             // If owner is in modifications get the modified account from state
@@ -157,6 +157,19 @@ public class AllowanceValidator {
     }
 
     /**
+     * Returns whether the allowance owner means the payer. Only an unset id does, per
+     * {@code crypto_approve_allowance.proto}; an alias or a zero account number names another account.
+     *
+     * @param owner the owner given in the allowance, if any
+     * @param payerId the payer of the transaction
+     * @return true if the allowance applies to the payer's own account
+     */
+    public static boolean designatesPayer(@Nullable final AccountID owner, @NonNull final AccountID payerId) {
+        requireNonNull(payerId);
+        return owner == null || owner.equals(AccountID.DEFAULT) || owner.equals(payerId);
+    }
+
+    /**
      * Returns whether the given NFT allowance carries a (non-default) delegating spender. A delegated allowance may
      * only sub-delegate individual serial numbers on the owner's behalf; it must never add or remove the owner's
      * approveForAll grants. Both {@code ApproveAllowanceValidator} and the apply logic in
@@ -168,7 +181,15 @@ public class AllowanceValidator {
      */
     public static boolean isDelegatingSpenderPresent(@NonNull final NftAllowance allowance) {
         requireNonNull(allowance, "allowance must not be null");
-        return allowance.hasDelegatingSpender()
-                && allowance.delegatingSpenderOrThrow().accountNumOrThrow() != 0;
+        if (!allowance.hasDelegatingSpender()) {
+            return false;
+        }
+        final var delegatingSpender = allowance.delegatingSpenderOrThrow();
+        if (delegatingSpender.equals(AccountID.DEFAULT)) {
+            return false;
+        }
+        // Only an explicit zero means "no delegating spender" - unlike the owner, whose zero pureChecks rejects
+        // outright. A caller can still send an alias here, rejected further down, so the number needs guarding.
+        return !delegatingSpender.hasAccountNum() || delegatingSpender.accountNumOrThrow() != 0L;
     }
 }

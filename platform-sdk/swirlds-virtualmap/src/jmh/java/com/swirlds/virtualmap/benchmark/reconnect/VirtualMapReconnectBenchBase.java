@@ -7,7 +7,8 @@ import static org.hiero.base.utility.test.fixtures.io.ResourceLoader.loadLog4jCo
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.config.VirtualMapSyncConfig_;
+import com.swirlds.virtualmap.config.VirtualMapLearnerSyncConfig_;
+import com.swirlds.virtualmap.config.VirtualMapTeacherSyncConfig_;
 import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryBuilder;
 import com.swirlds.virtualmap.test.fixtures.sync.ReconnectTestUtils;
@@ -33,7 +34,8 @@ public abstract class VirtualMapReconnectBenchBase {
     protected final Configuration configuration = ConfigurationBuilder.create()
             .autoDiscoverExtensions()
             // This is lower than the default, helps test that is supposed to fail to finish faster.
-            .withValue(VirtualMapSyncConfig_.ASYNC_STREAM_TIMEOUT, "5s")
+            .withValue(VirtualMapLearnerSyncConfig_.ASYNC_STREAM_IDLE_TIMEOUT, "5s")
+            .withValue(VirtualMapTeacherSyncConfig_.ASYNC_STREAM_IDLE_TIMEOUT, "5s")
             .build();
 
     protected VirtualDataSourceBuilder createBuilder() {

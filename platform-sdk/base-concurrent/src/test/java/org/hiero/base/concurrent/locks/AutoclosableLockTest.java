@@ -2,9 +2,9 @@
 package org.hiero.base.concurrent.locks;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyFalse;
 import static org.hiero.base.utility.test.fixtures.assertions.AssertionUtils.assertEventuallyTrue;
-import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -18,21 +18,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.StampedLock;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.concurrent.locks.internal.AcquiredOnTry;
-import org.hiero.base.concurrent.locks.internal.AutoNoOpLock;
 import org.hiero.base.concurrent.locks.internal.ResourceLock;
 import org.hiero.base.concurrent.locks.locked.Locked;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
 import org.hiero.base.concurrent.locks.locked.MaybeLocked;
 import org.hiero.base.concurrent.locks.locked.MaybeLockedResource;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class AutoclosableLockTest {
     @Test
     void resourceLockTest() throws InterruptedException {
-        StampedLock sl = new StampedLock();
+        final StampedLock sl = new StampedLock();
         final Lock backingLock = sl.asWriteLock();
         assertFalse(sl.isWriteLocked(), "a new lock should not be locked");
         int counter = 0;
@@ -123,7 +122,6 @@ class AutoclosableLockTest {
         final AtomicBoolean threadGotLock1 = new AtomicBoolean(false);
 
         final Thread thread0 = new ThreadConfiguration(getStaticThreadManager())
-                .setThreadName("thread0")
                 .setInterruptableRunnable(() -> {
                     try (final Locked locked0 = lock.lock()) {
                         // Lock is reentrant, second lock on same thread should not block
@@ -133,12 +131,12 @@ class AutoclosableLockTest {
                         }
                     }
                 })
+                .setSingleThreadName("thread0")
                 .build(true);
 
         assertEventuallyTrue(threadGotLock0::get, Duration.ofSeconds(1), "thread should have acquired lock by now");
 
         final Thread thread1 = new ThreadConfiguration(getStaticThreadManager())
-                .setThreadName("thread1")
                 .setInterruptableRunnable(() -> {
                     while (true) {
                         try (final MaybeLocked maybeLocked = lock.tryLock(1, MILLISECONDS)) {
@@ -150,6 +148,7 @@ class AutoclosableLockTest {
                         }
                     }
                 })
+                .setSingleThreadName("thread1")
                 .build(true);
 
         // Wait a little while to make sure that the other thread isn't able to get the lock
@@ -170,60 +169,5 @@ class AutoclosableLockTest {
         threadBlocker1.countDown();
 
         assertEventuallyFalse(thread1::isAlive, Duration.ofSeconds(1), "thread should have died by now");
-    }
-
-    @Test
-    @DisplayName("AutoNoOpLock Test")
-    void autoNoOpLockTest() {
-
-        final AutoClosableLock lock = AutoNoOpLock.getInstance();
-
-        final CountDownLatch threadBlocker0 = new CountDownLatch(1);
-        final AtomicBoolean threadGotLock0 = new AtomicBoolean(false);
-
-        final CountDownLatch threadBlocker1 = new CountDownLatch(1);
-        final AtomicBoolean threadGotLock1 = new AtomicBoolean(false);
-
-        final Thread thread0 = new ThreadConfiguration(getStaticThreadManager())
-                .setInterruptableRunnable(() -> {
-                    try (final Locked locked0 = lock.lock()) {
-                        try (final Locked locked1 = lock.lock()) {
-                            threadGotLock0.set(true);
-                            threadBlocker0.await();
-                        }
-                    }
-                })
-                .build(true);
-
-        final Thread thread1 = new ThreadConfiguration(getStaticThreadManager())
-                .setInterruptableRunnable(() -> {
-                    while (true) {
-                        try (final MaybeLocked maybeLocked = lock.tryLock(1, MILLISECONDS)) {
-                            if (maybeLocked.isLockAcquired()) {
-                                threadGotLock1.set(true);
-                                threadBlocker1.await();
-                                return;
-                            }
-                        }
-                    }
-                })
-                .build(true);
-
-        assertEventuallyTrue(
-                () -> threadGotLock0.get() && threadGotLock1.get(),
-                Duration.ofSeconds(1),
-                "both thread should have acquired lock by now");
-
-        try (final MaybeLocked maybeLocked = lock.tryLock()) {
-            assertTrue(maybeLocked.isLockAcquired(), "lock should always be available");
-        }
-
-        threadBlocker0.countDown();
-        threadBlocker1.countDown();
-
-        assertEventuallyTrue(
-                () -> !thread0.isAlive() && !thread1.isAlive(),
-                Duration.ofSeconds(1),
-                "both thread should have died by now");
     }
 }

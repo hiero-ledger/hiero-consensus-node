@@ -6,7 +6,7 @@ import com.swirlds.base.time.Time;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.transaction.TransactionPoolNexus;

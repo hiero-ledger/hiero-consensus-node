@@ -23,8 +23,6 @@ on:
         value: ${{ jobs.extract-citr-vars.outputs.citr-solo-version }}
       cutover-solo-version:
         value: ${{ jobs.extract-citr-vars.outputs.cutover-solo-version }}
-      mqpt-cluster:
-        value: ${{ jobs.extract-citr-vars.outputs.mqpt-cluster }}
       tck-version:
         value: ${{ jobs.extract-citr-vars.outputs.tck-version }}
       js-sdk-version:
@@ -35,7 +33,10 @@ on:
         value: ${{ jobs.extract-citr-vars.outputs.bn-mirror-node-version }}
       json-rpc-relay-version:
         value: ${{ jobs.extract-citr-vars.outputs.json-rpc-relay-version }}
-
+      mirror-node-explorer-version:
+        value: ${{ jobs.extract-citr-vars.outputs.mirror-node-explorer-version }}
+      nlg-version:
+        value: ${{ jobs.extract-citr-vars.outputs.nlg-version }}
 permissions:
   contents: read
 
@@ -53,12 +54,14 @@ jobs:
       citr-mirror-node-version: ${{ steps.get-citr-vars.outputs.citr-mirror-node-version }}
       citr-solo-version: ${{ steps.get-citr-vars.outputs.citr-solo-version }}
       cutover-solo-version: ${{ steps.get-citr-vars.outputs.cutover-solo-version }}
-      mqpt-cluster: ${{ steps.get-citr-vars.outputs.mqpt-cluster }}
       tck-version: ${{ steps.get-citr-vars.outputs.tck-version }}
       js-sdk-version: ${{ steps.get-citr-vars.outputs.js-sdk-version }}
       block-node-version: ${{ steps.get-citr-vars.outputs.block-node-version }}
       bn-mirror-node-version: ${{ steps.get-citr-vars.outputs.bn-mirror-node-version }}
       json-rpc-relay-version: ${{ steps.get-citr-vars.outputs.json-rpc-relay-version }}
+      mirror-node-explorer-version: ${{ steps.get-citr-vars.outputs.mirror-node-explorer-version }}
+      nlg-version: ${{ steps.get-citr-vars.outputs.nlg-version }}
+
     steps:
       - name: Initialize Job
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
@@ -98,24 +101,32 @@ jobs:
             "citr-mirror-node-version"
             "citr-solo-version"
             "cutover-solo-version"
-            "mqpt-cluster"
             "tck-version"
             "js-sdk-version"
             "block-node-version"
             "bn-mirror-node-version"
             "json-rpc-relay-version"
+            "mirror-node-explorer-version"
+            "nlg-version"
           )
 
-          # Loop through expected keys and check if they are set in GITHUB_OUTPUT
+          # Loop through expected keys and check if they are set in GITHUB_OUTPUT.
+          # `|| true` is required: run: blocks execute under `bash -eo pipefail`, so a key absent from
+          # .citr-env makes the pipeline exit 1 and kills the step before the check below can report it.
+          missing=()
           for key in "${EXPECTED_KEYS[@]}"; do
-            value=$(grep "^${key}=" "${GITHUB_OUTPUT}" | cut -d'=' -f2-)
+            value=$(grep "^${key}=" "${GITHUB_OUTPUT}" | cut -d'=' -f2- || true)
 
-            # If the value is empty or not set, log a warning and assign an empty string
             if [[ -z "${value}" ]]; then
-              echo "::warning::CITR variable '${key}' is missing or empty, defaulting to empty string"
-              echo "${key}=" | tee -a "${GITHUB_OUTPUT}"
+              echo "::error::CITR variable '${key}' is missing or empty in ${ENV_FILE}"
+              missing+=("${key}")
             else
               echo "  OK: ${key}=${value}"
             fi
           done
           echo "::endgroup::"
+
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "::error title=Missing CITR variables::${ENV_FILE} at the requested ref is missing: ${missing[*]}. If that ref is an older build tag, the caller should read .citr-env from the workflow ref instead."
+            exit 1
+          fi

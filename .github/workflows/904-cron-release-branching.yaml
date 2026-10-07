@@ -19,6 +19,19 @@ env:
   RELEASE_BRANCH_CHECK_SCRIPT: ".github/workflows/support/scripts/release-branch-check.sh"
 
 jobs:
+  prime-workflow:
+    name: Prime workflow
+    runs-on: hl-cn-default-lin-ss
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Schedule Run
+        run: |
+          echo "Picking up scheduled run at $(date -u +'%Y-%m-%d %H:%M:%S') UTC"
+
   check-trigger:
     name: Check Trigger Conditions
     runs-on: hl-cn-default-lin-sm
@@ -218,7 +231,7 @@ jobs:
 
       - name: Import GPG key for commit signoff
         id: gpg_import
-        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
+        uses: step-security/ghaction-import-gpg@c0b4a334b9b72bfaaebec86ef022a78a5b17f828 # v7.0.0
         with:
           gpg_private_key: ${{ secrets.PLATFORM_GPG_KEY_CONTENTS }}
           passphrase: ${{ secrets.PLATFORM_GPG_KEY_PASSPHRASE }}

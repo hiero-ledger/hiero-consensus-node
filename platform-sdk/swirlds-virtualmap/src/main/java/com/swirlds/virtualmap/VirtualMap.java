@@ -6,14 +6,14 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.logging.legacy.LogMarker.TESTING_EXCEPTIONS_ACCEPTABLE_RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
-import static com.swirlds.virtualmap.internal.Path.FIRST_LEFT_PATH;
-import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
-import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
-import static com.swirlds.virtualmap.internal.Path.getLeftChildPath;
-import static com.swirlds.virtualmap.internal.Path.getParentPath;
-import static com.swirlds.virtualmap.internal.Path.getRightChildPath;
-import static com.swirlds.virtualmap.internal.Path.getSiblingPath;
-import static com.swirlds.virtualmap.internal.Path.isLeft;
+import static com.swirlds.virtualmap.MerklePathUtils.FIRST_LEFT_PATH;
+import static com.swirlds.virtualmap.MerklePathUtils.INVALID_PATH;
+import static com.swirlds.virtualmap.MerklePathUtils.ROOT_PATH;
+import static com.swirlds.virtualmap.MerklePathUtils.getLeftChildPath;
+import static com.swirlds.virtualmap.MerklePathUtils.getParentPath;
+import static com.swirlds.virtualmap.MerklePathUtils.getRightChildPath;
+import static com.swirlds.virtualmap.MerklePathUtils.getSiblingPath;
+import static com.swirlds.virtualmap.MerklePathUtils.isLeft;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
@@ -31,7 +31,6 @@ import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.internal.AbstractVirtualRoot;
-import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.VirtualMapStatistics;
 import com.swirlds.virtualmap.internal.VirtualRoot;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
@@ -439,21 +438,24 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             return;
         }
         try {
-            final Hash loadedHash = records.findHash(firstLeafPath);
-            final VirtualLeafBytes<?> virtualLeafBytes = dataSource.loadLeafRecord(firstLeafPath);
-            if (virtualLeafBytes == null || loadedHash == null) {
-                logger.error(
-                        STARTUP.getMarker(),
-                        "Loaded leaf bytes or hash for the first leaf path {} is null, skipping full rehash",
-                        firstLeafPath);
-                return;
-            }
-            final Hash recaclulatedHash = new MerkleHasher().leafNodeHash(virtualLeafBytes);
-            if (loadedHash.equals(recaclulatedHash)) {
-                logger.info(
-                        STARTUP.getMarker(),
-                        "Recalculated hash for the first leaf path is equal to loaded hash, skipping full rehash");
-                return;
+            final boolean digestTypeChanged = Cryptography.DEFAULT_DIGEST_TYPE != dataSource.getLoadedHashDigestType();
+            if (!digestTypeChanged) {
+                final Hash loadedHash = records.findHash(firstLeafPath);
+                final VirtualLeafBytes<?> virtualLeafBytes = dataSource.loadLeafRecord(firstLeafPath);
+                if (virtualLeafBytes == null || loadedHash == null) {
+                    logger.error(
+                            STARTUP.getMarker(),
+                            "Loaded leaf bytes or hash for the first leaf path {} is null, skipping full rehash",
+                            firstLeafPath);
+                    return;
+                }
+                final Hash recaclulatedHash = new MerkleHasher().leafNodeHash(virtualLeafBytes);
+                if (loadedHash.equals(recaclulatedHash)) {
+                    logger.info(
+                            STARTUP.getMarker(),
+                            "Recalculated hash for the first leaf path is equal to loaded hash, skipping full rehash");
+                    return;
+                }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -527,7 +529,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         }
     }
 
-    public VirtualNodeCache getCache() {
+    // Test only
+    VirtualNodeCache getCache() {
         return cache;
     }
 
@@ -1501,14 +1504,14 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         }
 
         /**
-         * @return the path of the very first leaf in the tree. Can be {@value com.swirlds.virtualmap.internal.Path#INVALID_PATH} if there are no leaves.
+         * @return the path of the very first leaf in the tree. Can be {@value MerklePathUtils#INVALID_PATH} if there are no leaves.
          */
         public long getFirstLeafPath() {
             return firstLeafPath;
         }
 
         /**
-         * @return the path of the very last leaf in the tree. Can be {@value com.swirlds.virtualmap.internal.Path#INVALID_PATH} if there are no leaves.
+         * @return the path of the very last leaf in the tree. Can be {@value MerklePathUtils#INVALID_PATH} if there are no leaves.
          */
         public long getLastLeafPath() {
             return lastLeafPath;
@@ -1538,7 +1541,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         /**
          * Set the first leaf path.
          *
-         * @param path The new path. Can be {@value com.swirlds.virtualmap.internal.Path#INVALID_PATH}, or positive. Cannot be 0 or any other negative value.
+         * @param path The new path. Can be {@value MerklePathUtils#INVALID_PATH}, or positive. Cannot be 0 or any other negative value.
          * @throws IllegalArgumentException If the path is not valid
          */
         void setFirstLeafPath(final long path) {
@@ -1554,7 +1557,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
         /**
          * Set the last leaf path.
          *
-         * @param path The new path. Can be {@value com.swirlds.virtualmap.internal.Path#INVALID_PATH}, or positive. Cannot be 0 or any other negative value.
+         * @param path The new path. Can be {@value MerklePathUtils#INVALID_PATH}, or positive. Cannot be 0 or any other negative value.
          * @throws IllegalArgumentException If the path is not valid
          */
         void setLastLeafPath(final long path) {

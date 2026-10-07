@@ -11,9 +11,10 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
+import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
+import org.hiero.base.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.ConsensusLayerBuildingBlocks;
-import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
-import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -28,7 +29,7 @@ public class DefaultReconnectModule implements ReconnectModule {
     public void initialize(
             @NonNull final Configuration configuration,
             @NonNull final Time time,
-            @NonNull final Roster currentRoster,
+            @NonNull final Roster activeRoster,
             @NonNull final ConsensusLayerBuildingBlocks buildingBlocks,
             @NonNull final Platform platform,
             @NonNull final StateLifecycleManager<VirtualMapState, VirtualMap> stateLifecycleManager,
@@ -39,7 +40,7 @@ public class DefaultReconnectModule implements ReconnectModule {
         final ReconnectController reconnectController = new ReconnectController(
                 configuration,
                 time,
-                currentRoster,
+                activeRoster,
                 platform,
                 reconnectCoordinator,
                 stateLifecycleManager,
@@ -51,8 +52,7 @@ public class DefaultReconnectModule implements ReconnectModule {
                 new DefaultSignedStateValidator());
 
         final Thread reconnectControllerThread = new ThreadConfiguration(AdHocThreadManager.getStaticThreadManager())
-                .setComponent("platform-core")
-                .setThreadName("reconnectController")
+                .setSingleThreadName(CompositeThreadNameProvider.create("platform-core", "reconnectController"))
                 .setRunnable(reconnectController)
                 .build(true);
 

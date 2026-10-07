@@ -257,7 +257,7 @@ public class LazyCreateThroughPrecompileSuite {
                                             BigInteger.valueOf(2))
                                     .refusingEthConversion()
                                     .via(TRANSFER_TXN)
-                                    .gas(780_000L)
+                                    .gas(2_000_000L)
                                     .hasKnownStatus(SUCCESS),
                             getAliasedAccountInfo(ECDSA_KEY)
                                     .has(AccountInfoAsserts.accountWith()
@@ -365,7 +365,7 @@ public class LazyCreateThroughPrecompileSuite {
                                             HapiParserUtil.asHeadlongAddress(addressBytes),
                                             BigInteger.TWO)
                                     .refusingEthConversion()
-                                    .gas(780_000L)
+                                    .gas(2_000_000L)
                                     .via(TRANSFER_FROM_ACCOUNT_TXN)
                                     .hasKnownStatus(SUCCESS),
                             getAliasedAccountInfo(ECDSA_KEY)
@@ -464,7 +464,7 @@ public class LazyCreateThroughPrecompileSuite {
                                             BigInteger.valueOf(1))
                                     .refusingEthConversion()
                                     .via(TRANSFER_FROM_ACCOUNT_TXN)
-                                    .gas(780_000L)
+                                    .gas(2_000_000L)
                                     .hasKnownStatus(SUCCESS),
                             getAliasedAccountInfo(ECDSA_KEY)
                                     .has(AccountInfoAsserts.accountWith()

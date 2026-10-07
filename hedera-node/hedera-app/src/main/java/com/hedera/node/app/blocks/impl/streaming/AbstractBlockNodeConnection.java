@@ -14,8 +14,10 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URL;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -26,7 +28,10 @@ import org.apache.logging.log4j.Logger;
 public abstract class AbstractBlockNodeConnection implements AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger(AbstractBlockNodeConnection.class);
-
+    /**
+     * Default timeout for connection management operations (e.g. connection create).
+     */
+    private static final long DEFAULT_CONNECTION_MANAGEMENT_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(3);
     /**
      * The block node configuration.
      */
@@ -104,6 +109,18 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
     }
 
     /**
+     * @return the connection management timeout in milliseconds
+     */
+    final long connectionManagementTimeoutMillis() {
+        final Duration configValue = bncConfig().connectionManagementTimeout();
+        if (configValue == null || !configValue.isPositive()) {
+            return DEFAULT_CONNECTION_MANAGEMENT_TIMEOUT_MILLIS;
+        } else {
+            return configValue.toMillis();
+        }
+    }
+
+    /**
      * @return the IPv4 address represented as an integer, or -1 if the address could not be resolved or is not an IPv4 address
      */
     final long ipV4AddressAsInt() {
@@ -161,17 +178,6 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
     }
 
     /**
-     * Returns a request-level correlation ID for block-specific requests.
-     *
-     * @param blockNumber block number
-     * @param blockRequestNumber request number scoped to the block
-     * @return correlation ID in format N#-[STR|SVC]#-BLK#-REQ#
-     */
-    final @NonNull String blockRequestCorrelationId(final long blockNumber, final int blockRequestNumber) {
-        return connectionId + "-BLK" + blockNumber + "-REQ" + blockRequestNumber;
-    }
-
-    /**
      * Builds a correlation ID for the specified connection request.
      *
      * @param connectionRequestNumber the connection-level request number
@@ -187,11 +193,16 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
      * @param connectionRequestNumber the connection-level request number
      * @param blockNumber the block number
      * @param blockRequestNumber the block-level request number
-     * @return correlation ID in the format of N#-[STR|SVC]#-BLK#-REQ#-CRN#
+     * @param blockAttemptNumber number of times this block has been attempted on this connection
+     * @return correlation ID in the format of N#-[STR|SVC]#-BLK#-BAN#-REQ#-CRN#
      */
     final @NonNull String buildRequestCorrelationId(
-            final long connectionRequestNumber, final long blockNumber, final int blockRequestNumber) {
-        return connectionId + "-BLK" + blockNumber + "-REQ" + blockRequestNumber + "-CRN" + connectionRequestNumber;
+            final long connectionRequestNumber,
+            final long blockNumber,
+            final int blockRequestNumber,
+            final int blockAttemptNumber) {
+        return connectionId + "-BLK" + blockNumber + "-BAN" + blockAttemptNumber + "-REQ" + blockRequestNumber + "-CRN"
+                + connectionRequestNumber;
     }
 
     /**

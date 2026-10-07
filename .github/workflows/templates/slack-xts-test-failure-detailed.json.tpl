@@ -1,7 +1,7 @@
 {
   "attachments": [
     {
-      "color": "#FF0000",
+      "color": {{ getenv "SLACK_COLOR" "#FF0000" | data.ToJSON }},
       "blocks": [
         {
           "type": "header",

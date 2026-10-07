@@ -7,8 +7,8 @@ import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hederahashgraph.api.proto.java.Key;
+import java.util.HexFormat;
 import org.apache.tuweni.bytes.Bytes;
-import org.bouncycastle.util.encoders.Hex;
 
 public class HapiParserUtil {
 
@@ -72,6 +72,6 @@ public class HapiParserUtil {
 
     // Generate an address with the passed in number. All the values are padded till the required length.
     public static String toAddressString(String number) {
-        return "0x00" + Hex.toHexString(asEvmAddress(Long.parseLong(number, 16)));
+        return "0x00" + HexFormat.of().formatHex(asEvmAddress(Long.parseLong(number, 16)));
     }
 }

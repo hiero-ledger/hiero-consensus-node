@@ -17,7 +17,7 @@ import javax.net.ssl.SSLException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.Marker;
-import org.hiero.consensus.concurrent.throttle.RateLimiter;
+import org.hiero.base.concurrent.throttle.StackTraceDeduplicator;
 import org.hiero.consensus.exceptions.PlatformConstructionException;
 import org.hiero.consensus.exceptions.ThrowableUtilities;
 import org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncTimeoutException;
@@ -51,15 +51,21 @@ public final class NetworkUtils {
     /**
      * Called when an exception happens while executing something that uses a connection. This method will close the
      * connection supplied and log the exception with an appropriate marker.
+     * <p>
+     * Socket exceptions are benign in the vast majority of cases, so they are logged at INFO level. The full stack trace
+     * is logged only the first time a particular stack trace is seen (see {@link StackTraceDeduplicator}); afterwards
+     * only a short description of the exception is logged.
      *
-     * @param e          the exception that was thrown
-     * @param connection the connection used when the exception was thrown
-     * @param socketExceptionRateLimiter a rate limiter for reporting full stack traces for socket exceptions
+     * @param e                           the exception that was thrown
+     * @param connection                  the connection used when the exception was thrown
+     * @param socketExceptionDeduplicator remembers which socket exception stack traces were already logged in full;
+     *                                    should be shared by all the callers, so the same problem affecting many
+     *                                    connections is reported in full only once
      * @throws InterruptedException if the provided exception is an {@link InterruptedException}, it will be rethrown
      *                              once the connection is closed
      */
     public static void handleNetworkException(
-            final Exception e, final Connection connection, final RateLimiter socketExceptionRateLimiter)
+            final Exception e, final Connection connection, final StackTraceDeduplicator socketExceptionDeduplicator)
             throws InterruptedException {
         final String description;
         // always disconnect when an exception gets thrown
@@ -76,11 +82,11 @@ public final class NetworkUtils {
         // we use a different marker depending on what the root cause is
         final Marker marker = NetworkUtils.determineExceptionMarker(e);
         if (SOCKET_EXCEPTIONS.getMarker().equals(marker)) {
-            if (socketExceptionRateLimiter.requestAndTrigger()) {
-                logger.warn(marker, "Connection broken: {}", description, e);
+            if (socketExceptionDeduplicator.isNew(e)) {
+                logger.info(marker, "Connection broken: {}", description, e);
             } else {
                 final String formattedException = NetworkUtils.formatException(e);
-                logger.warn(marker, "Connection broken: {} {}", description, formattedException);
+                logger.info(marker, "Connection broken: {} {}", description, formattedException);
             }
         } else {
             logger.error(EXCEPTION.getMarker(), "Connection broken: {}", description, e);

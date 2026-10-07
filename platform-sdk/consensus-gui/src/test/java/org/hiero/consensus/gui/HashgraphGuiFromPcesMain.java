@@ -11,12 +11,13 @@ import com.swirlds.metrics.api.Metrics;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.nio.file.Path;
+import org.hiero.consensus.fakes.noop.NoOpMetrics;
+import org.hiero.consensus.fakes.noop.NoOpRecycleBin;
 import org.hiero.consensus.gui.api.TestGuiSource;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.io.NoOpRecycleBin;
 import org.hiero.consensus.io.RecycleBin;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.hashgraph.GenesisSnapshotFactory;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.pcli.graph.PcesEventGraphSource;
 import org.hiero.consensus.pcli.graph.PcesEventGraphSource.HashOption;
 import org.hiero.consensus.round.EventWindowUtils;
@@ -42,7 +43,7 @@ public class HashgraphGuiFromPcesMain {
      * The name of the JSON file containing the {@link Roster} used to create the events in the PCES directory. Must be
      * located in {@link #ROOT_DIR}.
      */
-    private static final String ROSTER_FILE = "currentRoster.json";
+    private static final String ROSTER_FILE = "activeRoster.json";
 
     /**
      * The name of the JSON file containing the {@link com.hedera.hapi.platform.state.ConsensusSnapshot} to start the
@@ -68,7 +69,8 @@ public class HashgraphGuiFromPcesMain {
         final Path resourceDir = Path.of(ROOT_DIR);
         final Path rosterPath = resourceDir.resolve(ROSTER_FILE);
         final Path pcesPath = resourceDir.resolve(PCES_DIR);
-        final Roster roster = Roster.JSON.parse(new ReadableStreamingData(new FileInputStream(rosterPath.toFile())));
+        final RosterWrapper roster = RosterWrapper.of(
+                Roster.JSON.parse(new ReadableStreamingData(new FileInputStream(rosterPath.toFile()))));
 
         final long startingRound;
         final long minimumNonAncientRound;

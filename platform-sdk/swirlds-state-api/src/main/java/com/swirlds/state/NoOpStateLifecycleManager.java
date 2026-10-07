@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state;
 
+import static org.hiero.base.crypto.Cryptography.DEFAULT_DIGEST_TYPE;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -14,6 +16,9 @@ import org.hiero.base.crypto.Hash;
  * @param <D> the type of the root node of a Merkle tree
  */
 public class NoOpStateLifecycleManager<S, D> implements StateLifecycleManager<S, D> {
+
+    @Override
+    public void prepareForFreeze() {}
 
     @Override
     public S createStateFrom(@NonNull final D rootNode) {
@@ -40,7 +45,7 @@ public class NoOpStateLifecycleManager<S, D> implements StateLifecycleManager<S,
 
     @Override
     public @NonNull Hash loadSnapshot(@NonNull final Path targetPath) throws IOException {
-        return new Hash();
+        return new Hash(DEFAULT_DIGEST_TYPE);
     }
 
     @Override
