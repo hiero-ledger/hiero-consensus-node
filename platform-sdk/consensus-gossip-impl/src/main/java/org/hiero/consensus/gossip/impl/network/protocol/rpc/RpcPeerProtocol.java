@@ -30,7 +30,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.base.concurrent.pool.ParallelExecutionException;
 import org.hiero.base.concurrent.pool.ParallelExecutor;
-import org.hiero.base.concurrent.throttle.RateLimiter;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
 import org.hiero.consensus.gossip.config.TrafficShapingConfig;
@@ -87,14 +86,6 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
      * Helper class to handle ping logic
      */
     private final RpcPingHandler pingHandler;
-
-    /** A duration between reporting full stack traces for socket exceptions. */
-    private static final Duration SOCKET_EXCEPTION_DURATION = Duration.ofMinutes(1);
-
-    /**
-     * Internal log rate limiter to avoid spamming logs
-     */
-    private final RateLimiter exceptionRateLimiter;
 
     /**
      * Pluggable exception handler, mostly useful for testing.
@@ -236,7 +227,6 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
 
         this.pingHandler = new RpcPingHandler(time, networkMetrics, remotePeerId, this, syncConfig.pingPeriod());
 
-        this.exceptionRateLimiter = new RateLimiter(time, SOCKET_EXCEPTION_DURATION);
         this.exceptionHandler = exceptionHandler;
 
         this.inputQueue = syncMetrics.createMeasuredQueue(
@@ -329,7 +319,7 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                     () -> readMessages(connection),
                     () -> writeMessages(connection));
         } catch (final ParallelExecutionException e) {
-            exceptionHandler.handleNetworkException(e, connection, exceptionRateLimiter);
+            exceptionHandler.handleNetworkException(e, connection);
         } finally {
             inputQueue.clear();
             outputQueue.clear();

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.builder;
 
+import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.builder.EventCutoverCalculator.calculateEventCutoverRound;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.platformstate.PlatformStateUtils.ancientThresholdOf;
@@ -20,6 +22,7 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
+import java.util.OptionalLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
@@ -30,12 +33,13 @@ import org.hiero.consensus.ConsensusLayerFactory;
 import org.hiero.consensus.ConsensusLayerInputs;
 import org.hiero.consensus.ConsensusLayerWiring;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.event.stream.config.EventConfig;
 import org.hiero.consensus.io.RecycleBin;
-import org.hiero.consensus.model.event.EventHashFactory;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
+import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
-import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 
@@ -49,7 +53,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     /**
      * A record representing the persistence scope, which includes the application name and swirld name.
      *
-     * @param appName the name of the application
+     * @param appName    the name of the application
      * @param swirldName the name of the swirld
      */
     public record PersistenceScope(
@@ -64,8 +68,8 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     /** The time source for the platform, used for timestamping events and transactions. */
     protected final Time time;
 
-    /** The roster history provided by the application to use at startup. */
-    protected final RosterHistory rosterHistory;
+    /** The consensus layer roster inputs provided by the application to use at startup. */
+    protected final ConsensusLayerRosterInputs rosterInputs;
 
     /** The unique identifier of this node within the network. */
     protected final NodeId selfId;
@@ -118,28 +122,34 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     /**
      * Constructs a PlatformBuilder instance with the specified configuration and components.
      *
-     * @param configuration The configuration settings for the platform.
-     * @param metrics The metrics system for monitoring and reporting platform performance.
-     * @param time The time source for the platform, used for timestamping events and transactions.
-     * @param rosterHistory The roster history provided by the application to use at startup.
-     * @param keysAndCerts The cryptographic keys and certificates for the node, used for signing and verifying messages.
-     * @param selfId The unique identifier of the node within the network.
-     * @param recycleBin The recycle bin, which stores deleted files before they are permanently deleted.
-     * @param fileSystemManager The file system manager responsible for handling file operations.
-     * @param executionLayer The execution layer called for application-specific processing.
+     * @param configuration              The configuration settings for the platform.
+     * @param metrics                    The metrics system for monitoring and reporting platform performance.
+     * @param time                       The time source for the platform, used for timestamping events and
+     *                                   transactions.
+     * @param rosterInputs               The roster inputs provided by the application to use at startup.
+     * @param keysAndCerts               The cryptographic keys and certificates for the node, used for signing and
+     *                                   verifying messages.
+     * @param selfId                     The unique identifier of the node within the network.
+     * @param recycleBin                 The recycle bin, which stores deleted files before they are permanently
+     *                                   deleted.
+     * @param fileSystemManager          The file system manager responsible for handling file operations.
+     * @param executionLayer             The execution layer called for application-specific processing.
      * @param consensusStateEventHandler The handler for processing consensus-related events.
-     * @param initialState The initial state supplied by the application.
-     * @param stateLifecycleManager The lifecycle manager for managing the state lifecycle.
-     * @param softwareVersion The software version of the application.
-     * @param persistenceScope The application name and swirld name for determining where to store states on disk.
-     * @param consensusEventStreamName A part of the name of the directory where the consensus event stream is written.
-     * @param transactionOffsetNanos The nanosecond offset added to the first transaction's timestamp in each event.
+     * @param initialState               The initial state supplied by the application.
+     * @param stateLifecycleManager      The lifecycle manager for managing the state lifecycle.
+     * @param softwareVersion            The software version of the application.
+     * @param persistenceScope           The application name and swirld name for determining where to store states on
+     *                                   disk.
+     * @param consensusEventStreamName   A part of the name of the directory where the consensus event stream is
+     *                                   written.
+     * @param transactionOffsetNanos     The nanosecond offset added to the first transaction's timestamp in each
+     *                                   event.
      */
     public PlatformBuilder(
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
-            @NonNull final RosterHistory rosterHistory,
+            @NonNull final ConsensusLayerRosterInputs rosterInputs,
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final NodeId selfId,
             @NonNull final RecycleBin recycleBin,
@@ -159,7 +169,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         this.configuration = requireNonNull(configuration);
         this.metrics = requireNonNull(metrics);
         this.time = requireNonNull(time);
-        this.rosterHistory = requireNonNull(rosterHistory);
+        this.rosterInputs = requireNonNull(rosterInputs);
         this.selfId = requireNonNull(selfId);
         this.keysAndCerts = requireNonNull(keysAndCerts);
         this.fileSystemManager = requireNonNull(fileSystemManager);
@@ -174,9 +184,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         this.consensusEventStreamName = requireNonNull(consensusEventStreamName);
         this.transactionOffsetNanos = transactionOffsetNanos;
 
-        EventHashFactory.initialize(Long.MAX_VALUE);
-
-        logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", rosterHistory);
+        logger.info(STARTUP.getMarker(), "Starting with roster inputs:\n{}", rosterInputs);
     }
 
     /**
@@ -188,14 +196,27 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     public Platform build() {
         throwIfAlreadyUsed();
         used = true;
+
+        final SignedState initialSignedState = initialState.get();
+        final boolean startedFromGenesis = initialSignedState.isGenesisState();
+        final boolean isUpgrade = !startedFromGenesis
+                && SEMANTIC_VERSION_COMPARATOR.compare(
+                                PlatformStateUtils.creationSemanticVersionOf(initialSignedState.getState()),
+                                softwareVersion)
+                        != 0;
+        final boolean eventCutoverActive =
+                configuration.getConfigData(EventConfig.class).enableEventCutover();
+
+        // The event hash factory must be initialized before the consensus layer is created, because creating the
+        // consensus layer reads events from the PCES files.
+        final OptionalLong eventCutoverUpdate =
+                calculateEventCutoverRound(initialSignedState.getState(), isUpgrade, eventCutoverActive);
+
         final ConsensusLayerInputs inputs = createConsensusLayerInputs();
         final ConsensusLayerFactory factory = new ConsensusLayerFactory(inputs);
         buildingBlocks = factory.create();
 
         ConsensusLayerWiring.wire(inputs, buildingBlocks);
-
-        final SignedState initialSignedState = initialState.get();
-        final boolean startedFromGenesis = initialSignedState.isGenesisState();
 
         final SwirldsPlatform platform;
         if (startedFromGenesis) {
@@ -207,6 +228,11 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         }
 
         InitialStateLoader.initializeModulesWithInitialState(platform, inputs, buildingBlocks);
+
+        // InitialStateLoader has moved the state lifecycle manager to a mutable copy of the initial state, so the
+        // event cutover value can be recorded without modifying the state that was loaded.
+        eventCutoverUpdate.ifPresent(eventCutoverMinBirthRound -> PlatformStateUtils.updateEventCutoverMinBirthRound(
+                stateLifecycleManager.getMutableState(), eventCutoverMinBirthRound));
 
         // Future work - capture the reconnect module, add a start() method to it, and call it later
         final boolean reconnectActive =
@@ -258,8 +284,8 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
     }
 
     /**
-     * Creates and returns an instance of {@link ConsensusLayerInputs} configured with the necessary
-     * dependencies and settings required for initializing the consensus layer of the platform.
+     * Creates and returns an instance of {@link ConsensusLayerInputs} configured with the necessary dependencies and
+     * settings required for initializing the consensus layer of the platform.
      *
      * @return a fully-constructed {@link ConsensusLayerInputs} instance
      */
@@ -269,7 +295,7 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
                 configuration,
                 metrics,
                 time,
-                rosterHistory,
+                rosterInputs,
                 keysAndCerts,
                 selfId,
                 recycleBin,

@@ -81,12 +81,11 @@ public class EventDeduplicator {
      * Checks whether an event has already been submitted by the node that is submitting it now, recording the
      * submission as observed if it has not.
      *
-     * <p>Events that are expired for every node in the network are also reported as duplicates. Such an event is of no
-     * use to any node, and the map no longer tracks birth rounds that old, so there is no way to tell whether it has
-     * been seen before.
+     * <p>Events that are expired for every node in the network are reported as unique without being recorded. The map
+     * no longer tracks birth rounds that old, so there is no way to tell whether such an event has been seen before.
      *
      * @param event the event to check, with its sender set to the node submitting it
-     * @return {@code true} if the event is unique and was added
+     * @return {@code true} if the event is unique and was recorded, or is too old to be checked
      */
     public boolean addIfUnique(@NonNull final PlatformEvent event) {
         if (event.getBirthRound() < oldestEventWindow.expiredThreshold()) {

@@ -1,0 +1,119 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "905: [CRON] Nightly Benchmarks"
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "The branch, tag or SHA to benchmark (default: the selected branch)."
+        type: string
+        required: false
+        default: ""
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-benchmarks-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GRADLE_CACHE_USERNAME: ${{ secrets.GRADLE_CACHE_USERNAME }}
+  GRADLE_CACHE_PASSWORD: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+
+jobs:
+  extract-jdk-version:
+    name: Extract Java Version
+    uses: ./.github/workflows/854-call-extract-jdk-version.yaml
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Runs on the benchmark runner, a node shared with other workloads. It records the environment and the other
+  # workloads' load during the run, so that a disturbed result can be recognized. Until results are published, it only
+  # keeps them as an artifact.
+  jmh:
+    name: JMH Benchmarks
+    runs-on: hl-cn-benchmark-lin
+    timeout-minutes: 45
+    needs:
+      - extract-jdk-version
+    env:
+      ENVIRONMENT_DIR: build/benchmark-environment
+    steps:
+      - name: Prepare Runner
+        id: prepare-runner
+        uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
+        with:
+          checkout: "true"
+          checkout-ref: "${{ inputs.ref || github.ref }}"
+          checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.GITHUB_TOKEN }}"
+          setup-java: "true"
+          java-version: "${{ needs.extract-jdk-version.outputs.jdk-version }}"
+          java-distribution: "temurin"
+          setup-gradle: "true"
+          gradle-cache-read-only: "true"
+
+      # A separate Gradle invocation, so that nothing compiles while the benchmarks measure
+      - name: Build Benchmark Jar
+        run: ./gradlew :consensus-hashgraph-impl:jmhJarWithMergedServiceFiles
+
+      - name: Record Environment Before
+        env:
+          BENCHMARK_REF: ${{ inputs.ref || github.ref }}
+        run: |
+          mkdir -p "${ENVIRONMENT_DIR}"
+          {
+            echo "commit=$(git rev-parse HEAD)"
+            echo "ref=${BENCHMARK_REF}"
+            echo "run_id=${GITHUB_RUN_ID}"
+            echo "run_attempt=${GITHUB_RUN_ATTEMPT}"
+            echo "runner_name=${RUNNER_NAME}"
+            echo "runner_label=hl-cn-benchmark-lin"
+            echo "started=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          } > "${ENVIRONMENT_DIR}/run-info.properties"
+          .github/workflows/support/scripts/record-benchmark-environment.sh \
+            > "${ENVIRONMENT_DIR}/environment-before.txt"
+          cat "${ENVIRONMENT_DIR}/run-info.properties"
+          sed -n '/^== summary/,/^== end summary/p' "${ENVIRONMENT_DIR}/environment-before.txt"
+
+      # Only this module's benchmarks are tracked; "./gradlew jmh" would also run those of other modules. Without
+      # "nice", which other workflows use and which would lower the benchmarks' priority on a shared node. Each output
+      # line is prefixed with its time, so that iterations can be matched with the monitor's samples.
+      - name: Run Benchmarks
+        id: jmh
+        run: |
+          .github/workflows/support/scripts/record-benchmark-environment.sh --monitor 5 \
+            > "${ENVIRONMENT_DIR}/monitor.csv" 2>&1 &
+          monitor_pid=$!
+          trap 'kill "${monitor_pid}"' EXIT
+          ./gradlew :consensus-hashgraph-impl:jmh 2>&1 \
+            | while IFS= read -r line; do echo "${EPOCHREALTIME} ${line}"; done \
+            | tee "${ENVIRONMENT_DIR}/jmh-output.txt"
+
+      - name: Record Environment After
+        if: ${{ always() && steps.jmh.outcome != 'skipped' }}
+        run: |
+          echo "finished=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${ENVIRONMENT_DIR}/run-info.properties"
+          .github/workflows/support/scripts/record-benchmark-environment.sh \
+            > "${ENVIRONMENT_DIR}/environment-after.txt"
+          sed -n '/^== summary/,/^== end summary/p' "${ENVIRONMENT_DIR}/environment-after.txt"
+
+      - name: Upload Results
+        if: ${{ always() && steps.jmh.outcome != 'skipped' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: jmh-results
+          # every module's results, so a module added to the steps above cannot be left out here
+          path: |
+            platform-sdk/*/build/results/jmh/results.json
+            ${{ env.ENVIRONMENT_DIR }}
+          if-no-files-found: error
+          retention-days: 90

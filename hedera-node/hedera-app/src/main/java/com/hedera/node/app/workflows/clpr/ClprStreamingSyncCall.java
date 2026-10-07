@@ -14,10 +14,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * A live {@code streamingSync} exchange, initiated from the client-side.
+ * A live streaming {@code sync} exchange, initiated from the client-side.
  * The caller writes and reads {@link ClprStreamingSyncPayload} messages directly
  * in whatever order the protocol calls for, then half-closes once it has no more messages to send.
- * An instance of this class is created by {@link ClprEndpointClient#streamingSync(java.time.Duration)} and its
+ * An instance of this class is created by {@link ClprEndpointClient#sync(java.time.Duration)} and its
  * lifecycle is tied to the lifecycle of the stream. Once the stream is closed, this instance is no longer usable.
  *
  * <p>This class is {@link AutoCloseable} and callers are expected to use try-with-resources. An exchange that exits
