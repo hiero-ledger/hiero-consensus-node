@@ -1,5 +1,0 @@
-{
-  "nodes": [
-    { "address": "localhost", "streamingPort": 40840, "priority": 1 }
-  ]
-}

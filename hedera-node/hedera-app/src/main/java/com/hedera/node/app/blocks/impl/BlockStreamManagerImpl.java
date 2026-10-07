@@ -874,24 +874,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             streamingObs.onBlockFooterCreate(blockNumber);
             writeItem(footerItem);
             worker.sync();
-            if (maxBlockSizeThrottleEnabled) {
-                log.info(
-                        "Block #{} execution summary before proof: cutoffReached={}, submittedAtCutoff={}, "
-                                + "bytesAtCutoff={}, submittedAtClose={}, nodeSubmittedAtClose={}, "
-                                + "signedTransactionItems={}, blockFullRejections={}, blockFullRejectionBytes={}, "
-                                + "serializedBytesBeforeProof={}, bytesAfterCutoff={}",
-                        blockNumber,
-                        maxBlockSizeReached,
-                        submittedAtCutoff,
-                        bytesAtCutoff,
-                        submittedTransactionCount,
-                        nodeSubmittedTransactionCount,
-                        signedTransactionCount,
-                        blockFullRejectionCount,
-                        blockFullRejectionBytes,
-                        currentThrottleBlockSizeBytes,
-                        maxBlockSizeReached ? currentThrottleBlockSizeBytes - bytesAtCutoff : 0);
-            }
 
             // Create a pending block, waiting to be signed
             final var blockProofBuilder = BlockProof.newBuilder().block(blockNumber);

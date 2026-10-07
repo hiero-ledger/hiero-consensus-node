@@ -445,7 +445,6 @@ public class BlockBufferService {
         blockStreamMetrics.recordBlockClosed();
         blockStreamMetrics.recordBlockItemsPerBlock(blockState.itemCount());
         blockStreamMetrics.recordBlockBytes(blockState.sizeBytes());
-        logger.info("Block {} closed with serialized size {} bytes", blockNumber, blockState.sizeBytes());
         blockState.closeBlock();
     }
 

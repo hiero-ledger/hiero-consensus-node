@@ -893,7 +893,7 @@ public class HandleWorkflow {
                 }
                 initializeBuilderInfo(parentTxn.baseBuilder(), parentTxn.txnInfo(), exchangeRateManager.exchangeRates())
                         .status(BUSY);
-                // Emit a zero-fee rejection without dispatching or mutating accounts.
+                // Flushes the BUSY builder to the stream, no other side effects
                 parentTxn.stack().commitTransaction(parentTxn.baseBuilder());
             } else {
                 final var dispatch = parentTxnFactory.createDispatch(parentTxn, exchangeRateManager.exchangeRates());
