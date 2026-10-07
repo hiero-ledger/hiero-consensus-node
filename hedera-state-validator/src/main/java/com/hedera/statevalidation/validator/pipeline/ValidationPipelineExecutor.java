@@ -191,7 +191,15 @@ public final class ValidationPipelineExecutor {
                 // Submit read tasks
                 for (final ReadSegment segment : readSegments) {
                     ioFutures.add(ioPool.submit(() -> {
-                        readFileSegment(segment.reader(), segment.type(), segment.startByte(), segment.endByte());
+                        try {
+                            readFileSegment(segment.reader(), segment.type(), segment.startByte(), segment.endByte());
+                        } catch (final IOException e) {
+                            throw new IOException(
+                                    "Failed to read " + segment.type() + " file "
+                                            + segment.reader().getPath().getFileName() + " segment ["
+                                            + segment.startByte() + ", " + segment.endByte() + ")",
+                                    e);
+                        }
                         progress.advance(segment.endByte() - segment.startByte());
                         return null;
                     }));
@@ -202,16 +210,18 @@ public final class ValidationPipelineExecutor {
                     try {
                         future.get();
                     } catch (final ExecutionException e) {
+                        // Stop reading, but don't interrupt processors. An interrupt closes MerkleDB file
+                        // channels that validators read from, which would be reported as unrelated validation
+                        // failures. Instead, drop queued data and stop processors with poison pills
                         ioPool.shutdownNow();
-                        processPool.shutdownNow();
+                        ioPool.close();
+                        dataQueue.clear();
+                        sendPoisonPills();
                         throw new RuntimeException("IO Task failed", e.getCause() != null ? e.getCause() : e);
                     }
                 }
 
-                // Send one poison pill per processor
-                for (int i = 0; i < processThreads; i++) {
-                    dataQueue.put(List.of(DiskDataItem.poisonPill()));
-                }
+                sendPoisonPills();
 
                 // Wait for all processor tasks to complete
                 for (final Future<Void> future : processorFutures) {
@@ -267,6 +277,17 @@ public final class ValidationPipelineExecutor {
 
                 return !dataStats.hasErrorReads();
             }
+        }
+    }
+
+    /**
+     * Sends one poison pill per processor, so all processors stop after handling the data already in the queue.
+     *
+     * @throws InterruptedException if the thread was interrupted while waiting to put into the queue
+     */
+    private void sendPoisonPills() throws InterruptedException {
+        for (int i = 0; i < processThreads; i++) {
+            dataQueue.put(List.of(DiskDataItem.poisonPill()));
         }
     }
 
