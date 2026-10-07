@@ -86,6 +86,12 @@ public record TssConfig(
         @NetworkProperty
         String wrapsProvingKeyDownloadUrl,
 
+        // Whether to build a fresh genesis WRAPS proof for the current roster in the first round after an
+        // upgrade, replacing the active proof; e.g., after a TSS library or proving key change. Applies to
+        // every upgrade while set, and has no effect once block proofs carry the chain of trust
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
+        boolean needsFreshGenesisWrapsProof,
+
         @ConfigProperty(defaultValue = "300s") @NetworkProperty
         Duration wrapsProvingKeyRetryInterval,
 

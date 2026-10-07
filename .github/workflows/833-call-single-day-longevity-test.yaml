@@ -189,6 +189,22 @@ jobs:
           path: target_block_node
           ref: ${{ inputs.bnref }}
 
+      - name: Checkout target BN Code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: "hiero-ledger/hiero-block-node"
+          path: target_block_node
+          ref: ${{ inputs.bnref }}
+
+      - name: Checkout Solo Code
+        if: false
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: hiero-ledger/solo
+          ref: "${{ inputs.solo-version }}"
+          token: ${{ secrets.github-token }}
+          path: solo
+
       - name: Set Kubernetes Cluster
         id: set-k8s-cluster
         run: |
@@ -342,7 +358,7 @@ jobs:
       - name: Build Validator
         run: |
           cd "${{ github.workspace }}"/target_consensus_node
-          ./gradlew --no-daemon :hedera-state-validator:shadowJar
+          ./gradlew --no-daemon :hedera-state-validator:fatModuleJar
           cd "${{ github.workspace }}"
 
       - name: Setup Node
@@ -369,6 +385,38 @@ jobs:
 
           # verify the installation
           solo --version
+
+      - name: Build Solo
+        if: false
+        run: |
+          set +x
+          set +e
+          curdir=`pwd`
+          echo "${curdir}"
+          ls
+          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+          export NVM_DIR="${HOME}/.nvm"
+          [ -s "${NVM_DIR}/nvm.sh" ] && \. "${NVM_DIR}/nvm.sh"  # This loads nvm
+          nvm install v24.14.0
+          nvm use v24.14.0
+
+          export PATH="${HOME}"/:"${PATH}"
+
+          #solo script
+          echo '#!/usr/bin/sh -f' > "${HOME}"/solo
+          echo "node \"${curdir}\"/solo/dist/solo.js \"\$@\"" >> "${HOME}"/solo
+          chmod a+rx "${HOME}"/solo
+          sudo mv "${HOME}"/solo /usr/bin/solo
+
+          cd "${{ github.workspace}}"/solo
+
+          task build:compile
+          #npm run build
+
+          which solo
+          solo --version
+
+          cd ..
 
       - name: Deploy with Solo
         env:
@@ -454,6 +502,11 @@ jobs:
           export NODE_COPY_CONCURRENT=1
 
           task
+
+      - name: kubectl wrapper for Solo
+        run: |
+          kubectl=$(which kubectl)
+          cp ${kubectl} ${HOME}/.solo/bin/kubectl
 
       - name: Add BlockNodes
         run: |
@@ -591,22 +644,6 @@ jobs:
           export MIRROR_NODE_VERSION="${{ inputs.mirrorref }}"
           task solo:mirror-node
 
-      - name: Add Explorer
-        run: |
-          set +x
-          set +e
-          cd "${{ github.workspace}}"/solo
-          export EXPLORER_VERSION="${{ inputs.explorerref }}"
-          task solo:explorer
-
-      - name: Add Relay
-        run: |
-          set +x
-          set +e
-          cd "${{ github.workspace}}"/solo
-          export RELAY_VERSION="${{ inputs.relayref }}"
-          task solo:relay
-
       - name: Solo logs
         if: ${{ !cancelled() && always() }}
         env:
@@ -659,14 +696,19 @@ jobs:
           # Generate the nlg-values.yaml file inline
           cp "${{ github.workspace }}"/.github/workflows/support/citr/nlg-values.yaml nlg-values.yaml
 
-          # Generate the merkledb-values.yaml file inline
-          cp "${{ github.workspace }}"/.github/workflows/support/citr/merkledb-values.yaml merkledb-values.yaml
-
           #Disable auto-start
           sed -i -e 's/NftTransferLoadTest/NftTransferLoadTestDONOTSTART/g' nlg-values.yaml
           grep -v 'x.y.z' nlg-values.yaml > new.yml
 
           cat networks.txt | awk '{print $3}' | perl -ne "~s/\n//g; print \"     - '\$_\\\:50211=0.0.\".(3+\$.-1).\"'\n\"" >> new.yml
+
+          for i in $(seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }})
+          do
+            echo "     - 'block-node-${i}.${{ needs.acquire-kubernetes-resources.outputs.namespace }}.svc.cluster.local\:40840=bn:${i}'" >> new.yml
+          done
+
+          # echo "     - 'mirror-1-rest.${{ needs.acquire-kubernetes-resources.outputs.namespace }}.svc.cluster.local=mn:1'" >> new.yml
+
           mv new.yml nlg-values.yaml
 
           NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
@@ -727,14 +769,14 @@ jobs:
 
       - name: Start Longevity test
         run: |
-          run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
+          run_NLGDebugparams="-XX:+UseZGC -XX:MaxDirectMemorySize=1G -Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
           nlgpod=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')
           n=$(expr ${{ inputs.nlg-accounts }} / 1000)
           NLG_c=32
 
           test=LongevityLoadTest
 
-          NLGargs="-K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
+          NLGargs="-L -K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
 
           echo kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
             ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
@@ -1023,7 +1065,7 @@ jobs:
           sleep 300 # known: to let all benchmark write down logs
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/client.log
-          cat "${{ github.workspace }}"/report/client.log | perl -pne '~s/\b([A-Z_]+[\:]\d+)\b/\n$1\n/g' | perl "${{ github.workspace }}"/.github/workflows/support/citr/collectNLG_Errors.pl > "${{ github.workspace }}"/report/client.stats.txt
+          cat "${{ github.workspace }}"/report/client.log | perl -pne '~s/\b([A-Z_]+[\:]\d+)\b/\n$1\n/g; ~s/\b([\w\.]*Exception)\b/\n$1:1\n/g;' | perl "${{ github.workspace }}"/.github/workflows/support/citr/collectNLG_Errors.pl > "${{ github.workspace }}"/report/client.stats.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/version_run.txt
           cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" "${{ github.workspace }}"/report/
@@ -1167,14 +1209,14 @@ jobs:
 
       - name: Start Longevity test
         run: |
-          run_NLGDebugparams="-Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
+          run_NLGDebugparams="-XX:+UseZGC -XX:MaxDirectMemorySize=1G -Dorg.slf4j.simpleLogger.defaultLogLevel=debug" # e.g. -Dorg.slf4j.simpleLogger.defaultLogLevel=debug
           nlgpod=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator | awk '{print $1}')
           n=$(expr ${{ inputs.nlg-accounts }} / 1000)
           NLG_c=32
 
           test=LongevityLoadTest
 
-          NLGargs="-K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
+          NLGargs="-L -K ECDSA -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}  -n ${n} -T 1000 -S hot -p 50"
 
           echo kubectl -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" exec ${nlgpod} -c nlg -- bash -c "nohup /usr/bin/env java -Xmx30g \
             ${run_NLGDebugparams} -cp /app/lib/*:\$(ls -1 /app/network-load-generator-*.jar) com.hedera.benchmark.${test} \
@@ -1244,7 +1286,7 @@ jobs:
           nlgpod="$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" get pods | grep nlg-network-load-generator| awk '{print $1}')"
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/client.log "${{ github.workspace }}"/report/reconnect/client.log
-          cat "${{ github.workspace }}"/report/client.log | perl -pne '~s/\b([A-Z_]+[\:]\d+)\b/\n$1\n/g' | perl "${{ github.workspace }}"/.github/workflows/support/citr/collectNLG_Errors.pl > "${{ github.workspace }}"/report/reconnect/client.stats.txt
+          cat "${{ github.workspace }}"/report/client.log | perl -pne '~s/\b([A-Z_]+[\:]\d+)\b/\n$1\n/g; ~s/\b([\w\.]*Exception)\b/\n$1:1\n/g;' | perl "${{ github.workspace }}"/.github/workflows/support/citr/collectNLG_Errors.pl > "${{ github.workspace }}"/report/reconnect/client.stats.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ needs.acquire-kubernetes-resources.outputs.namespace }}" cp ${nlgpod}:/app/version_run.txt "${{ github.workspace }}"/report/reconnect/version_run.txt
           cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" "${{ github.workspace }}"/report/reconnect/

@@ -16,6 +16,7 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.ca
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.contractsConfigOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.hederaConfigOf;
+import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isClprDispatch;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.isDelegateCall;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
@@ -139,6 +140,23 @@ class HtsSystemContractTest {
         given(attempt.senderId()).willReturn(SENDER_ID);
 
         assertSame(pricedResult.fullResult(), subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame));
+    }
+
+    @Test
+    void clprDispatchDoesNotExpandHtsInputLimit() {
+        frameUtils.when(() -> contractsConfigOf(frame)).thenReturn(DEFAULT_CONTRACTS_CONFIG);
+        frameUtils
+                .when(() -> callTypeOf(frame, EntityType.TOKEN))
+                .thenReturn(FrameUtils.CallType.DIRECT_OR_PROXY_REDIRECT);
+        frameUtils.when(() -> isClprDispatch(frame)).thenReturn(true);
+        frameUtils.when(() -> hederaConfigOf(frame)).thenReturn(hederaConfig);
+        given(hederaConfig.transactionMaxBytes()).willReturn(validInput.size() - 1);
+
+        final var actual = subject.computeFully(HTS_167_CONTRACT_ID, validInput, frame);
+
+        assertSamePrecompileResult(
+                haltResult(ExceptionalHaltReason.INVALID_OPERATION, frame.getRemainingGas()), actual);
+        org.mockito.Mockito.verifyNoInteractions(attemptFactory);
     }
 
     @Test

@@ -49,8 +49,8 @@ public class SubmitMessageSuite {
         return hapiTest(
                 cryptoCreate("nonTopicId"),
                 submitMessageTo(spec -> asTopicId(spec.registry().getAccountID("nonTopicId")))
-                        .hasPrecheck(INVALID_TOPIC_ID),
-                submitMessageTo((String) null).hasPrecheck(INVALID_TOPIC_ID));
+                        .hasKnownStatus(INVALID_TOPIC_ID),
+                submitMessageTo((String) null).hasKnownStatus(INVALID_TOPIC_ID));
     }
 
     @HapiTest

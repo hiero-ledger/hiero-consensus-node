@@ -18,7 +18,7 @@ class RunningHashCalculatorTest {
 
     @Test
     void runningHashTest() throws InterruptedException {
-        final Hash initialHash = new Hash(new byte[DigestType.SHA_384.digestLength()]);
+        final Hash initialHash = new Hash(new byte[DigestType.SHA_384.digestLength()], DigestType.SHA_384);
         final RunningHashCalculatorForStream<ObjectForTestStream> runningHashCalculator =
                 new RunningHashCalculatorForStream();
         runningHashCalculator.setRunningHash(initialHash);

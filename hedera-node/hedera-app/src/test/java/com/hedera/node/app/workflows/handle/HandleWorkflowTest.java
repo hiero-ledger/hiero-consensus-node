@@ -3,9 +3,13 @@ package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.POST_UPGRADE_WORK;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V071HistorySchema.LEDGER_ID_STATE_ID;
+import static com.hedera.node.app.history.schemas.V071HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.LEDGER_CONFIGURATION_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0730EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
@@ -54,6 +58,8 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
+import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.file.File;
@@ -84,6 +90,7 @@ import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.impl.WrappedRecordBlockHashMigration;
 import com.hedera.node.app.service.addressbook.AddressBookService;
+import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.file.FileService;
@@ -110,6 +117,7 @@ import com.hedera.node.app.state.recordcache.BlockRecordSource;
 import com.hedera.node.app.throttle.CongestionMetrics;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
+import com.hedera.node.app.workflows.clpr.ClprEndpointManifestReconciler;
 import com.hedera.node.app.workflows.handle.cache.CacheWarmer;
 import com.hedera.node.app.workflows.handle.record.MigrationRootHashSubmissions;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
@@ -158,7 +166,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -249,6 +259,11 @@ class HandleWorkflowTest {
     private StakeInfoHelper stakeInfoHelper;
 
     @Mock
+    private ClprEndpointManifestReconciler clprEndpointManifestReconciler;
+
+    private final AtomicInteger clprEndpointManifestReconcilerProviderCalls = new AtomicInteger();
+
+    @Mock
     private ParentTxnFactory parentTxnFactory;
 
     @Mock
@@ -300,6 +315,7 @@ class HandleWorkflowTest {
 
     @BeforeEach
     void setUp() {
+        clprEndpointManifestReconcilerProviderCalls.set(0);
         final ReadableStates readableStates = mock(ReadableStates.class);
         final ReadableSingletonState singletonState = mock(ReadableSingletonState.class);
         lenient()
@@ -399,6 +415,24 @@ class HandleWorkflowTest {
         assertEquals(123L, method.invoke(subject));
         verify(blockStreamManager).blockNo();
         verify(blockRecordManager, never()).blockNo();
+    }
+
+    @Test
+    void disabledClprDoesNotInstantiateEndpointManifestReconciler() throws Exception {
+        givenSubjectWith(
+                RECORDS,
+                BlockStreamWriterMode.FILE,
+                emptyList(),
+                Map.of("clpr.enabled", "false", "clpr.endpointManifestEnabled", "true"));
+
+        for (final var methodName : List.of("reconcileClprEndpointManifest", "pruneClprEndpointManifestOnUpgrade")) {
+            final var method =
+                    HandleWorkflow.class.getDeclaredMethod(methodName, com.swirlds.state.State.class, Instant.class);
+            method.setAccessible(true);
+            method.invoke(subject, state, NOW);
+        }
+
+        assertEquals(0, clprEndpointManifestReconcilerProviderCalls.get());
     }
 
     @Test
@@ -743,6 +777,10 @@ class HandleWorkflowTest {
                 hollowAccountCompletions,
                 systemTransactions,
                 stakeInfoHelper,
+                () -> {
+                    clprEndpointManifestReconcilerProviderCalls.incrementAndGet();
+                    return clprEndpointManifestReconciler;
+                },
                 recordCache,
                 exchangeRateManager,
                 stakePeriodManager,
@@ -834,7 +872,7 @@ class HandleWorkflowTest {
 
         final var reconciliationTimes = ArgumentCaptor.forClass(Instant.class);
         verify(historyService, times(4))
-                .reconcile(any(), any(), any(), reconciliationTimes.capture(), any(), eq(true), any());
+                .reconcile(any(), any(), any(), reconciliationTimes.capture(), any(), eq(true), any(), eq(false));
         assertEquals(
                 List.of(firstRoundTime, afterGracePeriod, readyBlockTime, readyBlockTime),
                 reconciliationTimes.getAllValues());
@@ -865,6 +903,14 @@ class HandleWorkflowTest {
         lenient()
                 .when(historyStates.<ProtoBytes>getSingleton(LEDGER_ID_STATE_ID))
                 .thenReturn(mock(WritableSingletonState.class));
+        final WritableSingletonState<HistoryProofConstruction> proofConstruction = mock(WritableSingletonState.class);
+        lenient()
+                .when(historyStates.<HistoryProofConstruction>getSingleton(ACTIVE_PROOF_CONSTRUCTION_STATE_ID))
+                .thenReturn(proofConstruction);
+        lenient()
+                .when(historyStates.<HistoryProofConstruction>getSingleton(NEXT_PROOF_CONSTRUCTION_STATE_ID))
+                .thenReturn(proofConstruction);
+        lenient().when(proofConstruction.get()).thenReturn(HistoryProofConstruction.DEFAULT);
 
         given(event.getHash()).willReturn(CryptoRandomUtils.randomHash());
         given(event.getCreatorId()).willReturn(NodeId.of(0));
@@ -882,6 +928,28 @@ class HandleWorkflowTest {
                 BlockStreamWriterMode.FILE,
                 emptyList(),
                 Map.of("tss.hintsEnabled", "true", "tss.historyEnabled", "true"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void initializesMissingClprSingletonsOnUpgrade() throws Exception {
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
+        final var clprStates = mock(WritableStates.class);
+        final WritableSingletonState<ClprLedgerConfiguration> ledgerConfiguration = mock(WritableSingletonState.class);
+        final WritableSingletonState<ClprEndpointManifest> manifest = mock(WritableSingletonState.class);
+        given(state.getWritableStates(ClprService.NAME)).willReturn(clprStates);
+        given(clprStates.<ClprLedgerConfiguration>getSingleton(LEDGER_CONFIGURATION_STATE_ID))
+                .willReturn(ledgerConfiguration);
+        given(clprStates.<ClprEndpointManifest>getSingleton(ENDPOINT_MANIFEST_STATE_ID))
+                .willReturn(manifest);
+
+        final var method = HandleWorkflow.class.getDeclaredMethod(
+                "initializeMissingClprSingletons", com.swirlds.state.State.class);
+        method.setAccessible(true);
+        method.invoke(subject, state);
+
+        verify(ledgerConfiguration).put(any(ClprLedgerConfiguration.class));
+        verify(manifest).put(any(ClprEndpointManifest.class));
     }
 
     @Test
@@ -1192,8 +1260,8 @@ class HandleWorkflowTest {
 
         // The iterator was obtained (confirms we reached executeAsManyScheduled)
         verify(scheduleService).executableTxns(any(), any(), any());
-        // But the loop body never entered — no scheduled txn was started
-        verify(stakePeriodManager, never()).setCurrentStakePeriodFor(any());
+        // Only the round-start initialization — no scheduled txn dispatch triggered a second call
+        verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW));
     }
 
     @Test
@@ -1311,5 +1379,24 @@ class HandleWorkflowTest {
                 ledgerIdConsTime.isAfter(afterEvents),
                 "The ledger id publication was assigned " + ledgerIdConsTime + ", which precedes the last transaction "
                         + "handled in the round at " + afterEvents);
+    }
+
+    @Test
+    void stakePeriodInitializedBeforeFeeDistribution() {
+        final var creatorId = NodeId.of(0);
+        given(event.getCreatorId()).willReturn(creatorId);
+        given(event.consensusTransactionIterator()).willReturn(emptyIterator());
+        given(networkInfo.nodeInfo(creatorId.id())).willReturn(mock(NodeInfo.class));
+        given(round.iterator()).willAnswer(ignore -> List.of(event).iterator());
+        given(blockRecordManager.consTimeOfLastHandledTxn()).willReturn(NOW);
+        given(blockRecordManager.lastIntervalProcessTime()).willReturn(NOW);
+
+        givenSubjectWith(RECORDS, BlockStreamWriterMode.FILE, emptyList());
+
+        subject.handleRound(state, round, txns -> {});
+
+        final InOrder inOrder = Mockito.inOrder(stakePeriodManager, nodeFeeManager);
+        inOrder.verify(stakePeriodManager).setCurrentStakePeriodFor(eq(NOW));
+        inOrder.verify(nodeFeeManager).distributeFees(any(), any(), any());
     }
 }

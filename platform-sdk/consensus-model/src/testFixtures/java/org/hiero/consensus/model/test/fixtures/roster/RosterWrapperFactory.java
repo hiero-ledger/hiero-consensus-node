@@ -139,6 +139,17 @@ public class RosterWrapperFactory {
     }
 
     /**
+     * Create a RosterWrapper from a list of RosterEntry instances.
+     *
+     * @param rosterEntries the list of RosterEntry instances
+     * @return a {@link RosterWrapper} instance
+     */
+    @NonNull
+    public static RosterWrapper createRosterWrapper(@NonNull final RosterEntry... rosterEntries) {
+        return RosterWrapper.of(new Roster(List.of(rosterEntries)));
+    }
+
+    /**
      * returns a new roster with the same RosterEntries, minus the RosterEntry matching the given NodeId.
      *
      * @param roster the roster to remove the entry from

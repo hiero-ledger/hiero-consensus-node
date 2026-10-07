@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
@@ -13,6 +14,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.cert.X509Certificate;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -22,15 +24,29 @@ import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.roster.internal.PbjRecordHasher;
 
 /**
  * A utility class to help use Rooster and RosterEntry instances.
  */
 public final class RosterUtils {
-    private static final PbjRecordHasher PBJ_RECORD_HASHER = new PbjRecordHasher();
 
     private RosterUtils() {}
+
+    /**
+     * Construct {@link ConsensusLayerRosterInputs} for a genesis roster.
+     *
+     * @param roster the genesis roster
+     * @return a {@code ConsensusLayerRosterInputs} for the genesis roster
+     */
+    public static ConsensusLayerRosterInputs rosterInputsFromGenesis(@NonNull final Roster roster) {
+        final Bytes hash = hash(roster).getBytes();
+        final List<RoundRosterPair> history =
+                List.of(RoundRosterPair.newBuilder().activeRosterHash(hash).build());
+        final Map<Bytes, Roster> rosterMap = Map.of(hash, roster);
+        return new ConsensusLayerRosterInputs(history, rosterMap);
+    }
 
     /**
      * Fetch the gossip certificate from a given RosterEntry.  If it cannot be parsed successfully, return null.
@@ -97,14 +113,15 @@ public final class RosterUtils {
     }
 
     /**
-     * Create a Hash object for a given Roster instance.
+     * Create a Hash object for a given Roster instance. This method is thread-safe.
      *
      * @param roster a roster
      * @return its Hash
      */
     @NonNull
     public static Hash hash(@NonNull final Roster roster) {
-        return PBJ_RECORD_HASHER.hash(roster, Roster.PROTOBUF);
+        // PbjRecordHasher is not thread-safe, therefore a new instance is used for each call
+        return new PbjRecordHasher().hash(roster, Roster.PROTOBUF);
     }
 
     /**

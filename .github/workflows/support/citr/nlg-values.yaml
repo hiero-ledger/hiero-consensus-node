@@ -4,10 +4,10 @@ replicas: 1
 resources:
   limits:
     cpu: 20
-    memory: 32Gi
+    memory: 40Gi
   requests:
     cpu: 20
-    memory: 32Gi
+    memory: 40Gi
 
 nodeSelector:
   solo.hashgraph.io/role: "auxiliary-services"
