@@ -25,7 +25,7 @@ val prometheusSimpleclient = "0.16.0"
 val blockNodeProtobufSources = "0.41.0"
 val testContainers = "2.0.5"
 val tuweni = "2.7.2"
-val vertx = "4.5.30"
+val vertx = "5.2.0"
 val webcompare = "2.1.8"
 
 dependencies.constraints {
