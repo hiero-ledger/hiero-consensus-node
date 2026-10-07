@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import javax.smartcardio.ATR;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
@@ -62,6 +63,7 @@ public class SyncGossipModular implements Gossip {
     private final ShadowgraphSynchronizer synchronizer;
     private final ReconnectProxyProtocolFactory proxyProtocolFactory;
     private final AtomicReference<PlatformStatus> platformStatusHolder = new AtomicReference<>(PlatformStatus.STARTING_UP);
+    private final AtomicReference<EventWindow> eventWindowHolder = new AtomicReference<>(EventWindow.getGenesisEventWindow());
 
     // this is not a nice dependency, should be removed as well as the sharedState
     private Consumer<PlatformEvent> receivedEventHandler;
@@ -145,7 +147,8 @@ public class SyncGossipModular implements Gossip {
                 fallenBehindMonitor,
                 event -> receivedEventHandler.accept(event),
                 statusMonitorModule,
-                platformStatusHolder::get);
+                platformStatusHolder::get,
+                eventWindowHolder::get);
 
         proxyProtocolFactory = new ReconnectProxyProtocolFactory(
                 metrics,
@@ -219,7 +222,10 @@ public class SyncGossipModular implements Gossip {
             rpcProtocolFactory.addEvent(event);
             synchronizer.addEvent(event);
         });
-        eventWindowInput.bindConsumer(synchronizer::updateEventWindow);
+        eventWindowInput.bindConsumer(eventWindow -> {
+            synchronizer.updateEventWindow(eventWindow);
+            eventWindowHolder.set(eventWindow);
+        });
 
         systemHealthInput.bindConsumer(rpcProtocolFactory::reportUnhealthyDuration);
         platformStatusInput.bindConsumer(platformStatusHolder::set);

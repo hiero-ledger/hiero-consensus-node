@@ -2,6 +2,7 @@
 package org.hiero.consensus.gossip.impl.gossip.shadowgraph;
 
 import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
+import static java.util.Objects.requireNonNull;
 import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 import static org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncUtils.getMyTipsTheyKnow;
 import static org.hiero.consensus.gossip.impl.gossip.shadowgraph.SyncUtils.getTheirTipsIHave;
@@ -15,6 +16,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -33,6 +35,7 @@ import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.event.EventOrigin;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
+import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.monitoring.FallenBehindStatus;
 import org.hiero.consensus.status.StatusMonitorModule;
@@ -136,6 +139,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
     @NonNull
     private final StatusMonitorModule statusMonitorModule;
 
+    private final Supplier<EventWindow> eventWindowSupplier;
     private final int farFutureEventThresdhold;
 
     /**
@@ -156,6 +160,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
      * @param broadcastConfig               broadcast configuration
      * @param gossipConfig                  gossip configuration
      * @param statusMonitorModule           the status monitor module
+     * @param eventWindowSupplier           supplier for the current event window
      */
     public RpcPeerHandler(
             @NonNull final ShadowgraphSynchronizer sharedShadowgraphSynchronizer,
@@ -171,22 +176,24 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
             @NonNull final SyncConfig syncConfig,
             @NonNull final BroadcastConfig broadcastConfig,
             @NonNull final GossipConfig gossipConfig,
-            @NonNull final StatusMonitorModule statusMonitorModule) {
-        this.sharedShadowgraphSynchronizer = Objects.requireNonNull(sharedShadowgraphSynchronizer);
-        this.sender = Objects.requireNonNull(sender);
-        this.selfId = Objects.requireNonNull(selfId);
-        this.peerId = Objects.requireNonNull(peerId);
-        this.syncMetrics = Objects.requireNonNull(syncMetrics);
-        this.time = Objects.requireNonNull(time);
-        this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
-        this.eventHandler = Objects.requireNonNull(eventHandler);
+            @NonNull final StatusMonitorModule statusMonitorModule,
+            @NonNull final Supplier<EventWindow> eventWindowSupplier) {
+        this.sharedShadowgraphSynchronizer = requireNonNull(sharedShadowgraphSynchronizer);
+        this.sender = requireNonNull(sender);
+        this.selfId = requireNonNull(selfId);
+        this.peerId = requireNonNull(peerId);
+        this.syncMetrics = requireNonNull(syncMetrics);
+        this.time = requireNonNull(time);
+        this.intakeEventCounter = requireNonNull(intakeEventCounter);
+        this.eventHandler = requireNonNull(eventHandler);
         this.syncGuard = syncGuard;
         this.fallenBehindMonitor = fallenBehindMonitor;
         this.fallBehindRateLimiter = new RateLimiter(time, Duration.ofMinutes(1));
         this.lastReceiveEventFinished = time.nanoTime();
-        this.syncConfig = Objects.requireNonNull(syncConfig);
-        this.broadcastConfig = Objects.requireNonNull(broadcastConfig);
-        this.statusMonitorModule = Objects.requireNonNull(statusMonitorModule);
+        this.syncConfig = requireNonNull(syncConfig);
+        this.broadcastConfig = requireNonNull(broadcastConfig);
+        this.statusMonitorModule = requireNonNull(statusMonitorModule);
+        this.eventWindowSupplier = requireNonNull(eventWindowSupplier);
         this.farFutureEventThresdhold = gossipConfig.farFutureEventThreshold();
     }
 
@@ -368,7 +375,7 @@ public class RpcPeerHandler implements GossipRpcReceiverHandler {
             return true;
         }
         final long minimumUnacceptableBirthRound =
-                this.state.shadowWindow.getEventWindow().getPendingConsensusRound() + farFutureEventThresdhold;
+                eventWindowSupplier.get().getPendingConsensusRound() + farFutureEventThresdhold;
         return event.eventCore().birthRound() >= minimumUnacceptableBirthRound;
     }
 

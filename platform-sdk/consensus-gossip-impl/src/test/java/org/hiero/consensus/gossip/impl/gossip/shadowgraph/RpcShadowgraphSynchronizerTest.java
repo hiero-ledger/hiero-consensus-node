@@ -110,7 +110,8 @@ class RpcPeerHandlerTest {
                 configuration.getConfigData(SyncConfig.class),
                 configuration.getConfigData(BroadcastConfig.class),
                 configuration.getConfigData(GossipConfig.class),
-                mock(StatusMonitorModule.class));
+                mock(StatusMonitorModule.class),
+                EventWindow::getGenesisEventWindow);
     }
 
     @Test

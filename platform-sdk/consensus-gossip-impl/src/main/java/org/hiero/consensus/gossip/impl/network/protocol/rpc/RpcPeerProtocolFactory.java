@@ -35,6 +35,7 @@ import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.main.model.reconnect.PeerProtocol;
 import org.hiero.consensus.main.model.reconnect.PeerProtocolFactory;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.monitoring.FallenBehindMonitor;
 import org.hiero.consensus.status.StatusMonitorModule;
@@ -80,7 +81,11 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
      */
     private final List<RpcPeerHandler> allRpcPeers = new CopyOnWriteArrayList<>();
 
+    /** Supplier of the current platform status. Used to determine if we should be gossiping or not. */
     private final Supplier<PlatformStatus> platformStatusSupplier;
+
+    /** Supplier of the current event window. */
+    private final Supplier<EventWindow> eventWindowSupplier;
 
     /**
      * Constructs a new sync protocol
@@ -114,7 +119,8 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final Consumer<PlatformEvent> receivedEventHandler,
             @NonNull final StatusMonitorModule statusMonitorModule,
-            @NonNull final Supplier<PlatformStatus> platformStatusSupplier) {
+            @NonNull final Supplier<PlatformStatus> platformStatusSupplier,
+            @NonNull final Supplier<EventWindow> eventWindowSupplier) {
 
         this.synchronizer = synchronizer;
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
@@ -142,6 +148,7 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
         this.receivedEventHandler = receivedEventHandler;
         this.statusMonitorModule = statusMonitorModule;
         this.platformStatusSupplier = platformStatusSupplier;
+        this.eventWindowSupplier = eventWindowSupplier;
     }
 
     /**
@@ -176,7 +183,8 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
                 syncConfig,
                 broadcastConfig,
                 gossipConfig,
-                statusMonitorModule);
+                statusMonitorModule,
+                eventWindowSupplier);
 
         peerProtocol.setRpcPeerHandler(handler);
         allRpcPeers.add(handler);

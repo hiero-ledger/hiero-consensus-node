@@ -47,6 +47,7 @@ module org.hiero.consensus.gossip.impl {
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.roster;
     requires static transitive com.github.spotbugs.annotations;
+    requires java.smartcardio;
 
     provides GossipModule with
             DefaultGossipModule;
