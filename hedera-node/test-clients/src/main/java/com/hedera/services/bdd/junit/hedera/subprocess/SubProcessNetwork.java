@@ -736,8 +736,19 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     public void configureApplicationProperties(HederaNode node) {
         // Update bootstrap properties for the node from bootstrapPropertyOverrides if there are any
         final var nodeId = node.getNodeId();
-        if (applicationPropertyOverrides.containsKey(nodeId)) {
-            final var properties = applicationPropertyOverrides.get(nodeId);
+        // Overridable per-task defaults (build.gradle.kts prCheckDefaultOverrides -> hapi.spec.test.defaultOverrides,
+        // e.g. clpr.enabled=true) are applied via application.properties (ordinal 100), not the environment
+        // (ordinal 300, used by ProcessUtils for the forced prCheckOverrides), so a spec can still override them with
+        // overriding(...) / @ConfigOverride (ordinal 101). Merge them with any per-node overrides; a per-node override
+        // wins.
+        final var properties = new ArrayList<>(applicationPropertyOverrides.getOrDefault(nodeId, List.of()));
+        ProcessUtils.prCheckDefaultOverrides().forEach((key, value) -> {
+            if (!properties.contains(key)) {
+                properties.add(key);
+                properties.add(value);
+            }
+        });
+        if (!properties.isEmpty()) {
             log.info("Configuring application properties for node {}: {}", nodeId, properties);
             Path appPropertiesPath = node.getExternalPath(APPLICATION_PROPERTIES);
             log.info(
