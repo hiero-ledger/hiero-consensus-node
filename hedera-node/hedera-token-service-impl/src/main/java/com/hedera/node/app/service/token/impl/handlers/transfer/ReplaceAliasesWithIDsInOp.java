@@ -38,7 +38,7 @@ public class ReplaceAliasesWithIDsInOp {
         // replace all aliases in hbar transfers
         for (final var aa : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
             if (isAlias(aa.accountIDOrThrow())) {
-                final var resolvedId = resolutions.get(aa.accountIDOrThrow().alias());
+                final var resolvedId = resolutions.get(aa.accountIDOrThrow());
                 accountAmounts.add(aa.copyBuilder().accountID(resolvedId).build());
             } else {
                 accountAmounts.add(aa);
@@ -56,8 +56,7 @@ public class ReplaceAliasesWithIDsInOp {
             final List<AccountAmount> replacedTokenAdjusts = new ArrayList<>();
             for (final var tokenAdjust : adjust.transfers()) {
                 if (isAlias(tokenAdjust.accountIDOrThrow())) {
-                    final var resolvedId =
-                            resolutions.get(tokenAdjust.accountID().alias());
+                    final var resolvedId = resolutions.get(tokenAdjust.accountIDOrThrow());
                     replacedTokenAdjusts.add(
                             tokenAdjust.copyBuilder().accountID(resolvedId).build());
                 } else {
@@ -75,13 +74,11 @@ public class ReplaceAliasesWithIDsInOp {
                 final var isSenderAlias = isAlias(nftAdjust.senderAccountIDOrThrow());
                 if (isReceiverAlias || isSenderAlias) {
                     if (isReceiverAlias) {
-                        final var resolvedId = resolutions.get(
-                                nftAdjust.receiverAccountIDOrThrow().alias());
+                        final var resolvedId = resolutions.get(nftAdjust.receiverAccountIDOrThrow());
                         nftAdjustCopy.receiverAccountID(resolvedId);
                     }
                     if (isSenderAlias) {
-                        final var resolvedId = resolutions.get(
-                                nftAdjust.senderAccountIDOrThrow().alias());
+                        final var resolvedId = resolutions.get(nftAdjust.senderAccountIDOrThrow());
                         nftAdjustCopy.senderAccountID(resolvedId);
                     }
                     replacedNftAdjusts.add(nftAdjustCopy.build());
