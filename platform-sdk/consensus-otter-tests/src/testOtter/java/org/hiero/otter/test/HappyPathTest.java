@@ -46,7 +46,7 @@ public class HappyPathTest {
                 .doOnlyEnterStatusesOf(ACTIVE, REPLAYING_EVENTS, OBSERVING, CHECKING)
                 .doNotEnterAnyStatusesOf(BEHIND, FREEZING);
 
-        network.start();
+        network.withTimeout(Duration.ofSeconds(20L)).start();
 
         // Wait for 5 seconds
         timeManager.waitFor(Duration.ofSeconds(60L));

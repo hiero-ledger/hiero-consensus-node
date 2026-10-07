@@ -7,6 +7,7 @@ import static org.hiero.consensus.platformstate.PlatformStateAccessor.GENESIS_RO
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
+import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.NoInput;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -55,6 +56,9 @@ public class ConsensusLayerImpl implements ConsensusLayer {
     @NonNull
     private final FreezePeriodChecker freezePeriodChecker;
 
+    @NonNull
+    private final WiringModel wiringModel;
+
     public ConsensusLayerImpl(
             @NonNull final Configuration configuration,
             @Nullable final ConsensusSnapshot consensusSnapshot,
@@ -64,7 +68,8 @@ public class ConsensusLayerImpl implements ConsensusLayer {
             @NonNull final PcesModule pcesModule,
             @NonNull final HashgraphModule hashgraphModule,
             @NonNull final StatusMonitorModule statusMonitorModule,
-            @NonNull final FreezePeriodChecker freezePeriodChecker) {
+            @NonNull final FreezePeriodChecker freezePeriodChecker,
+            @NonNull final WiringModel wiringModel) {
         this.configuration = requireNonNull(configuration);
         this.consensusSnapshot = consensusSnapshot;
         this.eventIntakeModule = requireNonNull(eventIntakeModule);
@@ -74,10 +79,12 @@ public class ConsensusLayerImpl implements ConsensusLayer {
         this.hashgraphModule = requireNonNull(hashgraphModule);
         this.statusMonitorModule = requireNonNull(statusMonitorModule);
         this.freezePeriodChecker = requireNonNull(freezePeriodChecker);
+        this.wiringModel = requireNonNull(wiringModel);
     }
 
     @Override
     public void start() {
+        wiringModel.start();
         final long initialAncientThreshold = extractAncientThreshold(consensusSnapshot);
         final long startingRound = consensusSnapshot == null ? GENESIS_ROUND : consensusSnapshot.round();
         pcesModule.replayPcesEvents(initialAncientThreshold, startingRound);

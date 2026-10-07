@@ -214,12 +214,6 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
         // FutureWork figure out if this can be moved into Platform.start()
         getMetricsProvider().start();
 
-        final ConsensusLayer consensusLayer = buildingBlocks.consensusLayerLifecycleManager().get();
-        // TODO: Make configurable, check if there is a freeze time
-        consensusLayer.requestNextRound(rosterHistory.getCurrentRoster(), null);
-        consensusLayer.requestNextRound(rosterHistory.getCurrentRoster(), null);
-        consensusLayer.requestNextRound(rosterHistory.getCurrentRoster(), null);
-
         return platform;
     }
 

@@ -218,7 +218,7 @@ public class ConsensusLayerFactory {
 
         final ConsensusLayerImpl consensusLayer = new ConsensusLayerImpl(configuration, consensusSnapshot,
                 eventIntakeModule, eventCreatorModule, gossipModule, pcesModule, hashgraphModule, statusMonitorModule,
-                freezePeriodChecker);
+                freezePeriodChecker, wiringModel);
 
         ConsensusLayerWiring.wire(executionLayerCallbacks, buildingBlocks);
 

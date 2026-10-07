@@ -156,6 +156,8 @@ public class PcesReplayer {
      */
     @NonNull
     public NoInput replayPces(@NonNull final IOIterator<PlatformEvent> eventIterator) {
+        logger.info(STARTUP.getMarker(), "Replaying PCES events");
+
         requireNonNull(eventIterator);
 
         final Instant start = time.now();
@@ -167,10 +169,11 @@ public class PcesReplayer {
         int transactionCount = 0;
         long maxBirthRound = EventConstants.BIRTH_ROUND_UNDEFINED;
         try {
+            logger.info(STARTUP.getMarker(), "Before loop");
             while (eventIterator.hasNext()) {
                 // If the system is not keeping up with the rate at which we are replaying PCES, we need to wait
                 // until it catches up before we can continue.
-                waitUntilHealthy();
+//                waitUntilHealthy();
 
                 if (config.limitReplayFrequency() && !rateLimiter.requestAndTrigger()) {
                     continue;
@@ -188,14 +191,24 @@ public class PcesReplayer {
         } catch (final IOException e) {
             throw new UncheckedIOException("error encountered while reading from the PCES", e);
         }
+        logger.info(STARTUP.getMarker(), "After loop");
 
         eventIntakeModule.flush();
+
+        logger.info(STARTUP.getMarker(), "After flushing event intake module");
+
         pcesModule.flush();
+        logger.info(STARTUP.getMarker(), "After flushing PCES module");
         flushGossipModule.run();
+        logger.info(STARTUP.getMarker(), "After running flush gossip module");
         hashgraphModule.flush();
+        logger.info(STARTUP.getMarker(), "After flushing hashgraph module");
         eventCreatorModule.flush();
+        logger.info(STARTUP.getMarker(), "After flushing event creator module");
 //        transactionHandlingModule.flush();
 //        stateModule.flush();
+
+        logger.info(STARTUP.getMarker(), "Flushed all modules");
 
         final Duration elapsedTime = Duration.between(start, time.now());
 

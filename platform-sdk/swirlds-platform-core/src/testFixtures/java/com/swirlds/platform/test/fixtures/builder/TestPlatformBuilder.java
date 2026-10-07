@@ -86,8 +86,8 @@ public class TestPlatformBuilder extends PlatformBuilder<TestPlatformBuilder> {
                 selfId,
                 recycleBin,
                 fileSystemManager,
-                executionLayer,
-                consensusStateEventHandler,
+                wrapExecutionLayer(executionLayer),
+                wrapConsensusStateEventHandler(consensusStateEventHandler),
                 initialState,
                 stateLifecycleManager,
                 softwareVersion,
@@ -95,6 +95,8 @@ public class TestPlatformBuilder extends PlatformBuilder<TestPlatformBuilder> {
                 consensusEventStreamName,
                 transactionOffsetNanos);
     }
+
+    private static ExecutionLayer wrapExecutionLayer(final ExecutionLayer executionLayer) {}
 
     /**
      * Sets a custom {@link WiringModel} to be used in the platform being built.

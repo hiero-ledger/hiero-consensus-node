@@ -16,6 +16,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.ConsensusLayer;
 import org.hiero.consensus.ConsensusLayerAdapterBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerAdapterInputs;
 import org.hiero.consensus.crypto.PlatformSigner;
@@ -103,7 +104,13 @@ public class SwirldsPlatform implements Platform {
         inputs.metrics().start();
         buildingBlocks.wiringModel().start();
 
-        buildingBlocks.consensusLayerLifecycleManager().get().start();
+        final ConsensusLayer consensusLayer = buildingBlocks.consensusLayerLifecycleManager().get();
+        consensusLayer.start();
+
+        // TODO: Make configurable, check if there is a freeze time
+        consensusLayer.requestNextRound(null, null);
+        consensusLayer.requestNextRound(null, null);
+        consensusLayer.requestNextRound(null, null);
     }
 
     @Override

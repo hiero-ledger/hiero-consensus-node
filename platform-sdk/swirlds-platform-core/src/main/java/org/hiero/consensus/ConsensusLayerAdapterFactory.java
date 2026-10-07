@@ -271,7 +271,7 @@ public class ConsensusLayerAdapterFactory {
                 transactionOffsetNanos,
                 executionLayer.getTransactionLimits(),
                 freezeTime,
-                wiringModel,
+                null,
                 secureRandom,
                 additionalProperties
         );

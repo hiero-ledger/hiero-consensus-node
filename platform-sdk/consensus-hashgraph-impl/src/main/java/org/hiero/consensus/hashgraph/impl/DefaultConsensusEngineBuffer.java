@@ -1,5 +1,7 @@
 package org.hiero.consensus.hashgraph.impl;
 
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -8,6 +10,8 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
@@ -17,6 +21,8 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.round.EventWindowUtils;
 
 public class DefaultConsensusEngineBuffer implements ConsensusEngineBuffer {
+
+    private static final Logger logger = LogManager.getLogger();
 
     private final ConsensusEngine consensusEngine;
 
@@ -54,6 +60,7 @@ public class DefaultConsensusEngineBuffer implements ConsensusEngineBuffer {
     @NonNull
     @Override
     public ConsensusEngineBufferOutput requestRound() {
+        logger.info(STARTUP.getMarker(), "Requesting round");
         requestCounter++;
         return maybeGetConsensusResult();
     }
@@ -78,6 +85,8 @@ public class DefaultConsensusEngineBuffer implements ConsensusEngineBuffer {
 
         final List<ConsensusResult> resultsToReturn = getBufferedConsensusResults();
 
+        logger.info(STARTUP.getMarker(), "Buffered {} consensus results", resultsToReturn.size());
+
         final List<PlatformEvent> preConsensusEvents = new ArrayList<>();
         while (requestCounter > 0 && !pendingEventQueue.isEmpty()) {
             final PlatformEvent eventToAdd = pendingEventQueue.poll();
@@ -86,6 +95,8 @@ public class DefaultConsensusEngineBuffer implements ConsensusEngineBuffer {
             consensusResultQueue.addAll(output.consensusResult());
             resultsToReturn.addAll(getBufferedConsensusResults());
         }
+
+        logger.info(STARTUP.getMarker(), "Returning {} consensus results", resultsToReturn.size());
 
         return new ConsensusEngineBufferOutput(preConsensusEvents, resultsToReturn);
     }
