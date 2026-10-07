@@ -25,6 +25,6 @@ import java.time.Duration;
 public record VirtualMapTeacherSyncConfig(
         @ConfigProperty(defaultValue = "16") @Positive int numReceiveThreads,
         @ConfigProperty(defaultValue = "8000000") @Positive int maxMessageSizeBytes,
-        @ConfigProperty(defaultValue = "60s") Duration asyncStreamIdleTimeout,
+        @ConfigProperty(defaultValue = "600s") Duration asyncStreamIdleTimeout,
         @ConfigProperty(defaultValue = "10000") @Positive int asyncStreamBufferSize,
         @ConfigProperty(defaultValue = "8ms") Duration asyncOutputStreamFlush) {}

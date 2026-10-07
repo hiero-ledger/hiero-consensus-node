@@ -26,6 +26,6 @@ import java.time.Duration;
 public record ReconnectConfig(
         @ConfigProperty(defaultValue = "true") boolean active,
         @ConfigProperty(defaultValue = "-1") int reconnectWindowSeconds,
-        @ConfigProperty(defaultValue = "60s") Duration socketTimeout,
+        @ConfigProperty(defaultValue = "600s") Duration socketTimeout,
         @ConfigProperty(defaultValue = "10") int maximumReconnectFailuresBeforeShutdown,
         @ConfigProperty(defaultValue = "10m") Duration minimumTimeBetweenReconnects) {}

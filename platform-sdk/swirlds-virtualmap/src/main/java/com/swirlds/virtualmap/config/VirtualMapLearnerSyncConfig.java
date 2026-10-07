@@ -28,7 +28,7 @@ public record VirtualMapLearnerSyncConfig(
         @ConfigProperty(defaultValue = "16") @Positive int numSendThreads,
         @ConfigProperty(defaultValue = "16") @Positive int numReceiveThreads,
         @ConfigProperty(defaultValue = "256000000") @Positive int maxMessageSizeBytes,
-        @ConfigProperty(defaultValue = "60s") Duration asyncStreamIdleTimeout,
+        @ConfigProperty(defaultValue = "600s") Duration asyncStreamIdleTimeout,
         @ConfigProperty(defaultValue = "10000") @Positive int asyncStreamBufferSize,
         @ConfigProperty(defaultValue = "8ms") Duration asyncOutputStreamFlush) {}
 // spotless:on
