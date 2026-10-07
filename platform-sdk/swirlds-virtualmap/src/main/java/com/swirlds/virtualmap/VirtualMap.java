@@ -128,16 +128,13 @@ import org.hiero.base.file.FileUtils;
  */
 public final class VirtualMap extends AbstractVirtualRoot implements Labeled, VirtualRoot {
 
-    /// Desired number of hash chunk flushes per full rehash. Every flush has a fixed cost (a new
-    /// data file, metadata update, etc.), and every flush creates a new data file to compact later,
-    /// so for small and mid-size states the number of flushes shouldn't depend on the state size
-    private static final long FULL_REHASH_TARGET_FLUSHES = 128;
-    /// Min flush interval, in hash slots (~24MB of heap). Small states are flushed in batches of
-    /// at least this size.
-    private static final long FULL_REHASH_MIN_FLUSH_INTERVAL = 500_000;
-    /// Max flush interval, in hash slots (~192MB of heap). Large states are flushed in batches of
-    /// about this size, unless flushes are slower than hashing, see method javadoc
-    private static final long FULL_REHASH_MAX_FLUSH_INTERVAL = 4_000_000;
+    /// Flush interval for full rehash, in hash slots (~96MB of heap). The listener flushes collected
+    /// chunks once `number of chunks * 2 ^ chunkHeight` reaches this value. Every flush has a fixed
+    /// cost (a new data file, metadata update, etc.) and creates a data file to compact later. Note
+    /// that the listener doesn't apply backpressure: while a flush is in progress, hashing threads
+    /// keep collecting chunks, and the next batch may exceed the interval, if flushes are slower
+    /// than hashing.
+    private static final int FULL_REHASH_FLUSH_INTERVAL = 2_000_000;
 
     /**
      * Hardcoded virtual map label
@@ -469,9 +466,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         logger.info(STARTUP.getMarker(), "Doing full rehash for the path range: {} - {}", firstLeafPath, lastLeafPath);
         final int hashChunkHeight = dataSource.getHashChunkHeight();
-        final int flushInterval = fullRehashFlushInterval(lastLeafPath, hashChunkHeight);
-        final FullLeafRehashHashListener chunkListener =
-                new FullLeafRehashHashListener(firstLeafPath, lastLeafPath, dataSource, statistics, flushInterval);
+        final FullLeafRehashHashListener chunkListener = new FullLeafRehashHashListener(
+                firstLeafPath, lastLeafPath, dataSource, statistics, FULL_REHASH_FLUSH_INTERVAL);
         final HashChunkCollector hashListener =
                 new HashChunkCollector(hashChunkHeight, firstLeafPath, lastLeafPath, chunkListener);
 
@@ -509,31 +505,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
             // hash chunk flushes, are left to finish on their own, and the pool terminates after that
             rehashPool.shutdown();
         }
-    }
-
-    /// Calculates the flush interval for [FullLeafRehashHashListener] based on the leaf path range.
-    ///
-    /// The listener flushes collected chunks once `number of chunks * 2 ^ chunkHeight` reaches
-    /// the flush interval. Every [VirtualHashChunk] allocates space for `2 ^ chunkHeight` hashes
-    /// in memory, even if only some of them are set, so the flush interval is effectively the number of
-    /// hash slots in memory per flush.
-    ///
-    /// The interval is chosen to have about 128 flushes per full rehash, as every flush has a fixed
-    /// cost and creates a new data file to compact later. It's clamped to 500K to 4M hash slots (~24MB
-    /// to ~192MB of heap). Note that the listener doesn't apply backpressure: while a flush is in
-    /// progress, hashing threads keep collecting chunks, and the next batch may exceed the flush
-    /// interval, if flushes are slower than hashing.
-    ///
-    /// @param lastLeafPath the last leaf path, must be positive
-    /// @param chunkHeight hash chunk height
-    /// @return the flush interval, in hash slots
-    private static int fullRehashFlushInterval(final long lastLeafPath, final int chunkHeight) {
-        final long totalChunks = VirtualHashChunk.lastChunkIdForPaths(lastLeafPath, chunkHeight) + 1;
-        final long totalHashSlots = totalChunks * VirtualHashChunk.getChunkSize(chunkHeight);
-        return (int) Math.clamp(
-                totalHashSlots / FULL_REHASH_TARGET_FLUSHES,
-                FULL_REHASH_MIN_FLUSH_INTERVAL,
-                FULL_REHASH_MAX_FLUSH_INTERVAL);
     }
 
     // Test only
