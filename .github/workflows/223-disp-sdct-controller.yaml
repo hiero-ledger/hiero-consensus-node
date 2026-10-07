@@ -94,6 +94,7 @@ jobs:
       start-canonical-test: ${{ steps.start-canonical-test.outcome }}
       summary: ${{ steps.summary.outcome }}
       commit: ${{ steps.parameters.outputs.sha || 'N/A' }}
+      ref-commit: ${{ steps.parameters.outputs.ref-commit }}
       build-number: ${{ steps.parameters.outputs.build-number }}
       budget-minutes: ${{ steps.job-deadline.outputs.budget-minutes }}
       poll-interval: ${{ steps.job-deadline.outputs.poll-interval }}
@@ -243,6 +244,22 @@ jobs:
           fi
           echo "build-number=${BUILD_NUMBER}" >> "${GITHUB_OUTPUT}"
 
+          # Head commit of the ref for the Chewie report (branch + commit when not a main build-NNNNN tag): a tag,
+          # a branch (origin/<ref>, full history is checked out) or a commit SHA. Unresolved is a notice only
+          REF_COMMIT=""
+          candidates=("refs/tags/${REF_INPUT}" "refs/remotes/origin/${REF_INPUT}")
+          [[ "${REF_INPUT}" =~ ^[0-9a-fA-F]{7,40}$ ]] && candidates+=("${REF_INPUT}")
+          for candidate in "${candidates[@]}"; do
+            if REF_COMMIT=$(git rev-parse --verify --quiet "${candidate}^{commit}"); then
+              break
+            fi
+          done
+          if [[ ! "${REF_COMMIT}" =~ ^[0-9a-f]{40}$ ]]; then
+            REF_COMMIT=""
+            echo "::notice title=Unresolved Ref::The head commit of ref (${REF_INPUT}) was not found; a Chewie report by branch and commit will be skipped."
+          fi
+          echo "ref-commit=${REF_COMMIT}" >> "${GITHUB_OUTPUT}"
+
           log_pass "Parameter verification completed"
           echo "artifact-name=${BUILD_ARTIFACT}" >> "${GITHUB_OUTPUT}"
           echo "version-service=${VERSION_SERVICE}" >> "${GITHUB_OUTPUT}"
@@ -260,6 +277,7 @@ jobs:
             echo "- **MirrorNode Version**: ${MIRRORNODE_INPUT}"
             echo "- **Commit SHA**: \`${TAG_COMMIT_SHA:-N/A}\`"
             echo "- **Short Commit**: \`${TAG_COMMIT_SHORT:-N/A}\`"
+            echo "- **Ref Head Commit**: \`${REF_COMMIT:-N/A}\`"
             echo "- **Build Number**: ${BUILD_NUMBER:-N/A}"
           } >> "${GITHUB_STEP_SUMMARY}"
 
@@ -957,6 +975,7 @@ jobs:
           CHEWIE_KEY: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
           REF: ${{ inputs.ref }}
           BUILD_TAG: ${{ inputs.build-tag }}
+          COMMIT: ${{ needs.canonical-test.outputs.ref-commit }}
           GH_RUN_ID: ${{ github.run_id }}
           GH_RUN_ATTEMPT: ${{ github.run_attempt }}
           BUILD_STARTED: ${{ needs.canonical-test.outputs.build-started }}
@@ -996,6 +1015,7 @@ jobs:
           CHEWIE_KEY: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
           REF: ${{ inputs.ref }}
           BUILD_TAG: ${{ inputs.build-tag }}
+          COMMIT: ${{ needs.canonical-test.outputs.ref-commit }}
           GH_RUN_ID: ${{ github.run_id }}
           GH_RUN_ATTEMPT: ${{ github.run_attempt }}
           BUILD_STARTED: ${{ needs.canonical-test.outputs.build-started }}

@@ -262,16 +262,19 @@ Only the full `sdct` test reports to Chewie, with
   always posted last
 
 Each report gets its own token from `api/v1/auth/token` (a final report can be a day after the start), masks it, and
-posts to `api/v1/suites/results`. A Chewie failure is only a warning: it never fails the run, the verdict, the tag or
-the Rootly alert.
+posts to `api/v1/suites/results` without retries (Chewie appends results, a retry could record one twice). Only
+`201` is a success; any other answer is a warning with the HTTP status and Chewie's error `code` and `detail`. A Chewie
+failure never fails the run, the verdict, the tag or the Rootly alert. Each run records two results (`running`, then
+the final disposition); `GET api/v1/suites/results?build_number=<n>&suite_type=sdct` shows them.
 
 | Field | Value |
 |---|---|
-| `build_number` | string; `main`: the build tag number without leading zeros (`build-00401` → `"401"`); other refs: the `build-tag` input as typed |
+| `build_number` | `main` with a `build-NNNNN` tag only: integer, without leading zeros (`build-00401` → `401`) |
+| `branch`, `commit` | any other ref (branch `block-stream-tss`, release tag `v0.78.00-rc.13`, release branch `release/0.79`), or `main` without a `build-NNNNN` tag: `branch` is the `ref` input as typed, `commit` its 40-character head commit (a tag's commit for a tag); no `build_number`. Without a resolvable commit the report is skipped with a warning |
 | `suite_type` | `"sdct"` |
 | `disposition` | see below |
 | `start_time` | Jenkins build start, RFC3339 UTC, the same in both reports; the decision time if the build never started |
-| `end_time` | `null` while `running`; the decision time in the final report |
+| `end_time` | `null` while `running`; the decision time in the final report, never before `start_time` (set to `start_time` on clock skew) |
 | `workflow_run_id`, `run_attempt` | the 223 run id and attempt |
 
 | Outcome | Disposition |
