@@ -2,6 +2,7 @@
 plugins {
     id("org.hiero.gradle.module.application")
     id("org.gradlex.java-module-packaging")
+    id("org.hiero.gradle.feature.shadow")
 }
 
 mainModuleInfo { runtimeOnly("org.junit.jupiter.engine") }

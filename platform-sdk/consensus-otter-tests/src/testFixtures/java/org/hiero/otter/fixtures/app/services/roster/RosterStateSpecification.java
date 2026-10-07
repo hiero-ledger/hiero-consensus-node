@@ -1,30 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.services.roster;
 
+import static org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification.statesOf;
+
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.state.primitives.ProtoBytes;
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterState;
 import com.swirlds.state.lifecycle.StateDefinition;
-import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
+import org.hiero.consensus.roster.schemas.V0540RosterBaseSchema;
 import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
-import org.hiero.otter.fixtures.app.state.OtterStateId;
 
 /**
- * This class defines the state specification for the Platform service.
+ * This class defines the state specification for the Roster service. The states are taken from the production
+ * schema.
  */
 public class RosterStateSpecification implements OtterServiceStateSpecification {
-
-    private static final int ROSTER_STATE_ID = OtterStateId.ROSTER_STATE_STATE_ID.id();
-    private static final String ROSTER_STATE_KEY = "ROSTER_STATE";
-
-    private static final int ROSTERS_STATE_ID = OtterStateId.ROSTERS_STATE_ID.id();
-    private static final String ROSTERS_STATE_KEY = "ROSTERS_STATE";
-
-    private static final long MAX_ROSTERS = 1024L;
 
     /**
      * {@inheritDoc}
@@ -32,9 +23,7 @@ public class RosterStateSpecification implements OtterServiceStateSpecification 
     @Override
     @NonNull
     public Set<StateDefinition<?, ?>> statesToCreate() {
-        return Set.of(
-                StateDefinition.singleton(ROSTER_STATE_ID, ROSTER_STATE_KEY, RosterState.PROTOBUF),
-                StateDefinition.keyValue(ROSTERS_STATE_ID, ROSTERS_STATE_KEY, ProtoBytes.PROTOBUF, Roster.PROTOBUF));
+        return statesOf(new V0540RosterBaseSchema());
     }
 
     /**
@@ -42,10 +31,6 @@ public class RosterStateSpecification implements OtterServiceStateSpecification 
      */
     @Override
     public void setDefaultValues(@NonNull final WritableStates states, @NonNull final SemanticVersion version) {
-        final WritableSingletonState<RosterState> rosterState = states.getSingleton(ROSTER_STATE_ID);
-        // On genesis, create a default roster state from the genesis network info
-        if (rosterState.get() == null) {
-            rosterState.put(RosterState.DEFAULT);
-        }
+        // Like in production, the roster states stay empty until the genesis roster is written in the first round
     }
 }
