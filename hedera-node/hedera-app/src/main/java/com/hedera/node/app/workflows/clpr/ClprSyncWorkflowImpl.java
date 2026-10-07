@@ -68,7 +68,12 @@ public final class ClprSyncWorkflowImpl implements ClprSyncWorkflow {
         if (!configProvider.getConfiguration().getConfigData(ClprConfig.class).enabled()) {
             throw new StatusRuntimeException(Status.UNAVAILABLE.withDescription("CLPR is not enabled"));
         }
-        return new ClprStreamingSyncSession(stateAccessor, bundleSubmitter, stateProofManager, correlationId);
+        return new ClprStreamingSyncSession(
+                stateAccessor,
+                bundleSubmitter,
+                stateProofManager,
+                channelManager::peerObservedManifestVersion,
+                correlationId);
     }
 
     @Override

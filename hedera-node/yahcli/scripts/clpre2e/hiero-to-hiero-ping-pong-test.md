@@ -22,7 +22,9 @@ The protocol has three layers:
 
 - **Ledger configuration** — each network publishes a signed description of itself
   (chain ID, trust anchor, throttles). The other side fetches this as a
-  *state proof* and uses it to verify incoming data.
+  *state proof* and uses it to verify incoming data. Alongside it, each network
+  keeps an *endpoint manifest* (the endpoints its peers dial), which the other
+  side also fetches as a state proof.
 - **Channel** — a bilateral agreement between two specific ledger IDs. Uses a
   two-phase commit/reveal so neither side can front-run the other's identity.
 - **Connector** — the on-chain contract that authorises bundle relay for a given
@@ -256,9 +258,17 @@ also paying the transaction fee. The two accounts used are:
 ### Step 9 — Publish each network's ledger configuration
 
 **What this does:** Every CLPR network publishes a signed *ledger configuration*
-that describes itself: its chain ID, a trust anchor (the public key that signs its
-state proofs), throttle parameters, and seed endpoints. The other network fetches
-this config as a state proof and uses it to verify every bundle it receives.
+that describes itself: its chain ID, its CLPR service address, a trust anchor (the
+public key that signs its state proofs), and throttle parameters. The other network
+fetches this config as a state proof and uses it to verify every bundle it receives.
+The endpoints a peer dials are not part of the configuration; they come from the
+network's *endpoint manifest* (step 10).
+
+The repo-provided `alice-config.json` and `bob-config.json` set `serviceAddress` to
+`AAAAAAAAAAAAAAAAAAAAAAAAAW4=`, the base64 form of the CLPR system contract's 20-byte
+EVM address `0x000000000000000000000000000000000000016e`. Keep that value: the endpoint
+manifest carries the same service address, and the peer's verifier rejects the channel
+if the two differ.
 
 Push each network's config to itself:
 
@@ -272,13 +282,13 @@ Push each network's config to itself:
 
 ---
 
-### Step 10 — Pull each network's ledger configuration and state proof
+### Step 10 — Pull each network's ledger configuration, endpoint manifest, and state proofs
 
-**What this does:** Fetches the on-chain ledger configuration along with a
-TSS-signed *state proof*. The proof cryptographically binds the config to the
-network's block history. You will give bob's proof to alice (and alice's proof to
+**What this does:** Fetches the on-chain ledger configuration and endpoint manifest,
+each with a TSS-signed *state proof*. The proofs cryptographically bind them to the
+network's block history. You will give bob's proofs to alice (and alice's proofs to
 bob) when completing the channel, so each side can verify the other's identity
-on-chain.
+on-chain and learn which endpoints to dial.
 
 ```bash
 ./yahcli -n alice -p 2 clpr get-ledger-configuration \
@@ -288,17 +298,33 @@ on-chain.
   --out bob-observed-config.json   --proof-path bob-proof.bin
 ```
 
-If `--proof-path` writes 0 bytes the genesis WRAPS proof has not finished yet.
+The *endpoint manifest* lists the endpoints peers dial for CLPR sync. You don't
+configure it: each node publishes its own endpoint, and the network finalizes the
+manifest by itself. Genesis seeds a placeholder (version 1, no endpoints), so the
+manifest is ready once it reaches version 2 or higher with at least one endpoint.
+`get-endpoint-manifest` prints the version and endpoint count, and records
+`"finalized"` in its JSON output:
+
+```bash
+./yahcli -n alice -p 2 clpr get-endpoint-manifest \
+  --out alice-observed-manifest.json --proof-path alice-manifest-proof.bin
+
+./yahcli -n bob   -p 2 clpr get-endpoint-manifest \
+  --out bob-observed-manifest.json   --proof-path bob-manifest-proof.bin
+```
+
+If either `--proof-path` writes 0 bytes the genesis WRAPS proof has not finished yet.
 Wait for the FINISHED line from step 5 and retry.
 
-Verify the observed configs have a trust anchor **and** at least one endpoint before
-proceeding — if either field is missing, `complete-channel` will fail:
+Verify the observed configs have a trust anchor **and** the observed manifests are
+finalized before proceeding. Without a trust anchor `complete-channel` fails; without
+a finalized manifest the channel has no endpoints to dial:
 
 ```bash
 jq '.configuration.initial_trust_anchor' alice-observed-config.json  # must not be null
 jq '.configuration.initial_trust_anchor' bob-observed-config.json    # must not be null
-jq '.configuration.endpoints | length' alice-observed-config.json    # must be >= 1
-jq '.configuration.endpoints | length' bob-observed-config.json      # must be >= 1
+jq '.finalized' alice-observed-manifest.json                         # must be true
+jq '.finalized' bob-observed-manifest.json                           # must be true
 ```
 
 ---
@@ -354,9 +380,14 @@ identity generated previously to identify the channel. Trust anchors are
 exchanged between the ledgers, so they can verify each other's messages.
 This step verifies that:
 
-1. The commitment hash matches what was registered in step 11.
-2. The peer's state proof (pulled in step 9) validates against the peer's
-   trust anchor using the CLPR verifier system contract at `0.0.366`.
+1. The commitment hash matches what was registered in step 12.
+2. The peer's ledger-configuration and endpoint-manifest state proofs (pulled in
+   step 10) validate against the peer's trust anchor using the CLPR verifier
+   system contract at `0.0.366`. The verified manifest becomes the list of
+   endpoints this network dials for the channel.
+
+The `0.0.366` verifier requires both proofs: pass the peer's configuration proof
+with `--config-proof` and its manifest proof with `--endpoint-manifest-proof`.
 
 Completing the channel for Alice network:
 
@@ -364,7 +395,8 @@ Completing the channel for Alice network:
 ./yahcli -n alice -p 2 clpr complete-channel \
   --identity channel.json \
   --verifier-contract 0.0.366 \
-  --config-proof bob-proof.bin
+  --config-proof bob-proof.bin \
+  --endpoint-manifest-proof bob-manifest-proof.bin
 ```
 
 Completing the channel for Bob network:
@@ -373,7 +405,8 @@ Completing the channel for Bob network:
 ./yahcli -n bob -p 2 clpr complete-channel \
   --identity channel.json \
   --verifier-contract 0.0.366 \
-  --config-proof alice-proof.bin
+  --config-proof alice-proof.bin \
+  --endpoint-manifest-proof alice-manifest-proof.bin
 ```
 
 The channel is now ACTIVE on both networks. Capture the channel ID:
@@ -664,15 +697,17 @@ cd clpr-hiero-bob/hedera-node/yahcli/scripts/clpre2e  && HAPI_PORT=50311 ./start
 
 ## Troubleshooting
 
-|                                                                                        Symptom                                                                                         |                                                                           Cause                                                                           |                                                                                         Fix                                                                                          |
-|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `proof-path` writes 0 bytes                                                                                                                                                            | Genesis WRAPS proof not finished                                                                                                                          | Wait for "FINISHED" in step 5 and retry step 10                                                                                                                                      |
-| `CLPR_VERIFIER_CONFIG_FAILED` at `complete-channel` — "no peer endpoints"                                                                                                              | Config published with the wrong JSON key (`seedEndpoints` instead of `endpoints`); the parser silently ignores unknown fields, storing zero endpoints     | Re-run step 9 using the repo-provided `../../alice-config.json` / `../../bob-config.json` (now fixed); verify `jq '.configuration.endpoints \| length'` ≥ 1 after re-running step 10 |
-| `CLPR_VERIFIER_CONFIG_FAILED` at `complete-channel` — trust anchor empty                                                                                                               | Step 9 ran before the `[CLPR-SYNC-POINT]` log appeared — block proofs didn't yet carry the WRAPS recursive material needed for cross-network verification | Wait for `[CLPR-SYNC-POINT]` on both networks, wait 30 s, then re-run steps 9 and 10; verify `jq '.configuration.initial_trust_anchor'` is non-null before retrying                  |
-| `INSUFFICIENT_PAYER_BALANCE` in hgcaa.log                                                                                                                                              | Account 0.0.3 ran out of hbar                                                                                                                             | Repeat step 8                                                                                                                                                                        |
-| Bob's node never starts / port 50311 not listening                                                                                                                                     | Properties not copied to build dir                                                                                                                        | Verify `clpr-hiero-bob/hedera-node/hedera-app/build/node/data/config/application.properties` contains the port overrides; re-run `./gradlew :app:run`                                |
-| `BindException: Address already in use` on port 31013 in `swirlds.log`; bob's node never reaches consensus and CLPR steps fail (e.g. `INVALID_TRANSACTION_BODY` at `complete-channel`) | Both networks ship the same `genesis-network.json` gossip port (31013) and collide on `127.0.0.1`                                                         | Change bob's gossip port in `genesis-network.json` per step 3, then `./gradlew :app:cleanRun`                                                                                        |
-| `yahcli exited non-zero` at register-channel                                                                                                                                           | Channel already registered from a prior run                                                                                                               | Clean the node state (`./gradlew :app:cleanRun`) and restart both networks                                                                                                           |
+|                                                                                            Symptom                                                                                             |                                                                           Cause                                                                           |                                                                                 Fix                                                                                 |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `proof-path` writes 0 bytes                                                                                                                                                                    | Genesis WRAPS proof not finished                                                                                                                          | Wait for "FINISHED" in step 5 and retry step 10                                                                                                                     |
+| `CLPR_VERIFIER_CONFIG_FAILED` at `complete-channel`; `hgcaa.log` shows `requires a non-empty endpoint_manifest_proof_bytes`                                                                    | `--endpoint-manifest-proof` was not passed, or the manifest proof file is empty; the `0.0.366` verifier requires it                                       | Run `get-endpoint-manifest` on the peer (step 10) and pass its `--proof-path` file via `--endpoint-manifest-proof` (step 13)                                        |
+| `INVALID_CLPR_CONFIGURATION` at `update-ledger-configuration`, or `CLPR_VERIFIER_CONFIG_FAILED` at `complete-channel` with `manifest.service_address != config.service_address` in `hgcaa.log` | The config file's `serviceAddress` is not the CLPR system contract address, which the endpoint manifest carries                                           | Set `serviceAddress` to `AAAAAAAAAAAAAAAAAAAAAAAAAW4=` as in the repo-provided `alice-config.json` / `bob-config.json`, then re-run steps 9 and 10                  |
+| `get-endpoint-manifest` warns `is not finalized yet`, or `jq '.finalized'` prints `false`                                                                                                      | The node has not published its endpoint yet, so the manifest is still the version-1 genesis placeholder with no endpoints                                 | Wait a few seconds (`hgcaa.log` logs `endpoint absent from manifest` while the node publishes) and re-run step 10                                                   |
+| `CLPR_VERIFIER_CONFIG_FAILED` at `complete-channel` — trust anchor empty                                                                                                                       | Step 9 ran before the `[CLPR-SYNC-POINT]` log appeared — block proofs didn't yet carry the WRAPS recursive material needed for cross-network verification | Wait for `[CLPR-SYNC-POINT]` on both networks, wait 30 s, then re-run steps 9 and 10; verify `jq '.configuration.initial_trust_anchor'` is non-null before retrying |
+| `INSUFFICIENT_PAYER_BALANCE` in hgcaa.log                                                                                                                                                      | Account 0.0.3 ran out of hbar                                                                                                                             | Repeat step 8                                                                                                                                                       |
+| Bob's node never starts / port 50311 not listening                                                                                                                                             | Properties not copied to build dir                                                                                                                        | Verify `clpr-hiero-bob/hedera-node/hedera-app/build/node/data/config/application.properties` contains the port overrides; re-run `./gradlew :app:run`               |
+| `BindException: Address already in use` on port 31013 in `swirlds.log`; bob's node never reaches consensus and CLPR steps fail (e.g. `INVALID_TRANSACTION_BODY` at `complete-channel`)         | Both networks ship the same `genesis-network.json` gossip port (31013) and collide on `127.0.0.1`                                                         | Change bob's gossip port in `genesis-network.json` per step 3, then `./gradlew :app:cleanRun`                                                                       |
+| `yahcli exited non-zero` at register-channel                                                                                                                                                   | Channel already registered from a prior run                                                                                                               | Clean the node state (`./gradlew :app:cleanRun`) and restart both networks                                                                                          |
 
 ---
 

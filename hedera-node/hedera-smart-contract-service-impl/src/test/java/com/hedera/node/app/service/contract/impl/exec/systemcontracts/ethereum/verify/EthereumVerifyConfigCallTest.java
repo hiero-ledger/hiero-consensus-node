@@ -51,19 +51,20 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
             assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.COMPLETED_SUCCESS);
-            final var decoded = EthereumVerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS
+            final var decoded = EthereumVerifyConfigTranslator.VERIFY_CONFIG
                     .getOutputs()
                     .decode(result.fullResult().output().toArray());
-            assertThat(decoded).isEqualTo(Tuple.from(new Object[] {
-                new byte[52],
-                config.chainId(),
-                config.serviceAddress().toByteArray(),
-                BigInteger.ZERO,
-                Tuple.of(BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO),
-                config.initialTrustAnchor().toByteArray(),
-                config.initialTrustAnchorId().toByteArray(),
-                new Tuple[0]
-            }));
+            assertThat(decoded.size()).isEqualTo(8);
+            assertThat((String) decoded.get(1)).isEqualTo(config.chainId());
+            assertThat((byte[]) decoded.get(2))
+                    .isEqualTo(config.serviceAddress().toByteArray());
+            assertThat((byte[]) decoded.get(5))
+                    .isEqualTo(config.initialTrustAnchor().toByteArray());
+            assertThat((byte[]) decoded.get(6))
+                    .isEqualTo(config.initialTrustAnchorId().toByteArray());
+            // manifest struct at index 7: empty manifest bytes → synthesized version 1.
+            final Tuple manifestStruct = decoded.get(MANIFEST_INDEX);
+            assertThat(((BigInteger) manifestStruct.get(0)).longValue()).isEqualTo(1L);
         }
     }
 
@@ -94,7 +95,7 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
     }
 
     @Test
-    void seedEndpointsEncodingReturns8TupleWithAllConfigFields() {
+    void manifestEncodingReturns8TupleWithAllConfigFields() {
         final byte[] channelId32 = new byte[32];
         channelId32[0] = (byte) 0xAB;
         final var config = ClprLedgerConfiguration.newBuilder()
@@ -107,13 +108,13 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
 
         try (final var ignored = mockVerifier(new VerifiedConfig(config, 7L))) {
             final var result = new EthereumVerifyConfigCall(
-                            mockEnhancement(), gasCalculator, CONFIG_PAYLOAD, channelId32)
+                            mockEnhancement(), gasCalculator, CONFIG_PAYLOAD, channelId32, new byte[0])
                     .execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
             assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.COMPLETED_SUCCESS);
 
-            final var decoded = EthereumVerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS
+            final var decoded = EthereumVerifyConfigTranslator.VERIFY_CONFIG
                     .getOutputs()
                     .decode(result.fullResult().output().toArray());
             // field 0: channelContext = channelId32 ++ serviceAddress
@@ -125,7 +126,7 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
             assertThat(((byte[]) decoded.get(2)).length).isEqualTo(20);
             // field 4: throttles tuple — index 0 = maxMessagesPerBundle
             final Tuple throttlesTuple = (Tuple) decoded.get(4);
-            assertThat(((BigInteger) throttlesTuple.get(0)).intValue()).isEqualTo(42);
+            assertThat(((Number) throttlesTuple.get(0)).intValue()).isEqualTo(42);
         }
     }
 
@@ -193,7 +194,8 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
     }
 
     private EthereumVerifyConfigCall subject() {
-        return new EthereumVerifyConfigCall(mockEnhancement(), gasCalculator, CONFIG_PAYLOAD, new byte[32]);
+        return new EthereumVerifyConfigCall(
+                mockEnhancement(), gasCalculator, CONFIG_PAYLOAD, new byte[32], new byte[0]);
     }
 
     /** Manifest-aware (flag on): channel context + raw manifest bytes. */
@@ -217,9 +219,8 @@ class EthereumVerifyConfigCallTest extends CallTestBase {
 
     /** Decodes the manifest-aware output tuple and returns the manifest struct {@code (version, serviceAddress, endpoints[])}. */
     private static Tuple manifestStructOf(final byte[] output) {
-        final var tuple = EthereumVerifyConfigTranslator.VERIFY_CONFIG_WITH_MANIFEST
-                .getOutputs()
-                .decode(output);
+        final var tuple =
+                EthereumVerifyConfigTranslator.VERIFY_CONFIG.getOutputs().decode(output);
         return tuple.get(MANIFEST_INDEX);
     }
 

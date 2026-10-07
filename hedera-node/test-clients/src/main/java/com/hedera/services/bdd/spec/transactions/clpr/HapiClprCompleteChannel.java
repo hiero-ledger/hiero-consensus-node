@@ -71,7 +71,7 @@ public class HapiClprCompleteChannel extends HapiTxnOp<HapiClprCompleteChannel> 
 
     /**
      * Sets the {@code endpoint_manifest_proof_bytes} field on the completion body — required
-     * when {@code clpr.endpointManifestEnabled=true} (spec §4.8). Should be the serialized
+     * by the manifest-aware verifier ABI (spec §4.8). Should be the serialized
      * {@code StateProof} bytes of the peer's finalized {@code ClprEndpointManifest} singleton,
      * as returned by {@code clprGetEndpointManifest}.
      */

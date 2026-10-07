@@ -46,41 +46,17 @@ class VerifyConfigTranslatorTest extends CallTestBase {
     }
 
     @Test
-    void identifiesVerifyConfigWithSeedEndpointsSelector() {
-        given(attempt.isMethod(VerifyConfigTranslator.VERIFY_CONFIG_WITH_MANIFEST))
-                .willReturn(Optional.empty());
-        given(attempt.isMethod(VerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS))
-                .willReturn(Optional.of(VerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS));
-
-        assertThat(subject.identifyMethod(attempt)).contains(VerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS);
-    }
-
-    @Test
-    void buildsVerifyConfigWithSeedEndpointsCallFromAbiInput() {
-        given(attempt.inputBytes())
-                .willReturn(VerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS
-                        .encodeCall(Tuple.of(new byte[] {1, 2, 3}, new byte[32]))
-                        .array());
-        given(attempt.enhancement()).willReturn(mockEnhancement());
-        given(attempt.systemContractGasCalculator()).willReturn(gasCalculator);
-
-        assertThat(subject.callFrom(attempt)).isInstanceOf(VerifyConfigCall.class);
-    }
-
-    @Test
     void identifiesVerifyConfigWithManifestSelector() {
-        given(attempt.isMethod(VerifyConfigTranslator.VERIFY_CONFIG_WITH_MANIFEST))
-                .willReturn(Optional.of(VerifyConfigTranslator.VERIFY_CONFIG_WITH_MANIFEST));
+        given(attempt.isMethod(VerifyConfigTranslator.VERIFY_CONFIG))
+                .willReturn(Optional.of(VerifyConfigTranslator.VERIFY_CONFIG));
 
-        assertThat(subject.identifyMethod(attempt)).contains(VerifyConfigTranslator.VERIFY_CONFIG_WITH_MANIFEST);
+        assertThat(subject.identifyMethod(attempt)).contains(VerifyConfigTranslator.VERIFY_CONFIG);
     }
 
     @Test
     void buildsVerifyConfigWithManifestCallFromAbiInput() {
-        given(attempt.isMethod(VerifyConfigTranslator.VERIFY_CONFIG_WITH_MANIFEST))
-                .willReturn(Optional.of(VerifyConfigTranslator.VERIFY_CONFIG_WITH_MANIFEST));
         given(attempt.inputBytes())
-                .willReturn(VerifyConfigTranslator.VERIFY_CONFIG_WITH_MANIFEST
+                .willReturn(VerifyConfigTranslator.VERIFY_CONFIG
                         .encodeCall(Tuple.of(new byte[] {1, 2, 3}, new byte[32], new byte[] {4, 5, 6}))
                         .array());
         given(attempt.enhancement()).willReturn(mockEnhancement());
