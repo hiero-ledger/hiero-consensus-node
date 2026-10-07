@@ -3,10 +3,10 @@ replicas: 1
 
 resources:
   limits:
-    cpu: 10
+    cpu: 20
     memory: 40Gi
   requests:
-    cpu: 10
+    cpu: 20
     memory: 40Gi
 
 nodeSelector:

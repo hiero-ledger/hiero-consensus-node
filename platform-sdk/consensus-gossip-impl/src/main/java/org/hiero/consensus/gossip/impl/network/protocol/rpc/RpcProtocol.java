@@ -18,6 +18,7 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.pool.CachedPoolParallelExecutor;
+import org.hiero.base.concurrent.throttle.StackTraceDeduplicator;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.gossip.config.BroadcastConfig;
 import org.hiero.consensus.gossip.config.SyncConfig;
@@ -72,6 +73,11 @@ public class RpcProtocol implements Protocol, GossipController {
     private final FallenBehindMonitor fallenBehindMonitor;
     private final Consumer<PlatformEvent> receivedEventHandler;
 
+    /**
+     * Remembers which socket exception stack traces were already logged in full
+     */
+    private final StackTraceDeduplicator socketExceptionDeduplicator;
+
     private volatile boolean started;
 
     /**
@@ -94,6 +100,7 @@ public class RpcProtocol implements Protocol, GossipController {
      * @param selfId id of the current node
      * @param fallenBehindMonitor shared monitoring of our event window falling behind peers
      * @param receivedEventHandler events that are received are passed here
+     * @param socketExceptionDeduplicator remembers which socket exception stack traces were already logged in full
      */
     public RpcProtocol(
             @NonNull final Configuration configuration,
@@ -107,7 +114,8 @@ public class RpcProtocol implements Protocol, GossipController {
             @NonNull final SyncMetrics syncMetrics,
             @NonNull final NodeId selfId,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
-            @NonNull final Consumer<PlatformEvent> receivedEventHandler) {
+            @NonNull final Consumer<PlatformEvent> receivedEventHandler,
+            @NonNull final StackTraceDeduplicator socketExceptionDeduplicator) {
 
         this.synchronizer = synchronizer;
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
@@ -135,6 +143,7 @@ public class RpcProtocol implements Protocol, GossipController {
                 syncConfig.fairMaxConcurrentSyncs(), syncConfig.fairMinimalRoundRobinSize(), rosterSize);
         this.fallenBehindMonitor = fallenBehindMonitor;
         this.receivedEventHandler = receivedEventHandler;
+        this.socketExceptionDeduplicator = Objects.requireNonNull(socketExceptionDeduplicator);
     }
 
     /**
@@ -154,7 +163,7 @@ public class RpcProtocol implements Protocol, GossipController {
                 syncConfig,
                 trafficConfig,
                 broadcastConfig,
-                NetworkUtils::handleNetworkException);
+                (e, connection) -> NetworkUtils.handleNetworkException(e, connection, socketExceptionDeduplicator));
 
         final RpcPeerHandler handler = new RpcPeerHandler(
                 synchronizer,

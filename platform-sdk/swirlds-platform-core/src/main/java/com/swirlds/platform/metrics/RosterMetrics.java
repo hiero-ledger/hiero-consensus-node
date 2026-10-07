@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.roster;
+package com.swirlds.platform.metrics;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.RosterWrapper;
 
 /**
  * A utility class to encapsulate the metrics for the address book.
@@ -22,14 +22,13 @@ public final class RosterMetrics {
      * @param selfId      the ID of the node
      */
     public static void registerRosterMetrics(
-            @NonNull final Metrics metrics, @NonNull final Roster roster, @NonNull final NodeId selfId) {
+            @NonNull final Metrics metrics, @NonNull final RosterWrapper roster, @NonNull final NodeId selfId) {
 
         metrics.getOrCreate(new FunctionGauge.Config<>(Metrics.INFO_CATEGORY, "memberID", Long.class, selfId::id)
                 .withUnit("nodeID")
                 .withDescription("The node ID number of this member"));
 
-        metrics.getOrCreate(new FunctionGauge.Config<>(
-                        Metrics.INFO_CATEGORY, "members", Integer.class, roster.rosterEntries()::size)
+        metrics.getOrCreate(new FunctionGauge.Config<>(Metrics.INFO_CATEGORY, "members", Integer.class, roster::size)
                 .withUnit("count")
                 .withDescription("total number of nodes currently in the roster"));
     }

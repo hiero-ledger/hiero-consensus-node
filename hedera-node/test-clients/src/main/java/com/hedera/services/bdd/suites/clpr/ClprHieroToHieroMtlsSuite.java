@@ -35,7 +35,7 @@ public class ClprHieroToHieroMtlsSuite extends HieroToHieroBase {
     private static final int MTLS_PORT_A = 41450;
     private static final int MTLS_PORT_B = 42450;
 
-    /** {@code ClprUnarySynchronizer} logs this when mTLS is on but a peer has no advertised CA. */
+    /** {@code ClprStreamingSynchronizer} logs this when mTLS is on but a peer has no advertised CA. */
     private static final Pattern SKIP_PATTERN = Pattern.compile("Skipping sync peer .* no tls_certificate");
 
     @MultiNetworkHapiTest(

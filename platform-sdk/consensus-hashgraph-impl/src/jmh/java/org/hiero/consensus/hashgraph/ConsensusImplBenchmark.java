@@ -58,16 +58,30 @@ import org.openjdk.jmh.infra.Blackhole;
  * calls. A pass during which one does is discarded and replaced by the next invocation, so the latency results and
  * {@code latency.mean} exclude garbage collection. JMH's primary score, measured by JMH itself, still includes
  * discarded passes. In a local heap sweep, collections in the measured calls stopped between 512 MB and 1 GB; the
- * configured 2 GB adds a buffer.
+ * configured 2 GB adds a buffer. The calibration on the benchmark machine discarded no pass.
  *
  * <p>Run with {@code -prof org.hiero.consensus.benchmark.tools.histogram.LatencyProfiler}.
+ *
+ * <h2>Calibration</h2>
+ * <ul>
+ *   <li>Date / commit: 2026-10-07, 686fbf3e8f</li>
+ *   <li>Machine: hl-cn-benchmark-lin, AS-2115GT-HNTR, AMD EPYC 9254, JDK 25.0.2, -Xms2g -Xmx2g</li>
+ *   <li>Parameter sets: numNodes=4 / numNodes=10</li>
+ *   <li>Steady state after: 5 s / 5 s</li>
+ *   <li>Noise (latency.mean, CV): 0.25% / 0.18% per 5 s iteration, 0.79% / 0.52% between forks, 0.00% / 0.00%
+ *       between runs (3 / 4 of 14 runs quiet)</li>
+ *   <li>Expected detectable regression: 0.49% / 0.32% (95 % CI half-width of one run)</li>
+ *   <li>Samples per iteration: 3.0 M / 1.8 M; expected stable: mean, p50–p99.99</li>
+ *   <li>Runtime: 10.4 / 10.6 min per parameter set</li>
+ *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/37584078436, attempts 1–14</li>
+ * </ul>
  */
 @State(Scope.Thread)
 @Fork(
-        value = 20,
+        value = 10,
         jvmArgsAppend = {"-Xms2g", "-Xmx2g", "-XX:+AlwaysPreTouch"})
-@Warmup(iterations = 5, time = 5)
-@Measurement(iterations = 5, time = 5)
+@Warmup(iterations = 1, time = 15)
+@Measurement(iterations = 3, time = 15)
 public class ConsensusImplBenchmark {
 
     /** The seed of the random number generator. The same seed produces the same graph. */

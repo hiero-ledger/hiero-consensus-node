@@ -1,0 +1,210 @@
+###################################
+##### Global Protection Rule ######
+###################################
+# NOTE: This rule is overriden by the more specific rules below. This is the catch-all rule for all files not covered by the more specific rules below.
+*                                               %github-maintainers
+**/*.gradle*                                    %hiero-consensus-node-execution-codeowners %hiero-consensus-node-foundation-codeowners %github-maintainers
+
+############################
+##### State Validator ######
+############################
+/hedera-state-validator                         %hiero-consensus-node-foundation-codeowners
+/hedera-state-validator/**/*.gradle*            %hiero-consensus-node-foundation-codeowners %github-maintainers
+
+#########################
+##### Hedera Node  ######
+#########################
+
+# Hedera Node Root Protections
+/hedera-node/                                   %hiero-consensus-node-execution-codeowners
+
+# Hedera Node Deployments - Configuration & Grafana Dashboards
+/hedera-node/configuration/**                   @rbair23 @dalvizu @Nana-EC @SimiHunjan @steven-sheehy @nathanklick @rbarker-dev @Ferparishuertas @akdev
+/hedera-node/configuration/dev/**               %hiero-consensus-node-execution-codeowners
+/hedera-node/infrastructure/**                  %github-maintainers %hiero-consensus-node-devops-codeowners %hiero-consensus-node-execution-codeowners
+
+# Hedera Node Modules
+/hedera-node/hapi*/                             %hiero-consensus-node-execution-codeowners
+/hedera-node/hedera-admin*/                     %hiero-consensus-node-execution-codeowners
+/hedera-node/hedera-app*/                       %hiero-consensus-node-execution-codeowners
+/hedera-node/hedera-consensus*/                 %hiero-consensus-node-execution-codeowners
+/hedera-node/hedera-file*/                      %hiero-consensus-node-execution-codeowners
+/hedera-node/hedera-network*/                   %hiero-consensus-node-execution-codeowners
+/hedera-node/hedera-schedule*/                  %hiero-consensus-node-execution-codeowners
+/hedera-node/hedera-smart-contract*/            %hiero-consensus-node-smart-contract-codeowners @tinker-michaelj
+/hedera-node/hedera-token*/                     %hiero-consensus-node-execution-codeowners
+/hedera-node/hedera-util*/                      %hiero-consensus-node-execution-codeowners
+/hedera-node/hedera-staking*/                   %hiero-consensus-node-execution-codeowners
+/hedera-node/test-clients/                      %hiero-consensus-node-execution-codeowners %hiero-consensus-node-smart-contract-codeowners
+/hedera-node/test-clients/src/main/java/com/hedera/services/bdd/suites/contract/  %hiero-consensus-node-smart-contract-codeowners
+
+# Hedera Node Build Files
+/hedera-node/**/*.gradle*                       %hiero-consensus-node-execution-codeowners %hiero-consensus-node-smart-contract-codeowners %github-maintainers
+
+# Documentation
+/hedera-node/docs/design/services/smart-contract-service    %hiero-consensus-node-smart-contract-codeowners
+
+###############################
+##### Hedera Cryptography #####
+###############################
+# add @rsinha as an explicit codeowner once hiero-invite has been added
+/hedera-cryptography/                               %hiero-consensus-node-foundation-codeowners
+/hedera-cryptography/**/*.gradle*                   %hiero-consensus-node-foundation-codeowners %github-maintainers
+
+#########################
+##### Platform SDK ######
+#########################
+
+# Platform SDK Root Protections
+/platform-sdk/                                      %hiero-consensus-node-consensus-codeowners %hiero-consensus-node-foundation-codeowners
+/platform-sdk/README.md                             %hiero-consensus-node-consensus-codeowners
+
+# Platform SDK Modules
+/platform-sdk/consensus-*/                          %hiero-consensus-node-consensus-codeowners
+/platform-sdk/platform-apps/                        %hiero-consensus-node-consensus-codeowners
+/platform-sdk/swirlds-base/                         %hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-benchmarks/                   %hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-cli/                          %hiero-consensus-node-consensus-codeowners
+/platform-sdk/swirlds-common/                       %hiero-consensus-node-consensus-codeowners
+/platform-sdk/swirlds-common/src/**/java/com/swirlds/common/merkle/ %hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-component-framework/          %hiero-consensus-node-consensus-codeowners
+/platform-sdk/swirlds-config-*/                     %hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-logging/                      %hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-logging-*/                    %hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-merkle/                       %hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-merkledb/                     %hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-metrics-*/                    %hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-platform-core/                %hiero-consensus-node-consensus-codeowners
+/platform-sdk/swirlds-state-*/                      %hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-unit-tests/structures/        %hiero-consensus-node-foundation-codeowners
+/platform-sdk/swirlds-virtualmap/                   %hiero-consensus-node-foundation-codeowners
+
+# Platform SDK Build Files
+/platform-sdk/**/*.gradle*                               %hiero-consensus-node-foundation-codeowners %hiero-consensus-node-consensus-codeowners %github-maintainers
+/platform-sdk/consensus-*/**/*.gradle*                   %hiero-consensus-node-consensus-codeowners %github-maintainers
+/platform-sdk/platform-apps/**/*.gradle*                 %hiero-consensus-node-consensus-codeowners %github-maintainers
+/platform-sdk/swirlds-base/**/*.gradle*                  %hiero-consensus-node-foundation-codeowners %github-maintainers
+/platform-sdk/swirlds-benchmarks/**/*.gradle*            %hiero-consensus-node-foundation-codeowners %github-maintainers
+/platform-sdk/swirlds-cli/**/*.gradle*                   %hiero-consensus-node-consensus-codeowners %github-maintainers
+/platform-sdk/swirlds-common/**/*.gradle*                %hiero-consensus-node-consensus-codeowners %github-maintainers
+/platform-sdk/swirlds-common/src/**/java/com/swirlds/common/merkle/**/*.gradle* %hiero-consensus-node-foundation-codeowners %github-maintainers
+/platform-sdk/swirlds-component-framework/**/*.gradle*   %hiero-consensus-node-consensus-codeowners %github-maintainers
+/platform-sdk/swirlds-config-*/**/*.gradle*              %hiero-consensus-node-foundation-codeowners %github-maintainers
+/platform-sdk/swirlds-logging/**/*.gradle*               %hiero-consensus-node-foundation-codeowners %github-maintainers
+/platform-sdk/swirlds-logging-*/**/*.gradle*             %hiero-consensus-node-foundation-codeowners %github-maintainers
+/platform-sdk/swirlds-merkle/**/*.gradle*                %hiero-consensus-node-foundation-codeowners %github-maintainers
+/platform-sdk/swirlds-merkledb/**/*.gradle*              %hiero-consensus-node-foundation-codeowners %github-maintainers
+/platform-sdk/swirlds-metrics-*/**/*.gradle*             %hiero-consensus-node-foundation-codeowners %github-maintainers
+/platform-sdk/swirlds-platform-core/**/*.gradle*         %hiero-consensus-node-consensus-codeowners %github-maintainers
+/platform-sdk/swirlds-state-*/**/*.gradle*               %hiero-consensus-node-foundation-codeowners %github-maintainers
+/platform-sdk/swirlds-unit-tests/structures/**/*.gradle* %hiero-consensus-node-foundation-codeowners %github-maintainers
+/platform-sdk/swirlds-virtualmap/**/*.gradle*            %hiero-consensus-node-foundation-codeowners %github-maintainers
+
+# Platform Observability Modules
+/hiero-observability                                %hiero-consensus-node-foundation-codeowners
+/hiero-observability/**/*.gradle*                   %hiero-consensus-node-foundation-codeowners %github-maintainers
+
+####################
+#####   HAPI  ######
+####################
+
+/hapi/                                              %hiero-consensus-node-execution-codeowners %hiero-consensus-node-smart-contract-codeowners
+
+# Protobuf
+/hapi/hedera-protobuf-java-api/src/main/proto/services/ %hiero-consensus-node-execution-codeowners %hiero-consensus-node-smart-contract-codeowners @jsync-swirlds %hiero-mirror-node-maintainers
+/hapi/hedera-protobuf-java-api/src/main/proto/platform/ %hiero-consensus-node-consensus-codeowners %hiero-consensus-node-execution-codeowners
+/hapi/hedera-protobuf-java-api/src/main/proto/platform/state/virtual_map_state.proto %hiero-consensus-node-execution-codeowners %hiero-consensus-node-foundation-codeowners
+
+# HAPI Build Files
+/hapi/**/*.gradle*                                  %hiero-consensus-node-consensus-codeowners %hiero-consensus-node-execution-codeowners %hiero-consensus-node-smart-contract-codeowners %github-maintainers
+
+# Documentation
+/platform-sdk/docs/platformWiki.md                  %hiero-consensus-node-consensus-codeowners %hiero-consensus-node-foundation-codeowners
+/platform-sdk/docs/base                             %hiero-consensus-node-foundation-codeowners
+/platform-sdk/docs/components                       %hiero-consensus-node-consensus-codeowners
+/platform-sdk/docs/core                             %hiero-consensus-node-consensus-codeowners
+/platform-sdk/docs/consensus-layer                  %hiero-consensus-node-consensus-codeowners
+
+#########################
+#####  Core Files  ######
+#########################
+
+# NOTE: Must be placed last to ensure enforcement over all other rules
+
+# Protection Rules for Github Configuration Files and Actions Workflows
+/.github/                                           %github-maintainers
+/.github/workflows/                                 %github-maintainers %hiero-consensus-node-ci-codeowners
+/.github/workflows/config/                          %github-maintainers
+/.github/workflows/docs/                            %github-maintainers
+/.github/workflows/support/                         %github-maintainers
+/.github/workflows/support/scripts                  %github-maintainers %hiero-consensus-node-ci-codeowners
+/.github/workflows/templates/                       %github-maintainers %hiero-consensus-node-ci-codeowners
+
+# specific to CITR
+/.github/workflows/201-user-sdpt-controller-adhoc.yaml          %github-maintainers
+/.github/workflows/202-user-sdlt-controller-adhoc.yaml          %github-maintainers
+/.github/workflows/221-disp-sdpt-controller.yaml                %github-maintainers
+/.github/workflows/222-disp-sdlt-controller.yaml                %github-maintainers
+/.github/workflows/223-disp-sdct-controller.yaml                %github-maintainers
+/.github/workflows/225-disp-release-chewie-allocation.yaml      %github-maintainers
+/.github/workflows/831-call-single-day-performance-test.yaml    %github-maintainers
+/.github/workflows/832-call-execute-performance-test.yaml       %github-maintainers
+/.github/workflows/833-call-single-day-longevity-test.yaml      %github-maintainers
+/.github/workflows/855-call-extract-citr-vars.yaml              %github-maintainers
+/.github/workflows/858-call-get-chewie-jwt.yaml                 %github-maintainers
+/.github/workflows/859-call-create-chewie-request.yaml          %github-maintainers
+/.github/workflows/860-call-validate-chewie-jwt.yaml            %github-maintainers
+/.github/workflows/861-call-get-test-config.yaml                %github-maintainers
+/.github/workflows/862-call-get-chewie-properties.yaml          %github-maintainers
+/.github/workflows/863-call-get-chewie-allocation.yaml          %github-maintainers
+/.github/workflows/901-cron-promote-build-candidate.yaml        %github-maintainers
+/.github/workflows/902-cron-auto-namespace-delete.yaml          %github-maintainers
+/.github/workflows/903-cron-clean.yaml                          %github-maintainers
+
+# specific to MDLT (Multi Day Longevity Test)
+/.github/workflows/203-user-mdlt-controller-adhoc.yaml          %github-maintainers
+/.github/workflows/204-disp-mdlt-monitor.yaml                   %github-maintainers
+/.github/workflows/205-disp-mdlt-publish-results.yaml           %github-maintainers
+/.github/workflows/206-disp-mdlt-tag-result.yaml                %github-maintainers
+/.github/workflows/224-disp-mdlt-controller.yaml                %github-maintainers
+/.github/workflows/835-call-multi-day-longevity-test.yaml       %github-maintainers
+/.github/workflows/support/chewie/mdlt-config.json              %github-maintainers
+/.github/workflows/support/citr/collectMdltResults.sh           %github-maintainers
+/.github/workflows/templates/slack-mdlt-start.json.tpl          %github-maintainers
+/.github/workflows/templates/slack-mdlt-status.json.tpl         %github-maintainers
+
+# Co-owned with devops
+/.github/workflows/303-disp-deploy-integration.yaml %github-maintainers %hiero-consensus-node-devops-codeowners
+/.github/workflows/851-call-deploy-preview.yaml     %github-maintainers %hiero-consensus-node-devops-codeowners
+
+# Legacy Maven project files
+**/pom.xml                                          %github-maintainers %hiero-consensus-node-devops-codeowners
+
+# Gradle project files and inline plugins
+/gradle/                                            %github-maintainers
+gradlew                                             %github-maintainers
+gradlew.bat                                         %github-maintainers
+**/build-logic/                                     %github-maintainers
+**/gradle.*                                         %github-maintainers
+
+# Codacy Tool Configurations
+/config/                                            %github-maintainers
+.remarkrc                                           %github-maintainers
+
+# Self-protection for root CODEOWNERS files (this file should not exist and should definitely require approval)
+/CODEOWNERS                                         %github-maintainers
+
+# Protect the repository root files
+/README.md                                          %github-maintainers %hiero-consensus-node-foundation-codeowners %hiero-consensus-node-execution-codeowners %hiero-consensus-node-consensus-codeowners
+**/LICENSE                                          %github-maintainers
+
+# CodeCov configuration
+**/codecov.yml                                      %github-maintainers
+
+# Git Ignore definitions
+**/.gitignore                                       %github-maintainers %hiero-consensus-node-foundation-codeowners %hiero-consensus-node-execution-codeowners %hiero-consensus-node-consensus-codeowners
+**/.gitignore.*                                     %github-maintainers %hiero-consensus-node-foundation-codeowners %hiero-consensus-node-execution-codeowners %hiero-consensus-node-consensus-codeowners
+
+# Legacy CircleCI configuration
+.circleci.settings.xml                              %github-maintainers 
+/.circleci/                                         %github-maintainers
