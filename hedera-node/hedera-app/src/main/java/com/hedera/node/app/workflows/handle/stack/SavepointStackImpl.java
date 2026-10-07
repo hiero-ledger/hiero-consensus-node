@@ -323,25 +323,15 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
     }
 
     /**
-     * Returns true when this stack's base builder should be finalized with staking rewards. There are
-     * two qualifying cases:
-     * <ol>
-     *     <li>The stack is for top-level transaction (either a user transaction or a triggered execution
-     *     like a expiring scheduled transaction with {@code wait_for_expiry=true}); or,</li>
-     *     <li>The stack is for executing a scheduled transaction with {@code wait_for_expiry=false}, and
-     *     whose triggering parent was a user transaction.</li>
-     * </ol>
-     * The second category is solely for backward compatibility with mono-service, and should be considered
-     * for deprecation and removal.
+     * Returns true when this stack's base builder should be finalized with staking rewards; that is, when
+     * the stack is for a top-level transaction (either a user transaction or a triggered execution like an
+     * expiring scheduled transaction with {@code wait_for_expiry=true}).
+     *
+     * <p>A scheduled transaction executed immediately as a child of its {@code ScheduleCreate} or
+     * {@code ScheduleSign} does not qualify; its parent settles the rewards for every account it touched.
      */
     public boolean permitsStakingRewards() {
-        return builderSink != null
-                ||
-                // For backward compatibility with mono-service, we permit paying staking rewards to
-                // scheduled transactions that are exactly children of user transactions
-                (baseBuilder.category() == SCHEDULED
-                        && state instanceof SavepointStackImpl parent
-                        && parent.txnCategory() == USER);
+        return builderSink != null;
     }
 
     /**
