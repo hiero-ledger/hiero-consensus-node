@@ -1181,6 +1181,9 @@ public class UtilVerbs {
     }
 
     private static final String EXTERNALIZED_LEDGER_ID_LOG_PATTERN = "Externalizing ledger id ([0-9a-fA-F]+)";
+    // Genesis WRAPS proving can take several minutes under concurrent HAPI load, beyond the
+    // subprocess network's timeout for discovering an already available ledger id.
+    private static final Duration LEDGER_ID_EXTERNALIZATION_TIMEOUT = Duration.ofMinutes(5);
 
     /**
      * Returns an operation that looks up the ledger id of the target network and passes it to the given callback.
@@ -1232,7 +1235,7 @@ public class UtilVerbs {
             if (waitForExternalization) {
                 return exposeExternalizedLedgerIdFromHgcaaLogTo(
                         NodeSelector.byNodeId(0),
-                        LEDGER_ID_TIMEOUT,
+                        LEDGER_ID_EXTERNALIZATION_TIMEOUT,
                         Duration.ofSeconds(1),
                         () -> new SpecOperation[] {
                             cryptoTransfer(tinyBarsFromTo(GENESIS, STAKING_REWARD, 1L))
