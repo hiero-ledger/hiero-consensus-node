@@ -24,6 +24,8 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -542,15 +544,104 @@ class WrappedRecordBlockHashMigrationTest {
                 .withValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true));
 
         final Method truncate = WrappedRecordBlockHashMigration.class.getDeclaredMethod(
-                "truncateHashesFileIfWritingEnabled", BlockRecordStreamConfig.class);
+                "truncateHashesFileIfWritingEnabled", BlockRecordStreamConfig.class, String.class);
         truncate.setAccessible(true);
         assertDoesNotThrow(() -> {
             try {
-                truncate.invoke(subject, config);
+                truncate.invoke(subject, config, "for test");
             } catch (final java.lang.reflect.InvocationTargetException e) {
                 throw e.getCause();
             }
         });
+    }
+
+    @Test
+    void truncateOnUpgradeTruncatesFileWhenWritingEnabledAndNoJumpstart() throws Exception {
+        final var dir = createRecentHashesDir(90, 100);
+        final var file = dir.resolve(WrappedRecordFileBlockHashesDiskWriter.DEFAULT_FILE_NAME);
+
+        subject.truncateHashesFileOnUpgrade(recordsConfigWithWriting(dir, true), defaultJumpstartConfig());
+
+        assertThat(Files.exists(file)).isTrue();
+        assertThat(Files.size(file)).isZero();
+    }
+
+    @Test
+    void truncateOnUpgradeLeavesFileWhenWritingDisabled() throws Exception {
+        final var dir = createRecentHashesDir(90, 100);
+        final var file = dir.resolve(WrappedRecordFileBlockHashesDiskWriter.DEFAULT_FILE_NAME);
+
+        subject.truncateHashesFileOnUpgrade(recordsConfigWithWriting(dir, false), defaultJumpstartConfig());
+
+        assertThat(Files.size(file)).isGreaterThan(0L);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0, 98})
+    void truncateOnUpgradeLeavesFileWhenJumpstartConfigured(final long jumpstartBlockNum) throws Exception {
+        final var dir = createRecentHashesDir(90, 100);
+        final var file = dir.resolve(WrappedRecordFileBlockHashesDiskWriter.DEFAULT_FILE_NAME);
+
+        subject.truncateHashesFileOnUpgrade(
+                recordsConfigWithWriting(dir, true), jumpstartConfig(jumpstartBlockNum, 4, 1));
+
+        assertThat(Files.size(file)).isGreaterThan(0L);
+    }
+
+    @Test
+    void truncateOnUpgradeLeavesFileAfterFailedJumpstart() throws Exception {
+        final var dir = createRecentHashesDir(90, 100);
+        final var file = dir.resolve(WrappedRecordFileBlockHashesDiskWriter.DEFAULT_FILE_NAME);
+        final var config = recordsConfigWithWriting(dir, true);
+        // Block 50 is not in the file, so the jumpstart fails and its data must be kept for a retry
+        final var failingJumpstart = jumpstartConfig(50, 1, 1);
+
+        subject.execute(StreamMode.RECORDS, config, failingJumpstart, false);
+        subject.truncateHashesFileOnUpgrade(config, failingJumpstart);
+
+        assertNull(subject.result());
+        assertThat(Files.size(file)).isGreaterThan(0L);
+    }
+
+    @Test
+    void truncateOnUpgradeTruncatesFileWhenMigrationAlreadyAppliedAndNoJumpstart() throws Exception {
+        // A node that missed the last jumpstart, upgrading with no new jumpstart configured
+        final var dir = createRecentHashesDir(90, 100);
+        final var file = dir.resolve(WrappedRecordFileBlockHashesDiskWriter.DEFAULT_FILE_NAME);
+        final var config = recordsConfigWithWriting(dir, true);
+
+        subject.execute(StreamMode.RECORDS, config, defaultJumpstartConfig(), true);
+        subject.truncateHashesFileOnUpgrade(config, defaultJumpstartConfig());
+
+        assertNull(subject.result());
+        assertThat(Files.size(file)).isZero();
+    }
+
+    @Test
+    void truncateOnUpgradeDoesNotFailWhenFileMissingOrDirBlank() {
+        final var missingDir = tempDir.resolve("missing-dir");
+        final var missingDirConfig = recordsConfigWithWriting(missingDir, true);
+        final var blankDirConfig =
+                recordsConfigWith(RECORDS, true, b -> b.withValue("hedera.recordStream.wrappedRecordHashesDir", "")
+                        .withValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", true));
+
+        assertDoesNotThrow(() -> subject.truncateHashesFileOnUpgrade(missingDirConfig, defaultJumpstartConfig()));
+        assertDoesNotThrow(() -> subject.truncateHashesFileOnUpgrade(blankDirConfig, defaultJumpstartConfig()));
+        assertThat(Files.exists(missingDir)).isFalse();
+    }
+
+    private Path createRecentHashesDir(final long firstBlock, final long lastBlock) throws Exception {
+        final List<WrappedRecordFileBlockHashes> entries = new ArrayList<>();
+        for (long i = firstBlock; i <= lastBlock; i++) {
+            entries.add(entry(i));
+        }
+        return createRecentHashesDir(entries);
+    }
+
+    private BlockRecordStreamConfig recordsConfigWithWriting(final Path dir, final boolean writeToDisk) {
+        return recordsConfigWith(
+                RECORDS, true, b -> b.withValue("hedera.recordStream.wrappedRecordHashesDir", dir.toString())
+                        .withValue("hedera.recordStream.writeWrappedRecordFileBlockHashesToDisk", writeToDisk));
     }
 
     private Path createRecentHashesDir(List<WrappedRecordFileBlockHashes> entries) throws Exception {

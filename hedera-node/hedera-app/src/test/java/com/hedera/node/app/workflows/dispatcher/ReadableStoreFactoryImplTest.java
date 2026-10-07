@@ -7,6 +7,10 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
+import com.hedera.node.app.service.clpr.ReadableChannelStore;
+import com.hedera.node.app.service.clpr.ReadableConnectorStore;
+import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
+import com.hedera.node.app.service.clpr.ReadableMessageQueueStore;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.networkadmin.ReadableFreezeStore;
@@ -51,7 +55,13 @@ class ReadableStoreFactoryImplTest {
                 ReadableFileStore.class,
                 ReadableFreezeStore.class,
                 ReadableNodeStore.class,
-                ReadableTokenRelationStore.class
+                ReadableTokenRelationStore.class,
+
+                // clpr-related stores
+                ReadableConnectorStore.class,
+                ReadableChannelStore.class,
+                ReadableLedgerConfigurationStore.class,
+                ReadableMessageQueueStore.class,
             })
     void returnCorrectStoreClass(final Class<?> storeClass) {
         // given

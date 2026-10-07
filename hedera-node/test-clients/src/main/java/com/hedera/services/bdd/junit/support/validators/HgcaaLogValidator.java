@@ -117,7 +117,8 @@ public class HgcaaLogValidator {
                 List.of("Downloaded WRAPS proving key hash mismatch"),
                 List.of("WRAPS proving key download did not complete"),
                 List.of("Failed to initiate async download of WRAPS proving key (from URL "),
-                List.of("WRAPS enabled but this node cannot build recursive proofs", "data/keys"));
+                List.of("WRAPS enabled but this node cannot build recursive proofs", "data/keys"),
+                List.of("QueryWorkflowImpl", "Unexpected ParseException while parsing protobuf"));
 
         private int numProblems = 0;
         private int linesSinceInitialProblem = -1;

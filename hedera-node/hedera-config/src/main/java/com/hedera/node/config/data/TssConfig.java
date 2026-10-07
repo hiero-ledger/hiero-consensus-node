@@ -40,13 +40,13 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean useDeterministicHintsSignatures,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean hintsEnabled,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean historyEnabled,
         // Whether to switch to the WrapsHistoryProver after the genesis block
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean wrapsEnabled,
         // Must be true if enabling TSS while also using an override network,
         // to give express consent for breaking the address book chain of trust
@@ -70,7 +70,7 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "true") @NetworkProperty
         boolean forceMockSignatures,
 
-        @ConfigProperty(defaultValue = "true") @NetworkProperty
+        @ConfigProperty(defaultValue = "false") @NetworkProperty
         boolean wrapsProvingKeyDownloadEnabled,
 
         @ConfigProperty(defaultValue = "data/keys/wraps.tar.gz") @NodeProperty

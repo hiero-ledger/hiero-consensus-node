@@ -3,7 +3,7 @@ pluginManagement { includeBuild("gradle/besu-native-patch") }
 
 plugins {
     id("org.hiero.gradle.build") version "0.7.11"
-    id("com.hedera.pbj.pbj-compiler") version "0.15.10" apply false
+    id("com.hedera.pbj.pbj-compiler") version "0.15.11" apply false
     id("org.hiero.gradle.feature.besu-native-patch")
 }
 
@@ -26,6 +26,8 @@ javaModules {
         module("hedera-app") { artifact = "app" }
         module("hedera-app-spi") { artifact = "app-spi" }
         module("hedera-config") { artifact = "config" }
+        module("hedera-clpr-service") { artifact = "app-service-clpr" }
+        module("hedera-clpr-service-impl") { artifact = "app-service-clpr-impl" }
         module("hedera-consensus-service") { artifact = "app-service-consensus" }
         module("hedera-consensus-service-impl") { artifact = "app-service-consensus-impl" }
         module("hedera-file-service") { artifact = "app-service-file" }

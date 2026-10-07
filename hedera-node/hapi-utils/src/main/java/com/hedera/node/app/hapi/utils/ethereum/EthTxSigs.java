@@ -13,8 +13,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.foreign.MemorySegment;
 import java.math.BigInteger;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.Optional;
-import org.apache.commons.codec.binary.Hex;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.bouncycastle.asn1.sec.SECNamedCurves;
@@ -207,8 +207,8 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
     @NonNull
     public String toString() {
         return MoreObjects.toStringHelper(this)
-                .add("publicKey", Hex.encodeHexString(publicKey))
-                .add("address", Hex.encodeHexString(address))
+                .add("publicKey", HexFormat.of().formatHex(publicKey))
+                .add("address", HexFormat.of().formatHex(address))
                 .toString();
     }
 

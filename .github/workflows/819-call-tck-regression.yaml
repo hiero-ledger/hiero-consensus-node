@@ -272,6 +272,7 @@ jobs:
           kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-rest 5551:http &
           kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-restjava 8084:http &
           kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-grpc 5600:5600 &
+          kubectl -n "${SOLO_NAMESPACE}" port-forward svc/mirror-1-web3 8545:http &
           sleep 5
 
       - name: Wait for network readiness

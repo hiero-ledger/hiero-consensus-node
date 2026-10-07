@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package com.hedera.hapi.node.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hederahashgraph.api.proto.java";
+// <<<pbj.java_package = "com.hedera.hapi.node.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/query_header.proto";
+import "services/response_header.proto";
+import "services/state/clpr/clpr_ledger_configuration.proto";
+
+/**
+ * Query to retrieve the current CLPR ledger configuration.
+ * This is the only HAPI query in CLPR.
+ */
+message ClprGetLedgerConfigurationQuery {
+    /**
+     * Standard query header.
+     */
+    proto.QueryHeader header = 1;
+}
+
+/**
+ * Response containing the current CLPR ledger configuration.
+ */
+message ClprGetLedgerConfigurationResponse {
+    /**
+     * Standard response header.
+     */
+    proto.ResponseHeader header = 1;
+
+    /**
+     * The current CLPR ledger configuration.
+     */
+    com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration configuration = 2;
+
+    /**
+     * A serialized StateProof carrying the Merkle path from the ClprLedgerConfiguration
+     * singleton leaf up to the latest signed block root on this ledger.
+     *
+     * Suitable verbatim as the configuration_proof_bytes for a peer's
+     * ClprCompleteChannel transaction when that peer's verifier is the
+     * native HieroTssVerifier (or any verifier that accepts a StateProof).
+     *
+     * Empty when no signed block snapshot is available yet (e.g. during node
+     * bring-up before the first block is signed); clients should retry.
+     */
+    bytes configuration_state_proof = 3;
+}

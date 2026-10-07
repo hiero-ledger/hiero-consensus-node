@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsTimeframe;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogDoesNotContainText;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.awaitBlockNodeCommsLogContainsText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
@@ -106,6 +107,10 @@ public class BlockNodeBackPressureSuite {
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "false",
+                            "tss.hintsEnabled",
+                            "true",
+                            "tss.historyEnabled",
+                            "true",
                             "tss.forceMockSignatures",
                             "false"
                         })
@@ -166,6 +171,10 @@ public class BlockNodeBackPressureSuite {
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "false",
+                            "tss.hintsEnabled",
+                            "true",
+                            "tss.historyEnabled",
+                            "true",
                             "tss.forceMockSignatures",
                             "false"
                         }),
@@ -186,6 +195,10 @@ public class BlockNodeBackPressureSuite {
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "false",
+                            "tss.hintsEnabled",
+                            "true",
+                            "tss.historyEnabled",
+                            "true",
                             "tss.forceMockSignatures",
                             "false"
                         }),
@@ -206,6 +219,10 @@ public class BlockNodeBackPressureSuite {
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "false",
+                            "tss.hintsEnabled",
+                            "true",
+                            "tss.historyEnabled",
+                            "true",
                             "tss.forceMockSignatures",
                             "false"
                         }),
@@ -226,6 +243,10 @@ public class BlockNodeBackPressureSuite {
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "false",
+                            "tss.hintsEnabled",
+                            "true",
+                            "tss.historyEnabled",
+                            "true",
                             "tss.forceMockSignatures",
                             "false"
                         })
@@ -234,9 +255,9 @@ public class BlockNodeBackPressureSuite {
     final Stream<DynamicTest> backPressureAllNodesCheckingScenario() {
         final AtomicReference<Instant> time = new AtomicReference<>();
         return hapiTest(
-                // Let the 4-node network stabilize before shutting down the block node
-                doingContextual(
-                        spec -> LockSupport.parkNanos(Duration.ofSeconds(30).toNanos())),
+                // Confirm blocks are being acknowledged before starting the shutdown scenario.
+                awaitBlockNodeCommsLogContainsText(
+                        byNodeId(0), "BlockAcknowledgement received for block", Duration.ofMinutes(2)),
                 // Capture the time before shutting down: the buffer can saturate and log backpressure
                 // during the container's shutdown/drain phase, before shutDownImmediately() returns.
                 doingContextual(spec -> time.set(Instant.now())),
@@ -306,6 +327,10 @@ public class BlockNodeBackPressureSuite {
                             "false",
                             "blockStream.buffer.isBufferPersistenceEnabled",
                             "false",
+                            "tss.hintsEnabled",
+                            "true",
+                            "tss.historyEnabled",
+                            "true",
                             "tss.forceMockSignatures",
                             "false"
                         })
