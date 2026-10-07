@@ -144,9 +144,8 @@ public class SendMessageCall extends AbstractCall {
             @NonNull final Runnable continuation) {
         authorized = child.getState() == MessageFrame.State.COMPLETED_SUCCESS
                 && decodeBoolResult(tuweniToPbjBytes(child.getOutputData()));
-        if (authorized) {
-            frame.addLogs(child.getLogs());
-        }
+        // Merge the child's logs as a CALL's completer would; if authorization fails the send reverts, clearing them
+        frame.addLogs(child.getLogs());
         frame.setState(MessageFrame.State.CODE_EXECUTING);
         continuation.run();
     }
