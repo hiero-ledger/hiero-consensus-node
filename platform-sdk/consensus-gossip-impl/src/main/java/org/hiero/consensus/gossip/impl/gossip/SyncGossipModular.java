@@ -18,6 +18,7 @@ import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -60,11 +61,11 @@ public class SyncGossipModular implements Gossip {
     private final FallenBehindMonitor fallenBehindMonitor;
     private final ShadowgraphSynchronizer synchronizer;
     private final ReconnectProxyProtocolFactory proxyProtocolFactory;
+    private final AtomicReference<PlatformStatus> platformStatusHolder = new AtomicReference<>(PlatformStatus.STARTING_UP);
 
     // this is not a nice dependency, should be removed as well as the sharedState
     private Consumer<PlatformEvent> receivedEventHandler;
     private Consumer<SyncProgress> syncProgressHandler;
-    private final StatusMonitorModule statusMonitorModule;
 
     /**
      * Builds the gossip engine, depending on which flavor is requested in the configuration.
@@ -143,8 +144,8 @@ public class SyncGossipModular implements Gossip {
                 selfId,
                 fallenBehindMonitor,
                 event -> receivedEventHandler.accept(event),
-                statusMonitorModule);
-        this.statusMonitorModule = statusMonitorModule;
+                statusMonitorModule,
+                platformStatusHolder::get);
 
         proxyProtocolFactory = new ReconnectProxyProtocolFactory(
                 metrics,
@@ -221,7 +222,7 @@ public class SyncGossipModular implements Gossip {
         eventWindowInput.bindConsumer(synchronizer::updateEventWindow);
 
         systemHealthInput.bindConsumer(rpcProtocolFactory::reportUnhealthyDuration);
-        platformStatusInput.bindConsumer(rpcProtocolFactory::updatePlatformStatus);
+        platformStatusInput.bindConsumer(platformStatusHolder::set);
         pauseGossip.bindConsumer(ignored -> {
             rpcProtocolFactory.pause();
             fallenBehindMonitor.notifySyncProtocolPaused();

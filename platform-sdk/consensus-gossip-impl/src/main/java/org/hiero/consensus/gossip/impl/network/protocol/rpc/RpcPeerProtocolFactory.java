@@ -13,8 +13,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.pool.CachedPoolParallelExecutor;
@@ -47,7 +47,6 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
     private static final Logger logger = LogManager.getLogger(RpcPeerProtocolFactory.class);
 
     private final CachedPoolParallelExecutor executor;
-    private final AtomicReference<PlatformStatus> platformStatus = new AtomicReference<>(PlatformStatus.STARTING_UP);
     private final NetworkMetrics networkMetrics;
     private final Time time;
     private final SyncMetrics syncMetrics;
@@ -81,6 +80,8 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
      */
     private final List<RpcPeerHandler> allRpcPeers = new CopyOnWriteArrayList<>();
 
+    private final Supplier<PlatformStatus> platformStatusSupplier;
+
     /**
      * Constructs a new sync protocol
      *
@@ -97,6 +98,7 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
      * @param fallenBehindMonitor shared monitoring of our event window falling behind peers
      * @param receivedEventHandler events that are received are passed here
      * @param statusMonitorModule module to report platform status to
+     * @param platformStatusSupplier supplier of the current platform status
      */
     public RpcPeerProtocolFactory(
             @NonNull final Configuration configuration,
@@ -111,7 +113,8 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
             @NonNull final NodeId selfId,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final Consumer<PlatformEvent> receivedEventHandler,
-            @NonNull final StatusMonitorModule statusMonitorModule) {
+            @NonNull final StatusMonitorModule statusMonitorModule,
+            @NonNull final Supplier<PlatformStatus> platformStatusSupplier) {
 
         this.synchronizer = synchronizer;
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
@@ -138,6 +141,7 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
         this.fallenBehindMonitor = fallenBehindMonitor;
         this.receivedEventHandler = receivedEventHandler;
         this.statusMonitorModule = statusMonitorModule;
+        this.platformStatusSupplier = platformStatusSupplier;
     }
 
     /**
@@ -149,7 +153,7 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
                 peerId,
                 executor,
                 gossipHalted::get,
-                platformStatus::get,
+                platformStatusSupplier,
                 permitProvider,
                 networkMetrics,
                 time,
@@ -267,15 +271,6 @@ public class RpcPeerProtocolFactory implements PeerProtocolFactory, GossipContro
      */
     public void reportUnhealthyDuration(@NonNull final Duration duration) {
         permitProvider.reportUnhealthyDuration(duration);
-    }
-
-    /**
-     * Update the platform status. Syncs are only initiated and accepted while the status permits it.
-     *
-     * @param status the new platform status
-     */
-    public void updatePlatformStatus(@NonNull final PlatformStatus status) {
-        platformStatus.set(status);
     }
 
     /**
