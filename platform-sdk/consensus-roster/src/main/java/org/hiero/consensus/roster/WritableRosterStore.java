@@ -40,8 +40,8 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
     private final WritableKVState<ProtoBytes, Roster> rosterMap;
 
     /**
-     * Constructs a new {@link WritableRosterStore} instance that hashes rosters with the platform's default digest type
-     * while no roster hash is stored.
+     * Constructs a new {@link WritableRosterStore} instance. Rosters are hashed with the digest type of the stored
+     * roster hashes, or the platform's default digest type when there are none yet.
      *
      * @param writableStates the readable states
      */
@@ -53,7 +53,7 @@ public class WritableRosterStore extends ReadableRosterStoreImpl {
      * Constructs a new {@link WritableRosterStore} instance.
      *
      * @param writableStates the readable states
-     * @param defaultDigestType the digest type to hash rosters with while no roster hash is stored
+     * @param defaultDigestType the digest type for roster hashes when the state holds none yet
      */
     public WritableRosterStore(
             @NonNull final WritableStates writableStates, @NonNull final DigestType defaultDigestType) {

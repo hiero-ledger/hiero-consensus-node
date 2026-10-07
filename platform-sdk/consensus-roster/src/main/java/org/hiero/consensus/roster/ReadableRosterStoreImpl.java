@@ -39,13 +39,13 @@ public class ReadableRosterStoreImpl implements ReadableRosterStore {
     private final ReadableKVState<ProtoBytes, Roster> rosterMap;
 
     /**
-     * The digest type to hash rosters with while no roster hash is stored.
+     * The digest type for roster hashes when the state holds none yet; otherwise rosters are hashed like the stored ones.
      */
     private final DigestType defaultDigestType;
 
     /**
-     * Create a new {@link ReadableRosterStore} instance that hashes rosters with the platform's default digest type
-     * while no roster hash is stored.
+     * Create a new {@link ReadableRosterStore} instance. Rosters are hashed with the digest type of the stored roster
+     * hashes, or the platform's default digest type when there are none yet.
      *
      * @param readableStates The state to use.
      */
@@ -57,7 +57,7 @@ public class ReadableRosterStoreImpl implements ReadableRosterStore {
      * Create a new {@link ReadableRosterStore} instance.
      *
      * @param readableStates The state to use.
-     * @param defaultDigestType the digest type to hash rosters with while no roster hash is stored
+     * @param defaultDigestType the digest type for roster hashes when the state holds none yet
      */
     public ReadableRosterStoreImpl(
             @NonNull final ReadableStates readableStates, @NonNull final DigestType defaultDigestType) {
