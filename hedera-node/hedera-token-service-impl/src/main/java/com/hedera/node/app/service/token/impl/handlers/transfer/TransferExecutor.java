@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.token.impl.handlers.transfer;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALIAS_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
@@ -9,6 +10,7 @@ import static com.hedera.hapi.util.HapiUtils.isHollow;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 import static com.hedera.node.app.service.token.AliasUtils.isAlias;
+import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchExecution;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.isStakingAccount;
 import static com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler.chargeableGasLimit;
@@ -577,19 +579,21 @@ public class TransferExecutor extends BaseTokenHandler {
                         ctx.requireKeyOrThrow(account.key(), INVALID_TRANSFER_ACCOUNT_ID);
                     }
                 }
-            } else if (hbarTransfer) {
+            } else {
                 // It is possible for the transfer to be valid even if the account is not found. For example, we
                 // allow auto-creation of "hollow accounts" if you transfer value into an account *by alias* that
                 // didn't previously exist. If that is not the case, then we fail because we couldn't find the
                 // destination account.
-                if (!isCredit || !isAlias(accountId)) {
-                    // Interestingly, this means that if the transfer amount is exactly 0 and the account has a
-                    // non-existent alias, then we fail.
+                if (isDebit || !isAlias(accountId) || (hbarTransfer && !isCredit)) {
                     throw new PreCheckException(INVALID_ACCOUNT_ID);
                 }
-            } else if (isDebit) {
-                // All debited accounts must be valid
-                throw new PreCheckException(INVALID_ACCOUNT_ID);
+                // A missing long-zero address cannot be auto-created. Positive credits historically
+                // failed creation with INVALID_ALIAS_KEY; zero adjustments require an existing account.
+                if (isEntityNumAlias(accountId.aliasOrThrow())) {
+                    throw new PreCheckException(isCredit ? INVALID_ALIAS_KEY : INVALID_ACCOUNT_ID);
+                }
+                // A zero token adjustment may refer to an alias created by another credit in this transfer.
+                // Handle will reject it if no such creation occurs.
             }
         }
     }
