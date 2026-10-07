@@ -1916,6 +1916,28 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @Test
+    @DisplayName("ConfigUpdate without a configuration is consumed and leaves peerConfigTimestamp unchanged")
+    void configUpdateWithoutConfigurationLeavesPeerTimestampUnchanged() {
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        final var before = channelStore.getChannel(CHANNEL_ID);
+
+        final var emptyConfigUpdatePayload = ClprMessagePayload.newBuilder()
+                .control(ClprControlMessage.newBuilder()
+                        .configUpdate(ClprConfigUpdate.newBuilder().build())
+                        .build())
+                .build();
+        final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(emptyConfigUpdatePayload));
+        setupHandleContext(bundle, true);
+
+        subject.handle(handleContext);
+
+        final var updated = channelStore.getChannel(CHANNEL_ID);
+        assertThat(updated.receivedMessageId()).isEqualTo(1L);
+        assertThat(updated.peerConfigTimestamp()).isEqualTo(before.peerConfigTimestamp());
+        assertThat(updated.peerThrottles()).isEqualTo(before.peerThrottles());
+    }
+
+    @Test
     @DisplayName("rejects bundle containing a ClprControlMessage with no known variant (spec §1.3)")
     void rejectsControlMessageUnknownVariant() {
         // Spec §1.3: unknown control-message variants MUST reject the entire bundle. Silently
