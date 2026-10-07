@@ -971,10 +971,19 @@ public class ConsensusImpl implements Consensus {
         if (notRelevantForConsensus(x)) {
             return null;
         }
-        if (x.sizeLastSee() != 0) { // return memoized answer, if available
-            return x.getLastSee((int) m);
+        if (x.sizeLastSee() == 0) { // calculate and memoize the answers, if not available yet
+            calculateLastSee(x);
         }
-        // memoize answers for all choices of m, then return answer for just this m
+        return x.getLastSee((int) m);
+    }
+
+    /**
+     * Calculates and memoizes {@link #lastSee(EventImpl, long)} of x for all members. A separate method, so that the
+     * memoized lookup stays small and the JIT compiler can inline it into its recursive callers cheaply.
+     *
+     * @param x the event being queried, relevant for consensus
+     */
+    private void calculateLastSee(@NonNull final EventImpl x) {
         x.initLastSee(roster.size());
 
         for (int mm = 0; mm < roster.size(); mm++) {
@@ -1015,7 +1024,6 @@ public class ConsensusImpl implements Consensus {
             }
             x.setLastSee(mm, latestEventSeen);
         }
-        return x.getLastSee((int) m);
     }
 
     /**
@@ -1060,11 +1068,19 @@ public class ConsensusImpl implements Consensus {
         if (notRelevantForConsensus(x)) {
             return null;
         }
-        if (x.sizeStronglySeeP() != 0) { // return memoized answer, if available
-            return x.getStronglySeeP((int) m);
+        if (x.sizeStronglySeeP() == 0) { // calculate and memoize the answers, if not available yet
+            calculateStronglySeeP(x);
         }
-        // calculate the answer, and remember it for next time
-        // find and memoize answers for all choices of m, then return answer for just this m
+        return x.getStronglySeeP((int) m);
+    }
+
+    /**
+     * Calculates and memoizes {@link #stronglySeeP(EventImpl, long)} of x for all members. A separate method, so that
+     * the memoized lookup stays small and the JIT compiler can inline it into its recursive callers cheaply.
+     *
+     * @param x the event being queried, relevant for consensus
+     */
+    private void calculateStronglySeeP(@NonNull final EventImpl x) {
         final long prx = parentRound(x); // parent round of x
 
         x.initStronglySeeP(roster.size());
@@ -1102,7 +1118,6 @@ public class ConsensusImpl implements Consensus {
                 }
             }
         }
-        return x.getStronglySeeP((int) m);
     }
 
     /**

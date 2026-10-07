@@ -43,17 +43,17 @@ public class Hash implements Comparable<Hash>, SerializableWithKnownLength, Seri
      * Instantiate a hash with data from a byte array with a specific digest type. This constructor assumes that the
      * array provided will not be modified after this call.
      *
-     * @param value
-     * 		the hash bytes
-     * @param digestType
-     * 		the digest type
+     * @param value      the hash bytes
+     * @param digestType the digest type
      */
     public Hash(@NonNull final Bytes value, @NonNull final DigestType digestType) {
         Objects.requireNonNull(value, "value");
         Objects.requireNonNull(digestType, "digestType");
 
         if ((int) value.length() != digestType.digestLength()) {
-            throw new IllegalArgumentException("value: " + value.length());
+            throw new IllegalArgumentException(String.format(
+                    "Unexpected digest length of %d, expected %d for %s: ",
+                    value.length(), digestType.digestLength(), digestType));
         }
 
         this.digestType = digestType;
@@ -63,8 +63,7 @@ public class Hash implements Comparable<Hash>, SerializableWithKnownLength, Seri
     /**
      * Create a hash by copying data from another hash.
      *
-     * @param other
-     * 		the hash to copy
+     * @param other the hash to copy
      */
     public Hash(@NonNull final Hash other) {
         if (other == null) {
@@ -224,8 +223,7 @@ public class Hash implements Comparable<Hash>, SerializableWithKnownLength, Seri
     /**
      * Create a short string representation of this hash.
      *
-     * @param length
-     * 		the number of characters to include in the short string
+     * @param length the number of characters to include in the short string
      */
     public @NonNull String toHex(final int length) {
         return (bytes == null) ? "null" : CommonUtils.hex(bytes, length);
