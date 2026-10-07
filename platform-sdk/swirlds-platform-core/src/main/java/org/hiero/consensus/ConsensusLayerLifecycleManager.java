@@ -81,6 +81,7 @@ public class ConsensusLayerLifecycleManager {
         return PlatformStateUtils.consensusSnapshotOf(state.get().getState());
     }
 
+    @Nullable
     public ConsensusLayer get() {
         return consensusLayer;
     }

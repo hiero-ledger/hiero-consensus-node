@@ -12,6 +12,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.function.Consumer;
 import org.hiero.consensus.ConsensusLayer.StatusUpdate;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.notification.IssNotification.IssType;
@@ -21,6 +22,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.state.StateModule;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.transaction.handling.TransactionHandlingModule;
+import org.hiero.consensus.transaction.handling.TransactionHandlingModule.RoundRequest;
 
 /**
  * Encapsulates wiring for {@link com.swirlds.platform.SwirldsPlatform}.
@@ -71,6 +73,15 @@ public class ConsensusLayerAdapterWiring {
         txnHandling.stateWithHashComplexityOutputWire().solderTo(state.unhashedStatesInputWire());
 
         txnHandling.stateOutputWire().solderTo(state.garbageCollectorRegistrationInputWire());
+
+        final Consumer<RoundRequest> roundRequestConsumer = (roundRequest) -> {
+            final ConsensusLayer consensusLayer = buildingBlocks.consensusLayerLifecycleManager().get();
+            if (consensusLayer != null) {
+                consensusLayer.requestNextRound(roundRequest.roster(), roundRequest.freezeTime());
+            }
+        };
+        txnHandling.roundRequestOutputWire().solderTo("consensusLayerRef_roundRequest", "roundRequest",
+                roundRequestConsumer);
     }
 
     /**

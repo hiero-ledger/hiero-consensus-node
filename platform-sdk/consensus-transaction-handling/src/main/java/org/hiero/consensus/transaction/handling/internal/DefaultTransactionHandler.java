@@ -49,10 +49,12 @@ import org.hiero.consensus.main.model.Round;
 import org.hiero.consensus.model.stream.RunningEventHashOverride;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.platformstate.PlatformStateModifier;
+import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.state.signed.ReservedSignedState;
 import org.hiero.consensus.state.signed.SignedState;
 import org.hiero.consensus.state.signed.StateWithHashComplexity;
 import org.hiero.consensus.transaction.handling.TransactionCallbacks;
+import org.hiero.consensus.transaction.handling.TransactionHandlingModule.RoundRequest;
 import org.hiero.consensus.transaction.handling.config.TransactionHandlingWiringConfig;
 
 /**
@@ -125,6 +127,9 @@ public class DefaultTransactionHandler implements TransactionHandler {
      */
     private final long transactionOffsetNanos;
 
+    /** A callback to request the next round from the consensus layer. */
+    private final Consumer<RoundRequest> nextRoundRequester;
+
     /**
      * Constructor
      *
@@ -142,7 +147,8 @@ public class DefaultTransactionHandler implements TransactionHandler {
             @NonNull final SemanticVersion softwareVersion,
             @NonNull final TransactionCallbacks transactionCallbacks,
             @NonNull final NodeId selfId,
-            final long transactionOffsetNanos) {
+            final long transactionOffsetNanos,
+            @NonNull final Consumer<RoundRequest> nextRoundRequester) {
 
         this.configuration = requireNonNull(configuration);
         this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
@@ -150,6 +156,7 @@ public class DefaultTransactionHandler implements TransactionHandler {
         this.transactionCallbacks = requireNonNull(transactionCallbacks);
         this.selfId = requireNonNull(selfId);
         this.transactionOffsetNanos = transactionOffsetNanos;
+        this.nextRoundRequester = requireNonNull(nextRoundRequester);
 
         this.roundsNonAncient =
                 configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
@@ -185,6 +192,17 @@ public class DefaultTransactionHandler implements TransactionHandler {
     @Override
     @Nullable
     public TransactionHandlerResult handleConsensusRound(@NonNull final Round consensusRound) {
+        try {
+            return processConsensusRound(consensusRound);
+        } finally {
+            // Every round fulfills one request, so request the next one even if the round was ignored or no signed
+            // state was created
+            requestNextRound();
+        }
+    }
+
+    @Nullable
+    private TransactionHandlerResult processConsensusRound(@NonNull final Round consensusRound) {
         // consensus rounds with no events are ignored
         if (consensusRound.isEmpty()) {
             // Future work: the long term goal is for empty rounds to not be ignored here. For now, the way that the
@@ -242,6 +260,12 @@ public class DefaultTransactionHandler implements TransactionHandler {
         } finally {
             handlerMetrics.setPhase(IDLE);
         }
+    }
+
+    private void requestNextRound() {
+        final Instant freezeTime = PlatformStateUtils.freezeTimeOf(stateLifecycleManager.getMutableState());
+        // TODO pass the new roster once roster changes are supported, null means no new roster
+        nextRoundRequester.accept(new RoundRequest(null, freezeTime));
     }
 
     /**

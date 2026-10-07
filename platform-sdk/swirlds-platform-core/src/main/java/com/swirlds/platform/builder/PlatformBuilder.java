@@ -20,12 +20,14 @@ import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Instant;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.consensus.ConsensusLayer;
 import org.hiero.consensus.ConsensusLayerAdapterBuildingBlocks;
 import org.hiero.consensus.ConsensusLayerAdapterFactory;
 import org.hiero.consensus.ConsensusLayerAdapterInputs;
@@ -35,6 +37,7 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.io.RecycleBin;
 import org.hiero.consensus.main.model.NodeId;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.platformstate.PlatformStateUtils;
 import org.hiero.consensus.reconnect.config.ReconnectConfig;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -210,6 +213,12 @@ public class PlatformBuilder<T extends PlatformBuilder<T>> {
 
         // FutureWork figure out if this can be moved into Platform.start()
         getMetricsProvider().start();
+
+        final ConsensusLayer consensusLayer = buildingBlocks.consensusLayerLifecycleManager().get();
+        // TODO: Make configurable, check if there is a freeze time
+        consensusLayer.requestNextRound(rosterHistory.getCurrentRoster(), null);
+        consensusLayer.requestNextRound(rosterHistory.getCurrentRoster(), null);
+        consensusLayer.requestNextRound(rosterHistory.getCurrentRoster(), null);
 
         return platform;
     }

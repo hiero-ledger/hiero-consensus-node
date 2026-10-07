@@ -86,7 +86,8 @@ public class TransactionHandlerTester implements AutoCloseable {
                 SemanticVersion.DEFAULT,
                 consensusStateEventHandler,
                 NodeId.of(1),
-                0L);
+                0L,
+                _ -> {});
     }
 
     /**

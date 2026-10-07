@@ -4,19 +4,25 @@ package org.hiero.consensus.transaction.handling;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration.DIRECT_THREADSAFE_CONFIGURATION;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.component.InputWireLabel;
+import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.model.WiringModel;
+import com.swirlds.component.framework.schedulers.ExceptionHandlers;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
+import com.swirlds.component.framework.wires.output.StandardOutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Instant;
 import java.util.Queue;
 import java.util.function.Consumer;
 import org.hiero.consensus.main.model.Event;
@@ -42,6 +48,8 @@ import org.hiero.consensus.transaction.handling.internal.TransactionPrehandler;
 
 public class TransactionHandlingModule {
 
+    public record RoundRequest(@Nullable Roster roster, @Nullable Instant freezeTime) {}
+
     public static final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> NO_OP_CONSUMER = _ -> {};
 
     private final ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
@@ -52,6 +60,7 @@ public class TransactionHandlingModule {
     private final OutputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>> handleSignaturesOutputWire;
     private final OutputWire<ReservedSignedState> stateOutputWire;
     private final OutputWire<StateWithHashComplexity> stateWithHashComplexityOutputWire;
+    private final StandardOutputWire<RoundRequest> roundRequestOutputWire;
 
     // These input wires are cached, because lookups are expensive and they are called for each event/round
     private final InputWire<Event> preHandleEventInputWire;
@@ -118,6 +127,9 @@ public class TransactionHandlingModule {
                 prehanderWiring.getInputWire(TransactionPrehandler::prehandleApplicationTransactions);
         this.handleConsensusRoundInputWire = handlerWiring.getInputWire(TransactionHandler::handleConsensusRound);
 
+        this.roundRequestOutputWire = new StandardOutputWire<>((TraceableWiringModel) model, "nextRoundRequester",
+                ExceptionHandlers.defaultExceptionHandler("nextRoundRequester"));
+
         // Create and bind components
         latestImmutableStateNexusWiring.bind(latestImmutableStateNexus);
         final TransactionPrehandler transactionPrehandler =
@@ -131,7 +143,8 @@ public class TransactionHandlingModule {
                 softwareVersion,
                 transactionCallbacks,
                 selfId,
-                transactionOffsetNanos);
+                transactionOffsetNanos,
+                roundRequestOutputWire::forward);
         handlerWiring.bind(transactionHandler);
     }
 
@@ -216,6 +229,10 @@ public class TransactionHandlingModule {
     @NonNull
     public OutputWire<Queue<ScopedSystemTransaction<StateSignatureTransaction>>> handleSignaturesOutputWire() {
         return handleSignaturesOutputWire;
+    }
+
+    public OutputWire<RoundRequest> roundRequestOutputWire() {
+        return roundRequestOutputWire;
     }
 
     /**
