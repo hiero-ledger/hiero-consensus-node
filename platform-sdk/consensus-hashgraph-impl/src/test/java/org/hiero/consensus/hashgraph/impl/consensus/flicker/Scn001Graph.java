@@ -100,6 +100,7 @@ public final class Scn001Graph {
 
     /** Creator indices into the roster's node ids. */
     private static final int A = 0;
+
     private static final int B = 1;
     private static final int C = 2;
     private static final int D = 3;

@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Objects;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
+import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.Change.MetadataCleared;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.ConsensusTraceLog;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.FlickerIntake;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.NamedEvent;
@@ -83,6 +84,29 @@ class Scn001Test {
                         mid.getRoundCreated(),
                         trace.render(null))
                 .isGreaterThanOrEqualTo(mid.getRoundCreated());
+
+        // The same claim read off the trace log instead of the live objects.
+        //
+        // THIS ASSERTION IS NOT STRICTLY NECESSARY. It is here as a worked example of asserting on the trace log,
+        // because SCN-001 is the first scenario where the recorder has something a consensus round cannot show.
+        //
+        // It is deliberately weaker than it looks, and over-specified on purpose. What actually matters is the round
+        // value j2 ends up with and the witness, fame and judge decisions taken from it - which the assertion above
+        // pins. This one pins *how* the implementation gets there: that j2's metadata is cleared before being
+        // recalculated. An equally correct implementation could overwrite roundCreated in place without clearing
+        // first, and would fail this while upholding INV-001 perfectly well.
+        //
+        // What it does buy is the bug's mechanism rather than its consequence. Under the pre-fix carve-out every
+        // judge of the just-decided round was exempt from clearing, so j2 emitted no MetadataCleared at all and kept
+        // a stale round while its ancestor moved. That absence is the defect; the inequality above is only what the
+        // absence causes.
+        assertThat(trace.changes(MetadataCleared.class).map(MetadataCleared::name))
+                .withFailMessage(
+                        "Expected %s to be cleared and recalculated like any other non-terminal event. The "
+                                + "mitigation exempts a last-decided judge only when all of its parents are at "
+                                + "ROUND_NEGATIVE_INFINITY, which %s - a descendant of %s - is not.%nTrace:%n%s",
+                        Scn001Graph.J2, Scn001Graph.J2, Scn001Graph.J1, trace.render(null))
+                .contains(Scn001Graph.J2);
     }
 
     private static List<Hash> allHashes(final List<NamedEvent> graph) {

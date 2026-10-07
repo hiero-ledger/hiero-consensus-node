@@ -7,6 +7,7 @@ import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.ConsensusTraceLo
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.FlickerIntake;
 import org.hiero.consensus.hashgraph.impl.test.fixtures.flicker.NamedEvent;
 import org.hiero.consensus.model.roster.RosterWrapper;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -24,6 +25,7 @@ class TraceDumpTest {
 
     private static final long SEED = 20260925L;
 
+    @Disabled
     @Test
     @DisplayName("print the LadderGraph trace")
     void printTrace() {

@@ -5,15 +5,16 @@ title: A round's judge exempted from clearing has another same-round judge in it
 symptoms: [ SYM-001 ]
 topics: [ hashgraph ]
 kind: near-miss
-verification: observed
+verification: test-reproduced
 severity: high
 related:
   invariants: [ INV-001 ]
   decisions: [ ]
   scenarios: [ ]
-  tests: [ ]
+  tests:
+    - consensus-hashgraph-impl/src/test/java/org/hiero/consensus/hashgraph/impl/consensus/flicker/Scn001Test.java
 status: verified
-provenance: caught by a JRS address-book/roster-change integration test that halted on this stall; JRS test framework subsequently retired
+provenance: caught by a JRS address-book/roster-change integration test that halted on this stall; JRS test framework subsequently retired; deterministically reproduced by Scn001Test
 curated_by: Kelly Greco (@poulok)
 last_reviewed: TBD
 ---
@@ -77,7 +78,7 @@ integration test failed on exactly this stall — the network never reached `ACT
 The bug is intermittent: it only manifests when a specific graph/roster combination arises — two same-round judges on a
 single ancestry chain, with the new roster weighting witnesses such that an intermediate non-judge gets promoted. Runs
 that drive roster changes will not hit it deterministically. The JRS catch was an intermittent failure in a
-roster-change test, not a deterministic reproduction.
+roster-change test, not a targeted reproduction; the constructed test in `related.tests` is.
 
 SYM-001 has many possible causes; the discriminator for this scenario is the timing (immediately after a roster-change
 restart) plus the graph shape under **Setup**. Deeper log/metric signatures beyond the status stall have not been
@@ -124,28 +125,18 @@ differs.
 
 ## Verification
 
-`observed`. The bug halted at least one JRS integration test in the subset that exercised address-book changes (now
-called roster changes). The state and PCES events from that failing run were preserved long enough for an engineer to
-replay them in the hashgraph GUI and step through the graph; every step in **Sequence** above was confirmed visually on
-the actual graph that produced the halt, not inferred from the algorithm. The structural argument from INV-001 predicts
-the halt under the conditions in **Setup**; the GUI replay confirmed that exactly that sequence is what occurred.
+`test-reproduced`. The test in `related.tests` constructs the J1 → A → J2 shape, drives the roster change, and asserts
+INV-001 across the replay. Restoring the pre-fix carve-out makes it fail with the inversion in **Sequence** step 5.
 
-Verification is `observed` rather than `test-reproduced` because no test deterministically reproduces this scenario; the
-JRS catch and the GUI replay together are the empirical evidence.
-
-A deterministic test for this scenario does not exist today and, as far as is known, never did — even the JRS catch was
-an intermittent failure rather than a targeted reproduction. Establishing one would require a hand-constructed test
-(most naturally in `consensus-hashgraph-impl`) that builds the exact J1 → A → J2 graph with two same-round judges on a
-single ancestry chain, drives a roster change crafted to promote the intermediate non-judge under the new roster, and
-asserts that the pre-fix carve-out produces an ancestor/descendant `roundCreated` inversion while the current code does
-not. That same test would be the natural place to attach a direct assertion of INV-001.
+The scenario was observed before it was reproduced. The bug halted at least one JRS integration test in the subset that
+exercised address-book changes (now called roster changes). The state and PCES events from that failing run were
+preserved long enough for an engineer to replay them in the hashgraph GUI and step through the graph; every step in
+**Sequence** above was confirmed visually on the actual graph that produced the halt, not inferred from the algorithm.
+The structural argument from INV-001 predicts the halt under the conditions in **Setup**; the GUI replay confirmed that
+exactly that sequence is what occurred.
 
 ## Open questions
 
-- Is a deterministic test of the J1 → A → J2 + roster-change shape worth hand-crafting? — feasible in
-  `consensus-hashgraph-impl` (build the graph and the crafted roster change directly), but not currently a priority
-  because the fix is in place. If a future run reproduces the stall, the graph and roster from that run can be lifted
-  directly into a unit test with no hand-crafting needed.
 - Are there other shapes of carve-out in the metadata-clearing step that could re-introduce the same class of
   violation? — answered by an audit of every event class that is exempted from clearing in `recalculateAndVote`,
   checking whether any can be an ancestor of another in the same class.
