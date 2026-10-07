@@ -32,9 +32,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hederahashgraph.api.proto.java.ClprEndpoint;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
-import com.hederahashgraph.api.proto.java.ClprServiceEndpoint;
 import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import com.hederahashgraph.api.proto.java.ContractID;
@@ -309,15 +307,6 @@ public class ClprChannelCommitRevealSuite {
                         .setMaxGasPerMessage(1_000_000L)
                         .setMaxQueueDepth(1000)
                         .setMaxSyncBytes(1_048_576L)
-                        .build())
-                // Non-empty endpoints required by ClprCompleteChannelHandler (spec §5.1.3
-                // step 5 — verified peer config must include at least one endpoint).
-                .addEndpoints(ClprEndpoint.newBuilder()
-                        .setServiceEndpoint(ClprServiceEndpoint.newBuilder()
-                                .setIpAddress("127.0.0.1")
-                                .setPort(50211)
-                                .build())
-                        .setTlsCertificate(ByteString.copyFrom(new byte[] {0x01}))
                         .build())
                 .build());
     }

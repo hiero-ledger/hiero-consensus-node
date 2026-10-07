@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.clpr.impl.handlers;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_SEED_ENDPOINT;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_TOO_MANY_SEED_ENDPOINTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CLPR_CONFIGURATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CLPR_SERVICE_ADDRESS;
@@ -10,7 +8,6 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePr
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
-import com.hedera.hapi.node.state.clpr.ClprEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.service.clpr.impl.ClprStateProofManager;
@@ -89,21 +86,6 @@ public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
         validateTruePreCheck(
                 throttles.maxSyncBytes() >= (long) throttles.maxMessagePayloadBytes() + MIN_PROOF_OVERHEAD_BYTES,
                 INVALID_CLPR_CONFIGURATION);
-
-        // Validate endpoints count against the supplied throttles' max_local_endpoints
-        // (spec §3.10.4). Zero means no local endpoint limit is enforced.
-        final var endpoints = config.endpoints();
-        final int rawLimit = throttles.maxLocalEndpoints();
-        if (rawLimit > 0 && endpoints.size() > rawLimit) {
-            // Keeping CLPR_TOO_MANY_SEED_ENDPOINTS as the wire-level response code — the legacy
-            // name reflects the previous proto field; renaming the enum is a separate concern.
-            throw new PreCheckException(CLPR_TOO_MANY_SEED_ENDPOINTS);
-        }
-
-        // Validate each endpoint has required fields
-        for (final var endpoint : endpoints) {
-            validateEndpoint(endpoint);
-        }
     }
 
     @Override
@@ -148,16 +130,10 @@ public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
                 .serviceAddress(serviceAddress)
                 .timestamp(toTimestamp(consensusNow))
                 .throttles(supplied.throttles())
-                .endpoints(supplied.endpoints())
                 .initialTrustAnchor(initialTrustAnchor)
                 .initialTrustAnchorId(initialTrustAnchorId)
                 .build();
 
         configStore.put(updatedConfig);
-    }
-
-    private static void validateEndpoint(@NonNull final ClprEndpoint endpoint) throws PreCheckException {
-        validateTruePreCheck(endpoint.hasServiceEndpoint(), CLPR_INVALID_SEED_ENDPOINT);
-        validateTruePreCheck(!endpoint.tlsCertificate().equals(Bytes.EMPTY), CLPR_INVALID_SEED_ENDPOINT);
     }
 }

@@ -412,17 +412,6 @@ public class ClprSubmitBundleSuite {
                         .setMaxQueueDepth(1000)
                         .setMaxSyncBytes(1_048_576L)
                         .build())
-                // Non-empty endpoints required by ClprCompleteChannelHandler (spec §5.1.3
-                // step 5 — verified peer config must carry at least one endpoint; shape per
-                // §1.1 / §1.2). The endpoint identity isn't exercised here — we're testing
-                // the bundle path, not the peer.
-                .addEndpoints(ClprEndpoint.newBuilder()
-                        .setServiceEndpoint(ClprServiceEndpoint.newBuilder()
-                                .setIpAddress("127.0.0.1")
-                                .setPort(50211)
-                                .build())
-                        .setTlsCertificate(ByteString.copyFrom(new byte[] {0x01}))
-                        .build())
                 .build();
     }
 }

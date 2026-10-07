@@ -110,11 +110,9 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
         // Reuse the shared size-2 mTLS ledgerA_manifest / ledgerB_manifest fixtures (the same @Network
         // definition the rotation tests use), so the endpoint-manifest feature is enabled at boot on
         // networks that no non-manifest suite shares — the boot-time flag cannot leak across suites.
-        final byte[] caDerA = MultiNetworkExtension.clprMtlsCaDer(ledgerA.name());
-        final byte[] caDerB = MultiNetworkExtension.clprMtlsCaDer(ledgerB.name());
 
         return Stream.concat(
-                setupBothNetworksWithManifestProof(ledgerA, ledgerB, MTLS_PORT_A, MTLS_PORT_B, crypto, caDerA, caDerB),
+                setupBothNetworksWithManifestProof(ledgerA, ledgerB, MTLS_PORT_A, MTLS_PORT_B, crypto),
                 Stream.of(
                         // A → B: send 2 messages, then verify both delivery and ack complete.
                         networkHapiTest(
@@ -188,14 +186,12 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
         // Each network's real ECDSA CLPR CA cert (advertised on-chain in tls_certificate). The endpoint
         // ports are each network's clpr.mtlsPort, so the channel completes over — and syncs across —
         // the dedicated mutual-TLS listener rather than the plaintext path.
-        final byte[] caDerA = MultiNetworkExtension.clprMtlsCaDer(ledgerA.name());
-        final byte[] caDerB = MultiNetworkExtension.clprMtlsCaDer(ledgerB.name());
         // A's finalized manifest version captured just before the rotation; the propagation
         // assertions are all expressed relative to it (versionBeforeRotation -> +1).
         final AtomicLong versionBeforeRotation = new AtomicLong();
 
         return Stream.concat(
-                setupBothNetworksWithManifestProof(ledgerA, ledgerB, MTLS_PORT_A, MTLS_PORT_B, crypto, caDerA, caDerB),
+                setupBothNetworksWithManifestProof(ledgerA, ledgerB, MTLS_PORT_A, MTLS_PORT_B, crypto),
                 Stream.of(
                         // Baseline: A's cold-start-derived manifest (version >= 2, three endpoints).
                         captureManifestVersion(ledgerA, versionBeforeRotation),
@@ -300,14 +296,12 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
     Stream<DynamicTest> completeTurnoverOneSideRecoversViaSubmitBundle(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
         final var crypto = new ClprCrypto();
-        final byte[] caDerA = MultiNetworkExtension.clprMtlsCaDer(ledgerA.name());
-        final byte[] caDerB = MultiNetworkExtension.clprMtlsCaDer(ledgerB.name());
         // A's manifest version B cached at connection time; the recovery is expressed relative to it.
         final AtomicLong aVersionBaseline = new AtomicLong();
         final AtomicReference<ByteString> aManifestProof = new AtomicReference<>();
 
         return Stream.concat(
-                setupBothNetworksWithManifestProof(ledgerA, ledgerB, MTLS_PORT_A, MTLS_PORT_B, crypto, caDerA, caDerB),
+                setupBothNetworksWithManifestProof(ledgerA, ledgerB, MTLS_PORT_A, MTLS_PORT_B, crypto),
                 Stream.of(
                         // Baseline: A's manifest version B cached at connect (captured dynamically, so the
                         // scenario is order-independent even on the shared, possibly already-rotated network).
@@ -342,15 +336,13 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
     Stream<DynamicTest> simultaneousTurnoverBothSidesRecoverIndependently(
             final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
         final var crypto = new ClprCrypto();
-        final byte[] caDerA = MultiNetworkExtension.clprMtlsCaDer(ledgerA.name());
-        final byte[] caDerB = MultiNetworkExtension.clprMtlsCaDer(ledgerB.name());
         final AtomicLong aVersionBaseline = new AtomicLong();
         final AtomicLong bVersionBaseline = new AtomicLong();
         final AtomicReference<ByteString> aManifestProof = new AtomicReference<>();
         final AtomicReference<ByteString> bManifestProof = new AtomicReference<>();
 
         return Stream.concat(
-                setupBothNetworksWithManifestProof(ledgerA, ledgerB, MTLS_PORT_A, MTLS_PORT_B, crypto, caDerA, caDerB),
+                setupBothNetworksWithManifestProof(ledgerA, ledgerB, MTLS_PORT_A, MTLS_PORT_B, crypto),
                 Stream.of(
                         captureManifestVersion(ledgerA, aVersionBaseline),
                         captureManifestVersion(ledgerB, bVersionBaseline),

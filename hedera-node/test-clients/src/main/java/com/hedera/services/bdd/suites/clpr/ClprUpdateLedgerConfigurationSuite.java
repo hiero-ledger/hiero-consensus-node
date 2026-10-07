@@ -12,7 +12,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTHORIZATION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_NOT_ENABLED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_TOO_MANY_SEED_ENDPOINTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CLPR_CONFIGURATION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 
@@ -37,8 +36,6 @@ public class ClprUpdateLedgerConfigurationSuite {
                 clprUpdateLedgerConfiguration()
                         .serviceAddress(CLPR_SERVICE_ADDRESS_20)
                         .throttles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
-                        .seedEndpoint(HapiClprUpdateLedgerConfiguration.seedEndpoint(
-                                "192.168.1.1", 50211, new byte[] {1, 2, 3, 4}, new byte[33]))
                         .payingWith(GENESIS));
     }
 
@@ -50,8 +47,6 @@ public class ClprUpdateLedgerConfigurationSuite {
                 clprUpdateLedgerConfiguration()
                         .serviceAddress(CLPR_SERVICE_ADDRESS_20)
                         .throttles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
-                        .seedEndpoint(HapiClprUpdateLedgerConfiguration.seedEndpoint(
-                                "192.168.1.1", 50211, new byte[] {1, 2, 3, 4}, new byte[33]))
                         .payingWith("civilian")
                         .hasKnownStatusFrom(AUTHORIZATION_FAILED, NOT_SUPPORTED));
     }
@@ -93,27 +88,6 @@ public class ClprUpdateLedgerConfigurationSuite {
                         .throttles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
                         .payingWith(GENESIS)
                         .hasPrecheck(INVALID_CLPR_CONFIGURATION));
-    }
-
-    @org.junit.jupiter.api.Disabled("CLPR_TOO_MANY_SEED_ENDPOINTS precheck no longer fires. Per the "
-            + "refreshed upstream spec (§1.1 ClprLedgerConfiguration renamed seed_endpoints→endpoints, "
-            + "§1.4 ClprThrottles.max_peer_endpoints added with 'stores only the first max_peer_endpoints "
-            + "entries…and discards the remainder' semantics, §2.4.2 Peer Endpoint Roster), excess peer "
-            + "endpoints are now silently truncated by the *receiver* of a ConfigUpdate, not rejected at "
-            + "update-time precheck. This test's assertion contradicts the new spec and should be rewritten "
-            + "as a positive 'receiver stores only N' check against the peer-side path.")
-    @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
-    final Stream<DynamicTest> rejectsTooManySeedEndpoints() {
-        final var op = clprUpdateLedgerConfiguration()
-                .serviceAddress(CLPR_SERVICE_ADDRESS_20)
-                .throttles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
-                .payingWith(GENESIS)
-                .hasPrecheck(CLPR_TOO_MANY_SEED_ENDPOINTS);
-        for (int i = 0; i < 11; i++) {
-            op.seedEndpoint(HapiClprUpdateLedgerConfiguration.seedEndpoint(
-                    "192.168.1." + i, 50211, new byte[] {1, 2, 3, 4}, new byte[33]));
-        }
-        return hapiTest(overriding("clpr.enabled", "true"), op);
     }
 
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)

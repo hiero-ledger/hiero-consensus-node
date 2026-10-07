@@ -106,6 +106,12 @@ class BesuQBFTVerifyConfigCallTest extends CallTestBase {
             final Tuple throttlesTuple = decoded.get(4);
             assertThat(((Number) throttlesTuple.get(0)).intValue()).isEqualTo(100);
             assertThat(((BigInteger) throttlesTuple.get(2)).longValue()).isEqualTo(1_000_000L);
+            // field 7: no manifest proof supplied → uninitialized manifest (version 0, config's
+            // serviceAddress, no endpoints), matching the Solidity verifiers.
+            final Tuple manifestTuple = decoded.get(7);
+            assertThat(((BigInteger) manifestTuple.get(0)).longValue()).isZero();
+            assertThat(((byte[]) manifestTuple.get(1)).length).isEqualTo(20);
+            assertThat((Tuple[]) manifestTuple.get(2)).isEmpty();
         }
     }
 

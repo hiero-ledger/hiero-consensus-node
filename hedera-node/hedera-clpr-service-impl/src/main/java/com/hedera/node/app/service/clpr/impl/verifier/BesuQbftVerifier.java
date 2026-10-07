@@ -611,14 +611,13 @@ public final class BesuQbftVerifier {
                 : verifyConfigEndpointManifestProof(endpointManifestProofBytes, genesisValidators, contractAddress20);
 
         log.info(
-                "BesuQbftProofVerifier.verifyConfigPayload EXIT: SUCCESS blockHash=0x{} chainId={} initialTrustAnchor({} bytes)=0x{} initialTrustAnchorId({} bytes)=0x{} endpoints={} endpointManifest={} bytes",
+                "BesuQbftProofVerifier.verifyConfigPayload EXIT: SUCCESS blockHash=0x{} chainId={} initialTrustAnchor({} bytes)=0x{} initialTrustAnchorId({} bytes)=0x{} endpointManifest={} bytes",
                 HEX.formatHex(blockHash32),
                 ledgerCfg.chainId(),
                 ledgerCfg.initialTrustAnchor().length(),
                 ledgerCfg.initialTrustAnchor().toHex(),
                 ledgerCfg.initialTrustAnchorId().length(),
                 ledgerCfg.initialTrustAnchorId().toHex(),
-                ledgerCfg.endpoints().size(),
                 endpointManifestBytes.length);
         return new VerifiedConfig(blockHash32, ledgerCfg, endpointManifestBytes);
     }

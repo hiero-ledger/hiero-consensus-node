@@ -706,11 +706,10 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                         final var peerConfig = control.configUpdateOrThrow().configuration();
                         log.debug(
                                 "[ClprSubmitBundle] step10 CONTROL configUpdate conn={} receivedMsgId={} "
-                                        + "peerTimestamp={} endpoints={}",
+                                        + "peerTimestamp={}",
                                 channelId,
                                 receivedMessageId,
-                                peerConfig == null ? null : peerConfig.timestamp(),
-                                peerConfig == null ? 0 : peerConfig.endpoints().size());
+                                peerConfig == null ? null : peerConfig.timestamp());
                         if (peerConfig != null) {
                             validatePeerConfig(
                                     peerConfig, ledgerConfig, peerConfigTimestamp, nodeAccountId, penaltyAmount);

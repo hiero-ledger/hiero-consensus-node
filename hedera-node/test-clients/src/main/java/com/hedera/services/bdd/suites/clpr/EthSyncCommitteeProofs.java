@@ -120,13 +120,6 @@ final class EthSyncCommitteeProofs {
                         .setMaxQueueDepth(1000)
                         .setMaxSyncBytes(1_048_576L)
                         .build())
-                .addEndpoints(ClprEndpoint.newBuilder()
-                        .setServiceEndpoint(ClprServiceEndpoint.newBuilder()
-                                .setIpAddress("127.0.0.1")
-                                .setPort(50211)
-                                .build())
-                        .setTlsCertificate(ByteString.copyFrom(new byte[] {0x01}))
-                        .build())
                 .build();
     }
 

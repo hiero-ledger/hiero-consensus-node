@@ -87,7 +87,6 @@ import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import org.apache.commons.lang3.RandomUtils;
 import org.junit.jupiter.api.BeforeEach;
@@ -2015,20 +2014,6 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @Test
-    @DisplayName("received ConfigUpdate keeps all endpoint keys when max_peer_endpoints is zero")
-    void receivedConfigUpdateKeepsAllEndpointKeysWhenMaxPeerEndpointsIsZero() {
-        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
-        final var peerTimestamp = Timestamp.newBuilder().seconds(5000).nanos(42).build();
-        final var endpoints = endpointList(12);
-        final var bundle = buildBundle(
-                ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(configUpdatePayload(peerTimestamp, endpoints)));
-        setupHandleContext(bundle, true);
-        given(configStore.getConfiguration()).willReturn(createLedgerConfigWithMaxPeerEndpoints(0));
-
-        subject.handle(handleContext);
-    }
-
-    @Test
     @DisplayName("ConfigUpdate with negative timestamp seconds is rejected with CLPR_BUNDLE_VERIFICATION_FAILED")
     void configUpdateWithNegativeTimestampRejected() {
         putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
@@ -3429,28 +3414,6 @@ class ClprSubmitBundleHandlerTest {
                                 .maxGasPerMessage(maxGasPerMessage)
                                 .build())
                         .build());
-    }
-
-    private static ClprMessagePayload configUpdatePayload(
-            @NonNull final Timestamp peerTimestamp, @NonNull final List<ClprEndpoint> endpoints) {
-        return ClprMessagePayload.newBuilder()
-                .control(ClprControlMessage.newBuilder()
-                        .configUpdate(ClprConfigUpdate.newBuilder()
-                                .configuration(ClprLedgerConfiguration.newBuilder()
-                                        .timestamp(peerTimestamp)
-                                        .endpoints(endpoints)
-                                        .build())
-                                .build())
-                        .build())
-                .build();
-    }
-
-    private static List<ClprEndpoint> endpointList(final int count) {
-        final var endpoints = new ArrayList<ClprEndpoint>();
-        for (int i = 0; i < count; i++) {
-            endpoints.add(ClprEndpoint.newBuilder().build());
-        }
-        return endpoints;
     }
 
     @Test

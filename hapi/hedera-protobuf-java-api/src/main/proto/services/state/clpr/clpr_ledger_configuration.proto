@@ -49,14 +49,13 @@ message ClprLedgerConfiguration {
     ClprThrottles throttles = 5;
 
     /**
-     * DEPRECATED. The endpoint list has been moved to a separate
-     * ClprEndpointManifest in CLPR Service state (see §2.4.2, §6.5). This
-     * field is retained wire-compatibly until the ConfigUpdate-based endpoint
-     * propagation is removed (see issue: remove ConfigUpdate endpoint
-     * propagation + PeerEndpointRosterEntry). New code MUST NOT read or write
-     * this field.
+     * Field 6 (`endpoints`, the former seed endpoint list) was removed. The
+     * endpoint list lives in the ClprEndpointManifest in CLPR Service state
+     * (see §2.4.2, §6.5). The number and name are reserved so they are never
+     * reused.
      */
-    repeated ClprEndpoint endpoints = 6 [deprecated = true];
+    reserved 6;
+    reserved "endpoints";
 
     /**
      * Opaque starting trust anchor for the Channel. For Hiero TSS this is the

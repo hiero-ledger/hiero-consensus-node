@@ -711,7 +711,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                         ledgerA,
                                         clprUpdateLedgerConfiguration()
                                                 .configuration(buildLedgerConfig(
-                                                        "hiero:298", portA, bumpedCap, DEFAULT_MAX_QUEUE_DEPTH))
+                                                        "hiero:298", bumpedCap, DEFAULT_MAX_QUEUE_DEPTH))
                                                 .payingWith(GENESIS)
                                                 .hasKnownStatus(SUCCESS))
                                 .findFirst()

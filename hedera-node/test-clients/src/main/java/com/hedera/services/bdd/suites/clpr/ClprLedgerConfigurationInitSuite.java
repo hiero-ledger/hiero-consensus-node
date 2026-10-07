@@ -10,7 +10,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.spec.transactions.clpr.HapiClprUpdateLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import java.util.concurrent.atomic.AtomicReference;
@@ -31,8 +30,7 @@ import org.junit.jupiter.api.Tag;
  *       protocol_version, service_address=0x16e, and conservative default throttles.
  *   <li>Admin queries genesis config via {@code getLedgerConfiguration} — confirms it is always
  *       present and contains the seeded values (test-spec §3.1.2: "never absent").
- *   <li>Admin calls {@code updateLedgerConfiguration} with new throttles, service_address, and
- *       one seed endpoint. Per the spec (§6.1 / handler), chain_id and protocol_version are
+ *   <li>Admin calls {@code updateLedgerConfiguration} with new throttles and service_address. Per the spec (§6.1 / handler), chain_id and protocol_version are
  *       preserved from genesis; timestamp is auto-set to the consensus time; all mutable fields
  *       are replaced with the caller-supplied values.
  *   <li>Admin queries config again — verifies the mutable fields were persisted, the immutable
@@ -56,26 +54,6 @@ public class ClprLedgerConfigurationInitSuite {
                 .setMaxSyncBytes(2_097_152L) // 2 MB
                 .build();
 
-        // Compressed secp256k1 public keys (33 bytes each): 0x02/0x03 prefix + 32 distinct bytes.
-        final var ecdsaKey1 = new byte[33];
-        ecdsaKey1[0] = 0x02;
-        for (int i = 1; i < 33; i++) ecdsaKey1[i] = (byte) i;
-
-        final var ecdsaKey2 = new byte[33];
-        ecdsaKey2[0] = 0x02;
-        for (int i = 1; i < 33; i++) ecdsaKey2[i] = (byte) (i + 32);
-
-        final var ecdsaKey3 = new byte[33];
-        ecdsaKey3[0] = 0x03;
-        for (int i = 1; i < 33; i++) ecdsaKey3[i] = (byte) (i + 64);
-
-        final var seedEndpoint1 =
-                HapiClprUpdateLedgerConfiguration.seedEndpoint("10.0.0.1", 50211, new byte[] {1, 2, 3, 4}, ecdsaKey1);
-        final var seedEndpoint2 =
-                HapiClprUpdateLedgerConfiguration.seedEndpoint("10.0.0.2", 50211, new byte[] {5, 6, 7, 8}, ecdsaKey2);
-        final var seedEndpoint3 = HapiClprUpdateLedgerConfiguration.seedEndpoint(
-                "10.0.0.3", 50211, new byte[] {9, 10, 11, 12}, ecdsaKey3);
-
         return hapiTest(
                 overriding("clpr.enabled", "true"),
 
@@ -86,9 +64,6 @@ public class ClprLedgerConfigurationInitSuite {
                 clprUpdateLedgerConfiguration()
                         .serviceAddress(new byte[] {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0x6e})
                         .throttles(updatedThrottles)
-                        .seedEndpoint(seedEndpoint1)
-                        .seedEndpoint(seedEndpoint2)
-                        .seedEndpoint(seedEndpoint3)
                         .payingWith(GENESIS),
 
                 // Step 3: Query again and verify mutable fields persisted while immutable fields
@@ -111,16 +86,6 @@ public class ClprLedgerConfigurationInitSuite {
                             Assertions.assertTrue(
                                     updatedConfig.getTimestamp().getSeconds() > 1L,
                                     "Timestamp must be > genesis sentinel after an update");
-                            // Endpoints must reflect what was supplied in the update. The handler
-                            // stores the local ledger's endpoints list verbatim; per spec §1.1
-                            // (ClprLedgerConfiguration.endpoints), §1.4 (ClprThrottles.max_local_endpoints
-                            // bounds local-side registrations, not the config field itself), and §2.4.2
-                            // (the max_peer_endpoints truncation rule applies only to peer configs
-                            // received via ConfigUpdate). So three in → three out.
-                            Assertions.assertEquals(
-                                    3,
-                                    updatedConfig.getEndpointsCount(),
-                                    "Should have three endpoints after the update");
                         }));
     }
 }

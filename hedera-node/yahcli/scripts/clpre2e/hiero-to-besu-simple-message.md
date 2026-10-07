@@ -150,9 +150,8 @@ What the script does (9 steps; each yahcli call is logged):
 - Derives the validator address from `.env`'s `PRIVATE_KEY` (single-validator
 dev Besu = the same deployer key).
 - `cast keccak "$(cast code $CLPR_SERVICE)"` for the code hash.
-- Fetches live throttles + endpoints via
-`cast call getLedgerConfiguration()` and synthesizes a fallback endpoint
-at `127.0.0.1:9545` (relay's gRPC port) if none are registered.
+- Fetches live throttles via `cast call getLedgerConfiguration()`. Dial
+targets are not part of the config; they come from the endpoint manifest.
 - Calls `hedera-node/tools/build-besu-qbft-trust-anchor.py --config-json ...`
 to emit the RLP trust-anchor envelope wrapped in a protobuf
 `ClprLedgerConfiguration`.
@@ -186,17 +185,16 @@ Per-step yahcli logs are at `scripts/clpre2e/.run-logs-bridge/`.
 
 ### Useful overrides
 
-|                  Env                  |             Default             |                                        Purpose                                        |
-|---------------------------------------|---------------------------------|---------------------------------------------------------------------------------------|
-| `VERIFIER_CONTRACT`                   | (required)                      | Pre-deployed Besu-QBFT verifier system contract id on Hiero (0.0.367 on localhost)    |
-| `SMART_CONTRACTS_REPO`                | sibling auto-detect             | Path to `clpr-smart-contracts`                                                        |
-| `CHAIN_ID`                            | auto-detect from `deployments/` | Picks one of the chain subdirs                                                        |
-| `PEER_PK`                             | `0xa11ce`                       | secp256k1 key used for the channel identity (must match Besu's `CreateChannel.s.sol`) |
-| `CONNECTOR_PK`                        | `0xc044ec`                      | secp256k1 key for the connector identity                                              |
-| `NET`                                 | `localhost`                     | Target Hiero network from `yahcli/config.yml`                                         |
-| `PAYER`                               | `2`                             | Yahcli payer account                                                                  |
-| `LOCKED_STAKE`                        | `100000000`                     | Connector locked stake (tinybars)                                                     |
-| `FALLBACK_EP_IP` / `FALLBACK_EP_PORT` | `127.0.0.1` / `9545`            | Synthetic seed endpoint when Besu's list is empty                                     |
+|          Env           |             Default             |                                        Purpose                                        |
+|------------------------|---------------------------------|---------------------------------------------------------------------------------------|
+| `VERIFIER_CONTRACT`    | (required)                      | Pre-deployed Besu-QBFT verifier system contract id on Hiero (0.0.367 on localhost)    |
+| `SMART_CONTRACTS_REPO` | sibling auto-detect             | Path to `clpr-smart-contracts`                                                        |
+| `CHAIN_ID`             | auto-detect from `deployments/` | Picks one of the chain subdirs                                                        |
+| `PEER_PK`              | `0xa11ce`                       | secp256k1 key used for the channel identity (must match Besu's `CreateChannel.s.sol`) |
+| `CONNECTOR_PK`         | `0xc044ec`                      | secp256k1 key for the connector identity                                              |
+| `NET`                  | `localhost`                     | Target Hiero network from `yahcli/config.yml`                                         |
+| `PAYER`                | `2`                             | Yahcli payer account                                                                  |
+| `LOCKED_STAKE`         | `100000000`                     | Connector locked stake (tinybars)                                                     |
 
 ## Step 4 — Start the EVM relay
 

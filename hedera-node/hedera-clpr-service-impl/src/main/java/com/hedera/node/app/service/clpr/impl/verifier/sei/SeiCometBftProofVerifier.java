@@ -1167,7 +1167,8 @@ public final class SeiCometBftProofVerifier {
      * @param endpointManifestBytes protobuf {@code ClprEndpointManifest} preimage proven by a
      *     config-path manifest proof; currently always empty for Sei (there is no config-path manifest
      *     proof producer yet — the real manifest advances via the bundle path, spec §4.2 Step 1b), so
-     *     the manifest-aware config selector uses a bring-up seed-fallback in {@code SeiVerifyConfigCall}
+     *     the manifest-aware config selector returns the uninitialized (version 0) manifest in
+     *     {@code SeiVerifyConfigCall}
      */
     public record VerifiedConfig(
             @NonNull ClprLedgerConfiguration ledgerConfiguration,

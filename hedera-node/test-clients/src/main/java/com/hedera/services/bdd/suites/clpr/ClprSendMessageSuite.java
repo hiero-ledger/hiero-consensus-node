@@ -24,9 +24,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVER
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hederahashgraph.api.proto.java.ClprEndpoint;
 import com.hederahashgraph.api.proto.java.ClprLedgerConfiguration;
-import com.hederahashgraph.api.proto.java.ClprServiceEndpoint;
 import com.hederahashgraph.api.proto.java.ClprSignatureScheme;
 import com.hederahashgraph.api.proto.java.ClprThrottles;
 import java.util.stream.Stream;
@@ -186,16 +184,6 @@ public class ClprSendMessageSuite {
                         .setMaxGasPerMessage(1_000_000L)
                         .setMaxQueueDepth(1000)
                         .setMaxSyncBytes(1_048_576L)
-                        .build())
-                // Non-empty endpoints required by ClprCompleteChannelHandler (spec §5.1.3
-                // step 5 — verified peer config must include at least one endpoint; shape per
-                // §1.1 / §1.2).
-                .addEndpoints(ClprEndpoint.newBuilder()
-                        .setServiceEndpoint(ClprServiceEndpoint.newBuilder()
-                                .setIpAddress("127.0.0.1")
-                                .setPort(50211)
-                                .build())
-                        .setTlsCertificate(ByteString.copyFrom(new byte[] {0x01}))
                         .build())
                 .build();
     }
