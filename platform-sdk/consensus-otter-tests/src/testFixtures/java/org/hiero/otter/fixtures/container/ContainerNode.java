@@ -181,7 +181,11 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
         this.nodeConfiguration =
                 new ContainerNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
-        EventHashFactory.initialize(Long.MAX_VALUE);
+        if (nodeConfiguration.current().getConfigData(EventConfig.class).enableEventCutover()) {
+            EventHashFactory.initialize(1L);
+        } else {
+            EventHashFactory.initialize(Long.MAX_VALUE);
+        }
         this.random = new SecureRandom();
         this.gcLoggingEnabled = gcLoggingEnabled;
         this.jvmArgs = List.copyOf(requireNonNull(jvmArgs, "jvmArgs must not be null"));
@@ -231,7 +235,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
 
         log.info("Starting node {}...", selfId);
 
-        if (savedStateDirectory != null) {
+        if (lifeCycle == INIT && savedStateDirectory != null) {
             final PathsConfig pathsConfig = configuration().current().getConfigData(PathsConfig.class);
             ContainerUtils.copySavedStateToContainer(container, selfId, pathsConfig, savedStateDirectory);
         }
@@ -267,12 +271,12 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     /**
-     * Invokes the unary {@code start} RPC, retrying while the response is {@code UNAVAILABLE} and the
-     * start budget has not been exhausted. This tolerates the shared channel needing to reconnect to a
-     * freshly (re)started node process; any other status, or exhausting the budget, propagates the error.
+     * Invokes the unary {@code start} RPC, retrying while the response is {@code UNAVAILABLE} and the start budget has
+     * not been exhausted. This tolerates the shared channel needing to reconnect to a freshly (re)started node process;
+     * any other status, or exhausting the budget, propagates the error.
      *
      * @param startRequest the request to send
-     * @param timeout the overall budget for starting the platform
+     * @param timeout      the overall budget for starting the platform
      */
     @SuppressWarnings("ResultOfMethodCallIgnored")
     private void startPlatform(@NonNull final StartRequest startRequest, @NonNull final Duration timeout) {
@@ -484,7 +488,10 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     @Override
     @NonNull
     public SingleNodePcesResult newPcesResult() {
-        throwIsNotInLifecycle(SHUTDOWN, "Node must be in the shutdown state to retrieve PCES results.");
+        throwIsNotInLifecycle(
+                SHUTDOWN,
+                "Node must be in the shutdown state to retrieve PCES results. "
+                        + "Ensure network.shutdown() or node.shutdown() is called before accessing PCES results.");
 
         final Configuration configuration = nodeConfiguration.current();
         final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
@@ -733,10 +740,10 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     /**
-     * Applies the status snapshot carried by a sync point to the cached {@link #platformStatus}. A sync
-     * point is a snapshot delivered at the start of a (re-)subscription, not a transition, so it is
-     * deliberately <em>not</em> added to the results collector's status progression; doing so would
-     * inject a phantom transition on every reconnect.
+     * Applies the status snapshot carried by a sync point to the cached {@link #platformStatus}. A sync point is a
+     * snapshot delivered at the start of a (re-)subscription, not a transition, so it is deliberately <em>not</em>
+     * added to the results collector's status progression; doing so would inject a phantom transition on every
+     * reconnect.
      */
     private void handleSyncPoint(@NonNull final EventMessage value) {
         final SyncPoint syncPoint = value.getSyncPoint();
