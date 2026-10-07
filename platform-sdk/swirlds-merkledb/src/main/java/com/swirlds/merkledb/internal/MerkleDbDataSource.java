@@ -27,6 +27,7 @@ import com.swirlds.merkledb.files.DataFileCollection.LoadedDataCallback;
 import com.swirlds.merkledb.files.DataFileCommon;
 import com.swirlds.merkledb.files.DataFileCompactor;
 import com.swirlds.merkledb.files.DataFileReader;
+import com.swirlds.merkledb.files.DataFileWriter;
 import com.swirlds.merkledb.files.MemoryIndexDiskKeyValueStore;
 import com.swirlds.merkledb.files.hashmap.HalfDiskHashMap;
 import com.swirlds.metrics.api.Metrics;
@@ -314,9 +315,14 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                         (_, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during snapshots", e))
                 .buildFactory());
         // thread pool to run tasks during flushes
-        final ExecutorFactory flushPoolFactory = ExecutorFactory.create(
-                "MerkleDbFlusher", (_, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during flush", e));
-        flushPool = flushPoolFactory.createForkJoinPool(config.getNumFlushThreads());
+//        final ExecutorFactory flushPoolFactory = ExecutorFactory.create(
+//                "MerkleDbFlusher", (_, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during flush", e));
+//        flushPool = flushPoolFactory.createForkJoinPool(config.getNumFlushThreads());
+        flushPool = new ForkJoinPool(
+                config.getNumFlushThreads(),
+                DataFileWriter.WriteBufferAwareThread::new,
+                (_, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception during flush", e),
+                true);
 
         dbPaths = new MerkleDbPaths(storageDir);
 

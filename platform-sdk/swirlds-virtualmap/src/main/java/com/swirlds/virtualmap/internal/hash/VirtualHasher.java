@@ -7,6 +7,7 @@ import static com.swirlds.virtualmap.MerklePathUtils.ROOT_PATH;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.virtualmap.MerkleHasher;
+import com.swirlds.virtualmap.MerkleHasher.MerkleHasherAwareThread;
 import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
@@ -23,6 +24,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongFunction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -76,11 +78,17 @@ public final class VirtualHasher {
      */
     public VirtualHasher(final @NonNull VirtualMapConfig virtualMapConfig) {
         requireNonNull(virtualMapConfig);
-        hashingPool = ExecutorFactory.create(
-                        "VirtualHasher",
-                        (_, e) -> logger.error(
-                                EXCEPTION.getMarker(), "Virtual hasher thread terminated with exception", e))
-                .createForkJoinPool(virtualMapConfig.getNumHashThreads());
+//        hashingPool = ExecutorFactory.create(
+//                        "VirtualHasher",
+//                        (_, e) -> logger.error(
+//                                EXCEPTION.getMarker(), "Virtual hasher thread terminated with exception", e))
+//                .createForkJoinPool(virtualMapConfig.getNumHashThreads());
+        hashingPool = new ForkJoinPool(
+                virtualMapConfig.getNumHashThreads(),
+                VirtualHasherThread::new,
+                (_, e) ->
+                        logger.error(EXCEPTION.getMarker(), "Virtual hasher thread terminated with exception", e),
+                true);
     }
 
     /**
@@ -630,5 +638,22 @@ public final class VirtualHasher {
         chunkTasks.clear();
 
         return rootTask;
+    }
+
+    private static class VirtualHasherThread extends ForkJoinWorkerThread implements MerkleHasherAwareThread {
+
+        private static final AtomicInteger threadNo = new AtomicInteger(0);
+
+        private final MerkleHasher merkleHasher = new MerkleHasher();
+
+        public VirtualHasherThread(ForkJoinPool pool) {
+            super(pool);
+            setName("VirtualHasherForkJoinThread-" + threadNo.getAndIncrement());
+        }
+
+        @Override
+        public MerkleHasher getMerkleHasher() {
+            return merkleHasher;
+        }
     }
 }

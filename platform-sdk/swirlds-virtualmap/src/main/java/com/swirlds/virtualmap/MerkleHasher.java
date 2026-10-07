@@ -50,6 +50,9 @@ public final class MerkleHasher {
      */
     @NonNull
     public static MerkleHasher threadSafeDefault() {
+        if (Thread.currentThread() instanceof MerkleHasherAwareThread merkleAwareThread) {
+            return merkleAwareThread.getMerkleHasher();
+        }
         return THREAD_LOCAL_DEFAULT.get();
     }
 
@@ -137,5 +140,13 @@ public final class MerkleHasher {
     @NonNull
     public Hash leafNodeHash(@NonNull final VirtualLeafBytes<?> leaf) {
         return new Hash(leafNodeHashBytes(leaf), digestType);
+    }
+
+    public interface MerkleHasherAwareThread {
+
+        ///
+        ///
+        ///
+        public MerkleHasher getMerkleHasher();
     }
 }
