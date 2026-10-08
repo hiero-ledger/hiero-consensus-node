@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
+import org.hiero.base.crypto.config.CryptoConfig_;
 import org.hiero.consensus.gossip.config.GossipConfig;
 import org.hiero.consensus.gossip.config.GossipConfig_;
 import org.hiero.consensus.gossip.config.NetworkEndpoint;
@@ -157,6 +158,7 @@ class SocketFactoryTest extends ConnectivityTestBase {
                 .withValues(
                         GossipConfig_.INTERFACE_BINDINGS,
                         List.of("{ \"nodeId\": 0, \"hostname\": \"localhost\", \"port\": 1234 }"))
+                .withValue(CryptoConfig_.KEYSTORE_PASSWORD, "password")
                 .getOrCreateConfig();
         testInterfaceBinding(node0, roster, keysAndCerts, config, port);
     }
@@ -179,7 +181,9 @@ class SocketFactoryTest extends ConnectivityTestBase {
         assertTrue(roster.rosterEntries().size() > 1, "Address book must contain at least 2 nodes");
         final NodeId node0 = roster.nodeIdAtIndex(0);
 
-        final Configuration config = new TestConfigBuilder().getOrCreateConfig();
+        final Configuration config = new TestConfigBuilder()
+                .withValue(CryptoConfig_.KEYSTORE_PASSWORD, "password")
+                .getOrCreateConfig();
         testInterfaceBinding(node0, roster, keysAndCerts, config, port);
     }
 
@@ -205,6 +209,7 @@ class SocketFactoryTest extends ConnectivityTestBase {
                 .withValues(
                         GossipConfig_.INTERFACE_BINDINGS,
                         List.of("{ \"nodeId\": 0, \"hostname\": \"10.123.123.123\", \"port\": 1234 }"))
+                .withValue(CryptoConfig_.KEYSTORE_PASSWORD, "password")
                 .getOrCreateConfig();
 
         assertThrows(BindException.class, () -> testInterfaceBinding(node0, roster, keysAndCerts, config, port));
