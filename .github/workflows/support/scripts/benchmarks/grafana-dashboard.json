@@ -1,6 +1,6 @@
 {
-  "title": "JMH Benchmarks",
-  "uid": "jmh-benchmarks",
+  "title": "ConsensusLayer Benchmarks",
+  "uid": "consensuslayer-benchmarks",
   "description": "Nightly JMH benchmark results from the benchmark runner, published by publish_results.py. Latency is published only for quiet results, measured while other workloads on the node used little CPU; allocation, discarded passes, and the load are published for every result.",
   "tags": ["benchmarks", "consensus"],
   "timezone": "utc",
@@ -78,7 +78,7 @@
         "enable": false,
         "iconColor": "#8e8e8e",
         "datasource": { "type": "loki", "uid": "${logs}" },
-        "expr": "{job=\"jmh-benchmarks\", run_type=\"$run_type\", benchmark=\"$benchmark\", params=~\"${params:regex}\"} | json",
+        "expr": "{job=\"consensuslayer-benchmarks\", run_type=\"$run_type\", benchmark=\"$benchmark\", params=~\"${params:regex}\"} | json",
         "titleFormat": "{{params}}: {{slot}}",
         "textFormat": "commit {{commit}}, {{latency_mean_ns}} ns mean, {{other_load_cpus}} other CPUs, {{attempts}} attempt(s). {{run_url}}",
         "tagKeys": "slot"
@@ -365,7 +365,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "{job=\"jmh-benchmarks\", run_type=\"$run_type\", benchmark=\"$benchmark\", params=\"$params\"}"
+          "expr": "{job=\"consensuslayer-benchmarks\", run_type=\"$run_type\", benchmark=\"$benchmark\", params=\"$params\"}"
         }
       ],
       "options": {

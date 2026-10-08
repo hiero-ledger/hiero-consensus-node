@@ -20,10 +20,10 @@ workloads used fewer than run_benchmarks.py's --max-load CPUs during the measure
 - jmh_other_load_cpus: CPUs used by other workloads during the measurement;
 - jmh_attempts: how many attempts the parameter set needed.
 
-With --loki-url, it also pushes one log line per published result to Loki, labeled job="jmh-benchmarks", benchmark,
-params, and run_type. The line is a JSON object with the commit, the run's URL, the slot ("quiet", "loaded", or
-"unknown" without monitor data), and the headline values, so that dashboards can show which commit each point belongs
-to, and why a night has no latency.
+With --loki-url, it also pushes one log line per published result to Loki, labeled job="consensuslayer-benchmarks",
+benchmark, params, and run_type. The line is a JSON object with the commit, the run's URL, the slot ("quiet", "loaded",
+or "unknown" without monitor data), and the headline values, so that dashboards can show which commit each point
+belongs to, and why a night has no latency.
 
 JMH writes a missing error as the string "NaN"; scores are read from "score" only, so errors never matter here.
 
@@ -197,7 +197,7 @@ def run_records(samples, slots, run_url):
             "other_load_cpus": round(values.get("jmh_other_load_cpus", math.nan), 2),
             "attempts": int(values.get("jmh_attempts", 0)),
         }
-        stream = {"job": "jmh-benchmarks", "benchmark": labels["benchmark"], "params": labels["params"],
+        stream = {"job": "consensuslayer-benchmarks", "benchmark": labels["benchmark"], "params": labels["params"],
                   "run_type": labels["run_type"]}
         records.append((stream, json.dumps({k: (None if isinstance(v, float) and math.isnan(v) else v)
                                             for k, v in line.items()})))
