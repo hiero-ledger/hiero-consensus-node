@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.ETHEREUM_TRANSACTION
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_GAS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ETHEREUM_TRANSACTION;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
@@ -160,6 +161,16 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
                     requireNonNull(txn.ethereumTransactionOrThrow().ethereumData())
                             .toByteArray());
             validateTruePreCheck(nonNull(ethTxData), INVALID_ETHEREUM_TRANSACTION);
+            // A call data file may only be referenced when the payload carries no call data of its own,
+            // and its file id must then be well-formed
+            final var op = txn.ethereumTransactionOrThrow();
+            if (op.hasCallData()) {
+                validateFalsePreCheck(ethTxData.hasCallData(), INVALID_ETHEREUM_TRANSACTION);
+                final var callDataFileId = op.callDataOrThrow();
+                validateFalsePreCheck(
+                        callDataFileId.shardNum() < 0 || callDataFileId.realmNum() < 0 || callDataFileId.fileNum() < 0,
+                        INVALID_FILE_ID);
+            }
             // Do not allow sending HBars to Burn Address
             if (ethTxData.value().compareTo(BigInteger.ZERO) > 0) {
                 validateFalsePreCheck(Arrays.equals(ethTxData.to(), EMPTY_ADDRESS), INVALID_SOLIDITY_ADDRESS);
