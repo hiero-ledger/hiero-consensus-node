@@ -189,7 +189,6 @@ class ClprEndpointPublicationHandlerTest {
     private void setupHandleContext(final TransactionBody body, final boolean enabled) {
         final Configuration config = HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", enabled ? "true" : "false")
-                .withValue("clpr.endpointManifestEnabled", enabled ? "true" : "false")
                 .getOrCreateConfig();
         given(handleContext.configuration()).willReturn(config);
         lenient().when(handleContext.body()).thenReturn(body);

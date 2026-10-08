@@ -5,6 +5,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_INVALID_SEED_ENDPO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_TOO_MANY_SEED_ENDPOINTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CLPR_CONFIGURATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CLPR_SERVICE_ADDRESS;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -29,7 +30,9 @@ import javax.inject.Singleton;
  *
  * <p>Updates the local CLPR ledger configuration. Requires the CLPR admin key
  * (network admin / superuser). The handler preserves the immutable chain_id and
- * protocol_version (set at genesis) and auto-sets the timestamp.
+ * protocol_version (set at genesis) and auto-sets the timestamp. The service_address
+ * must be the CLPR system contract's EVM address ({@code 0x16e}, the value this ledger's
+ * endpoint manifest carries) and defaults to it when omitted.
  */
 @Singleton
 public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
@@ -61,6 +64,16 @@ public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
 
         validateTruePreCheck(op.hasConfiguration(), INVALID_TRANSACTION_BODY);
         final var config = op.configurationOrThrow();
+
+        // A peer's verifier (e.g. the native Hiero TSS verifier) requires config.service_address ==
+        // manifest.service_address (spec §4.8), and this ledger's endpoint manifest fixes
+        // service_address at genesis to the CLPR system contract address. Any other value would make
+        // this ledger unverifiable by its peers, so reject it; an empty value is allowed and
+        // defaults to that address in doHandle.
+        final var serviceAddress = config.serviceAddress();
+        validateTruePreCheck(
+                serviceAddress.length() == 0 || serviceAddress.equals(CLPR_SERVICE_ADDRESS),
+                INVALID_CLPR_CONFIGURATION);
 
         // Validate throttles — all fields must be positive
         final var throttles = config.throttlesOrElse(ClprThrottles.DEFAULT);
@@ -125,10 +138,14 @@ public class ClprUpdateLedgerConfigurationHandler extends AbstractClprHandler {
             initialTrustAnchor = existing.initialTrustAnchor();
             initialTrustAnchorId = existing.initialTrustAnchorId();
         }
+        // An omitted service_address defaults to the CLPR system contract address (pureChecks
+        // rejects any other value; see there for why).
+        final var serviceAddress =
+                supplied.serviceAddress().length() > 0 ? supplied.serviceAddress() : CLPR_SERVICE_ADDRESS;
         final var updatedConfig = ClprLedgerConfiguration.newBuilder()
                 .protocolVersion(existing.protocolVersion())
                 .chainId(existing.chainId())
-                .serviceAddress(supplied.serviceAddress())
+                .serviceAddress(serviceAddress)
                 .timestamp(toTimestamp(consensusNow))
                 .throttles(supplied.throttles())
                 .endpoints(supplied.endpoints())

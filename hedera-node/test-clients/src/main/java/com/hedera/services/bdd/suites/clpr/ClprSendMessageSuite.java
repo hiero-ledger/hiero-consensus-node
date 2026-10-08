@@ -19,6 +19,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toConfigProofBytes;
+import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 
 import com.google.protobuf.ByteString;
@@ -178,7 +179,7 @@ public class ClprSendMessageSuite {
     private static ClprLedgerConfiguration defaultLedgerConfig() {
         return ClprLedgerConfiguration.newBuilder()
                 .setChainId("hiero:testing")
-                .setServiceAddress(ByteString.copyFrom(new byte[] {0, 0, 1}))
+                .setServiceAddress(ByteString.copyFrom(CLPR_SERVICE_ADDRESS_20))
                 .setThrottles(ClprThrottles.newBuilder()
                         .setMaxMessagesPerBundle(100)
                         .setMaxMessagePayloadBytes(65536)

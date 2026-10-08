@@ -1583,7 +1583,9 @@ class BesuQbftVerifierTest {
     class DecodeQueueMetadata {
 
         @Test
-        void fiveSlotBundle_decodesAllFields() {
+        void fiveSlotBundle_ackOnly_decodesAllFields() {
+            // Canonical layout (ACK-only): [status|nextMsgId, acked|received, sentRunningHash,
+            // receivedRunningHash, endpointManifestVersion] — no last-message running hash.
             byte[] slot0 = new byte[32];
             ByteBuffer.wrap(slot0, 3, 8).putLong(42L);
             slot0[11] = 0x02;
@@ -1597,8 +1599,8 @@ class BesuQbftVerifierTest {
             byte[] slot3 = new byte[32];
             slot3[0] = (byte) 0xBB;
 
-            byte[] slot4 = new byte[32];
-            slot4[0] = (byte) 0xCC;
+            byte[] slot4 = new byte[32]; // endpointManifestVersion, LSB-packed
+            ByteBuffer.wrap(slot4, 24, 8).putLong(9L);
 
             var meta = BesuQbftVerifier.decodeQueueMetadata(new byte[][] {slot0, slot1, slot2, slot3, slot4});
 
@@ -1607,38 +1609,45 @@ class BesuQbftVerifierTest {
             assertThat(meta.receivedMessageId()).isEqualTo(7L);
             assertThat(meta.sentRunningHash()[0]).isEqualTo((byte) 0xAA);
             assertThat(meta.receivedRunningHash()[0]).isEqualTo((byte) 0xBB);
-            assertThat(meta.lastMessageRunningHash()[0]).isEqualTo((byte) 0xCC);
+            assertThat(meta.endpointManifestVersion()).isEqualTo(9L);
+            assertThat(meta.lastMessageRunningHash()).isEqualTo(new byte[32]);
         }
 
         @Test
-        void fourSlotBundle_lastMsgHashIsZero() {
+        void sixSlotBundle_decodesLastMsgHash() {
+            // Canonical layout (with message): the five Channel fields + the last-message running hash.
             byte[] slot0 = new byte[32];
             ByteBuffer.wrap(slot0, 3, 8).putLong(1L);
             byte[] slot1 = new byte[32];
             byte[] slot2 = new byte[32];
             byte[] slot3 = new byte[32];
+            byte[] slot4 = new byte[32]; // endpointManifestVersion
+            ByteBuffer.wrap(slot4, 24, 8).putLong(3L);
+            byte[] slot5 = new byte[32]; // last-message running hash
+            slot5[0] = (byte) 0xCC;
 
-            var meta = BesuQbftVerifier.decodeQueueMetadata(new byte[][] {slot0, slot1, slot2, slot3});
+            var meta = BesuQbftVerifier.decodeQueueMetadata(new byte[][] {slot0, slot1, slot2, slot3, slot4, slot5});
 
             assertThat(meta.nextMessageId()).isEqualTo(1L);
-            assertThat(meta.lastMessageRunningHash()).isEqualTo(new byte[32]);
+            assertThat(meta.endpointManifestVersion()).isEqualTo(3L);
+            assertThat(meta.lastMessageRunningHash()[0]).isEqualTo((byte) 0xCC);
         }
 
         @Test
-        void threeSlotBundle_throws() {
+        void fourSlotBundle_throws() {
             byte[] slot = new byte[32];
-            assertThatThrownBy(() -> BesuQbftVerifier.decodeQueueMetadata(new byte[][] {slot, slot, slot}))
+            assertThatThrownBy(() -> BesuQbftVerifier.decodeQueueMetadata(new byte[][] {slot, slot, slot, slot}))
                     .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("expected 4 or 5 proven slot values");
+                    .hasMessageContaining("expected 5 or 6 proven slot values");
         }
 
         @Test
-        void sixSlotBundle_throws() {
+        void sevenSlotBundle_throws() {
             byte[] slot = new byte[32];
-            assertThatThrownBy(() ->
-                            BesuQbftVerifier.decodeQueueMetadata(new byte[][] {slot, slot, slot, slot, slot, slot}))
+            assertThatThrownBy(() -> BesuQbftVerifier.decodeQueueMetadata(
+                            new byte[][] {slot, slot, slot, slot, slot, slot, slot}))
                     .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("expected 4 or 5 proven slot values");
+                    .hasMessageContaining("expected 5 or 6 proven slot values");
         }
     }
 

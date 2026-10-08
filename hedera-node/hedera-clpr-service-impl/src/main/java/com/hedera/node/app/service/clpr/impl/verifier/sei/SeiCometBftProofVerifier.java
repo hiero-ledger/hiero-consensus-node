@@ -81,12 +81,19 @@ public final class SeiCometBftProofVerifier {
     /** EVM zero word used when a storage slot is proven absent from Sei's sparse store. */
     private static final byte[] EVM_ZERO_WORD = new byte[32];
 
-    // ── Storage-proof layout shared with the QBFT bundle constructor ──
-    // Empty-message bundles prove only the four Channel fields. Message-bearing bundles add
-    // the last message's running-hash slot as a fifth entry.
-    private static final int STORAGE_PROOF_CHANNEL_ENTRIES = 4;
-    private static final int STORAGE_PROOF_WITH_MESSAGE_ENTRIES = 5;
-    private static final int SP_INDEX_LAST_MSG_RUNNING_HASH = 0;
+    // ── Storage-proof layout shared with the QBFT/Ethereum bundle constructors ──
+    // Every bundle proves the five Channel fields (offsets {1,2,4,5,16}, including the proven
+    // endpointManifestVersion). Message-bearing bundles add the last message's running-hash slot as a
+    // sixth entry. Matches the relay's ClprServiceStorageLayout / the on-chain ClprEvmBundleVerifier.
+    private static final int STORAGE_PROOF_CHANNEL_ENTRIES = 5;
+    private static final int STORAGE_PROOF_WITH_MESSAGE_ENTRIES = 6;
+    // Positions inside the reordered (canonical) slot-value array produced by orderQueueSlotValuesByProofKey.
+    private static final int SP_INDEX_STATUS_AND_NEXT_MSG_ID = 0;
+    private static final int SP_INDEX_RECEIVED_MSG_ID = 1;
+    private static final int SP_INDEX_SENT_RUNNING_HASH = 2;
+    private static final int SP_INDEX_RECEIVED_RUNNING_HASH = 3;
+    private static final int SP_INDEX_ENDPOINT_MANIFEST_VERSION = 4;
+    private static final int SP_INDEX_LAST_MSG_RUNNING_HASH = 5; // optional
 
     /** Protocol ceiling matching the endpoint's default per-bundle rotation limit. */
     static final int MAX_PRIOR_VALIDATOR_SET_UPDATES = 10;
@@ -100,6 +107,7 @@ public final class SeiCometBftProofVerifier {
     private static final BigInteger CHANNEL_OFFSET_RECEIVED_MSG_ID = BigInteger.TWO;
     private static final BigInteger CHANNEL_OFFSET_SENT_RUNNING_HASH = BigInteger.valueOf(4);
     private static final BigInteger CHANNEL_OFFSET_RECEIVED_RUNNING_HASH = BigInteger.valueOf(5);
+    private static final BigInteger CHANNEL_OFFSET_ENDPOINT_MANIFEST_VERSION = BigInteger.valueOf(16);
 
     private SeiCometBftProofVerifier() {}
 
@@ -723,10 +731,23 @@ public final class SeiCometBftProofVerifier {
             final int sentRunningHashIndex = findSlot(slots, addUint256(base, CHANNEL_OFFSET_SENT_RUNNING_HASH));
             final int receivedRunningHashIndex =
                     findSlot(slots, addUint256(base, CHANNEL_OFFSET_RECEIVED_RUNNING_HASH));
-            if (statusIndex < 0 || receivedIdIndex < 0 || sentRunningHashIndex < 0 || receivedRunningHashIndex < 0) {
+            // offset 16: endpointManifestVersion — proven on every bundle (the sender's cached view of our
+            // manifest version). Required, so a relay cannot omit it and fall back to the relayed value.
+            final int manifestVersionIndex =
+                    findSlot(slots, addUint256(base, CHANNEL_OFFSET_ENDPOINT_MANIFEST_VERSION));
+            if (statusIndex < 0
+                    || receivedIdIndex < 0
+                    || sentRunningHashIndex < 0
+                    || receivedRunningHashIndex < 0
+                    || manifestVersionIndex < 0) {
                 continue;
             }
-            if (!distinct(statusIndex, receivedIdIndex, sentRunningHashIndex, receivedRunningHashIndex)) {
+            if (!distinct(
+                    statusIndex,
+                    receivedIdIndex,
+                    sentRunningHashIndex,
+                    receivedRunningHashIndex,
+                    manifestVersionIndex)) {
                 continue;
             }
             final int[] candidate;
@@ -736,7 +757,8 @@ public final class SeiCometBftProofVerifier {
                     if (i != statusIndex
                             && i != receivedIdIndex
                             && i != sentRunningHashIndex
-                            && i != receivedRunningHashIndex) {
+                            && i != receivedRunningHashIndex
+                            && i != manifestVersionIndex) {
                         if (lastMessageRunningHashIndex >= 0) {
                             throw ProofException.sei("storage proofs contain more than one non-channel slot");
                         }
@@ -746,15 +768,19 @@ public final class SeiCometBftProofVerifier {
                 if (lastMessageRunningHashIndex < 0) {
                     continue;
                 }
+                // Canonical order: the four queue fields, endpointManifestVersion, then the message hash.
                 candidate = new int[] {
-                    lastMessageRunningHashIndex,
                     statusIndex,
                     receivedIdIndex,
                     sentRunningHashIndex,
-                    receivedRunningHashIndex
+                    receivedRunningHashIndex,
+                    manifestVersionIndex,
+                    lastMessageRunningHashIndex
                 };
             } else {
-                candidate = new int[] {statusIndex, receivedIdIndex, sentRunningHashIndex, receivedRunningHashIndex};
+                candidate = new int[] {
+                    statusIndex, receivedIdIndex, sentRunningHashIndex, receivedRunningHashIndex, manifestVersionIndex
+                };
             }
             if (selected != null && !Arrays.equals(selected, candidate)) {
                 throw ProofException.sei("storage proofs contain ambiguous channel slot layout");
@@ -892,22 +918,21 @@ public final class SeiCometBftProofVerifier {
     }
 
     /**
-     * Decodes queue metadata from four Channel slots and, for message-bearing bundles, a
-     * fifth last-message running-hash slot. The Channel packing is identical to QBFT because
-     * both ledgers use the same CLPR service contract.
+     * Decodes queue metadata from the canonical slot-value array produced by
+     * {@link #orderQueueSlotValuesByProofKey}: {@code [status|nextMsgId, acked|received, sentRunningHash,
+     * receivedRunningHash, endpointManifestVersion]} and, for message-bearing bundles, the last-message
+     * running hash appended. The Channel packing is identical to QBFT/Ethereum because all EVM ledgers use
+     * the same CLPR service contract.
      */
     @NonNull
     static QueueMetadata decodeQueueMetadata(@NonNull final byte[][] provenSlotValues) {
         final boolean hasLastMessageProof;
-        final int channelOffset;
         final byte[] lastMsgRunningHash;
         if (provenSlotValues.length == STORAGE_PROOF_WITH_MESSAGE_ENTRIES) {
             hasLastMessageProof = true;
-            channelOffset = 1;
             lastMsgRunningHash = provenSlotValues[SP_INDEX_LAST_MSG_RUNNING_HASH];
         } else if (provenSlotValues.length == STORAGE_PROOF_CHANNEL_ENTRIES) {
             hasLastMessageProof = false;
-            channelOffset = 0;
             lastMsgRunningHash = EVM_ZERO_WORD.clone();
         } else {
             throw ProofException.sei("expected " + STORAGE_PROOF_CHANNEL_ENTRIES + " or "
@@ -916,22 +941,27 @@ public final class SeiCometBftProofVerifier {
 
         // Slot +1: verifier(20) | status(1) | nextMessageId(8) — first declared field at LSB.
         // Byte layout (MSB→LSB): 3B padding | 8B nextMessageId | 1B status | 20B verifier.
-        final byte[] statusSlot = provenSlotValues[channelOffset];
+        final byte[] statusSlot = provenSlotValues[SP_INDEX_STATUS_AND_NEXT_MSG_ID];
         final long nextMessageId = readUint64BigEndian(statusSlot, 3);
         final int status = statusSlot[11] & 0xFF;
 
         // Slot +2: ackedMessageId(8) | receivedMessageId(8) | nextExpectedReplyId(8) — first at LSB.
         // Byte layout (MSB→LSB): 8B padding | 8B nextExpectedReplyId | 8B receivedMessageId | 8B ackedMessageId.
-        final byte[] receivedIdSlot = provenSlotValues[channelOffset + 1];
+        final byte[] receivedIdSlot = provenSlotValues[SP_INDEX_RECEIVED_MSG_ID];
         final long receivedMessageId = readUint64BigEndian(receivedIdSlot, 16);
+
+        // Slot +16: endpointManifestVersion (uint64) — a lone field in its own slot, LSB-packed (last 8 bytes).
+        final byte[] manifestVersionSlot = provenSlotValues[SP_INDEX_ENDPOINT_MANIFEST_VERSION];
+        final long endpointManifestVersion = readUint64BigEndian(manifestVersionSlot, 24);
 
         return new QueueMetadata(
                 nextMessageId,
-                provenSlotValues[channelOffset + 2],
+                provenSlotValues[SP_INDEX_SENT_RUNNING_HASH],
                 receivedMessageId,
-                provenSlotValues[channelOffset + 3],
+                provenSlotValues[SP_INDEX_RECEIVED_RUNNING_HASH],
                 status,
                 lastMsgRunningHash,
+                endpointManifestVersion,
                 hasLastMessageProof);
     }
 
@@ -1100,6 +1130,7 @@ public final class SeiCometBftProofVerifier {
             @NonNull byte[] receivedRunningHash,
             int status,
             @NonNull byte[] lastMessageRunningHash,
+            long endpointManifestVersion,
             boolean hasLastMessageProof) {
         public QueueMetadata(
                 final long nextMessageId,
@@ -1107,7 +1138,8 @@ public final class SeiCometBftProofVerifier {
                 final long receivedMessageId,
                 @NonNull final byte[] receivedRunningHash,
                 final int status,
-                @NonNull final byte[] lastMessageRunningHash) {
+                @NonNull final byte[] lastMessageRunningHash,
+                final long endpointManifestVersion) {
             this(
                     nextMessageId,
                     sentRunningHash,
@@ -1115,6 +1147,7 @@ public final class SeiCometBftProofVerifier {
                     receivedRunningHash,
                     status,
                     lastMessageRunningHash,
+                    endpointManifestVersion,
                     true);
         }
 
