@@ -27,72 +27,26 @@ import org.hiero.base.concurrent.framework.config.CompositeThreadNameProvider;
 import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 
 /**
- * <p>
- * Manages the lifecycle of {@link VirtualRoot} family objects created via {@link VirtualRoot#copy()}.
- * </p>
+ * Virtual pipeline is a mechanism to manage lifecycle of {@link VirtualRoot} family. A family is
+ * a set of virtual roots, where every root is a copy of the previous object.
  *
- * <p>
- * This pipeline is responsible for enforcing the following invariants and constraints:
- * </p>
+ * <p>A copy is typically registered to a pipeline right when it is created. When a copy gets
+ * released, i.e. no references to it exist, the pipeline is notified, so it can process the
+ * copy. A pipeline stores all copies registered to it. Once a copy is processed (flushed or
+ * merged) after destroy, the copy is removed from the pipeline.
  *
- * <hr>
- * <p><strong>General</strong></p>
+ * <p>Pipelines use single thread executors to run {@link #hashFlushMerge()} method. The method
+ * checks the oldest copy. If a copy is flushed or merged, it is removed from the pipeline, and
+ * the next copy (which is now the oldest) is processed. If a copy cannot be processed, no newer
+ * copies are processed.
  *
- * <ul>
- * 	<li>all copies must be <strong>flushed</strong> or <strong>merged</strong> prior to eviction from memory</li>
- * 	<li>a copy can only be <strong>flushed</strong> or <strong>merged</strong>, not both</li>
- * 	<li>no <strong>flushes</strong> or <strong>merges</strong> are processed during copy detachment</li>
- * 	<li>pipelines can be terminated {@link #shutdown(boolean)} when all copies are destroyed or destroy of any copy throws an exception.
- * 	    A terminated pipeline is not required to <strong>flush</strong> or <strong>merge</strong>
- * 		copies before those copies are collected by the java garbage collector.</li>
- * </ul>
+ * <p>A virtual root copy can be either flushed or merged, but not both. For a copy to be flushed,
+ * it must be released, and its {@link VirtualRoot#shouldBeFlushed()} method must return true.
+ * For a copy to be merged, it must be released, it should not be flushable, the next copy in the
+ * family must exist and must be immutable.
  *
- * <hr>
- * <p><strong>Flushing</strong></p>
- * <ul>
- *  <li>only immutable copies can be <strong>flushed</strong></li>
- *  <li>only the oldest released copy can be <strong>flushed</strong></li>
- *  <li>copies with {@link VirtualRoot#shouldBeFlushed()} returning true are guaranteed to be flushed;
- * other copies may be flushed, too</li>
- * 	<li>a copy can be either flushed or merged, but not both</li>
- * </ul>
- *
- * <hr>
- * <p><strong>Merging</strong></p>
- * <ul>
- * 	<li>only destroyed or detached copies can be <strong>merged</strong>
- * 	<li>copies can ony be <strong>merged</strong> into immutable copies</li>
- * 	<li>a copy can be either merged or flushed, but not both</li>
- * </ul>
- *
- * <hr>
- * <p><strong>Hashing</strong></p>
- * <ul>
- * <li>
- * hashes must happen in order, that is the copy from round N must be hashed before the copy from round N+1 is hashed
- * </li>
- * <li>
- * copies must be hashed before they are <strong>flushed</strong>
- * </li>
- * <li>
- * copies must be hashed before they are <strong>merged</strong>
- * </li>
- * <li>
- * the copy that is being <strong>merged</strong> into must be hashed before the merge
- * </li>
- * </ul>
- *
- * <hr>
- * <p><strong>Thread Safety</strong></p>
- * <ul>
- * 	<li><strong>merging</strong> and <strong>flushing</strong> are not thread safe with respect to other
- * 		<strong>merge</strong>/<strong>flush</strong> operations in the general case.</li>
- * 	<li><strong>merged</strong> and <strong>flushing</strong> are not thread safe with respect to hashing on the copies
- * 		being <strong>merged</strong> or <strong>flushed</strong></li>
- * 	<li>terminated pipelines will wait for any <strong>merges</strong> or <strong>flushes</strong> to complete
- * 		before shutting down the pipeline. This method can be called concurrently to all other methods. Any concurrent
- * 		calls that race with this one and come after will not execute.</li>
- * </ul>
+ * <p>Before a copy is flushed or merged, it gets hashed, if not hashed already. Copies are
+ * hashed in order, i.e. a copy is hashed after all its older copies are hashed.
  */
 public class VirtualPipeline {
 
@@ -388,8 +342,7 @@ public class VirtualPipeline {
      * Check if this copy should be flushed.
      */
     private boolean shouldBeFlushed(final VirtualRoot copy) {
-        return copy.shouldBeFlushed() // either explicitly marked to flush or based on its size
-                && copy.isDestroyed();
+        return copy.shouldBeFlushed(); // either explicitly marked to flush or based on its size
     }
 
     /**
@@ -419,9 +372,7 @@ public class VirtualPipeline {
         if (copy.isFlushed()) {
             throw new IllegalStateException("copy is already flushed");
         }
-        if (!copy.isHashed()) {
-            hashCopy(copy);
-        }
+        assert copy.isHashed();
         copy.flush();
     }
 
@@ -433,7 +384,6 @@ public class VirtualPipeline {
         final PipelineListNode<VirtualRoot> mergeTarget = mergeCandidate.getNext();
 
         return !copy.shouldBeFlushed() // shouldn't be flushed
-                && copy.isDestroyed() // copy must be destroyed
                 && mergeTarget != null // target must exist
                 && mergeTarget.getValue().isImmutable(); // target must be immutable
     }
@@ -447,20 +397,14 @@ public class VirtualPipeline {
      */
     private void merge(final PipelineListNode<VirtualRoot> node) {
         final VirtualRoot copy = node.getValue();
-
         if (copy.isMerged()) {
             throw new IllegalStateException("copy is already merged");
         }
-
-        if (!copy.isHashed()) {
-            hashCopy(copy);
-        }
-
+        assert copy.isHashed();
         final VirtualRoot next = node.getNext().getValue();
         if (!next.isHashed()) {
             hashCopy(next);
         }
-
         copy.merge();
     }
 
@@ -471,12 +415,20 @@ public class VirtualPipeline {
         PipelineListNode<VirtualRoot> next = copies.getFirst();
         // Iterate from the oldest copy to the newest
         while ((next != null) && !Thread.currentThread().isInterrupted()) {
+            assert next == copies.getFirst();
             final VirtualRoot copy = next.getValue();
             // The newest copy. Nothing can be done to it
             if (!copy.isImmutable()) {
                 break;
             }
-            if ((next == copies.getFirst()) && shouldBeFlushed(copy)) {
+            if (!copy.isDestroyed()) {
+                // All operations below are only applicable to destroyed copies.
+                break;
+            }
+            if (!copy.isHashed()) {
+                hashCopy(copy);
+            }
+            if (shouldBeFlushed(copy)) {
                 logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Flush {}", copy.getFastCopyVersion());
                 flush(copy);
                 copies.remove(next);
@@ -485,6 +437,9 @@ public class VirtualPipeline {
                 logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Merge {}", copy.getFastCopyVersion());
                 merge(next);
                 copies.remove(next);
+            } else {
+                // The oldest copy can't be flushed or merged. No need to process newer copies
+                break;
             }
 
             next = next.getNext();
