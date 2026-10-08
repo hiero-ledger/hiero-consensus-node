@@ -49,44 +49,44 @@ public class GrantApprovalLoggingUtils {
 
     /**
      * @param tokenId the token id that the spender is approved
-     * @param sender the sender account
+     * @param owner the owner of the NFT, which is not the sender when the sender is an approved-for-all operator
      * @param spender the spender account
-     * @param amount the amount of the granted approval
+     * @param serialNumber the serial number of the approved NFT
      * @param accountStore the current account store
      * @param frame the current message frame
      */
     public static void logSuccessfulNFTApprove(
             @NonNull final TokenID tokenId,
-            @NonNull final AccountID sender,
+            @NonNull final AccountID owner,
             @NonNull final AccountID spender,
-            final long amount,
+            final long serialNumber,
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final MessageFrame frame) {
         requireNonNull(tokenId);
         requireNonNull(frame);
-        requireNonNull(sender);
+        requireNonNull(owner);
         requireNonNull(spender);
         requireNonNull(accountStore);
 
-        frame.addLog(builderFor(tokenId, sender, spender, accountStore)
-                .forIndexedArgument(amount)
+        frame.addLog(builderFor(tokenId, owner, spender, accountStore)
+                .forIndexedArgument(serialNumber)
                 .build());
     }
 
     private static LogBuilder builderFor(
             @NonNull final TokenID tokenId,
-            @NonNull final AccountID senderId,
+            @NonNull final AccountID ownerId,
             @NonNull final AccountID spenderId,
             @NonNull final ReadableAccountStore accountStore) {
         final var tokenAddress = asLongZeroAddress(tokenId.tokenNum());
-        final var senderAddress = priorityAddressOf(requireNonNull(accountStore.getAccountById(senderId)));
+        final var ownerAddress = priorityAddressOf(requireNonNull(accountStore.getAccountById(ownerId)));
 
         final var spenderAccount = accountStore.getAccountById(spenderId);
         final var spenderAddress = spenderAccount != null ? priorityAddressOf(spenderAccount) : Bytes.EMPTY;
         return LogBuilder.logBuilder()
                 .forLogger(tokenAddress)
                 .forEventSignature(APPROVAL_EVENT)
-                .forIndexedArgument(senderAddress)
+                .forIndexedArgument(ownerAddress)
                 .forIndexedArgument(spenderAddress);
     }
 }
