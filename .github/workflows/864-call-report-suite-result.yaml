@@ -12,7 +12,7 @@ on:
   workflow_call:
     inputs:
       suite-type:
-        description: "The suite being reported: mats, xts, sdpt, sdlt, sdct, or mdlt"
+        description: "The suite being reported: mats, xts, sdpt, sdlt, sdct, mdlt, adhoc_sdpt, adhoc_sdlt, or adhoc_sdct"
         required: true
         type: string
       disposition:
@@ -76,7 +76,7 @@ jobs:
           set -euo pipefail
 
           case "${SUITE_TYPE}" in
-            mats | xts | sdpt | sdlt | sdct | mdlt) ;;
+            mats | xts | sdpt | sdlt | sdct | mdlt | adhoc_sdpt | adhoc_sdlt | adhoc_sdct) ;;
             *) echo "::error title=Invalid Suite Type::'${SUITE_TYPE}' is not a Chewie suite type."; exit 1 ;;
           esac
 

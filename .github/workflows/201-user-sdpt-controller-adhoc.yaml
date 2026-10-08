@@ -73,13 +73,16 @@ jobs:
     continue-on-error: true
     outputs:
       build-number: ${{ steps.verify-tag.outputs.build-number }}
+      commit: ${{ steps.resolve-commit.outputs.commit }}
+      branch: ${{ steps.resolve-commit.outputs.branch }}
+      build-tag-number: ${{ steps.resolve-commit.outputs.build-tag-number }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
         uses: pandaswhocode/initialize-github-job@5dbfbc4329ceab48a57d983325dadbd3ec8123e9 # v1.2.2
         with:
           checkout: "true"
-          checkout-ref: "${{ github.ref }}"
+          checkout-ref: "${{ inputs.ref || github.ref }}"
           checkout-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Verify Tag
@@ -106,6 +109,36 @@ jobs:
             echo "Ref: ${CHECK_TAG}" >> "${GITHUB_STEP_SUMMARY}"
           fi
 
+      # Chewie records AdHoc results against the commit under test, with its branch when the ref is a
+      # branch and its build number when the ref is a build tag.
+      - name: Resolve Commit
+        id: resolve-commit
+        env:
+          REF: ${{ inputs.ref || github.ref }}
+        run: |
+          COMMIT="$(git rev-parse HEAD)"
+
+          BRANCH=""
+          REF_NAME="${REF#refs/heads/}"
+          if [[ "${REF}" == refs/heads/* ]] || git ls-remote --exit-code --heads origin "${REF_NAME}" >/dev/null 2>&1; then
+            BRANCH="${REF_NAME}"
+          fi
+
+          BUILD_TAG_NUMBER=""
+          if [[ "${REF#refs/tags/}" =~ ^build-([0-9]{5})$ ]]; then
+            BUILD_TAG_NUMBER="${BASH_REMATCH[1]}"
+          fi
+
+          {
+            echo "commit=${COMMIT}"
+            echo "branch=${BRANCH}"
+            echo "build-tag-number=${BUILD_TAG_NUMBER}"
+          } >> "${GITHUB_OUTPUT}"
+          {
+            echo "Commit: ${COMMIT}"
+            echo "Branch: ${BRANCH:-(none)}"
+            echo "Build tag number: ${BUILD_TAG_NUMBER:-(none)}"
+          } >> "${GITHUB_STEP_SUMMARY}"
   extract-jdk-version:
     name: Extract Java Version
     uses: ./.github/workflows/854-call-extract-jdk-version.yaml
@@ -230,6 +263,29 @@ jobs:
       chewie-token: ${{ needs.get-chewie-jwt.outputs.jwt }}
       chewie-host: ${{ secrets.CHEWIE_HOST }}
 
+  # Required: a failed report fails the run. Starts together with the test: same needs, so it reports
+  # running when the test kicks off. Neither waits on the other. Reported whether or not notifications
+  # are disabled; that input only controls the tags and Slack.
+  report-adhoc-sdpt-running:
+    name: Report AdHoc SDPT Running to Chewie
+    needs:
+      - verify-tag
+      - extract-jdk-version
+      - extract-citr-vars
+      - verify-citr-vars
+      - acquire-kubernetes-resources
+    if: ${{ needs.verify-tag.outputs.commit != '' }}
+    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    with:
+      suite-type: adhoc_sdpt
+      commit: ${{ needs.verify-tag.outputs.commit }}
+      branch: ${{ needs.verify-tag.outputs.branch }}
+      build-number: ${{ needs.verify-tag.outputs.build-tag-number }}
+      disposition: running
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
+
   run-single-day-performance-test:
     name: Performance Test
     needs:
@@ -257,6 +313,29 @@ jobs:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       github-token: ${{ secrets.GITHUB_TOKEN }}
       chewie-id-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
+
+  # Required: a failed report fails the run.
+  report-adhoc-sdpt-result:
+    name: Report AdHoc SDPT Result to Chewie
+    needs:
+      - verify-tag
+      - report-adhoc-sdpt-running # keeps the terminal report after the running one, so it is the latest
+      - run-single-day-performance-test
+    if: ${{ always() && needs.verify-tag.outputs.commit != '' }}
+    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    with:
+      suite-type: adhoc_sdpt
+      commit: ${{ needs.verify-tag.outputs.commit }}
+      branch: ${{ needs.verify-tag.outputs.branch }}
+      build-number: ${{ needs.verify-tag.outputs.build-tag-number }}
+      disposition:
+        ${{ needs.run-single-day-performance-test.result == 'cancelled' && 'cancelled'
+        || needs.run-single-day-performance-test.outputs.result == 'success' && 'passed'
+        || needs.run-single-day-performance-test.result == 'skipped' && 'not_run'
+        || 'failed' }}
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
       chewie-host: ${{ secrets.CHEWIE_HOST }}
 
   tag-sdpt-result:

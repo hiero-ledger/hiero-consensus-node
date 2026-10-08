@@ -172,15 +172,17 @@ Every suite reports to `POST /api/v1/suites/results` through one reusable workfl
 `864-call-report-suite-result.yaml`. Each caller names its suite explicitly and maps its own job results to a
 disposition. The terminal report job runs with `if: always()`, so cancelled runs are reported too.
 
-| Workflow | Suite  | Reports against               | Disposition                                                                                                                                               |
-|----------|--------|-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `300`    | `mats` | commit (`github.sha`), branch | `running` when MATS starts; when it finishes: success → `passed`, cancelled → `cancelled`, skipped → `not_run`, otherwise `failed`                        |
-| `226`    | `xts`  | commit (the candidate SHA)    | `running` when XTS starts; rejected candidate → `not_run`; otherwise success → `passed`, failure → `failed`, cancelled → `cancelled`                      |
-| `221`    | `sdpt` | build number                  | `running` when the test starts; after cleanup: cancelled → `cancelled`, success → `passed`, skipped → `not_run`, otherwise `failed`                       |
-| `222`    | `sdlt` | build number                  | Same as `221`                                                                                                                                             |
-| `224`    | `mdlt` | build number                  | Kickoff succeeded → **`running`**; cancelled → `cancelled`; skipped (build tag not verified) → `not_run`; otherwise `failed`                              |
-| `204`    | `mdlt` | build number                  | **Every status check:** in work → `running`; finished cleanly → `passed`; error in the client log → `failed`; namespace gone or run stopped → `cancelled` |
-| `206`    | `mdlt` | build number                  | The verdict Chewie dispatched it with: `success` → `passed`, `failure` → `failed`. Reported once the build is verified, whether or not tagging succeeds   |
+| Workflow | Suite        | Reports against               | Disposition                                                                                                                                               |
+|----------|--------------|-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `300`    | `mats`       | commit (`github.sha`), branch | `running` when MATS starts; when it finishes: success → `passed`, cancelled → `cancelled`, skipped → `not_run`, otherwise `failed`                        |
+| `226`    | `xts`        | commit (the candidate SHA)    | `running` when XTS starts; rejected candidate → `not_run`; otherwise success → `passed`, failure → `failed`, cancelled → `cancelled`                      |
+| `221`    | `sdpt`       | build number                  | `running` when the test starts; after cleanup: cancelled → `cancelled`, success → `passed`, skipped → `not_run`, otherwise `failed`                       |
+| `222`    | `sdlt`       | build number                  | Same as `221`                                                                                                                                             |
+| `201`    | `adhoc_sdpt` | commit, branch, build number  | AdHoc SDPT, any ref: `running` when the test starts, then the same mapping as `221`                                                                       |
+| `202`    | `adhoc_sdlt` | commit, branch, build number  | AdHoc SDLT: same as `201`                                                                                                                                 |
+| `224`    | `mdlt`       | build number                  | Kickoff succeeded → **`running`**; cancelled → `cancelled`; skipped (build tag not verified) → `not_run`; otherwise `failed`                              |
+| `204`    | `mdlt`       | build number                  | **Every status check:** in work → `running`; finished cleanly → `passed`; error in the client log → `failed`; namespace gone or run stopped → `cancelled` |
+| `206`    | `mdlt`       | build number                  | The verdict Chewie dispatched it with: `success` → `passed`, `failure` → `failed`. Reported once the build is verified, whether or not tagging succeeds   |
 
 MATS, XTS, SDPT and SDLT report twice per run: `running` when the suite's test job starts (the report job shares the
 test's `needs`, so the two start together and neither waits on the other), then the terminal disposition. The terminal
@@ -240,7 +242,7 @@ Must be in place before this repository's changes are relied on in production:
    owns workflow dispatching. Select commits on `main` that passed MATS and are not already part of a build. Disable
    `900` when this starts, or XTS runs twice per candidate.
 3. **Accept suite results — this blocks merging.** Serve `POST /api/v1/suites/results` for `mats`, `xts`, `sdpt`,
-   `sdlt` and `mdlt`. The endpoint exists only in Chewie 3.x (v3.3.0 and later). Reporting is required, so against 2.11
+   `sdlt` and `mdlt`, and for the AdHoc types `adhoc_sdpt` and `adhoc_sdlt` (item 10). The endpoint exists only in Chewie 3.x (v3.3.0 and later). Reporting is required, so against 2.11
    every report returns 404 and **fails the run** — including MATS (`300`) on every push to `main`. Chewie 3.x must be in
    production before this repository's changes merge, and it must be a release that schedules (item 9).
    - **MATS gates XTS candidacy.** `300` reports MATS for every push to `main` and `release/**`, so candidate selection
@@ -288,6 +290,12 @@ Must be in place before this repository's changes are relied on in production:
      4. Deploy Chewie and this repository's changes.
      5. Remove the `solo.hashgraph.io/*` taints, then resume the controllers. The taints come off last: a pod that
         tolerates only Chewie's taints cannot schedule on a machine that still carries an operator taint.
+10. **AdHoc suite types — this blocks merging.** `201` and `202` report AdHoc SDPT and SDLT runs as `adhoc_sdpt` and
+    `adhoc_sdlt`, against the commit under test, with its branch when the ref is a branch and its build number when the
+    ref is a `build-NNNNN` tag. Chewie must accept these types, and `adhoc_sdct` for a future AdHoc SDCT controller,
+    before this repository's changes merge: reporting is required, so an unknown type fails the AdHoc run. They are
+    never gates — an AdHoc result must not change a build's colour, outstanding suites or promotion. Tracked by
+    swirldslabs/chewie#882.
 
 ## Follow-Ups in This Repository
 
