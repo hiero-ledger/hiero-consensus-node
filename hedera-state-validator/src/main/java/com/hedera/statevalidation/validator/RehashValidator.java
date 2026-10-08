@@ -78,12 +78,12 @@ public class RehashValidator implements Validator {
 
         try {
             computedHash = TaskPerNodeFullRehasher.hash(
-                            VALIDATOR_FORK_JOIN_POOL,
-                            firstLeafPath,
-                            lastLeafPath,
-                            records::findLeafRecord,
-                            TaskPerNodeFullRehasher.Listener.NO_OP,
-                            timeoutMs);
+                    VALIDATOR_FORK_JOIN_POOL,
+                    firstLeafPath,
+                    lastLeafPath,
+                    records::findLeafRecord,
+                    TaskPerNodeFullRehasher.Listener.NO_OP,
+                    timeoutMs);
         } catch (final Exception e) {
             throw new ValidationException(REHASH_GROUP, "Unexpected exception: " + e.getMessage(), e);
         }
