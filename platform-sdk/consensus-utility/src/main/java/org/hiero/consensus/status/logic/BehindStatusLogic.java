@@ -4,6 +4,7 @@ package org.hiero.consensus.status.logic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.config.PlatformStatusConfig;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.status.actions.FallenBehindAction;
 import org.hiero.consensus.status.actions.FreezePeriodEnteredAction;
 
 /**
@@ -32,6 +33,12 @@ public class BehindStatusLogic extends AbstractStatusLogic {
     protected PlatformStatusLogic onFreezePeriodEntered(@NonNull final FreezePeriodEnteredAction action) {
         validateFreezeRound(freezeRound, action);
         freezeRound = action.freezeRound();
+        return this;
+    }
+
+    @NonNull
+    @Override
+    protected PlatformStatusLogic onFallenBehind(@NonNull final FallenBehindAction action) {
         return this;
     }
 }

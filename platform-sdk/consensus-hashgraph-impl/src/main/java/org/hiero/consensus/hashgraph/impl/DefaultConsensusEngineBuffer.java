@@ -60,7 +60,6 @@ public class DefaultConsensusEngineBuffer implements ConsensusEngineBuffer {
     @NonNull
     @Override
     public ConsensusEngineBufferOutput requestRound() {
-        logger.info(STARTUP.getMarker(), "Requesting round");
         requestCounter++;
         return maybeGetConsensusResult();
     }
@@ -85,8 +84,6 @@ public class DefaultConsensusEngineBuffer implements ConsensusEngineBuffer {
 
         final List<ConsensusResult> resultsToReturn = getBufferedConsensusResults();
 
-        logger.info(STARTUP.getMarker(), "Buffered {} consensus results", resultsToReturn.size());
-
         final List<PlatformEvent> preConsensusEvents = new ArrayList<>();
         while (requestCounter > 0 && !pendingEventQueue.isEmpty()) {
             final PlatformEvent eventToAdd = pendingEventQueue.poll();
@@ -95,8 +92,6 @@ public class DefaultConsensusEngineBuffer implements ConsensusEngineBuffer {
             consensusResultQueue.addAll(output.consensusResult());
             resultsToReturn.addAll(getBufferedConsensusResults());
         }
-
-        logger.info(STARTUP.getMarker(), "Returning {} consensus results", resultsToReturn.size());
 
         return new ConsensusEngineBufferOutput(preConsensusEvents, resultsToReturn);
     }
