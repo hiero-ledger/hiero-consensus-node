@@ -1,18 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.virtualmap.internal.reconnect;
+package com.swirlds.virtualmap.internal;
 
 import static com.swirlds.virtualmap.test.fixtures.TestKey.longToKey;
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.DEFAULT_VIRTUAL_MAP_CONFIG;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.VirtualMapStatistics;
 import com.swirlds.virtualmap.test.fixtures.TestValue;
 import com.swirlds.virtualmap.test.fixtures.datasource.InMemoryDataSource;
 import java.nio.ByteBuffer;
@@ -26,20 +25,54 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class ReconnectHashLeafFlusherTest {
+public class HashLeafFlusherTest {
+
+    private static final int DEFAULT_FLUSH_INTERVAL = 500_000;
 
     @Test
     void testNullDataSourceThrows() {
         assertThrows(
-                NullPointerException.class,
-                () -> new ReconnectHashLeafFlusher(null, 100, mock(VirtualMapStatistics.class)));
+                NullPointerException.class, () -> new HashLeafFlusher(null, 100, mock(VirtualMapStatistics.class)));
     }
 
     @Test
     void testNullStatsThrows() {
-        assertThrows(
-                NullPointerException.class,
-                () -> new ReconnectHashLeafFlusher(mock(VirtualDataSource.class), 100, null));
+        assertThrows(NullPointerException.class, () -> new HashLeafFlusher(mock(VirtualDataSource.class), 100, null));
+    }
+
+    @Test
+    void testInterruptedFlushFails() {
+        // Simulates MerkleDbDataSource, which restores the interrupted flag and returns normally
+        final InMemoryDataSource ds = new InMemoryDataSource("testInterruptedFlushFails") {
+            @Override
+            @SuppressWarnings("rawtypes")
+            public void saveRecords(
+                    final long firstLeafPath,
+                    final long lastLeafPath,
+                    final Stream<VirtualHashChunk> hashChunksToUpdate,
+                    final Stream<VirtualLeafBytes> leafRecordsToAddOrUpdate,
+                    final Stream<VirtualLeafBytes> leafRecordsToDelete,
+                    final boolean isReconnectContext)
+                    throws java.io.IOException {
+                super.saveRecords(
+                        firstLeafPath,
+                        lastLeafPath,
+                        hashChunksToUpdate,
+                        leafRecordsToAddOrUpdate,
+                        leafRecordsToDelete,
+                        isReconnectContext);
+                Thread.currentThread().interrupt();
+            }
+        };
+        final HashLeafFlusher flusher =
+                new HashLeafFlusher(ds, 0, new VirtualMapStatistics("testInterruptedFlushFails"));
+        flusher.init(1, 2);
+        try {
+            assertThrows(IllegalStateException.class, flusher::finish);
+            assertTrue(Thread.currentThread().isInterrupted(), "Interrupted flag must be preserved");
+        } finally {
+            Thread.interrupted();
+        }
     }
 
     @ParameterizedTest
@@ -55,8 +88,7 @@ public class ReconnectHashLeafFlusherTest {
     void testInvalidLeafPaths(long firstLeafPath, long lastLeafPath) {
         final VirtualDataSource ds = new InMemoryDataSource("testNadLeafPaths");
         final VirtualMapStatistics stats = new VirtualMapStatistics("testNadLeafPaths");
-        final ReconnectHashLeafFlusher flusher =
-                new ReconnectHashLeafFlusher(ds, DEFAULT_VIRTUAL_MAP_CONFIG.reconnectFlushInterval(), stats);
+        final HashLeafFlusher flusher = new HashLeafFlusher(ds, DEFAULT_FLUSH_INTERVAL, stats);
         assertThrows(IllegalArgumentException.class, () -> flusher.init(firstLeafPath, lastLeafPath));
     }
 
@@ -66,7 +98,7 @@ public class ReconnectHashLeafFlusherTest {
         final VirtualDataSource ds = new InMemoryDataSource("testHashesFlushed");
         final int hashChunkHeight = ds.getHashChunkHeight();
         final VirtualMapStatistics stats = new VirtualMapStatistics("testHashesFlushed");
-        final ReconnectHashLeafFlusher flusher = new ReconnectHashLeafFlusher(ds, flushInterval, stats);
+        final HashLeafFlusher flusher = new HashLeafFlusher(ds, flushInterval, stats);
         final int COUNT = 500;
         flusher.init(COUNT - 1, COUNT * 2 - 2);
         final long minHashChunkId = VirtualHashChunk.lastChunkIdForPaths(COUNT * 2 - 2, hashChunkHeight);
@@ -99,7 +131,7 @@ public class ReconnectHashLeafFlusherTest {
     void testLeavesFlushed(final int flushInterval) throws Exception {
         final VirtualDataSource ds = new InMemoryDataSource("testLeavesFlushed");
         final VirtualMapStatistics stats = new VirtualMapStatistics("testLeavesFlushed");
-        final ReconnectHashLeafFlusher flusher = new ReconnectHashLeafFlusher(ds, flushInterval, stats);
+        final HashLeafFlusher flusher = new HashLeafFlusher(ds, flushInterval, stats);
         final int COUNT = 500;
         flusher.init(COUNT - 1, COUNT * 2 - 2);
         for (int i = COUNT - 1; i < COUNT * 2 - 1; i++) {
@@ -131,7 +163,7 @@ public class ReconnectHashLeafFlusherTest {
                 Stream.of(),
                 false);
         final VirtualMapStatistics stats = new VirtualMapStatistics("testLeavesDeleted");
-        final ReconnectHashLeafFlusher flusher = new ReconnectHashLeafFlusher(ds, flushInterval, stats);
+        final HashLeafFlusher flusher = new HashLeafFlusher(ds, flushInterval, stats);
         flusher.init(COUNT - 1, COUNT * 2 - 2);
         for (int i = COUNT / 2 + 99; i < COUNT - 1; i++) {
             flusher.deleteLeaf(leaf(i, i, i));

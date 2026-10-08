@@ -43,7 +43,7 @@ class FullLeafRehashHashListenerTest extends VirtualTestBase {
         dataSource = new InMemoryDataSource("test");
         VirtualMapStatistics statistics = new VirtualMapStatistics("test");
         // Use a range that will allow us to test the flush interval
-        listener = new FullLeafRehashHashListener(1, 1000000, dataSource, statistics, flushInterval);
+        listener = new FullLeafRehashHashListener(dataSource, statistics, flushInterval);
     }
 
     @Test
@@ -94,7 +94,8 @@ class FullLeafRehashHashListenerTest extends VirtualTestBase {
         final int chunkSize = VirtualHashChunk.getChunkSize(hashChunkHeight);
         // Let's try a number of hash chunks to trigger at least one intermediate flush.
         final int chunksToFlush = flushInterval / chunkSize;
-        listener.onHashingStarted(1, (long) chunksToFlush * chunkSize);
+        // Wide path range, so that all hashes are within the data source range
+        listener.onHashingStarted(1, 1_000_000);
         for (int i = 0; i < chunksToFlush + 1; i++) {
             final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(i, hashChunkHeight);
             final VirtualHashChunk chunk = new VirtualHashChunk(chunkPath, hashChunkHeight);
@@ -126,8 +127,8 @@ class FullLeafRehashHashListenerTest extends VirtualTestBase {
         final LongFunction<VirtualLeafBytes<?>> reader = path -> leaf(path, path, path * 3);
         final int hashChunkHeight = dataSource.getHashChunkHeight();
         // Every chunk triggers a flush, unless another flush is in progress
-        final FullLeafRehashHashListener chunkListener = new FullLeafRehashHashListener(
-                firstLeafPath, lastLeafPath, dataSource, new VirtualMapStatistics("test"), 1);
+        final FullLeafRehashHashListener chunkListener =
+                new FullLeafRehashHashListener(dataSource, new VirtualMapStatistics("test"), 1);
         final HashChunkCollector collector =
                 new HashChunkCollector(hashChunkHeight, firstLeafPath, lastLeafPath, chunkListener);
         final ForkJoinPool pool = new ForkJoinPool(8);
@@ -153,7 +154,7 @@ class FullLeafRehashHashListenerTest extends VirtualTestBase {
     void flushFailureFailsFullRehash() {
         final LongFunction<VirtualLeafBytes<?>> reader = path -> leaf(path, path, path);
         final FullLeafRehashHashListener chunkListener =
-                new FullLeafRehashHashListener(999, 1998, dataSource, new VirtualMapStatistics("test"), 1);
+                new FullLeafRehashHashListener(dataSource, new VirtualMapStatistics("test"), 1);
         final HashChunkCollector collector =
                 new HashChunkCollector(dataSource.getHashChunkHeight(), 999, 1998, chunkListener);
         // Closed data source throws an IOException on save
@@ -174,8 +175,8 @@ class FullLeafRehashHashListenerTest extends VirtualTestBase {
     void interruptDuringFlushFailsFlush() {
         // Simulates MerkleDbDataSource, which restores the interrupted flag and returns normally
         final InterruptingDataSource interruptingDataSource = new InterruptingDataSource();
-        final FullLeafRehashHashListener chunkListener = new FullLeafRehashHashListener(
-                1, 2, interruptingDataSource, new VirtualMapStatistics("test"), flushInterval);
+        final FullLeafRehashHashListener chunkListener =
+                new FullLeafRehashHashListener(interruptingDataSource, new VirtualMapStatistics("test"), flushInterval);
         chunkListener.onHashingStarted(1, 2);
         chunkListener.onHashChunkHashed(new VirtualHashChunk(0, interruptingDataSource.getHashChunkHeight()));
         try {
@@ -191,8 +192,8 @@ class FullLeafRehashHashListenerTest extends VirtualTestBase {
     @DisplayName("Flush is not started if the thread is interrupted")
     void flushNotStartedIfInterrupted() {
         final InterruptingDataSource interruptingDataSource = new InterruptingDataSource();
-        final FullLeafRehashHashListener chunkListener = new FullLeafRehashHashListener(
-                1, 2, interruptingDataSource, new VirtualMapStatistics("test"), flushInterval);
+        final FullLeafRehashHashListener chunkListener =
+                new FullLeafRehashHashListener(interruptingDataSource, new VirtualMapStatistics("test"), flushInterval);
         chunkListener.onHashingStarted(1, 2);
         Thread.currentThread().interrupt();
         try {
@@ -211,7 +212,7 @@ class FullLeafRehashHashListenerTest extends VirtualTestBase {
         final InterruptingDataSource interruptingDataSource = new InterruptingDataSource();
         // Large flush interval, so the final flush is the only flush
         final FullLeafRehashHashListener chunkListener = new FullLeafRehashHashListener(
-                999, 1998, interruptingDataSource, new VirtualMapStatistics("test"), Integer.MAX_VALUE);
+                interruptingDataSource, new VirtualMapStatistics("test"), Integer.MAX_VALUE);
         final HashChunkCollector collector =
                 new HashChunkCollector(interruptingDataSource.getHashChunkHeight(), 999, 1998, chunkListener);
         final ForkJoinPool pool = new ForkJoinPool(4);

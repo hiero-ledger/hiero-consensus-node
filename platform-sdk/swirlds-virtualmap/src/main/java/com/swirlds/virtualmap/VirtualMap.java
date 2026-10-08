@@ -466,8 +466,8 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         logger.info(STARTUP.getMarker(), "Doing full rehash for the path range: {} - {}", firstLeafPath, lastLeafPath);
         final int hashChunkHeight = dataSource.getHashChunkHeight();
-        final FullLeafRehashHashListener chunkListener = new FullLeafRehashHashListener(
-                firstLeafPath, lastLeafPath, dataSource, statistics, FULL_REHASH_FLUSH_INTERVAL);
+        final FullLeafRehashHashListener chunkListener =
+                new FullLeafRehashHashListener(dataSource, statistics, FULL_REHASH_FLUSH_INTERVAL);
         final HashChunkCollector hashListener =
                 new HashChunkCollector(hashChunkHeight, firstLeafPath, lastLeafPath, chunkListener);
 
