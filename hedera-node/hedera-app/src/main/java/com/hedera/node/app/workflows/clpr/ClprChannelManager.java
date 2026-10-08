@@ -706,16 +706,20 @@ public class ClprChannelManager implements ClprChannelLifecycle {
      * attested at channel-completion time. The caller is expected to have already truncated
      * the list to this ledger's {@code max_peer_endpoints} limit (spec §3.10.5). Replaces any
      * pre-existing entry so the first sync tick sees the freshly verified set rather than stale
-     * discovery data.
+     * discovery data. An empty {@code endpoints} removes the channel's cached entry instead of
+     * being a no-op, so a replacement manifest that drops all endpoints also drops this
+     * channel's contribution to the inbound mTLS CA trust index and is reflected in the
+     * on-disk cache.
      */
     @Override
     public void seedPeerEndpoints(@NonNull final Bytes channelId, @NonNull final List<ClprEndpoint> endpoints) {
         requireNonNull(channelId);
         requireNonNull(endpoints);
         if (endpoints.isEmpty()) {
-            return;
+            peerEndpointCache.remove(channelId);
+        } else {
+            peerEndpointCache.put(channelId, new ArrayList<>(endpoints));
         }
-        peerEndpointCache.put(channelId, new ArrayList<>(endpoints));
         rebuildPeerCaCache();
         markPeerEndpointsDirty();
     }
