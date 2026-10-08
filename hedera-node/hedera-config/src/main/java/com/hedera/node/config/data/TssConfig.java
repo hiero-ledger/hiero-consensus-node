@@ -78,11 +78,11 @@ public record TssConfig(
 
         @ConfigProperty(
                 defaultValue =
-                        "620cbcf69098d31a0893081cb76113ee0f72091b3417e601178cdc376c81e5c2407c1827d123df44bccb78ad4bb11fb3")
+                        "ead332b853b0312881ebaaae1a55020014c3b577f9639ad3c136e2d4e573d9c87261c328e8043dcbed497a34fae5b33f")
         @NetworkProperty
         String wrapsProvingKeyHash,
 
-        @ConfigProperty(defaultValue = "https://builds.hedera.com/tss/hiero/wraps/v1.0/wraps-v1.0.0.tar.gz")
+        @ConfigProperty(defaultValue = "https://builds.hedera.com/tss/hiero/wraps/v1.6/wraps-v1.6.0.tar.gz")
         @NetworkProperty
         String wrapsProvingKeyDownloadUrl,
 
