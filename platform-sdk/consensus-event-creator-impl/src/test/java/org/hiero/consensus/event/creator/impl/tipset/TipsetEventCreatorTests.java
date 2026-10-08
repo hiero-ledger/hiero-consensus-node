@@ -18,8 +18,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -37,9 +35,11 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.model.roster.RosterEntryWrapper;
+import org.hiero.consensus.model.roster.RosterWrapper;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
+import org.hiero.consensus.model.test.fixtures.roster.RosterWrapperFactory;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
-import org.hiero.consensus.roster.test.fixtures.RosterFactory;
 import org.hiero.consensus.test.fixtures.WeightGenerators;
 import org.hiero.junit.extensions.ParamName;
 import org.hiero.junit.extensions.ParamSource;
@@ -78,7 +78,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final Roster roster = RosterFactory.randomRoster(random, networkSize);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, networkSize);
 
         final FakeTime time = new FakeTime();
 
@@ -89,14 +89,14 @@ class TipsetEventCreatorTests {
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
-            for (final RosterEntry address : roster.rosterEntries()) {
+            for (final RosterEntryWrapper entry : roster.rosterEntries()) {
                 if (advancingClock) {
                     time.tick(Duration.ofMillis(10));
                 }
 
                 transactionSupplier.set(generateRandomTransactions(random));
 
-                final NodeId nodeId = NodeId.of(address.nodeId());
+                final NodeId nodeId = entry.nodeId();
                 final EventCreator eventCreator = nodes.get(nodeId).eventCreator();
 
                 final PlatformEvent event = eventCreator.maybeCreateEvent();
@@ -142,7 +142,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final Roster roster = RosterFactory.randomRoster(random, networkSize);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, networkSize);
 
         final FakeTime time = new FakeTime();
 
@@ -154,19 +154,19 @@ class TipsetEventCreatorTests {
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
 
-            final List<RosterEntry> addresses = new ArrayList<>(roster.rosterEntries());
-            Collections.shuffle(addresses, random);
+            final List<RosterEntryWrapper> entries = new ArrayList<>(roster.rosterEntries());
+            Collections.shuffle(entries, random);
 
             boolean atLeastOneEventCreated = false;
 
-            for (final RosterEntry address : addresses) {
+            for (final RosterEntryWrapper entry : entries) {
                 if (advancingClock) {
                     time.tick(Duration.ofMillis(10));
                 }
 
                 transactionSupplier.set(generateRandomTransactions(random));
 
-                final NodeId nodeId = NodeId.of(address.nodeId());
+                final NodeId nodeId = entry.nodeId();
                 final EventCreator eventCreator = nodes.get(nodeId).eventCreator();
 
                 final PlatformEvent event = eventCreator.maybeCreateEvent();
@@ -211,14 +211,15 @@ class TipsetEventCreatorTests {
 
             final int networkSize = 4;
 
-            final Roster roster = RosterFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
+            final RosterWrapper roster =
+                    RosterWrapperFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
 
             final FakeTime time = new FakeTime();
 
-            final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId()); // self
-            final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
-            final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
-            final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
+            final NodeId nodeA = roster.rosterEntries().get(0).nodeId(); // self
+            final NodeId nodeB = roster.rosterEntries().get(1).nodeId();
+            final NodeId nodeC = roster.rosterEntries().get(2).nodeId();
+            final NodeId nodeD = roster.rosterEntries().get(3).nodeId();
 
             // All nodes except for node 0 are fully mocked. This test is testing how node 0 behaves.
             final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList, 1);
@@ -324,24 +325,23 @@ class TipsetEventCreatorTests {
             @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
 
         final int networkSize = 4;
-        final Roster roster = RosterFactory.randomRoster(random, networkSize);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, networkSize);
         final FakeTime time = new FakeTime();
         final AtomicReference<List<TimestampedTransaction>> transactionSupplier = new AtomicReference<>();
         final Map<NodeId, SimulatedNode> nodes = buildSimulatedNodes(random, time, roster, transactionSupplier::get);
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
-        final NodeId reconnectingId =
-                NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final NodeId reconnectingId = roster.rosterEntries().getFirst().nodeId();
         PlatformEvent latestSelfEvent = null;
 
         // Run normally so every node builds up other-parent candidates, tipset state and a self-event chain.
         for (int cycle = 0; cycle < 20; cycle++) {
-            for (final RosterEntry address : roster.rosterEntries()) {
+            for (final RosterEntryWrapper entry : roster.rosterEntries()) {
                 if (advancingClock) {
                     time.tick(Duration.ofMillis(10));
                 }
                 transactionSupplier.set(generateRandomTransactions(random));
-                final NodeId nodeId = NodeId.of(address.nodeId());
+                final NodeId nodeId = entry.nodeId();
                 final PlatformEvent event = nodes.get(nodeId).eventCreator().maybeCreateEvent();
                 if (event == null) {
                     continue;
@@ -364,8 +364,8 @@ class TipsetEventCreatorTests {
 
         // Deliver fresh events from the rest of the network.
         for (int cycle = 0; cycle < 3; cycle++) {
-            for (final RosterEntry address : roster.rosterEntries()) {
-                final NodeId nodeId = NodeId.of(address.nodeId());
+            for (final RosterEntryWrapper entry : roster.rosterEntries()) {
+                final NodeId nodeId = entry.nodeId();
                 if (nodeId.equals(reconnectingId)) {
                     continue;
                 }
@@ -412,7 +412,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final Roster roster = RosterFactory.randomRoster(random, networkSize);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, networkSize);
 
         final FakeTime time = new FakeTime();
 
@@ -423,7 +423,7 @@ class TipsetEventCreatorTests {
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
-            for (final RosterEntry address : roster.rosterEntries()) {
+            for (final RosterEntryWrapper entry : roster.rosterEntries()) {
 
                 int count = 0;
                 while (true) {
@@ -433,7 +433,7 @@ class TipsetEventCreatorTests {
 
                     transactionSupplier.set(generateRandomTransactions(random));
 
-                    final NodeId nodeId = NodeId.of(address.nodeId());
+                    final NodeId nodeId = entry.nodeId();
                     final EventCreator eventCreator = nodes.get(nodeId).eventCreator();
 
                     final PlatformEvent event = eventCreator.maybeCreateEvent();
@@ -483,7 +483,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final Roster roster = RosterFactory.randomRoster(random, networkSize);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, networkSize);
 
         final FakeTime time = new FakeTime();
 
@@ -495,15 +495,15 @@ class TipsetEventCreatorTests {
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
 
-            final List<RosterEntry> addresses = new ArrayList<>(roster.rosterEntries());
-            Collections.shuffle(addresses, random);
+            final List<RosterEntryWrapper> entries = new ArrayList<>(roster.rosterEntries());
+            Collections.shuffle(entries, random);
 
             boolean atLeastOneEventCreated = false;
 
-            for (final RosterEntry address : addresses) {
+            for (final RosterEntryWrapper entry : entries) {
                 transactionSupplier.set(generateRandomTransactions(random));
 
-                final NodeId nodeId = NodeId.of(address.nodeId());
+                final NodeId nodeId = entry.nodeId();
                 final EventCreator eventCreator = nodes.get(nodeId).eventCreator();
 
                 PlatformEvent event = eventCreator.maybeCreateEvent();
@@ -562,22 +562,11 @@ class TipsetEventCreatorTests {
             @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
         final int networkSize = 10;
 
-        Roster roster = RosterFactory.randomRoster(random, networkSize);
+        final RosterWrapper randomRoster = RosterWrapperFactory.randomRoster(random, networkSize);
 
-        final NodeId zeroWeightNode =
-                NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final NodeId zeroWeightNode = randomRoster.rosterEntries().getFirst().nodeId();
 
-        roster = Roster.newBuilder()
-                .rosterEntries(roster.rosterEntries().stream()
-                        .map(entry -> {
-                            if (entry.nodeId() == zeroWeightNode.id()) {
-                                return entry.copyBuilder().weight(0).build();
-                            } else {
-                                return entry.copyBuilder().weight(1).build();
-                            }
-                        })
-                        .toList())
-                .build();
+        final RosterWrapper roster = RosterWrapperFactory.zeroOutWeightOfRosterEntry(randomRoster, zeroWeightNode);
 
         final FakeTime time = new FakeTime();
 
@@ -591,19 +580,19 @@ class TipsetEventCreatorTests {
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
 
-            final List<RosterEntry> addresses = new ArrayList<>(roster.rosterEntries());
-            Collections.shuffle(addresses, random);
+            final List<RosterEntryWrapper> entries = new ArrayList<>(roster.rosterEntries());
+            Collections.shuffle(entries, random);
 
             boolean atLeastOneEventCreated = false;
 
-            for (final RosterEntry address : addresses) {
+            for (final RosterEntryWrapper entry : entries) {
                 if (advancingClock) {
                     time.tick(Duration.ofMillis(10));
                 }
 
                 transactionSupplier.set(generateRandomTransactions(random));
 
-                final NodeId nodeId = NodeId.of(address.nodeId());
+                final NodeId nodeId = entry.nodeId();
                 final EventCreator eventCreator = nodes.get(nodeId).eventCreator();
 
                 final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
@@ -667,22 +656,11 @@ class TipsetEventCreatorTests {
             @ParamName("advancingClock") final boolean advancingClock, @ParamName("random") final Random random) {
         final int networkSize = 10;
 
-        Roster roster = RosterFactory.randomRoster(random, networkSize);
+        final RosterWrapper randomRoster = RosterWrapperFactory.randomRoster(random, networkSize);
 
-        final NodeId zeroWeightNode =
-                NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final NodeId zeroWeightNode = randomRoster.rosterEntries().getFirst().nodeId();
 
-        roster = Roster.newBuilder()
-                .rosterEntries(roster.rosterEntries().stream()
-                        .map(entry -> {
-                            if (entry.nodeId() == zeroWeightNode.id()) {
-                                return entry.copyBuilder().weight(0).build();
-                            } else {
-                                return entry.copyBuilder().weight(1).build();
-                            }
-                        })
-                        .toList())
-                .build();
+        final RosterWrapper roster = RosterWrapperFactory.zeroOutWeightOfRosterEntry(randomRoster, zeroWeightNode);
 
         final FakeTime time = new FakeTime();
 
@@ -696,19 +674,19 @@ class TipsetEventCreatorTests {
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
 
-            final List<RosterEntry> addresses = new ArrayList<>(roster.rosterEntries());
-            Collections.shuffle(addresses, random);
+            final List<RosterEntryWrapper> entries = new ArrayList<>(roster.rosterEntries());
+            Collections.shuffle(entries, random);
 
             boolean atLeastOneEventCreated = false;
 
-            for (final RosterEntry address : addresses) {
+            for (final RosterEntryWrapper entry : entries) {
                 if (advancingClock) {
                     time.tick(Duration.ofMillis(10));
                 }
 
                 transactionSupplier.set(generateRandomTransactions(random));
 
-                final NodeId nodeId = NodeId.of(address.nodeId());
+                final NodeId nodeId = entry.nodeId();
                 final EventCreator eventCreator = nodes.get(nodeId).eventCreator();
 
                 final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
@@ -792,7 +770,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 1;
 
-        final Roster roster = RosterFactory.randomRoster(random, networkSize);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, networkSize);
 
         final FakeTime time = new FakeTime();
 
@@ -802,7 +780,7 @@ class TipsetEventCreatorTests {
 
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
-        final RosterEntry address = roster.rosterEntries().getFirst();
+        final RosterEntryWrapper entry = roster.rosterEntries().getFirst();
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
             if (advancingClock) {
@@ -811,7 +789,7 @@ class TipsetEventCreatorTests {
 
             transactionSupplier.set(generateRandomTransactions(random));
 
-            final NodeId nodeId = NodeId.of(address.nodeId());
+            final NodeId nodeId = entry.nodeId();
             final EventCreator eventCreator = nodes.get(nodeId).eventCreator();
 
             final PlatformEvent newEvent = eventCreator.maybeCreateEvent();
@@ -843,14 +821,14 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 4;
 
-        final Roster roster = RosterFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
 
         final FakeTime time = new FakeTime();
 
-        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId()); // self
-        final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
-        final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
-        final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
+        final NodeId nodeA = roster.rosterEntries().get(0).nodeId(); // self
+        final NodeId nodeB = roster.rosterEntries().get(1).nodeId();
+        final NodeId nodeC = roster.rosterEntries().get(2).nodeId();
+        final NodeId nodeD = roster.rosterEntries().get(3).nodeId();
 
         // All nodes except for node A (0) are fully mocked. This test is testing how node A behaves.
         final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList, 1);
@@ -924,14 +902,14 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 4;
 
-        final Roster roster = RosterFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
 
         final FakeTime time = new FakeTime();
 
-        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId()); // self
-        final NodeId nodeB = NodeId.of(roster.rosterEntries().get(1).nodeId());
-        final NodeId nodeC = NodeId.of(roster.rosterEntries().get(2).nodeId());
-        final NodeId nodeD = NodeId.of(roster.rosterEntries().get(3).nodeId());
+        final NodeId nodeA = roster.rosterEntries().get(0).nodeId(); // self
+        final NodeId nodeB = roster.rosterEntries().get(1).nodeId();
+        final NodeId nodeC = roster.rosterEntries().get(2).nodeId();
+        final NodeId nodeD = roster.rosterEntries().get(3).nodeId();
         // Node 4 (E) is not in the address book.
         final NodeId nodeE = NodeId.of(nodeD.id() + 1);
 
@@ -997,11 +975,11 @@ class TipsetEventCreatorTests {
     void noStaleEventsAtCreationTimeTest(@ParamName("random") final Random random) {
         final int networkSize = 4;
 
-        final Roster roster = RosterFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
 
         final FakeTime time = new FakeTime();
 
-        final NodeId nodeA = NodeId.of(roster.rosterEntries().getFirst().nodeId()); // self
+        final NodeId nodeA = roster.rosterEntries().getFirst().nodeId(); // self
 
         final EventCreator eventCreator = buildEventCreator(random, time, roster, nodeA, Collections::emptyList, 1);
         eventCreator.setEventWindow(
@@ -1038,7 +1016,7 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 10;
 
-        final Roster roster = RosterFactory.randomRoster(random, networkSize);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, networkSize);
 
         final FakeTime time = new FakeTime();
 
@@ -1049,14 +1027,14 @@ class TipsetEventCreatorTests {
         final Map<EventDescriptorWrapper, PlatformEvent> events = new HashMap<>();
 
         for (int eventIndex = 0; eventIndex < 100; eventIndex++) {
-            for (final RosterEntry address : roster.rosterEntries()) {
+            for (final RosterEntryWrapper entry : roster.rosterEntries()) {
                 if (advancingClock) {
                     time.tick(Duration.ofMillis(10));
                 }
 
                 transactionSupplier.set(generateRandomTransactions(random));
 
-                final NodeId nodeId = NodeId.of(address.nodeId());
+                final NodeId nodeId = entry.nodeId();
                 final EventCreator eventCreator = nodes.get(nodeId).eventCreator();
 
                 final long pendingConsensusRound = eventIndex + 2;
@@ -1107,8 +1085,8 @@ class TipsetEventCreatorTests {
     void lastSelfEventUpdatedDuringPCESReplay(@ParamName("random") final Random random) {
         final int networkSize = 1;
         final int numEvents = 100;
-        final Roster roster = RosterFactory.randomRoster(random, networkSize);
-        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, networkSize);
+        final NodeId selfId = roster.rosterEntries().getFirst().nodeId();
         final EventCreator eventCreator =
                 buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
 
@@ -1145,8 +1123,8 @@ class TipsetEventCreatorTests {
     void lastSelfEventNotOverwritten(@ParamName("random") final Random random) {
 
         final int networkSize = 1;
-        final Roster roster = RosterFactory.randomRoster(random, networkSize);
-        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, networkSize);
+        final NodeId selfId = roster.rosterEntries().getFirst().nodeId();
         final EventCreator eventCreator =
                 buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
 
@@ -1193,8 +1171,8 @@ class TipsetEventCreatorTests {
     @DisplayName("A re-received self-ancestor does not displace the latest self event")
     void selfAncestorDoesNotDisplaceLastSelfEvent(@ParamName("random") final Random random) {
         final int networkSize = 1;
-        final Roster roster = RosterFactory.randomRoster(random, networkSize);
-        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, networkSize);
+        final NodeId selfId = roster.rosterEntries().getFirst().nodeId();
         final EventCreator eventCreator =
                 buildEventCreator(random, new FakeTime(), roster, selfId, Collections::emptyList, 1);
 
@@ -1240,8 +1218,8 @@ class TipsetEventCreatorTests {
     @DisplayName("A self event whose self parent is not the latest self event is ignored")
     void selfEventThatIsNotAChildIsIgnored(@ParamName("random") final Random random) {
         final int networkSize = 1;
-        final Roster roster = RosterFactory.randomRoster(random, networkSize);
-        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, networkSize);
+        final NodeId selfId = roster.rosterEntries().getFirst().nodeId();
 
         final List<PlatformEvent> chain = createSelfEventChain(random, selfId, ROUND_FIRST, 3);
         final PlatformEvent first = chain.get(0);
@@ -1296,8 +1274,8 @@ class TipsetEventCreatorTests {
     void higherBirthRoundSelfEventIsAdopted(@ParamName("random") final Random random) {
         final int networkSize = 1;
         final long heldBirthRound = 10;
-        final Roster roster = RosterFactory.randomRoster(random, networkSize);
-        final NodeId selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, networkSize);
+        final NodeId selfId = roster.rosterEntries().getFirst().nodeId();
 
         // A window that leaves every event below non-ancient, and stamps new events above all of them.
         final EventWindow eventWindow = EventWindowBuilder.builder()
@@ -1355,7 +1333,7 @@ class TipsetEventCreatorTests {
 
         // Common test set up. We initialize a network to make it easier to create events.
         final int networkSize = random.nextInt(1, 100);
-        final Roster roster = RosterFactory.randomRoster(random, networkSize);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, networkSize);
         final EventCreator eventCreator =
                 buildEventCreator(random, new FakeTime(), roster, NodeId.of(0), Collections::emptyList, 1);
 
@@ -1385,7 +1363,7 @@ class TipsetEventCreatorTests {
 
         // Common test set up. We initialize a network to make it easier to create events.
         final int networkSize = random.nextInt(1, 100);
-        final Roster roster = RosterFactory.randomRoster(random, networkSize);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, networkSize);
         final EventCreator eventCreator =
                 buildEventCreator(random, new FakeTime(), roster, NodeId.of(0), Collections::emptyList, 1);
 
@@ -1415,11 +1393,11 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 100;
 
-        final Roster roster = RosterFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
 
         final FakeTime time = new FakeTime();
 
-        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId()); // self
+        final NodeId nodeA = roster.rosterEntries().getFirst().nodeId(); // self
 
         // All nodes except for node A (0) are fully mocked. This test is testing how node A behaves.
         final EventCreator eventCreator =
@@ -1430,7 +1408,7 @@ class TipsetEventCreatorTests {
         assertNotNull(eventA1);
 
         for (int i = 1; i < networkSize; i++) {
-            final NodeId nodeX = NodeId.of(roster.rosterEntries().get(i).nodeId());
+            final NodeId nodeX = roster.rosterEntries().get(i).nodeId();
             final PlatformEvent event =
                     createTestEventWithParent(random, nodeX, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
             eventCreator.registerEvent(event);
@@ -1462,11 +1440,11 @@ class TipsetEventCreatorTests {
 
         final int networkSize = 5;
 
-        final Roster roster = RosterFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
+        final RosterWrapper roster = RosterWrapperFactory.randomRoster(random, networkSize, WeightGenerators.BALANCED);
 
         final FakeTime time = new FakeTime();
 
-        final NodeId nodeA = NodeId.of(roster.rosterEntries().get(0).nodeId()); // self
+        final NodeId nodeA = roster.rosterEntries().getFirst().nodeId(); // self
 
         // All nodes except for node A (0) are fully mocked. This test is testing how node A behaves.
         final EventCreator eventCreator =
@@ -1477,7 +1455,7 @@ class TipsetEventCreatorTests {
         assertNotNull(eventA1);
 
         for (int i = 1; i < networkSize; i++) {
-            final NodeId nodeX = NodeId.of(roster.rosterEntries().get(i).nodeId());
+            final NodeId nodeX = roster.rosterEntries().get(i).nodeId();
             final PlatformEvent event =
                     createTestEventWithParent(random, nodeX, NonDeterministicGeneration.FIRST_GENERATION, ROUND_FIRST);
             eventCreator.registerEvent(event);

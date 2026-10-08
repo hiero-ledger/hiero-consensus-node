@@ -11,7 +11,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
@@ -61,7 +60,7 @@ public class TipsetEventCreatorTestUtils {
     public static EventCreator buildEventCreator(
             @NonNull final Random random,
             @NonNull final Time time,
-            @NonNull final Roster pbjRoster,
+            @NonNull final RosterWrapper roster,
             @NonNull final NodeId nodeId,
             @NonNull final EventTransactionSupplier transactionSupplier,
             final int maxParents) {
@@ -88,14 +87,7 @@ public class TipsetEventCreatorTestUtils {
         secureRandom.setSeed(random.nextLong());
 
         return new TipsetEventCreator(
-                configuration,
-                metrics,
-                time,
-                secureRandom,
-                signer,
-                RosterWrapper.of(pbjRoster),
-                nodeId,
-                transactionSupplier);
+                configuration, metrics, time, secureRandom, signer, roster, nodeId, transactionSupplier);
     }
 
     /**
@@ -105,10 +97,9 @@ public class TipsetEventCreatorTestUtils {
     public static Map<NodeId, SimulatedNode> buildSimulatedNodes(
             @NonNull final Random random,
             @NonNull final Time time,
-            @NonNull final Roster pbjRoster,
+            @NonNull final RosterWrapper roster,
             @NonNull final EventTransactionSupplier transactionSupplier) {
 
-        final RosterWrapper roster = RosterWrapper.of(pbjRoster);
         final Map<NodeId, SimulatedNode> eventCreators = new HashMap<>();
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final Metrics metrics = new NoOpMetrics();
@@ -116,8 +107,7 @@ public class TipsetEventCreatorTestUtils {
         for (final RosterEntryWrapper address : roster.rosterEntries()) {
 
             final NodeId selfId = address.nodeId();
-            final EventCreator eventCreator =
-                    buildEventCreator(random, time, pbjRoster, selfId, transactionSupplier, 1);
+            final EventCreator eventCreator = buildEventCreator(random, time, roster, selfId, transactionSupplier, 1);
 
             // Set a wide event window so that no events get stuck in the Future Event Buffer
             eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
