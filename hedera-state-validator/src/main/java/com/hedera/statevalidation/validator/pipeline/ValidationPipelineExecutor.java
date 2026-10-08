@@ -20,7 +20,10 @@ import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.merkledb.internal.MerkleDbDataSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -180,7 +183,7 @@ public final class ValidationPipelineExecutor {
                 dataQueue = new LinkedBlockingQueue<>(queueCapacity);
 
                 final var processorFutures = new ArrayList<Future<Void>>();
-                final var ioFutures = new ArrayList<Future<Void>>();
+                final var ioFutures = new ArrayList<Future<SegmentRange>>();
 
                 // Start process threads
                 for (int i = 0; i < processThreads; i++) {
@@ -191,9 +194,10 @@ public final class ValidationPipelineExecutor {
                 // Submit read tasks
                 for (final ReadSegment segment : readSegments) {
                     ioFutures.add(ioPool.submit(() -> {
+                        final SegmentRange range;
                         try {
-                            readFileSegment(segment.reader(), segment.type(), segment.startByte(), segment.endByte());
-                        } catch (final IOException e) {
+                            range = readFileSegment(segment);
+                        } catch (final IOException | RuntimeException e) {
                             throw new IOException(
                                     "Failed to read " + segment.type() + " file "
                                             + segment.reader().getPath().getFileName() + " segment ["
@@ -201,14 +205,15 @@ public final class ValidationPipelineExecutor {
                                     e);
                         }
                         progress.advance(segment.endByte() - segment.startByte());
-                        return null;
+                        return range;
                     }));
                 }
 
                 // Wait for all io tasks to complete
-                for (final Future<Void> future : ioFutures) {
+                final var segmentRanges = new ArrayList<SegmentRange>();
+                for (final Future<SegmentRange> future : ioFutures) {
                     try {
-                        future.get();
+                        segmentRanges.add(future.get());
                     } catch (final ExecutionException e) {
                         // Stop reading, but don't interrupt processors. An interrupt closes MerkleDB file
                         // channels that validators read from, which would be reported as unrelated validation
@@ -220,6 +225,8 @@ public final class ValidationPipelineExecutor {
                         throw new RuntimeException("IO Task failed", e.getCause() != null ? e.getCause() : e);
                     }
                 }
+
+                checkSegmentsJoinUp(segmentRanges);
 
                 sendPoisonPills();
 
@@ -364,21 +371,85 @@ public final class ValidationPipelineExecutor {
     }
 
     /**
+     * Checks that the segments of each data file join up. Data items in a file are back to back, so the
+     * first data item of a segment must start exactly where the preceding segment stopped reading, and
+     * the last segment must stop at the end of the file. A mismatch means the boundary search either
+     * skipped bytes that were never read, or accepted a false boundary inside a data item. Each mismatch
+     * is logged and counted as a read error.
+     *
+     * <p>A segment where no data item starts is fully covered by a data item from a preceding segment.
+     * It's skipped, and if it isn't actually covered, the gap is reported at the next segment that
+     * contains data items, or at the end of the file.
+     *
+     * @param segmentRanges the data item ranges read from all segments
+     */
+    private void checkSegmentsJoinUp(@NonNull final List<SegmentRange> segmentRanges) {
+        final Map<Path, List<SegmentRange>> rangesByFile = new HashMap<>();
+        for (final SegmentRange range : segmentRanges) {
+            rangesByFile
+                    .computeIfAbsent(range.segment().reader().getPath(), p -> new ArrayList<>())
+                    .add(range);
+        }
+
+        for (final List<SegmentRange> fileRanges : rangesByFile.values()) {
+            fileRanges.sort(Comparator.comparingLong(range -> range.segment().startByte()));
+            // The first segment starts at the beginning of the file, no boundary search is done for it
+            long expectedStart = 0;
+            for (final SegmentRange range : fileRanges) {
+                if (range.start() >= range.segment().endByte()) {
+                    // No data item starts in this segment
+                    continue;
+                }
+                if (range.start() != expectedStart) {
+                    reportSegmentJoinMismatch(range.segment(), expectedStart, range.start());
+                }
+                expectedStart = range.stop();
+            }
+            final ReadSegment lastSegment = fileRanges.getLast().segment();
+            final long fileSize = lastSegment.reader().getSize();
+            if (expectedStart != fileSize) {
+                reportSegmentJoinMismatch(lastSegment, expectedStart, fileSize);
+            }
+        }
+    }
+
+    /**
+     * Logs a segment join mismatch and counts it as a read error.
+     *
+     * @param segment the segment where the mismatch is detected
+     * @param expectedStart the file position where the preceding segment stopped reading
+     * @param actualStart the file position where the next data item was found
+     */
+    private void reportSegmentJoinMismatch(
+            @NonNull final ReadSegment segment, final long expectedStart, final long actualStart) {
+        final String problem = expectedStart < actualStart
+                ? "bytes [" + expectedStart + ", " + actualStart + ") were skipped without being read"
+                : "a data item boundary was found at " + actualStart + ", inside a data item ending at "
+                        + expectedStart;
+        log.error(
+                "Segments of {} file {} don't join up: {}",
+                segment.type(),
+                segment.reader().getPath().getFileName(),
+                problem);
+        switch (segment.type()) {
+            case P2KV -> dataStats.getP2kv().incrementParseErrorCount();
+            case ID2C -> dataStats.getId2c().incrementParseErrorCount();
+            case K2P -> dataStats.getK2p().incrementParseErrorCount();
+            case TERMINATOR -> throw new IllegalArgumentException("Unexpected segment type: " + segment.type());
+        }
+    }
+
+    /**
      * Reads a segment of data from a file and puts batches into the queue.
      *
-     * @param reader the data file reader
-     * @param dataType the type of data items
-     * @param startByte the starting byte offset
-     * @param endByte the ending byte offset
+     * @param segment the segment to read
+     * @return the range of data items read from the segment
      * @throws IOException if there was a problem reading from the file
      * @throws InterruptedException if the thread was interrupted while waiting to put into the queue
      */
-    private void readFileSegment(
-            @NonNull final DataFileReader reader,
-            @NonNull final Type dataType,
-            final long startByte,
-            final long endByte)
-            throws IOException, InterruptedException {
+    private SegmentRange readFileSegment(@NonNull final ReadSegment segment) throws IOException, InterruptedException {
+        final DataFileReader reader = segment.reader();
+        final Type dataType = segment.type();
 
         final int bufferSizeBytes = bufferSizeKib * KB_TO_BYTES;
         try (ChunkedFileIterator iterator = new ChunkedFileIterator(
@@ -386,8 +457,8 @@ public final class ValidationPipelineExecutor {
                 reader.getMetadata(),
                 vds.getHashChunkHeight(),
                 dataType,
-                startByte,
-                endByte,
+                segment.startByte(),
+                segment.endByte(),
                 bufferSizeBytes,
                 totalBoundarySearchTime)) {
 
@@ -409,6 +480,18 @@ public final class ValidationPipelineExecutor {
             if (!batch.isEmpty()) {
                 dataQueue.put(batch);
             }
+
+            return new SegmentRange(segment, iterator.getStartPosition(), iterator.getStopPosition());
         }
     }
+
+    /**
+     * The range of data items read from a segment.
+     *
+     * @param segment the segment
+     * @param start the file position of the first data item in the segment, or the segment end if
+     *     no data item starts in the segment
+     * @param stop the file position right after the last data item read from the segment
+     */
+    private record SegmentRange(@NonNull ReadSegment segment, long start, long stop) {}
 }

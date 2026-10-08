@@ -23,6 +23,7 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
@@ -183,7 +184,29 @@ public class ChunkedFileIterator implements AutoCloseable {
             }
         }
 
+        currentDataItemFilePosition = startByte + in.position();
         return false;
+    }
+
+    /**
+     * Get the file position of the first data item in this chunk, as found by the boundary search.
+     * If no data item starts within this chunk, it's equal to the chunk end.
+     *
+     * @return the file position of the first data item in this chunk
+     */
+    public long getStartPosition() {
+        return startByte;
+    }
+
+    /**
+     * Get the file position right after the last data item read by this iterator. This is where the
+     * next data item in the file starts, or the file size. Only valid after {@link #next()} has
+     * returned false.
+     *
+     * @return the file position right after the last data item read by this iterator
+     */
+    public long getStopPosition() {
+        return currentDataItemFilePosition;
     }
 
     /**
@@ -299,11 +322,13 @@ public class ChunkedFileIterator implements AutoCloseable {
      * @param windowStart the file position of the start of the scan buffer
      * @param fileSize the file size
      * @return true if a valid data item starts at the current buffer position
+     * @throws IOException if reading from the file fails
      */
-    private boolean isDataItemBoundary(
-            @NonNull final BufferedData buffer, final long windowStart, final long fileSize) {
+    private boolean isDataItemBoundary(@NonNull final BufferedData buffer, final long windowStart, final long fileSize)
+            throws IOException {
         try {
-            if (buffer.readVarInt(false) != DATA_ITEM_TAG) {
+            // The data item tag is a single byte, so most positions are rejected by a single byte check
+            if ((buffer.readByte() & 0xFF) != DATA_ITEM_TAG) {
                 return false;
             }
             final int dataItemSize = buffer.readVarInt(false);
@@ -326,14 +351,18 @@ public class ChunkedFileIterator implements AutoCloseable {
                 buffer.limit(dataStartInBuffer + dataItemSize);
                 return isValidDataItem(buffer);
             }
-            // The data item doesn't fit into the scan buffer, parse it directly from the file. The stream
-            // is not closed, as it would close the channel
+            // The data item doesn't fit into the scan buffer, parse it directly from the file. Large reads
+            // bypass the stream buffer, so the default buffer size is enough. The stream is not closed, as
+            // it would close the channel
             channel.position(dataFilePosition);
-            final ReadableStreamingData dataItemIn = new ReadableStreamingData(
-                    new BufferedInputStream(Channels.newInputStream(channel), bufferSizeBytes));
+            final ReadableStreamingData dataItemIn =
+                    new ReadableStreamingData(new BufferedInputStream(Channels.newInputStream(channel)));
             dataItemIn.limit(dataItemSize);
             return isValidDataItem(dataItemIn);
-        } catch (final Exception e) {
+        } catch (final UncheckedIOException e) {
+            // Reading from the file failed, this is not a parsing failure
+            throw e.getCause();
+        } catch (final RuntimeException e) {
             // Parsing failed, not a boundary
             return false;
         }
@@ -362,29 +391,24 @@ public class ChunkedFileIterator implements AutoCloseable {
     }
 
     /**
-     * Validates whether the input contains a valid data item of the expected type.
+     * Validates whether the input contains a valid data item of the expected type. Parsing failures
+     * are thrown as runtime exceptions, read failures as {@link UncheckedIOException}.
      *
      * @param in the input containing potential data item bytes, limited to the data item size
      * @return true if the input contains valid data that can be parsed, false otherwise
      */
-    private boolean isValidDataItem(@NonNull final ReadableSequentialData in) {
-        try {
-            if (!in.hasRemaining()) {
-                return false;
-            }
-
-            return switch (dataType) {
-                // Parsing without exception means valid data
-                case ID2C -> validateVirtualHashChunk(in);
-                case P2KV -> validateVirtualLeafBytes(in);
-                case K2P -> validateBucket(in);
-                default -> false;
-            };
-
-        } catch (final Exception e) {
-            // Any parsing exception means invalid data
+    private boolean isValidDataItem(@NonNull final ReadableSequentialData in) throws IOException {
+        if (!in.hasRemaining()) {
             return false;
         }
+
+        return switch (dataType) {
+            // Parsing without exception means valid data
+            case ID2C -> validateVirtualHashChunk(in);
+            case P2KV -> validateVirtualLeafBytes(in);
+            case K2P -> validateBucket(in);
+            default -> false;
+        };
     }
 
     /**
