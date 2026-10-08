@@ -56,9 +56,24 @@ jobs:
       snyk-token: ${{ secrets.SNYK_TOKEN }}
 
   # Reported as soon as MATS finishes; nothing later in this workflow changes the MATS verdict.
+  # Required: a failed report fails the run. Reported first, as soon as the pushed commit is known; MATS
+  # itself does not wait for it.
+  report-mats-running:
+    name: Report MATS Running to Chewie
+    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    with:
+      suite-type: mats
+      commit: ${{ github.sha }}
+      branch: ${{ github.ref_name }}
+      disposition: running
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
+
   report-mats-result:
     name: Report MATS Result to Chewie
     needs:
+      - report-mats-running # keeps the terminal report after the running one, so it is the latest
       - mats-tests
     if: ${{ always() }}
     uses: ./.github/workflows/864-call-report-suite-result.yaml

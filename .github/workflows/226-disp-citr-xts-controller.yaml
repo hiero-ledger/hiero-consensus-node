@@ -735,11 +735,29 @@ jobs:
           payload-templated: true
           payload-file-path: slack_payload_summary.json
 
+  # Required: a failed report fails the run. Reported once the candidate is accepted; a rejected candidate
+  # is reported only once, as not_run, by report-xts-result. XTS itself does not wait for it.
+  report-xts-running:
+    name: Report XTS Running to Chewie
+    needs:
+      - fetch-xts-candidate
+    if: ${{ needs.fetch-xts-candidate.outputs.xts-proceed == 'true' }}
+    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    with:
+      suite-type: xts
+      commit: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+      branch: ${{ needs.fetch-xts-candidate.outputs.xts-commit-branch || 'main' }}
+      disposition: running
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
+
   # Required: a failed report fails the run.
   report-xts-result:
     name: Report XTS Result to Chewie
     needs:
       - fetch-xts-candidate
+      - report-xts-running # keeps the terminal report after the running one, so it is the latest
       - xts-execution
     if: ${{ always() && needs.fetch-xts-candidate.outputs.xts-tag-commit != '' }}
     uses: ./.github/workflows/864-call-report-suite-result.yaml
