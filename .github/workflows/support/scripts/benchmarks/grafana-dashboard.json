@@ -1,0 +1,380 @@
+{
+  "title": "JMH Benchmarks",
+  "uid": "jmh-benchmarks",
+  "description": "Nightly JMH benchmark results from the benchmark runner, published by publish_results.py. Latency is published only for quiet results, measured while other workloads on the node used little CPU; allocation, discarded passes, and the load are published for every result.",
+  "tags": ["benchmarks", "consensus"],
+  "timezone": "utc",
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 1,
+  "time": { "from": "now-90d", "to": "now" },
+  "refresh": "",
+  "templating": {
+    "list": [
+      {
+        "name": "metrics",
+        "label": "Metrics",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "logs",
+        "label": "Run records",
+        "type": "datasource",
+        "query": "loki",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "run_type",
+        "label": "Run type",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${metrics}" },
+        "query": { "query": "label_values(jmh_attempts, run_type)", "refId": "run_type" },
+        "definition": "label_values(jmh_attempts, run_type)",
+        "current": { "text": "nightly", "value": "nightly" },
+        "refresh": 2,
+        "sort": 1
+      },
+      {
+        "name": "benchmark",
+        "label": "Benchmark",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${metrics}" },
+        "query": {
+          "query": "label_values(jmh_latency_seconds{run_type=\"$run_type\"}, benchmark)",
+          "refId": "benchmark"
+        },
+        "definition": "label_values(jmh_latency_seconds{run_type=\"$run_type\"}, benchmark)",
+        "current": {},
+        "refresh": 2,
+        "sort": 1
+      },
+      {
+        "name": "params",
+        "label": "Parameters",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${metrics}" },
+        "query": {
+          "query": "label_values(jmh_latency_seconds{run_type=\"$run_type\", benchmark=\"$benchmark\"}, params)",
+          "refId": "params"
+        },
+        "definition": "label_values(jmh_latency_seconds{run_type=\"$run_type\", benchmark=\"$benchmark\"}, params)",
+        "current": { "text": "All", "value": "$__all" },
+        "multi": true,
+        "includeAll": true,
+        "refresh": 2,
+        "sort": 3
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "name": "Runs",
+        "enable": false,
+        "iconColor": "#8e8e8e",
+        "datasource": { "type": "loki", "uid": "${logs}" },
+        "expr": "{job=\"jmh-benchmarks\", run_type=\"$run_type\", benchmark=\"$benchmark\", params=~\"${params:regex}\"} | json",
+        "titleFormat": "{{params}}: {{slot}}",
+        "textFormat": "commit {{commit}}, {{latency_mean_ns}} ns mean, {{other_load_cpus}} other CPUs, {{attempts}} attempt(s). {{run_url}}",
+        "tagKeys": "slot"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "$params",
+      "repeat": "params",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Mean latency per call",
+      "description": "latency.mean: the time per call over the passes that no collection hit. This is the tracked value, not JMH's primary score. A night without a point was loaded: see the other workloads and the attempts below.",
+      "datasource": { "type": "prometheus", "uid": "${metrics}" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 1 },
+      "interval": "1h",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max without (commit, jdk, node, runner) (last_over_time(jmh_latency_seconds{run_type=\"$run_type\", benchmark=\"$benchmark\", params=\"$params\", statistic=\"mean\"}[$__interval]))",
+          "legendFormat": "mean"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 2,
+          "color": { "mode": "fixed", "fixedColor": "#2a78d6" },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 8,
+            "spanNulls": 129600000,
+            "fillOpacity": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "showLegend": false },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Allocation per call",
+      "description": "alloc.norm: bytes allocated per call in the measured calls. Nearly noise-free, and independent of the load; an early signal of GC-driven tail latency. Several values in one run mean JIT modes.",
+      "datasource": { "type": "prometheus", "uid": "${metrics}" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 1 },
+      "interval": "1h",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max without (commit, jdk, node, runner) (last_over_time(jmh_allocation_bytes_per_op{run_type=\"$run_type\", benchmark=\"$benchmark\", params=\"$params\"}[$__interval]))",
+          "legendFormat": "allocation"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: B/call",
+          "decimals": 0,
+          "color": { "mode": "fixed", "fixedColor": "#2a78d6" },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 8,
+            "spanNulls": 129600000,
+            "fillOpacity": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "showLegend": false },
+        "tooltip": { "mode": "single", "sort": "none" }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency percentiles: body",
+      "description": "p50, p90 and p99 per call. The percentiles expected to be stable enough for alerts.",
+      "datasource": { "type": "prometheus", "uid": "${metrics}" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 10 },
+      "interval": "1h",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max without (commit, jdk, node, runner) (last_over_time(jmh_latency_seconds{run_type=\"$run_type\", benchmark=\"$benchmark\", params=\"$params\", statistic=\"p50\"}[$__interval]))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "expr": "max without (commit, jdk, node, runner) (last_over_time(jmh_latency_seconds{run_type=\"$run_type\", benchmark=\"$benchmark\", params=\"$params\", statistic=\"p90\"}[$__interval]))",
+          "legendFormat": "p90"
+        },
+        {
+          "refId": "C",
+          "expr": "max without (commit, jdk, node, runner) (last_over_time(jmh_latency_seconds{run_type=\"$run_type\", benchmark=\"$benchmark\", params=\"$params\", statistic=\"p99\"}[$__interval]))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 2,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 8,
+            "spanNulls": 129600000,
+            "fillOpacity": 0,
+            "scaleDistribution": { "type": "log", "log": 10 }
+          }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "p50" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#86b6ef" } }] },
+          { "matcher": { "id": "byName", "options": "p90" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#3987e5" } }] },
+          { "matcher": { "id": "byName", "options": "p99" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#1c5cab" } }] }
+        ]
+      },
+      "options": {
+        "legend": { "showLegend": true, "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency percentiles: tail",
+      "description": "p99.9, p99.99 and max per call. Dashboard only until nightly history shows they are stable; max mostly measures the JVM and the operating system.",
+      "datasource": { "type": "prometheus", "uid": "${metrics}" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 10 },
+      "interval": "1h",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max without (commit, jdk, node, runner) (last_over_time(jmh_latency_seconds{run_type=\"$run_type\", benchmark=\"$benchmark\", params=\"$params\", statistic=\"p99.9\"}[$__interval]))",
+          "legendFormat": "p99.9"
+        },
+        {
+          "refId": "B",
+          "expr": "max without (commit, jdk, node, runner) (last_over_time(jmh_latency_seconds{run_type=\"$run_type\", benchmark=\"$benchmark\", params=\"$params\", statistic=\"p99.99\"}[$__interval]))",
+          "legendFormat": "p99.99"
+        },
+        {
+          "refId": "C",
+          "expr": "max without (commit, jdk, node, runner) (last_over_time(jmh_latency_seconds{run_type=\"$run_type\", benchmark=\"$benchmark\", params=\"$params\", statistic=\"max\"}[$__interval]))",
+          "legendFormat": "max"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 1,
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 2,
+            "showPoints": "always",
+            "pointSize": 8,
+            "spanNulls": 129600000,
+            "fillOpacity": 0,
+            "scaleDistribution": { "type": "log", "log": 10 }
+          }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "p99.9" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#86b6ef" } }] },
+          { "matcher": { "id": "byName", "options": "p99.99" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#3987e5" } }] },
+          { "matcher": { "id": "byName", "options": "max" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "#1c5cab" } }] }
+        ]
+      },
+      "options": {
+        "legend": { "showLegend": true, "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Other workloads during the measurement",
+      "description": "CPUs that other workloads on the node used during the published attempt's measurement. Above the line (0.5 CPU, the driver's --max-load), the result is loaded, and its latency is not published.",
+      "datasource": { "type": "prometheus", "uid": "${metrics}" },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 19 },
+      "interval": "1h",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max without (commit, jdk, node, runner) (last_over_time(jmh_other_load_cpus{run_type=\"$run_type\", benchmark=\"$benchmark\", params=\"$params\"}[$__interval]))",
+          "legendFormat": "other workloads"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix: CPUs",
+          "decimals": 2,
+          "min": 0,
+          "color": { "mode": "fixed", "fixedColor": "#8e8e8e" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "#8e8e8e", "value": null }, { "color": "#8e8e8e", "value": 0.5 }] },
+          "custom": {
+            "drawStyle": "points",
+            "pointSize": 8,
+            "spanNulls": 129600000,
+            "thresholdsStyle": { "mode": "line" }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "showLegend": false },
+        "tooltip": { "mode": "single", "sort": "none" }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Attempts per result",
+      "description": "How many attempts the nightly job needed to find a quiet slot; the maximum means no attempt was quiet.",
+      "datasource": { "type": "prometheus", "uid": "${metrics}" },
+      "gridPos": { "h": 7, "w": 8, "x": 8, "y": 19 },
+      "interval": "1h",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max without (commit, jdk, node, runner) (last_over_time(jmh_attempts{run_type=\"$run_type\", benchmark=\"$benchmark\", params=\"$params\"}[$__interval]))",
+          "legendFormat": "attempts"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "color": { "mode": "fixed", "fixedColor": "#8e8e8e" },
+          "custom": { "drawStyle": "points", "pointSize": 8, "spanNulls": true, "axisSoftMax": 3 }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "showLegend": false },
+        "tooltip": { "mode": "single", "sort": "none" }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Passes discarded for GC",
+      "description": "measured.gc.discardedPasses: passes dropped because a collection hit the measured calls. Above zero, the heap is getting tight; when every pass is discarded, the latency results are missing.",
+      "datasource": { "type": "prometheus", "uid": "${metrics}" },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 19 },
+      "interval": "1h",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max without (commit, jdk, node, runner) (last_over_time(jmh_gc_discarded_passes{run_type=\"$run_type\", benchmark=\"$benchmark\", params=\"$params\"}[$__interval]))",
+          "legendFormat": "discarded passes"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "color": { "mode": "fixed", "fixedColor": "#8e8e8e" },
+          "custom": { "drawStyle": "points", "pointSize": 8, "spanNulls": true, "axisSoftMax": 1 }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": { "showLegend": false },
+        "tooltip": { "mode": "single", "sort": "none" }
+      }
+    },
+    {
+      "type": "logs",
+      "title": "Runs",
+      "description": "One record per published result: commit, run, slot and headline values.",
+      "datasource": { "type": "loki", "uid": "${logs}" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 26 },
+      "timeFrom": "30d",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=\"jmh-benchmarks\", run_type=\"$run_type\", benchmark=\"$benchmark\", params=\"$params\"}"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false
+      }
+    }
+  ]
+}
