@@ -225,13 +225,15 @@ message CRSState {
     /**
      * The id of the next node that should contribute to the CRS. This is used
      * to ensure that all nodes contribute to the CRS in a round-robin fashion.
-     * If this is null, then all nodes in the network have contributed to the CRS.
+     * If this is absent, every contributor has had a turn, including nodes
+     * whose contribution windows expired without a valid contribution.
      */
     google.protobuf.UInt64Value next_contributing_node_id = 3;
 
     /**
-     * The time at which the network should stop waiting for the node's contributions
-     * and move on to the next node in the round-robin fashion.
+     * While gathering, the deadline for the current contributor. While waiting
+     * to adopt the final CRS, the deadline for finalization or retry. This is
+     * absent once the ceremony completes.
      */
     proto.Timestamp contribution_end_time = 4;
     /** A positive generation identifier that MUST NOT be reused after cancellation. */

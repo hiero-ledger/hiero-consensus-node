@@ -21,7 +21,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.cryptography.tss.TSS;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
@@ -1182,7 +1181,7 @@ public class WrapsFreeBlockSignaturesValidator implements BlockStreamValidator {
 
     private void useHintsBridgeFor(final long constructionId) {
         if (lastHintsBridgeConstructionId != constructionId) {
-            HintsLibraryBridge.getInstance().resetCache();
+            hintsLibrary.resetCache();
             lastHintsBridgeConstructionId = constructionId;
         }
     }
