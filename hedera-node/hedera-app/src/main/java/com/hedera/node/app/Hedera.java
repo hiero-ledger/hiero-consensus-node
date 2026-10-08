@@ -37,7 +37,6 @@ import static org.hiero.consensus.system.SystemExitCode.UPGRADE_FROM_NON_FREEZE_
 import static org.hiero.consensus.system.SystemExitUtils.exitSystem;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.hedera.cryptography.hints.HintsLibraryBridge;
 import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.Duration;
@@ -67,6 +66,7 @@ import com.hedera.node.app.config.ConfigProviderImpl;
 import com.hedera.node.app.fees.FeeService;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.impl.BlockHashSigning;
+import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.ReadableHintsStoreImpl;
 import com.hedera.node.app.hints.impl.RsaContext;
 import com.hedera.node.app.hints.impl.WritableHintsStoreImpl;
@@ -92,6 +92,7 @@ import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.networkadmin.impl.FreezeServiceImpl;
 import com.hedera.node.app.service.networkadmin.impl.NetworkServiceImpl;
+import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
@@ -198,6 +199,7 @@ import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.platformstate.PlatformStateService;
 import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
 import org.hiero.consensus.roster.ReadableRosterStore;
+import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
@@ -952,7 +954,7 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
 
         // It is possible a network interrupt could make a node reconnect in a window where
         // the hinTS signing scheme was changed; so we clear the cached assets just-in-case
-        HintsLibraryBridge.getInstance().resetCache();
+        new HintsLibraryImpl().resetCache();
     }
 
     /**
@@ -1790,15 +1792,35 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         final var entityCounters = new ReadableEntityIdStoreImpl(initState.getWritableStates(EntityIdService.NAME));
         final var readableHistoryStore = new ReadableHistoryStoreImpl(initState.getReadableStates(HistoryService.NAME));
-        if (readableHistoryStore.getLedgerId() == null) {
-            // If the ledger id is not set, we should not put any TSS preconditions on adopting a roster,
-            // **even if** the hinTS or history feature flags are enabled (at a cutover upgrade)
+        final var hintsStore =
+                new ReadableHintsStoreImpl(initState.getReadableStates(HintsService.NAME), entityCounters);
+        if (readableHistoryStore.getLedgerId() == null
+                && (!tssConfig.hintsEnabled()
+                        || !hintsStore.getActiveConstruction().hasHintsScheme())) {
+            // Initial TSS cutover has no prepared construction. Once hinTS exists, its CRS prerequisites apply
+            // even while history bootstrap is incomplete, or when history is disabled.
             return true;
         }
-        return (!tssConfig.hintsEnabled()
-                        || new ReadableHintsStoreImpl(initState.getReadableStates(HintsService.NAME), entityCounters)
-                                .isReadyToAdopt(rosterHash))
-                && (!tssConfig.historyEnabled() || readableHistoryStore.isReadyToAdopt(rosterHash));
+        if (!tssConfig.hintsEnabled()) {
+            return !tssConfig.historyEnabled() || readableHistoryStore.isReadyToAdopt(rosterHash);
+        }
+        if (hintsStore.getNextConstruction().numParties() >= HintsService.partySizeForRoster(roster)
+                && TssHandoffCoordinator.isReadyForHandoff(
+                        hintsStore, readableHistoryStore, rosterHash, tssConfig.historyEnabled())) {
+            return true;
+        }
+        // Weight-only transitions can promote their TSS constructions before the platform adopts
+        // the candidate roster at restart. Recognize the already prepared active generation too.
+        final var previousRoster =
+                new ReadableRosterStoreImpl(initState.getReadableStates(RosterService.NAME)).getActiveRoster();
+        return previousRoster != null
+                && TssHandoffCoordinator.canRetainActiveConstruction(
+                        hintsStore,
+                        readableHistoryStore,
+                        previousRoster,
+                        roster,
+                        rosterHash,
+                        tssConfig.historyEnabled());
     }
 
     private void onOverrideNetwork(@NonNull final Network network) {
@@ -1815,28 +1837,57 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
         final var activeProofConstruction = TssStartupNetworks.initializeHistoryState(writableHistoryStates, network);
         ((CommittableWritableStates) writableHistoryStates).commit();
         TssStartupNetworks.initializeRuntime(
-                activeHintsConstruction, activeProofConstruction, hintsService, historyService);
+                activeHintsConstruction,
+                new ReadableHintsStoreImpl(
+                                initState.getReadableStates(HintsService.NAME),
+                                new ReadableEntityIdStoreImpl(initState.getReadableStates(EntityIdService.NAME)))
+                        .getCrsState(),
+                activeProofConstruction,
+                hintsService,
+                historyService);
         TssStartupNetworks.writePrivateKeys(network, configProvider.getConfiguration(), selfId.id());
     }
 
     private void onAdoptRoster(@NonNull final Roster previousRoster, @NonNull final Roster adoptedRoster) {
         requireNonNull(initState);
         final var readableHistoryStore = new ReadableHistoryStoreImpl(initState.getReadableStates(HistoryService.NAME));
-        if (readableHistoryStore.getLedgerId() == null) {
-            // If the ledger id is not set, this is the cutover upgrade, and TSS machinery won't have prepared
-            // the "normal" preconditions for roster adoption during the previous release; so skip everything
+        final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
+        final var hintsStore = new ReadableHintsStoreImpl(
+                initState.getReadableStates(HintsService.NAME),
+                new ReadableEntityIdStoreImpl(initState.getReadableStates(EntityIdService.NAME)));
+        if (readableHistoryStore.getLedgerId() == null
+                && (!tssConfig.hintsEnabled()
+                        || !hintsStore.getActiveConstruction().hasHintsScheme())) {
+            // Initial cutover bootstraps TSS for the adopted roster after startup.
             return;
         }
-        final var tssConfig = configProvider.getConfiguration().getConfigData(TssConfig.class);
         final var adoptedRosterHash = RosterUtils.hash(adoptedRoster).getBytes();
-        if (TssHandoffCoordinator.usesJointForcedHandoff(tssConfig)) {
+        if (tssConfig.hintsEnabled()
+                && (hintsStore.getNextConstruction().numParties() < HintsService.partySizeForRoster(adoptedRoster)
+                        || !TssHandoffCoordinator.isReadyForHandoff(
+                                hintsStore, readableHistoryStore, adoptedRosterHash, tssConfig.historyEnabled()))) {
+            // Override networks bypass canAdoptRoster(). They may keep an existing signing scheme only for
+            // transport changes, or when the override explicitly supplied a completed, matching TSS snapshot.
+            if (TssHandoffCoordinator.canRetainActiveConstruction(
+                    hintsStore,
+                    readableHistoryStore,
+                    previousRoster,
+                    adoptedRoster,
+                    adoptedRosterHash,
+                    tssConfig.historyEnabled())) {
+                return;
+            }
+            throw new IllegalStateException(
+                    "Cannot adopt roster before its CRS, hinTS and history prerequisites complete");
+        }
+        if (tssConfig.hintsEnabled() && tssConfig.historyEnabled()) {
             final var writableHistoryStates = initState.getWritableStates(HistoryService.NAME);
             final var writableHistoryStore = new WritableHistoryStoreImpl(writableHistoryStates);
             final var writableHintsStates = initState.getWritableStates(HintsService.NAME);
             final var writableEntityStates = initState.getWritableStates(EntityIdService.NAME);
             final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
             final var writableHintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
-            if (TssHandoffCoordinator.tryForcedJointHandoff(
+            if (TssHandoffCoordinator.tryJointHandoff(
                     writableHistoryStore,
                     writableHintsStore,
                     historyService,
@@ -1846,6 +1897,8 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
                     adoptedRosterHash)) {
                 ((CommittableWritableStates) writableHistoryStates).commit();
                 ((CommittableWritableStates) writableHintsStates).commit();
+            } else {
+                throw new IllegalStateException("Prepared TSS constructions failed to promote with the adopted roster");
             }
             return;
         }
@@ -1860,7 +1913,11 @@ public final class Hedera implements SwirldMain, AppContext.Gossip, StaleEventCo
             final var writableEntityStates = initState.getWritableStates(EntityIdService.NAME);
             final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
             final var store = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
-            hintsService.handoff(store, previousRoster, adoptedRoster, adoptedRosterHash, tssConfig.forceHandoffs());
+            if (!hintsService.handoff(
+                    store, previousRoster, adoptedRoster, adoptedRosterHash, tssConfig.forceHandoffs())) {
+                throw new IllegalStateException(
+                        "Prepared hinTS construction failed to promote with the adopted roster");
+            }
             ((CommittableWritableStates) writableHintsStates).commit();
         }
     }

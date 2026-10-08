@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hints;
 
+import static com.hedera.hapi.node.state.hints.CRSStage.COMPLETED;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.hints.CRSState;
@@ -62,7 +63,14 @@ public interface ReadableHintsStore {
      */
     default boolean isReadyToAdopt(@NonNull final Bytes rosterHash) {
         final var construction = getNextConstruction();
-        return construction.hasHintsScheme() && construction.targetRosterHash().equals(rosterHash);
+        final var crs = getCrsStateFor(construction);
+        return construction.hasHintsScheme()
+                && construction.targetRosterHash().equals(rosterHash)
+                && construction.crsId() > 0
+                && construction.numParties() > 0
+                && crs.stage() == COMPLETED
+                && crs.crs().length() > 0
+                && crs.numParties() == construction.numParties();
     }
 
     /**
@@ -101,6 +109,10 @@ public interface ReadableHintsStore {
     @NonNull
     List<HintsKeyPublication> getHintsKeyPublications(@NonNull Set<Long> nodeIds, int numParties);
 
+    /** Returns publications bound to exactly the requested CRS generation and party capacity. */
+    @NonNull
+    List<HintsKeyPublication> getHintsKeyPublications(@NonNull Set<Long> nodeIds, int numParties, long crsId);
+
     /**
      * Returns the current CRS state.
      *
@@ -108,12 +120,36 @@ public interface ReadableHintsStore {
      */
     CRSState getCrsState();
 
+    /** Returns the isolated next CRS ceremony, or the default state when there is none. */
+    @NonNull
+    CRSState getNextCrsState();
+
+    /** Returns the CRS bound to a construction; unbound or stale references return the default state. */
+    default @NonNull CRSState getCrsStateFor(@NonNull final HintsConstruction construction) {
+        if (construction.crsId() <= 0 || construction.numParties() <= 0) {
+            return CRSState.DEFAULT;
+        }
+        final var active = getCrsState();
+        if (active.ceremonyId() == construction.crsId() && active.numParties() == construction.numParties()) {
+            return active;
+        }
+        final var next = getNextCrsState();
+        if (next.ceremonyId() == construction.crsId()
+                && next.numParties() == construction.numParties()
+                && next.constructionId() == construction.constructionId()
+                && next.sourceRosterHash().equals(construction.sourceRosterHash())
+                && next.targetRosterHash().equals(construction.targetRosterHash())) {
+            return next;
+        }
+        return CRSState.DEFAULT;
+    }
+
     /**
      * Returns the current CRS, if known; or null otherwise;
      */
     default @Nullable Bytes crsIfKnown() {
-        final var candidate = getCrsState().crs();
-        return candidate.length() > 0 ? candidate : null;
+        final var active = getCrsState();
+        return active.stage() == COMPLETED && active.crs().length() > 0 ? active.crs() : null;
     }
 
     /**

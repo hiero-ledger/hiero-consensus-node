@@ -5,6 +5,8 @@ import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static java.util.stream.Collectors.toMap;
 
+import com.hedera.hapi.node.state.hints.CRSStage;
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.NodePartyId;
 import com.hedera.hapi.services.auxiliary.hints.HintsPartialSignatureTransactionBody;
@@ -35,7 +37,7 @@ import org.apache.logging.log4j.Logger;
 
 /**
  * The hinTS context that can be used to request hinTS signatures using the latest
- * complete construction, if there is one. See {@link #setConstruction(HintsConstruction)}
+ * complete construction, if there is one. See {@link #setConstruction(HintsConstruction, CRSState)}
  * for the ways the context can have a construction set.
  */
 @Singleton
@@ -90,6 +92,7 @@ public class HintsContext {
     private record ConstructionSnapshot(
             long constructionId,
             @NonNull HintsConstruction construction,
+            @NonNull CRSState crsState,
             @NonNull Bytes aggregationKey,
             @NonNull Bytes verificationKey,
             @NonNull Map<Long, Integer> nodePartyIds,
@@ -97,6 +100,7 @@ public class HintsContext {
             long totalWeight) {
         private ConstructionSnapshot {
             requireNonNull(construction);
+            requireNonNull(crsState);
             requireNonNull(aggregationKey);
             requireNonNull(verificationKey);
             requireNonNull(nodePartyIds);
@@ -127,15 +131,30 @@ public class HintsContext {
      * </ol>
      *
      * @param construction the construction to start using for signing
+     * @param crsState the completed CRS bound to that construction
      * @throws IllegalArgumentException if either construction does not have a hinTS scheme
      */
-    public synchronized void setConstruction(@NonNull final HintsConstruction construction) {
+    public synchronized void setConstruction(
+            @NonNull final HintsConstruction construction, @NonNull final CRSState crsState) {
         requireNonNull(construction);
         if (!construction.hasHintsScheme()) {
             throw new IllegalArgumentException(
                     "Given construction #" + construction.constructionId() + " has no hinTS scheme");
         }
-        final var newSnapshot = snapshotOf(construction);
+        requireNonNull(crsState);
+        if (crsState.stage() != CRSStage.COMPLETED
+                || crsState.crs().length() == 0
+                || crsState.ceremonyId() <= 0
+                || crsState.numParties() <= 0
+                || crsState.numParties() > 512
+                || (crsState.numParties() & (crsState.numParties() - 1)) != 0
+                || construction.hintsSchemeOrThrow().nodePartyIds().stream()
+                        .anyMatch(p -> p.partyId() < 0 || p.partyId() >= crsState.numParties())
+                || construction.crsId() != crsState.ceremonyId()
+                || construction.numParties() != crsState.numParties()) {
+            throw new IllegalArgumentException("Construction must be bound to its completed CRS");
+        }
+        final var newSnapshot = snapshotOf(construction, crsState);
         final var writeLock = akCacheLock.writeLock();
         writeLock.lock();
         try {
@@ -225,6 +244,12 @@ public class HintsContext {
         return snapshot == null ? null : snapshot.construction();
     }
 
+    /** Returns the immutable CRS for an accepted signing construction, including the handoff window. */
+    public @Nullable Bytes crsForConstruction(final long constructionId) {
+        final var snapshot = acceptedSnapshot(constructionId);
+        return snapshot == null ? null : snapshot.crsState().crs();
+    }
+
     private @Nullable ConstructionSnapshot acceptedSnapshot(final long constructionId) {
         final var snapshots = constructionSnapshots;
         final var active = snapshots.activeIf(constructionId);
@@ -283,7 +308,7 @@ public class HintsContext {
         requireNonNull(crs);
         final var snapshot = acceptedSnapshot(body.constructionId());
         final var partyId = snapshot == null ? null : snapshot.nodePartyIds().get(nodeId);
-        if (snapshot == null || partyId == null) {
+        if (snapshot == null || partyId == null || !snapshot.crsState().crs().equals(crs)) {
             return false;
         }
         return verifyBls(
@@ -340,6 +365,7 @@ public class HintsContext {
         final long threshold = snapshot.totalWeight() / divisor;
         return new Signing(
                 snapshot.constructionId(),
+                snapshot.crsState(),
                 blockHash,
                 threshold,
                 divisor,
@@ -351,7 +377,8 @@ public class HintsContext {
                 tssConfig.validateBlockSignatures());
     }
 
-    private @NonNull ConstructionSnapshot snapshotOf(@NonNull final HintsConstruction construction) {
+    private @NonNull ConstructionSnapshot snapshotOf(
+            @NonNull final HintsConstruction construction, @NonNull final CRSState crsState) {
         final var scheme = construction.hintsSchemeOrThrow();
         final var preprocessedKeys = scheme.preprocessedKeysOrThrow();
         final Map<Long, Long> nodeWeights = new HashMap<>();
@@ -363,6 +390,7 @@ public class HintsContext {
         return new ConstructionSnapshot(
                 construction.constructionId(),
                 construction,
+                crsState,
                 preprocessedKeys.aggregationKey(),
                 preprocessedKeys.verificationKey(),
                 Map.copyOf(asNodePartyIds(scheme.nodePartyIds())),
@@ -471,6 +499,7 @@ public class HintsContext {
     public non-sealed class Signing implements BlockHashSigning {
         private final long startNanos;
         private final long constructionId;
+        private final CRSState crsState;
         private final long thresholdWeight;
         private final long thresholdDenominator;
         private final Bytes blockHash;
@@ -487,6 +516,7 @@ public class HintsContext {
 
         public Signing(
                 final long constructionId,
+                @NonNull final CRSState crsState,
                 @NonNull final Bytes blockHash,
                 final long thresholdWeight,
                 final long thresholdDenominator,
@@ -498,6 +528,7 @@ public class HintsContext {
                 final boolean validateSignature) {
             this.startNanos = System.nanoTime();
             this.constructionId = constructionId;
+            this.crsState = requireNonNull(crsState);
             this.thresholdWeight = thresholdWeight;
             this.validateSignature = validateSignature;
             this.thresholdDenominator = thresholdDenominator;
@@ -563,7 +594,8 @@ public class HintsContext {
                 final long nodeId, @NonNull final Bytes crs, @NonNull final HintsPartialSignatureTransactionBody body) {
             requireNonNull(crs);
             requireNonNull(body);
-            if (body.constructionId() != constructionId
+            if (!crsState.crs().equals(crs)
+                    || body.constructionId() != constructionId
                     || !body.message().equals(blockHash)
                     || !partyIds.containsKey(nodeId)
                     || !acceptsConstruction(constructionId)) {
@@ -597,7 +629,7 @@ public class HintsContext {
         public void incorporateValid(@NonNull final Bytes crs, final long nodeId, @NonNull final Bytes signature) {
             requireNonNull(crs);
             requireNonNull(signature);
-            if (completed.get() || !acceptsConstruction(constructionId)) {
+            if (completed.get() || !crsState.crs().equals(crs) || !acceptsConstruction(constructionId)) {
                 return;
             }
             final var partyId = partyIds.get(nodeId);

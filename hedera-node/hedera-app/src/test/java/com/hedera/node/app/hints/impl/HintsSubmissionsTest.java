@@ -67,7 +67,7 @@ class HintsSubmissionsTest {
         given(appContext.configSupplier()).willReturn(() -> DEFAULT_CONFIG);
         given(appContext.gossip()).willReturn(gossip);
 
-        subject.submitHintsKey(1, 2, hintsKey);
+        subject.submitHintsKey(3, 4, 1, 2, hintsKey);
 
         final ArgumentCaptor<Consumer<TransactionBody.Builder>> captor = ArgumentCaptor.forClass(Consumer.class);
         verify(gossip)
@@ -86,7 +86,13 @@ class HintsSubmissionsTest {
         spec.accept(builder);
         final var body = builder.build();
         assertTrue(body.hasHintsKeyPublication());
-        final var expectedBody = new HintsKeyPublicationTransactionBody(1, 2, hintsKey);
+        final var expectedBody = HintsKeyPublicationTransactionBody.newBuilder()
+                .constructionId(3)
+                .crsId(4)
+                .partyId(1)
+                .numParties(2)
+                .hintsKey(hintsKey)
+                .build();
         assertEquals(expectedBody, body.hintsKeyPublicationOrThrow());
     }
 

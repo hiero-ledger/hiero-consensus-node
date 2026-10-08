@@ -6,9 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.hapi.node.state.hints.CRSStage;
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
@@ -17,6 +20,7 @@ import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.WritableHintsStore;
 import com.hedera.node.app.history.HistoryService;
@@ -25,6 +29,8 @@ import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
+import java.util.stream.IntStream;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -51,6 +57,134 @@ class TssHandoffCoordinatorTest {
 
     @Mock
     private HintsService hintsService;
+
+    @BeforeEach
+    void readyStores() {
+        lenient().when(hintsStore.getCrsState()).thenReturn(CRSState.DEFAULT);
+        lenient().when(hintsStore.isReadyToAdopt(ADOPTED_ROSTER_HASH)).thenReturn(true);
+        lenient().when(historyStore.isReadyToAdopt(ADOPTED_ROSTER_HASH)).thenReturn(true);
+    }
+
+    @Test
+    void refusesHandoffWhenCrsPrerequisiteIsIncomplete() {
+        given(hintsStore.isReadyToAdopt(ADOPTED_ROSTER_HASH)).willReturn(false);
+        assertFalse(TssHandoffCoordinator.tryJointHandoff(
+                historyStore,
+                hintsStore,
+                historyService,
+                hintsService,
+                PREVIOUS_ROSTER,
+                ADOPTED_ROSTER,
+                ADOPTED_ROSTER_HASH));
+        verify(historyStore, never()).handoff(any(), any(), any());
+        verify(hintsService, never()).handoff(any(), any(), any(), any(), anyBoolean());
+    }
+
+    @Test
+    void refusesCapacityRegressionBeforeHistoryPromotion() {
+        given(hintsStore.getNextConstruction()).willReturn(hintsConstruction(VERIFICATION_KEY));
+        given(hintsStore.getCrsState())
+                .willReturn(CRSState.newBuilder().numParties(16).build());
+        assertFalse(TssHandoffCoordinator.tryJointHandoff(
+                historyStore,
+                hintsStore,
+                historyService,
+                hintsService,
+                PREVIOUS_ROSTER,
+                ADOPTED_ROSTER,
+                ADOPTED_ROSTER_HASH));
+        verify(historyStore, never()).handoff(any(), any(), any());
+        verify(hintsService, never()).handoff(any(), any(), any(), any(), anyBoolean());
+    }
+
+    @Test
+    void retainsActiveForTransportOverrideButRejectsUnpreparedMembershipOrWeights() {
+        final var active = activeBoundHints();
+        given(hintsStore.getActiveConstruction()).willReturn(active);
+        given(hintsStore.getCrsState()).willReturn(completedCrs());
+        final var previous = rosterWithWeights(1L, 1L, 1L);
+        assertTrue(TssHandoffCoordinator.canRetainActiveConstruction(
+                hintsStore,
+                historyStore,
+                previous,
+                previous.copyBuilder().build(),
+                Bytes.wrap("different transport hash"),
+                false));
+        assertFalse(TssHandoffCoordinator.canRetainActiveConstruction(
+                hintsStore, historyStore, previous, rosterWithWeights(1L, 2L, 1L), Bytes.wrap("new weights"), false));
+        assertFalse(TssHandoffCoordinator.canRetainActiveConstruction(
+                hintsStore,
+                historyStore,
+                previous,
+                rosterWithWeights(1L, 1L, 1L, 1L),
+                Bytes.wrap("new member"),
+                false));
+    }
+
+    @Test
+    void retainedConstructionRequiresMatchingProofAndCompletedCrs() {
+        final var active = activeBoundHints();
+        given(hintsStore.getActiveConstruction()).willReturn(active);
+        given(hintsStore.getCrsState()).willReturn(completedCrs());
+        given(historyStore.getActiveConstruction()).willReturn(historyConstruction(wrapsProof(VERIFICATION_KEY)));
+        assertTrue(TssHandoffCoordinator.canRetainActiveConstruction(
+                hintsStore, historyStore, PREVIOUS_ROSTER, ADOPTED_ROSTER, ADOPTED_ROSTER_HASH, true));
+        given(historyStore.getActiveConstruction()).willReturn(historyConstruction(wrapsProof(OTHER_VERIFICATION_KEY)));
+        assertFalse(TssHandoffCoordinator.canRetainActiveConstruction(
+                hintsStore, historyStore, PREVIOUS_ROSTER, ADOPTED_ROSTER, ADOPTED_ROSTER_HASH, true));
+        given(hintsStore.getCrsState())
+                .willReturn(completedCrs()
+                        .copyBuilder()
+                        .stage(CRSStage.GATHERING_CONTRIBUTIONS)
+                        .build());
+        assertFalse(TssHandoffCoordinator.canRetainActiveConstruction(
+                hintsStore, historyStore, PREVIOUS_ROSTER, ADOPTED_ROSTER, ADOPTED_ROSTER_HASH, false));
+    }
+
+    @Test
+    void importedConstructionRequiresMatchingTargetAndEnoughCapacity() {
+        final var active = activeBoundHints();
+        given(hintsStore.getActiveConstruction()).willReturn(active);
+        given(hintsStore.getCrsState()).willReturn(completedCrs());
+        assertTrue(TssHandoffCoordinator.canRetainActiveConstruction(
+                hintsStore,
+                historyStore,
+                rosterWithWeights(1L),
+                rosterWithWeights(1L, 1L, 1L),
+                ADOPTED_ROSTER_HASH,
+                false));
+        assertFalse(TssHandoffCoordinator.canRetainActiveConstruction(
+                hintsStore,
+                historyStore,
+                rosterWithWeights(1L),
+                rosterWithWeights(1L, 1L, 1L, 1L, 1L, 1L, 1L),
+                ADOPTED_ROSTER_HASH,
+                false));
+        given(hintsStore.getCrsState())
+                .willReturn(completedCrs().copyBuilder().ceremonyId(2L).build());
+        assertFalse(TssHandoffCoordinator.canRetainActiveConstruction(
+                hintsStore, historyStore, PREVIOUS_ROSTER, ADOPTED_ROSTER, ADOPTED_ROSTER_HASH, false));
+    }
+
+    private static HintsConstruction activeBoundHints() {
+        return hintsConstruction(VERIFICATION_KEY).copyBuilder().crsId(1L).build();
+    }
+
+    private static CRSState completedCrs() {
+        return CRSState.newBuilder()
+                .ceremonyId(1L)
+                .numParties(8)
+                .stage(CRSStage.COMPLETED)
+                .crs(Bytes.wrap(new byte[304 + 288 * 8]))
+                .build();
+    }
+
+    private static Roster rosterWithWeights(final long... weights) {
+        return new Roster(IntStream.range(0, weights.length)
+                .mapToObj(i ->
+                        RosterEntry.newBuilder().nodeId(i).weight(weights[i]).build())
+                .toList());
+    }
 
     @Test
     void usesJointForcedHandoffOnlyWhenForcingHandoffsWithBothHintsAndHistory() {
@@ -178,6 +312,8 @@ class TssHandoffCoordinatorTest {
     private static HintsConstruction hintsConstruction(final Bytes verificationKey) {
         return HintsConstruction.newBuilder()
                 .constructionId(2L)
+                .targetRosterHash(ADOPTED_ROSTER_HASH)
+                .numParties(8)
                 .hintsScheme(new HintsScheme(new PreprocessedKeys(AGGREGATION_KEY, verificationKey), List.of()))
                 .build();
     }

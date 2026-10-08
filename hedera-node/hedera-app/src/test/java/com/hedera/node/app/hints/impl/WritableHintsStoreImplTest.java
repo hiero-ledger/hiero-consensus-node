@@ -10,6 +10,7 @@ import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONST
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_LABEL;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_LABEL;
+import static com.hedera.node.app.hints.schemas.V079HintsSchema.NEXT_CRS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
@@ -39,27 +40,20 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.hapi.services.auxiliary.hints.CrsPublicationTransactionBody;
-import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
-import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
-import com.hedera.node.app.fixtures.state.FakeServicesRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.hints.HintsLibrary;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.service.entityid.WritableEntityIdStore;
-import com.hedera.node.app.service.entityid.impl.EntityIdServiceImpl;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
-import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.TssConfig;
-import com.hedera.node.config.data.VersionConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.ReadableKVState;
@@ -71,7 +65,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.consensus.fakes.noop.NoOpMetrics;
 import org.junit.jupiter.api.BeforeEach;
@@ -126,7 +119,6 @@ class WritableHintsStoreImplTest {
 
     @BeforeEach
     void setUp() {
-        given(appContext.configSupplier()).willReturn(() -> DEFAULT_CONFIG);
         state = emptyState();
         writableEntityIdStore = new WritableEntityIdStoreImpl(new MapWritableStates(Map.of(
                 ENTITY_ID_STATE_ID,
@@ -197,7 +189,6 @@ class WritableHintsStoreImplTest {
 
     @Test
     void createsBootstrapConstructionIfNotPresent() {
-        givenARosterLookup();
         given(activeRosters.phase()).willReturn(BOOTSTRAP);
         given(activeRosters.sourceRosterHash()).willReturn(A_ROSTER_HASH);
         given(activeRosters.targetRosterHash()).willReturn(A_ROSTER_HASH);
@@ -205,9 +196,8 @@ class WritableHintsStoreImplTest {
         final var construction = subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG);
 
         assertEquals(1L, construction.constructionId());
-        final var expectedGracePeriodEndTime =
-                asTimestamp(CONSENSUS_NOW.plus(TSS_CONFIG.bootstrapHintsKeyGracePeriod()));
-        assertEquals(expectedGracePeriodEndTime, construction.gracePeriodEndTimeOrThrow());
+        assertFalse(construction.hasGracePeriodEndTime());
+        assertEquals(0, construction.crsId());
         assertEquals(A_ROSTER_HASH, construction.sourceRosterHash());
         assertEquals(A_ROSTER_HASH, construction.targetRosterHash());
 
@@ -220,12 +210,14 @@ class WritableHintsStoreImplTest {
 
     @Test
     void setsAsNextConstructionAndRotatesKeysDuringTransition() {
-        givenCRosterLookup();
         given(activeRosters.phase()).willReturn(TRANSITION);
         given(activeRosters.sourceRosterHash()).willReturn(B_ROSTER_HASH);
         given(activeRosters.targetRosterHash()).willReturn(C_ROSTER_HASH);
         final var active = HintsConstruction.newBuilder()
                 .constructionId(2L)
+                .hintsScheme(HintsScheme.DEFAULT)
+                .crsId(1L)
+                .numParties(4)
                 .sourceRosterHash(A_ROSTER_HASH)
                 .targetRosterHash(B_ROSTER_HASH)
                 .build();
@@ -235,13 +227,20 @@ class WritableHintsStoreImplTest {
         final var nextKey = Bytes.wrap("TWO");
         final long rotatingKeyNodeId = 666L;
         final int numParties = HintsService.partySizeForRoster(C_ROSTER);
-        subject.setHintsKey(rotatingKeyNodeId, 0, numParties, key, CONSENSUS_NOW.minusSeconds(1440));
-        subject.setHintsKey(rotatingKeyNodeId, 0, numParties, nextKey, CONSENSUS_NOW.minusSeconds(1439));
+        subject.setCrsState(completedCrs(1, numParties));
+        subject.setHintsKey(rotatingKeyNodeId, 0, numParties, 1, key, CONSENSUS_NOW.minusSeconds(1440));
+        subject.setHintsKey(rotatingKeyNodeId, 0, numParties, 1, nextKey, CONSENSUS_NOW.minusSeconds(1439));
         final long newKeyNodeId = 42L;
         final var newKey = Bytes.wrap("THREE");
-        assertTrue(subject.setHintsKey(newKeyNodeId, 1, numParties, newKey, CONSENSUS_NOW.minusSeconds(1L)));
+        assertTrue(subject.setHintsKey(newKeyNodeId, 1, numParties, 1, newKey, CONSENSUS_NOW.minusSeconds(1L)));
 
-        final var construction = subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG);
+        var construction = subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG);
+        assertFalse(construction.hasGracePeriodEndTime());
+        subject.bindConstructionToCrs(construction.constructionId(), 1, numParties);
+        construction = subject.startHintsKeyGracePeriod(
+                construction.constructionId(),
+                CONSENSUS_NOW,
+                CONSENSUS_NOW.plus(TSS_CONFIG.transitionHintsKeyGracePeriod()));
 
         assertEquals(3L, construction.constructionId());
         final var expectedGracePeriodEndTime =
@@ -256,7 +255,7 @@ class WritableHintsStoreImplTest {
         requireNonNull(nextConstruction);
         assertSame(construction, nextConstruction);
 
-        final var rotatedPartyId = new HintsPartyId(0, numParties);
+        final var rotatedPartyId = new HintsPartyId(0, numParties, 1);
         final var updatedKeySet = state.getWritableStates(HintsService.NAME)
                 .<HintsPartyId, HintsKeySet>get(V059HintsSchema.HINTS_KEY_SETS_STATE_ID)
                 .get(rotatedPartyId);
@@ -266,7 +265,7 @@ class WritableHintsStoreImplTest {
         assertEquals(asTimestamp(CONSENSUS_NOW), updatedKeySet.adoptionTime());
         assertEquals(0, updatedKeySet.nextKey().length());
 
-        final var newPartyId = new HintsPartyId(1, numParties);
+        final var newPartyId = new HintsPartyId(1, numParties, 1);
         final var newKeySet = state.getWritableStates(HintsService.NAME)
                 .<HintsPartyId, HintsKeySet>get(V059HintsSchema.HINTS_KEY_SETS_STATE_ID)
                 .get(newPartyId);
@@ -330,15 +329,27 @@ class WritableHintsStoreImplTest {
     void purgingStateAfterHandoffHasTrueExpectedEffectIfSomethingHappened() {
         final var activeConstruction = HintsConstruction.newBuilder()
                 .constructionId(123L)
+                .crsId(1L)
+                .numParties(4)
+                .hintsScheme(HintsScheme.DEFAULT)
                 .sourceRosterHash(A_ROSTER_HASH)
                 .targetRosterHash(A_ROSTER_HASH)
                 .build();
         final var nextConstruction = HintsConstruction.newBuilder()
                 .constructionId(456L)
+                .crsId(2L)
+                .numParties(8)
                 .targetRosterHash(C_ROSTER_HASH)
                 .hintsScheme(HintsScheme.DEFAULT)
                 .build();
         setConstructions(activeConstruction, nextConstruction);
+        subject.setCrsState(completedCrs(1, 4));
+        subject.setNextCrsState(completedCrs(2, 8)
+                .copyBuilder()
+                .constructionId(456)
+                .sourceRosterHash(nextConstruction.sourceRosterHash())
+                .targetRosterHash(C_ROSTER_HASH)
+                .build());
         final var prevRoster =
                 new Roster(List.of(RosterEntry.newBuilder().nodeId(0L).build()));
         addSomeVotesFor(123L, prevRoster);
@@ -346,7 +357,7 @@ class WritableHintsStoreImplTest {
         final var votesBefore = subject.getVotes(123L, Set.of(0L, 1L));
         assertEquals(1, votesBefore.size());
         assertEquals(DEFAULT_VOTE, votesBefore.get(0L));
-        final var publicationsBefore = subject.getHintsKeyPublications(Set.of(0L), partySizeForRoster(A_ROSTER));
+        final var publicationsBefore = subject.getHintsKeyPublications(Set.of(0L), partySizeForRoster(A_ROSTER), 1);
         assertEquals(1, publicationsBefore.size());
 
         subject.handoff(prevRoster, C_ROSTER, C_ROSTER_HASH, false);
@@ -365,16 +376,28 @@ class WritableHintsStoreImplTest {
         // can only come from the upcoming construction being purged.
         final var activeConstruction = HintsConstruction.newBuilder()
                 .constructionId(123L)
+                .crsId(1L)
+                .numParties(4)
+                .hintsScheme(HintsScheme.DEFAULT)
                 .sourceRosterHash(A_ROSTER_HASH)
                 .targetRosterHash(A_ROSTER_HASH)
                 .build();
         final var nextConstruction = HintsConstruction.newBuilder()
                 .constructionId(456L)
+                .crsId(2L)
+                .numParties(8)
                 .sourceRosterHash(C_ROSTER_HASH)
                 .targetRosterHash(C_ROSTER_HASH)
                 .hintsScheme(HintsScheme.DEFAULT)
                 .build();
         setConstructions(activeConstruction, nextConstruction);
+        subject.setCrsState(completedCrs(1, 4));
+        subject.setNextCrsState(completedCrs(2, 8)
+                .copyBuilder()
+                .constructionId(456)
+                .sourceRosterHash(nextConstruction.sourceRosterHash())
+                .targetRosterHash(C_ROSTER_HASH)
+                .build());
         addSomeVotesFor(456L, C_ROSTER);
         assertEquals(3, subject.getVotes(456L, Set.of(1L, 2L, 3L)).size());
 
@@ -409,6 +432,276 @@ class WritableHintsStoreImplTest {
         assertEquals(
                 CrsPublicationTransactionBody.DEFAULT,
                 subject.getCrsPublications().get(0));
+    }
+
+    @Test
+    void ceremonyAllocationSurvivesDiscardAndStaleActiveSnapshots() {
+        final var original = completedCrs(3, 4);
+        subject.setCrsState(original);
+        assertEquals(4, subject.allocateCrsId());
+        subject.setNextCrsState(completedCrs(4, 8));
+        subject.setNextCrsState(CRSState.DEFAULT);
+        subject.setCrsState(original);
+        assertEquals(4, subject.getCrsState().lastUsedCeremonyId());
+        assertEquals(5, subject.allocateCrsId());
+        assertEquals(original.crs(), subject.getCrsState().crs());
+    }
+
+    @Test
+    void hintsKeysCannotCrossCrsGenerations() {
+        final var oldKey = Bytes.wrap("old");
+        final var newKey = Bytes.wrap("new");
+        assertTrue(subject.setHintsKey(1, 0, 4, 7, oldKey, CONSENSUS_NOW));
+        assertTrue(subject.setHintsKey(1, 0, 4, 8, newKey, CONSENSUS_NOW));
+        assertEquals(
+                oldKey,
+                subject.getHintsKeyPublications(Set.of(1L), 4, 7).getFirst().hintsKey());
+        assertEquals(
+                newKey,
+                subject.getHintsKeyPublications(Set.of(1L), 4, 8).getFirst().hintsKey());
+        assertTrue(subject.getHintsKeyPublications(Set.of(1L), 4, 9).isEmpty());
+    }
+
+    @Test
+    void keyGracePeriodRequiresTheExactCompletedCrs() {
+        final var construction = HintsConstruction.newBuilder()
+                .constructionId(2)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(B_ROSTER_HASH)
+                .build();
+        setConstructions(
+                HintsConstruction.newBuilder()
+                        .constructionId(1)
+                        .hintsScheme(HintsScheme.DEFAULT)
+                        .build(),
+                construction);
+        subject.bindConstructionToCrs(2, 9, 4);
+        subject.setNextCrsState(completedCrs(9, 4)
+                .copyBuilder()
+                .constructionId(2)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(C_ROSTER_HASH)
+                .build());
+        assertEquals(CRSState.DEFAULT, subject.getCrsStateFor(subject.getNextConstruction()));
+        assertThrows(IllegalStateException.class, () -> subject.startHintsKeyGracePeriod(2, CONSENSUS_NOW));
+        assertFalse(subject.getNextConstruction().hasGracePeriodEndTime());
+        subject.setNextCrsState(subject.getNextCrsState()
+                .copyBuilder()
+                .targetRosterHash(B_ROSTER_HASH)
+                .stage(CRSStage.GATHERING_CONTRIBUTIONS)
+                .build());
+        assertThrows(IllegalStateException.class, () -> subject.startHintsKeyGracePeriod(2, CONSENSUS_NOW));
+        subject.setNextCrsState(subject.getNextCrsState()
+                .copyBuilder()
+                .stage(CRSStage.COMPLETED)
+                .build());
+        final var end = CONSENSUS_NOW.plusSeconds(30);
+        assertEquals(
+                asTimestamp(end),
+                subject.startHintsKeyGracePeriod(2, CONSENSUS_NOW, end).gracePeriodEndTime());
+    }
+
+    @Test
+    void completedHintsAloneDoNotMakeAConstructionReady() {
+        setConstructions(
+                HintsConstruction.DEFAULT,
+                HintsConstruction.newBuilder()
+                        .constructionId(2)
+                        .targetRosterHash(B_ROSTER_HASH)
+                        .hintsScheme(HintsScheme.DEFAULT)
+                        .build());
+        assertFalse(subject.isReadyToAdopt(B_ROSTER_HASH));
+        assertFalse(subject.handoff(A_ROSTER, C_ROSTER, B_ROSTER_HASH, true));
+    }
+
+    @Test
+    void forceHandoffCannotShrinkCapacityOrIgnoreTarget() {
+        final var active = HintsConstruction.newBuilder()
+                .constructionId(1)
+                .crsId(1)
+                .numParties(8)
+                .hintsScheme(HintsScheme.DEFAULT)
+                .build();
+        final var next = HintsConstruction.newBuilder()
+                .constructionId(2)
+                .crsId(2)
+                .numParties(4)
+                .targetRosterHash(B_ROSTER_HASH)
+                .hintsScheme(HintsScheme.DEFAULT)
+                .build();
+        setConstructions(active, next);
+        subject.setCrsState(completedCrs(1, 8));
+        subject.setNextCrsState(completedCrs(2, 4)
+                .copyBuilder()
+                .constructionId(2)
+                .targetRosterHash(B_ROSTER_HASH)
+                .build());
+        assertFalse(subject.handoff(A_ROSTER, C_ROSTER, C_ROSTER_HASH, true));
+        assertFalse(subject.handoff(A_ROSTER, C_ROSTER, B_ROSTER_HASH, true));
+        assertSame(active, subject.getActiveConstruction());
+        assertEquals(1, subject.getCrsState().ceremonyId());
+        assertEquals(2, subject.getNextCrsState().ceremonyId());
+    }
+
+    @Test
+    void promotesCrsAndSchemeTogetherAndPreservesAllocationHighWater() {
+        final var active = HintsConstruction.newBuilder()
+                .constructionId(1)
+                .crsId(1)
+                .numParties(4)
+                .hintsScheme(HintsScheme.DEFAULT)
+                .build();
+        final var next = HintsConstruction.newBuilder()
+                .constructionId(2)
+                .crsId(2)
+                .numParties(8)
+                .targetRosterHash(B_ROSTER_HASH)
+                .hintsScheme(HintsScheme.DEFAULT)
+                .build();
+        setConstructions(active, next);
+        subject.setCrsState(
+                completedCrs(1, 4).copyBuilder().lastUsedCeremonyId(10).build());
+        subject.setNextCrsState(completedCrs(2, 8)
+                .copyBuilder()
+                .constructionId(2)
+                .targetRosterHash(B_ROSTER_HASH)
+                .build());
+        assertTrue(subject.handoff(A_ROSTER, C_ROSTER, B_ROSTER_HASH, false));
+        assertSame(next, subject.getActiveConstruction());
+        assertEquals(2, subject.getCrsState().ceremonyId());
+        assertEquals(10, subject.getCrsState().lastUsedCeremonyId());
+        assertEquals(CRSState.DEFAULT, subject.getNextCrsState());
+        assertEquals(HintsConstruction.DEFAULT, subject.getNextConstruction());
+    }
+
+    @Test
+    void replacingAnIncompleteBootstrapKeepsWorkInTheActiveSlot() {
+        final var previous = HintsConstruction.newBuilder()
+                .constructionId(3)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(A_ROSTER_HASH)
+                .build();
+        setConstructions(previous, HintsConstruction.DEFAULT);
+        given(activeRosters.phase()).willReturn(BOOTSTRAP);
+        given(activeRosters.sourceRosterHash()).willReturn(B_ROSTER_HASH);
+        given(activeRosters.targetRosterHash()).willReturn(B_ROSTER_HASH);
+        final var replacement = subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG);
+        assertEquals(4, replacement.constructionId());
+        assertSame(replacement, subject.getActiveConstruction());
+        assertEquals(HintsConstruction.DEFAULT, subject.getNextConstruction());
+        assertFalse(replacement.hasGracePeriodEndTime());
+    }
+
+    @Test
+    void abandoningCandidatePreservesBothIdHighWaterMarks() {
+        final var active = HintsConstruction.newBuilder()
+                .constructionId(4)
+                .crsId(2)
+                .numParties(4)
+                .hintsScheme(HintsScheme.DEFAULT)
+                .build();
+        final var next = HintsConstruction.newBuilder()
+                .constructionId(9)
+                .crsId(3)
+                .numParties(8)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(B_ROSTER_HASH)
+                .build();
+        setConstructions(active, next);
+        subject.setCrsState(completedCrs(2, 4));
+        subject.setNextCrsState(completedCrs(3, 8));
+        subject.setHintsKey(0, 1, 4, 2, Bytes.wrap("active"), CONSENSUS_NOW);
+        subject.setHintsKey(0, 1, 8, 3, Bytes.wrap("abandoned"), CONSENSUS_NOW);
+        subject.addPreprocessingVote(0, 9, DEFAULT_VOTE);
+        subject.abandonNextConstruction();
+        assertEquals(HintsConstruction.DEFAULT, subject.getNextConstruction());
+        assertEquals(CRSState.DEFAULT, subject.getNextCrsState());
+        assertEquals(9, subject.getCrsState().lastUsedConstructionId());
+        assertEquals(3, subject.getCrsState().lastUsedCeremonyId());
+        assertTrue(subject.getVotes(9, Set.of(0L)).isEmpty());
+        assertTrue(subject.getHintsKeyPublications(Set.of(0L), 8, 3).isEmpty());
+        assertFalse(subject.getHintsKeyPublications(Set.of(0L), 4, 2).isEmpty());
+        given(activeRosters.phase()).willReturn(TRANSITION);
+        given(activeRosters.sourceRosterHash()).willReturn(A_ROSTER_HASH);
+        given(activeRosters.targetRosterHash()).willReturn(B_ROSTER_HASH);
+        assertEquals(
+                10,
+                subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG)
+                        .constructionId());
+        assertEquals(4, subject.allocateCrsId());
+    }
+
+    @Test
+    void reproposingTheSameRosterAndCrsNeverReusesTheAbandonedConstructionId() {
+        final var active = HintsConstruction.newBuilder()
+                .constructionId(4)
+                .crsId(2)
+                .numParties(4)
+                .hintsScheme(HintsScheme.DEFAULT)
+                .build();
+        final var abandoned = HintsConstruction.newBuilder()
+                .constructionId(9)
+                .crsId(2)
+                .numParties(4)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(B_ROSTER_HASH)
+                .build();
+        setConstructions(active, abandoned);
+        subject.setCrsState(completedCrs(2, 4));
+        subject.setHintsKey(0, 1, 4, 2, Bytes.wrap("shared"), CONSENSUS_NOW);
+        subject.abandonNextConstruction();
+        given(activeRosters.phase()).willReturn(TRANSITION);
+        given(activeRosters.sourceRosterHash()).willReturn(A_ROSTER_HASH);
+        given(activeRosters.targetRosterHash()).willReturn(B_ROSTER_HASH);
+        final var replacement = subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG);
+        final var bound = subject.bindConstructionToCrs(replacement.constructionId(), 2, 4);
+        assertEquals(10, bound.constructionId());
+        assertEquals(abandoned.crsId(), bound.crsId());
+        assertFalse(subject.getHintsKeyPublications(Set.of(0L), 4, 2).isEmpty());
+        subject.abandonNextConstruction();
+        assertEquals(
+                11,
+                subject.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, TSS_CONFIG)
+                        .constructionId());
+    }
+
+    @Test
+    void reassignedPartyImmediatelyAdoptsTheNewOwnersKeyWithinTheSameCrs() {
+        subject.setCrsState(completedCrs(2, 4));
+        final var oldKey = Bytes.wrap("departed-node-key");
+        final var queuedOldKey = Bytes.wrap("departed-node-queued-key");
+        final var replacementKey = Bytes.wrap("replacement-node-key");
+        assertTrue(subject.setHintsKey(0, 1, 4, 2, oldKey, CONSENSUS_NOW));
+        assertFalse(subject.setHintsKey(0, 1, 4, 2, queuedOldKey, CONSENSUS_NOW.plusSeconds(1)));
+        final var adoptionTime = CONSENSUS_NOW.plusSeconds(2);
+        assertTrue(subject.setHintsKey(1, 1, 4, 2, replacementKey, adoptionTime));
+        ((CommittableWritableStates) state.getWritableStates(HintsService.NAME)).commit();
+
+        final var restarted =
+                new ReadableHintsStoreImpl(state.getReadableStates(HintsService.NAME), writableEntityIdStore);
+        final var publications = restarted.getHintsKeyPublications(Set.of(1L), 4, 2);
+        assertEquals(1, publications.size());
+        assertEquals(replacementKey, publications.getFirst().hintsKey());
+        assertEquals(adoptionTime, publications.getFirst().adoptionTime());
+        assertTrue(restarted.getHintsKeyPublications(Set.of(0L), 4, 2).isEmpty());
+        assertEquals(Bytes.EMPTY, keySetsNow().get(new HintsPartyId(1, 4, 2)).nextKey());
+        assertEquals(2, restarted.getCrsState().ceremonyId());
+        assertEquals(completedCrs(2, 4).crs(), restarted.getCrsState().crs());
+    }
+
+    @Test
+    void idleAbandonmentDoesNotRewriteAnySingleton() {
+        subject.setCrsState(completedCrs(2, 4));
+        final var states = state.getWritableStates(HintsService.NAME);
+        ((CommittableWritableStates) states).commit();
+
+        subject.abandonNextConstruction();
+        subject.abandonNextConstruction();
+
+        assertFalse(states.getSingleton(CRS_STATE_STATE_ID).isModified());
+        assertFalse(states.getSingleton(NEXT_CRS_STATE_ID).isModified());
+        assertFalse(states.getSingleton(ACTIVE_HINTS_CONSTRUCTION_STATE_ID).isModified());
+        assertFalse(states.getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID).isModified());
     }
 
     private CRSState setInitialCrsState() {
@@ -477,7 +770,7 @@ class WritableHintsStoreImplTest {
                 .<HintsPartyId, HintsKeySet>get(V059HintsSchema.HINTS_KEY_SETS_STATE_ID);
         final int numParties = partySizeForRoster(roster);
         for (int i = 0; i < numParties; i++) {
-            final var partyId = new HintsPartyId(i, numParties);
+            final var partyId = new HintsPartyId(i, numParties, 1);
             final var keySet = HintsKeySet.newBuilder()
                     .nodeId(i)
                     .key(Bytes.wrap("KEY" + i))
@@ -497,33 +790,32 @@ class WritableHintsStoreImplTest {
     }
 
     private State emptyState() {
-        final var state = new FakeState();
-        final var servicesRegistry = new FakeServicesRegistry();
-        final var hintsServiceImpl = new HintsServiceImpl(
-                NO_OP_METRICS,
-                ForkJoinPool.commonPool(),
-                appContext,
-                library,
-                DEFAULT_CONFIG.getConfigData(BlockStreamConfig.class).blockPeriod(),
-                new RsaContext(appContext.configSupplier()),
-                new java.util.concurrent.ConcurrentHashMap<>());
-        Set.of(new EntityIdServiceImpl(), hintsServiceImpl).forEach(servicesRegistry::register);
-        final var migrator = new FakeServiceMigrator();
-        final var bootstrapConfig = new BootstrapConfigProviderImpl().getConfiguration();
-        migrator.doMigrations(
-                state,
-                servicesRegistry,
-                null,
-                bootstrapConfig.getConfigData(VersionConfig.class).servicesVersion(),
-                new ConfigProviderImpl().getConfiguration(),
-                DEFAULT_CONFIG,
-                startupNetworks,
-                storeMetricsService,
-                configProvider,
-                InitTrigger.GENESIS);
-        final var writableStates = state.getWritableStates(HintsService.NAME);
-        hintsServiceImpl.doGenesisSetup(writableStates, DEFAULT_CONFIG, 4);
-        ((CommittableWritableStates) writableStates).commit();
-        return state;
+        return new FakeState()
+                .addService(
+                        HintsService.NAME,
+                        Map.of(
+                                ACTIVE_HINTS_CONSTRUCTION_STATE_ID,
+                                new AtomicReference<>(HintsConstruction.DEFAULT),
+                                NEXT_HINTS_CONSTRUCTION_STATE_ID,
+                                new AtomicReference<>(HintsConstruction.DEFAULT),
+                                CRS_STATE_STATE_ID,
+                                new AtomicReference<>(CRSState.DEFAULT),
+                                NEXT_CRS_STATE_ID,
+                                new AtomicReference<>(CRSState.DEFAULT),
+                                V059HintsSchema.HINTS_KEY_SETS_STATE_ID,
+                                new java.util.HashMap<>(),
+                                V059HintsSchema.PREPROCESSING_VOTES_STATE_ID,
+                                new java.util.HashMap<>(),
+                                com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_PUBLICATIONS_STATE_ID,
+                                new java.util.HashMap<>()));
+    }
+
+    private static CRSState completedCrs(final long id, final int capacity) {
+        return CRSState.newBuilder()
+                .ceremonyId(id)
+                .numParties(capacity)
+                .stage(CRSStage.COMPLETED)
+                .crs(Bytes.wrap("CRS" + id))
+                .build();
     }
 }

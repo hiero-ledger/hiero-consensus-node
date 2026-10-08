@@ -13,8 +13,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.state.hints.CRSStage;
-import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -108,15 +106,8 @@ public class CrsPublicationHandlerTest {
     @Test
     void testHandle() {
         when(controllers.getAnyInProgress()).thenReturn(Optional.of(controller));
-        when(hintsStore.getCrsState())
-                .thenReturn(CRSState.newBuilder()
-                        .stage(CRSStage.GATHERING_CONTRIBUTIONS)
-                        .crs(INITIAL_CRS)
-                        .nextContributingNodeId(0L)
-                        .build());
-
         assertDoesNotThrow(() -> subject.handle(handleContext));
-        verify(hintsStore).addCrsPublication(0L, CrsPublicationTransactionBody.DEFAULT);
+        verify(hintsStore, never()).addCrsPublication(anyLong(), any());
         verify(controller).addCrsPublication(any(), any(), any(), anyLong());
     }
 

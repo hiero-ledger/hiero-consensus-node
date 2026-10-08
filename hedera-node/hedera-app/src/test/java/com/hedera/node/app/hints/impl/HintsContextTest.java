@@ -11,6 +11,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.hedera.hapi.node.state.hints.CRSStage;
+import com.hedera.hapi.node.state.hints.CRSState;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.HintsScheme;
 import com.hedera.hapi.node.state.hints.NodePartyId;
@@ -48,10 +50,18 @@ class HintsContextTest {
     private static final NodePartyId D_NODE_PARTY_ID = new NodePartyId(9L, 18, 9L);
     private static final HintsConstruction CONSTRUCTION = HintsConstruction.newBuilder()
             .constructionId(1L)
+            .crsId(1L)
+            .numParties(32)
             .hintsScheme(new HintsScheme(
                     PREPROCESSED_KEYS, List.of(A_NODE_PARTY_ID, B_NODE_PARTY_ID, C_NODE_PARTY_ID, D_NODE_PARTY_ID)))
             .build();
     private static final Bytes CRS = Bytes.wrap("CRS");
+    private static final CRSState CRS_STATE = CRSState.newBuilder()
+            .ceremonyId(1L)
+            .numParties(32)
+            .crs(CRS)
+            .stage(CRSStage.COMPLETED)
+            .build();
     private static final Bytes MESSAGE = Bytes.wrap("MESSAGE");
     private static final Bytes PARTIAL_SIGNATURE = Bytes.wrap("PARTIAL_SIGNATURE");
 
@@ -123,6 +133,8 @@ class HintsContextTest {
             final long constructionId, final PreprocessedKeys keys, final List<NodePartyId> nodePartyIds) {
         return HintsConstruction.newBuilder()
                 .constructionId(constructionId)
+                .crsId(1L)
+                .numParties(32)
                 .hintsScheme(new HintsScheme(keys, nodePartyIds))
                 .build();
     }
@@ -139,12 +151,64 @@ class HintsContextTest {
     }
 
     @Test
+    void bindsCrsToEachSigningAcrossHandoff() {
+        final var nextCrs = CRS_STATE
+                .copyBuilder()
+                .ceremonyId(2L)
+                .crs(Bytes.wrap("NEXT_CRS"))
+                .build();
+        final var next = nextConstruction().copyBuilder().crsId(2L).build();
+        subject.setConstruction(CONSTRUCTION, CRS_STATE);
+        subject.onBlockStarted(10L);
+        final var oldSigning = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
+        subject.setConstruction(next, nextCrs);
+        assertEquals(CRS, subject.crsForConstruction(CONSTRUCTION.constructionId()));
+        assertEquals(nextCrs.crs(), subject.crsForConstruction(next.constructionId()));
+        assertFalse(subject.validate(
+                A_NODE_PARTY_ID.nodeId(), nextCrs.crs(), partialSigBody(CONSTRUCTION.constructionId())));
+        oldSigning.incorporateValid(nextCrs.crs(), D_NODE_PARTY_ID.nodeId(), PARTIAL_SIGNATURE);
+        assertFalse(oldSigning.future().isDone());
+        verify(library, never()).aggregateSignatures(any(), any(), any(), any());
+        final var expectedSignatures = Map.of(D_NODE_PARTY_ID.partyId(), PARTIAL_SIGNATURE);
+        final var aggregate = Bytes.wrap("old construction aggregate");
+        given(library.aggregateSignatures(CRS, AGGREGATION_KEY, VERIFICATION_KEY, expectedSignatures))
+                .willReturn(aggregate);
+        oldSigning.incorporateValid(CRS, D_NODE_PARTY_ID.nodeId(), PARTIAL_SIGNATURE);
+        assertEquals(aggregate, oldSigning.future().join());
+        verify(library).aggregateSignatures(CRS, AGGREGATION_KEY, VERIFICATION_KEY, expectedSignatures);
+        oldSigning.cancel();
+        subject.onBlockStarted(13L);
+        assertNull(subject.crsForConstruction(CONSTRUCTION.constructionId()));
+    }
+
+    @Test
+    void refusesIncompleteOrDifferentCrs() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.setConstruction(
+                        CONSTRUCTION,
+                        CRS_STATE
+                                .copyBuilder()
+                                .stage(CRSStage.GATHERING_CONTRIBUTIONS)
+                                .build()));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.setConstruction(
+                        CONSTRUCTION, CRS_STATE.copyBuilder().ceremonyId(2L).build()));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> subject.setConstruction(
+                        CONSTRUCTION, CRS_STATE.copyBuilder().numParties(64).build()));
+        assertFalse(subject.isReady());
+    }
+
+    @Test
     void becomesReadyOnceConstructionSet() {
         assertFalse(subject.isReady());
         assertThrows(IllegalStateException.class, subject::constructionIdOrThrow);
         assertThrows(IllegalStateException.class, subject::verificationKeyOrThrow);
 
-        subject.setConstruction(CONSTRUCTION);
+        subject.setConstruction(CONSTRUCTION, CRS_STATE);
 
         assertTrue(subject.isReady());
 
@@ -163,7 +227,7 @@ class HintsContextTest {
         given(library.aggregateSignatures(CRS, AGGREGATION_KEY, VERIFICATION_KEY, expectedSignatures))
                 .willReturn(aggregateSignature);
 
-        subject.setConstruction(CONSTRUCTION);
+        subject.setConstruction(CONSTRUCTION, CRS_STATE);
 
         final var signing = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
         final var future = signing.future();
@@ -192,6 +256,8 @@ class HintsContextTest {
         final var b = new NodePartyId(22L, 2, 5L);
         final var construction = HintsConstruction.newBuilder()
                 .constructionId(3L)
+                .crsId(1L)
+                .numParties(32)
                 .hintsScheme(new HintsScheme(PREPROCESSED_KEYS, List.of(a, b)))
                 .build();
 
@@ -200,7 +266,7 @@ class HintsContextTest {
         given(library.aggregateSignatures(CRS, AGGREGATION_KEY, VERIFICATION_KEY, expectedSignatures))
                 .willReturn(aggregateSignature);
 
-        subject.setConstruction(construction);
+        subject.setConstruction(construction, CRS_STATE);
 
         final var signing = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
         final var future = signing.future();
@@ -224,7 +290,7 @@ class HintsContextTest {
 
     @Test
     void validateThrowsOnNullCrs() {
-        subject.setConstruction(CONSTRUCTION);
+        subject.setConstruction(CONSTRUCTION, CRS_STATE);
 
         assertThrows(
                 NullPointerException.class,
@@ -236,7 +302,7 @@ class HintsContextTest {
     void validateDelegatesToVerifyBlsForMatchingConstructionAndNode() {
         given(library.verifyBls(CRS, PARTIAL_SIGNATURE, MESSAGE, AGGREGATION_KEY, A_NODE_PARTY_ID.partyId()))
                 .willReturn(true);
-        subject.setConstruction(CONSTRUCTION);
+        subject.setConstruction(CONSTRUCTION, CRS_STATE);
 
         assertTrue(subject.validate(A_NODE_PARTY_ID.nodeId(), CRS, partialSigBody(CONSTRUCTION.constructionId())));
         verify(library).verifyBls(CRS, PARTIAL_SIGNATURE, MESSAGE, AGGREGATION_KEY, A_NODE_PARTY_ID.partyId());
@@ -246,7 +312,7 @@ class HintsContextTest {
     void validateReturnsFalseWhenVerifyBlsFails() {
         given(library.verifyBls(CRS, PARTIAL_SIGNATURE, MESSAGE, AGGREGATION_KEY, A_NODE_PARTY_ID.partyId()))
                 .willReturn(false);
-        subject.setConstruction(CONSTRUCTION);
+        subject.setConstruction(CONSTRUCTION, CRS_STATE);
 
         assertFalse(subject.validate(A_NODE_PARTY_ID.nodeId(), CRS, partialSigBody(CONSTRUCTION.constructionId())));
         verify(library).verifyBls(CRS, PARTIAL_SIGNATURE, MESSAGE, AGGREGATION_KEY, A_NODE_PARTY_ID.partyId());
@@ -254,7 +320,7 @@ class HintsContextTest {
 
     @Test
     void validateReturnsFalseWhenConstructionIdDoesNotMatch() {
-        subject.setConstruction(CONSTRUCTION);
+        subject.setConstruction(CONSTRUCTION, CRS_STATE);
 
         assertFalse(subject.validate(A_NODE_PARTY_ID.nodeId(), CRS, partialSigBody(CONSTRUCTION.constructionId() + 1)));
         verify(library, never()).verifyBls(CRS, PARTIAL_SIGNATURE, MESSAGE, AGGREGATION_KEY, A_NODE_PARTY_ID.partyId());
@@ -266,9 +332,9 @@ class HintsContextTest {
         given(library.verifyBls(CRS, PARTIAL_SIGNATURE, MESSAGE, AGGREGATION_KEY, A_NODE_PARTY_ID.partyId()))
                 .willReturn(true);
 
-        subject.setConstruction(CONSTRUCTION);
+        subject.setConstruction(CONSTRUCTION, CRS_STATE);
         subject.onBlockStarted(10L);
-        subject.setConstruction(nextConstruction);
+        subject.setConstruction(nextConstruction, CRS_STATE);
 
         assertTrue(subject.validate(A_NODE_PARTY_ID.nodeId(), CRS, partialSigBody(CONSTRUCTION.constructionId())));
         verify(library).verifyBls(CRS, PARTIAL_SIGNATURE, MESSAGE, AGGREGATION_KEY, A_NODE_PARTY_ID.partyId());
@@ -279,9 +345,9 @@ class HintsContextTest {
     void newSigningForConstructionUsesPreviousSnapshotAfterHandoff() {
         final var nextConstruction = nextConstruction();
 
-        subject.setConstruction(CONSTRUCTION);
+        subject.setConstruction(CONSTRUCTION, CRS_STATE);
         subject.onBlockStarted(10L);
-        subject.setConstruction(nextConstruction);
+        subject.setConstruction(nextConstruction, CRS_STATE);
 
         final var signing = subject.newSigningForConstruction(BLOCK_HASH, CONSTRUCTION.constructionId(), () -> {});
 
@@ -292,9 +358,9 @@ class HintsContextTest {
 
     @Test
     void previousConstructionExpiresAfterThreeMixedBlocks() {
-        subject.setConstruction(CONSTRUCTION);
+        subject.setConstruction(CONSTRUCTION, CRS_STATE);
         subject.onBlockStarted(10L);
-        subject.setConstruction(nextConstruction());
+        subject.setConstruction(nextConstruction(), CRS_STATE);
 
         assertTrue(subject.acceptsConstruction(CONSTRUCTION.constructionId()));
         subject.onBlockStarted(11L);
@@ -311,8 +377,8 @@ class HintsContextTest {
 
     @Test
     void previousConstructionIsRejectedWithoutBlockStartedWindow() {
-        subject.setConstruction(CONSTRUCTION);
-        subject.setConstruction(nextConstruction());
+        subject.setConstruction(CONSTRUCTION, CRS_STATE);
+        subject.setConstruction(nextConstruction(), CRS_STATE);
 
         assertFalse(subject.acceptsConstruction(CONSTRUCTION.constructionId()));
         assertFalse(subject.validate(A_NODE_PARTY_ID.nodeId(), CRS, partialSigBody(CONSTRUCTION.constructionId())));
@@ -322,14 +388,14 @@ class HintsContextTest {
 
     @Test
     void newSigningForUnknownConstructionReturnsNull() {
-        subject.setConstruction(CONSTRUCTION);
+        subject.setConstruction(CONSTRUCTION, CRS_STATE);
 
         assertNull(subject.newSigningForConstruction(BLOCK_HASH, CONSTRUCTION.constructionId() + 1, () -> {}));
     }
 
     @Test
     void validateReturnsFalseForUnknownNodeId() {
-        subject.setConstruction(CONSTRUCTION);
+        subject.setConstruction(CONSTRUCTION, CRS_STATE);
 
         assertFalse(subject.validate(10_000L, CRS, partialSigBody(CONSTRUCTION.constructionId())));
         verifyNoInteractions(library);
@@ -337,11 +403,11 @@ class HintsContextTest {
 
     @Test
     void signingValidatePartialUsesCapturedSnapshotAfterHandoff() {
-        subject.setConstruction(CONSTRUCTION);
+        subject.setConstruction(CONSTRUCTION, CRS_STATE);
 
         final var signing = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
         subject.onBlockStarted(10L);
-        subject.setConstruction(nextConstruction());
+        subject.setConstruction(nextConstruction(), CRS_STATE);
 
         given(library.verifyBls(CRS, PARTIAL_SIGNATURE, BLOCK_HASH, AGGREGATION_KEY, A_NODE_PARTY_ID.partyId()))
                 .willReturn(true);
@@ -360,7 +426,7 @@ class HintsContextTest {
 
     @Test
     void signingValidatePartialRejectsWrongConstructionOrMessage() {
-        subject.setConstruction(CONSTRUCTION);
+        subject.setConstruction(CONSTRUCTION, CRS_STATE);
 
         final var signing = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
 
@@ -393,7 +459,7 @@ class HintsContextTest {
         given(library.verifyAggregate(aggregateSignature, BLOCK_HASH, VERIFICATION_KEY, 1L, 2L))
                 .willReturn(true);
 
-        subject.setConstruction(CONSTRUCTION);
+        subject.setConstruction(CONSTRUCTION, CRS_STATE);
 
         final var signing = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
         final var future = signing.future();
@@ -415,7 +481,7 @@ class HintsContextTest {
         given(library.verifyAggregate(aggregateSignature, BLOCK_HASH, VERIFICATION_KEY, 1L, 2L))
                 .willReturn(false);
 
-        subject.setConstruction(CONSTRUCTION);
+        subject.setConstruction(CONSTRUCTION, CRS_STATE);
 
         final var signing = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
         final var future = signing.future();
@@ -438,7 +504,7 @@ class HintsContextTest {
         given(library.aggregateSignatures(CRS, AGGREGATION_KEY, VERIFICATION_KEY, expectedSignatures))
                 .willReturn(null);
 
-        subject.setConstruction(CONSTRUCTION);
+        subject.setConstruction(CONSTRUCTION, CRS_STATE);
 
         final var signing = subject.newSigningForActiveConstruction(BLOCK_HASH, () -> {});
         final var future = signing.future();

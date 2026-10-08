@@ -3,13 +3,17 @@ package com.hedera.node.app.hints.impl;
 
 import static com.hedera.hapi.node.state.hints.CRSStage.COMPLETED;
 import static com.hedera.hapi.node.state.hints.CRSStage.GATHERING_CONTRIBUTIONS;
+import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.ACTIVE_HINTS_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V059HintsSchema.NEXT_HINTS_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.hints.schemas.V060HintsSchema.CRS_STATE_STATE_ID;
+import static com.hedera.node.app.hints.schemas.V079HintsSchema.NEXT_CRS_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.state.hints.CRSState;
+import com.hedera.hapi.node.state.hints.CrsContributor;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.hints.HintsLibrary;
@@ -19,6 +23,7 @@ import com.hedera.node.app.hints.handlers.HintsHandlers;
 import com.hedera.node.app.hints.schemas.V059HintsSchema;
 import com.hedera.node.app.hints.schemas.V060HintsSchema;
 import com.hedera.node.app.hints.schemas.V073HintsSchema;
+import com.hedera.node.app.hints.schemas.V079HintsSchema;
 import com.hedera.node.app.info.TssStartupNetworks;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
@@ -35,6 +40,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
@@ -53,6 +59,7 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     private final HintsLibrary library;
 
     private final Supplier<Network> genesisNetworkSupplier;
+    private long unsupportedConstructionId = -1;
 
     @Nullable
     private OnHintsFinished cb;
@@ -165,9 +172,9 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
     }
 
     @Override
-    public void setActiveConstruction(@NonNull final HintsConstruction construction) {
+    public void setActiveConstruction(@NonNull final HintsConstruction construction, @NonNull final CRSState crsState) {
         requireNonNull(construction);
-        component.signingContext().setConstruction(construction);
+        component.signingContext().setConstruction(construction, crsState);
         logger.info("Initialized hinTS signing context from active construction #{}", construction.constructionId());
     }
 
@@ -184,7 +191,9 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         requireNonNull(adoptedRosterHash);
         if (hintsStore.handoff(previousRoster, adoptedRoster, adoptedRosterHash, forceHandoff)) {
             final var activeConstruction = requireNonNull(hintsStore.getActiveConstruction());
-            component.signingContext().setConstruction(activeConstruction);
+            component
+                    .signingContext()
+                    .setConstruction(activeConstruction, hintsStore.getCrsStateFor(activeConstruction));
             logger.info("Updated hinTS construction in signing context to #{}", activeConstruction.constructionId());
             return true;
         }
@@ -198,24 +207,129 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             @NonNull final Instant now,
             @NonNull final TssConfig tssConfig,
             final boolean isActive) {
+        reconcile(activeRosters, hintsStore, now, now, tssConfig, isActive);
+    }
+
+    @Override
+    public void reconcile(
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final Instant now,
+            @NonNull final Instant crsWorkTime,
+            @NonNull final TssConfig tssConfig,
+            final boolean isActive) {
         requireNonNull(activeRosters);
         requireNonNull(hintsStore);
         requireNonNull(now);
+        requireNonNull(crsWorkTime);
         requireNonNull(tssConfig);
         switch (activeRosters.phase()) {
             case BOOTSTRAP, TRANSITION -> {
-                final var construction = hintsStore.getOrCreateConstruction(activeRosters, now, tssConfig);
-                if (!construction.hasHintsScheme()) {
-                    final var controller = component
-                            .controllers()
-                            .getOrCreateFor(activeRosters, construction, hintsStore, activeConstruction());
-                    controller.advanceConstruction(now, hintsStore, isActive);
+                var construction = hintsStore.getOrCreateConstruction(activeRosters, now, tssConfig);
+                if (construction.hasHintsScheme()) {
+                    component.controllers().stop();
+                    return;
                 }
+                // The 3.18 native bridge accepts n <= 1023, and n must be a power of two.
+                // Refuse an unsupported candidate without interrupting the active network's signing.
+                if (HintsService.partySizeForRoster(activeRosters.targetRoster()) > 512) {
+                    component.controllers().stop();
+                    if (unsupportedConstructionId != construction.constructionId()) {
+                        unsupportedConstructionId = construction.constructionId();
+                        logger.warn(
+                                "Cannot construct hinTS for candidate #{}: required CRS capacity exceeds 512",
+                                construction.constructionId());
+                    }
+                    return;
+                }
+                construction = bindCrs(activeRosters, hintsStore, construction, crsWorkTime, tssConfig);
+                construction = startKeyCollectionIfReady(activeRosters, hintsStore, construction, now, tssConfig);
+                final var controller = component
+                        .controllers()
+                        .getOrCreateFor(activeRosters, construction, hintsStore, activeConstruction());
+                controller.advanceCrsWork(crsWorkTime, hintsStore, isActive);
+                if (hintsStore.getCrsStateFor(construction).stage() != COMPLETED) {
+                    return;
+                }
+                startKeyCollectionIfReady(activeRosters, hintsStore, construction, now, tssConfig);
+                controller.advanceConstruction(now, hintsStore, isActive);
             }
             case HANDOFF -> {
-                // No-op
+                // A withdrawn candidate must not leave an old controller accepting publications.
+                component.controllers().stop();
+                hintsStore.abandonNextConstruction();
             }
         }
+    }
+
+    private HintsConstruction startKeyCollectionIfReady(
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final HintsConstruction construction,
+            @NonNull final Instant now,
+            @NonNull final TssConfig config) {
+        if (hintsStore.getCrsStateFor(construction).stage() == COMPLETED
+                && !construction.hasGracePeriodEndTime()
+                && !construction.hasPreprocessingStartTime()
+                && !construction.hasHintsScheme()) {
+            final var gracePeriod = activeRosters.phase() == ActiveRosters.Phase.BOOTSTRAP
+                    ? config.bootstrapHintsKeyGracePeriod()
+                    : config.transitionHintsKeyGracePeriod();
+            return hintsStore.startHintsKeyGracePeriod(construction.constructionId(), now, now.plus(gracePeriod));
+        }
+        return construction;
+    }
+
+    private HintsConstruction bindCrs(
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final HintsConstruction construction,
+            @NonNull final Instant now,
+            @NonNull final TssConfig config) {
+        if (construction.crsId() != 0) {
+            return construction;
+        }
+        final var activeCrs = hintsStore.getCrsState();
+        final int requiredParties = HintsService.partySizeForRoster(activeRosters.targetRoster());
+        final int numParties = Math.max(activeCrs.numParties(), requiredParties);
+        if (activeCrs.stage() == COMPLETED
+                && activeCrs.ceremonyId() != 0
+                && activeCrs.numParties() >= requiredParties) {
+            // Shrinking the roster never shrinks n. Both the bytes and every hinTS call retain the
+            // established degree, avoiding exposure of larger-degree hints under a smaller scheme.
+            hintsStore.setNextCrsState(CRSState.DEFAULT);
+            return hintsStore.bindConstructionToCrs(construction.constructionId(), activeCrs.ceremonyId(), numParties);
+        }
+        final var weights = activeRosters.transitionWeights(maybeWeightsFrom(activeConstruction()));
+        final var contributors = weights.sourceNodeWeights().entrySet().stream()
+                .map(e -> new CrsContributor(e.getKey(), e.getValue()))
+                .sorted(Comparator.comparingLong(CrsContributor::nodeId))
+                .toList();
+        final long ceremonyId = hintsStore.allocateCrsId();
+        // initCRS is only the public seed. The new ceremony still requires fresh, independently
+        // generated entropy from a threshold of the frozen source roster before it is usable.
+        final var seed = library.newCrs((short) numParties);
+        final var crs = CRSState.newBuilder()
+                .ceremonyId(ceremonyId)
+                .numParties(numParties)
+                .sourceRosterHash(construction.sourceRosterHash())
+                .targetRosterHash(construction.targetRosterHash())
+                .constructionId(construction.constructionId())
+                .contributors(contributors)
+                .attempt(1)
+                .initialCrs(seed)
+                .crs(seed)
+                .stage(GATHERING_CONTRIBUTIONS)
+                .nextContributingNodeId(
+                        contributors.isEmpty() ? null : contributors.getFirst().nodeId())
+                .contributionEndTime(asTimestamp(now.plus(config.crsUpdateContributionTime())))
+                .build();
+        if (hintsStore.getActiveConstruction().constructionId() == construction.constructionId()) {
+            hintsStore.setCrsState(crs);
+        } else {
+            hintsStore.setNextCrsState(crs);
+        }
+        return hintsStore.bindConstructionToCrs(construction.constructionId(), ceremonyId, numParties);
     }
 
     @Override
@@ -225,24 +339,12 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             final boolean isActive,
             @NonNull final NetworkInfo networkInfo) {
         requireNonNull(hintsStore);
-        requireNonNull(networkInfo);
         requireNonNull(now);
-        final var controller = component.controllers().getAnyInProgress();
-        // On the very first round the hinTS controller won't be available yet
-        if (controller.isEmpty()) {
-            return;
-        }
-        // Do the work needed to set the CRS for network and start the preprocessing vote
-        var crsState = hintsStore.getCrsState();
-        if (CRSState.DEFAULT.equals(crsState)) {
-            // Must be a TSS cutover situation with tss.hintsEnabled = true but default state, so init here
-            crsState = initialCrsState((short) HintsService.partySizeForRosterNodeCount(
-                    networkInfo.addressBook().size()));
-            hintsStore.setCrsState(crsState);
-        }
-        if (crsState.stage() != COMPLETED) {
-            controller.get().advanceCrsWork(now, hintsStore, isActive);
-        }
+        requireNonNull(networkInfo);
+        component
+                .controllers()
+                .getAnyInProgress()
+                .ifPresent(controller -> controller.advanceCrsWork(now, hintsStore, isActive));
     }
 
     @Override
@@ -261,6 +363,7 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         registry.register(new V059HintsSchema());
         registry.register(new V060HintsSchema(component.signingContext()));
         registry.register(new V073HintsSchema(library, component.signingContext()));
+        registry.register(new V079HintsSchema(library, component.signingContext()));
     }
 
     @Override
@@ -276,7 +379,11 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
             final var activeConstruction =
                     TssStartupNetworks.initializeHintsState(writableStates, maybeGenesisNetwork.orElseThrow());
             if (activeConstruction.hasHintsScheme()) {
-                setActiveConstruction(activeConstruction);
+                setActiveConstruction(
+                        activeConstruction,
+                        requireNonNull(writableStates
+                                .<CRSState>getSingleton(CRS_STATE_STATE_ID)
+                                .get()));
             }
             return true;
         }
@@ -286,6 +393,7 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
         writableStates
                 .<HintsConstruction>getSingleton(NEXT_HINTS_CONSTRUCTION_STATE_ID)
                 .put(HintsConstruction.DEFAULT);
+        writableStates.<CRSState>getSingleton(NEXT_CRS_STATE_ID).put(CRSState.DEFAULT);
         final var crsState = writableStates.<CRSState>getSingleton(CRS_STATE_STATE_ID);
         if (configuration.getConfigData(TssConfig.class).hintsEnabled()) {
             final var state = initialCrsState((short) HintsService.partySizeForRosterNodeCount(networkSize));
@@ -325,6 +433,8 @@ public class HintsServiceImpl implements HintsService, OnHintsFinished {
                 .stage(GATHERING_CONTRIBUTIONS)
                 .nextContributingNodeId(0L)
                 .crs(initialCrs)
+                .initialCrs(initialCrs)
+                .numParties(initialCrsParties)
                 .build();
     }
 }

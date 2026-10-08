@@ -42,6 +42,10 @@ public interface WritableHintsStore extends ReadableHintsStore {
      */
     boolean setHintsKey(long nodeId, int partyId, int numParties, @NonNull Bytes hintsKey, @NonNull Instant now);
 
+    /** Stores a key in the namespace of the CRS generation that produced it. */
+    boolean setHintsKey(
+            long nodeId, int partyId, int numParties, long crsId, @NonNull Bytes hintsKey, @NonNull Instant now);
+
     /**
      * Adds a preprocessing vote for the given node and construction.
      */
@@ -74,7 +78,7 @@ public interface WritableHintsStore extends ReadableHintsStore {
      * @param fromRoster the previous roster
      * @param toRoster the adopted roster
      * @param toRosterHash the adopted roster hash
-     * @param forceHandoff whether to force the handoff when the adopted roster hash doesn't match the next construction
+     * @param forceHandoff whether the caller requested a forced handoff; cryptographic readiness is always enforced
      * @return whether the handoff changed the hinTS scheme
      */
     boolean handoff(
@@ -86,6 +90,27 @@ public interface WritableHintsStore extends ReadableHintsStore {
      * @param crsState the {@link CRSState} to set
      */
     void setCrsState(@NonNull CRSState crsState);
+
+    /** Replaces the next CRS envelope without changing the active signing CRS. */
+    void setNextCrsState(@NonNull CRSState crsState);
+
+    /** Abandons candidate work without reusing its construction or ceremony identifiers. */
+    void abandonNextConstruction();
+
+    /** Updates only the CRS generation bound to the given construction. */
+    void setCrsStateFor(@NonNull HintsConstruction construction, @NonNull CRSState crsState);
+
+    /** Allocates a never-reused ceremony ID, persisting the high-water mark in the active envelope. */
+    long allocateCrsId();
+
+    /** Binds an unstarted construction to its effective party capacity and CRS generation. */
+    HintsConstruction bindConstructionToCrs(long constructionId, long crsId, int numParties);
+
+    /** Opens key collection after the construction's bound CRS completes. */
+    HintsConstruction startHintsKeyGracePeriod(long constructionId, @NonNull Instant end);
+
+    /** Opens collection and rotates queued keys at the given consensus time. */
+    HintsConstruction startHintsKeyGracePeriod(long constructionId, @NonNull Instant now, @NonNull Instant end);
 
     /**
      * Moves the CRS contribution to be done by the next node in the roster. This is called when the

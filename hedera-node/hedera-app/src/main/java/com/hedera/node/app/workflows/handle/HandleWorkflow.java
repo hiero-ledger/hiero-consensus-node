@@ -1131,7 +1131,7 @@ public class HandleWorkflow {
             hintsService.onFinishedConstruction((hintsStore, construction, context) -> {
                 // On finishing the genesis construction, use it immediately no matter what
                 if (hintsStore.getActiveConstruction().constructionId() == construction.constructionId()) {
-                    context.setConstruction(construction);
+                    context.setConstruction(construction, hintsStore.getCrsStateFor(construction));
                 } else if (!tssConfig.historyEnabled()) {
                     // When not using history proofs, completing a weight rotation is also immediately actionable
                     final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
@@ -1172,13 +1172,13 @@ public class HandleWorkflow {
                         final var candidateRoster = rosterStore.getCandidateRoster();
                         final var candidateRosterHash =
                                 isFreshGenesis ? null : requireNonNull(rosterStore.getCandidateRosterHash());
-                        if (!isFreshGenesis && TssHandoffCoordinator.usesJointForcedHandoff(tssConfig)) {
+                        if (!isFreshGenesis) {
                             final var stack = requireNonNull(inFlightDispatch).stack();
                             final var writableHintsStates = stack.getWritableStates(HintsService.NAME);
                             final var writableEntityStates = stack.getWritableStates(EntityIdService.NAME);
                             final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
                             final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
-                            TssHandoffCoordinator.tryForcedJointHandoff(
+                            TssHandoffCoordinator.tryJointHandoff(
                                     historyStore,
                                     hintsStore,
                                     historyService,
@@ -1189,38 +1189,20 @@ public class HandleWorkflow {
                         } else if (historyStore.handoff(activeRoster, candidateRoster, candidateRosterHash)) {
                             // Make sure we include the latest chain-of-trust proof in following block proofs
                             historyService.setLatestHistoryProof(construction.targetProofOrThrow());
-                            if (isFreshGenesis) {
-                                // The ledger id is that of the history a genesis proof grounds its chain of
-                                // trust in; it must be in state before any proof extending the chain is voted on
-                                final var proof = construction.targetProofOrThrow();
-                                final var newLedgerId = historyService.ledgerIdOf(proof);
-                                if (!newLedgerId.equals(historyStore.getLedgerId())) {
-                                    logger.info("Re-anchored chain of trust, ledger id is now '{}'", newLedgerId);
-                                    historyStore.setLedgerId(newLedgerId);
-                                }
-                                // Republish even when the ledger id is unchanged, since the publication also
-                                // carries the proof keys the new chain of trust uses
-                                setLedgerIdContext.set(new LedgerIdContext(
-                                        requireNonNull(historyStore.getLedgerId()),
-                                        proof.targetProofKeys(),
-                                        targetNodeWeights));
+                            // The ledger id is that of the history a genesis proof grounds its chain of
+                            // trust in; it must be in state before any proof extending the chain is voted on
+                            final var proof = construction.targetProofOrThrow();
+                            final var newLedgerId = historyService.ledgerIdOf(proof);
+                            if (!newLedgerId.equals(historyStore.getLedgerId())) {
+                                logger.info("Re-anchored chain of trust, ledger id is now '{}'", newLedgerId);
+                                historyStore.setLedgerId(newLedgerId);
                             }
-                            // Finishing a fresh genesis proof has no implications for hinTS
-                            if (!isFreshGenesis) {
-                                // Accumulate the changes in the same SavepointStack used by the HistoryProofVote tx
-                                final var stack =
-                                        requireNonNull(inFlightDispatch).stack();
-                                final var writableHintsStates = stack.getWritableStates(HintsService.NAME);
-                                final var writableEntityStates = stack.getWritableStates(EntityIdService.NAME);
-                                final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
-                                final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
-                                hintsService.handoff(
-                                        hintsStore,
-                                        activeRoster,
-                                        requireNonNull(rosterStore.getCandidateRoster()),
-                                        requireNonNull(rosterStore.getCandidateRosterHash()),
-                                        tssConfig.forceHandoffs());
-                            }
+                            // Republish even when the ledger id is unchanged, since the publication also
+                            // carries the proof keys the new chain of trust uses
+                            setLedgerIdContext.set(new LedgerIdContext(
+                                    requireNonNull(historyStore.getLedgerId()),
+                                    proof.targetProofKeys(),
+                                    targetNodeWeights));
                         }
                     }
                 });
@@ -1390,17 +1372,8 @@ public class HandleWorkflow {
                                     freshGenesisRequested));
             final var isActive = currentPlatformStatus.get() == ACTIVE;
             if (tssConfig.hintsEnabled()) {
-                final var crsWritableStates = state.getWritableStates(HintsService.NAME);
                 final var workTime =
                         blockHashSigner.isReady() ? blockStreamManager.lastUsedConsensusTime() : roundTimestamp;
-                doStreamingOnlyKvChanges(
-                        crsWritableStates,
-                        null,
-                        () -> hintsService.executeCrsWork(
-                                new WritableHintsStoreImpl(crsWritableStates, entityCounters),
-                                workTime,
-                                isActive,
-                                networkInfo));
                 doStreamingOnlyKvChanges(
                         hintsWritableStates,
                         null,
@@ -1408,6 +1381,7 @@ public class HandleWorkflow {
                                 activeRosters,
                                 new WritableHintsStoreImpl(hintsWritableStates, entityCounters),
                                 roundTimestamp,
+                                workTime,
                                 tssConfig,
                                 isActive));
                 if (tssConfig.historyEnabled()) {

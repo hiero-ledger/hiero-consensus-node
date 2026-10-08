@@ -23,6 +23,8 @@ message HintsPartyId {
    * The number of parties in the hinTS scheme.
    */
   uint32 num_parties = 2;
+  /** The completed CRS generation used to produce this key. */
+  uint64 crs_id = 3;
 }
 
 /**
@@ -169,6 +171,11 @@ message HintsConstruction {
      */
     HintsScheme hints_scheme = 6;
   }
+
+  /** The bound CRS generation; zero means this construction is waiting to be bound. */
+  uint64 crs_id = 7;
+  /** The effective party capacity, which MUST NOT decrease across roster transitions. */
+  uint32 num_parties = 8;
 }
 
 /**
@@ -195,6 +202,13 @@ enum CRSStage {
 /**
  * The state of a CRS construction.
  */
+message CrsContributor {
+  /** The node authorized to contribute to the ceremony. */
+  uint64 node_id = 1;
+  /** Its weight in the source roster at the start of the ceremony. */
+  uint64 weight = 2;
+}
+
 message CRSState {
 
   /**
@@ -220,4 +234,26 @@ message CRSState {
      * and move on to the next node in the round-robin fashion.
      */
     proto.Timestamp contribution_end_time = 4;
+    /** A positive generation identifier that MUST NOT be reused after cancellation. */
+    uint64 ceremony_id = 5;
+    /** The power-of-two effective party capacity of this CRS. */
+    uint32 num_parties = 6;
+    /** The source roster authorizing the ceremony. */
+    bytes source_roster_hash = 7;
+    /** The target roster for which this ceremony was started. */
+    bytes target_roster_hash = 8;
+    /** The hints construction owning this ceremony. */
+    uint64 construction_id = 9;
+    /** The current attempt, incremented when restarting an incomplete ceremony. */
+    uint64 attempt = 10;
+    /** The immutable contributor set and weights for the ceremony. */
+    repeated CrsContributor contributors = 11;
+    /** Nodes whose valid contributions were incorporated during this attempt, each at most once. */
+    repeated uint64 contributed_node_ids = 12;
+    /** The deterministic starting CRS for this capacity, before fresh contributions. */
+    bytes initial_crs = 13;
+    /** Allocation high-water mark, retained in the active envelope even when next is discarded. */
+    uint64 last_used_ceremony_id = 14;
+    /** Construction allocation high-water mark, preserved when a candidate is abandoned. */
+    uint64 last_used_construction_id = 15;
 }
