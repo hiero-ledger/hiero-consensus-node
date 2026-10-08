@@ -22,7 +22,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -48,56 +47,6 @@ public class ClprHieroToHieroManifestSuite extends HieroToHieroBase {
     private static final int MTLS_PORT_A_ROTATED = 43460;
     /** B's new base mtlsPort after a rotation (8.1.3 both-sides turnover). */
     private static final int MTLS_PORT_B_ROTATED = 44460;
-
-    /**
-     * Cold-path fixture generator for {@code ledgerA_manifest}/{@code ledgerB_manifest}. It brings the
-     * two networks up so the {@code @MultiNetworkHapiTest} extension's cold bootstrap harvests their
-     * per-node TSS/WRAPS preload assets into {@code tss-startup-assets/}, then asserts the per-node
-     * fixtures carry distinct keys. Its body exercises no rotation/propagation logic — just liveness.
-     *
-     * <p><b>Its {@code @Network} config must match {@link #partialRotationPropagatesToPeer} exactly</b>
-     * (size, {@code enableClprMtls}, setupOverrides). The extension shares a {@link SubProcessNetwork}
-     * by <em>name</em> (see {@code MultiNetworkExtension.allShared}), so if this generator declared a
-     * different (e.g. plaintext) config for {@code ledgerA_manifest}, the rotation test would reuse
-     * this generator's mis-configured network — with no mTLS CA provisioned — and fail. Keeping the
-     * configs identical means whichever runs first configures the shared network correctly for both.
-     *
-     * <p>Run it once to (re)generate the committed assets; thereafter it runs warm (preload hit).
-     * Deleting the committed {@code .gz} files and rerunning it regenerates them.
-     */
-    @MultiNetworkHapiTest({
-        @Network(name = LEDGER_A_MANIFEST, size = 2, enableClprMtls = true, firstMtlsPort = MTLS_PORT_A),
-        @Network(name = LEDGER_B_MANIFEST, enableClprMtls = true, firstMtlsPort = MTLS_PORT_B)
-    })
-    @DisplayName("Fixture generator: brings up ledgerA_manifest (size 2) / ledgerB_manifest (mTLS) so their "
-            + "per-node TSS/WRAPS assets are harvested and asserted to carry distinct keys")
-    @Disabled("Fixture generator")
-    Stream<DynamicTest> generateManifestLedgerFixtures(
-            final SubProcessNetwork ledgerA, final SubProcessNetwork ledgerB) {
-        return Stream.of(
-                networkHapiTest(
-                                "ledgerA_manifest liveness",
-                                ledgerA,
-                                cryptoCreate("livenessA").balance(ONE_HUNDRED_HBARS))
-                        .findFirst()
-                        .orElseThrow(),
-                networkHapiTest(
-                                "ledgerB_manifest liveness",
-                                ledgerB,
-                                cryptoCreate("livenessB").balance(ONE_HUNDRED_HBARS))
-                        .findFirst()
-                        .orElseThrow(),
-                // Prove the per-node harvest captured each node's OWN TSS key: the multi-node ledger's
-                // per-node fixtures must each carry exactly one, distinct, blsPrivateKey. (A shared node0
-                // fixture would duplicate one key and silently break node1's warm start.)
-                networkHapiTest(
-                                "Assert ledgerA_manifest per-node TSS fixtures carry distinct keys",
-                                ledgerA,
-                                withOpContext((spec, opLog) ->
-                                        MultiNetworkExtension.assertPerNodeFixturesHaveDistinctKeys(ledgerA.name(), 2)))
-                        .findFirst()
-                        .orElseThrow());
-    }
 
     @MultiNetworkHapiTest({
         @Network(name = LEDGER_A_MANIFEST, size = 2, enableClprMtls = true, firstMtlsPort = MTLS_PORT_A),
