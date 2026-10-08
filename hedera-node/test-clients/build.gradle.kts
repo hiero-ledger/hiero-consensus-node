@@ -553,10 +553,6 @@ fun TaskContainer.registerHapiTest(
                 "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
             )
         }
-        if (ciTagExpression.contains("CLPR") || ciTagExpression.contains("MULTINETWORK")) {
-            // Preserve the failed subprocess network's logs for CLPR diagnostics.
-            failFast = true
-        }
         if (junitFixedParallelism) {
             val parallelismValue = if (networkSize.toInt() <= 3) 3 else 2
             systemProperty("junit.jupiter.execution.parallel.config.strategy", "fixed")
@@ -564,6 +560,18 @@ fun TaskContainer.registerHapiTest(
                 "junit.jupiter.execution.parallel.config.fixed.parallelism",
                 parallelismValue,
             )
+        }
+        // MULTINETWORK groups run in parallel with CLASSES concurrent. Per-network serialization is
+        // JUnit's job via the class-level @ResourceLock(<network>) on each multi-network suite:
+        // suites
+        // sharing a network run one after another, disjoint groups run in parallel, and JUnit runs
+        // the methods of a locked suite sequentially. Applies only when MULTINETWORK is selected.
+        if (ciTagExpression.contains("MULTINETWORK")) {
+            systemProperty("junit.jupiter.execution.parallel.enabled", true)
+            systemProperty("junit.jupiter.execution.parallel.mode.default", "concurrent")
+            systemProperty("junit.jupiter.execution.parallel.mode.classes.default", "concurrent")
+            systemProperty("junit.jupiter.execution.parallel.config.strategy", "fixed")
+            systemProperty("junit.jupiter.execution.parallel.config.fixed.parallelism", "6")
         }
         if (embeddedMode != null) {
             systemProperty("hapi.spec.embedded.mode", embeddedMode)
