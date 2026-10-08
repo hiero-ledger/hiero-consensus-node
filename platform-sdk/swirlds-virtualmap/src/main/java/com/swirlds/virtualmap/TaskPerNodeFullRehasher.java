@@ -46,27 +46,34 @@ import org.hiero.base.crypto.Hash;
 /// before the root hash is returned from [#hash]. A listener may rely on it, for example, to flush all collected
 /// data in the root node call, so all data is flushed by the time the root hash is returned.
 ///
-/// This class is stateless, a single instance may be used to hash multiple trees, even in
-/// parallel.
+/// Each instance is a single hashing run and holds all state that hashing tasks need. Instances
+/// are created internally by [#hash], which may be called to hash multiple trees, even in parallel.
 public final class TaskPerNodeFullRehasher {
 
-    @NonNull
     private final ForkJoinPool pool;
 
-    /// Creates a new rehasher.
-    ///
-    /// @param pool the fork-join pool to run hashing tasks in. Must be in LIFO (non-async) mode,
-    ///     see class javadoc for details
-    /// @throws IllegalArgumentException if the pool is shut down, or if it's in async mode
-    public TaskPerNodeFullRehasher(@NonNull final ForkJoinPool pool) {
-        this.pool = requireNonNull(pool, "pool must not be null");
-        if (pool.isShutdown() || pool.isTerminated()) {
-            throw new IllegalArgumentException("pool must not be shutdown or terminated");
-        }
-        if (pool.getAsyncMode()) {
-            throw new IllegalArgumentException(
-                    "pool must not be in async mode, since tasks are executed in a depth-first order");
-        }
+    private final long firstLeafPath;
+    private final long lastLeafPath;
+    private final LongFunction<VirtualLeafBytes<?>> leafReader;
+
+    private final Listener listener;
+
+    // Completed with the root hash bytes, or exceptionally with the first exception thrown
+    // by any task, or cancelled on timeout or interrupt. Tasks check if it's completed
+    // exceptionally to avoid doing any more work
+    private final CompletableFuture<byte[]> result = new CompletableFuture<>();
+
+    private TaskPerNodeFullRehasher(
+            final ForkJoinPool pool,
+            final long firstLeafPath,
+            final long lastLeafPath,
+            final LongFunction<VirtualLeafBytes<?>> leafReader,
+            final Listener listener) {
+        this.pool = pool;
+        this.firstLeafPath = firstLeafPath;
+        this.lastLeafPath = lastLeafPath;
+        this.leafReader = leafReader;
+        this.listener = listener;
     }
 
     /// Hashes the whole virtual tree with the given leaf path range and returns the root hash.
@@ -82,6 +89,8 @@ public final class TaskPerNodeFullRehasher {
     /// moment aren't interrupted though, it's the caller responsibility to wait for them, if
     /// needed, for example, by shutting down the pool and awaiting its termination.
     ///
+    /// @param pool the fork-join pool to run hashing tasks in. Must be in LIFO (non-async) mode,
+    ///     see class javadoc for details
     /// @param firstLeafPath the first leaf path, or a value less than `1`, if the tree is empty
     /// @param lastLeafPath the last leaf path, must not be less than `firstLeafPath`
     /// @param leafReader a function to read leaf records by path. Must not return nulls for
@@ -90,18 +99,28 @@ public final class TaskPerNodeFullRehasher {
     /// @param timeoutMs the max number of milliseconds to wait for hashing to complete, including
     ///     the time spent in listener calls
     /// @return the root hash, or `null` if the tree is empty, i.e. `firstLeafPath` is less than `1`
-    /// @throws IllegalArgumentException if `firstLeafPath` is greater than `lastLeafPath`
+    /// @throws IllegalArgumentException if the pool is shut down, or if it's in async mode, or if
+    ///     `firstLeafPath` is greater than `lastLeafPath`
     /// @throws RuntimeException if hashing fails, times out, or is interrupted. If the leaf reader
     ///     returns `null`, the cause is an [IllegalStateException]
     @Nullable
-    public Hash hash(
+    public static Hash hash(
+            @NonNull final ForkJoinPool pool,
             final long firstLeafPath,
             final long lastLeafPath,
             @NonNull final LongFunction<VirtualLeafBytes<?>> leafReader,
             @Nullable final Listener listener,
             final long timeoutMs) {
+        requireNonNull(pool, "pool must not be null");
         requireNonNull(leafReader, "leaf reader must not be null");
 
+        if (pool.isShutdown() || pool.isTerminated()) {
+            throw new IllegalArgumentException("pool must not be shutdown or terminated");
+        }
+        if (pool.getAsyncMode()) {
+            throw new IllegalArgumentException(
+                    "pool must not be in async mode, since tasks are executed in a depth-first order");
+        }
         if (firstLeafPath > lastLeafPath) {
             throw new IllegalArgumentException("Wrong leaf path range: " + firstLeafPath + " - " + lastLeafPath);
         }
@@ -113,158 +132,127 @@ public final class TaskPerNodeFullRehasher {
             return null;
         }
 
-        final Run run = new Run(firstLeafPath, lastLeafPath, leafReader, nonNullListener);
-        return run.execute(timeoutMs);
+        return new TaskPerNodeFullRehasher(pool, firstLeafPath, lastLeafPath, leafReader, nonNullListener)
+                .execute(timeoutMs);
     }
 
-    /// A single hashing run. Holds all state that hashing tasks need.
-    private final class Run {
-
-        private final long firstLeafPath;
-        private final long lastLeafPath;
-        private final LongFunction<VirtualLeafBytes<?>> leafReader;
-
-        private final Listener listener;
-
-        // Completed with the root hash bytes, or exceptionally with the first exception thrown
-        // by any task, or cancelled on timeout or interrupt. Tasks check if it's completed
-        // exceptionally to avoid doing any more work
-        private final CompletableFuture<byte[]> result = new CompletableFuture<>();
-
-        Run(
-                final long firstLeafPath,
-                final long lastLeafPath,
-                final LongFunction<VirtualLeafBytes<?>> leafReader,
-                final Listener listener) {
-            this.firstLeafPath = firstLeafPath;
-            this.lastLeafPath = lastLeafPath;
-            this.leafReader = leafReader;
-            this.listener = listener;
-        }
-
-        Hash execute(final long timeoutMs) {
+    private Hash execute(final long timeoutMs) {
+        try {
             new TraverseTask(ROOT_PATH, null).send();
-            try {
-                final byte[] rootHash = result.get(timeoutMs, MILLISECONDS);
-                return new Hash(rootHash, Cryptography.DEFAULT_DIGEST_TYPE);
-            } catch (final ExecutionException e) {
-                // Always wrap, so the exception has the caller thread stack trace, not just the
-                // hashing thread stack trace of the cause
-                throw new RuntimeException(
-                        "Failed to get hash during full rehashing", e.getCause() != null ? e.getCause() : e);
-            } catch (final InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException("Interrupted while full rehashing", e);
-            } catch (final TimeoutException e) {
-                throw new RuntimeException("Wasn't able to finish full rehashing in time", e);
-            } finally {
-                // No-op if the run has already succeeded or failed. On timeout or interrupt, the result
-                // is still pending, so this makes the tasks that are still running stop at their next check
-                result.cancel(false);
-            }
+            final byte[] rootHash = result.get(timeoutMs, MILLISECONDS);
+            return new Hash(rootHash, Cryptography.DEFAULT_DIGEST_TYPE);
+        } catch (final ExecutionException e) {
+            // Always wrap, so the exception has the caller thread stack trace, not just the
+            // hashing thread stack trace of the cause
+            throw new RuntimeException(
+                    "Failed to get hash during full rehashing", e.getCause() != null ? e.getCause() : e);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interrupted while full rehashing", e);
+        } catch (final TimeoutException e) {
+            throw new RuntimeException("Wasn't able to finish full rehashing in time", e);
+        } finally {
+            // No-op if the run has already succeeded or failed. On timeout or interrupt, the result
+            // is still pending, so this makes the tasks that are still running stop at their next check
+            result.cancel(false);
+        }
+    }
+
+    private abstract class RunTask extends AbstractTask {
+
+        protected final long path;
+        protected final HashTask parent;
+
+        RunTask(long path, HashTask parent, int dependencyCount) {
+            super(pool, dependencyCount);
+            this.path = path;
+            this.parent = parent;
         }
 
-        void fail(final Throwable t) {
+        @Override
+        protected void onException(final Throwable t) {
             result.completeExceptionally(t);
         }
+    }
 
-        /// Walks down the left-most path of a sub-tree.
-        private final class TraverseTask extends AbstractTask {
+    /// Walks down the left-most path of a sub-tree.
+    private final class TraverseTask extends RunTask {
 
-            private final long path;
-            private final HashTask parent;
-
-            TraverseTask(final long path, @Nullable final HashTask parent) {
-                super(pool, 0);
-                this.path = path;
-                this.parent = parent;
-            }
-
-            @Override
-            protected boolean onExecute() {
-                if (result.isCompletedExceptionally()) {
-                    return true;
-                }
-                long nodePath = path;
-                HashTask nodeParent = parent;
-                while (nodePath < firstLeafPath) {
-                    final HashTask hashTask = new HashTask(nodePath, nodeParent);
-                    final long rightPath = getRightChildPath(nodePath);
-                    if (rightPath <= lastLeafPath) {
-                        new TraverseTask(rightPath, hashTask).send();
-                    } else {
-                        // The right child may only be missing in a single leaf tree, where path 2
-                        // doesn't exist
-                        hashTask.setHash(false, null);
-                    }
-                    nodeParent = hashTask;
-                    nodePath = getLeftChildPath(nodePath);
-                }
-                // A leaf, its parent is never null, since the root is always an internal node
-                final VirtualLeafBytes<?> leaf = leafReader.apply(nodePath);
-                if (leaf == null) {
-                    throw new IllegalStateException("Leaf record not found, path = " + nodePath);
-                }
-                final byte[] hash = MerkleHasher.threadSafeDefault().leafNodeHashBytes(leaf);
-                if (result.isCompletedExceptionally()) {
-                    return true;
-                }
-                // Must be called before the hash is passed to the parent node, see class javadoc
-                listener.onHashed(nodePath, hash);
-                nodeParent.setHash(isLeft(nodePath), hash);
-                return true;
-            }
-
-            @Override
-            protected void onException(final Throwable t) {
-                fail(t);
-            }
+        TraverseTask(final long path, @Nullable final HashTask parent) {
+            super(path, parent, 0);
         }
 
-        /// Hashes an internal node, once both its children are hashed.
-        private final class HashTask extends AbstractTask {
-
-            private final long path;
-            private final HashTask parent;
-
-            private byte[] leftHash;
-            private byte[] rightHash;
-
-            HashTask(final long path, @Nullable final HashTask parent) {
-                super(pool, 2);
-                this.path = path;
-                this.parent = parent;
-            }
-
-            void setHash(final boolean left, @Nullable final byte[] hash) {
-                if (left) {
-                    leftHash = hash;
-                } else {
-                    rightHash = hash;
-                }
-                send();
-            }
-
-            @Override
-            protected boolean onExecute() {
-                if (result.isCompletedExceptionally()) {
-                    return true;
-                }
-                final byte[] hash = MerkleHasher.threadSafeDefault().internalNodeHashBytes(leftHash, rightHash);
-                // Must be called before the hash is passed to the parent node, see class javadoc
-                listener.onHashed(path, hash);
-                if (parent != null) {
-                    parent.setHash(isLeft(path), hash);
-                } else {
-                    result.complete(hash);
-                }
+        @Override
+        protected boolean onExecute() {
+            if (result.isCompletedExceptionally()) {
                 return true;
             }
-
-            @Override
-            protected void onException(final Throwable t) {
-                fail(t);
+            long nodePath = path;
+            HashTask nodeParent = parent;
+            while (nodePath < firstLeafPath) {
+                final HashTask hashTask = new HashTask(nodePath, nodeParent);
+                final long rightPath = getRightChildPath(nodePath);
+                if (rightPath <= lastLeafPath) {
+                    new TraverseTask(rightPath, hashTask).send();
+                } else {
+                    // The right child may only be missing in a single leaf tree, where path 2
+                    // doesn't exist
+                    hashTask.setHash(false, null);
+                }
+                nodeParent = hashTask;
+                nodePath = getLeftChildPath(nodePath);
             }
+            // A leaf, its parent is never null, since the root is always an internal node
+            final VirtualLeafBytes<?> leaf = leafReader.apply(nodePath);
+            if (leaf == null) {
+                throw new IllegalStateException("Leaf record not found, path = " + nodePath);
+            }
+            final byte[] hash = MerkleHasher.threadSafeDefault().leafNodeHashBytes(leaf);
+            // one more check to avoid notifying the listener and setting the hash to the parent if the result is
+            // already completed exceptionally
+            if (result.isCompletedExceptionally()) {
+                return true;
+            }
+            // Must be called before the hash is passed to the parent node, see class javadoc
+            listener.onHashed(nodePath, hash);
+            nodeParent.setHash(isLeft(nodePath), hash);
+            return true;
+        }
+    }
+
+    /// Hashes an internal node, once both its children are hashed.
+    private final class HashTask extends RunTask {
+
+        private byte[] leftHash;
+        private byte[] rightHash;
+
+        HashTask(final long path, @Nullable final HashTask parent) {
+            super(path, parent, 2);
+        }
+
+        void setHash(final boolean left, @Nullable final byte[] hash) {
+            if (left) {
+                leftHash = hash;
+            } else {
+                rightHash = hash;
+            }
+            send();
+        }
+
+        @Override
+        protected boolean onExecute() {
+            if (result.isCompletedExceptionally()) {
+                return true;
+            }
+            final byte[] hash = MerkleHasher.threadSafeDefault().internalNodeHashBytes(leftHash, rightHash);
+            // Must be called before the hash is passed to the parent node, see class javadoc
+            listener.onHashed(path, hash);
+            if (parent != null) {
+                parent.setHash(isLeft(path), hash);
+            } else {
+                result.complete(hash);
+            }
+            return true;
         }
     }
 

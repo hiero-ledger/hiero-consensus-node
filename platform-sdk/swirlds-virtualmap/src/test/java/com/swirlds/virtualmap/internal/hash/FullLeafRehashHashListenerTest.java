@@ -133,7 +133,7 @@ class FullLeafRehashHashListenerTest extends VirtualTestBase {
         final ForkJoinPool pool = new ForkJoinPool(8);
         final Hash rootHash;
         try {
-            rootHash = new TaskPerNodeFullRehasher(pool).hash(firstLeafPath, lastLeafPath, reader, collector, 60_000);
+            rootHash = TaskPerNodeFullRehasher.hash(pool, firstLeafPath, lastLeafPath, reader, collector, 60_000);
         } finally {
             pool.shutdownNow();
         }
@@ -160,8 +160,9 @@ class FullLeafRehashHashListenerTest extends VirtualTestBase {
         dataSource.close();
         final ForkJoinPool pool = new ForkJoinPool(4);
         try {
-            final RuntimeException e = assertThrows(RuntimeException.class, () -> new TaskPerNodeFullRehasher(pool)
-                    .hash(999, 1998, reader, collector, 60_000));
+            final RuntimeException e = assertThrows(
+                    RuntimeException.class,
+                    () -> TaskPerNodeFullRehasher.hash(pool, 999, 1998, reader, collector, 60_000));
             assertInstanceOf(UncheckedIOException.class, e.getCause());
         } finally {
             pool.shutdownNow();
@@ -215,8 +216,9 @@ class FullLeafRehashHashListenerTest extends VirtualTestBase {
                 new HashChunkCollector(interruptingDataSource.getHashChunkHeight(), 999, 1998, chunkListener);
         final ForkJoinPool pool = new ForkJoinPool(4);
         try {
-            final RuntimeException e = assertThrows(RuntimeException.class, () -> new TaskPerNodeFullRehasher(pool)
-                    .hash(999, 1998, reader, collector, 60_000));
+            final RuntimeException e = assertThrows(
+                    RuntimeException.class,
+                    () -> TaskPerNodeFullRehasher.hash(pool, 999, 1998, reader, collector, 60_000));
             assertInstanceOf(IllegalStateException.class, e.getCause());
             assertEquals(1, interruptingDataSource.saveCount.get(), "Only the final flush must be started");
         } finally {

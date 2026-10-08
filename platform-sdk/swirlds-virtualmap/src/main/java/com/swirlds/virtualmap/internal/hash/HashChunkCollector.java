@@ -18,8 +18,7 @@ import org.apache.logging.log4j.Logger;
 /// A [TaskPerNodeFullRehasher.Listener] that builds hash chunks from node hashes reported by [TaskPerNodeFullRehasher]
 /// and passes complete chunks to a [VirtualHashListener].
 ///
-/// Only hashes that are stored in chunks are collected: hashes of nodes at the last chunk
-/// ranks, and hashes of leaves at any rank. Chunks are created on demand, when the first hash
+/// Chunks are created on demand, when the first hash
 /// in a chunk is reported. When a chunk root node is hashed, all nodes in the chunk sub-tree
 /// have been hashed already, so the chunk is complete. It's removed from this collector and
 /// passed to [VirtualHashListener#onHashChunkHashed(VirtualHashChunk)]. This way, only chunks
@@ -28,8 +27,7 @@ import org.apache.logging.log4j.Logger;
 /// When the root node is hashed, all chunks are complete, and [VirtualHashListener#onHashingCompleted()]
 /// is called in the same thread. Since [TaskPerNodeFullRehasher] returns the root hash only after the
 /// root node listener call returns, the chunk listener is completed, e.g. all chunks are flushed, by
-/// the time the root hash is returned. If some chunks are not complete at that moment, an
-/// [IllegalStateException] is thrown, and hashing fails.
+/// the time the root hash is returned.
 ///
 /// Hashing progress, the percentage of hashed leaves, is logged as well.
 public final class HashChunkCollector implements TaskPerNodeFullRehasher.Listener {
@@ -91,11 +89,17 @@ public final class HashChunkCollector implements TaskPerNodeFullRehasher.Listene
         assert path >= 0 : "Hashed path must be non-negative, path = " + path;
 
         final boolean leaf = path >= firstLeafPath;
+        // True if the node is at a chunk boundary rank (0, chunkHeight, 2 * chunkHeight, ...). Such a node
+        // plays two roles: it's at the last rank of the chunk above it, so its hash is stored there, and, if
+        // it's not a leaf, it's the root of the chunk below it. The root node only plays the second role, as
+        // there is no chunk above it
         final boolean chunkRank = MerklePathUtils.getRank(path) % chunkHeight == 0;
 
-        // Hashes of internal nodes at internal chunk ranks are not stored in chunks. They
-        // must not be set to chunks either, as they would overwrite hashes of their left
-        // grand children at the last chunk rank. The root hash isn't stored in any chunk
+        // Store the hash in its chunk, if the chunk stores it. A chunk stores hashes of nodes at its last
+        // rank, which is a chunk rank, and hashes of leaves at any rank. Hashes of internal nodes at other
+        // ranks are not stored. They must not be set to chunks either, as they would overwrite hashes of
+        // their left grand children at the last chunk rank. The root hash isn't stored in any chunk, as
+        // there is no chunk above the root
         if ((path != ROOT_PATH) && (leaf || chunkRank)) {
             final VirtualHashChunk chunk = chunksInProgress.computeIfAbsent(
                     VirtualHashChunk.pathToChunkPath(path, chunkHeight), p -> new VirtualHashChunk(p, chunkHeight));
@@ -106,8 +110,10 @@ public final class HashChunkCollector implements TaskPerNodeFullRehasher.Listene
             }
         }
 
-        // The node is a chunk root. All nodes in its sub-tree are hashed, so the chunk is complete.
-        // Leaves have no sub-trees, so there are no chunks at leaf paths
+        // The node is a chunk root: an internal node at a chunk rank. A node is hashed only after
+        // its children, so all nodes in its sub-tree are hashed, and all hashes stored in its chunk
+        // are set. The chunk is complete. Leaves at chunk ranks are not chunk roots: they have no
+        // sub-trees, hence no chunks of their own. Their hashes are stored in the chunk above
         if (chunkRank && !leaf) {
             final VirtualHashChunk chunk = chunksInProgress.remove(path);
             if (chunk != null) {

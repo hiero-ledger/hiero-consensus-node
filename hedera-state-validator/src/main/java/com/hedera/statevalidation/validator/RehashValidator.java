@@ -77,8 +77,8 @@ public class RehashValidator implements Validator {
         final Hash computedHash;
 
         try {
-            computedHash = new TaskPerNodeFullRehasher(VALIDATOR_FORK_JOIN_POOL)
-                    .hash(
+            computedHash = TaskPerNodeFullRehasher.hash(
+                            VALIDATOR_FORK_JOIN_POOL,
                             firstLeafPath,
                             lastLeafPath,
                             records::findLeafRecord,

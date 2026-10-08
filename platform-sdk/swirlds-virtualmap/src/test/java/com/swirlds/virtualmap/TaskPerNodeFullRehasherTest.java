@@ -36,15 +36,20 @@ class TaskPerNodeFullRehasherTest extends VirtualTestBase {
     @Test
     @DisplayName("Pools in async mode and shut down pools are rejected")
     void wrongPoolsRejected() {
+        final LongFunction<VirtualLeafBytes<?>> reader = path -> leaf(path, path, path);
         final ForkJoinPool asyncPool = new ForkJoinPool(2, ForkJoinPool.defaultForkJoinWorkerThreadFactory, null, true);
         try {
-            assertThrows(IllegalArgumentException.class, () -> new TaskPerNodeFullRehasher(asyncPool));
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> TaskPerNodeFullRehasher.hash(asyncPool, 1, 2, reader, null, 60_000));
         } finally {
             asyncPool.shutdownNow();
         }
         final ForkJoinPool shutDownPool = new ForkJoinPool(2);
         shutDownPool.shutdown();
-        assertThrows(IllegalArgumentException.class, () -> new TaskPerNodeFullRehasher(shutDownPool));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> TaskPerNodeFullRehasher.hash(shutDownPool, 1, 2, reader, null, 60_000));
     }
 
     @Test
@@ -52,12 +57,13 @@ class TaskPerNodeFullRehasherTest extends VirtualTestBase {
     void wrongAndEmptyRanges() {
         final ForkJoinPool pool = new ForkJoinPool(2);
         try {
-            final TaskPerNodeFullRehasher rehasher = new TaskPerNodeFullRehasher(pool);
             final LongFunction<VirtualLeafBytes<?>> reader = path -> {
                 throw new AssertionError("Leaves must not be read, path = " + path);
             };
-            assertThrows(IllegalArgumentException.class, () -> rehasher.hash(10, 5, reader, null, 60_000));
-            assertNull(rehasher.hash(-1, -1, reader, null, 60_000));
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> TaskPerNodeFullRehasher.hash(pool, 10, 5, reader, null, 60_000));
+            assertNull(TaskPerNodeFullRehasher.hash(pool, -1, -1, reader, null, 60_000));
         } finally {
             pool.shutdownNow();
         }
@@ -88,7 +94,7 @@ class TaskPerNodeFullRehasherTest extends VirtualTestBase {
         final ForkJoinPool pool = new ForkJoinPool(8);
         try {
             final Hash rootHash =
-                    new TaskPerNodeFullRehasher(pool).hash(firstLeafPath, lastLeafPath, reader, listener, 60_000);
+                    TaskPerNodeFullRehasher.hash(pool, firstLeafPath, lastLeafPath, reader, listener, 60_000);
             assertEquals(new Hash(expected[0], Cryptography.DEFAULT_DIGEST_TYPE), rootHash);
             assertEquals(0, orderViolations.get(), "Nodes must be reported once, after their children");
             assertEquals(lastLeafPath + 1, reported.size(), "All nodes must be reported");
@@ -108,7 +114,7 @@ class TaskPerNodeFullRehasherTest extends VirtualTestBase {
         for (final int parallelism : new int[] {1, 2, 4, 16}) {
             final ForkJoinPool pool = new ForkJoinPool(parallelism);
             try {
-                final Hash hash = new TaskPerNodeFullRehasher(pool).hash(999, 1998, reader, null, 60_000);
+                final Hash hash = TaskPerNodeFullRehasher.hash(pool, 999, 1998, reader, null, 60_000);
                 assertEquals(expected, hash, "Root hash mismatch, parallelism = " + parallelism);
             } finally {
                 pool.shutdownNow();
@@ -139,8 +145,9 @@ class TaskPerNodeFullRehasherTest extends VirtualTestBase {
             };
             final RuntimeException e = assertTimeoutPreemptively(
                     Duration.ofSeconds(10),
-                    () -> assertThrows(RuntimeException.class, () -> new TaskPerNodeFullRehasher(pool)
-                            .hash(999, 1998, blockingReader, listener, 100)));
+                    () -> assertThrows(
+                            RuntimeException.class,
+                            () -> TaskPerNodeFullRehasher.hash(pool, 999, 1998, blockingReader, listener, 100)));
             assertInstanceOf(TimeoutException.class, e.getCause());
             timedOut.set(true);
             release.countDown();
@@ -179,8 +186,9 @@ class TaskPerNodeFullRehasherTest extends VirtualTestBase {
                 caller.interrupt();
             });
             interrupter.start();
-            final RuntimeException e = assertThrows(RuntimeException.class, () -> new TaskPerNodeFullRehasher(pool)
-                    .hash(999, 1998, blockingReader, null, 60_000));
+            final RuntimeException e = assertThrows(
+                    RuntimeException.class,
+                    () -> TaskPerNodeFullRehasher.hash(pool, 999, 1998, blockingReader, null, 60_000));
             assertInstanceOf(InterruptedException.class, e.getCause());
             // Also clears the flag
             assertTrue(Thread.interrupted(), "Interrupted flag must be restored");
@@ -205,15 +213,17 @@ class TaskPerNodeFullRehasherTest extends VirtualTestBase {
             };
             final RuntimeException e = assertTimeoutPreemptively(
                     Duration.ofSeconds(10),
-                    () -> assertThrows(RuntimeException.class, () -> new TaskPerNodeFullRehasher(pool)
-                            .hash(999, 1998, failingReader, null, 60_000)));
+                    () -> assertThrows(
+                            RuntimeException.class,
+                            () -> TaskPerNodeFullRehasher.hash(pool, 999, 1998, failingReader, null, 60_000)));
             assertSame(failure, e.getCause());
 
             final LongFunction<VirtualLeafBytes<?>> nullReader = path -> path == 1500 ? null : leaf(path, path, path);
             final RuntimeException e2 = assertTimeoutPreemptively(
                     Duration.ofSeconds(10),
-                    () -> assertThrows(RuntimeException.class, () -> new TaskPerNodeFullRehasher(pool)
-                            .hash(999, 1998, nullReader, null, 60_000)));
+                    () -> assertThrows(
+                            RuntimeException.class,
+                            () -> TaskPerNodeFullRehasher.hash(pool, 999, 1998, nullReader, null, 60_000)));
             assertInstanceOf(IllegalStateException.class, e2.getCause());
         } finally {
             pool.shutdownNow();
@@ -234,8 +244,10 @@ class TaskPerNodeFullRehasherTest extends VirtualTestBase {
             };
             final RuntimeException e = assertTimeoutPreemptively(
                     Duration.ofSeconds(10),
-                    () -> assertThrows(RuntimeException.class, () -> new TaskPerNodeFullRehasher(pool)
-                            .hash(999, 1998, path -> leaf(path, path, path), failingListener, 60_000)));
+                    () -> assertThrows(
+                            RuntimeException.class,
+                            () -> TaskPerNodeFullRehasher.hash(
+                                    pool, 999, 1998, path -> leaf(path, path, path), failingListener, 60_000)));
             assertSame(failure, e.getCause());
         } finally {
             pool.shutdownNow();

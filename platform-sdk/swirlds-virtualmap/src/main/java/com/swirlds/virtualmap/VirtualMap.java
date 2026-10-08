@@ -490,13 +490,13 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
 
         try {
             final long start = System.currentTimeMillis();
-            final Hash rootHash = new TaskPerNodeFullRehasher(rehashPool)
-                    .hash(
-                            firstLeafPath,
-                            lastLeafPath,
-                            leafReader,
-                            hashListener,
-                            virtualMapConfig.fullRehashTimeoutMs());
+            final Hash rootHash = TaskPerNodeFullRehasher.hash(
+                    rehashPool,
+                    firstLeafPath,
+                    lastLeafPath,
+                    leafReader,
+                    hashListener,
+                    virtualMapConfig.fullRehashTimeoutMs());
             setHashPrivate(rootHash);
             logger.info(
                     STARTUP.getMarker(), "Full rehash took {} seconds", (System.currentTimeMillis() - start) / 1000);

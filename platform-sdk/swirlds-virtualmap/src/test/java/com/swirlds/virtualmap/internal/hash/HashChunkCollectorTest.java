@@ -61,7 +61,7 @@ class HashChunkCollectorTest extends VirtualTestBase {
                 new HashChunkCollector(chunkHeight, firstLeafPath, lastLeafPath, chunkListener);
         final ForkJoinPool pool = new ForkJoinPool(8);
         try {
-            new TaskPerNodeFullRehasher(pool).hash(firstLeafPath, lastLeafPath, reader, collector, 60_000);
+            TaskPerNodeFullRehasher.hash(pool, firstLeafPath, lastLeafPath, reader, collector, 60_000);
         } finally {
             pool.shutdownNow();
         }
