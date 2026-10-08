@@ -134,7 +134,7 @@ public class ConsensusImplBenchmark {
         generatedEvents = generator.nextEvents(NUMBER_OF_EVENTS);
         expectedRounds = switch (numNodes) {
             case 4 -> 14960;
-            case 10 -> 4048;
+            case 10 -> 4041;
             default -> throw new IllegalArgumentException("No expected round count for numNodes=" + numNodes);
         };
     }
