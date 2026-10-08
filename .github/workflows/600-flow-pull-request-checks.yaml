@@ -73,6 +73,7 @@ jobs:
       enable-hapi-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-otter-tests: ${{ needs.detect-change-type.outputs.enable-tests }}
       enable-snyk-scan: ${{ needs.detect-change-type.outputs.enable-tests }}
+      enable-benchmark-smoke: ${{ needs.detect-change-type.outputs.enable-tests }}
       java-version: ${{ needs.extract-jdk-version.outputs.jdk-version }}
       java-distribution: "temurin"
       custom-job-label: "Standard"

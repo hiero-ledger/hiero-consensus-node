@@ -76,7 +76,8 @@ class SeiCometBftProofVerifierTest {
             slot(CHANNEL_BASE_SLOT.add(BigInteger.ONE)),
             slot(CHANNEL_BASE_SLOT.add(BigInteger.TWO)),
             slot(CHANNEL_BASE_SLOT.add(BigInteger.valueOf(4))),
-            slot(CHANNEL_BASE_SLOT.add(BigInteger.valueOf(5)))
+            slot(CHANNEL_BASE_SLOT.add(BigInteger.valueOf(5))),
+            slot(CHANNEL_BASE_SLOT.add(BigInteger.valueOf(16)))
         };
     }
 
@@ -89,12 +90,15 @@ class SeiCometBftProofVerifierTest {
         final byte[] receivedSlot = new byte[32];
         ByteBuffer.wrap(receivedSlot, 16, 8).putLong(17L); // receivedMessageId
         ByteBuffer.wrap(receivedSlot, 24, 8).putLong(16L); // ackedMessageId
+        final byte[] manifestVersionSlot = new byte[32];
+        ByteBuffer.wrap(manifestVersionSlot, 24, 8).putLong(5L); // endpointManifestVersion (offset 16, LSB)
         return new byte[][] {
             lastMsgHash,
             statusSlot,
             receivedSlot,
             SyntheticSeiChain.hash32("sent-running").toByteArray(),
-            SyntheticSeiChain.hash32("received-running").toByteArray()
+            SyntheticSeiChain.hash32("received-running").toByteArray(),
+            manifestVersionSlot
         };
     }
 
@@ -375,14 +379,16 @@ class SeiCometBftProofVerifierTest {
                     .isEqualTo(SyntheticSeiChain.hash32("sent-running").toByteArray());
             assertThat(metadata.receivedRunningHash())
                     .isEqualTo(SyntheticSeiChain.hash32("received-running").toByteArray());
+            // endpointManifestVersion comes from the PROVEN offset-16 slot, not relayed content
+            assertThat(metadata.endpointManifestVersion()).isEqualTo(5L);
         }
 
         @Test
         void storageProofsCanArriveInChannelFirstRelayOrder() {
             final var chain = bundleChain(VALIDATORS, VALIDATORS);
             final var entries = new ArrayList<>(chain.stateProof().storageProofs());
-            final var oldRelayOrder =
-                    List.of(entries.get(1), entries.get(2), entries.get(3), entries.get(4), entries.get(0));
+            final var oldRelayOrder = List.of(
+                    entries.get(1), entries.get(2), entries.get(3), entries.get(4), entries.get(5), entries.get(0));
             final var stateProof = chain.stateProof()
                     .copyBuilder()
                     .storageProofs(oldRelayOrder)
@@ -422,11 +428,13 @@ class SeiCometBftProofVerifierTest {
         void nonExistenceStorageProofMapsToZeroWord() {
             final var slots = queueStorageSlotsInVerifierOrder();
             final var values = queueSlotValues();
+            // Prove the last-message hash + the four queue fields {1,2,4,5}; the endpointManifestVersion
+            // slot (offset 16) is proven non-existent, so it maps to the zero word (canonical index 4).
             final var chain = SyntheticSeiChain.stateProof(
-                    VALIDATORS, VALIDATORS, VALIDATORS, Arrays.copyOf(slots, 4), Arrays.copyOf(values, 4));
+                    VALIDATORS, VALIDATORS, VALIDATORS, Arrays.copyOf(slots, 5), Arrays.copyOf(values, 5));
             final var entries = new ArrayList<>(chain.stateProof().storageProofs());
             final var leftNeighbor = entries.get(entries.size() - 1);
-            final byte[] missingKey = concat(new byte[] {0x03}, SERVICE, slots[4]);
+            final byte[] missingKey = concat(new byte[] {0x03}, SERVICE, slots[5]);
             entries.add(SeiStorageProofEntry.newBuilder()
                     .key(Bytes.wrap(missingKey))
                     .value(Bytes.EMPTY)
@@ -468,7 +476,7 @@ class SeiCometBftProofVerifierTest {
                     strangers,
                     strangers,
                     strangers,
-                    new byte[][] {slot(1), slot(2), slot(3), slot(4), slot(5)},
+                    new byte[][] {slot(1), slot(2), slot(3), slot(4), slot(5), slot(6)},
                     queueSlotValues());
             final byte[] payload = bundlePayload(chain, null);
             final byte[] anchor = anchorBytes();
@@ -539,7 +547,7 @@ class SeiCometBftProofVerifierTest {
             final byte[] anchor = anchorBytes();
             assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchor))
                     .isInstanceOf(ProofException.class)
-                    .hasMessageContaining("expected 4 or 5 proven slot values");
+                    .hasMessageContaining("expected 5 or 6 proven slot values");
         }
 
         @Test
@@ -550,6 +558,17 @@ class SeiCometBftProofVerifierTest {
             assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, new byte[] {0x08}))
                     .isInstanceOf(ProofException.class)
                     .hasMessageContaining("trustAnchor is not a valid");
+        }
+
+        @Test
+        void unknownFieldInTrustAnchorRejected() {
+            final var chain = bundleChain(VALIDATORS, VALIDATORS);
+            final byte[] payload = bundlePayload(chain, null);
+            final byte[] anchorWithUnknown = appendUnknownField(anchorBytes());
+
+            assertThatThrownBy(() -> SeiCometBftProofVerifier.verifyBundle(payload, anchorWithUnknown))
+                    .isInstanceOf(ProofException.class)
+                    .hasMessageContaining("trustAnchor is not a valid SeiTrustAnchor");
         }
 
         @Test
@@ -887,8 +906,8 @@ class SeiCometBftProofVerifierTest {
 
         @Test
         void stateProofRecordsRequireNonNullComponents() {
-            assertThatThrownBy(
-                            () -> new SeiCometBftProofVerifier.QueueMetadata(1, null, 2, new byte[32], 1, new byte[32]))
+            assertThatThrownBy(() ->
+                            new SeiCometBftProofVerifier.QueueMetadata(1, null, 2, new byte[32], 1, new byte[32], 0L))
                     .isInstanceOf(NullPointerException.class);
             assertThatThrownBy(() -> new SeiCometBftProofVerifier.VerifiedConfig(null, new byte[0]))
                     .isInstanceOf(NullPointerException.class);

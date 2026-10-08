@@ -10,9 +10,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_NO_PROGRESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_PAYLOAD_TOO_LARGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.CLPR_RUNNING_HASH_MISMATCH;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.CHANNELS_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.CONNECTORS_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.MESSAGE_QUEUE_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CONNECTORS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.MESSAGE_QUEUE_STATE_ID;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -73,6 +73,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
@@ -363,9 +364,12 @@ class ClprSubmitBundleHandlerTest {
                 .messages(List.of(payload))
                 .build();
         setupHandleContext(bundleTxn(bundle), true);
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(CLPR_RUNNING_HASH_MISMATCH));
+        final var exception = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(exception).has(responseCode(CLPR_RUNNING_HASH_MISMATCH));
+
+        exception.maybeReplay(feeChargingContext, handleContext);
+        verify(feeChargingContext).charge(PAYER_ID, new Fees(0, 5_000_000L, 0), null);
+        verify(feeChargingContext, never()).charge(eq(ENDPOINT_ACCOUNT), any(Fees.class), any());
     }
 
     @Test
@@ -474,6 +478,85 @@ class ClprSubmitBundleHandlerTest {
         assertThat(response).isNotNull();
         assertThat(response.payload().messageReplyOrThrow().status())
                 .isEqualTo(ClprMessageReplyStatus.CONNECTOR_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("given a bundle starting at our received + 1 above the sender's ack, then every message is processed")
+    void givenBundleStartingAtReceivedPlusOne_thenEveryMessageIsProcessed() {
+        // We hold messages 1..3; the sender's ack still reads 0, but it shaped the bundle from our
+        // received_message_id + 1 (streaming sync), so the bundle carries 4 and 5 and its bundle-scoped
+        // next_message_id is 6. Positionally, bundle_first_id = 6 - 2 = 4: nothing to trim.
+        putChannel(ClprChannelStatus.ACTIVE, 0, 0, 3, INTERMEDIATE_HASH);
+        putConnector();
+        final var messages = List.of(dataPayload(), dataPayload());
+        setupHandleContext(bundleTxn(bundleEndingAt(6, INTERMEDIATE_HASH, messages)), true);
+
+        subject.handle(handleContext);
+
+        final var updated = channelStore.getChannel(CHANNEL_ID);
+        assertThat(updated.receivedMessageId()).isEqualTo(5L);
+        assertThat(updated.receivedRunningHash()).isEqualTo(runningHashOver(INTERMEDIATE_HASH, messages));
+        verify(handleContext, times(2)).dispatch(any());
+    }
+
+    @Test
+    @DisplayName("given a bundle whose leading messages we already hold, then only the new tail is processed")
+    void givenBundleWithReplayedPrefix_thenOnlyTheNewTailIsProcessed() {
+        // We hold messages 1..3; the bundle carries 2..5 (next_message_id 6), so 2 and 3 are replays.
+        putChannel(ClprChannelStatus.ACTIVE, 0, 0, 3, INTERMEDIATE_HASH);
+        putConnector();
+        final var newTail = List.of(dataPayload(), dataPayload());
+        final var messages = List.of(dataPayload(), dataPayload(), dataPayload(), dataPayload());
+        final var bundle = bundleEndingAt(6, INTERMEDIATE_HASH, newTail)
+                .copyBuilder()
+                .messages(messages)
+                .build();
+        setupHandleContext(bundleTxn(bundle), true);
+
+        subject.handle(handleContext);
+
+        final var updated = channelStore.getChannel(CHANNEL_ID);
+        assertThat(updated.receivedMessageId()).isEqualTo(5L);
+        assertThat(updated.receivedRunningHash()).isEqualTo(runningHashOver(INTERMEDIATE_HASH, newTail));
+        verify(handleContext, times(2)).dispatch(any());
+    }
+
+    @Test
+    @DisplayName("given a bundle starting past our received + 1, then it is rejected as a gap")
+    void givenBundleStartingPastReceivedPlusOne_thenRejected() {
+        // We hold messages 1..3; the bundle carries 5 and 6 (next_message_id 7), skipping 4.
+        putChannel(ClprChannelStatus.ACTIVE, 0, 0, 3, INTERMEDIATE_HASH);
+        final var messages = List.of(dataPayload(), dataPayload());
+        setupHandleContext(bundleTxn(bundleEndingAt(7, INTERMEDIATE_HASH, messages)), true);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_BUNDLE_VERIFICATION_FAILED));
+        assertThat(channelStore.getChannel(CHANNEL_ID).receivedMessageId()).isEqualTo(3L);
+    }
+
+    @Test
+    @DisplayName(
+            "given a pure-ACK bundle ending at our received id, when the sender's ack lags it, then it is accepted")
+    void givenPureAckBundleEndingAtOurReceivedId_whenSendersAckLags_thenAccepted() {
+        // We hold messages 1..5 and our outbound slot 1 is a reply. The sender has seen none of our acks, but its
+        // pure-ACK bundle ends at its queue tip (next_message_id 6), so there is no replayed prefix to trim.
+        putChannel(ClprChannelStatus.ACTIVE, 2, 0, 5, INTERMEDIATE_HASH);
+        putOutboundSlot(1, replyPayload(9));
+        final var metadata = bundleEndingAt(6, INTERMEDIATE_HASH, List.of())
+                .metadataOrThrow()
+                .copyBuilder()
+                .receivedMessageId(1)
+                .build();
+        setupHandleContext(
+                bundleTxn(ClprBundleContent.newBuilder().metadata(metadata).build()), true);
+
+        subject.handle(handleContext);
+
+        final var updated = channelStore.getChannel(CHANNEL_ID);
+        assertThat(updated.ackedMessageId()).isEqualTo(1L);
+        assertThat(updated.receivedMessageId()).isEqualTo(5L);
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
     }
 
     @Test
@@ -1216,10 +1299,121 @@ class ClprSubmitBundleHandlerTest {
 
         subject.handle(handleContext);
 
+        verify(handleContext).tryToCharge(PAYER_ID, 5_000_000L);
+        verify(handleContext, never()).tryToCharge(eq(ENDPOINT_ACCOUNT), anyLong());
         assertThat(channelStore.getChannel(CHANNEL_ID).status()).isEqualTo(ClprChannelStatus.PAUSED);
         // Neither data message should be deleted
         assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNotNull();
         assertThat(messageQueueStore.getMessage(CHANNEL_ID, 3)).isNotNull();
+    }
+
+    @Test
+    @DisplayName("given a bundle acking more messages than it carries replies for, then the ack stops before the first"
+            + " unanswered data message and the channel stays ACTIVE")
+    void givenBundleAckingMoreThanItsReplies_thenAckStopsBeforeFirstUnansweredDataMessage() {
+        // The peer received all 4 of our data messages, but its bundle was truncated after the first two replies.
+        for (long id = 1; id <= 4; id++) {
+            putOutboundDataMessage(id);
+        }
+        putChannel(ClprChannelStatus.ACTIVE, 5, 0, ZERO_HASH);
+        setupHandleContext(
+                buildBundle(ClprChannelStatus.ACTIVE, 0, 4, ZERO_HASH, List.of(replyPayload(1), replyPayload(2))),
+                true);
+
+        subject.handle(handleContext);
+
+        final var updated = channelStore.getChannel(CHANNEL_ID);
+        assertThat(updated.status()).isEqualTo(ClprChannelStatus.ACTIVE);
+        assertThat(updated.ackedMessageId()).isEqualTo(2L);
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 2)).isNull();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 3)).isNotNull();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 4)).isNotNull();
+    }
+
+    @Test
+    @DisplayName("given the remaining replies arrive in a later bundle, when it is handled, then the ack completes")
+    void givenRemainingRepliesInLaterBundle_whenHandled_thenAckCompletes() {
+        for (long id = 1; id <= 4; id++) {
+            putOutboundDataMessage(id);
+        }
+        putChannel(ClprChannelStatus.ACTIVE, 5, 0, ZERO_HASH);
+        final var firstReplies = List.of(replyPayload(1), replyPayload(2));
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 4, ZERO_HASH, firstReplies), true);
+        subject.handle(handleContext);
+        var hashAfterFirst = ZERO_HASH;
+        for (final var reply : firstReplies) {
+            hashAfterFirst = ClprHashUtils.computeRunningHash(hashAfterFirst, reply);
+        }
+
+        setupHandleContext(
+                buildBundle(ClprChannelStatus.ACTIVE, 2, 4, hashAfterFirst, List.of(replyPayload(3), replyPayload(4))),
+                true);
+        subject.handle(handleContext);
+
+        final var updated = channelStore.getChannel(CHANNEL_ID);
+        assertThat(updated.status()).isEqualTo(ClprChannelStatus.ACTIVE);
+        assertThat(updated.ackedMessageId()).isEqualTo(4L);
+        assertThat(updated.receivedMessageId()).isEqualTo(4L);
+        for (long id = 1; id <= 4; id++) {
+            assertThat(messageQueueStore.getMessage(CHANNEL_ID, id)).isNull();
+        }
+    }
+
+    @Test
+    @DisplayName(
+            "given a bundle claiming the ack of a data message it carries no reply for, then it is rejected as no progress")
+    void givenBundleClaimingAckOfUnansweredDataMessage_thenRejectedAsNoProgressWithoutPenalty() {
+        // The peer reports it received our data message 1 but ships neither its reply nor anything else, so the ack
+        // cannot move and the bundle is rejected. The peer may legitimately be deferring that reply, so the
+        // submitting endpoint pays only the transaction fee, never the misbehavior penalty.
+        putOutboundDataMessage(1);
+        putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of()), true);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_NO_PROGRESS))
+                .satisfies(e -> ((HandleException) e).maybeReplay(feeChargingContext, handleContext));
+        verify(feeChargingContext, never()).charge(any(), any(), any());
+        assertThat(channelStore.getChannel(CHANNEL_ID).ackedMessageId()).isZero();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNotNull();
+    }
+
+    @Test
+    @DisplayName("given a reply for the wrong data message after a matching one, then the channel is PAUSED and"
+            + " nothing is acked")
+    void givenReplyForWrongDataMessageAfterMatchingOne_thenChannelIsPausedAndNothingIsAcked() {
+        for (long id = 1; id <= 3; id++) {
+            putOutboundDataMessage(id);
+        }
+        putChannel(ClprChannelStatus.ACTIVE, 4, 0, ZERO_HASH);
+        setupHandleContext(
+                buildBundle(ClprChannelStatus.ACTIVE, 0, 3, ZERO_HASH, List.of(replyPayload(1), replyPayload(3))),
+                true);
+
+        subject.handle(handleContext);
+
+        final var updated = channelStore.getChannel(CHANNEL_ID);
+        assertThat(updated.status()).isEqualTo(ClprChannelStatus.PAUSED);
+        assertThat(updated.ackedMessageId()).isZero();
+        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNotNull();
+    }
+
+    @Test
+    @DisplayName("given a bundle acking data messages with a reply for the wrong one, then the channel is PAUSED")
+    void givenBundleWithReplyForWrongDataMessage_thenChannelIsPaused() {
+        for (long id = 1; id <= 4; id++) {
+            putOutboundDataMessage(id);
+        }
+        putChannel(ClprChannelStatus.ACTIVE, 5, 0, ZERO_HASH);
+        setupHandleContext(buildBundle(ClprChannelStatus.ACTIVE, 0, 4, ZERO_HASH, List.of(replyPayload(2))), true);
+
+        subject.handle(handleContext);
+
+        final var updated = channelStore.getChannel(CHANNEL_ID);
+        assertThat(updated.status()).isEqualTo(ClprChannelStatus.PAUSED);
+        assertThat(updated.ackedMessageId()).isZero();
     }
 
     @Test
@@ -1517,14 +1711,14 @@ class ClprSubmitBundleHandlerTest {
     // ---- #333: Step 1b — apply new_endpoint_manifest / #334: Criterion 5 ----
 
     @Test
-    @DisplayName("#333: manifest replaced when version advances (flag ON)")
+    @DisplayName("#333: manifest replaced when version advances")
     void manifestReplacedWhenVersionAdvances() {
         putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
         final var newManifest = buildManifest(3L, "10.0.0.5");
         // Bundle carries a message (Criterion 1) so progress isn't in question; we're
         // asserting only that the manifest write lands.
         final var bundleContent = buildBundleWithManifest(newManifest, List.of(dataPayload()));
-        setupHandleContextWithFlags(bundleTxn(bundleContent), true, true);
+        setupHandleContextWithFlags(bundleTxn(bundleContent), true);
 
         subject.handle(handleContext);
 
@@ -1541,7 +1735,7 @@ class ClprSubmitBundleHandlerTest {
         putChannelWithManifestVersion(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH, 5L);
         final var staleManifest = buildManifest(3L, "10.0.0.3");
         final var bundleContent = buildBundleWithManifest(staleManifest, List.of(dataPayload()));
-        setupHandleContextWithFlags(bundleTxn(bundleContent), true, true);
+        setupHandleContextWithFlags(bundleTxn(bundleContent), true);
 
         subject.handle(handleContext);
 
@@ -1555,7 +1749,7 @@ class ClprSubmitBundleHandlerTest {
         putChannelWithManifestVersion(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH, 5L);
         // Bundle carries no new_endpoint_manifest.
         final var bundleContent = buildBundleWithManifest(null, List.of(dataPayload()));
-        setupHandleContextWithFlags(bundleTxn(bundleContent), true, true);
+        setupHandleContextWithFlags(bundleTxn(bundleContent), true);
 
         subject.handle(handleContext);
 
@@ -1579,29 +1773,13 @@ class ClprSubmitBundleHandlerTest {
                         .build())
                 .newEndpointManifest(newManifest)
                 .build();
-        setupHandleContextWithFlags(bundleTxn(bundleContent), true, true);
+        setupHandleContextWithFlags(bundleTxn(bundleContent), true);
 
         subject.handle(handleContext);
 
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertThat(updated.endpointManifestVersion()).isEqualTo(2L);
         assertThat(updated.endpointManifestOrThrow()).isEqualTo(newManifest);
-    }
-
-    @Test
-    @DisplayName("#333: flag OFF skips manifest write even when version advances")
-    void flagOffSkipsManifestWrite() {
-        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
-        final var newManifest = buildManifest(3L, "10.0.0.9");
-        // Bundle carries a message (Criterion 1) so it still processes without Criterion 5.
-        final var bundleContent = buildBundleWithManifest(newManifest, List.of(dataPayload()));
-        setupHandleContextWithFlags(bundleTxn(bundleContent), true, false);
-
-        subject.handle(handleContext);
-
-        final var updated = channelStore.getChannel(CHANNEL_ID);
-        // Flag OFF → no manifest write, cache stays at 0.
-        assertThat(updated.endpointManifestVersion()).isEqualTo(0L);
     }
 
     @Test
@@ -1619,7 +1797,7 @@ class ClprSubmitBundleHandlerTest {
                         .build())
                 .newEndpointManifest(newManifest)
                 .build();
-        setupHandleContextWithFlags(bundleTxn(bundleContent), true, true);
+        setupHandleContextWithFlags(bundleTxn(bundleContent), true);
 
         subject.handle(handleContext);
 
@@ -1641,7 +1819,7 @@ class ClprSubmitBundleHandlerTest {
                         .build())
                 .newEndpointManifest(staleManifest)
                 .build();
-        setupHandleContextWithFlags(bundleTxn(bundleContent), true, true);
+        setupHandleContextWithFlags(bundleTxn(bundleContent), true);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
@@ -1649,24 +1827,74 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @Test
-    @DisplayName("#334: flag OFF makes Criterion 5 inert (manifest-only bundle rejected)")
-    void bundleWithFlagOffAndManifestOnlyIsNoProgress() {
+    @DisplayName("no-progress pure ack still records the peer's view of our manifest version")
+    void noProgressBundleStillRecordsPeerObservedManifestVersion() {
+        // On an idle channel the peer's pure acks are the only bundles carrying its view of our manifest; they are
+        // rejected as no-progress, so the version must be recorded before that check or the push loop never ends.
         putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
-        final var newManifest = buildManifest(1L, "10.0.0.15");
         final var bundleContent = ClprBundleContent.newBuilder()
                 .metadata(ClprQueueMetadata.newBuilder()
                         .nextMessageId(1)
                         .sentRunningHash(ZERO_HASH)
                         .receivedMessageId(0)
                         .status(ClprChannelStatus.ACTIVE)
+                        .endpointManifestVersion(7L)
                         .build())
-                .newEndpointManifest(newManifest)
                 .build();
-        setupHandleContextWithFlags(bundleTxn(bundleContent), true, false);
+        setupHandleContextWithFlags(bundleTxn(bundleContent), true);
 
         assertThatThrownBy(() -> subject.handle(handleContext))
                 .isInstanceOf(HandleException.class)
                 .has(responseCode(CLPR_NO_PROGRESS));
+        verify(channelLifecycle).recordPeerObservedManifestVersion(CHANNEL_ID, 7L);
+    }
+
+    @Test
+    @DisplayName("manifest advance in a bundle rejected by a later check does not reseed peer endpoint cache")
+    void rejectedBundleDoesNotReseedPeerEndpointCache() {
+        // The Step 1b channel write is rolled back with the failed transaction, so the node-local cache (the inbound
+        // mTLS trust set) must not pick up the unapplied manifest's endpoints either.
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        final var newManifest = buildManifest(3L, "10.0.0.5");
+        final var valid = buildBundleWithManifest(newManifest, List.of(dataPayload()));
+        final var badHash = valid.copyBuilder()
+                .metadata(valid.metadataOrThrow()
+                        .copyBuilder()
+                        .sentRunningHash(ZERO_HASH)
+                        .build())
+                .build();
+        setupHandleContextWithFlags(bundleTxn(badHash), true);
+
+        assertThatThrownBy(() -> subject.handle(handleContext))
+                .isInstanceOf(HandleException.class)
+                .has(responseCode(CLPR_RUNNING_HASH_MISMATCH));
+        verify(channelLifecycle, never()).seedPeerEndpoints(any(), any());
+    }
+
+    @Test
+    @DisplayName("manifest advancement reseeds peer endpoint cache")
+    void manifestAdvancementReseedsPeerEndpointCache() {
+        putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
+        final var newManifest = buildManifest(3L, "10.0.0.5");
+        final var bundleContent = buildBundleWithManifest(newManifest, List.of(dataPayload()));
+        setupHandleContextWithFlags(bundleTxn(bundleContent), true);
+
+        subject.handle(handleContext);
+
+        verify(channelLifecycle).seedPeerEndpoints(CHANNEL_ID, newManifest.endpoints());
+    }
+
+    @Test
+    @DisplayName("stale manifest does not reseed peer endpoint cache")
+    void staleManifestDoesNotReseedPeerEndpointCache() {
+        putChannelWithManifestVersion(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH, 5L);
+        final var staleManifest = buildManifest(3L, "10.0.0.3");
+        final var bundleContent = buildBundleWithManifest(staleManifest, List.of(dataPayload()));
+        setupHandleContextWithFlags(bundleTxn(bundleContent), true);
+
+        subject.handle(handleContext);
+
+        verify(channelLifecycle, never()).seedPeerEndpoints(any(), any());
     }
 
     @Test
@@ -2487,9 +2715,12 @@ class ClprSubmitBundleHandlerTest {
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(dataPayload()));
         setupHandleContext(bundle, true, 1000, 65536, 1L /* max_sync_bytes = 1 forces rejection */);
 
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
+        final var exception = assertThrows(HandleException.class, () -> subject.handle(handleContext));
+        assertThat(exception).has(responseCode(CLPR_PAYLOAD_TOO_LARGE));
+
+        exception.maybeReplay(feeChargingContext, handleContext);
+        verify(feeChargingContext).charge(PAYER_ID, new Fees(0, 5_000_000L, 0), null);
+        verify(feeChargingContext, never()).charge(eq(ENDPOINT_ACCOUNT), any(Fees.class), any());
 
         // Channel state must not advance
         final var conn = channelStore.getChannel(CHANNEL_ID);
@@ -2568,48 +2799,11 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @Test
-    @DisplayName("flag off: a peer-reported endpoint_manifest_version is ignored and does not perturb bundle handling")
-    void peerEndpointManifestVersionIgnoredWhenFlagOff() {
-        // Spec §4.5: metadata.endpoint_manifest_version carries the sender's cache of THIS
-        // ledger's manifest version. #330 populates + carries the field through the pipeline.
-        // With clpr.endpointManifestEnabled=false the handler does not read or record it (the
-        // inbound read is flag-guarded), so the field is inert and the bundle is handled exactly
-        // as before.
-        putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
-
-        final var msg = dataPayload();
-        final var runningHash = ClprHashUtils.computeRunningHash(ZERO_HASH, msg);
-        final var metadata = ClprQueueMetadata.newBuilder()
-                .nextMessageId(2L)
-                .sentRunningHash(runningHash)
-                .receivedMessageId(0L)
-                .status(ClprChannelStatus.ACTIVE)
-                .endpointManifestVersion(42L)
-                .build();
-        final var bundle = ClprBundleContent.newBuilder()
-                .metadata(metadata)
-                .messages(List.of(msg))
-                .build();
-        setupHandleContext(bundleTxn(bundle), true);
-        putConnector();
-
-        subject.handle(handleContext);
-
-        // Bundle processed normally; channel advanced.
-        final var updated = channelStore.getChannel(CHANNEL_ID);
-        assertThat(updated).isNotNull();
-        assertThat(updated.receivedMessageId()).isEqualTo(1L);
-        // Our OWN endpoint_manifest_version is NOT touched by the peer-reported value - this
-        // ledger's cache of the PEER's manifest is unrelated to the peer's cache of ours.
-        assertThat(updated.endpointManifestVersion()).isEqualTo(0L);
-    }
-
-    @Test
-    @DisplayName("flag on: a peer-reported endpoint_manifest_version is accepted and the bundle is handled cleanly")
-    void peerEndpointManifestVersionAcceptedWhenFlagOn() {
-        // With clpr.endpointManifestEnabled=true the handler reads the peer-reported version (the
-        // guarded inbound read fires). On this branch that read is log-only — recording it lands in
-        // #335 — so the observable contract is unchanged: the bundle is handled normally and this
+    @DisplayName("a peer-reported endpoint_manifest_version is accepted and the bundle is handled cleanly")
+    void peerEndpointManifestVersionAccepted() {
+        // Spec §4.5: metadata.endpoint_manifest_version carries the sender's cache of THIS ledger's
+        // manifest version. The handler records it via the lifecycle SPI (node-local, in-memory) and
+        // the observable channel contract is unchanged: the bundle is handled normally and this
         // ledger's own cache of the PEER's manifest is untouched (the bundle carries no
         // new_endpoint_manifest to apply via Step 1b).
         putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
@@ -2627,17 +2821,18 @@ class ClprSubmitBundleHandlerTest {
                 .metadata(metadata)
                 .messages(List.of(msg))
                 .build();
-        setupHandleContextWithFlags(bundleTxn(bundle), true, true);
+        setupHandleContextWithFlags(bundleTxn(bundle), true);
         putConnector();
 
         subject.handle(handleContext);
 
-        // Bundle processed normally with the flag on; channel advanced.
+        // Bundle processed normally; channel advanced.
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertThat(updated).isNotNull();
         assertThat(updated.receivedMessageId()).isEqualTo(1L);
         // No new_endpoint_manifest in the bundle → Step 1b is a no-op; our cache stays at 0.
         assertThat(updated.endpointManifestVersion()).isEqualTo(0L);
+        verify(channelLifecycle).recordPeerObservedManifestVersion(CHANNEL_ID, 42L);
     }
 
     // ========== Verifier outcomes ==========
@@ -2714,7 +2909,7 @@ class ClprSubmitBundleHandlerTest {
                     .newEndpointManifest(newManifest)
                     .build();
             putChannelWithManifestVersion(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH, 1L);
-            setupHandleContextWithFlags(validSingleDataBundle(), true, true);
+            setupHandleContextWithFlags(validSingleDataBundle(), true);
             given(mockVerifier.verifyBundle(any(), any(), any(), any())).willReturn(manifestOnlyContent);
 
             subject.handle(handleContext);
@@ -2739,7 +2934,7 @@ class ClprSubmitBundleHandlerTest {
                     .newEndpointManifest(staleManifest)
                     .build();
             putChannelWithManifestVersion(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH, 5L);
-            setupHandleContextWithFlags(validSingleDataBundle(), true, true);
+            setupHandleContextWithFlags(validSingleDataBundle(), true);
             given(mockVerifier.verifyBundle(any(), any(), any(), any())).willReturn(manifestOnlyContent);
 
             assertThatThrownBy(() -> subject.handle(handleContext))
@@ -2780,6 +2975,16 @@ class ClprSubmitBundleHandlerTest {
                 messageId,
                 ClprMessageValue.newBuilder()
                         .payload(dataPayload())
+                        .runningHashAfterProcessing(ZERO_HASH)
+                        .build());
+    }
+
+    private void putOutboundSlot(final long messageId, @NonNull final ClprMessagePayload payload) {
+        messageQueueStore.put(
+                CHANNEL_ID,
+                messageId,
+                ClprMessageValue.newBuilder()
+                        .payload(payload)
                         .runningHashAfterProcessing(ZERO_HASH)
                         .build());
     }
@@ -2876,6 +3081,35 @@ class ClprSubmitBundleHandlerTest {
                 .messages(messages)
                 .build();
         return bundleTxn(bundle);
+    }
+
+    /**
+     * A bundle whose bundle-scoped {@code next_message_id} is {@code nextMessageId}, and whose
+     * {@code sent_running_hash} folds {@code newMessages} from {@code startingHash}.
+     */
+    private static ClprBundleContent bundleEndingAt(
+            final long nextMessageId,
+            @NonNull final Bytes startingHash,
+            @NonNull final List<ClprMessagePayload> newMessages) {
+        final var metadata = ClprQueueMetadata.newBuilder()
+                .nextMessageId(nextMessageId)
+                .sentRunningHash(runningHashOver(startingHash, newMessages))
+                .receivedMessageId(0)
+                .status(ClprChannelStatus.ACTIVE)
+                .build();
+        return ClprBundleContent.newBuilder()
+                .metadata(metadata)
+                .messages(newMessages)
+                .build();
+    }
+
+    private static Bytes runningHashOver(
+            @NonNull final Bytes startingHash, @NonNull final List<ClprMessagePayload> messages) {
+        var hash = startingHash;
+        for (final var message : messages) {
+            hash = ClprHashUtils.computeRunningHash(hash, message);
+        }
+        return hash;
     }
 
     private TransactionBody validSingleDataBundle() {
@@ -2986,12 +3220,10 @@ class ClprSubmitBundleHandlerTest {
         return builder.build();
     }
 
-    private void setupHandleContextWithFlags(
-            @NonNull final TransactionBody txn, final boolean clprEnabled, final boolean endpointManifestEnabled) {
+    private void setupHandleContextWithFlags(@NonNull final TransactionBody txn, final boolean clprEnabled) {
         setupHandleContext(txn, clprEnabled);
         final var config = com.hedera.node.config.testfixtures.HederaTestConfigBuilder.create()
                 .withValue("clpr.enabled", clprEnabled)
-                .withValue("clpr.endpointManifestEnabled", endpointManifestEnabled)
                 .withValue("clpr.slashBasePenalty", "10000000")
                 .withValue("clpr.slashMultiplier", "2")
                 .withValue("clpr.slashBanThreshold", "5")

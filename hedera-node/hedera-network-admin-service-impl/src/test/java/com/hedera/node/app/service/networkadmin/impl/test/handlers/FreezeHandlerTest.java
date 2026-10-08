@@ -356,6 +356,8 @@ class FreezeHandlerTest {
         given(upgradeFileStore.peek(fileUpgradeFileId))
                 .willReturn(File.newBuilder().build());
         given(upgradeFileStore.getFull(fileUpgradeFileId)).willReturn(UPGRADE_FILE_CONTENTS);
+        // A FREEZE_UPGRADE must confirm an upgrade prepared earlier, so record a matching prepared hash
+        given(freezeStore.updateFileHash()).willReturn(UPGRADE_FILE_HASH);
 
         for (FreezeType freezeType : freezeTypes) {
             TransactionID txnId = TransactionID.newBuilder()

@@ -314,12 +314,6 @@ message StateKey {
      */
     proto.ProtoBytes ClprService_I_PENDING_CONNECTOR_COMMITMENTS = 64;
 
-    /**
-     * A state identifier for CLPR per-endpoint submission throttle snapshots.
-     * Key is the endpoint AccountID; value is its leaky-bucket usage snapshot.
-     */
-    proto.AccountID ClprService_I_SUBMISSION_THROTTLES = 65;
-
     // Queue states
     /**
      * Queue index for the round receipts queue.
@@ -715,13 +709,6 @@ message StateValue {
      * CLPR pending connector commitment value (mirrors key — acts as a set).
      */
     proto.ProtoBytes ClprService_I_PENDING_CONNECTOR_COMMITMENTS = 64;
-
-    /**
-     * Per-endpoint CLPR submission throttle snapshot — the leaky-bucket usage
-     * for one endpoint, keyed by its AccountID. Used to enforce
-     * max_bundles_per_sec on inbound bundle submissions.
-     */
-    proto.ThrottleUsageSnapshot ClprService_I_SUBMISSION_THROTTLES = 65;
 
     /**
      * A state identifier for the CLPR endpoint manifest. Singleton state.

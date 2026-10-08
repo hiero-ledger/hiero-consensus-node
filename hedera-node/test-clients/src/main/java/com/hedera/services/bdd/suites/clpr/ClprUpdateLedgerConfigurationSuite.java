@@ -9,6 +9,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AUTHORIZATION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_NOT_ENABLED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_TOO_MANY_SEED_ENDPOINTS;
@@ -34,7 +35,7 @@ public class ClprUpdateLedgerConfigurationSuite {
         return hapiTest(
                 overriding("clpr.enabled", "true"),
                 clprUpdateLedgerConfiguration()
-                        .serviceAddress(new byte[] {0, 0, 1})
+                        .serviceAddress(CLPR_SERVICE_ADDRESS_20)
                         .throttles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
                         .seedEndpoint(HapiClprUpdateLedgerConfiguration.seedEndpoint(
                                 "192.168.1.1", 50211, new byte[] {1, 2, 3, 4}, new byte[33]))
@@ -47,7 +48,7 @@ public class ClprUpdateLedgerConfigurationSuite {
                 overriding("clpr.enabled", "true"),
                 cryptoCreate("civilian").balance(ONE_HUNDRED_HBARS),
                 clprUpdateLedgerConfiguration()
-                        .serviceAddress(new byte[] {0, 0, 1})
+                        .serviceAddress(CLPR_SERVICE_ADDRESS_20)
                         .throttles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
                         .seedEndpoint(HapiClprUpdateLedgerConfiguration.seedEndpoint(
                                 "192.168.1.1", 50211, new byte[] {1, 2, 3, 4}, new byte[33]))
@@ -60,7 +61,7 @@ public class ClprUpdateLedgerConfigurationSuite {
         return hapiTest(
                 overriding("clpr.enabled", "false"),
                 clprUpdateLedgerConfiguration()
-                        .serviceAddress(new byte[] {0, 0, 1})
+                        .serviceAddress(CLPR_SERVICE_ADDRESS_20)
                         .throttles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
                         .payingWith(GENESIS)
                         .hasPrecheck(CLPR_NOT_ENABLED));
@@ -71,12 +72,25 @@ public class ClprUpdateLedgerConfigurationSuite {
         return hapiTest(
                 overriding("clpr.enabled", "true"),
                 clprUpdateLedgerConfiguration()
-                        .serviceAddress(new byte[] {0, 0, 1})
+                        .serviceAddress(CLPR_SERVICE_ADDRESS_20)
                         .throttles(ClprThrottles.newBuilder()
                                 .setMaxMessagesPerBundle(0)
                                 .setMaxMessagePayloadBytes(65536)
                                 .setMaxQueueDepth(1000)
                                 .build())
+                        .payingWith(GENESIS)
+                        .hasPrecheck(INVALID_CLPR_CONFIGURATION));
+    }
+
+    @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
+    final Stream<DynamicTest> rejectsServiceAddressOtherThanClprSystemContract() {
+        // Peers verify this config against the ledger's endpoint manifest, whose service address
+        // is fixed to the CLPR system contract's (spec §4.8), so any other address is rejected.
+        return hapiTest(
+                overriding("clpr.enabled", "true"),
+                clprUpdateLedgerConfiguration()
+                        .serviceAddress(new byte[] {0, 0, 1})
+                        .throttles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
                         .payingWith(GENESIS)
                         .hasPrecheck(INVALID_CLPR_CONFIGURATION));
     }
@@ -91,7 +105,7 @@ public class ClprUpdateLedgerConfigurationSuite {
     @LeakyHapiTest(requirement = PROPERTY_OVERRIDES)
     final Stream<DynamicTest> rejectsTooManySeedEndpoints() {
         final var op = clprUpdateLedgerConfiguration()
-                .serviceAddress(new byte[] {0, 0, 1})
+                .serviceAddress(CLPR_SERVICE_ADDRESS_20)
                 .throttles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
                 .payingWith(GENESIS)
                 .hasPrecheck(CLPR_TOO_MANY_SEED_ENDPOINTS);
@@ -110,7 +124,7 @@ public class ClprUpdateLedgerConfigurationSuite {
                         .configuration(ClprLedgerConfiguration.newBuilder()
                                 .setChainId("should-be-ignored")
                                 .setProtocolVersion(999)
-                                .setServiceAddress(com.google.protobuf.ByteString.copyFrom(new byte[] {0, 0, 1}))
+                                .setServiceAddress(com.google.protobuf.ByteString.copyFrom(CLPR_SERVICE_ADDRESS_20))
                                 .setThrottles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
                                 .build())
                         .payingWith(GENESIS));

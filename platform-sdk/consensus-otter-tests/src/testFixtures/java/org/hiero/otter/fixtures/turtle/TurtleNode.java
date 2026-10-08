@@ -7,6 +7,8 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialSta
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.base.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.platformstate.PlatformStateUtils.roundOf;
+import static org.hiero.consensus.roster.RosterUtils.rosterInputsFromGenesis;
 import static org.hiero.otter.fixtures.app.OtterStateUtils.initGenesisState;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
@@ -50,10 +52,8 @@ import org.hiero.consensus.io.RecycleBinImpl;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.platformstate.PlatformStateService;
-import org.hiero.consensus.platformstate.ReadablePlatformStateStore;
-import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.consensus.state.signed.ReservedSignedState;
@@ -192,7 +192,10 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
             // Uses a platform logger to ensure it routes through per-node appenders
             startupLogger.info(LogMarker.STARTUP.getMarker(), "\n\n" + StaticPlatformBuilder.STARTUP_MESSAGE + "\n");
 
-            if (savedStateDirectory != null) {
+            // Only copy the saved state on the first start. On restart, the node must resume from its own files;
+            // copying again would restore the original PCES files alongside the ones the node has since written
+            // or compacted.
+            if (lifeCycle == INIT && savedStateDirectory != null) {
                 try {
                     OtterSavedStateUtils.copySaveState(selfId, savedStateDirectory, outputDirectory);
                 } catch (final IOException exception) {
@@ -233,7 +236,7 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
                     .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
                     .build();
 
-            otterApp = new OtterApp(currentConfiguration, version);
+            otterApp = new OtterApp(currentConfiguration, version, roster());
 
             final HashedReservedSignedState reservedState = loadInitialState(
                     recycleBin,
@@ -245,22 +248,23 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
                     fileSystemManager,
                     stateLifecycleManager);
 
-            if (reservedState.state().get().isGenesisState()) {
-                initGenesisState(reservedState.state().get().getState(), roster(), version, otterApp.allServices());
-            }
-
             final ReservedSignedState initialState = reservedState.state();
             final VirtualMapState state = initialState.get().getState();
 
-            // Set the active roster
-            final ReadablePlatformStateStore platformStateStore =
-                    new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
-            final WritableRosterStore rosterStore =
-                    new WritableRosterStore(state.getWritableStates(RosterStateId.SERVICE_NAME));
-            rosterStore.putActiveRoster(roster(), platformStateStore.getRound() + 1);
-            OtterStateUtils.commitState(state);
+            final ConsensusLayerRosterInputs rosterInputs;
+            if (initialState.get().isGenesisState()) {
+                // Like in production, the genesis roster is written to the state in the first round
+                initGenesisState(state, version, otterApp.allServices());
+                rosterInputs = rosterInputsFromGenesis(roster());
+            } else {
+                // Set the active roster
+                final WritableRosterStore rosterStore =
+                        new WritableRosterStore(state.getWritableStates(RosterStateId.SERVICE_NAME));
+                rosterStore.putActiveRoster(roster(), roundOf(state) + 1);
+                OtterStateUtils.commitState(state);
+                rosterInputs = rosterStore.getConsensusLayerRosterInputs();
+            }
 
-            final RosterHistory rosterHistory = rosterStore.getRosterHistory();
             final String eventStreamLoc = Long.toString(selfId.id());
 
             this.executionLayer = new OtterExecutionLayer(new Random(random.nextLong()), metrics, timeManager.time());
@@ -269,7 +273,7 @@ public class TurtleNode extends AbstractNode implements Node, SimulatorTimeManag
                             currentConfiguration,
                             metrics,
                             timeManager.time(),
-                            rosterHistory,
+                            rosterInputs,
                             keysAndCerts,
                             selfId,
                             recycleBin,

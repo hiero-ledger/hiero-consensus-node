@@ -594,12 +594,35 @@ public class SerializableDataInputStream extends AugmentedDataInputStream {
      */
     @NonNull
     public <T> T readPbjRecord(@NonNull final Codec<T> codec) throws IOException {
+        return readPbjRecord(codec, MAX_PBJ_RECORD_SIZE);
+    }
+
+    /**
+     * Reads a PBJ record from the stream, rejecting anything whose declared encoded size falls outside
+     * {@code [0, maxSize]}.
+     *
+     * <p>The declared size is peer controlled, so it is validated before it is used to set the read limit. This
+     * check does not rely on the codec's own {@code maxSize} enforcement.
+     *
+     * @param codec   the codec to use to parse the record
+     * @param maxSize the maximum permitted encoded size of the record, in bytes
+     * @param <T>     the type of the record
+     * @return the parsed record
+     * @throws IOException if an IO error occurs, or the declared size is out of range
+     */
+    @NonNull
+    public <T> T readPbjRecord(@NonNull final Codec<T> codec, final int maxSize) throws IOException {
         final int size = readInt();
+        if (size < 0 || size > maxSize) {
+            throw new IOException(
+                    "PBJ record declared size " + size + " is outside the permitted range [0, " + maxSize + "]");
+        }
         readableSequentialData.limit(readableSequentialData.position() + size);
+
         try {
             // parse strictly with a default depth and max record size to prevent very large messages.
             // We can't use `parseStrict` as it doesn't support record size validation.
-            final T parsed = codec.parse(readableSequentialData, true, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
+            final T parsed = codec.parse(readableSequentialData, true, false, DEFAULT_MAX_DEPTH, maxSize);
             if (readableSequentialData.position() != readableSequentialData.limit()) {
                 throw new EOFException("PBJ record was not fully read");
             }

@@ -37,7 +37,7 @@ public class PlatformStateService implements OtterService {
 
     private static final Logger log = LogManager.getLogger();
 
-    private static final String NAME = "PlatformStateService";
+    private static final String NAME = org.hiero.consensus.platformstate.PlatformStateService.NAME;
 
     private static final PlatformStateSpecification STATE_SPECIFICATION = new PlatformStateSpecification();
 

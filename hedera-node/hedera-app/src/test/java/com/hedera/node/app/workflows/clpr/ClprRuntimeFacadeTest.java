@@ -95,13 +95,13 @@ class ClprRuntimeFacadeTest {
         final var response = BufferedData.allocate(1);
 
         subject.start();
-        subject.handleSync(request, response);
+        subject.handleDiscovery(request, response);
         subject.stop();
 
         assertThat(channelManagerProviderCalls).hasValue(1);
         verify(channelManager).start();
         assertThat(syncWorkflowProviderCalls).hasValue(1);
-        verify(syncWorkflow).handleSync(request, response);
+        verify(syncWorkflow).handleDiscovery(request, response);
         verify(channelManager).stop();
     }
 
@@ -130,7 +130,7 @@ class ClprRuntimeFacadeTest {
     void disablingAnInitializedRuntimeRejectsNewWorkAndStillAllowsShutdown() {
         given(clprConfig.enabled()).willReturn(true);
         subject.start();
-        subject.handleSync(Bytes.EMPTY, BufferedData.allocate(1));
+        subject.handleDiscovery(Bytes.EMPTY, BufferedData.allocate(1));
         clearInvocations(channelManager, syncWorkflow);
 
         given(clprConfig.enabled()).willReturn(false);
@@ -168,7 +168,6 @@ class ClprRuntimeFacadeTest {
 
     private static void assertAllInboundCallsDisabled(final ClprRuntimeFacade runtime) {
         final List<Runnable> calls = List.of(
-                () -> runtime.handleSync(Bytes.EMPTY, BufferedData.allocate(1)),
                 () -> runtime.handleDiscovery(Bytes.EMPTY, BufferedData.allocate(1)),
                 () -> runtime.openStreamingSync(),
                 () -> runtime.openStreamingSync("disabled-test"));

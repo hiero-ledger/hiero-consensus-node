@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.handle.dispatch;
 
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.INTERNAL_SYSTEM_TRANSACTION;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -13,9 +14,8 @@ import javax.inject.Singleton;
 
 /**
  * The live consensus node {@link NodeControlledPayerGuard}: a NODE-category dispatch is rejected unless its payer is
- * node-controlled. Only two payers are node-controlled and therefore legitimate: the configured system admin account
- * (used by synthetically dispatched system transactions such as node fee payments) and the creator node's own account
- * (used by gossiped node-submitted votes the node pays for itself).
+ * node-controlled. Gossiped transactions must use the creator node's own account. Only trusted internal system
+ * dispatches may instead use the configured system admin account, for example for node fee payments.
  */
 @Singleton
 public class LiveNodeControlledPayerGuard implements NodeControlledPayerGuard {
@@ -42,6 +42,11 @@ public class LiveNodeControlledPayerGuard implements NodeControlledPayerGuard {
                 .realmNum(hederaConfig.realm())
                 .accountNum(accountsConfig.systemAdmin())
                 .build();
-        return payerId.equals(systemAdminId);
+        // The payer ID alone cannot establish trust: a node can name the system admin in a gossiped transaction.
+        // This marker is supplied by SystemTransactions, never decoded from transaction bytes.
+        return payerId.equals(systemAdminId)
+                && Boolean.TRUE.equals(dispatch.handleContext()
+                        .dispatchMetadata()
+                        .getMetadataIfPresent(INTERNAL_SYSTEM_TRANSACTION, Boolean.class));
     }
 }

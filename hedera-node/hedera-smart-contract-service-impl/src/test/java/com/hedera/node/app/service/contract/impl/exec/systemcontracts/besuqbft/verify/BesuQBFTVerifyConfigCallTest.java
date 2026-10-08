@@ -66,7 +66,7 @@ class BesuQBFTVerifyConfigCallTest extends CallTestBase {
     }
 
     @Test
-    void seedEndpointsEncodingReturns8TupleWithAllConfigFields() throws Exception {
+    void manifestEncodingReturns8TupleWithAllConfigFields() throws Exception {
         final byte[] channelId32 = new byte[32];
         channelId32[0] = (byte) 0xAB;
         final ClprThrottles throttles = ClprThrottles.newBuilder()
@@ -85,13 +85,14 @@ class BesuQBFTVerifyConfigCallTest extends CallTestBase {
                 .build();
 
         try (final var ignored = mockVerifier(config)) {
-            final var result = new BesuQBFTVerifyConfigCall(mockEnhancement(), gasCalculator, STATE_PROOF, channelId32)
+            final var result = new BesuQBFTVerifyConfigCall(
+                            mockEnhancement(), gasCalculator, STATE_PROOF, channelId32, new byte[0])
                     .execute(frame);
 
             assertThat(result.responseCode()).isEqualTo(SUCCESS);
             assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.COMPLETED_SUCCESS);
 
-            final var decoded = BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS
+            final var decoded = BesuQBFTVerifyConfigTranslator.VERIFY_CONFIG
                     .getOutputs()
                     .decode(result.fullResult().output().toArray());
             // field 0: channelContext = channelId32 ++ serviceAddress
@@ -103,13 +104,13 @@ class BesuQBFTVerifyConfigCallTest extends CallTestBase {
             assertThat(((byte[]) decoded.get(2)).length).isEqualTo(20);
             // field 4: throttles tuple — index 0 = maxMessagesPerBundle, index 2 = maxGasPerMessage
             final Tuple throttlesTuple = decoded.get(4);
-            assertThat(((BigInteger) throttlesTuple.get(0)).intValue()).isEqualTo(100);
+            assertThat(((Number) throttlesTuple.get(0)).intValue()).isEqualTo(100);
             assertThat(((BigInteger) throttlesTuple.get(2)).longValue()).isEqualTo(1_000_000L);
         }
     }
 
     private BesuQBFTVerifyConfigCall subject() {
-        return new BesuQBFTVerifyConfigCall(mockEnhancement(), gasCalculator, STATE_PROOF, new byte[32]);
+        return new BesuQBFTVerifyConfigCall(mockEnhancement(), gasCalculator, STATE_PROOF, new byte[32], new byte[0]);
     }
 
     private static ClprLedgerConfiguration minimalConfig() {

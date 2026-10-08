@@ -12,7 +12,6 @@ import com.hedera.hapi.node.state.clpr.ClprPeerEndpointsEntry;
 import com.hedera.node.app.service.clpr.ClprChannelLifecycle;
 import com.hedera.node.app.service.clpr.ClprService;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
-import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
 import com.hedera.node.app.service.clpr.impl.ReadableEndpointManifestStoreImpl;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
@@ -101,8 +100,10 @@ public class ClprChannelManager implements ClprChannelLifecycle {
     private final Set<Bytes> knownChannelIds = ConcurrentHashMap.newKeySet();
 
     /**
-     * Per-channel cache of known peer endpoints. Seeded from
-     * {@code ClprLedgerConfiguration.endpoints} and updated via discovery.
+     * Per-channel cache of known peer endpoints: a node-local mirror of each channel's cached peer
+     * endpoint manifest (seeded at channel completion and on manifest updates), which is what the inbound
+     * mTLS trust set is derived from. Dial targets are read from {@code Channel.endpoint_manifest}, not from
+     * here. While mTLS is disabled the legacy discovery loop may also merge entries into it.
      */
     private final Map<Bytes, List<ClprEndpoint>> peerEndpointCache = new ConcurrentHashMap<>();
 
@@ -190,7 +191,7 @@ public class ClprChannelManager implements ClprChannelLifecycle {
         // Rebuild the in-memory registry and peer endpoint cache from the node-local disk cache.
         // After a restart the loaded state already has these channels ACTIVE, so
         // onChannelActivated never fires for them; without this they would never tick again,
-        // and seedEndpointsFromConfig would only restore this node's own (self) endpoints.
+        // and the inbound mTLS trust set would be empty until the next manifest update.
         rehydrateFromDisk();
         // Schedule ticks for any channels that activated before the orchestrator started;
         // they would otherwise never tick and never exchange messages.
@@ -355,7 +356,7 @@ public class ClprChannelManager implements ClprChannelLifecycle {
                 return ClprPeerEndpoints.DEFAULT;
             }
             try (final var fin = Files.newInputStream(peerEndpointsPath)) {
-                return ClprPeerEndpoints.JSON.parse(new ReadableStreamingData(fin));
+                return ClprPeerEndpoints.JSON.parseStrict(new ReadableStreamingData(fin));
             }
         } catch (final Exception e) {
             logger.error("Failed to read CLPR channel cache from {}", peerEndpointsPath, e);
@@ -432,17 +433,9 @@ public class ClprChannelManager implements ClprChannelLifecycle {
                 unscheduleChannel(channelId);
                 return;
             }
-            // When the manifest feature flag is off (default until every peer verifier has
-            // migrated), the channel's endpoint_manifest stays empty and would starve
-            // the outbound sync. Preserve the pre-#346 behavior: seed the peer-endpoint
-            // cache from ClprLedgerConfiguration.endpoints on first observation, and pass
-            // those endpoints into synchronize() directly. When the flag is on, dial targets
-            // come from Channel.endpoint_manifest.endpoints() — populated at
-            // ClprCompleteChannel time from the required manifest proof — and there is
-            // deliberately no config fallback (spec §4.7).
-            if (!clprConfig.endpointManifestEnabled() && !peerEndpointCache.containsKey(channelId)) {
-                seedEndpointsFromConfig(channelId, storeFactory);
-            }
+            // Dial targets come from Channel.endpoint_manifest.endpoints() — populated at
+            // ClprCompleteChannel time from the required manifest proof — with no config
+            // fallback (spec §4.7).
             initiateSync(channel);
         } catch (final Exception e) {
             logger.error("Error during CLPR sync for channel {}", channelId.toHex(), e);
@@ -470,16 +463,12 @@ public class ClprChannelManager implements ClprChannelLifecycle {
         }
 
         // Skip only when there is no pending outbound work. "Pending work" is either queued
-        // messages OR — when the endpoint-manifest feature is on — a local manifest advance the
-        // peer has not yet observed. A moved endpoint must propagate even with an empty
-        // message queue, or peers stay stuck dialing the obsolete address.
+        // messages OR a local manifest advance the peer has not yet observed. A moved endpoint
+        // must propagate even with an empty message queue, or peers stay stuck dialing the
+        // obsolete address.
         final boolean noQueuedMessages = channel.nextMessageId() - 1 <= channel.ackedMessageId();
         final long peerObservedManifestVersion = peerObservedManifestVersions.getOrDefault(channel.channelId(), 0L);
-        final boolean manifestStaleOnPeer = configProvider
-                        .getConfiguration()
-                        .getConfigData(ClprConfig.class)
-                        .endpointManifestEnabled()
-                && readLocalManifestVersion() > peerObservedManifestVersion;
+        final boolean manifestStaleOnPeer = readLocalManifestVersion() > peerObservedManifestVersion;
         if (noQueuedMessages && !manifestStaleOnPeer) {
             logger.debug(
                     "[CLPR-SYNC-MANAGER] skipping — no queued messages and peer manifest current conn={} "
@@ -488,6 +477,17 @@ public class ClprChannelManager implements ClprChannelLifecycle {
                     channel.nextMessageId(),
                     channel.ackedMessageId(),
                     peerObservedManifestVersion);
+            return;
+        }
+
+        // Resolve the dial-target list from Channel.endpoint_manifest.endpoints() (spec §4.7, the
+        // authoritative cached peer manifest), populated at ClprCompleteChannel time from the required
+        // manifest proof. A cached manifest may legitimately have no endpoints yet (e.g. the peer's
+        // genesis placeholder); until a later manifest update there is nothing to dial, so skip before
+        // taking a sync slot rather than dispatching a sync that can only warn and return every tick.
+        final List<ClprEndpoint> providedEndpoints = resolveDialTargets(channel);
+        if (providedEndpoints.isEmpty()) {
+            logger.debug("[CLPR-SYNC-MANAGER] skipping — cached peer manifest has no dial targets conn={}", channelId);
             return;
         }
 
@@ -505,20 +505,8 @@ public class ClprChannelManager implements ClprChannelLifecycle {
             return;
         }
 
-        // Pick the dial-target source based on the manifest feature flag, then hand the
-        // resulting list to the synchronizer. The synchronizer is agnostic to which source
-        // it came from — this class is the single point that resolves the flag.
-        //   * flag OFF (default): endpoints seeded from ClprLedgerConfiguration.endpoints on
-        //     first observation. Pre-#346 legacy path for peers whose verifier contracts
-        //     haven't migrated to the manifest-aware ABI yet.
-        //   * flag ON: endpoints read from Channel.endpoint_manifest.endpoints() (spec §4.7,
-        //     the authoritative cached peer manifest). Populated at ClprCompleteChannel
-        //     time from the required manifest proof; a channel with an empty manifest
-        //     yields an empty list and the sync tick is skipped by the synchronizer.
-        // Also read the local ClprEndpointManifest.version() so the synchronizer can decide
-        // whether to embed a manifest proof in the outbound bundle (see #335).
-        final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
-        final List<ClprEndpoint> providedEndpoints = resolveDialTargets(channel, clprConfig);
+        // Hand the dial targets to the synchronizer, along with the local ClprEndpointManifest.version()
+        // so it can decide whether to embed a manifest proof in the outbound bundle (see #335).
         scheduler.execute(() -> {
             try {
                 final long localManifestVersion = readLocalManifestVersion();
@@ -534,19 +522,14 @@ public class ClprChannelManager implements ClprChannelLifecycle {
     }
 
     /**
-     * Resolves the dial-target list for {@code channel} per the manifest feature flag.
+     * Resolves the dial-target list for {@code channel} from its cached endpoint manifest.
      * Returns an unmodifiable list (possibly empty); never {@code null}.
      */
     @NonNull
-    private List<ClprEndpoint> resolveDialTargets(
-            @NonNull final ClprChannel channel, @NonNull final ClprConfig clprConfig) {
-        if (clprConfig.endpointManifestEnabled()) {
-            return channel.hasEndpointManifest()
-                    ? List.copyOf(channel.endpointManifestOrThrow().endpoints())
-                    : List.of();
-        }
-        final var cached = peerEndpointCache.get(channel.channelId());
-        return cached == null ? List.of() : List.copyOf(cached);
+    private List<ClprEndpoint> resolveDialTargets(@NonNull final ClprChannel channel) {
+        return channel.hasEndpointManifest()
+                ? List.copyOf(channel.endpointManifestOrThrow().endpoints())
+                : List.of();
     }
 
     /**
@@ -573,7 +556,8 @@ public class ClprChannelManager implements ClprChannelLifecycle {
      * Single tick of the discovery loop. For each channel whose endpoint cache is
      * non-empty, picks one known peer at random and calls its {@code discoverEndpoints}
      * RPC, merging the response into the local cache. Channels with no cached
-     * endpoints are skipped (the sync tick will seed them from ledger config first).
+     * endpoints are skipped. Legacy: discovery results are never used as dial targets, which
+     * come only from each channel's cached peer endpoint manifest.
      */
     void discoveryTick() {
         final var configuration = configProvider.getConfiguration();
@@ -589,8 +573,8 @@ public class ClprChannelManager implements ClprChannelLifecycle {
         if (leafCertManager.isMtlsEnabled()) {
             if (discoveryMtlsWarned.compareAndSet(false, true)) {
                 logger.warn("CLPR discovery is suppressed while mTLS is enabled: the advertised endpoint "
-                        + "port serves the mTLS sync listener only. Peers are learned via ledger config "
-                        + "and channel completion.");
+                        + "port serves the mTLS sync listener only. Peers are learned from each channel's "
+                        + "endpoint manifest.");
             }
             return;
         }
@@ -633,37 +617,6 @@ public class ClprChannelManager implements ClprChannelLifecycle {
             } catch (final Exception e) {
                 logger.warn("Unexpected error during discovery tick for channel {}", channelId.toHex(), e);
             }
-        }
-    }
-
-    /**
-     * Seeds the peer endpoint cache for a channel from the ledger configuration's
-     * endpoints list.
-     */
-    @VisibleForTesting
-    void seedEndpointsFromConfig(@NonNull final Bytes channelId, @NonNull final ReadableStoreFactoryImpl storeFactory) {
-        try {
-            final var configStore = storeFactory.readableStore(ReadableLedgerConfigurationStore.class);
-            final var ledgerConfig = configStore.getConfiguration();
-            if (!ledgerConfig.endpoints().isEmpty()) {
-                final var all = ledgerConfig.endpoints();
-                // Truncate to the configured max_peer_endpoints (spec §3.10.5).
-                // Zero means no peer endpoint limit is enforced.
-                final var throttles = ledgerConfig.throttles();
-                final int rawPeerLimit = throttles != null ? throttles.maxPeerEndpoints() : 0;
-                final int cap = rawPeerLimit > 0 ? Math.min(rawPeerLimit, all.size()) : all.size();
-                peerEndpointCache.put(channelId, new ArrayList<>(all.subList(0, cap)));
-                rebuildPeerCaCache();
-                logger.info(
-                        "Seeded {} endpoints (of {} total) for channel {} from ledger configuration",
-                        cap,
-                        all.size(),
-                        channelId.toHex());
-            } else {
-                logger.warn("No seed endpoints in ledger configuration for channel {}", channelId.toHex());
-            }
-        } catch (final Exception e) {
-            logger.error("Could not seed CLPR endpoints from ledger config", e);
         }
     }
 

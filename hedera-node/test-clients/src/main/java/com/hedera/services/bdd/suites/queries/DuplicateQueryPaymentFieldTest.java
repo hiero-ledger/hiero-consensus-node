@@ -11,6 +11,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_QUERY_
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
@@ -19,6 +20,8 @@ import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.QueryHeader;
 import com.hederahashgraph.api.proto.java.ResponseType;
 import com.hederahashgraph.api.proto.java.Transaction;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import java.io.ByteArrayOutputStream;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -29,16 +32,16 @@ import org.junit.jupiter.api.DynamicTest;
  * same way as the canonical parse used for the rest of the query workflow.
  *
  * <p>A paid query (here {@code CryptoGetInfo} with {@code ANSWER_ONLY}) carries its payment in
- * {@code QueryHeader.payment}. The workflow lifts the payment out with a hand-written walker
- * ({@code ProtobufUtils}) to verify and submit it, while it parses the whole query with PBJ, which keeps the
- * <b>last</b> occurrence of a duplicated field. If the walker kept the <b>first</b> occurrence instead, a query
- * that encodes the payment twice would have its first payment verified and submitted while the rest of the node
- * acted on the last — the two would disagree on the payment. The walker now rejects any such duplicate, so a
- * duplicate-payment query is refused with the {@code INVALID_QUERY_HEADER} status.
+ * {@code QueryHeader.payment}. If a duplicated payment field were accepted, the node could verify and submit one
+ * occurrence while acting on another — the two would disagree on the payment. The node's strict PBJ parse now
+ * rejects any duplicated non-repeated field at the protobuf parse boundary, before any query handling, surfacing
+ * it to the caller as a gRPC {@code INVALID_ARGUMENT} status. (When the same crafted bytes arrive over the real
+ * gRPC wire, {@code QueryWorkflowImpl} throws the same {@code StatusRuntimeException}, which {@code MethodBase}
+ * relays to the client as {@code INVALID_ARGUMENT}.)
  *
  * <p>This runs only in embedded mode because a duplicate non-repeated field cannot be produced through the
  * normal gRPC/builder send path — protobuf always serializes a canonical, single-occurrence encoding — so the
- * test hands the node raw crafted bytes directly through the in-process query workflow.
+ * test hands the node raw crafted bytes directly through the in-process query workflow via {@code sendQueryRaw}.
  */
 public class DuplicateQueryPaymentFieldTest {
 
@@ -79,19 +82,18 @@ public class DuplicateQueryPaymentFieldTest {
                     lenField(CryptoGetInfoQuery.HEADER_FIELD_NUMBER, duplicatePaymentHeader));
 
             final var embedded = spec.embeddedHederaOrThrow();
+
+            // The duplicate-payment query is rejected at the protobuf parse boundary (strict PBJ parse refuses a
+            // duplicated non-repeated field) before any query handling, resulting in a gRPC INVALID_ARGUMENT.
+            final var thrown =
+                    assertThrows(StatusRuntimeException.class, () -> embedded.sendQueryRaw(duplicatePayment));
+            assertEquals(Status.Code.INVALID_ARGUMENT, thrown.getStatus().getCode());
+
+            // The single-payment query should still parse cleanly, but fail validation
             final var singleCode = embedded.sendQueryRaw(singlePayment)
                     .getCryptoGetInfo()
                     .getHeader()
                     .getNodeTransactionPrecheckCode();
-            final var duplicateCode = embedded.sendQueryRaw(duplicatePayment)
-                    .getCryptoGetInfo()
-                    .getHeader()
-                    .getNodeTransactionPrecheckCode();
-
-            // The duplicate-payment query is refused by the payment walker before any verification.
-            assertEquals(INVALID_QUERY_HEADER, duplicateCode);
-            // The single-payment query is not refused by the walker — it reaches payment verification and fails
-            // there — which confirms INVALID_QUERY_HEADER above is specifically the duplicate being rejected.
             assertNotEquals(INVALID_QUERY_HEADER, singleCode);
         }));
     }
@@ -100,8 +102,8 @@ public class DuplicateQueryPaymentFieldTest {
      * The positive counterpart of the test above: the FIRST of the two payment occurrences is a genuinely valid,
      * signed payment (captured from a real successful paid query), so without the fix the node would extract and
      * verify that valid payment and answer the query — i.e. the checks would pass on an ambiguous-payment query
-     * whose canonical (PBJ, last-wins) reading names a different payment. With the fix the duplicate is refused
-     * with {@code INVALID_QUERY_HEADER} before any verification.
+     * whose canonical (PBJ, last-wins) reading names a different payment. Instead the duplicated non-repeated
+     * field is rejected by the strict PBJ parse with a gRPC {@code INVALID_ARGUMENT} (before any handling).
      */
     @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
     final Stream<DynamicTest> nodeRejectsPaidQueryWhoseValidFirstPaymentIsDuplicated() {
@@ -160,12 +162,11 @@ public class DuplicateQueryPaymentFieldTest {
                             lenField(CryptoGetInfoQuery.HEADER_FIELD_NUMBER, duplicatePaymentHeader), accountIdField);
                     final var duplicatePayment = lenField(Query.CRYPTOGETINFO_FIELD_NUMBER, cryptoGetInfoBytes);
 
-                    final var code = spec.embeddedHederaOrThrow()
-                            .sendQueryRaw(duplicatePayment)
-                            .getCryptoGetInfo()
-                            .getHeader()
-                            .getNodeTransactionPrecheckCode();
-                    assertEquals(INVALID_QUERY_HEADER, code);
+                    final var embedded = spec.embeddedHederaOrThrow();
+                    final var thrown =
+                            assertThrows(StatusRuntimeException.class, () -> embedded.sendQueryRaw(duplicatePayment));
+                    assertEquals(
+                            Status.Code.INVALID_ARGUMENT, thrown.getStatus().getCode());
                 }));
     }
 

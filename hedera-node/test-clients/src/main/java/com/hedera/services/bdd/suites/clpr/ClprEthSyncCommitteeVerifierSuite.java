@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.clpr;
 
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.CHANNELS_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.CHANNELS_STATE_ID;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -17,6 +17,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_BUNDLE_VERIFICATION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CLPR_VERIFIER_CONFIG_FAILED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -187,14 +188,14 @@ public class ClprEthSyncCommitteeVerifierSuite {
     }
 
     /**
-     * completeChannel under {@code clpr.endpointManifestEnabled=true}, with the peer endpoint manifest supplied as
+     * completeChannel with the peer endpoint manifest supplied as
      * the config path's {@code endpoint_manifest_proof_bytes} (raw {@code ClprEndpointManifest} bytes, spec §4.8).
      * Exercises 0, 1, and N (3) manifest endpoints — each on a fresh channel — and asserts the resulting
      * Channel's {@code endpoint_manifest_version >= 1} and that its stored endpoints match the supplied manifest.
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit", "clpr.endpointManifestEnabled"})
+            overrides = {"clpr.verifierGasLimit"})
     @DisplayName("Eth verifier: completeChannel installs the config endpoint manifest (0, 1, N endpoints)")
     final Stream<DynamicTest> completeChannelInstallsConfigManifest() {
         final int[] endpointCounts = {0, 1, 3};
@@ -202,7 +203,6 @@ public class ClprEthSyncCommitteeVerifierSuite {
         // A full 512-key committee makes the verifier calldata ~25KB+, so the dispatch needs more than
         // the 300k default verifier gas.
         ops.add(overriding("clpr.verifierGasLimit", "5000000"));
-        ops.add(overriding("clpr.endpointManifestEnabled", "true"));
         ops.add(clprUpdateLedgerConfiguration()
                 .configuration(localLedgerConfig())
                 .payingWith(GENESIS));
@@ -239,7 +239,7 @@ public class ClprEthSyncCommitteeVerifierSuite {
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit", "clpr.endpointManifestEnabled"})
+            overrides = {"clpr.verifierGasLimit"})
     @DisplayName("Eth verifier: bundle carrying a higher-version manifest updates the Channel via Step-1b")
     final Stream<DynamicTest> bundleAdvancesEndpointManifest() {
         final var crypto = new ClprChannelCrypto();
@@ -247,7 +247,6 @@ public class ClprEthSyncCommitteeVerifierSuite {
         final byte[] advanceManifest = EthSyncCommitteeProofs.manifestBytes(2L, 2);
 
         return hapiTest(flattened(
-                overriding("clpr.endpointManifestEnabled", "true"),
                 // completeChannel with an empty endpoint_manifest_proof_bytes synthesizes a version-1 manifest
                 // from the config endpoints, so the channel opens at manifest version 1.
                 setupChannelWithEthereumVerifier(crypto, EthSyncCommitteeProofs.configPayload()),
@@ -275,13 +274,12 @@ public class ClprEthSyncCommitteeVerifierSuite {
      */
     @LeakyEmbeddedHapiTest(
             reason = NEEDS_STATE_ACCESS,
-            overrides = {"clpr.verifierGasLimit", "clpr.endpointManifestEnabled"})
+            overrides = {"clpr.verifierGasLimit"})
     @DisplayName("Eth verifier: manifest service_address mismatch → CLPR_VERIFIER_CONFIG_FAILED")
     final Stream<DynamicTest> rejectsManifestWithMismatchedServiceAddress() {
         final var crypto = new ClprChannelCrypto();
         return hapiTest(
                 overriding("clpr.verifierGasLimit", "5000000"),
-                overriding("clpr.endpointManifestEnabled", "true"),
                 clprUpdateLedgerConfiguration()
                         .configuration(localLedgerConfig())
                         .payingWith(GENESIS),
@@ -390,13 +388,13 @@ public class ClprEthSyncCommitteeVerifierSuite {
 
     /**
      * The local ledger's own configuration (unrelated to the peer config carried in the proof). The
-     * Ethereum verifier reads the peer's service address from the config payload, so this local
-     * service address need not be 20 bytes.
+     * Ethereum verifier reads the peer's service address from the config payload; this local one
+     * must be the CLPR system contract address, since ClprUpdateLedgerConfiguration rejects others.
      */
     private static ClprLedgerConfiguration localLedgerConfig() {
         return ClprLedgerConfiguration.newBuilder()
                 .setChainId("hiero:testing")
-                .setServiceAddress(ByteString.copyFrom(new byte[] {0, 0, 1}))
+                .setServiceAddress(ByteString.copyFrom(CLPR_SERVICE_ADDRESS_20))
                 .setThrottles(ClprThrottles.newBuilder()
                         .setMaxMessagesPerBundle(100)
                         .setMaxMessagePayloadBytes(65536)

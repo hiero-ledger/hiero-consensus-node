@@ -45,7 +45,6 @@ module org.hiero.consensus.gossip.impl {
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
     requires org.hiero.consensus.metrics;
-    requires org.hiero.consensus.roster;
     requires static transitive com.github.spotbugs.annotations;
 
     uses ReconnectProtocolFactory;

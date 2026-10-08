@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.clpr;
 
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
-import static com.hedera.node.app.service.clpr.impl.schemas.V0770ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_CONSTRUCTION_STATE_ID;
+import static com.hedera.node.app.service.clpr.impl.schemas.V0780ClprSchema.ENDPOINT_MANIFEST_STATE_ID;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.CLPR;
@@ -34,7 +34,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.VERIFY_CONFIG_WITH_SEED_ENDPOINTS;
+import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.VERIFY_CONFIG;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toBundleProofBytes;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toConfigProofBytes;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
@@ -126,11 +126,7 @@ public class ClprEnabledSuite {
 
     @BeforeAll
     static void beforeAll(final TestLifecycle lifecycle) {
-        lifecycle.overrideInClass(Map.of(
-                "clpr.enabled",
-                System.getProperty("clpr.test.enabled", "true"),
-                "clpr.endpointManifestEnabled",
-                "false"));
+        lifecycle.overrideInClass(Map.of("clpr.enabled", System.getProperty("clpr.test.enabled", "true")));
     }
 
     @HapiTest
@@ -170,12 +166,12 @@ public class ClprEnabledSuite {
     @HapiTest
     @DisplayName("Native CLPR contracts reach proof validation when enabled")
     final Stream<DynamicTest> nativeClprContractsReachValidation() {
-        // Deliberately invalid proof with the supported shared bundle selector. Enabled execution reverts; the disabled
-        // native
-        // contract halts with the distinct CLPR_NOT_ENABLED status, so it cannot satisfy this test.
+        // Deliberately invalid proof with the supported shared bundle selector. Enabled execution reverts; a disabled
+        // native contract's address behaves as a plain system account and succeeds without executing anything, so it
+        // cannot satisfy this test.
         return hapiTest(CLPR_SYSTEM_CONTRACT_NUMS.stream()
                 .map(num -> contractCallWithFunctionAbi(
-                                num, VERIFY_CONFIG_WITH_SEED_ENDPOINTS.toJson(false), new byte[] {1}, new byte[32])
+                                num, VERIFY_CONFIG.toJson(false), new byte[] {1}, new byte[32], new byte[0])
                         .payingWith(GENESIS)
                         .gas(GAS_TO_OFFER)
                         .refusingEthConversion()
@@ -232,20 +228,18 @@ public class ClprEnabledSuite {
                         .usePlaintext()
                         .build();
                 try {
-                    for (final var method : List.of("sync", "discoverEndpoints")) {
-                        final var error = assertThrows(
-                                StatusRuntimeException.class,
-                                () -> ClientCalls.blockingUnaryCall(
-                                        channel,
-                                        peerMethod(method, MethodDescriptor.MethodType.UNARY),
-                                        CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS),
-                                        new byte[0]));
-                        assertInvalidPeerRequest(error.getStatus());
-                    }
+                    final var error = assertThrows(
+                            StatusRuntimeException.class,
+                            () -> ClientCalls.blockingUnaryCall(
+                                    channel,
+                                    peerMethod("discoverEndpoints", MethodDescriptor.MethodType.UNARY),
+                                    CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS),
+                                    new byte[0]));
+                    assertInvalidPeerRequest(error.getStatus());
                     final var status = new CompletableFuture<Status>();
                     final var stream = ClientCalls.asyncBidiStreamingCall(
                             channel.newCall(
-                                    peerMethod("streamingSync", MethodDescriptor.MethodType.BIDI_STREAMING),
+                                    peerMethod("sync", MethodDescriptor.MethodType.BIDI_STREAMING),
                                     CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS)),
                             new StreamObserver<byte[]>() {
                                 @Override
@@ -278,12 +272,6 @@ public class ClprEnabledSuite {
     @Nested
     @DisplayName("Endpoint manifest lifecycle")
     class ManifestTests {
-        @BeforeAll
-        static void enableManifestLifecycle(final TestLifecycle lifecycle) {
-            // Only the manifest sub-feature changes for this group; the master flag is inherited.
-            lifecycle.overrideInClass(Map.of("clpr.endpointManifestEnabled", "true"));
-        }
-
         @LeakyEmbeddedHapiTest(reason = {MUST_SKIP_INGEST, NEEDS_STATE_ACCESS})
         @DisplayName("An internal publication is admitted at consensus when enabled")
         final Stream<DynamicTest> publicationIsAdmittedAtConsensus() {

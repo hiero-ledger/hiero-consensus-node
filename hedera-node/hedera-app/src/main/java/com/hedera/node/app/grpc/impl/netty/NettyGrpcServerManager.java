@@ -7,7 +7,7 @@ import static java.util.Objects.requireNonNull;
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.state.clpr.ClprDiscoverEndpointsRequest;
-import com.hedera.hapi.node.state.clpr.ClprSyncPayload;
+import com.hedera.hapi.node.state.clpr.ClprStreamingSyncPayload;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.grpc.GrpcServerManager;
 import com.hedera.node.app.grpc.impl.ClprStreamingSyncMethod;
@@ -289,7 +289,7 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
      * Every other method — including CLPR {@code discoverEndpoints} — is not sync.
      */
     static boolean isClprSyncMethod(@NonNull final RpcMethodDefinition<?, ?> m) {
-        return ClprSyncPayload.class.equals(m.requestType());
+        return ClprStreamingSyncPayload.class.equals(m.requestType());
     }
 
     @Override
@@ -630,9 +630,9 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
                     d.methods().stream().filter(methodFilter).forEach(m -> {
                         if (Transaction.class.equals(m.requestType())) {
                             builder.transaction(m.path());
-                        } else if (ClprSyncPayload.class.equals(m.requestType())) {
+                        } else if (ClprStreamingSyncPayload.class.equals(m.requestType())) {
+                            // The bidi-streaming sync is registered by hand below, not through the builder.
                             containsSyncEndpoint.set(true);
-                            builder.clprSync(m.path());
                         } else if (ClprDiscoverEndpointsRequest.class.equals(m.requestType())) {
                             builder.clprDiscovery(m.path());
                         } else {
@@ -650,7 +650,7 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
     }
 
     /**
-     * Returns {@code service} with the bidirectional-streaming CLPR {@code streamingSync} method added.
+     * Returns {@code service} with the bidirectional-streaming CLPR {@code sync} method added.
      *
      * <p>Registered by hand rather than through {@link GrpcServiceBuilder}: that path hardcodes
      * {@link MethodType#UNARY} and dispatches on request type, so a streaming method routed through it would answer
@@ -668,7 +668,7 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
             @NonNull final DataBufferMarshaller marshaller) {
         final var descriptor = MethodDescriptor.<BufferedData, BufferedData>newBuilder()
                 .setType(MethodType.BIDI_STREAMING)
-                .setFullMethodName(ClprEndpointServiceDefinition.STREAMING_SYNC_FULL_METHOD_NAME)
+                .setFullMethodName(ClprEndpointServiceDefinition.SYNC_FULL_METHOD_NAME)
                 .setRequestMarshaller(marshaller)
                 .setResponseMarshaller(marshaller)
                 .build();

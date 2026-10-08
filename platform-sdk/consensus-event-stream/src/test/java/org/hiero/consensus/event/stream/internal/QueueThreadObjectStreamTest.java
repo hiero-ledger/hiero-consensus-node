@@ -28,7 +28,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class QueueThreadObjectStreamTest {
-    private static final Hash initialHash = new Hash(new byte[DigestType.SHA_384.digestLength()]);
+    private static final Hash initialHash = new Hash(new byte[DigestType.SHA_384.digestLength()], DigestType.SHA_384);
     private static Cryptography cryptography;
     private static WriteToStreamConsumer consumer;
     private static QueueThreadObjectStream<ObjectForTestStream> queueThread;

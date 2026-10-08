@@ -36,7 +36,6 @@ import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
-import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -265,9 +264,7 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                 op.configProofBytes().length(),
                 shortHex(MiscCryptoUtils.keccak256DigestOf(op.configProofBytes())));
         // Thread endpoint_manifest_proof_bytes into the manifest-aware verifyConfig ABI
-        // (spec §4.8). EvmClprVerifier flag-gates on clpr.endpointManifestEnabled: when the
-        // flag is off, it dispatches the legacy 1-arg ABI and ignores this field (returning
-        // an empty manifest). No freshness check is applied at completeChannel time.
+        // (spec §4.8). No freshness check is applied at completeChannel time.
         final var verifiedConfig = verifyPeerConfig(
                 verifier,
                 op.verifierContractOrThrow(),
@@ -277,14 +274,11 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                 context);
         final var peerConfig = verifiedConfig.config();
         final var peerManifest = verifiedConfig.manifest();
-        // Select the authoritative peer-endpoint source per the manifest feature flag, mirroring
+        // The authoritative peer-endpoint source is the ClprEndpointManifest, mirroring
         // ClprChannelManager.resolveDialTargets (the runtime consumer) so producer and consumer
-        // stay symmetric. When clpr.endpointManifestEnabled=true the endpoints live solely in the
-        // ClprEndpointManifest (config.endpoints is deprecated and left empty per spec §4.8); when
-        // off, they come from ClprLedgerConfiguration.endpoints and no manifest is attached below.
-        final boolean manifestEnabled =
-                context.configuration().getConfigData(ClprConfig.class).endpointManifestEnabled();
-        final List<ClprEndpoint> peerEndpoints = manifestEnabled ? peerManifest.endpoints() : peerConfig.endpoints();
+        // stay symmetric. The endpoints live solely in the ClprEndpointManifest (config.endpoints is
+        // deprecated and left empty per spec §4.8).
+        final List<ClprEndpoint> peerEndpoints = peerManifest.endpoints();
         log.debug(
                 "[ClprCompleteChannel] verifyConfig PASS channelId={} verifierContract={} chainId={} "
                         + "serviceAddress={} endpoints={} throttlesPresent={} initialTrustAnchorBytes={} "
@@ -314,22 +308,9 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                     shortHex(MiscCryptoUtils.keccak256DigestOf(peerConfig.initialTrustAnchor())));
         }
         validateTrue(peerConfig.throttles() != null, CLPR_VERIFIER_CONFIG_FAILED);
-        // Only the legacy config-seeded path requires a non-empty endpoint list (an empty
-        // config leaves the orchestrator with no peer to call, making the channel inert).
-        // A manifest-enabled channel may legitimately start empty: ClprEndpointManifest
-        // permits an empty endpoint list at version >= 1, and genesis creates exactly that —
-        // later manifest-update bundles populate it. So only reject an empty list flag-off.
-        if (!manifestEnabled && peerEndpoints.isEmpty()) {
-            log.warn(
-                    "[ClprCompleteChannel] verified config rejected: no peer endpoints channelId={} "
-                            + "chainId={} serviceAddress={} configProofHash={} initialTrustAnchorHash={}",
-                    shortHex(op.channelId()),
-                    peerConfig.chainId(),
-                    shortHex(peerConfig.serviceAddress()),
-                    shortHex(MiscCryptoUtils.keccak256DigestOf(op.configProofBytes())),
-                    shortHex(MiscCryptoUtils.keccak256DigestOf(peerConfig.initialTrustAnchor())));
-        }
-        validateTrue(manifestEnabled || !peerEndpoints.isEmpty(), CLPR_VERIFIER_CONFIG_FAILED);
+        // A manifest-backed channel may legitimately start empty: ClprEndpointManifest permits an
+        // empty endpoint list at version >= 1, and genesis creates exactly that — later
+        // manifest-update bundles populate it. So an empty peer-endpoint list is not rejected here.
 
         // channel_context = abi.encodePacked(bytes32 channelId, bytes serviceAddress)
         final var channelContextBytes = buildChannelContext(peerConfig, op);
@@ -394,34 +375,28 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
                 .trustAnchor(peerConfig.initialTrustAnchor())
                 .trustAnchorId(peerConfig.initialTrustAnchorId())
                 .channelContext(channelContext);
-        // Attach the peer endpoint manifest only when the feature flag is on: it is the runtime
-        // dial-target source (spec §4.7, ClprChannelManager.resolveDialTargets). Flag-off
-        // channels dial from the config-seeded peer-endpoint cache, so persisting the
-        // verifier's synthesized bring-up manifest would store state nothing ever reads; leave
-        // endpoint_manifest unset (hasEndpointManifest()==false) instead.
+        // Attach the peer endpoint manifest: it is the runtime dial-target source (spec §4.7,
+        // ClprChannelManager.resolveDialTargets).
         //
         // Store the manifest carrying the LOCALLY TRUNCATED endpoint list (this ledger's
         // max_peer_endpoints policy), not the peer's full list — the stored manifest IS what the
         // orchestrator dials, so it must honor the same bound applied to the seeded cache below.
-        if (manifestEnabled) {
-            final var storedManifest =
-                    peerManifest.copyBuilder().endpoints(truncatedPeerEndpoints).build();
-            channelBuilder.endpointManifest(storedManifest).endpointManifestVersion(storedManifest.version());
-        }
+        final var storedManifest =
+                peerManifest.copyBuilder().endpoints(truncatedPeerEndpoints).build();
+        channelBuilder.endpointManifest(storedManifest).endpointManifestVersion(storedManifest.version());
         final var channel = channelBuilder.build();
         channelStore.put(channel);
         log.debug(
                 "[ClprCompleteChannel] channel ACTIVE channelId={} peerChainId={} endpointsStored={} "
-                        + " trustAnchorBytes={} trustAnchorId={} manifestEnabled={} endpointManifestVersion={} "
+                        + " trustAnchorBytes={} trustAnchorId={} endpointManifestVersion={} "
                         + "endpointManifestEntries={}",
                 shortHex(op.channelId()),
                 peerConfig.chainId(),
                 truncatedPeerEndpoints.size(),
                 peerConfig.initialTrustAnchor().length(),
                 shortHex(peerConfig.initialTrustAnchorId()),
-                manifestEnabled,
-                manifestEnabled ? peerManifest.version() : 0L,
-                manifestEnabled ? truncatedPeerEndpoints.size() : 0);
+                peerManifest.version(),
+                truncatedPeerEndpoints.size());
         // Notify the runtime sync orchestrator. If the surrounding transaction
         // rolls back, the orchestrator will self-correct on its next tick by
         // detecting the missing state record.

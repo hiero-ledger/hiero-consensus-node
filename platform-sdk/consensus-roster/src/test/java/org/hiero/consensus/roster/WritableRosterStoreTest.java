@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.roster;
 
+import static org.hiero.consensus.roster.ConsensusRosterInputAssertion.assertConsensusLayerRosterInputs;
 import static org.hiero.consensus.roster.WritableRosterStore.MAXIMUM_ROSTER_HISTORY_SIZE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Objects;
 import org.hiero.base.file.FileSystemManager;
 import org.hiero.base.utility.test.fixtures.file.TestFileSystemManager;
+import org.hiero.consensus.model.roster.ConsensusLayerRosterInputs;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -274,9 +276,8 @@ class WritableRosterStoreTest {
                 roster3,
                 "Returned active roster should be the same as the one set");
 
-        final RosterHistory rosterHistory = readableRosterStore.getRosterHistory();
-        assertEquals(roster3, rosterHistory.getActiveRoster());
-        assertEquals(roster2, rosterHistory.getPreviousRoster());
+        final ConsensusLayerRosterInputs rosterInputs = readableRosterStore.getConsensusLayerRosterInputs();
+        assertConsensusLayerRosterInputs(rosterInputs, List.of(3L, 2L), List.of(roster3, roster2));
     }
 
     @Test
@@ -293,9 +294,8 @@ class WritableRosterStoreTest {
         // the same, it will not set the roster
         writableRosterStore.putActiveRoster(roster, 2);
 
-        final RosterHistory rosterHistory = readableRosterStore.getRosterHistory();
-        assertEquals(roster, rosterHistory.getActiveRoster());
-        assertEquals(roster, rosterHistory.getPreviousRoster());
+        final ConsensusLayerRosterInputs rosterInputs = readableRosterStore.getConsensusLayerRosterInputs();
+        assertConsensusLayerRosterInputs(rosterInputs, List.of(1L), List.of(roster));
     }
 
     @Test

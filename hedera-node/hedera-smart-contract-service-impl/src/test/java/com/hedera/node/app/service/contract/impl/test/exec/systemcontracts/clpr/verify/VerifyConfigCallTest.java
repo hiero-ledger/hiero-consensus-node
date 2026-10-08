@@ -7,8 +7,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 
-import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
@@ -19,9 +19,10 @@ import com.hedera.hapi.platform.state.StateValue;
 import com.hedera.node.app.hapi.utils.blocks.NativeTssVerifier;
 import com.hedera.node.app.hapi.utils.blocks.TssVerifier;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verify.VerifyConfigCall;
-import com.hedera.node.app.service.contract.impl.exec.systemcontracts.clpr.verify.VerifyConfigTranslator;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
+import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -60,22 +61,11 @@ class VerifyConfigCallTest extends CallTestBase {
     @NonNull
     Call.PricedResult invokeVerifyConfig(@NonNull final Path stateProofFile, @NonNull final TssVerifier tssVerifier)
             throws IOException {
-        return invokeVerifyConfig(stateProofFile, tssVerifier, true);
-    }
-
-    @NonNull
-    Call.PricedResult invokeVerifyConfig(
-            @NonNull final Path stateProofFile, @NonNull final TssVerifier tssVerifier, final boolean manifestAware)
-            throws IOException {
         final var stateProofBytes = Files.readAllBytes(stateProofFile);
-        // manifestAware routes between the config tuple with seed endpoints and the endpoint manifest tuple. The
-        // manifest-aware path uses a 32-byte
-        // channelId and an empty
-        // manifest proof (these tests fail at config parsing before the manifest is reached).
-        final var subject = manifestAware
-                ? new VerifyConfigCall(
-                        mockEnhancement(), gasCalculator, stateProofBytes, new byte[32], new byte[0], tssVerifier)
-                : new VerifyConfigCall(mockEnhancement(), gasCalculator, stateProofBytes, new byte[32], tssVerifier);
+        // The manifest-aware path uses a 32-byte channelId and an empty manifest proof (these tests
+        // fail at config parsing before the manifest is reached).
+        final var subject = new VerifyConfigCall(
+                mockEnhancement(), gasCalculator, stateProofBytes, new byte[32], new byte[0], tssVerifier);
         return subject.execute(frame);
     }
 
@@ -119,19 +109,6 @@ class VerifyConfigCallTest extends CallTestBase {
         assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
     }
 
-    @Test
-    @DisplayName("reverts through the seed-endpoint code path when manifestAware=false")
-    void revertsOnMalformedConfigProof(@TempDir final Path tempDir) throws IOException {
-        final var proofFile = tempDir.resolve("malformed-config.proof");
-        Files.write(proofFile, new byte[] {(byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff});
-
-        final var result = invokeVerifyConfig(proofFile, new NativeTssVerifier(), /*manifestAware*/ false);
-
-        assertThat(result.isViewCall()).isTrue();
-        assertThat(result.responseCode()).isEqualTo(CLPR_VERIFIER_CONFIG_FAILED);
-        assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
-    }
-
     // ---- endpoint manifest-proof path (verifyManifest, spec §4.8) ----
     // These drive the full config + manifest verification with a stubbed TssVerifier (returns true),
     // so a synthetic single-leaf StateProof — nextPathIndex=-1 so computeRootHash accepts it — reaches
@@ -141,19 +118,47 @@ class VerifyConfigCallTest extends CallTestBase {
     private static final Bytes TRUST_ANCHOR = Bytes.wrap(new byte[] {1, 2, 3, 4});
 
     @Test
-    void returnsConfigTupleWithSeedEndpoints() {
-        final var result = new VerifyConfigCall(
-                        mockEnhancement(), gasCalculator, configProofBytes(testConfig()), new byte[32], acceptingTss())
-                .execute(frame);
+    void rejectsUnknownFieldsInConfigProofBeforeVerifyingSignature() {
+        final var proof = Bytes.wrap(configProofBytes(testConfig()))
+                .append(Bytes.fromHex("c03e01"))
+                .toByteArray();
+        final var tss = mock(TssVerifier.class);
+        final var result = invokeWithManifest(proof, validManifestProofBytes(), tss);
 
-        assertThat(result.responseCode()).isEqualTo(SUCCESS);
-        final Tuple decoded = VerifyConfigTranslator.VERIFY_CONFIG_WITH_SEED_ENDPOINTS
-                .getOutputs()
-                .decode(result.fullResult().output().toArray());
-        assertThat(decoded.size()).isEqualTo(8);
-        assertThat((String) decoded.get(1)).isEqualTo("295");
-        assertThat((byte[]) decoded.get(5)).isEqualTo(TRUST_ANCHOR.toByteArray());
-        assertThat((Tuple[]) decoded.get(7)).isEmpty();
+        assertThat(result.responseCode()).isEqualTo(CLPR_VERIFIER_CONFIG_FAILED);
+        assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
+        verifyNoInteractions(tss);
+    }
+
+    @Test
+    void rejectsUnknownFieldsInsideProvenConfig() throws ParseException {
+        // Preserve the unknown field in the fixture so it survives serialization inside the proof's opaque leaf.
+        final var configBytes =
+                ClprLedgerConfiguration.PROTOBUF.toBytes(testConfig()).append(Bytes.fromHex("c03e01"));
+        final var configWithUnknown = ClprLedgerConfiguration.PROTOBUF.parse(
+                configBytes.toReadableSequentialData(), false, true, Codec.DEFAULT_MAX_DEPTH);
+        final var tss = mock(TssVerifier.class);
+        final var result = invokeWithManifest(configProofBytes(configWithUnknown), validManifestProofBytes(), tss);
+
+        assertThat(result.responseCode()).isEqualTo(CLPR_VERIFIER_CONFIG_FAILED);
+        assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
+        verifyNoInteractions(tss);
+    }
+
+    @Test
+    void rejectsUnknownFieldsInManifestProof() {
+        final var manifest = ClprEndpointManifest.newBuilder()
+                .version(2L)
+                .serviceAddress(SERVICE_ADDR)
+                .build();
+        final var proof = Bytes.wrap(manifestProofBytes(manifest))
+                .append(Bytes.fromHex("c03e01"))
+                .toByteArray();
+
+        final var result = invokeWithManifest(configProofBytes(testConfig()), proof, acceptingTss());
+
+        assertThat(result.responseCode()).isEqualTo(CLPR_VERIFIER_CONFIG_FAILED);
+        assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
     }
 
     @Test
@@ -244,6 +249,13 @@ class VerifyConfigCallTest extends CallTestBase {
     private static byte[] configProofBytes(@NonNull final ClprLedgerConfiguration config) {
         return proofBytes(
                 StateValue.newBuilder().clprServiceILedgerConfiguration(config).build());
+    }
+
+    private static byte[] validManifestProofBytes() {
+        return manifestProofBytes(ClprEndpointManifest.newBuilder()
+                .version(2L)
+                .serviceAddress(SERVICE_ADDR)
+                .build());
     }
 
     private static byte[] manifestProofBytes(@NonNull final ClprEndpointManifest manifest) {
