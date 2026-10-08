@@ -51,7 +51,6 @@ import com.hedera.hapi.node.state.clpr.ClprMessageReply;
 import com.hedera.hapi.node.state.clpr.ClprMessageReplyStatus;
 import com.hedera.hapi.node.state.clpr.ClprMessageValue;
 import com.hedera.hapi.node.state.clpr.ClprQueueMetadata;
-import com.hedera.hapi.node.state.clpr.ClprRedactedMessage;
 import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.hapi.node.state.token.Account;
@@ -1195,79 +1194,6 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @Test
-    @DisplayName("REDACTED reply for a source-side-redacted DATA still dispatches onClprResponse via preserved sender")
-    void redactedOriginatingDispatchesOnClprResponseFromPreservedSender() {
-        // Outbound slot 1 was admin-redacted before delivery. Per the spec §4.4 followup the
-        // ClprRedactedMessage carries the sender so the source can still deliver the eventual
-        // REDACTED reply to the originating application.
-        messageQueueStore.put(
-                CHANNEL_ID,
-                1L,
-                ClprMessageValue.newBuilder()
-                        .payload(ClprMessagePayload.newBuilder()
-                                .redactedMessage(ClprRedactedMessage.newBuilder()
-                                        .messageHash(ZERO_HASH)
-                                        .sender(SENDER)
-                                        .build())
-                                .build())
-                        .runningHashAfterProcessing(ZERO_HASH)
-                        .build());
-        putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
-        final var bundle = buildBundle(
-                ClprChannelStatus.ACTIVE,
-                0,
-                1,
-                ZERO_HASH,
-                List.of(replyPayloadWithStatus(1, ClprMessageReplyStatus.REDACTED)));
-        setupHandleContext(bundle, true);
-
-        subject.handle(handleContext);
-
-        // Verify onClprResponse dispatch fires despite the originating slot being redacted.
-        verify(handleContext).dispatch(any(DispatchOptions.class));
-        // Slot deleted after the reply is processed.
-        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
-    }
-
-    @Test
-    @DisplayName("REDACTED reply for a source-side-redacted DATA skips slashing (connector id not preserved)")
-    void redactedOriginatingSkipsSourceSideSlashing() {
-        // Same setup as the dispatch test, but with a CONNECTOR_NOT_FOUND reply — which would
-        // normally slash the source-side connector. With the originator redacted, connector id
-        // isn't available on the slot, so the slashing branch is skipped.
-        messageQueueStore.put(
-                CHANNEL_ID,
-                1L,
-                ClprMessageValue.newBuilder()
-                        .payload(ClprMessagePayload.newBuilder()
-                                .redactedMessage(ClprRedactedMessage.newBuilder()
-                                        .messageHash(ZERO_HASH)
-                                        .sender(SENDER)
-                                        .build())
-                                .build())
-                        .runningHashAfterProcessing(ZERO_HASH)
-                        .build());
-        putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
-        putConnector(); // add a connector that could be slashed
-        final var bundle = buildBundle(
-                ClprChannelStatus.ACTIVE,
-                0,
-                1,
-                ZERO_HASH,
-                List.of(replyPayloadWithStatus(1, ClprMessageReplyStatus.CONNECTOR_NOT_FOUND)));
-        setupHandleContext(bundle, true);
-
-        // Should not throw — reply is processed, dispatch fires, slashing is skipped.
-        subject.handle(handleContext);
-
-        verify(handleContext).dispatch(any(DispatchOptions.class));
-        assertThat(connectorStore
-                        .getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_ADDRESS))
-                        .slashCount())
-                .isZero();
-    }
-
-    @Test
     @DisplayName("response delivery failure does not stop bundle processing")
     void responseDeliveryFailureDoesNotStopProcessing() {
         putOutboundDataMessage(1);
@@ -1559,15 +1485,15 @@ class ClprSubmitBundleHandlerTest {
     @DisplayName("lazy config propagation enqueues ConfigUpdate when config is stale")
     void lazyConfigPropagationEnqueuesConfigUpdate() {
         // Channel has stale config (ZERO_TIMESTAMP < CONFIG_TIMESTAMP). Use a single
-        // redacted inbound slot so the bundle clears the EmptyBundle reject (spec §4.2 Step 1a);
+        // inbound data slot so the bundle clears the EmptyBundle reject (spec §4.2 Step 1a);
         // the lazy-config behaviour under test is independent of the inbound payload type.
         putChannelWithConfigTimestamp(ClprChannelStatus.ACTIVE, 1, 0, 0, ZERO_HASH, ZERO_TIMESTAMP);
-        setupHandleContext(buildRedactedBundle(), true);
+        setupHandleContext(validSingleDataBundle(), true);
 
         subject.handle(handleContext);
 
-        // ConfigUpdate control message is enqueued at slot 1 (before the REDACTED reply for
-        // the inbound slot, which lands at slot 2).
+        // ConfigUpdate control message is enqueued at slot 1 (before the CONNECTOR_NOT_FOUND
+        // reply for the inbound slot, which lands at slot 2).
         final var enqueuedMsg = messageQueueStore.getMessage(CHANNEL_ID, 1);
         assertThat(enqueuedMsg).isNotNull();
         assertThat(enqueuedMsg.payload().hasControl()).isTrue();
@@ -1576,7 +1502,7 @@ class ClprSubmitBundleHandlerTest {
         // Channel should have updated lastConfigTimestamp and nextMessageId
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertThat(updated.lastConfigTimestamp()).isEqualTo(CONFIG_TIMESTAMP);
-        // 1 (original) + 1 (config update) + 1 (REDACTED reply for the inbound slot)
+        // 1 (original) + 1 (config update) + 1 (CONNECTOR_NOT_FOUND reply for the inbound slot)
         assertThat(updated.nextMessageId()).isEqualTo(3);
     }
 
@@ -1584,19 +1510,20 @@ class ClprSubmitBundleHandlerTest {
     @DisplayName("no config propagation when timestamp is current")
     void noConfigPropagationWhenTimestampCurrent() {
         // Channel already has current config (CONFIG_TIMESTAMP == CONFIG_TIMESTAMP). A single
-        // redacted inbound slot makes the bundle non-empty per spec §4.2 Step 1a.
+        // inbound data slot makes the bundle non-empty per spec §4.2 Step 1a.
         putChannel(ClprChannelStatus.ACTIVE, 1, 0, ZERO_HASH);
-        setupHandleContext(buildRedactedBundle(), true);
+        setupHandleContext(validSingleDataBundle(), true);
 
         subject.handle(handleContext);
 
-        // No ConfigUpdate is enqueued; only the REDACTED reply for the inbound slot at slot 1.
+        // No ConfigUpdate is enqueued; only the CONNECTOR_NOT_FOUND reply for the inbound slot at slot 1.
         final var slot1 = messageQueueStore.getMessage(CHANNEL_ID, 1);
         assertThat(slot1).isNotNull();
         assertThat(slot1.payload().hasMessageReply()).isTrue();
-        assertThat(slot1.payload().messageReplyOrThrow().status()).isEqualTo(ClprMessageReplyStatus.REDACTED);
+        assertThat(slot1.payload().messageReplyOrThrow().status())
+                .isEqualTo(ClprMessageReplyStatus.CONNECTOR_NOT_FOUND);
 
-        // nextMessageId advances only for the REDACTED reply (1 → 2)
+        // nextMessageId advances only for the CONNECTOR_NOT_FOUND reply (1 → 2)
         final var updated = channelStore.getChannel(CHANNEL_ID);
         assertThat(updated.nextMessageId()).isEqualTo(2);
     }
@@ -1607,9 +1534,9 @@ class ClprSubmitBundleHandlerTest {
         // Spec §4.2 Step 5c imposes no status restriction on lazy config propagation: as long as
         // the channel can still emit outbound messages, a stale config must be flushed so the
         // peer sees the latest ledger config before we drain. The handler enqueues the
-        // ConfigUpdate first, then the REDACTED reply for the inbound slot.
+        // ConfigUpdate first, then the CONNECTOR_NOT_FOUND reply for the inbound slot.
         putChannelWithConfigTimestamp(ClprChannelStatus.CLOSING, 1, 0, 0, ZERO_HASH, ZERO_TIMESTAMP);
-        setupHandleContext(buildRedactedBundle(), true);
+        setupHandleContext(validSingleDataBundle(), true);
 
         subject.handle(handleContext);
 
@@ -1619,11 +1546,12 @@ class ClprSubmitBundleHandlerTest {
         assertThat(slot1.payload().hasControl()).isTrue();
         assertThat(slot1.payload().controlOrThrow().hasConfigUpdate()).isTrue();
 
-        // Slot 2 = REDACTED reply for the inbound slot
+        // Slot 2 = CONNECTOR_NOT_FOUND reply for the inbound slot
         final var slot2 = messageQueueStore.getMessage(CHANNEL_ID, 2);
         assertThat(slot2).isNotNull();
         assertThat(slot2.payload().hasMessageReply()).isTrue();
-        assertThat(slot2.payload().messageReplyOrThrow().status()).isEqualTo(ClprMessageReplyStatus.REDACTED);
+        assertThat(slot2.payload().messageReplyOrThrow().status())
+                .isEqualTo(ClprMessageReplyStatus.CONNECTOR_NOT_FOUND);
     }
 
     @Test
@@ -2183,50 +2111,6 @@ class ClprSubmitBundleHandlerTest {
     }
 
     @Test
-    @DisplayName("source-side: REDACTED response does not slash")
-    void sourceNoSlashOnRedacted() {
-        putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
-        putOutboundDataMessage(1);
-        putConnectorWithStake(100_000_000L, 0);
-
-        final var reply = replyPayloadWithStatus(1, ClprMessageReplyStatus.REDACTED);
-        final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(reply));
-        setupHandleContext(bundle, true);
-
-        subject.handle(handleContext);
-
-        final var conn = connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_ADDRESS));
-        assertThat(conn).isNotNull();
-        assertThat(conn.lockedStake()).isEqualTo(100_000_000L);
-        assertThat(conn.slashCount()).isEqualTo(0);
-
-        verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
-    }
-
-    @Test
-    @DisplayName("source-side: legacy CHANNEL_CLOSED response (never generated by conforming impl) does not slash")
-    void sourceNoSlashOnLegacyChannelClosed() {
-        // CHANNEL_CLOSED is reserved and will never be generated by a conforming implementation,
-        // but may be received from older peers. It must not trigger slashing.
-        putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
-        putOutboundDataMessage(1);
-        putConnectorWithStake(100_000_000L, 0);
-
-        final var reply = replyPayloadWithStatus(1, ClprMessageReplyStatus.CHANNEL_CLOSED);
-        final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(reply));
-        setupHandleContext(bundle, true);
-
-        subject.handle(handleContext);
-
-        final var conn = connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_ADDRESS));
-        assertThat(conn).isNotNull();
-        assertThat(conn.lockedStake()).isEqualTo(100_000_000L);
-        assertThat(conn.slashCount()).isEqualTo(0);
-
-        verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
-    }
-
-    @Test
     @DisplayName("source-side: ban after threshold slashes removes connector")
     void sourceSlashBanRemovesConnector() {
         putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
@@ -2264,100 +2148,10 @@ class ClprSubmitBundleHandlerTest {
         verify(tokenServiceApi, never()).transferFromTo(any(), any(), anyLong());
     }
 
-    // ========== C-1: Redacted slot generates REDACTED reply ==========
-
     @Test
-    @DisplayName("redacted slot enqueues REDACTED reply")
-    void redactedSlotGeneratesRedactedReply() {
-        final var messageHash = ClprHashUtils.sha256(
-                ClprMessagePayload.PROTOBUF.toBytes(dataPayload()).toByteArray());
-        final var redactedPayload = ClprMessagePayload.newBuilder()
-                .redactedMessage(ClprRedactedMessage.newBuilder()
-                        .messageHash(Bytes.wrap(messageHash))
-                        .build())
-                .build();
-        final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(redactedPayload));
-        putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
-        setupHandleContext(bundle, true);
-
-        subject.handle(handleContext);
-
-        // REDACTED reply should be enqueued at nextMessageId=0
-        final var response = messageQueueStore.getMessage(CHANNEL_ID, 0);
-        assertThat(response).isNotNull();
-        assertThat(response.payload().hasMessageReply()).isTrue();
-        assertThat(response.payload().messageReplyOrThrow().status()).isEqualTo(ClprMessageReplyStatus.REDACTED);
-        assertThat(response.payload().messageReplyOrThrow().messageId()).isEqualTo(1L);
-
-        // receivedMessageId advances past the redacted slot
-        final var updated = channelStore.getChannel(CHANNEL_ID);
-        assertThat(updated.receivedMessageId()).isEqualTo(1L);
-    }
-
-    @Test
-    @DisplayName("redacted slot extends the running-hash chain via SHA-256(prev || message_hash)")
-    void redactedSlotChainsViaMessageHash() {
-        final var messageHash = Bytes.wrap(new byte[] {
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
-            17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32
-        });
-        final var redactedPayload = ClprMessagePayload.newBuilder()
-                .redactedMessage(ClprRedactedMessage.newBuilder()
-                        .messageHash(messageHash)
-                        .build())
-                .build();
-        final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(redactedPayload));
-        putChannel(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH);
-        setupHandleContext(bundle, true);
-
-        subject.handle(handleContext);
-
-        final var expected = ClprHashUtils.computeRunningHashFromPayloadHash(ZERO_HASH, messageHash);
-        final var updated = channelStore.getChannel(CHANNEL_ID);
-        assertThat(updated.receivedRunningHash()).isEqualTo(expected);
-    }
-
-    // ========== 3.13.1: Redaction × bundle verification — source-side REDACTED reply ==========
-
-    @Test
-    @DisplayName("3.13.1: REDACTED reply for source-side DATA advances channel without slashing")
-    void redactedReplyAdvancesChannelNoSlash() {
-        // Source sent DATA message 1; connector has some stake at slash_count=0.
-        // Peer redacted that slot → source now receives a REDACTED reply.
-        // Expected: DATA message deleted from queue, channel advances, NO slash.
-        putChannel(ClprChannelStatus.ACTIVE, 2, 0, ZERO_HASH);
-        putOutboundDataMessage(1);
-        putConnectorWithStake(100_000_000L, 0);
-
-        final var reply = replyPayloadWithStatus(1, ClprMessageReplyStatus.REDACTED);
-        final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(reply));
-        setupHandleContext(bundle, true);
-
-        subject.handle(handleContext);
-
-        // Channel advances normally
-        final var updated = channelStore.getChannel(CHANNEL_ID);
-        assertThat(updated.ackedMessageId()).isEqualTo(1L);
-        assertThat(updated.status()).isEqualTo(ClprChannelStatus.ACTIVE);
-
-        // DATA message deleted from the outbound queue (reply was terminal)
-        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 1)).isNull();
-
-        // No slash — connector stake unchanged
-        final var connector = connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_ADDRESS));
-        assertThat(connector).isNotNull();
-        assertThat(connector.lockedStake()).isEqualTo(100_000_000L);
-        assertThat(connector.slashCount()).isEqualTo(0);
-
-        // No reimbursement transfer to payer (staking account → payer)
-        verify(tokenServiceApi, never()).transferFromTo(eq(STAKING_ACCOUNT), eq(PAYER_ID), anyLong());
-    }
-
-    @Test
-    @DisplayName("3.13.1: in-flight counter decremented on REDACTED reply (same as normal reply)")
-    void redactedReplyDecrementsInFlightCounter() {
-        // Connector has inFlightMessageCount=2 (two DATA messages in flight).
-        // Receiving a REDACTED reply for message 1 should decrement the counter to 1.
+    @DisplayName(
+            "given two DATA messages in flight, when a reply for one arrives, then the in-flight counter drops to 1")
+    void givenTwoDataMessagesInFlight_whenReplyArrives_thenInFlightCounterIsDecremented() {
         putChannel(ClprChannelStatus.ACTIVE, 3, 0, ZERO_HASH);
         putOutboundDataMessage(1);
         putOutboundDataMessage(2);
@@ -2377,8 +2171,8 @@ class ClprSubmitBundleHandlerTest {
                 .build();
         lenient().when(accountStore.getContractById(CONNECTOR_CONTRACT_ID)).thenReturn(connectorAccount);
 
-        // Bundle acks message 1 with a REDACTED reply
-        final var reply = replyPayloadWithStatus(1, ClprMessageReplyStatus.REDACTED);
+        // Bundle acks message 1 with a reply
+        final var reply = replyPayload(1);
         final var bundle = buildBundle(ClprChannelStatus.ACTIVE, 0, 1, ZERO_HASH, List.of(reply));
         setupHandleContext(bundle, true);
 
@@ -2388,34 +2182,6 @@ class ClprSubmitBundleHandlerTest {
         final var updatedConnector = connectorStore.getConnector(new ClprConnectorKey(CHANNEL_ID, CONNECTOR_ADDRESS));
         assertThat(updatedConnector).isNotNull();
         assertThat(updatedConnector.inFlightMessageCount()).isEqualTo(1L);
-    }
-
-    @Test
-    @DisplayName("3.13.2: double redact at handler level rejects with CLPR_MESSAGE_ALREADY_REDACTED")
-    void doubleRedactRejectsAtHandlerLevel() {
-        // The redact handler itself handles duplicate redaction — it rejects with CLPR_MESSAGE_ALREADY_REDACTED.
-        // This test documents the current behavior captured by ClprRedactMessageHandlerTest, verified here via
-        // the WritableMessageQueueStore directly. We put an already-redacted slot (no payload) into the queue
-        // and verify that a subsequent redact call throws CLPR_MESSAGE_ALREADY_REDACTED.
-        // This captures spec test 3.13.2 — "redacting the same slot twice is a no-op or rejects."
-        // Current behavior: rejects (CLPR_MESSAGE_ALREADY_REDACTED).
-        final var alreadyRedacted = ClprMessageValue.newBuilder()
-                .runningHashAfterProcessing(ZERO_HASH)
-                .build();
-        messageQueueStore.put(CHANNEL_ID, 5L, alreadyRedacted);
-        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 5L)).isNotNull();
-        assertThat(messageQueueStore.getMessage(CHANNEL_ID, 5L).hasPayload()).isFalse();
-
-        // Attempting a second redact: the ClprRedactMessageHandler checks hasNonEmptyPayload and throws.
-        // We verify this by directly calling the handler logic via ClprRedactMessageHandler's behavior:
-        // if the stored message has no payload, the handler MUST throw CLPR_MESSAGE_ALREADY_REDACTED.
-        // (See ClprRedactMessageHandlerTest.rejectsWhenMessageAlreadyRedacted — same invariant.)
-        final var alreadyRedactedMsg = messageQueueStore.getMessage(CHANNEL_ID, 5L);
-        assertThat(alreadyRedactedMsg).isNotNull();
-        // No hasMessage, no hasMessageReply, no hasControl — all unset.
-        assertThat(alreadyRedactedMsg.hasPayload()).isFalse();
-        // This is the state that causes CLPR_MESSAGE_ALREADY_REDACTED in ClprRedactMessageHandler.doHandle.
-        // The test here documents that the queue store faithfully stores the already-redacted state.
     }
 
     // ========== C-2: CEI ordering — connector debit before dispatch ==========
@@ -3015,15 +2781,6 @@ class ClprSubmitBundleHandlerTest {
                 .build();
     }
 
-    /** Builds a redacted-slot payload carrying the supplied {@code SHA-256(serialized_payload)}. */
-    private static ClprMessagePayload redactedPayload(@NonNull final Bytes messageHash) {
-        return ClprMessagePayload.newBuilder()
-                .redactedMessage(ClprRedactedMessage.newBuilder()
-                        .messageHash(messageHash)
-                        .build())
-                .build();
-    }
-
     /**
      * ABI-encodes a single {@code bytes} value as it would appear in an EVM return buffer.
      * <p>
@@ -3050,10 +2807,6 @@ class ClprSubmitBundleHandlerTest {
         return Bytes.wrap(result);
     }
 
-    private TransactionBody buildRedactedBundle() {
-        return buildBundle(ClprChannelStatus.ACTIVE, 0, 0, ZERO_HASH, List.of(redactedPayload(ZERO_HASH)));
-    }
-
     /** Builds a valid bundle, computing the spec §4.1 running-hash chain over the messages. */
     private TransactionBody buildBundle(
             @NonNull final ClprChannelStatus peerState,
@@ -3061,15 +2814,7 @@ class ClprSubmitBundleHandlerTest {
             final long peerReceivedMessageId,
             @NonNull final Bytes startingHash,
             @NonNull final List<ClprMessagePayload> messages) {
-        var hash = startingHash;
-        for (final var p : messages) {
-            if (p.hasRedactedMessage()) {
-                hash = ClprHashUtils.computeRunningHashFromPayloadHash(
-                        hash, p.redactedMessageOrThrow().messageHash());
-            } else {
-                hash = ClprHashUtils.computeRunningHash(hash, p);
-            }
-        }
+        final var hash = runningHashOver(startingHash, messages);
         final var metadata = ClprQueueMetadata.newBuilder()
                 .nextMessageId(ackedMessageId + messages.size() + 1)
                 .sentRunningHash(hash)
@@ -3198,15 +2943,7 @@ class ClprSubmitBundleHandlerTest {
             @NonNull final List<ClprMessagePayload> messages) {
         // Start from ZERO_HASH (matches putChannel's receivedRunningHash) and chain each
         // message payload so the bundle's sentRunningHash matches what the receiver recomputes.
-        var hash = ZERO_HASH;
-        for (final var p : messages) {
-            if (p.hasRedactedMessage()) {
-                hash = ClprHashUtils.computeRunningHashFromPayloadHash(
-                        hash, p.redactedMessageOrThrow().messageHash());
-            } else {
-                hash = ClprHashUtils.computeRunningHash(hash, p);
-            }
-        }
+        final var hash = runningHashOver(ZERO_HASH, messages);
         final var metadata = ClprQueueMetadata.newBuilder()
                 .nextMessageId(messages.size() + 1L)
                 .sentRunningHash(hash)

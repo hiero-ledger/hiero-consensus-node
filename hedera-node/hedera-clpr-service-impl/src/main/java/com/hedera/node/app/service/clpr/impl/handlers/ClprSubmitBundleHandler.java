@@ -429,9 +429,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         log.debug("[ClprSubmitBundle] check passed: step5 replay-defense (idempotent)");
 
         // --- Step 6: Running hash verification (spec §4.2 step 4, §4.4) ---
-        // Non-redacted slot: fold its serialized payload into the chain.
-        // Redacted slot: adopt the running_hash carried inside the redacted payload — the
-        // original bytes are gone so we can't recompute. Trust comes from the verifier proof.
+        // Fold each slot's serialized payload into the chain.
         //
         // We fold only the NEW tail (newMessages); the replayed prefix has already been folded
         // into channel.receivedRunningHash from a prior bundle, and the peer's
@@ -453,36 +451,17 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             computedHash = ZERO_HASH;
         }
         for (final var payload : newMessages) {
-            if (payload.hasRedactedMessage()) {
-                final var messageHash = payload.redactedMessageOrThrow().messageHash();
-                log.debug(
-                        "[ClprSubmitBundle] step6 redacted slot conn={} messageHash={} beforeHash={}",
-                        channelId,
-                        shortHex(messageHash),
-                        shortHex(computedHash));
-                validateTrueOrPenalize(
-                        messageHash != null && messageHash.length() == 32,
-                        CLPR_RUNNING_HASH_MISMATCH,
-                        nodeAccountId,
-                        penaltyAmount);
-                computedHash = ClprHashUtils.computeRunningHashFromPayloadHash(computedHash, messageHash);
-                log.debug(
-                        "[ClprSubmitBundle] step6 redacted slot folded conn={} afterHash={}",
-                        channelId,
-                        shortHex(computedHash));
-            } else {
-                log.debug(
-                        "[ClprSubmitBundle] step6 folding payload conn={} kind={} beforeHash={}",
-                        channelId,
-                        payloadKind(payload),
-                        shortHex(computedHash));
-                computedHash = ClprHashUtils.computeRunningHash(computedHash, payload);
-                log.debug(
-                        "[ClprSubmitBundle] step6 folded payload conn={} kind={} afterHash={}",
-                        channelId,
-                        payloadKind(payload),
-                        shortHex(computedHash));
-            }
+            log.debug(
+                    "[ClprSubmitBundle] step6 folding payload conn={} kind={} beforeHash={}",
+                    channelId,
+                    payloadKind(payload),
+                    shortHex(computedHash));
+            computedHash = ClprHashUtils.computeRunningHash(computedHash, payload);
+            log.debug(
+                    "[ClprSubmitBundle] step6 folded payload conn={} kind={} afterHash={}",
+                    channelId,
+                    payloadKind(payload),
+                    shortHex(computedHash));
         }
         validateTrueOrPenalize(
                 computedHash.equals(metadata.sentRunningHash()),
@@ -575,7 +554,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
         // scan — they have no matching acked DATA slot. Two legitimate cases remain:
         //   1. The reply targets a one-way outbound slot (control or messageReply) that still exists.
         //      One-way slots never require a reply, but the peer may optionally acknowledge them —
-        //      e.g. when a peer acks a CHANNEL_CLOSED reply with its own messageReply.
+        //      e.g. when a peer acks one of our replies with its own messageReply.
         //   2. The slot was a one-way slot acked and deleted by Pass 2 within THIS bundle, so
         //      getMessage returns null. We identify this case by checking that the target ID falls
         //      within the range Pass 2 just processed: (oldAckedMessageId, newAckedMessageId].
@@ -627,8 +606,8 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
         // --- Pass 2: Mutations begin ---
 
-        // Delete acked one-way outbound messages (control, reply). Data and redacted-Data
-        // slots are deleted later when their inbound reply is processed in Step 10.
+        // Delete acked one-way outbound messages (control, reply). Data slots are deleted later when their inbound
+        // reply is processed in Step 10.
         for (long id = oldAckedMessageId + 1; id <= newAckedMessageId; id++) {
             final var msg = messageQueueStore.getMessage(channelId, id);
             if (msg == null) {
@@ -1012,23 +991,14 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     // It should never be the case that originalMsg, its payload, or its inner message are EVER null.
                     // That should not have been allowed to be enqueued in this way. If something went wrong, we should
                     // log a stern warning and then just ignore the original message and the response.
-                    //
-                    // The originating slot may be either an unredacted Data Message OR a ClprRedactedMessage that
-                    // preserved the sender when the admin redacted before delivery. Both paths
-                    // need the sender to dispatch the response back to the originating application; only the
-                    // unredacted Data Message path can slash the source-side connector (redacted slots don't carry
-                    // the connector id — and redacting an admin-approved outbound shouldn't be a slashing event).
                     final var originalPayload =
                             originalMsg == null ? null : originalMsg.hasPayload() ? originalMsg.payload() : null;
                     final var origDataMsg = originalPayload == null
                             ? null
                             : originalPayload.hasMessage() ? originalPayload.message() : null;
-                    final var origRedacted = originalPayload == null
-                            ? null
-                            : originalPayload.hasRedactedMessage() ? originalPayload.redactedMessage() : null;
-                    if (origDataMsg == null && origRedacted == null) {
+                    if (origDataMsg == null) {
                         log.warn(
-                                "[ClprSubmitBundle] step10 MESSAGE_REPLY has no original DATA/REDACTED message "
+                                "[ClprSubmitBundle] step10 MESSAGE_REPLY has no original DATA message "
                                         + "conn={} replyTargetId={} originalPayloadKind={}; skipping app callback",
                                 channelId,
                                 replyTargetId,
@@ -1039,7 +1009,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     // Deliver response to the originating application (best-effort). The response might even be
                     // CONNECTOR_NOT_FOUND or some other error, or that the remote side is CLOSED. Whatever it is,
                     // we must inform the originating application so it can do proper bookkeeping.
-                    final var senderAddress = origDataMsg != null ? origDataMsg.sender() : origRedacted.sender();
+                    final var senderAddress = origDataMsg.sender();
                     if (senderAddress.length() > 0) {
                         final var callData = encodeOnClprResponse(
                                 channelId, replyTargetId, reply.status(), reply.messageReplyData());
@@ -1098,12 +1068,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
 
                     // Source-side slashing on failure responses. That is, if we sent a message to the remote ledger
                     // and it replied indicating the connector on our side was at fault, then we will punish the
-                    // connector on our side accordingly. Skipped when the originating slot was redacted: the
-                    // connector id isn't preserved in ClprRedactedMessage, and an admin-approved redaction
-                    // shouldn't retroactively punish the connector for what was originally an authorized send.
-                    if (origDataMsg == null) {
-                        continue;
-                    }
+                    // connector on our side accordingly.
                     final var replyStatus = reply.status();
                     final var sourceConnectorKey = new ClprConnectorKey(channelId, origDataMsg.connectorId());
                     final var sourceConnector = connectorStore.getConnector(sourceConnectorKey);
@@ -1153,15 +1118,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                                 origDataMsg.connectorId(),
                                 replyTargetId);
                     }
-                } else if (payload.hasRedactedMessage()) {
-                    // Redacted slot — all oneof fields unset. The verifier attested to this slot existing,
-                    // so we must acknowledge it. Enqueue a REDACTED reply so the remote peer knows we saw
-                    // the slot but cannot act on it (the contents were intentionally withheld).
-                    log.debug(
-                            "[ClprSubmitBundle] step10 REDACTED conn={} receivedMsgId={} -> REDACTED reply",
-                            channelId,
-                            receivedMessageId);
-                    outbound.enqueueReply(receivedMessageId, ClprMessageReplyStatus.REDACTED, Bytes.EMPTY);
                 }
                 // Empty-oneof payloads with no variant set are not expected; the hash check
                 // in Step 6 already rejected them via the chain mismatch path.
@@ -1352,7 +1308,7 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
     /**
      * Matches the bundle's replies, in order, against our outbound messages the peer has received,
      * {@code oldAckedMessageId + 1 .. peerReceivedMessageId}. One-way slots (control messages and our own replies) need
-     * no reply. Each Data slot, redacted or not, takes the bundle's next reply, which must name it. Running out of
+     * no reply. Each Data slot takes the bundle's next reply, which must name it. Running out of
      * replies is not a violation: the ack stops just before that Data slot, and its reply arrives in a later bundle.
      *
      * <p>Advances {@code remainingMessages} past every reply it consumed, leaving it at the trailing messages.
@@ -1370,8 +1326,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             validateTrue(msg != null, CLPR_INTERNAL_STATE_CORRUPTION);
             final var msgPayload = msg.payload();
             // Control and MessageReply slots are one-way — no inbound reply expected.
-            // Redacted slots WERE originally Data, so the peer ships a REDACTED reply for them;
-            // they participate in reply matching just like normal Data.
             if (msgPayload != null && (msgPayload.hasControl() || msgPayload.hasMessageReply())) {
                 continue;
             }
@@ -1469,8 +1423,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
             return "MESSAGE";
         } else if (payload.hasMessageReply()) {
             return "MESSAGE_REPLY";
-        } else if (payload.hasRedactedMessage()) {
-            return "REDACTED";
         } else {
             return "EMPTY";
         }
@@ -1502,8 +1454,6 @@ public class ClprSubmitBundleHandler extends AbstractClprHandler {
                     + reply.messageReplyData().length()
                     + " replyData="
                     + shortHex(reply.messageReplyData());
-        } else if (payload.hasRedactedMessage()) {
-            return "messageHash=" + shortHex(payload.redactedMessageOrThrow().messageHash());
         } else if (payload.hasControl()) {
             final var control = payload.controlOrThrow();
             if (!control.hasConfigUpdate()) {

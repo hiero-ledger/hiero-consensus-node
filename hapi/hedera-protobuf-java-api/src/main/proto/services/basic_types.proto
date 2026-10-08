@@ -1912,11 +1912,6 @@ enum HederaFunctionality {
     ClprSubmitBundle = 122;
 
     /**
-     * Redact a message from the outbound queue before delivery.
-     */
-    ClprRedactMessage = 123;
-
-    /**
      * Register a Connector on the CLPR Service.
      */
     ClprRegisterConnector = 124;

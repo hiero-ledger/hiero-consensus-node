@@ -96,7 +96,6 @@ import "services/clpr_register_connector.proto";
 import "services/clpr_deregister_connector.proto";
 import "services/clpr_complete_connector.proto";
 import "services/clpr_submit_bundle.proto";
-import "services/clpr_redact_message.proto";
 import "platform/event/state_signature_transaction.proto";
 
 import "services/auxiliary/hints/hints_key_publication.proto";
@@ -738,11 +737,6 @@ message TransactionBody {
          * Submit a bundle of cross-ledger messages from a peer sync.
          */
         com.hedera.hapi.node.clpr.ClprSubmitBundleTransactionBody clprSubmitBundle = 86;
-
-        /**
-         * Redact a message from the outbound queue before delivery.
-         */
-        com.hedera.hapi.node.clpr.ClprRedactMessageTransactionBody clprRedactMessage = 87;
 
         /**
          * Register a Connector on the CLPR Service.

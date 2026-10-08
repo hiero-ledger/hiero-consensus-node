@@ -16,7 +16,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCloseChanne
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprCompleteConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprDeregisterConnector;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRedactMessage;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterChannel;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprRegisterConnector;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.clprSubmitBundle;
@@ -29,7 +28,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
@@ -92,7 +90,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -351,28 +348,7 @@ public class ClprEnabledSuite {
         operations.add(withOpContext((spec, opLog) -> assertCoversEveryClprEntryPoint(txns)));
         operations.add(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
         for (final var entry : txns.entrySet()) {
-            if (entry.getKey().equals("redactMessage")) {
-                // The connector was deregistered successfully before it had any in-flight messages.
-                // Re-create it and enqueue a real message for the redaction assertion.
-                final var fresh = clprTxns(crypto);
-                operations.add(dispatch(fresh.get("registerConnector"), inBatch, bypassIngest));
-                operations.add(dispatch(fresh.get("completeConnector"), inBatch, bypassIngest));
-                final var messageId = new AtomicLong();
-                operations.add(sendMessage(crypto).via("messageToRedact"));
-                operations.add(getTxnRecord("messageToRedact")
-                        .exposingTo(record -> messageId.set(new BigInteger(
-                                        1,
-                                        record.getContractCallResult()
-                                                .getContractCallResult()
-                                                .toByteArray())
-                                .longValueExact())));
-                operations.add(sourcing(() -> dispatch(
-                        clprRedactMessage().channelId(crypto.channelId()).messageId(messageId.get()),
-                        inBatch,
-                        bypassIngest)));
-            } else {
-                operations.add(dispatch(entry.getValue(), inBatch, bypassIngest));
-            }
+            operations.add(dispatch(entry.getValue(), inBatch, bypassIngest));
         }
         operations.add(dispatch(endpointPublicationProbe(), inBatch, bypassIngest));
         return hapiTest(operations.toArray(SpecOperation[]::new));
@@ -444,9 +420,6 @@ public class ClprEnabledSuite {
                         .connectorId(crypto.connectorId())
                         .adminKey(GENESIS)
                         .stakeRecipient(GENESIS));
-        txns.put(
-                "redactMessage",
-                clprRedactMessage().channelId(crypto.channelId()).messageId(1L));
         // A verified message referencing an unknown remote connector produces CONNECTOR_NOT_FOUND
         // in the outbound reply. The bundle itself must still be accepted successfully.
         final var payload = ClprMessagePayload.newBuilder()

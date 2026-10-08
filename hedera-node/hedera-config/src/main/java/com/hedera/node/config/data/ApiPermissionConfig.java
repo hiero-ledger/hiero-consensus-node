@@ -9,7 +9,6 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONN
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_ENDPOINT_PUBLICATION;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_ENDPOINT_MANIFEST;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_LEDGER_CONFIGURATION;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REDACT_MESSAGE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
@@ -319,7 +318,6 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprCompleteConnector,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprDeregisterConnector,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprSubmitBundle,
-        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprRedactMessage,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprGetLedgerConfiguration,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange clprEndpointPublication,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprGetEndpointManifest) {
@@ -426,7 +424,6 @@ public record ApiPermissionConfig(
         permissionKeys.put(CLPR_COMPLETE_CONNECTOR, c -> c.clprCompleteConnector);
         permissionKeys.put(CLPR_DEREGISTER_CONNECTOR, c -> c.clprDeregisterConnector);
         permissionKeys.put(CLPR_SUBMIT_BUNDLE, c -> c.clprSubmitBundle);
-        permissionKeys.put(CLPR_REDACT_MESSAGE, c -> c.clprRedactMessage);
         permissionKeys.put(CLPR_GET_LEDGER_CONFIGURATION, c -> c.clprGetLedgerConfiguration);
         permissionKeys.put(CLPR_ENDPOINT_PUBLICATION, c -> c.clprEndpointPublication);
         permissionKeys.put(CLPR_GET_ENDPOINT_MANIFEST, c -> c.clprGetEndpointManifest);

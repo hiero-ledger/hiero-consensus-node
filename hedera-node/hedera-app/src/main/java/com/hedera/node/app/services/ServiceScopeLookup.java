@@ -123,7 +123,6 @@ public class ServiceScopeLookup {
                     CLPR_COMPLETE_CHANNEL,
                     CLPR_CLOSE_CHANNEL,
                     CLPR_SUBMIT_BUNDLE,
-                    CLPR_REDACT_MESSAGE,
                     CLPR_REGISTER_CONNECTOR,
                     CLPR_COMPLETE_CONNECTOR,
                     CLPR_DEREGISTER_CONNECTOR,

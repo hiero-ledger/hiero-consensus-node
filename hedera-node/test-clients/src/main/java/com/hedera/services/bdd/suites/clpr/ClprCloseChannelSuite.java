@@ -136,14 +136,14 @@ public class ClprCloseChannelSuite {
                         .configProofBytes(defaultConfigProofBytes())
                         .payingWith(GENESIS),
                 // Submit a bundle with peer=CLOSING containing one DATA message. The receiving ledger
-                // transitions ACTIVE → CLOSING and enqueues a CHANNEL_CLOSED reply. Not yet DRAINED — peer hasn't
+                // transitions ACTIVE → CLOSING and enqueues a CONNECTOR_NOT_FOUND reply. Not yet DRAINED — peer hasn't
                 // acked the receiving ledger's reply.
                 clprSubmitBundle()
                         .channelId(crypto.channelId())
                         .bundlePayload(ClprTestProofs.toBundleProofBytes(drainingBundle))
                         .endpointNodeId(0L)
                         .payingWith(GENESIS),
-                // Peer confirms it received our CHANNEL_CLOSED reply (receivedMessageId=1) and has
+                // Peer confirms it received our CONNECTOR_NOT_FOUND reply (receivedMessageId=1) and has
                 // no further data to send — both queues should now be empty, so the receiving ledger's channel
                 // drains.
                 clprSubmitBundle()
@@ -154,14 +154,14 @@ public class ClprCloseChannelSuite {
                                                 .setNextMessageId(3)
                                                 .setSentRunningHash(ByteString.copyFrom(new byte[32]))
                                                 // Setting received message ID simulates the peer ledger receiving the
-                                                // CHANNEL_CLOSED response from the receiving ledger
+                                                // CONNECTOR_NOT_FOUND response from the receiving ledger
                                                 .setReceivedMessageId(1)
                                                 .setStatus(ClprChannelStatus.CLOSING)
                                                 .build())
                                         .addMessages(ClprMessagePayload.newBuilder()
                                                 .setMessageReply(ClprMessageReply.newBuilder()
                                                         .setMessageId(1)
-                                                        .setStatus(ClprMessageReplyStatus.CHANNEL_CLOSED)
+                                                        .setStatus(ClprMessageReplyStatus.SUCCESS)
                                                         .build())
                                                 .build())
                                         .build(),
