@@ -85,6 +85,13 @@ public interface WritableHintsStore extends ReadableHintsStore {
             @NonNull Roster fromRoster, @NonNull Roster toRoster, @NonNull Bytes toRosterHash, boolean forceHandoff);
 
     /**
+     * Rebinds a completed active construction after the caller verifies that the adopted roster has
+     * exactly the same node IDs and weights as its prepared target. Changes no cryptographic material
+     * or CRS provenance. Returns false without mutation if the expected active target is not complete.
+     */
+    boolean rebindActiveTargetRosterHash(@NonNull Bytes expectedOldHash, @NonNull Bytes newHash);
+
+    /**
      * Sets the {@link CRSState} for the network.
      *
      * @param crsState the {@link CRSState} to set

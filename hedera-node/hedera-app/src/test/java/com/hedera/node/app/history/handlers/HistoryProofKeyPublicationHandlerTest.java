@@ -36,6 +36,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class HistoryProofKeyPublicationHandlerTest {
     private static final long NODE_ID = 123L;
+    private static final long CONSTRUCTION_ID = 42L;
     private static final Bytes PROOF_KEY = Bytes.wrap("PK");
     private static final Bytes WRAPS_MESSAGE = Bytes.wrap("MSG");
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
@@ -120,10 +121,10 @@ class HistoryProofKeyPublicationHandlerTest {
         given(context.storeFactory()).willReturn(factory);
         given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
         given(context.consensusNow()).willReturn(CONSENSUS_NOW);
-        given(controllers.getAnyInProgress()).willReturn(Optional.of(controller));
+        given(controllers.getInProgressById(CONSTRUCTION_ID)).willReturn(Optional.of(controller));
         given(controller.addWrapsMessagePublication(any(ReadableHistoryStore.WrapsMessagePublication.class), eq(store)))
                 .willReturn(true);
-        given(controller.constructionId()).willReturn(42L);
+        given(controller.constructionId()).willReturn(CONSTRUCTION_ID);
 
         subject.handle(context);
 
@@ -134,7 +135,8 @@ class HistoryProofKeyPublicationHandlerTest {
         assertEquals(WRAPS_MESSAGE, publication.message());
         assertEquals(WrapsPhase.R1, publication.phase());
         assertEquals(CONSENSUS_NOW, publication.receiptTime());
-        verify(store).addWrapsMessage(42L, publication);
+        verify(store).addWrapsMessage(CONSTRUCTION_ID, publication);
+        verify(controllers, never()).getAnyInProgress();
     }
 
     @Test
@@ -145,7 +147,7 @@ class HistoryProofKeyPublicationHandlerTest {
         given(context.storeFactory()).willReturn(factory);
         given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
         given(context.consensusNow()).willReturn(CONSENSUS_NOW);
-        given(controllers.getAnyInProgress()).willReturn(Optional.of(controller));
+        given(controllers.getInProgressById(CONSTRUCTION_ID)).willReturn(Optional.of(controller));
         given(controller.addWrapsMessagePublication(any(ReadableHistoryStore.WrapsMessagePublication.class), eq(store)))
                 .willReturn(false);
 
@@ -154,6 +156,23 @@ class HistoryProofKeyPublicationHandlerTest {
         verify(controller)
                 .addWrapsMessagePublication(any(ReadableHistoryStore.WrapsMessagePublication.class), eq(store));
         verify(store, never()).addWrapsMessage(anyLong(), any());
+    }
+
+    @Test
+    void ignoresWrapsMessageFromReplacedConstruction() {
+        final long staleConstructionId = CONSTRUCTION_ID - 1;
+        givenWrapsMessagePublicationWith(WRAPS_MESSAGE, WrapsPhase.R1, staleConstructionId);
+        given(nodeInfo.nodeId()).willReturn(NODE_ID);
+        given(context.creatorInfo()).willReturn(nodeInfo);
+        given(context.storeFactory()).willReturn(factory);
+        given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
+        given(controllers.getInProgressById(staleConstructionId)).willReturn(Optional.empty());
+
+        subject.handle(context);
+
+        verify(controllers).getInProgressById(staleConstructionId);
+        verify(controllers, never()).getAnyInProgress();
+        verifyNoInteractions(controller, store);
     }
 
     private void givenProofKeyPublicationWith(@NonNull final Bytes key) {
@@ -167,9 +186,15 @@ class HistoryProofKeyPublicationHandlerTest {
     }
 
     private void givenWrapsMessagePublicationWith(@NonNull final Bytes message, @NonNull final WrapsPhase phase) {
+        givenWrapsMessagePublicationWith(message, phase, CONSTRUCTION_ID);
+    }
+
+    private void givenWrapsMessagePublicationWith(
+            @NonNull final Bytes message, @NonNull final WrapsPhase phase, final long constructionId) {
         final var op = HistoryProofKeyPublicationTransactionBody.newBuilder()
                 .wrapsMessage(message)
                 .phase(phase)
+                .constructionId(constructionId)
                 .build();
         final var body =
                 TransactionBody.newBuilder().historyProofKeyPublication(op).build();

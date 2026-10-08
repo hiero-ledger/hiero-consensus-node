@@ -116,8 +116,8 @@ public class HistoryServiceImpl implements HistoryService {
         requireNonNull(tssConfig);
         switch (activeRosters.phase()) {
             case BOOTSTRAP, TRANSITION -> {
-                final var construction =
-                        historyStore.getOrCreateConstruction(activeRosters, now, tssConfig, freshGenesisRequested);
+                final var construction = historyStore.getOrCreateConstruction(
+                        activeRosters, now, tssConfig, freshGenesisRequested, metadata);
                 if (!isCompleted(construction)) {
                     final var controller = component
                             .controllers()

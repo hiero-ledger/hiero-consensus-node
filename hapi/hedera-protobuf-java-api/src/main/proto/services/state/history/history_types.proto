@@ -4,6 +4,7 @@ package com.hedera.hapi.node.state.history;
 
 // SPDX-License-Identifier: Apache-2.0
 import "services/timestamp.proto";
+import "google/protobuf/wrappers.proto";
 
 option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.state.history">>> This comment is special code for setting PBJ Compiler java package
@@ -152,6 +153,13 @@ message HistoryProofConstruction {
    * The number of times the network has had to restart this construction.
    */
   uint32 wraps_retry_count = 10;
+
+  /**
+   * The metadata this construction proves, once available. This binding survives
+   * a restart and prevents resuming a proof for an obsolete hinTS verification
+   * key when the same roster transition receives a replacement hinTS construction.
+   */
+  google.protobuf.BytesValue target_metadata = 11;
 }
 
 /**

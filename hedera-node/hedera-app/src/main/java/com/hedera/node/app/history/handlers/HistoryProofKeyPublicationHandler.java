@@ -59,7 +59,7 @@ public class HistoryProofKeyPublicationHandler implements TransactionHandler {
         } else if (op.hasWrapsMessage()) {
             final var message = op.wrapsMessageOrThrow();
             log.info("node{} published new WRAPS message '{}'", nodeId, message);
-            controllers.getAnyInProgress().ifPresent(controller -> {
+            controllers.getInProgressById(op.constructionId()).ifPresent(controller -> {
                 final var publication =
                         new WrapsMessagePublication(nodeId, message, op.phase(), context.consensusNow());
                 if (controller.addWrapsMessagePublication(publication, historyStore)) {

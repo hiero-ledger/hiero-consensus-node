@@ -369,6 +369,51 @@ class WritableHintsStoreImplTest {
     }
 
     @Test
+    void rebindingCompletedTargetPreservesSchemeAndCrsProvenance() {
+        final var active = HintsConstruction.newBuilder()
+                .constructionId(123L)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(B_ROSTER_HASH)
+                .crsId(1L)
+                .numParties(4)
+                .hintsScheme(HintsScheme.newBuilder()
+                        .preprocessedKeys(PreprocessedKeys.DEFAULT)
+                        .build())
+                .build();
+        final var next = HintsConstruction.newBuilder().constructionId(124L).build();
+        setConstructions(active, next);
+        subject.setCrsState(CRSState.newBuilder()
+                .ceremonyId(1L)
+                .numParties(4)
+                .stage(CRSStage.COMPLETED)
+                .sourceRosterHash(A_ROSTER_HASH)
+                .targetRosterHash(B_ROSTER_HASH)
+                .crs(Bytes.wrap(new byte[304 + 288 * 4]))
+                .build());
+        final var originalCrs = subject.getCrsState();
+
+        assertFalse(subject.rebindActiveTargetRosterHash(A_ROSTER_HASH, C_ROSTER_HASH));
+        assertEquals(active, subject.getActiveConstruction());
+        assertTrue(subject.rebindActiveTargetRosterHash(B_ROSTER_HASH, C_ROSTER_HASH));
+        assertEquals(active.copyBuilder().targetRosterHash(C_ROSTER_HASH).build(), subject.getActiveConstruction());
+        assertEquals(originalCrs, subject.getCrsState());
+        assertEquals(next, subject.getNextConstruction());
+
+        subject.setCrsState(originalCrs
+                .copyBuilder()
+                .stage(CRSStage.GATHERING_CONTRIBUTIONS)
+                .build());
+        assertFalse(subject.rebindActiveTargetRosterHash(C_ROSTER_HASH, B_ROSTER_HASH));
+        setConstructions(
+                active.copyBuilder()
+                        .gracePeriodEndTime(asTimestamp(CONSENSUS_NOW))
+                        .build(),
+                next);
+        subject.setCrsState(originalCrs);
+        assertFalse(subject.rebindActiveTargetRosterHash(B_ROSTER_HASH, C_ROSTER_HASH));
+    }
+
+    @Test
     void handoffPurgesUpcomingConstructionVotes() {
         // The upcoming construction's voters are the outgoing roster (its source roster == the
         // fromRoster passed to handoff); its votes must be purged so they are not orphaned once it

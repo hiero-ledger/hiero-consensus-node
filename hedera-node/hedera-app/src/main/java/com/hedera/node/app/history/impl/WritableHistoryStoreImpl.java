@@ -17,6 +17,7 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.roster.RosterUtils.isWeightRotation;
 
 import com.hedera.hapi.node.state.history.ConstructionNodeId;
+import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
@@ -78,6 +79,16 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             @NonNull final Instant now,
             @NonNull final TssConfig tssConfig,
             final boolean freshGenesisRequested) {
+        return getOrCreateConstruction(activeRosters, now, tssConfig, freshGenesisRequested, null);
+    }
+
+    @Override
+    public @NonNull HistoryProofConstruction getOrCreateConstruction(
+            @NonNull final ActiveRosters activeRosters,
+            @NonNull final Instant now,
+            @NonNull final TssConfig tssConfig,
+            final boolean freshGenesisRequested,
+            @Nullable final Bytes metadata) {
         requireNonNull(activeRosters);
         requireNonNull(now);
         requireNonNull(tssConfig);
@@ -86,10 +97,17 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             throw new IllegalArgumentException("Handoff phase has no construction");
         }
         var construction = getConstructionFor(activeRosters);
+        final boolean metadataChanged =
+                construction != null && metadata != null && requiresNewMetadataBinding(construction, metadata);
+        // An unfinished bootstrap construction has no active proof to preserve. Replace it in place,
+        // allocating its successor's ID before overwriting the old state.
+        final boolean replaceActive = metadataChanged
+                && !isCompleted(construction)
+                && construction.constructionId() == getActiveConstruction().constructionId();
         // Constructions are matched by roster hashes alone, so when a fresh genesis proof is requested the
         // completed construction that already grounds the chain of trust for this roster is matched again;
         // it holds the very proof to be replaced, so a new construction is needed
-        if (construction != null && freshGenesisRequested && isCompleted(construction)) {
+        if (metadataChanged || (construction != null && freshGenesisRequested && isCompleted(construction))) {
             construction = null;
         }
         if (construction == null) {
@@ -101,9 +119,34 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
                     activeRosters.targetRosterHash(),
                     activeRosters::findRelatedRoster,
                     now,
-                    gracePeriod);
+                    gracePeriod,
+                    metadata,
+                    replaceActive);
+        } else if (metadata != null && !metadata.equals(construction.targetMetadata())) {
+            // Legacy completed constructions bind metadata in their proof; constructions that are still
+            // collecting keys have not started signing it. Persist either binding without changing IDs.
+            construction = updateOrThrow(construction.constructionId(), (c, b) -> b.targetMetadata(metadata));
         }
         return construction;
+    }
+
+    private static boolean requiresNewMetadataBinding(
+            @NonNull final HistoryProofConstruction construction, @NonNull final Bytes metadata) {
+        if (construction.hasTargetProof()) {
+            return !construction
+                    .targetProofOrThrow()
+                    .targetHistoryOrElse(History.DEFAULT)
+                    .metadata()
+                    .equals(metadata);
+        }
+        if (construction.hasTargetMetadata()) {
+            return !metadata.equals(construction.targetMetadata());
+        }
+        // A pre-upgrade signing attempt did not persist its metadata. It is unsafe to replay its
+        // messages under an assumed binding, so restart it once the target key becomes available.
+        return construction.hasAssemblyStartTime()
+                || construction.hasWrapsSigningState()
+                || construction.hasFailureReason();
     }
 
     @Override
@@ -223,6 +266,18 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
         return true;
     }
 
+    @Override
+    public boolean rebindActiveTargetRosterHash(@NonNull final Bytes expectedOldHash, @NonNull final Bytes newHash) {
+        requireNonNull(expectedOldHash);
+        requireNonNull(newHash);
+        final var active = getActiveConstruction();
+        if (newHash.length() == 0 || !active.targetRosterHash().equals(expectedOldHash) || !isCompleted(active)) {
+            return false;
+        }
+        activeConstruction.put(active.copyBuilder().targetRosterHash(newHash).build());
+        return true;
+    }
+
     /**
      * Updates the construction with the given ID using the given spec.
      * @param constructionId the construction ID
@@ -266,14 +321,21 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             @NonNull final Bytes targetRosterHash,
             @NonNull final Function<Bytes, Roster> lookup,
             @NonNull final Instant now,
-            @NonNull final Duration gracePeriod) {
+            @NonNull final Duration gracePeriod,
+            @Nullable final Bytes metadata,
+            final boolean replaceActive) {
         var construction = HistoryProofConstruction.newBuilder()
                 .constructionId(newConstructionId())
                 .sourceRosterHash(sourceRosterHash)
                 .targetRosterHash(targetRosterHash)
+                .targetMetadata(metadata)
                 .gracePeriodEndTime(asTimestamp(now.plus(gracePeriod)))
                 .build();
-        if (requireNonNull(activeConstruction.get()).equals(HistoryProofConstruction.DEFAULT)) {
+        if (replaceActive || requireNonNull(activeConstruction.get()).equals(HistoryProofConstruction.DEFAULT)) {
+            if (replaceActive) {
+                final var obsolete = requireNonNull(activeConstruction.get());
+                purgePublications(obsolete.constructionId(), requireNonNull(lookup.apply(obsolete.sourceRosterHash())));
+            }
             activeConstruction.put(construction);
             logNewConstruction(construction, InSlot.ACTIVE, sourceRosterHash, targetRosterHash);
         } else {

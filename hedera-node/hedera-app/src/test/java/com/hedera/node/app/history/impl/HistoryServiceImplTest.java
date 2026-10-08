@@ -169,7 +169,7 @@ class HistoryServiceImplTest {
                 .uncompressedWrapsProof(Bytes.wrap("uncompressed"))
                 .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
                 .build();
-        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, false))
+        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, false, null))
                 .willReturn(HistoryProofConstruction.newBuilder()
                         .targetProof(wrapsExtensibleProof)
                         .build());
@@ -183,7 +183,7 @@ class HistoryServiceImplTest {
     void activeReconciliationIfTransitionHasNoProofYet() {
         withMockSubject();
         given(activeRosters.phase()).willReturn(TRANSITION);
-        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, false))
+        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, false, CURRENT_VK))
                 .willReturn(HistoryProofConstruction.DEFAULT);
         given(store.getActiveConstruction()).willReturn(HistoryProofConstruction.DEFAULT);
         given(component.controllers()).willReturn(controllers);

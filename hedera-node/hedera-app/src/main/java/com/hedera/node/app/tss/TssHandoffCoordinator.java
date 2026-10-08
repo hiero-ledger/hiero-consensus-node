@@ -19,9 +19,11 @@ import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * Coordinates handoffs between the hinTS and history constructions.
@@ -119,6 +121,23 @@ public final class TssHandoffCoordinator {
             @NonNull final Roster adoptedRoster,
             @NonNull final Bytes adoptedRosterHash,
             final boolean historyEnabled) {
+        return canRetainActiveConstruction(
+                hintsStore, historyStore, previousRoster, adoptedRoster, adoptedRosterHash, historyEnabled, null);
+    }
+
+    /**
+     * Also accepts a previously prepared roster whose transport details were changed by an override.
+     * The supplied roster must hash to the active construction's target; a matching subset of signing
+     * parties is not sufficient evidence of the target's weighted membership.
+     */
+    public static boolean canRetainActiveConstruction(
+            @NonNull final ReadableHintsStore hintsStore,
+            @NonNull final ReadableHistoryStore historyStore,
+            @NonNull final Roster previousRoster,
+            @NonNull final Roster adoptedRoster,
+            @NonNull final Bytes adoptedRosterHash,
+            final boolean historyEnabled,
+            @Nullable final Roster preparedRoster) {
         requireNonNull(hintsStore);
         requireNonNull(historyStore);
         requireNonNull(previousRoster);
@@ -143,18 +162,20 @@ public final class TssHandoffCoordinator {
         } catch (IllegalArgumentException e) {
             return false;
         }
-        final boolean sameWeights = previousRoster.rosterEntries().stream()
-                .collect(toMap(RosterEntry::nodeId, RosterEntry::weight))
-                .equals(adoptedRoster.rosterEntries().stream()
-                        .collect(toMap(RosterEntry::nodeId, RosterEntry::weight)));
-        if (!sameWeights && !active.targetRosterHash().equals(adoptedRosterHash)) {
+        // A weight rotation can promote signing state before the platform adopts its candidate.
+        // Therefore the previous platform roster is evidence only when it was this scheme's target.
+        if (preparedRosterHashForAdoption(active.targetRosterHash(), adoptedRoster, adoptedRosterHash, previousRoster)
+                        .isEmpty()
+                && preparedRosterHashForAdoption(
+                                active.targetRosterHash(), adoptedRoster, adoptedRosterHash, preparedRoster)
+                        .isEmpty()) {
             return false;
         }
         if (!historyEnabled) {
             return true;
         }
         final var history = historyStore.getActiveConstruction();
-        if (!history.hasTargetProof()) {
+        if (!history.hasTargetProof() || !history.targetRosterHash().equals(active.targetRosterHash())) {
             return false;
         }
         final var proof = history.targetProofOrThrow();
@@ -166,6 +187,70 @@ public final class TssHandoffCoordinator {
                         .equals(active.hintsSchemeOrThrow()
                                 .preprocessedKeysOrThrow()
                                 .verificationKey());
+    }
+
+    /**
+     * Resolves the cryptographic target for an adoption that may override transport details.
+     * A different roster hash is accepted only with the complete prepared roster as evidence that
+     * every node ID and weight is unchanged. The returned hash still has to pass all handoff checks.
+     */
+    public static @NonNull Optional<Bytes> preparedRosterHashForAdoption(
+            @NonNull final Bytes preparedRosterHash,
+            @NonNull final Roster adoptedRoster,
+            @NonNull final Bytes adoptedRosterHash,
+            @Nullable final Roster preparedRoster) {
+        requireNonNull(preparedRosterHash);
+        requireNonNull(adoptedRoster);
+        requireNonNull(adoptedRosterHash);
+        if (preparedRosterHash.equals(adoptedRosterHash)) {
+            return Optional.of(preparedRosterHash);
+        }
+        if (preparedRoster == null
+                || !RosterUtils.hash(preparedRoster).getBytes().equals(preparedRosterHash)) {
+            return Optional.empty();
+        }
+        final var preparedWeights =
+                preparedRoster.rosterEntries().stream().collect(toMap(RosterEntry::nodeId, RosterEntry::weight));
+        final var adoptedWeights =
+                adoptedRoster.rosterEntries().stream().collect(toMap(RosterEntry::nodeId, RosterEntry::weight));
+        return preparedWeights.equals(adoptedWeights) ? Optional.of(preparedRosterHash) : Optional.empty();
+    }
+
+    /**
+     * Persists the verified adopted roster identity so a later transport-only override can prove
+     * equivalence even after the canonical prepared roster has been pruned. This changes only the
+     * completed active constructions' target bookkeeping, never their sources or cryptographic material.
+     */
+    public static boolean rebindActiveTargetsForAdoption(
+            @NonNull final WritableHintsStore hintsStore,
+            @NonNull final WritableHistoryStore historyStore,
+            @NonNull final Roster previousRoster,
+            @NonNull final Roster adoptedRoster,
+            @NonNull final Bytes adoptedRosterHash,
+            final boolean historyEnabled,
+            @Nullable final Roster preparedRoster) {
+        if (!canRetainActiveConstruction(
+                hintsStore,
+                historyStore,
+                previousRoster,
+                adoptedRoster,
+                adoptedRosterHash,
+                historyEnabled,
+                preparedRoster)) {
+            return false;
+        }
+        final var oldHash = hintsStore.getActiveConstruction().targetRosterHash();
+        // The retention preflight checked both completed identities before either service is written.
+        if (oldHash.equals(adoptedRosterHash)) {
+            return true;
+        }
+        if (historyEnabled && !historyStore.rebindActiveTargetRosterHash(oldHash, adoptedRosterHash)) {
+            return false;
+        }
+        if (!hintsStore.rebindActiveTargetRosterHash(oldHash, adoptedRosterHash)) {
+            throw new IllegalStateException("Guarded active hinTS target rebinding failed");
+        }
+        return true;
     }
 
     /** Forced handoff obeys the same CRS and proof binding requirements as a normal handoff. */

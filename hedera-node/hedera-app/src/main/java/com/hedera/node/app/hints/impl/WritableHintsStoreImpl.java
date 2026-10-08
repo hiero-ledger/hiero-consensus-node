@@ -212,6 +212,22 @@ public class WritableHintsStoreImpl extends ReadableHintsStoreImpl implements Wr
     }
 
     @Override
+    public boolean rebindActiveTargetRosterHash(@NonNull final Bytes expectedOldHash, @NonNull final Bytes newHash) {
+        requireNonNull(expectedOldHash);
+        requireNonNull(newHash);
+        final var active = getActiveConstruction();
+        if (newHash.length() == 0
+                || !active.targetRosterHash().equals(expectedOldHash)
+                || !active.hasHintsScheme()
+                || !active.hintsSchemeOrThrow().hasPreprocessedKeys()
+                || getCrsStateFor(active).stage() != COMPLETED) {
+            return false;
+        }
+        activeConstruction.put(active.copyBuilder().targetRosterHash(newHash).build());
+        return true;
+    }
+
+    @Override
     public void setCrsState(@NonNull final CRSState crsState) {
         final var current = this.crsState.get();
         final long highWater = Math.max(

@@ -53,6 +53,11 @@ public class V079HintsSchema extends Schema<SemanticVersion> {
     @Override
     public void migrate(@NonNull final MigrationContext ctx) {
         final var states = ctx.newStates();
+        // Genesis values are written by doGenesisSetup during consensus. Schema registration
+        // must leave the initial Merkle root empty so block stream replay starts at the same root.
+        if (ctx.isGenesis()) {
+            return;
+        }
         final var nextCrs = states.<CRSState>getSingleton(NEXT_CRS_STATE_ID);
         if (nextCrs.get() == null) {
             nextCrs.put(CRSState.DEFAULT);
@@ -70,7 +75,7 @@ public class V079HintsSchema extends Schema<SemanticVersion> {
             nextState.put(HintsConstruction.DEFAULT);
         }
         final var legacy = requireNonNull(activeCrs.get());
-        if (ctx.isGenesis() || legacy.ceremonyId() > 0) {
+        if (legacy.ceremonyId() > 0) {
             return;
         }
         final var active = requireNonNull(activeState.get());

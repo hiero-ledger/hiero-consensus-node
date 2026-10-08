@@ -6,10 +6,15 @@ import static com.hedera.node.app.service.roster.impl.schemas.V0540RosterSchema.
 import static com.hedera.node.app.service.roster.impl.schemas.V0540RosterSchema.ROSTER_STATES_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -28,6 +33,7 @@ import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.spi.WritableStates;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -36,6 +42,8 @@ import org.hiero.consensus.roster.WritableRosterStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -201,6 +209,83 @@ class V0540RosterSchemaTest {
         verify(startupNetworks).setOverrideRound(ROUND_NO);
         verify(onOverrideNetwork).accept(NETWORK);
         verify(onAdopt).accept(ROSTER, ROSTER);
+    }
+
+    @Test
+    void overrideCallbacksSeeOriginalActiveAndPreparedCandidateBeforeReplacement() {
+        givenOverrideNetwork();
+        final var preparedRoster = new Roster(
+                List.of(RosterEntry.newBuilder().nodeId(1L).weight(42L).build()));
+        final var active = new AtomicReference<>(ROSTER);
+        final var candidate = new AtomicReference<>(preparedRoster);
+        given(rosterStore.getActiveRoster()).willAnswer(ignore -> active.get());
+        given(rosterStore.getCandidateRoster()).willAnswer(ignore -> candidate.get());
+        // Model the production store's candidate purge on adoption. Both callbacks need to resolve
+        // the exact persisted prepared roster before it becomes unavailable.
+        doAnswer(invocation -> {
+                    active.set(invocation.getArgument(0));
+                    candidate.set(null);
+                    return null;
+                })
+                .when(rosterStore)
+                .putActiveRoster(any(), anyLong());
+        doAnswer(ignore -> {
+                    assertEquals(ROSTER, rosterStore.getActiveRoster());
+                    assertEquals(preparedRoster, rosterStore.getCandidateRoster());
+                    return null;
+                })
+                .when(onOverrideNetwork)
+                .accept(NETWORK);
+        doAnswer(ignore -> {
+                    assertEquals(ROSTER, rosterStore.getActiveRoster());
+                    assertEquals(preparedRoster, rosterStore.getCandidateRoster());
+                    return null;
+                })
+                .when(onAdopt)
+                .accept(ROSTER, ROSTER);
+
+        subject.restart(ctx);
+
+        assertNull(candidate.get());
+        final var order = inOrder(onOverrideNetwork, onAdopt, rosterStore, startupNetworks);
+        order.verify(onOverrideNetwork).accept(NETWORK);
+        order.verify(onAdopt).accept(ROSTER, ROSTER);
+        order.verify(rosterStore).putActiveRoster(ROSTER, ROUND_NO + 1);
+        order.verify(rosterStore).updateTransplantInProgress(true);
+        order.verify(startupNetworks).setOverrideRound(ROUND_NO);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void rejectedOverrideDoesNotReplaceRosterOrMarkTransplant(boolean rejectionDuringImport) {
+        givenOverrideNetwork();
+        given(rosterStore.getActiveRoster()).willReturn(ROSTER);
+        final var rejection = new IllegalStateException("CRS prerequisites are incomplete");
+        if (rejectionDuringImport) {
+            doThrow(rejection).when(onOverrideNetwork).accept(NETWORK);
+        } else {
+            doThrow(rejection).when(onAdopt).accept(ROSTER, ROSTER);
+        }
+
+        assertEquals(rejection, assertThrows(IllegalStateException.class, () -> subject.restart(ctx)));
+
+        verify(rosterStore, never()).putActiveRoster(any(), anyLong());
+        verify(rosterStore, never()).updateTransplantInProgress(anyBoolean());
+        verify(startupNetworks, never()).setOverrideRound(anyLong());
+        if (rejectionDuringImport) {
+            verifyNoInteractions(onAdopt);
+        }
+    }
+
+    private void givenOverrideNetwork() {
+        subject = new V0540RosterSchema(onAdopt, canAdopt, rosterStoreFactory, onOverrideNetwork);
+        given(ctx.appConfig()).willReturn(DEFAULT_CONFIG);
+        given(ctx.startupNetworks()).willReturn(startupNetworks);
+        given(ctx.roundNumber()).willReturn(ROUND_NO);
+        given(ctx.newStates()).willReturn(writableStates);
+        given(rosterStoreFactory.apply(writableStates)).willReturn(rosterStore);
+        given(ctx.platformConfig()).willReturn(DEFAULT_CONFIG);
+        given(startupNetworks.overrideNetworkFor(ROUND_NO, DEFAULT_CONFIG)).willReturn(Optional.of(NETWORK));
     }
 
     @Test

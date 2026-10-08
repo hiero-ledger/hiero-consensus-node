@@ -73,10 +73,14 @@ class V079HintsSchemaTest {
     }
 
     @Test
-    void genesisCreatesEmptyNextSlotWithoutInferringCryptoMetadata() {
+    void genesisLeavesSingletonsUnmodifiedUntilConsensusSetup() {
         given(ctx.isGenesis()).willReturn(true);
         subject.migrate(ctx);
-        assertEquals(CRSState.DEFAULT, nextCrs.get());
+        assertNull(nextCrs.get());
+        assertFalse(nextCrs.isModified());
+        assertFalse(activeCrs.isModified());
+        assertFalse(active.isModified());
+        assertFalse(next.isModified());
         verifyNoInteractions(library, signingContext);
     }
 

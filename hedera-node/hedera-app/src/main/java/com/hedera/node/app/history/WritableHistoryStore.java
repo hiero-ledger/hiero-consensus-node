@@ -42,6 +42,26 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
             boolean freshGenesisRequested);
 
     /**
+     * Gets or creates a construction bound to the given metadata when it is available. A construction
+     * bound to different metadata is replaced with a new ID, even when its roster hashes still match.
+     * Null metadata leaves the existing binding unchanged while hinTS preprocessing is pending.
+     *
+     * @param activeRosters the active rosters
+     * @param now the current time
+     * @param tssConfig the TSS configuration
+     * @param freshGenesisRequested whether a fresh genesis proof is requested
+     * @param metadata the target metadata, or null while it is unavailable
+     * @return the current construction for the rosters and metadata
+     */
+    @NonNull
+    HistoryProofConstruction getOrCreateConstruction(
+            @NonNull ActiveRosters activeRosters,
+            @NonNull Instant now,
+            @NonNull TssConfig tssConfig,
+            boolean freshGenesisRequested,
+            @Nullable Bytes metadata);
+
+    /**
      * Includes the given proof key for the given node, assigning the given adoption time if the key
      * is immediately in use.
      *
@@ -110,6 +130,13 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
      * @return whether the handoff happened
      */
     boolean handoff(@NonNull Roster fromRoster, @Nullable Roster toRoster, @Nullable Bytes toRosterHash);
+
+    /**
+     * Rebinds a completed active construction after the caller verifies that the adopted roster has
+     * exactly the same node IDs and weights as its prepared target. Preserves the proof and source
+     * identity. Returns false without mutation if the expected active target is not complete.
+     */
+    boolean rebindActiveTargetRosterHash(@NonNull Bytes expectedOldHash, @NonNull Bytes newHash);
 
     /**
      * Updates the WRAPS signing state with the given specification.
