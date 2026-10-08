@@ -1,0 +1,49 @@
+﻿syntax = "proto3";
+
+package proto.services;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hiero.proto.services";
+option csharp_namespace = "Hiero.Proto.Services";
+// <<<pbj.java_package = "com.hiero.proto.services">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/hook_types.proto";
+
+/**
+ * Dispatches a hook action to an appropriate service.
+ */
+message HookDispatchTransactionBody {
+  oneof action {
+    /**
+     * The id of the hook to delete.
+     */
+    proto.services.HookId hook_id_to_delete = 1;
+
+    /**
+     * Creation details for a new hook.
+     */
+    proto.services.HookCreation creation = 2;
+
+    /**
+     * Execution details of an existing hook.
+     */
+    HookExecution execution = 3;
+  }
+}
+
+/**
+ * Details the execution of a hook.
+ */
+message HookExecution {
+  /**
+   * The id of the hook's entity.
+   */
+  proto.services.HookEntityId hook_entity_id = 1;
+
+  /**
+   * The details of the call, including which hook id to call.
+   */
+  proto.services.HookCall call = 2;
+}
