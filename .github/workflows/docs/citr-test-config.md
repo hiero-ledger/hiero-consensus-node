@@ -111,7 +111,7 @@ catching regressions without being unnecessarily long-running.
 
 ## SDCT 
 
-> **Note: Short-stop Design.** The SDCT workflow, Jenkins job contract and test driver described below are a short-stop
+> **Note: Stop-gap Design.** The SDCT workflow, Jenkins job contract and test driver described below are a stop-gap
 > design that lets the GA workflow run unattended on perf1. The final design will come in the next CITR phase.
 
 ### Purpose
