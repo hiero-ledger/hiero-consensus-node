@@ -70,14 +70,7 @@ public class ClprEndpointPublicationHandler extends AbstractClprHandler {
         final var op = context.body().clprEndpointPublicationOrThrow();
         final long publisherNodeId = context.creatorInfo().nodeId();
 
-        // Master feature-flag guard. When the endpoint-manifest lifecycle is disabled, do not
-        // admit or open anything — drop with an info log.
         final var clprConfig = context.configuration().getConfigData(ClprConfig.class);
-        if (!clprConfig.endpointManifestEnabled()) {
-            log.info("[Clpr] dropped publication from node{} — clpr.endpointManifestEnabled=false", publisherNodeId);
-            return;
-        }
-
         final var publication = toStatePublication(op);
         final var constructionStore =
                 context.storeFactory().writableStore(WritableEndpointManifestConstructionStore.class);

@@ -38,15 +38,10 @@ public interface ClprVerifier {
      *
      * @param configProofBytes opaque proof bytes attesting the peer's configuration
      * @param channelId 32-byte Channel identifier; echoed by the verifier into the
-     *     returned {@code ChannelContext} on platforms that carry one. MUST be
-     *     {@link Bytes#EMPTY} when {@code clpr.endpointManifestEnabled=false} (the legacy
-     *     verifier ABI does not take a channel id).
+     *     returned {@code ChannelContext} on platforms that carry one.
      * @param endpointManifestProofBytes opaque proof bytes attesting the peer's endpoint
      *     manifest; MUST be verifiable against the same initial trust anchor as
-     *     {@code configProofBytes}. MUST be {@link Bytes#EMPTY} when
-     *     {@code clpr.endpointManifestEnabled=false} — implementations select between the
-     *     legacy 1-arg ABI and the manifest-aware 3-arg ABI based on the flag and ignore
-     *     this argument on the legacy path
+     *     {@code configProofBytes}
      * @param context the current handle context, available for EVM dispatch if needed
      * @return the verified config plus the initial endpoint manifest
      * @throws HandleException if any proof verification or invariant check fails

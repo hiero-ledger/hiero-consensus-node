@@ -82,8 +82,7 @@ public class BlockStreamEventBuilder {
         /** Returns the parent event hash. */
         @NonNull
         public Hash parentHash() {
-            return new Hash(
-                    parentDescriptor.hash(), EventHashFactory.getTypeForBirthRound(parentDescriptor.birthRound()));
+            return EventHashFactory.hash(parentDescriptor.hash(), parentDescriptor.birthRound());
         }
     }
 

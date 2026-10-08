@@ -80,19 +80,19 @@ message ClprCompleteChannelTransactionBody {
 
     /**
      * Opaque proof bytes attesting the peer's initial ClprEndpointManifest, passed to the
-     * manifest-aware verifyConfig(bytes,bytes,bytes) ABI (spec §4.8, ADR "Channel Creation
+     * manifest-aware verifyConfig(bytes,bytes32,bytes) ABI (spec §4.8, ADR "Channel Creation
      * and Initial Peer Manifest"). The verifier returns both the ClprLedgerConfiguration and
      * a ClprEndpointManifest attested by the same initial trust anchor; the CLPR Service
      * seeds Channel.endpoint_manifest and Channel.endpoint_manifest_version from that
      * result.
      *
-     * <p>Empty is valid: a peer with no advertised endpoints yet must still succeed with an
-     * empty manifest (test spec §3.2.1d).
+     * <p>A manifest with no endpoints is valid: a peer with no advertised endpoints yet must
+     * still succeed with an empty manifest (test spec §3.2.1d). The resulting Channel has no
+     * dial targets until a later bundle carries a manifest update.
      *
-     * <p>Flag-guarded: only threaded to the peer verifier when {@code
-     * clpr.endpointManifestEnabled=true}. When the flag is off, the receiving CLPR Service
-     * falls back to the legacy verifyConfig(bytes) ABI and this field is ignored; the
-     * resulting Channel has an empty manifest at version 0 (uninitialized). No freshness
+     * <p>Always passed to the peer verifier; there is no legacy verifyConfig ABI without it.
+     * The Hiero TSS verifier rejects empty proof bytes; some other verifier families accept
+     * them and synthesize a bring-up manifest from the proven configuration. No freshness
      * check is performed at completeChannel time.
      */
     bytes endpoint_manifest_proof_bytes = 7;
