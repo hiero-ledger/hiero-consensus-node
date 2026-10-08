@@ -37,6 +37,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.VERIFY_CONFIG;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toBundleProofBytes;
 import static com.hedera.services.bdd.suites.clpr.ClprTestProofs.toConfigProofBytes;
+import static com.hedera.services.bdd.suites.interledger.ClprTestHelpers.CLPR_SERVICE_ADDRESS_20;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -470,7 +471,7 @@ public class ClprEnabledSuite {
     private static ClprLedgerConfiguration ledgerConfig() {
         return ClprLedgerConfiguration.newBuilder()
                 .setChainId("hiero:testing")
-                .setServiceAddress(ByteString.copyFrom(new byte[] {0, 0, 1}))
+                .setServiceAddress(ByteString.copyFrom(CLPR_SERVICE_ADDRESS_20))
                 .setThrottles(HapiClprUpdateLedgerConfiguration.defaultThrottles())
                 .addEndpoints(ClprEndpoint.newBuilder()
                         .setServiceEndpoint(ClprServiceEndpoint.newBuilder()
