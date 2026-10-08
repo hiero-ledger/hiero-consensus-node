@@ -28,6 +28,22 @@ jobs:
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
 
+  # Required: a failed report fails the run. Starts together with MATS: same needs, so it reports running
+  # when MATS kicks off. Neither waits on the other.
+  report-mats-running:
+    name: Report MATS Running to Chewie
+    needs:
+      - extract-jdk-version
+    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    with:
+      suite-type: mats
+      commit: ${{ github.sha }}
+      branch: ${{ github.ref_name }}
+      disposition: running
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
+
   mats-tests:
     name: MATS Tests
     uses: ./.github/workflows/800-call-mats-tests.yaml
@@ -56,20 +72,6 @@ jobs:
       snyk-token: ${{ secrets.SNYK_TOKEN }}
 
   # Reported as soon as MATS finishes; nothing later in this workflow changes the MATS verdict.
-  # Required: a failed report fails the run. Reported first, as soon as the pushed commit is known; MATS
-  # itself does not wait for it.
-  report-mats-running:
-    name: Report MATS Running to Chewie
-    uses: ./.github/workflows/864-call-report-suite-result.yaml
-    with:
-      suite-type: mats
-      commit: ${{ github.sha }}
-      branch: ${{ github.ref_name }}
-      disposition: running
-    secrets:
-      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
-      chewie-host: ${{ secrets.CHEWIE_HOST }}
-
   report-mats-result:
     name: Report MATS Result to Chewie
     needs:

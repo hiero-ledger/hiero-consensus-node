@@ -174,17 +174,18 @@ disposition. The terminal report job runs with `if: always()`, so cancelled runs
 
 | Workflow | Suite  | Reports against               | Disposition                                                                                                                                               |
 |----------|--------|-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `300`    | `mats` | commit (`github.sha`), branch | `running` at start; when MATS finishes: success → `passed`, cancelled → `cancelled`, skipped → `not_run`, otherwise `failed`                              |
-| `226`    | `xts`  | commit (the candidate SHA)    | `running` once accepted; rejected candidate → `not_run`; otherwise success → `passed`, failure → `failed`, cancelled → `cancelled`                        |
-| `221`    | `sdpt` | build number                  | `running` once the build is verified; then cancelled → `cancelled`, success → `passed`, skipped → `not_run`, otherwise `failed`                           |
+| `300`    | `mats` | commit (`github.sha`), branch | `running` when MATS starts; when it finishes: success → `passed`, cancelled → `cancelled`, skipped → `not_run`, otherwise `failed`                        |
+| `226`    | `xts`  | commit (the candidate SHA)    | `running` when XTS starts; rejected candidate → `not_run`; otherwise success → `passed`, failure → `failed`, cancelled → `cancelled`                      |
+| `221`    | `sdpt` | build number                  | `running` when the test starts; after cleanup: cancelled → `cancelled`, success → `passed`, skipped → `not_run`, otherwise `failed`                       |
 | `222`    | `sdlt` | build number                  | Same as `221`                                                                                                                                             |
 | `224`    | `mdlt` | build number                  | Kickoff succeeded → **`running`**; cancelled → `cancelled`; skipped (build tag not verified) → `not_run`; otherwise `failed`                              |
 | `204`    | `mdlt` | build number                  | **Every status check:** in work → `running`; finished cleanly → `passed`; error in the client log → `failed`; namespace gone or run stopped → `cancelled` |
 | `206`    | `mdlt` | build number                  | The verdict Chewie dispatched it with: `success` → `passed`, `failure` → `failed`. Reported once the build is verified, whether or not tagging succeeds   |
 
-MATS, XTS, SDPT and SDLT report twice per run: `running` as soon as the run knows its commit or build, then the
-terminal disposition. The terminal report job waits on the `running` one, so it always lands last; the suite itself
-does not wait for either. MDLT reports more often: `running` at kickoff and at each `204` check, a terminal
+MATS, XTS, SDPT and SDLT report twice per run: `running` when the suite's test job starts (the report job shares the
+test's `needs`, so the two start together and neither waits on the other), then the terminal disposition. The terminal
+report job waits on the `running` one, so it always lands last; for SDPT and SDLT it also waits for the allocation to
+be released. MDLT reports more often: `running` at kickoff and at each `204` check, a terminal
 disposition from `204` once the run has finished, and the final verdict from `206`. `206`'s own run conclusion only
 reflects tagging and notifications — a `failure` verdict still produces a successful `206` run — so its explicit report,
 not the run's conclusion, is the MDLT result. MATS reports for every push to `main` and `release/**`; pull-request MATS runs
