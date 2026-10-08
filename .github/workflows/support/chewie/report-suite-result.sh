@@ -21,6 +21,11 @@ warn() {
   exit 0
 }
 
+note() {
+  echo "::warning::Chewie report: $1"
+  echo "- ⚠️ Chewie report: $1" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+}
+
 report_suite_result() {
   local disposition=${1:-} start_time=${2:-} end_time=${3:-}
 
@@ -36,9 +41,18 @@ report_suite_result() {
   if [[ "${REF:-}" =~ ^[Mm][Aa][Ii][Nn]$ && "${tag_number}" =~ ^[0-9]+$ ]]; then
     ident=$(jq -cn --argjson build_number "$((10#${tag_number}))" '{build_number: $build_number}')
   else
-    [[ -n "${REF:-}" ]] || warn "REF not set"
-    [[ "${COMMIT:-}" =~ ^[0-9a-f]{40}$ ]] || warn "no 40-character commit for branch '${REF}' (COMMIT '${COMMIT:-}')"
-    ident=$(jq -cn --arg branch "${REF}" --arg commit "${COMMIT}" '{branch: $branch, commit: $commit}')
+    # Either one alone identifies the run: an invalid or empty one is logged and left out, the report goes on
+    local branch=${REF:-} commit=${COMMIT:-}
+    if [[ -z "${branch}" ]]; then
+      note "REF not set, reporting by commit only"
+    fi
+    if [[ ! "${commit}" =~ ^[0-9a-f]{40}$ ]]; then
+      note "no 40-character commit for branch '${branch}' (COMMIT '${commit}'), reporting by branch only"
+      commit=""
+    fi
+    [[ -n "${branch}${commit}" ]] || warn "neither a branch (REF '${REF:-}') nor a 40-character commit (COMMIT '${COMMIT:-}') to report"
+    ident=$(jq -cn --arg branch "${branch}" --arg commit "${commit}" \
+                   '{} + (if $branch != "" then {branch: $branch} else {} end) + (if $commit != "" then {commit: $commit} else {} end)')
   fi
 
   # Jenkins (start) and runner (end) clocks differ: Chewie refuses an end before the start
