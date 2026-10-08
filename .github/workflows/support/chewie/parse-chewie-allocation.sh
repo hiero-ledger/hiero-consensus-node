@@ -87,29 +87,17 @@ parse_chewie_allocation() {
   local step_summary="${GITHUB_STEP_SUMMARY:-/dev/null}"
 
   # Allocation-wide fields.
-  local STATUS NAMESPACE CLUSTER_FQDN EXPIRATION NETWORK_ID OWNER
+  local STATUS NAMESPACE CLUSTER_FQDN EXPIRATION
   STATUS=$(jq -r '.status' <<< "${response}")
   NAMESPACE=$(jq -r '.namespace' <<< "${response}")
   CLUSTER_FQDN=$(jq -r '.cluster_fqdn' <<< "${response}")
   EXPIRATION=$(jq -r '.expires_at' <<< "${response}")
-
-  # Owner and network-id are allocation-wide but only ever appear in labels. When the caller named
-  # a consensus group, read them from it; otherwise take them from the first group that carries them.
-  if [[ -n "${CN_GROUP_NAME}" ]]; then
-    NETWORK_ID=$(jq -r --arg g "${CN_GROUP_NAME}" '.instances[] | select(.group==$g) | .labels."solo.hashgraph.io/network-id"' <<< "${response}")
-    OWNER=$(jq -r --arg g "${CN_GROUP_NAME}" '.instances[] | select(.group==$g) | .labels."solo.hashgraph.io/owner"' <<< "${response}")
-  else
-    NETWORK_ID=$(jq -r '[.instances[].labels."solo.hashgraph.io/network-id" // empty] | first // "unknown"' <<< "${response}")
-    OWNER=$(jq -r '[.instances[].labels."solo.hashgraph.io/owner" // empty] | first // "unknown"' <<< "${response}")
-  fi
 
   if [[ "${FORMAT}" == "outputs" || "${FORMAT}" == "both" ]]; then
     {
       echo "status=${STATUS}"
       echo "namespace=${NAMESPACE}"
       echo "kubernetes-fqdn=${CLUSTER_FQDN}"
-      echo "network-id=${NETWORK_ID}"
-      echo "owner=${OWNER}"
       echo "expiration=${EXPIRATION}"
     } >> "${github_output}"
   fi
@@ -121,8 +109,6 @@ parse_chewie_allocation() {
       echo "- Status: \`${STATUS}\`"
       echo "- Namespace: \`${NAMESPACE}\`"
       echo "- Cluster FQDN: \`${CLUSTER_FQDN}\`"
-      echo "- Network ID: \`${NETWORK_ID}\`"
-      echo "- Owner: \`${OWNER}\`"
       echo "- Expiration: \`${EXPIRATION}\`"
     } >> "${step_summary}"
   fi
@@ -139,24 +125,29 @@ parse_chewie_allocation() {
     local discovered
     while IFS= read -r discovered; do
       groups+=("${discovered}:${discovered}")
-    done < <(jq -r '.instances[].group' <<< "${response}")
+    done < <(jq -r '(.instances // [])[].group' <<< "${response}")
   fi
 
-  local entry prefix group QTY LABELS TOLERATIONS ROLE
-  for entry in "${groups[@]}"; do
+  local entry prefix group QTY LABELS TOLERATIONS
+  for entry in ${groups[@]+"${groups[@]}"}; do
     prefix="${entry%%:*}"
     group="${entry#*:}"
 
-    QTY=$(jq -r --arg g "${group}" '.instances[] | select(.group==$g) | .spec.quantity' <<< "${response}")
-    LABELS=$(jq -c --arg g "${group}" '.instances[] | select(.group==$g) | .labels' <<< "${response}")
-    TOLERATIONS=$(jq -c --arg g "${group}" '.instances[] | select(.group==$g) | .tolerations' <<< "${response}")
-    ROLE=$(jq -r '."solo.hashgraph.io/role" // "unknown"' <<< "${LABELS}")
+    QTY=$(jq -r --arg g "${group}" '(.instances // [])[] | select(.group==$g) | .spec.quantity' <<< "${response}")
+    LABELS=$(jq -c --arg g "${group}" '(.instances // [])[] | select(.group==$g) | .labels' <<< "${response}")
+    TOLERATIONS=$(jq -c --arg g "${group}" '(.instances // [])[] | select(.group==$g) | .tolerations' <<< "${response}")
+
+    # A named group the caller requested must be present with scheduling labels; an unapproved
+    # allocation, or one approved before the 3.x upgrade, would otherwise yield empty outputs.
+    if [[ -n "${CN_GROUP_NAME}${AUX_GROUP_NAME}" ]] && [[ -z "${QTY}" || "${LABELS}" == "null" || "${LABELS}" == "{}" ]]; then
+      echo "Error: allocation ${ALLOCATION_ID} has no scheduling labels for group '${group}'" >&2
+      return 1
+    fi
 
     if [[ "${FORMAT}" == "outputs" || "${FORMAT}" == "both" ]]; then
       {
         echo "${prefix}-group-name=${group}"
         echo "${prefix}-quantity=${QTY}"
-        echo "${prefix}-role=${ROLE}"
         echo "${prefix}-tolerations=${TOLERATIONS}"
         echo "${prefix}-labels=${LABELS}"
       } >> "${github_output}"
@@ -166,7 +157,6 @@ parse_chewie_allocation() {
       {
         echo "### Instance Group: \`${group}\`"
         echo "- Quantity: \`${QTY}\`"
-        echo "- Role: \`${ROLE}\`"
         echo "- Tolerations: \`${TOLERATIONS}\`"
         echo "- Labels: \`${LABELS}\`"
       } >> "${step_summary}"

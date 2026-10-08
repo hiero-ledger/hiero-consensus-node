@@ -49,10 +49,10 @@ on:
         default: ""
         description: "Kubernetes cluster to run the test on"
         type: string
-      k8s-network-id:
+      allocation-id:
         required: true
         default: ""
-        description: "Kubernetes network ID to run the test on"
+        description: "Chewie allocation ID the test runs on; identifies the run in the report path"
         type: string
       java-version:
         required: false
@@ -99,7 +99,7 @@ jobs:
           GS_ROOT_HTTPS_INPUT: ${{ inputs.gs-root-https }}
           K8S_NAMESPACE: ${{ inputs.k8s-namespace }}
           K8S_CLUSTER: ${{ inputs.k8s-cluster }}
-          K8S_NETWORK_ID: ${{ inputs.k8s-network-id }}
+          ALLOCATION_ID: ${{ inputs.allocation-id }}
           NLG_ACCOUNTS: ${{ inputs.nlg-accounts }}
           NLG_TEST: ${{ inputs.nlg-test }}
           NLG_TIME: ${{ inputs.nlg-time }}
@@ -110,8 +110,8 @@ jobs:
           echo "${GS_ROOT_DIR_INPUT}"
           echo "GS Root HTTPS"
           echo "${GS_ROOT_HTTPS_INPUT}"
-          echo "K8S Network ID"
-          echo "${K8S_NETWORK_ID}"
+          echo "Allocation ID"
+          echo "${ALLOCATION_ID}"
           echo "Namespace"
           echo "${K8S_NAMESPACE}"
           echo "K8S Cluster"
@@ -131,10 +131,10 @@ jobs:
           REF: ${{ inputs.ref }}
           GS_ROOT_DIR_INPUT: ${{ inputs.gs-root-dir }}
           K8S_NAMESPACE: ${{ inputs.k8s-namespace }}
-          K8S_NETWORK_ID: ${{ inputs.k8s-network-id }}
+          ALLOCATION_ID: ${{ inputs.allocation-id }}
           NLG_TEST: ${{ inputs.nlg-test }}
         run: |
-          GS_DIR_URL="${GS_ROOT_DIR_INPUT}/${REF}_${K8S_NAMESPACE}_${K8S_NETWORK_ID}_${{ github.run_number }}/report/${NLG_TEST}"
+          GS_DIR_URL="${GS_ROOT_DIR_INPUT}/${REF}_${K8S_NAMESPACE}_${ALLOCATION_ID}_${{ github.run_number }}/report/${NLG_TEST}"
           echo "Calculated gs-dir-url: ${GS_DIR_URL}"
           echo "url=${GS_DIR_URL}" >> "${GITHUB_OUTPUT}"
 
@@ -144,10 +144,10 @@ jobs:
           REF: ${{ inputs.ref }}
           GS_ROOT_HTTPS_INPUT: ${{ inputs.gs-root-https }}
           K8S_NAMESPACE: ${{ inputs.k8s-namespace }}
-          K8S_NETWORK_ID: ${{ inputs.k8s-network-id }}
+          ALLOCATION_ID: ${{ inputs.allocation-id }}
           NLG_TEST: ${{ inputs.nlg-test }}
         run: |
-          GS_HTTPS_URL="${GS_ROOT_HTTPS_INPUT}/${REF}_${K8S_NAMESPACE}_${K8S_NETWORK_ID}_${{ github.run_number }}/report/${NLG_TEST}"
+          GS_HTTPS_URL="${GS_ROOT_HTTPS_INPUT}/${REF}_${K8S_NAMESPACE}_${ALLOCATION_ID}_${{ github.run_number }}/report/${NLG_TEST}"
           echo "Calculated gs-https-url: ${GS_HTTPS_URL}"
           echo "url=${GS_HTTPS_URL}" >> "${GITHUB_OUTPUT}"
 

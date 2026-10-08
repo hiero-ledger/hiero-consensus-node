@@ -163,6 +163,26 @@ jobs:
       chewie-token: ${{ needs.get-chewie-jwt.outputs.jwt }}
       chewie-host: ${{ secrets.CHEWIE_HOST }}
 
+  # Required: a failed report fails the run. Starts together with the test: same needs, so it reports
+  # running when the test kicks off. Neither waits on the other.
+  report-sdpt-running:
+    name: Report SDPT Running to Chewie
+    needs:
+      - verify-tag
+      - extract-jdk-version
+      - extract-citr-vars
+      - verify-citr-vars
+      - acquire-kubernetes-resources
+    if: ${{ needs.verify-tag.outputs.build-number != '' }}
+    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    with:
+      suite-type: sdpt
+      build-number: ${{ needs.verify-tag.outputs.build-number }}
+      disposition: running
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
+
   run-single-day-performance-test:
     name: Performance Test
     needs:
@@ -221,9 +241,34 @@ jobs:
             "chewie-allocation-id": "${{ needs.acquire-kubernetes-resources.outputs.allocation-id }}"
             }'
 
+  report-sdpt-result:
+    name: Report SDPT Result to Chewie
+    needs:
+      - verify-tag
+      - report-sdpt-running # keeps the terminal report after the running one, so it is the latest
+      - run-single-day-performance-test
+      - release-chewie-allocation # the result is reported after cleanup
+    if: ${{ always() && needs.verify-tag.outputs.build-number != '' }}
+    uses: ./.github/workflows/864-call-report-suite-result.yaml
+    with:
+      suite-type: sdpt
+      build-number: ${{ needs.verify-tag.outputs.build-number }}
+      disposition:
+        ${{ needs.run-single-day-performance-test.result == 'cancelled' && 'cancelled'
+        || needs.run-single-day-performance-test.outputs.result == 'success' && 'passed'
+        || needs.run-single-day-performance-test.result == 'skipped' && 'not_run'
+        || 'failed' }}
+    secrets:
+      chewie-key: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
+      chewie-host: ${{ secrets.CHEWIE_HOST }}
+
+  # Temporary and secondary: Chewie's report (report-sdpt-result) is the source of record. This tag is
+  # kept until Chewie's reporting has run in production for a while; when this job is removed, drop its
+  # TAG_RESULT payload fields, Rootly summary line, and `needs` entries in report-success/failure.
   tag-sdpt-result:
     name: Tag SDPT Result
     runs-on: hl-cn-sdpt-lin-sm
+    continue-on-error: true # optional: Chewie's suite report (864) is the source of record
     needs:
       - run-single-day-performance-test
       - verify-tag
@@ -313,7 +358,6 @@ jobs:
       - run-single-day-performance-test
       - get-commit-info
     if: ${{ (needs.verify-tag.result == 'success' &&
-      needs.tag-sdpt-result.result == 'success' &&
       needs.run-single-day-performance-test.outputs.result == 'success' &&
       needs.get-commit-info.result == 'success') &&
       !cancelled() }}
@@ -363,7 +407,6 @@ jobs:
       - get-commit-info
       - report-success
     if: ${{ (needs.verify-tag.result != 'success' ||
-      needs.tag-sdpt-result.result != 'success' ||
       needs.run-single-day-performance-test.outputs.result != 'success' ||
       needs.get-commit-info.result != 'success' ||
       needs.report-success.result != 'success') &&
@@ -409,7 +452,6 @@ jobs:
         run: |
           ROOTLY_SERVICE="CITR SDPT"
           if [[ "${{ needs.verify-tag.result }}" =~ ^(cancelled|failure)$ ]] \
-            || [[ "${{ needs.tag-sdpt-result.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ needs.get-commit-info.result }}" =~ ^(cancelled|failure)$ ]] \
             || [[ "${{ needs.report-success.result }}" =~ ^(cancelled|failure)$ ]]; then
             ROOTLY_SERVICE="CI/CD Workflows"

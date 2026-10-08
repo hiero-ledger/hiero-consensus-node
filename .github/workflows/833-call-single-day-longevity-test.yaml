@@ -152,8 +152,7 @@ jobs:
           echo "- **FQDN**: ${{ needs.acquire-kubernetes-resources.outputs.fqdn }}" | tee -a  "${GITHUB_STEP_SUMMARY}"
           echo "- **CN Quantity**: ${{ needs.acquire-kubernetes-resources.outputs.cn-quantity }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "- **Aux Node Quantity**: ${{ needs.acquire-kubernetes-resources.outputs.aux-quantity }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "- **Network ID**: ${{ needs.acquire-kubernetes-resources.outputs.network-id }}" | tee -a "${GITHUB_STEP_SUMMARY}"
-          echo "- **Owner**: ${{ needs.acquire-kubernetes-resources.outputs.owner }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "- **Allocation ID**: ${{ inputs.allocation-id }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "- **Request Expiration (UTC)**: ${{ needs.acquire-kubernetes-resources.outputs.request-expiration }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "::endgroup::"
 
@@ -167,6 +166,11 @@ jobs:
       waiterMatrix: ${{ steps.matrix.outputs.value }}
     needs:
       - acquire-kubernetes-resources
+    env:
+      CN_LABELS: ${{ needs.acquire-kubernetes-resources.outputs.cn-labels }}
+      CN_TOLERATIONS: ${{ needs.acquire-kubernetes-resources.outputs.cn-tolerations }}
+      AUX_LABELS: ${{ needs.acquire-kubernetes-resources.outputs.aux-labels }}
+      AUX_TOLERATIONS: ${{ needs.acquire-kubernetes-resources.outputs.aux-tolerations }}
     steps:
       - name: Prepare Runner
         id: prepare-runner
@@ -317,8 +321,7 @@ jobs:
           REF: ${{ inputs.ref }}
         run: |
           echo "inputs.ref=${REF}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-          echo "Network-ID=${{ needs.acquire-kubernetes-resources.outputs.network-id }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
-          echo "Owner=${{ needs.acquire-kubernetes-resources.outputs.owner }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
+          echo "Allocation-ID=${{ inputs.allocation-id }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.solo-version=${{ inputs.solo-version }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-accounts=${{ inputs.nlg-accounts }}" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
           echo "inputs.nlg-time=${{ inputs.nlg-time }}m" | tee -a "${GITHUB_STEP_SUMMARY}" "${{ github.workspace }}"/version_run.txt
@@ -457,22 +460,10 @@ jobs:
           sed -i -e "s@%HOME%@${HOME}@g" -e "s@%SOLO_NAMESPACE%@${{ needs.acquire-kubernetes-resources.outputs.namespace }}@g" \
           -e "s@%HEDERA_SERVICES_ROOT%@${curdir}/target_consensus_node@g" Taskfile.yml
 
-          # Update Init Containers values
-          NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
-          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" init-containers-values7.yaml
-          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" block-node-values.yaml
-          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" mirror-node.yaml
-          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" explorer-node.yaml
-          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" relay-node.yaml
-          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" ingress-controller-values.yaml
-
-          NETWORK_OWNER="${{ needs.acquire-kubernetes-resources.outputs.owner }}"
-          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" init-containers-values7.yaml
-          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" block-node-values.yaml
-          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" mirror-node.yaml
-          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" explorer-node.yaml
-          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" relay-node.yaml
-          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" ingress-controller-values.yaml
+          # Schedule the pods onto the Chewie allocation's machines
+          "${{ github.workspace }}"/.github/workflows/support/chewie/apply-allocation-scheduling.sh \
+            init-containers-values7.yaml block-node-values.yaml mirror-node.yaml explorer-node.yaml \
+            relay-node.yaml ingress-controller-values.yaml || exit 1
 
           BN_tag=$(echo "${{ inputs.bnref }}" | sed -e 's/^v\(.*\)/\1/g')
           sed -i -e "s@%BN_IMAGE_TAG%@${BN_tag}@g" block-node-values.yaml
@@ -518,8 +509,12 @@ jobs:
           mv block-node-values.yaml block-node-values.yaml.orig
 
           #dedicate top-3 nodes for BN
-          NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
-          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get nodes --show-labels | grep "network-id=${NETWORK_ID}," | grep 'consensus-node' | sort -n -k 1 | awk '{print $1}' | head -n 1  | grep -n -E '^' > firstNode.txt
+          CN_SELECTOR="$(jq -r 'to_entries | map("\(.key)=\(.value)") | join(",")' <<< "${CN_LABELS}")"
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get nodes -l "${CN_SELECTOR}" --no-headers | sort -n -k 1 | awk '{print $1}' | head -n 1  | grep -n -E '^' > firstNode.txt
+          if [[ ! -s firstNode.txt ]]; then
+            echo "::error::No node carries the consensus group's labels (${CN_SELECTOR})"
+            exit 1
+          fi
 
           for i in $(seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }})
           do
@@ -663,8 +658,8 @@ jobs:
           cp -r "${HOME}"/.solo/logs solo_deploy/
           sh "${{ github.workspace }}"/.github/workflows/support/citr/getClusterErrors.sh "${{ needs.acquire-kubernetes-resources.outputs.namespace }}"
           cp -r podlog_"${{ needs.acquire-kubernetes-resources.outputs.namespace }}" solo_deploy/
-          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}"/solo_deploy
-          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}"/solo_deploy
+          gcloud --no-user-output-enabled storage cp --recursive solo_deploy "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{ inputs.allocation-id }}_${{ github.run_number }}"/solo_deploy
+          echo Done: solo deploy logs  in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{ inputs.allocation-id }}_${{ github.run_number }}"/solo_deploy
 
       - name: Check filesystem mounts
         run: |
@@ -711,10 +706,8 @@ jobs:
 
           mv new.yml nlg-values.yaml
 
-          NETWORK_ID="${{ needs.acquire-kubernetes-resources.outputs.network-id }}"
-          sed -i -e "s@%NETWORK_ID%@${NETWORK_ID}@g" nlg-values.yaml
-          NETWORK_OWNER="${{ needs.acquire-kubernetes-resources.outputs.owner }}"
-          sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" nlg-values.yaml
+          # Schedule the pods onto the Chewie allocation's machines
+          "${{ github.workspace }}"/.github/workflows/support/chewie/apply-allocation-scheduling.sh nlg-values.yaml || exit 1
 
       - name: Deploy NLG test
         run: |
@@ -1126,8 +1119,8 @@ jobs:
           echo "Size of report dir:"
           du -sk report
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/longevity"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/longevity"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{ inputs.allocation-id }}_${{ github.run_number }}/report/longevity"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{ inputs.allocation-id }}_${{ github.run_number }}/report/longevity"
 
   # Send this output back to the caller workflow
   longevity-test-reconnect:
@@ -1305,8 +1298,8 @@ jobs:
             gcloud --no-user-output-enabled storage ls gs://performance-engineering-reports | grep permanent >/dev/null
           fi
 
-          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/reconnect"
-          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }}_${{ github.run_number }}/report/reconnect"
+          gcloud --no-user-output-enabled storage cp --recursive report "${{ env.GS_ROOT_DIR }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{ inputs.allocation-id }}_${{ github.run_number }}/report/reconnect"
+          echo Done: see results in "${{ env.GS_ROOT_HTTPS }}/${REF}_${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{ inputs.allocation-id }}_${{ github.run_number }}/report/reconnect"
 
   # Send this output back to the caller workflow
   single-day-longevity-test-result:
@@ -1382,7 +1375,7 @@ jobs:
         env:
           REF: ${{ inputs.ref }}
         run: |
-          title="The Single Day Longevity Test workflow failed (SDLT ${{ needs.acquire-kubernetes-resources.outputs.namespace }}_${{needs.acquire-kubernetes-resources.outputs.network-id }} - ${REF})"
+          title="The Single Day Longevity Test workflow failed (SDLT ${{ needs.acquire-kubernetes-resources.outputs.namespace }} - ${REF})"
           echo "title=${title}" >> "${GITHUB_OUTPUT}"
           {
             echo 'summary<<EOF'

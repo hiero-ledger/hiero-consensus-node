@@ -45,14 +45,10 @@ on:
         value: ${{ jobs.get-allocation-details.outputs.cn-tolerations }}
       aux-tolerations:
         value: ${{ jobs.get-allocation-details.outputs.aux-tolerations }}
-      cn-role:
-        value: ${{ jobs.get-allocation-details.outputs.cn-role }}
-      aux-role:
-        value: ${{ jobs.get-allocation-details.outputs.aux-role }}
-      network-id:
-        value: ${{ jobs.get-allocation-details.outputs.network-id }}
-      owner:
-        value: ${{ jobs.get-allocation-details.outputs.owner }}
+      cn-labels:
+        value: ${{ jobs.get-allocation-details.outputs.cn-labels }}
+      aux-labels:
+        value: ${{ jobs.get-allocation-details.outputs.aux-labels }}
       request-expiration:
         value: ${{ jobs.get-allocation-details.outputs.expiration }}
 
@@ -79,10 +75,8 @@ jobs:
       aux-quantity: ${{ steps.read-chewie-response.outputs.aux-quantity }}
       cn-tolerations: ${{ steps.read-chewie-response.outputs.cn-tolerations }}
       aux-tolerations: ${{ steps.read-chewie-response.outputs.aux-tolerations }}
-      cn-role: ${{ steps.read-chewie-response.outputs.cn-role }}
-      aux-role: ${{ steps.read-chewie-response.outputs.aux-role }}
-      network-id: ${{ steps.read-chewie-response.outputs.network-id }}
-      owner: ${{ steps.read-chewie-response.outputs.owner }}
+      cn-labels: ${{ steps.read-chewie-response.outputs.cn-labels }}
+      aux-labels: ${{ steps.read-chewie-response.outputs.aux-labels }}
       expiration: ${{ steps.read-chewie-response.outputs.expiration }}
     steps:
       - name: Initialize Github Job
