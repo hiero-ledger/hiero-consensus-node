@@ -417,17 +417,17 @@ class EthereumSyncCommitteeProofVerifierTest {
             }
 
             @Test
-            void provenStorageValueSurfacesInQueueMetadata() {
-                byte[] runningHash = deterministicBytes(32, 0xAB);
-                byte[][] storageMpt = buildStorageMptProof(slotKey(4), runningHash);
+            void provenManifestVersionSurfacesInQueueMetadata() {
+                // ACK-only bundle: the five Channel slots map positionally. slotKey(4) is the
+                // endpointManifestVersion slot (offset 16) — its PROVEN value surfaces, never a relay claim.
+                byte[] manifestSlotValue = manifestVersionSlotValue(77L);
+                byte[][] storageMpt = buildStorageMptProof(slotKey(4), manifestSlotValue);
                 byte[][] accountMpt = buildAccountMptProof(SERVICE_ADDR, storageMpt[0], new byte[32]);
 
                 var builder = validPayloadBuilder();
                 builder.executionStateRoot = accountMpt[0];
                 builder.accountProofNodes = new byte[][] {accountMpt[1]};
-                // Entries are sorted by slot key; the highest key (slotKey(4)) lands in the
-                // lastMessageRunningHash position, so it proves the running hash. Entries 0..3 use
-                // diverging keys that resolve to absent (all-zero) values against the single-leaf trie.
+                // Entries 0..3 use diverging keys that resolve to absent (all-zero) against the single-leaf trie.
                 List<byte[]> entries = new ArrayList<>();
                 for (int i = 0; i < 5; i++) {
                     entries.add(storageEntry(slotKey(i), List.of(storageMpt[1])));
@@ -436,9 +436,36 @@ class EthereumSyncCommitteeProofVerifierTest {
 
                 var result = verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR);
 
-                assertThat(result.queueMetadata().lastMessageRunningHash()).isEqualTo(runningHash);
-                assertThat(result.queueMetadata().sentRunningHash()).isEqualTo(new byte[32]);
+                assertThat(result.queueMetadata().endpointManifestVersion()).isEqualTo(77L);
+                // ACK-only: no message-hash slot, so the last-message running hash is the zero sentinel.
+                assertThat(result.queueMetadata().lastMessageRunningHash()).isEqualTo(new byte[32]);
                 assertThat(result.queueMetadata().nextMessageId()).isZero();
+            }
+
+            @Test
+            void provenMessageRunningHashSurfacesInSixSlotBundle() {
+                // Message-bearing bundle: the five Channel slots {base+1,2,4,5,16} (span 15) plus the
+                // last-message running-hash outlier (sorts last). The outlier proves the running hash; the
+                // Channel slots resolve absent, so the proven manifest version is 0.
+                byte[] runningHash = deterministicBytes(32, 0xAB);
+                final int outlierSlot = 0x50;
+                byte[][] storageMpt = buildStorageMptProof(slotKey(outlierSlot), runningHash);
+                byte[][] accountMpt = buildAccountMptProof(SERVICE_ADDR, storageMpt[0], new byte[32]);
+
+                var builder = validPayloadBuilder();
+                builder.executionStateRoot = accountMpt[0];
+                builder.accountProofNodes = new byte[][] {accountMpt[1]};
+                final int[] slots = {0x21, 0x22, 0x24, 0x25, 0x30, outlierSlot}; // base=0x20: +{1,2,4,5,16}
+                List<byte[]> entries = new ArrayList<>();
+                for (int s : slots) {
+                    entries.add(storageEntry(slotKey(s), List.of(storageMpt[1])));
+                }
+                builder.storageEntries = entries;
+
+                var result = verifier(new FakeBls()).verifyBundle(builder.build(), TRUST_ANCHOR);
+
+                assertThat(result.queueMetadata().lastMessageRunningHash()).isEqualTo(runningHash);
+                assertThat(result.queueMetadata().endpointManifestVersion()).isZero();
             }
         }
 
@@ -1017,6 +1044,15 @@ class EthereumSyncCommitteeProofVerifierTest {
         byte[] key = new byte[32];
         key[31] = (byte) index;
         return key;
+    }
+
+    /** A 32-byte storage word holding a {@code uint64} manifest version LSB-packed (last 8 bytes). */
+    private static byte[] manifestVersionSlotValue(long version) {
+        byte[] slot = new byte[32];
+        for (int i = 0; i < 8; i++) {
+            slot[24 + i] = (byte) (version >>> (8 * (7 - i)));
+        }
+        return slot;
     }
 
     // -----------------------------------------------------------------------------------

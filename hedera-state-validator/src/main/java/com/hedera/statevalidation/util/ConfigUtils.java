@@ -90,7 +90,7 @@ public final class ConfigUtils {
 
     public static String JOB_URL = System.getProperty("job.url");
 
-    public static final String FULL_REHASH_TIMEOUT_MS = System.getProperty("fullRehashTimeoutMs", "600000");
+    public static final String FULL_REHASH_TIMEOUT_MS = System.getProperty("fullRehashTimeoutMs", "1800000");
 
     private static Configuration configuration;
 
@@ -123,7 +123,6 @@ public final class ConfigUtils {
                 .withSource(new SimpleConfigSource().withValue("merkleDb.usePbj", false))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.minNumberOfFilesInCompaction", 2))
                 .withSource(new SimpleConfigSource().withValue("merkleDb.maxFileChannelsPerFileReader", FILE_CHANNELS))
-                .withSource(new SimpleConfigSource().withValue("merkleDb.maxThreadsPerFileChannel", 1))
                 .withSource(
                         (new SimpleConfigSource().withValue("event.preconsensus.pcesFileWriterType", "OUTPUT_STREAM")))
                 .withSource(

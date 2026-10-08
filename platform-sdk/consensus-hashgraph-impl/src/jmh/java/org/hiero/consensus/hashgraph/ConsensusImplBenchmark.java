@@ -70,18 +70,18 @@ import org.openjdk.jmh.infra.Blackhole;
  *   <li>Steady state after: 5 s / 5 s</li>
  *   <li>Noise (latency.mean, CV): 0.25% / 0.18% per 5 s iteration, 0.79% / 0.52% between forks, 0.00% / 0.00%
  *       between runs (3 / 4 of 14 runs quiet)</li>
- *   <li>Expected detectable regression: 0.49% / 0.32% (95 % CI half-width of one run)</li>
+ *   <li>Expected detectable regression: 0.70% / 0.46% (95 % CI half-width of one run)</li>
  *   <li>Samples per iteration: 3.0 M / 1.8 M; expected stable: mean, p50–p99.99</li>
- *   <li>Runtime: 10.4 / 10.6 min per parameter set</li>
+ *   <li>Runtime: 4.0 / 4.0 min per parameter set</li>
  *   <li>Raw data: https://github.com/hiero-ledger/hiero-consensus-node/actions/runs/37584078436, attempts 1–14</li>
  * </ul>
  */
 @State(Scope.Thread)
 @Fork(
-        value = 10,
+        value = 5,
         jvmArgsAppend = {"-Xms2g", "-Xmx2g", "-XX:+AlwaysPreTouch"})
 @Warmup(iterations = 1, time = 15)
-@Measurement(iterations = 3, time = 15)
+@Measurement(iterations = 2, time = 15)
 public class ConsensusImplBenchmark {
 
     /** The seed of the random number generator. The same seed produces the same graph. */

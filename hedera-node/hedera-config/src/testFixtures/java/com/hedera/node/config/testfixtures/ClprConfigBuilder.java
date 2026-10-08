@@ -39,7 +39,6 @@ public final class ClprConfigBuilder {
     private String caCrtPath = "";
     private String caKeyPath = "";
     private int mtlsPort = 50214;
-    private boolean endpointManifestEnabled = false;
     private Duration manifestGracePeriod = Duration.ofSeconds(300);
     private Duration manifestGraceExtension = Duration.ofSeconds(300);
     private int manifestMaxGraceExtensions = 2;
@@ -55,11 +54,6 @@ public final class ClprConfigBuilder {
 
     public ClprConfigBuilder enabled(final boolean enabled) {
         this.enabled = enabled;
-        return this;
-    }
-
-    public ClprConfigBuilder endpointManifestEnabled(final boolean endpointManifestEnabled) {
-        this.endpointManifestEnabled = endpointManifestEnabled;
         return this;
     }
 
@@ -264,7 +258,6 @@ public final class ClprConfigBuilder {
                 caCrtPath,
                 caKeyPath,
                 mtlsPort,
-                endpointManifestEnabled,
                 manifestGracePeriod,
                 manifestGraceExtension,
                 manifestMaxGraceExtensions,

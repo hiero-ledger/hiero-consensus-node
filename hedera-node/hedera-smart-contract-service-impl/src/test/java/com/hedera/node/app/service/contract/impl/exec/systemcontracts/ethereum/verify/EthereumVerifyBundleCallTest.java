@@ -19,12 +19,9 @@ import com.hedera.node.app.service.clpr.impl.verifier.ethereum.EthereumSyncCommi
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.QueueMetadata;
 import com.hedera.node.app.service.clpr.impl.verifier.ethereum.VerifiedBundle;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult;
-import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.math.BigInteger;
-import java.util.ArrayDeque;
 import java.util.Arrays;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.junit.jupiter.api.Test;
@@ -43,6 +40,7 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
     private static final byte[] LAST_HASH = filled(32, 0x04);
     private static final byte[] CHANNEL_CONTEXT = {0x0A, 0x0B};
     private static final byte[] SERVICE_ADDR = filled(20, 0x55);
+    private static final long PROVEN_MANIFEST_VERSION = 5L;
 
     @Test
     void allowsStaticFrame() {
@@ -51,7 +49,6 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
 
     @Test
     void returnsVerifiedBundleContentWithoutRotation() {
-        stubManifestFlag(false);
         final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
 
         try (final var ignored = mockVerifier(verified(content, null, null))) {
@@ -66,7 +63,9 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
                             SENT_HASH,
                             BigInteger.valueOf(17),
                             RECEIVED_HASH,
-                            ClprChannelStatus.ACTIVE.protoOrdinal()));
+                            ClprChannelStatus.ACTIVE.protoOrdinal(),
+                            // endpointManifestVersion comes from the PROVEN queue metadata, not relayed content
+                            BigInteger.valueOf(PROVEN_MANIFEST_VERSION)));
             assertThat((byte[][]) out.get(1)).isEmpty();
             assertThat((byte[]) out.get(2)).isEmpty();
             assertThat((byte[]) out.get(3)).isEmpty();
@@ -75,7 +74,6 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
 
     @Test
     void injectsVerifiedRotationWhenContentOmitsIt() {
-        stubManifestFlag(false);
         final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
 
         try (final var ignored = mockVerifier(verified(content, NEXT_ANCHOR, NEXT_ANCHOR_ID))) {
@@ -89,7 +87,6 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
 
     @Test
     void acceptsMatchingClaimedRotationAndRewritesId() {
-        stubManifestFlag(false);
         // Content claims a different ID — the verifier's ID must win.
         final var content = content(metadata(), Bytes.wrap(NEXT_ANCHOR), Bytes.wrap(new byte[] {3, 3, 3}));
 
@@ -166,8 +163,7 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
     }
 
     @Test
-    void returnAppendsManifestWhenFlagOn() {
-        stubManifestFlag(true);
+    void returnAppendsManifest() {
         final var manifest = ClprEndpointManifest.newBuilder()
                 .version(5L)
                 .serviceAddress(Bytes.wrap(SERVICE_ADDR))
@@ -177,8 +173,8 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
         try (final var ignored = mockVerifier(verifiedWithManifest(content, manifest))) {
             final var out = subject().execute(frame).fullResult().output().toArray();
 
-            // Flag on => 5-member manifest-aware return; the trailing member is the manifest struct.
-            final Tuple tuple = ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN.decode(out);
+            // 5-member manifest-aware return; the trailing member is the manifest struct.
+            final Tuple tuple = ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(out);
             assertThat(tuple.size()).isEqualTo(5);
             final Tuple manifestTuple = tuple.get(4);
             assertThat(((BigInteger) manifestTuple.get(0)).longValueExact()).isEqualTo(5L);
@@ -186,36 +182,73 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
     }
 
     @Test
-    void returnHasFourMembersWhenFlagOff() {
-        stubManifestFlag(false);
-        final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
+    void discardsUnprovenRelayManifest() {
+        // The relayed content claims a manifest advance but the proof carries none: the claim must not be returned.
+        final var relayClaim = ClprEndpointManifest.newBuilder()
+                .version(6L)
+                .serviceAddress(Bytes.wrap(SERVICE_ADDR))
+                .build();
+        final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY)
+                .copyBuilder()
+                .newEndpointManifest(relayClaim)
+                .build();
 
         try (final var ignored = mockVerifier(verified(content, null, null))) {
-            final var out = subject().execute(frame).fullResult().output().toArray();
+            final var result = subject().execute(frame);
 
-            // Flag off => 4-member manifest-disabled return (no manifest member).
-            final Tuple tuple =
-                    EthereumVerifyBundleTranslator.VERIFY_BUNDLE.getOutputs().decode(out);
-            assertThat(tuple.size()).isEqualTo(4);
+            assertThat(result.responseCode()).isEqualTo(SUCCESS);
+            final Tuple manifestTuple =
+                    decodedTuple(result.fullResult().output().toArray()).get(4);
+            assertThat(((BigInteger) manifestTuple.get(0)).longValueExact()).isZero();
         }
     }
 
     @Test
-    void manifestOnlyReturnsManifestWhenFlagOn() {
+    void returnsProvenManifestVersionIgnoringRelayedContent() {
+        // The relayed content claims an inflated endpoint-manifest version; the sixth metadata member must carry the
+        // PROVEN Channel value (offset 16), not the relay's claim — otherwise a relay could suppress our manifest
+        // re-pushes (spec §4.5, liveness).
+        final var content =
+                content(metadata().copyBuilder().endpointManifestVersion(999L).build(), Bytes.EMPTY, Bytes.EMPTY);
+
+        try (final var ignored = mockVerifier(verified(content, null, null))) {
+            final Tuple metaTuple = decodedTuple(
+                            subject().execute(frame).fullResult().output().toArray())
+                    .get(0);
+
+            assertThat(((BigInteger) metaTuple.get(5)).longValueExact()).isEqualTo(PROVEN_MANIFEST_VERSION);
+        }
+    }
+
+    @Test
+    void rejectsEndpointManifestVersionBeyondSignedRange() {
+        // A proven uint64 >= 2^63 parses to a negative long; it must fail the call rather than escape the encoder.
+        final var content = content(metadata(), Bytes.EMPTY, Bytes.EMPTY);
+        final var verified = VerifiedBundle.builder()
+                .beaconBlockRoot32(BEACON_ROOT)
+                .bundleContentBytes(ClprBundleContent.PROTOBUF.toBytes(content).toByteArray())
+                .queueMetadata(proven(-1L))
+                .build();
+
+        try (final var ignored = mockVerifier(verified)) {
+            assertFailed(subject().execute(frame));
+        }
+    }
+
+    @Test
+    void manifestOnlyReturnsManifest() {
         // Manifest-only recovery bundle (spec §8.1.4): the verifier returns empty content + a manifest.
-        stubManifestFlag(true);
         final var manifest = ClprEndpointManifest.newBuilder()
                 .version(9L)
                 .serviceAddress(Bytes.wrap(SERVICE_ADDR))
                 .build();
 
-        // Manifest-only recovery requires the manifest-enabled return format.
         try (final var ignored = mockVerifier(manifestOnly(manifest))) {
             final var out = subject().execute(frame).fullResult().output().toArray();
 
             // Flag on => 5-member manifest-aware return; metadata absent (nextMessageId == 0 sentinel); trailing
             // manifest.
-            final Tuple tuple = ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN.decode(out);
+            final Tuple tuple = ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(out);
             assertThat(tuple.size()).isEqualTo(5);
             final Tuple metaTuple = tuple.get(0);
             assertThat(((BigInteger) metaTuple.get(0)).longValueExact()).isZero();
@@ -224,29 +257,8 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
         }
     }
 
-    @Test
-    void manifestOnlyFailsWhenFlagOff() {
-        stubManifestFlag(false);
-        final var manifest = ClprEndpointManifest.newBuilder()
-                .version(9L)
-                .serviceAddress(Bytes.wrap(SERVICE_ADDR))
-                .build();
-
-        try (final var ignored = mockVerifier(manifestOnly(manifest))) {
-            assertFailed(subject().execute(frame));
-        }
-    }
-
     private EthereumVerifyBundleCall subject() {
         return new EthereumVerifyBundleCall(mockEnhancement(), gasCalculator, BUNDLE_PAYLOAD, TRUST_ANCHOR);
-    }
-
-    private void stubManifestFlag(final boolean enabled) {
-        final var config = HederaTestConfigBuilder.create()
-                .withValue("clpr.endpointManifestEnabled", enabled)
-                .getOrCreateConfig();
-        given(frame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
-        given(frame.getContextVariable(FrameUtils.CONFIG_CONTEXT_VARIABLE)).willReturn(config);
     }
 
     private static VerifiedBundle verifiedWithManifest(
@@ -264,7 +276,7 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
         return VerifiedBundle.builder()
                 .beaconBlockRoot32(BEACON_ROOT)
                 .bundleContentBytes(new byte[0])
-                .queueMetadata(new QueueMetadata(0, filled(32, 0x00), 0, filled(32, 0x00), 0, filled(32, 0x00)))
+                .queueMetadata(new QueueMetadata(0, filled(32, 0x00), 0, filled(32, 0x00), 0, filled(32, 0x00), 0L))
                 .newEndpointManifest(manifest)
                 .build();
     }
@@ -294,7 +306,18 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
     }
 
     private static QueueMetadata proven() {
-        return new QueueMetadata(42, SENT_HASH, 17, RECEIVED_HASH, ClprChannelStatus.ACTIVE.protoOrdinal(), LAST_HASH);
+        return proven(PROVEN_MANIFEST_VERSION);
+    }
+
+    private static QueueMetadata proven(final long endpointManifestVersion) {
+        return new QueueMetadata(
+                42,
+                SENT_HASH,
+                17,
+                RECEIVED_HASH,
+                ClprChannelStatus.ACTIVE.protoOrdinal(),
+                LAST_HASH,
+                endpointManifestVersion);
     }
 
     private static ClprQueueMetadata metadata() {
@@ -318,7 +341,7 @@ class EthereumVerifyBundleCallTest extends CallTestBase {
     }
 
     private static Tuple decodedTuple(final byte[] output) {
-        return EthereumVerifyBundleTranslator.VERIFY_BUNDLE.getOutputs().decode(output);
+        return ClprVerifierAbi.VERIFY_BUNDLE_RETURN.decode(output);
     }
 
     private static void assertFailed(final PricedResult result) {

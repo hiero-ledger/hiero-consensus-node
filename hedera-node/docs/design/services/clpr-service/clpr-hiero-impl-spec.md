@@ -508,7 +508,7 @@ Each HAPI transaction type maps to a `TransactionHandler` implementation. Handle
 
 |             Handler Class              |        Transaction Type         |                                                                                                                                                 Complexity                                                                                                                                                 |
 |----------------------------------------|---------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ClprUpdateLedgerConfigurationHandler` | `ClprUpdateLedgerConfiguration` | Medium (admin key check, store config). The handler preserves immutable fields (`chain_id`, `protocol_version`) from the genesis configuration and updates only mutable fields (throttles, service_address, endpoints). Timestamp is set to the consensus time of the transaction.                         |
+| `ClprUpdateLedgerConfigurationHandler` | `ClprUpdateLedgerConfiguration` | Medium (admin key check, store config). The handler preserves immutable fields (`chain_id`, `protocol_version`) from the genesis configuration and updates only mutable fields (throttles, endpoints); `service_address` is fixed. Timestamp is set to the consensus time of the transaction.              |
 | `ClprRegisterChannelHandler`           | `ClprRegisterChannel`           | Medium (commit phase: verifyConfig call, store verifier contract and code fingerprint, Channel creation in PENDING state). No ECDSA verification at this stage. The `chain_id` and `service_address` are derived from the verified peer configuration proof. The verifier is immutable after registration. |
 | `ClprCompleteChannelHandler`           | `ClprCompleteChannel`           | Medium (reveal phase: ECDSA verify, keccak256(channel_id ‖ public_key) == stored commitment check, create Channel in ACTIVE state).                                                                                                                                                                        |
 | `ClprCloseChannelHandler`              | `ClprCloseChannel`              | Low (PENDING → immediate deletion; ACTIVE/PAUSED → transition to CLOSING; `ClprQueueMetadata.state` reflects Channel status; automatic transition to DRAINED when peer acks all outbound, then to CLOSED when both sides DRAINED)                                                                          |
@@ -892,7 +892,9 @@ system (property files / dynamic config).
 Some parameters appear in both (e.g., `maxQueueDepth`, `maxMessagePayloadBytes`). The on-ledger values are
 authoritative for cross-ledger purposes. The `chain_id` and `protocol_version` are set at genesis from
 `clpr.chainId` and `clpr.protocolVersion` configuration properties and are immutable thereafter. The mutable
-fields (throttles, service_address, endpoints) can be updated via `ClprUpdateLedgerConfiguration`.
+fields (throttles, endpoints) can be updated via `ClprUpdateLedgerConfiguration`. `service_address` is fixed to
+the CLPR system contract address (the value this ledger's endpoint manifest carries, which peers verify it
+against); an update may restate it or omit it, and any other value is rejected.
 
 ---
 
