@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit;
 
+import static org.junit.platform.commons.support.AnnotationSupport.findAnnotation;
+
 import com.hedera.services.bdd.junit.extensions.MultiNetworkExtension;
-import com.hedera.services.bdd.junit.extensions.MultiNetworkGroupBudget;
+import com.hedera.services.bdd.junit.extensions.NetworkGroup;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Method;
 import java.util.ArrayDeque;
@@ -17,11 +19,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Disabled;
 import org.junit.platform.commons.support.AnnotationSupport;
+import org.junit.platform.engine.TestExecutionResult;
 import org.junit.platform.engine.support.descriptor.ClassSource;
 import org.junit.platform.engine.support.descriptor.MethodSource;
 import org.junit.platform.launcher.LauncherSession;
 import org.junit.platform.launcher.LauncherSessionListener;
 import org.junit.platform.launcher.TestExecutionListener;
+import org.junit.platform.launcher.TestIdentifier;
 import org.junit.platform.launcher.TestPlan;
 
 /**
@@ -78,6 +82,7 @@ public class SharedMultiNetworkLauncherSessionListener implements LauncherSessio
                                 continue;
                             }
                             collectDeclarations(clazz.getName(), m);
+                            registerTest(id.getUniqueId(), m);
                         }
                     } else if (source instanceof ClassSource cs) {
                         final var clazz = tryLoad(cs.getClassName());
@@ -131,13 +136,9 @@ public class SharedMultiNetworkLauncherSessionListener implements LauncherSessio
             if (!seenMethods.add(methodKey)) {
                 return;
             }
-            AnnotationSupport.findAnnotation(method, MultiNetworkHapiTest.class).ifPresent(ann -> {
-                // Skip @Disabled tests: they never execute, so their networks must not be reserved or
-                // counted. Counting a test that never runs would leave its network group's pending count above
-                // zero forever, leaking the network group's budget slot; excluding them also means a fully
-                // @Disabled suite is never admitted and its networks never boot.
-                if (method.isAnnotationPresent(Disabled.class)
-                        || method.getDeclaringClass().isAnnotationPresent(Disabled.class)) {
+            findAnnotation(method, MultiNetworkHapiTest.class).ifPresent(ann -> {
+                // Skip @Disabled tests: they never execute, so their networks must not be reserved
+                if (isDisabled(method)) {
                     return;
                 }
                 for (final var n : ann.value()) {
@@ -145,11 +146,39 @@ public class SharedMultiNetworkLauncherSessionListener implements LauncherSessio
                             .computeIfAbsent(MultiNetworkExtension.resolveName(n), k -> new ArrayList<>())
                             .add(new NetworkDeclaration(n, methodKey));
                 }
-                // One beforeEach/afterEach fires per factory method, so count one pending test for the
-                // network group this method occupies (its @Network name-set). The budget frees the network group's slot
-                // when this count reaches zero.
-                MultiNetworkGroupBudget.registerPendingTest(ann.value());
             });
+        }
+
+        /**
+         * Registers the enabled test {@code testId} with the network group its {@code @Network}s name, so the
+         * group is admitted under the node budget and torn down after its last test.
+         */
+        private static void registerTest(@NonNull final String testId, @NonNull final Method method) {
+            if (isDisabled(method)) {
+                return;
+            }
+            findAnnotation(method, MultiNetworkHapiTest.class)
+                    .ifPresent(ann ->
+                            MultiNetworkExtension.NETWORK_GROUP_QUEUE.register(testId, NetworkGroup.of(ann.value())));
+        }
+
+        private static boolean isDisabled(@NonNull final Method method) {
+            return AnnotationSupport.isAnnotated(method, Disabled.class)
+                    || AnnotationSupport.isAnnotated(method.getDeclaringClass(), Disabled.class);
+        }
+
+        @Override
+        public void executionSkipped(@NonNull final TestIdentifier testIdentifier, @NonNull final String reason) {
+            // Skipped tests never reach afterEach, so count them as finished here
+            MultiNetworkExtension.finishSharedTests(testIdentifier.getUniqueId());
+        }
+
+        @Override
+        public void executionFinished(
+                @NonNull final TestIdentifier testIdentifier, @NonNull final TestExecutionResult result) {
+            // Tests that never ran (e.g. their class's @BeforeAll failed) never reach afterEach, so count them as
+            // finished once their container finishes
+            MultiNetworkExtension.finishSharedTests(testIdentifier.getUniqueId());
         }
 
         private static MultiNetworkHapiTest.Network resolveNetwork(
@@ -194,6 +223,7 @@ public class SharedMultiNetworkLauncherSessionListener implements LauncherSessio
             }
             MultiNetworkExtension.SHARED_NETWORKS.clear();
             MultiNetworkExtension.DECLARED_CONFIGS.clear();
+            MultiNetworkExtension.NETWORK_GROUP_QUEUE.clear();
         }
 
         private static Class<?> tryLoad(@NonNull final String className) {

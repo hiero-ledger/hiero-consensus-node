@@ -23,8 +23,8 @@ import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.FINALIZED_MAN
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.POST_SYNC_POINT_SETTLE;
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.awaitWrapsExtensible;
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.awaitWrapsSyncPoint;
-import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.multiNetworkHapiTest;
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.captureManifestProof;
+import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.multiNetworkHapiTest;
 import static com.hedera.services.bdd.suites.clpr.HieroToHieroBase.pollManifest;
 import static com.hedera.services.bdd.suites.contract.Utils.FunctionType.FUNCTION;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
@@ -399,8 +399,10 @@ public class ClprMessagesSuite {
         // NET_B's finalized manifest StateProof, threaded into NET_A's completeChannel.
         final var netBManifestCapture = captureManifestProof(netB, manifestProofForNetA);
         return multiNetworkHapiTest(
-                "multiMessageRoundTrip", Stream.concat(
-                Stream.of(netAManifestCapture, netBSetup, netBManifestCapture, netASetup), Stream.of(invocationTests)));
+                "multiMessageRoundTrip",
+                Stream.concat(
+                        Stream.of(netAManifestCapture, netBSetup, netBManifestCapture, netASetup),
+                        Stream.of(invocationTests)));
     }
 
     /**

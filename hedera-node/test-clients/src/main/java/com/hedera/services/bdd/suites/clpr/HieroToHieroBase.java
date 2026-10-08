@@ -471,7 +471,8 @@ public abstract class HieroToHieroBase implements LifecycleTest {
      * {@link #MANIFEST_APPEAR_TIMEOUT} elapses (then fails). Returns the satisfying manifest.
      */
     public static ClprEndpointManifest pollManifest(
-            final HapiSpec spec, final java.util.function.Predicate<ClprEndpointManifest> predicate) throws InterruptedException {
+            final HapiSpec spec, final java.util.function.Predicate<ClprEndpointManifest> predicate)
+            throws InterruptedException {
         final var deadline = Instant.now().plus(MANIFEST_APPEAR_TIMEOUT);
         final AtomicReference<ClprEndpointManifest> last = new AtomicReference<>();
         final AtomicReference<Exception> lastError = new AtomicReference<>();

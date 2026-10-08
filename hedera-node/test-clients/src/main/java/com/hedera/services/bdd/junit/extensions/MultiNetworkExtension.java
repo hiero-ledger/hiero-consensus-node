@@ -75,7 +75,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     private static final String ANNOTATION_KEY = "multiNetworkAnnotation";
     private static final String SHARED_FLAG_KEY = "networksShared";
     private static final String CAPTURED_PROPS_KEY = "capturedProps";
-    private static final String NETWORK_GROUP_KEY = "networkGroupKey";
+    private static final String TEST_ID_KEY = "multiNetworkTestId";
     private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(5);
     /** How long to wait for an already-started shared network to be ACTIVE again before reusing it. */
     private static final Duration SHARED_REUSE_ACTIVE_TIMEOUT = Duration.ofMinutes(5);
@@ -96,6 +96,13 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
      * listener populated it.
      */
     public static final Map<String, Network> DECLARED_CONFIGS = new ConcurrentHashMap<>();
+
+    /**
+     * Admits the network groups of shared networks under the node budget. Every enabled test on shared
+     * networks is registered here by {@code SharedMultiNetworkLauncherSessionListener} during its test-plan walk.
+     */
+    public static final MultiNetworkGroupQueue NETWORK_GROUP_QUEUE =
+            new MultiNetworkGroupQueue(MultiNetworkGroupQueue.DEFAULT_CAPACITY);
 
     /** Guards the one-time driver-log reconfigure done on the first lazily-started shared network. */
     private static final AtomicBoolean SHARED_LOGGING_CONFIGURED = new AtomicBoolean(false);
@@ -263,40 +270,23 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                 // Lazy start: get each shared network, starting it on first demand and
                 // reusing it thereafter. Start under the canonical config the launcher reserved ports
                 // for, not this test's copy, so every test on the name hits the same subprocess.
-                //
-                // Gate on the node budget FIRST: enterNetworkGroup blocks until this network group's nodes
-                // fit the MAX_NODES budget (a group that doesn't fit waits here until enough nodes free up),
-                // so no more than the node budget boots/runs at once. Only then do we lazily boot the networks.
-                final String networkGroupKey = MultiNetworkGroupBudget.networkGroupKey(configs);
-                store(ctx).put(NETWORK_GROUP_KEY, networkGroupKey);
-                MultiNetworkGroupBudget.enterNetworkGroup(networkGroupKey, MultiNetworkGroupBudget.nodeWeight(configs));
-                // Boot the group's networks in PARALLEL (one virtual thread per network) rather than one
-                // after another: getOrStartShared is start-once per name (its own per-name lock), and
-                // distinct names boot independently, so a group's start is the slowest single network's
-                // time, not the sum. Lazy start is preserved — this still runs on first demand in
-                // beforeEach; only the within-group boot is now concurrent. Warm reuse (cache hit) returns
-                // ~immediately, so already-started networks cost nothing here.
+                // Wait for this test's network group to be admitted under the node budget, then lazily boot
+                // its networks. The test id is stored first, so afterEach counts the test as finished even
+                // if admission or the boot throws.
+                final String testId = ctx.getUniqueId();
+                store(ctx).put(TEST_ID_KEY, testId);
+                final var group =
+                        NETWORK_GROUP_QUEUE.awaitTurn(testId, MultiNetworkGroupQueue.DEFAULT_ADMISSION_TIMEOUT);
                 networks = new SubProcessNetwork[configs.length];
-                try (final var startExecutor = Executors.newVirtualThreadPerTaskExecutor()) {
-                    final List<Future<?>> startFutures = new ArrayList<>();
-                    for (int i = 0; i < configs.length; i++) {
-                        final int idx = i;
-                        startFutures.add(startExecutor.submit(() ->
-                                networks[idx] = getOrStartShared(DECLARED_CONFIGS.get(resolveName(configs[idx])))));
-                    }
-                    for (final var f : startFutures) {
-                        try {
-                            f.get();
-                        } catch (final ExecutionException e) {
-                            final var cause = e.getCause();
-                            throw (cause instanceof RuntimeException re)
-                                    ? re
-                                    : new RuntimeException("Shared network startup failed", cause);
-                        } catch (final InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                            throw new IllegalStateException("Interrupted while starting shared networks", e);
-                        }
-                    }
+                try {
+                    startSharedNetworks(configs, networks);
+                } catch (final RuntimeException | Error e) {
+                    // Tear down whatever started and free the group's nodes right away; its remaining tests
+                    // then fail fast instead of retrying the boot
+                    log.warn("[MultiNetworkExtension] Networks of network group [{}] failed to start", group.id(), e);
+                    tearDownSharedGroup(group);
+                    NETWORK_GROUP_QUEUE.bootFailed(testId);
+                    throw e;
                 }
                 shared = true;
                 log.info(
@@ -305,14 +295,6 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                                 .map(MultiNetworkExtension::resolveName)
                                 .toList(),
                         ctx.getDisplayName());
-                // SubProcessNetwork#awaitReady memoizes its result for the lifetime of the instance and
-                // is never re-armed, so it is a no-op on reuse. A shared network that an earlier suite
-                // left non-ACTIVE (e.g. freeze/shutdown/restart) would
-                // otherwise be handed straight to applySetupOverrides below, whose specs then fail with
-                // PLATFORM_NOT_ACTIVE. Re-verify per node; this returns immediately when already ACTIVE.
-                for (final var network : networks) {
-                    network.nodes().forEach(node -> awaitStatus(node, SHARED_REUSE_ACTIVE_TIMEOUT, ACTIVE));
-                }
             } else {
                 log.info(
                         "[MultiNetworkExtension] Starting per-test networks {} for test {} (no compatible shared set)",
@@ -347,42 +329,99 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         if (networks != null && captured != null) {
             restoreCapturedProperties(networks, captured);
         }
-        // Decide whether to tear these networks down now:
-        //  - per-test (non-shared) networks: always, after their single test;
-        //  - shared network groups: only when this was the network group's LAST test, so the network group
-        // stays warm
-        //    across all its tests and is torn down exactly once, then its budget slot is freed.
-        final String networkGroupKey = store(ctx).remove(NETWORK_GROUP_KEY, String.class);
-        final boolean networkGroupComplete =
-                shared && networkGroupKey != null && MultiNetworkGroupBudget.leaveNetworkGroupIsLast(networkGroupKey);
-        if (networks != null && (!shared || networkGroupComplete)) {
-            // Collect URIs before terminating so we can clean up stale channels.
-            // Dead channels accumulate in the static HapiClients.channelPools and cause
-            // "Connection refused" on subsequent runs because the round-robin picks them.
-            final List<String> uris = new ArrayList<>();
-            for (final var n : networks) {
-                n.nodes().forEach(node -> uris.add(node.getHost() + ":" + node.getGrpcPort()));
-            }
-            for (final var n : networks) {
-                TSS_BOOTSTRAP_HANDLED.remove(n);
-                CLPR_MTLS_CAS.remove(n.name());
-                safeTerminate(n);
-                if (shared) {
-                    // Drop from the warm cache so a later demand (should not happen once a network group is
-                    // complete) would lazily re-start rather than reuse a terminated network.
-                    SHARED_NETWORKS.remove(n.name());
-                }
-            }
-            HapiClients.removeChannelsFor(uris);
-            if (networkGroupComplete) {
-                // Networks are down; free this group's node permits so a waiting network group can be admitted.
-                MultiNetworkGroupBudget.releaseSlot(networkGroupKey);
-            }
+        if (networks != null && !shared) {
+            terminateNetworks(networks);
+        }
+        // A shared network group stays warm across all its tests; its last test tears it down and frees its nodes
+        final String testId = store(ctx).remove(TEST_ID_KEY, String.class);
+        if (testId != null) {
+            finishSharedTests(testId);
         }
         if (networks != null) {
             wipeClprPeerEndpointsCache(networks);
         }
         store(ctx).remove(PARAM_INDEXES_KEY);
+    }
+
+    /**
+     * Boots (or reuses) the shared networks {@code configs} name into {@code networks}, and waits for every node
+     * to be ACTIVE.
+     */
+    private static void startSharedNetworks(
+            @NonNull final Network[] configs, @NonNull final SubProcessNetwork[] networks) {
+        // Boot the group's networks in PARALLEL (one virtual thread per network) rather than one
+        // after another: getOrStartShared is start-once per name (its own per-name lock), and
+        // distinct names boot independently, so a group's start is the slowest single network's
+        // time, not the sum. Warm reuse (cache hit) returns ~immediately, so already-started
+        // networks cost nothing here.
+        try (final var startExecutor = Executors.newVirtualThreadPerTaskExecutor()) {
+            final List<Future<?>> startFutures = new ArrayList<>();
+            for (int i = 0; i < configs.length; i++) {
+                final int idx = i;
+                startFutures.add(startExecutor.submit(
+                        () -> networks[idx] = getOrStartShared(DECLARED_CONFIGS.get(resolveName(configs[idx])))));
+            }
+            for (final var f : startFutures) {
+                try {
+                    f.get();
+                } catch (final ExecutionException e) {
+                    final var cause = e.getCause();
+                    throw (cause instanceof RuntimeException re)
+                            ? re
+                            : new RuntimeException("Shared network startup failed", cause);
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Interrupted while starting shared networks", e);
+                }
+            }
+        }
+        // SubProcessNetwork#awaitReady memoizes its result for the lifetime of the instance and
+        // is never re-armed, so it is a no-op on reuse. A shared network that an earlier suite
+        // left non-ACTIVE (e.g. freeze/shutdown/restart) would
+        // otherwise be handed straight to applySetupOverrides, whose specs then fail with
+        // PLATFORM_NOT_ACTIVE. Re-verify per node; this returns immediately when already ACTIVE.
+        for (final var network : networks) {
+            network.nodes().forEach(node -> awaitStatus(node, SHARED_REUSE_ACTIVE_TIMEOUT, ACTIVE));
+        }
+    }
+
+    /**
+     * Marks the registered tests under {@code uniqueId} (a test, or a container whose tests never ran) as
+     * finished, and tears down every shared network group whose last test this was.
+     */
+    public static void finishSharedTests(@NonNull final String uniqueId) {
+        for (final var group : NETWORK_GROUP_QUEUE.testsFinished(uniqueId)) {
+            try {
+                tearDownSharedGroup(group);
+            } finally {
+                NETWORK_GROUP_QUEUE.release(group);
+            }
+        }
+    }
+
+    /** Terminates whichever of {@code group}'s shared networks are started and drops them from the warm cache. */
+    private static void tearDownSharedGroup(@NonNull final NetworkGroup group) {
+        final var networks = group.networkNames().stream()
+                .map(SHARED_NETWORKS::remove)
+                .filter(Objects::nonNull)
+                .toArray(SubProcessNetwork[]::new);
+        terminateNetworks(networks);
+    }
+
+    private static void terminateNetworks(@NonNull final SubProcessNetwork[] networks) {
+        // Collect URIs before terminating so we can clean up stale channels.
+        // Dead channels accumulate in the static HapiClients.channelPools and cause
+        // "Connection refused" on subsequent runs because the round-robin picks them.
+        final List<String> uris = new ArrayList<>();
+        for (final var n : networks) {
+            n.nodes().forEach(node -> uris.add(node.getHost() + ":" + node.getGrpcPort()));
+        }
+        for (final var n : networks) {
+            TSS_BOOTSTRAP_HANDLED.remove(n);
+            CLPR_MTLS_CAS.remove(n.name());
+            safeTerminate(n);
+        }
+        HapiClients.removeChannelsFor(uris);
     }
 
     /**
