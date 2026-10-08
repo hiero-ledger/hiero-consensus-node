@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# run-clpr-end-to-end.sh
+# run-hiero-to-hiero.sh
 #
 # Runs the full CLPR cross-ledger setup against two local Hiero networks and
 # finishes by calling alice's PingPong.serve() to kick off a volley toward
@@ -15,13 +15,15 @@
 #
 # Both `complete-channel` calls target the fixed verifier contract
 # ${VERIFIER_CONTRACT} (default 0.0.366). Override via env var if needed.
+# Each call passes the peer's ledger-configuration and endpoint-manifest
+# state proofs; the Hiero TSS verifier (0.0.366) requires both.
 #
 # Required env vars:
 #   PINGPONG_A   shard.realm.num — PingPong contract on network A
 #   PINGPONG_B   shard.realm.num — PingPong contract on network B
 #
 # Usage:
-#   PINGPONG_A=0.0.<A>  PINGPONG_B=0.0.<B>  ./run-clpr-end-to-end.sh
+#   PINGPONG_A=0.0.<A>  PINGPONG_B=0.0.<B>  ./run-hiero-to-hiero.sh
 #
 
 set -euo pipefail
@@ -70,8 +72,12 @@ CHANNEL_FILE="${SCRIPT_DIR}/channel-identity.json"
 CONNECTOR_FILE="${SCRIPT_DIR}/connector-identity.json"
 PROOF_A="${SCRIPT_DIR}/alice-proof.bin"
 PROOF_B="${SCRIPT_DIR}/bob-proof.bin"
+MANIFEST_PROOF_A="${SCRIPT_DIR}/alice-manifest-proof.bin"
+MANIFEST_PROOF_B="${SCRIPT_DIR}/bob-manifest-proof.bin"
 PEER_CONFIG_A="${SCRIPT_DIR}/alice-observed-config.json"
 PEER_CONFIG_B="${SCRIPT_DIR}/bob-observed-config.json"
+PEER_MANIFEST_A="${SCRIPT_DIR}/alice-observed-manifest.json"
+PEER_MANIFEST_B="${SCRIPT_DIR}/bob-observed-manifest.json"
 LOG_DIR="${SCRIPT_DIR}/.run-logs"
 mkdir -p "${LOG_DIR}"
 
@@ -109,6 +115,13 @@ read_json_field() {
     else
         sed -nE 's/.*"'"${field}"'"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p' "${file}" | head -1
     fi
+}
+
+# True if a `clpr get-endpoint-manifest --out` JSON file reports a finalized
+# manifest (version >= 2 with at least one endpoint; genesis seeds version 1
+# with no endpoints).
+manifest_finalized() {
+    grep -qE '"finalized"[[:space:]]*:[[:space:]]*true' "$1"
 }
 
 # Long-zero EVM address (20-byte hex, no 0x) from shard.realm.num.
@@ -223,8 +236,10 @@ yh "update-ledger-configuration on ${NET_A}" "${LOG_DIR}/02a-update-cfg.log" \
     -n "${NET_A}" -p "${PAYER}" \
     clpr update-ledger-configuration --config-file "${CONFIG_A}"
 
-# === [4/10] pull each network's state proof ================================
-header "[4/10] get-ledger-configuration + state proof bytes"
+# === [4/10] pull each network's state proofs ===============================
+# complete-channel needs two proofs from the peer: its ledger configuration and
+# its endpoint manifest (the endpoints the channel dials).
+header "[4/10] get-ledger-configuration + get-endpoint-manifest state proof bytes"
 yh "get-ledger-configuration on ${NET_B}" "${LOG_DIR}/03b-get-cfg.log" \
     -n "${NET_B}" -p "${PAYER}" \
     clpr get-ledger-configuration --out "${PEER_CONFIG_B}" --proof-path "${PROOF_B}"
@@ -233,6 +248,18 @@ yh "get-ledger-configuration on ${NET_A}" "${LOG_DIR}/03a-get-cfg.log" \
     clpr get-ledger-configuration --out "${PEER_CONFIG_A}" --proof-path "${PROOF_A}"
 [[ -s "${PROOF_A}" ]] || die "${PROOF_A} is empty — wait for the next signed snapshot and retry"
 [[ -s "${PROOF_B}" ]] || die "${PROOF_B} is empty — wait for the next signed snapshot and retry"
+yh "get-endpoint-manifest on ${NET_B}" "${LOG_DIR}/04b-get-manifest.log" \
+    -n "${NET_B}" -p "${PAYER}" \
+    clpr get-endpoint-manifest --out "${PEER_MANIFEST_B}" --proof-path "${MANIFEST_PROOF_B}"
+yh "get-endpoint-manifest on ${NET_A}" "${LOG_DIR}/04a-get-manifest.log" \
+    -n "${NET_A}" -p "${PAYER}" \
+    clpr get-endpoint-manifest --out "${PEER_MANIFEST_A}" --proof-path "${MANIFEST_PROOF_A}"
+[[ -s "${MANIFEST_PROOF_A}" ]] || die "${MANIFEST_PROOF_A} is empty — wait for the next signed snapshot and retry"
+[[ -s "${MANIFEST_PROOF_B}" ]] || die "${MANIFEST_PROOF_B} is empty — wait for the next signed snapshot and retry"
+manifest_finalized "${PEER_MANIFEST_A}" \
+    || die "${NET_A} endpoint manifest is not finalized yet (see ${PEER_MANIFEST_A}) — wait for its nodes to publish their endpoints and retry"
+manifest_finalized "${PEER_MANIFEST_B}" \
+    || die "${NET_B} endpoint manifest is not finalized yet (see ${PEER_MANIFEST_B}) — wait for its nodes to publish their endpoints and retry"
 
 # === [5/10] register-channel (commit phase) =============================
 header "[5/10] register-channel on both networks"
@@ -249,13 +276,15 @@ yh "complete-channel on ${NET_A} via verifier ${VERIFIER_CONTRACT}" \
     "${LOG_DIR}/06a-complete-conn.log" \
     -n "${NET_A}" -p "${PAYER}" \
     clpr complete-channel --identity "${CHANNEL_FILE}" \
-        --verifier-contract "${VERIFIER_CONTRACT}" --config-proof "${PROOF_B}"
+        --verifier-contract "${VERIFIER_CONTRACT}" --config-proof "${PROOF_B}" \
+        --endpoint-manifest-proof "${MANIFEST_PROOF_B}"
 
 yh "complete-channel on ${NET_B} via verifier ${VERIFIER_CONTRACT}" \
     "${LOG_DIR}/06b-complete-conn.log" \
     -n "${NET_B}" -p "${PAYER}" \
     clpr complete-channel --identity "${CHANNEL_FILE}" \
-        --verifier-contract "${VERIFIER_CONTRACT}" --config-proof "${PROOF_A}"
+        --verifier-contract "${VERIFIER_CONTRACT}" --config-proof "${PROOF_A}" \
+        --endpoint-manifest-proof "${MANIFEST_PROOF_A}"
 
 CHANNEL_ID=$(read_json_field "${CHANNEL_FILE}" "channelId")
 [[ -n "${CHANNEL_ID}" && "${CHANNEL_ID}" != "null" ]] || die "no channelId in ${CHANNEL_FILE}"

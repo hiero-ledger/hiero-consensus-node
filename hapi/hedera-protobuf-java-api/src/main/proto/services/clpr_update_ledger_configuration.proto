@@ -21,7 +21,9 @@ message ClprUpdateLedgerConfigurationTransactionBody {
     /**
      * The configuration to update. chain_id, protocol_version, and timestamp
      * are ignored — chain_id and protocol_version are immutable, timestamp
-     * is set by the handler.
+     * is set by the handler. service_address, if set, MUST be the CLPR system
+     * contract's EVM address (INVALID_CLPR_CONFIGURATION otherwise); if
+     * omitted, it defaults to that address.
      */
     com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration configuration = 1;
 }
