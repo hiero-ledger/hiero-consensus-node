@@ -67,6 +67,7 @@ import org.hiero.base.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.file.FileSystemManager;
+import org.hiero.base.file.FileUtils;
 import org.hiero.base.io.IORunnable;
 
 public final class MerkleDbDataSource implements VirtualDataSource {
@@ -340,6 +341,17 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         if (this.initialCapacity <= 0) {
             throw new IllegalStateException("Initial capacity must be greater than 0, but was " + this.initialCapacity);
+        }
+
+        if (loadedHashDigestTypeOrDefault != Cryptography.DEFAULT_DIGEST_TYPE) {
+            logger.info(
+                    MERKLE_DB.getMarker(),
+                    "[{}] Hash digest type changed from {} to {}, deleting old hash files and index",
+                    tableName,
+                    loadedHashDigestTypeOrDefault.algorithmName(),
+                    Cryptography.DEFAULT_DIGEST_TYPE.algorithmName());
+            FileUtils.deleteDirectory(dbPaths.hashChunkDirectory);
+            Files.deleteIfExists(dbPaths.idToDiskLocationHashChunksFile);
         }
 
         final boolean forceIndexRebuilding = merkleDbConfig.indexRebuildingEnforced();

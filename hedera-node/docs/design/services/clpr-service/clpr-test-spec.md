@@ -200,8 +200,9 @@ require multi-network infrastructure.
 
 ### 3.1.2 `getLedgerConfiguration`
 
-- Returns the current configuration including immutable fields (`protocol_version`, `chain_id`) and
-  mutable fields (`throttles`, `service_address`, `endpoints`, `timestamp`).
+- Returns the current configuration including immutable fields (`protocol_version`, `chain_id`), the
+  fixed `service_address` (the CLPR system contract address), and mutable fields (`throttles`, `endpoints`,
+  `timestamp`).
 - Configuration is always present (created at genesis); never returns an empty/absent response.
 
 ## 3.2 Channel Lifecycle

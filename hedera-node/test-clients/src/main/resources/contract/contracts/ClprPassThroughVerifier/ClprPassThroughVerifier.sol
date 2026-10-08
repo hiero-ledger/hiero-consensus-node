@@ -7,15 +7,17 @@ pragma solidity ^0.8.0;
  * Accepts a serialized StateProof (com.hedera.hapi.block.stream.StateProof) and
  * extracts attested content WITHOUT any cryptographic verification.
  *
- * verifyConfig(bytes,bytes32): extracts ClprLedgerConfiguration from the proof and
- * returns its fields in the ABI 8-tuple expected by EvmClprVerifier dispatch with seed endpoints.
+ * verifyConfig(bytes,bytes32,bytes): extracts ClprLedgerConfiguration from the config proof and
+ * ClprEndpointManifest from the manifest proof, and returns their fields in the ABI 8-tuple expected
+ * by EvmClprVerifier.decodeVerifyConfigWithManifestReturn (7-field throttles + trailing manifest struct).
  *
  * verifyBundle(bytes,bytes,bytes): walks all state_item_leaf paths and dispatches on the StateValue tag:
  *   - [0xE2,0x03] = field 60 = ClprChannel → queue metadata source
  *   - [0xF2,0x03] = field 62 = ClprMessageValue → ordered message payloads
- * Returns the ABI 4-tuple
- * ((uint64,bytes32,uint64,bytes32,uint8), bytes[], bytes, bytes) expected by
- * EvmClprVerifier bundle dispatch with endpoint manifests disabled.
+ * Returns the ABI 5-tuple
+ * ((uint64,bytes32,uint64,bytes32,uint8), bytes[], bytes, bytes, (uint64,bytes,(string,uint32,bytes,bytes)[]))
+ * expected by EvmClprVerifier.decodeVerifyBundleWithManifestReturn. This pass-through never carries a
+ * bundle manifest update, so the trailing manifest is returned absent (version 0).
  *
  * No Merkle path verification, no TSS signature check, no hash computation.
  * DO NOT use in production.
@@ -36,11 +38,21 @@ contract ClprPassThroughVerifier {
     uint8 private constant SV_MSG_B0  = 0xf2;
     uint8 private constant SV_B1      = 0x03;
 
+    // ClprEndpointManifest field tags (parsed from the manifest proof)
+    uint64 private constant MANIFEST_VERSION = 0x08; // field 1, WT 0
+    uint64 private constant MANIFEST_SVC_ADDR = 0x12; // field 2, WT 2
+    uint64 private constant MANIFEST_ENDPOINT = 0x1a; // field 3, WT 2 (repeated ClprEndpoint)
+
+    // ClprLedgerConfiguration.endpoints tag (field 6, repeated ClprEndpoint) — retained for the
+    // shared endpoint parser, though config endpoints are deprecated under the manifest ABI.
+    uint64 private constant CONFIG_ENDPOINT = 0x32;
+
     // ClprChannel field tags
     uint64 private constant CHANNEL_STATUS    = 0x38; // field 7,  WT 0
     uint64 private constant CHANNEL_ACKED     = 0x48; // field 9,  WT 0
     uint64 private constant CHANNEL_RCVD_ID   = 0x58; // field 11, WT 0
     uint64 private constant CHANNEL_RCVD_HASH = 0x62; // field 12, WT 2
+    uint64 private constant CHANNEL_MANIFEST_VER = 0xa0; // field 20, WT 0
 
     // ClprMessageValue field tags
     uint64 private constant MV_PAYLOAD = 0x0a; // field 1, WT 2
@@ -53,18 +65,22 @@ contract ClprPassThroughVerifier {
         uint64 rcvdId;
         uint256 rcvdHS;
         uint256 rcvdHL;
+        uint64 manifestVer;
     }
 
-    // Config return with seed endpoints: ClprThrottles fields as ABI (uint64,uint64,uint64,uint64,uint64)
+    // Manifest-aware config return: ClprThrottles as ABI
+    // (uint32,uint64,uint64,uint32,uint64,uint32,uint32).
     struct ThrottlesData {
-        uint64 maxMessagesPerBundle;
+        uint32 maxMessagesPerBundle;
         uint64 maxMessagePayloadBytes;
         uint64 maxGasPerMessage;
-        uint64 maxQueueDepth;
+        uint32 maxQueueDepth;
         uint64 maxSyncBytes;
+        uint32 maxLocalEndpoints;
+        uint32 maxPeerEndpoints;
     }
 
-    // Config return with seed endpoints: ClprEndpoint as ABI (string,uint32,bytes,bytes)
+    // ClprEndpoint as ABI (string,uint32,bytes,bytes)
     struct EndpointData {
         string ipAddress;
         uint32 port;
@@ -72,13 +88,21 @@ contract ClprPassThroughVerifier {
         bytes accountId;
     }
 
-    // Bundle return without a manifest: ClprQueueMetadata as ABI (uint64,bytes32,uint64,bytes32,uint8)
+    // ClprEndpointManifest as ABI (uint64,bytes,(string,uint32,bytes,bytes)[])
+    struct ManifestData {
+        uint64 version;
+        bytes serviceAddress;
+        EndpointData[] endpoints;
+    }
+
+    // Bundle return metadata: ClprQueueMetadata as ABI (uint64,bytes32,uint64,bytes32,uint8,uint64)
     struct BundleMeta {
         uint64 nextMessageId;
         bytes32 sentRunningHash;
         uint64 receivedMessageId;
         bytes32 receivedRunningHash;
         uint8 status;
+        uint64 endpointManifestVersion;
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -86,14 +110,19 @@ contract ClprPassThroughVerifier {
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * Seed endpoints: Extracts ClprLedgerConfiguration from a StateProof and returns the ABI 8-tuple
-     * expected by EvmClprVerifier.decodeVerifyConfigWithSeedEndpointsReturn.
+     * Manifest-aware: extracts ClprLedgerConfiguration from the config proof and ClprEndpointManifest
+     * from the manifest proof, returning the ABI 8-tuple expected by
+     * EvmClprVerifier.decodeVerifyConfigWithManifestReturn.
      *
      * Returns (channelContext, chainId, serviceAddress, peerConfigNanos,
-     *          throttles, initialTrustAnchor, initialTrustAnchorId, endpoints).
+     *          throttles, initialTrustAnchor, initialTrustAnchorId, manifest).
      * channelContext is built as abi.encodePacked(channelId32, serviceAddress).
      */
-    function verifyConfig(bytes calldata proofBytes, bytes32 channelId32)
+    function verifyConfig(
+        bytes calldata proofBytes,
+        bytes32 channelId32,
+        bytes calldata manifestProofBytes
+    )
         external pure
         returns (
             bytes memory channelContext,
@@ -103,34 +132,10 @@ contract ClprPassThroughVerifier {
             ThrottlesData memory throttles,
             bytes memory initialTrustAnchor,
             bytes memory initialTrustAnchorId,
-            EndpointData[] memory endpoints
+            ManifestData memory manifest
         )
     {
-        uint256 n = proofBytes.length;
-        uint256 i = 0;
-        uint256 innerS;
-        uint256 innerL;
-        bool cfgFound;
-        while (i < n) {
-            (uint64 tag, uint256 tl) = _readV(proofBytes, i); i += tl;
-            (uint64 vLen, uint256 ll) = _readV(proofBytes, i); i += ll;
-            uint256 vEnd = i + uint256(vLen);
-            require(vEnd <= n, "verifyConfig: OOB");
-            if (tag == SP_PATHS) {
-                (uint256 lS, uint256 lL, bool lOk) = _findLd(proofBytes, i, vEnd, MP_LEAF);
-                if (lOk) {
-                    (uint256 svS, uint256 svL, bool svOk) = _findLd(proofBytes, lS, lS + lL, SI_VALUE);
-                    if (svOk && svL > 0) {
-                        (innerS, innerL) = _unwrapFirst(proofBytes, svS);
-                        cfgFound = true;
-                        break;
-                    }
-                }
-            }
-            i = vEnd;
-        }
-        require(cfgFound, "verifyConfig: no config leaf found");
-
+        (uint256 innerS, uint256 innerL) = _extractLeafValue(proofBytes);
         uint256 cfgEnd = innerS + innerL;
 
         // chain_id: ClprLedgerConfiguration field 2 (string), tag 0x12, WT 2
@@ -157,19 +162,14 @@ contract ClprPassThroughVerifier {
             (uint256 thrS, uint256 thrL,) = _findLd(proofBytes, innerS, cfgEnd, 0x2a);
             if (thrL > 0) {
                 uint256 thrEnd = thrS + thrL;
-                (throttles.maxMessagesPerBundle,) = _findV0(proofBytes, thrS, thrEnd, 0x08);
-                (throttles.maxMessagePayloadBytes,) = _findV0(proofBytes, thrS, thrEnd, 0x10);
-                (throttles.maxGasPerMessage,) = _findV0(proofBytes, thrS, thrEnd, 0x18);
-                (throttles.maxQueueDepth,) = _findV0(proofBytes, thrS, thrEnd, 0x20);
-                (throttles.maxSyncBytes,) = _findV0(proofBytes, thrS, thrEnd, 0x28);
-            }
-        }
-        // endpoints: field 6 (repeated message), tag 0x32, WT 2
-        {
-            uint256 epCount = _countLdTag(proofBytes, innerS, cfgEnd, 0x32);
-            endpoints = new EndpointData[](epCount);
-            if (epCount > 0) {
-                _fillEndpoints(proofBytes, innerS, cfgEnd, endpoints);
+                uint64 v;
+                (v,) = _findV0(proofBytes, thrS, thrEnd, 0x08); throttles.maxMessagesPerBundle = uint32(v);
+                (v,) = _findV0(proofBytes, thrS, thrEnd, 0x10); throttles.maxMessagePayloadBytes = v;
+                (v,) = _findV0(proofBytes, thrS, thrEnd, 0x18); throttles.maxGasPerMessage = v;
+                (v,) = _findV0(proofBytes, thrS, thrEnd, 0x20); throttles.maxQueueDepth = uint32(v);
+                (v,) = _findV0(proofBytes, thrS, thrEnd, 0x28); throttles.maxSyncBytes = v;
+                (v,) = _findV0(proofBytes, thrS, thrEnd, 0x30); throttles.maxLocalEndpoints = uint32(v);
+                (v,) = _findV0(proofBytes, thrS, thrEnd, 0x38); throttles.maxPeerEndpoints = uint32(v);
             }
         }
         // initial_trust_anchor: field 7 (bytes), tag 0x3a, WT 2
@@ -189,15 +189,19 @@ contract ClprPassThroughVerifier {
             for (uint256 k = 0; k < 32; k++) channelContext[k] = channelId32[k];
             for (uint256 k = 0; k < saLen; k++) channelContext[32 + k] = serviceAddress[k];
         }
+        // manifest: parsed from the separate manifest StateProof (endpoints live here under the
+        // manifest ABI, not in config.endpoints).
+        manifest = _parseManifest(manifestProofBytes);
     }
 
     /**
-     * Extracts bundle content from a StateProof and returns the ABI 4-tuple
-     * expected by EvmClprVerifier.decodeVerifyBundleReturn:
-     * (BundleMeta meta, bytes[] messages, bytes newTrustAnchor, bytes newTrustAnchorId).
+     * Extracts bundle content from a StateProof and returns the ABI 5-tuple
+     * expected by EvmClprVerifier.decodeVerifyBundleWithManifestReturn:
+     * (BundleMeta meta, bytes[] messages, bytes newTrustAnchor, bytes newTrustAnchorId, ManifestData newManifest).
      *
      * trustAnchor and channelContext are accepted for selector compatibility
-     * but not used — this pass-through verifier performs no cryptographic checks.
+     * but not used — this pass-through verifier performs no cryptographic checks. The trailing
+     * manifest is always returned absent (version 0): this verifier never carries a bundle manifest update.
      */
     function verifyBundle(
         bytes calldata bp,
@@ -209,7 +213,8 @@ contract ClprPassThroughVerifier {
             BundleMeta memory meta,
             bytes[] memory messages,
             bytes memory newTrustAnchor,
-            bytes memory newTrustAnchorId
+            bytes memory newTrustAnchorId,
+            ManifestData memory newManifest
         )
     {
         uint256 msgCount = _countMsgs(bp);
@@ -224,6 +229,7 @@ contract ClprPassThroughVerifier {
         meta.nextMessageId  = conn.acked + 1 + uint64(msgCount);
         meta.receivedMessageId = conn.rcvdId;
         meta.status = uint8(conn.status);
+        meta.endpointManifestVersion = conn.manifestVer;
         if (msgCount > 0 && hL[msgCount - 1] >= 32) {
             meta.sentRunningHash = _copyBytes32(bp, hS[msgCount - 1]);
         }
@@ -236,14 +242,75 @@ contract ClprPassThroughVerifier {
             messages[i] = _copy(bp, pS[i], pL[i]);
         }
 
-        // Pass-through verifier never rotates trust anchor.
+        // Pass-through verifier never rotates trust anchor or carries a bundle manifest update.
         newTrustAnchor   = new bytes(0);
         newTrustAnchorId = new bytes(0);
+        newManifest.serviceAddress = new bytes(0);
+        newManifest.endpoints = new EndpointData[](0);
     }
 
     // ──────────────────────────────────────────────────────────────────────────
     // Internal: scanning
     // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Walks the proof paths for the first state_item_leaf and returns the inner byte range of the
+     * wrapped StateValue's single field (the domain value). Reverts if no leaf is present.
+     */
+    function _extractLeafValue(bytes calldata buf)
+        private pure returns (uint256 innerS, uint256 innerL)
+    {
+        uint256 n = buf.length;
+        uint256 i = 0;
+        bool found;
+        while (i < n) {
+            (uint64 tag, uint256 tl) = _readV(buf, i); i += tl;
+            (uint64 vLen, uint256 ll) = _readV(buf, i); i += ll;
+            uint256 vEnd = i + uint256(vLen);
+            require(vEnd <= n, "extract: OOB");
+            if (tag == SP_PATHS) {
+                (uint256 lS, uint256 lL, bool lOk) = _findLd(buf, i, vEnd, MP_LEAF);
+                if (lOk) {
+                    (uint256 svS, uint256 svL, bool svOk) = _findLd(buf, lS, lS + lL, SI_VALUE);
+                    if (svOk && svL > 0) {
+                        (innerS, innerL) = _unwrapFirst(buf, svS);
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            i = vEnd;
+        }
+        require(found, "extract: no state-item leaf found");
+    }
+
+    /**
+     * Parses a ClprEndpointManifest from a manifest StateProof into a ManifestData struct. Returns an
+     * absent manifest (version 0, empty) when the proof is empty or carries no leaf, so callers that pass
+     * no manifest proof still get a well-formed (absent) struct.
+     */
+    function _parseManifest(bytes calldata manifestProofBytes)
+        private pure returns (ManifestData memory manifest)
+    {
+        manifest.serviceAddress = new bytes(0);
+        manifest.endpoints = new EndpointData[](0);
+        if (manifestProofBytes.length == 0) {
+            return manifest;
+        }
+        (uint256 mS, uint256 mL) = _extractLeafValue(manifestProofBytes);
+        uint256 mEnd = mS + mL;
+        (uint64 ver,) = _findV0(manifestProofBytes, mS, mEnd, MANIFEST_VERSION);
+        manifest.version = ver;
+        {
+            (uint256 s, uint256 l,) = _findLd(manifestProofBytes, mS, mEnd, MANIFEST_SVC_ADDR);
+            manifest.serviceAddress = _copy(manifestProofBytes, s, l);
+        }
+        uint256 epCount = _countLdTag(manifestProofBytes, mS, mEnd, MANIFEST_ENDPOINT);
+        manifest.endpoints = new EndpointData[](epCount);
+        if (epCount > 0) {
+            _fillEndpoints(manifestProofBytes, mS, mEnd, manifest.endpoints, MANIFEST_ENDPOINT);
+        }
+    }
 
     /** First pass: count ClprMessageValue leaves so arrays can be pre-allocated. */
     function _countMsgs(bytes calldata buf) private pure returns (uint256 count) {
@@ -302,6 +369,7 @@ contract ClprPassThroughVerifier {
                             (conn.acked,)  = _findV0(buf, cS, cEnd, CHANNEL_ACKED);
                             (conn.rcvdId,) = _findV0(buf, cS, cEnd, CHANNEL_RCVD_ID);
                             (conn.rcvdHS, conn.rcvdHL,) = _findLd(buf, cS, cEnd, CHANNEL_RCVD_HASH);
+                            (conn.manifestVer,) = _findV0(buf, cS, cEnd, CHANNEL_MANIFEST_VER);
                         } else if (b0 == SV_MSG_B0 && b1 == SV_B1) {
                             (uint256 mvS, uint256 mvL) = _unwrapFirst(buf, svS);
                             uint256 mvEnd = mvS + mvL;
@@ -410,12 +478,13 @@ contract ClprPassThroughVerifier {
     }
 
     /**
-     * Fills eps[] by scanning [start, end) for ClprEndpoint fields (tag 0x22).
+     * Fills eps[] by scanning [start, end) for ClprEndpoint fields with the given repeated-field tag
+     * (0x1a for ClprEndpointManifest.endpoints, 0x32 for ClprLedgerConfiguration.endpoints).
      * Each ClprEndpoint is parsed into an EndpointData struct.
      */
     function _fillEndpoints(
         bytes calldata buf, uint256 start, uint256 end,
-        EndpointData[] memory eps
+        EndpointData[] memory eps, uint64 epTag
     ) private pure {
         uint256 i = start;
         uint256 idx = 0;
@@ -426,7 +495,7 @@ contract ClprPassThroughVerifier {
             if (wt == 2) {
                 (uint64 vLen, uint256 ll) = _readV(buf, i); i += ll;
                 uint256 vEnd = i + uint256(vLen);
-                if (tag == 0x32) { // ClprLedgerConfiguration.endpoints (field 6)
+                if (tag == epTag) {
                     // ClprServiceEndpoint service_endpoint = 1 (tag 0x0a)
                     (uint256 seS, uint256 seL,) = _findLd(buf, i, vEnd, 0x0a);
                     // bytes tls_certificate = 2 (tag 0x12)

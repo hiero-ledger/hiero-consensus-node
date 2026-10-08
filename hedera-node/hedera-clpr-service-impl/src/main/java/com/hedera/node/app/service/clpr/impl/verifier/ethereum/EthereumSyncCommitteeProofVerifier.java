@@ -121,21 +121,25 @@ public final class EthereumSyncCommitteeProofVerifier {
                 bundle.accountProof());
 
         // --- 3. Prove the queue metadata fields --------------
-        // Prove the queue metadata from the five storage slots. A bundle with no queue storage proof simply has
-        // no queue metadata — represented by the all-zero absent sentinel (nextMessageId == 0). It is decoded and
-        // treated as any other bundle; there is no distinct "manifest-only" shape or path. The §8.1.4 invariant
-        // is enforced after the manifest step below.
+        // Prove the queue metadata from the five Channel storage slots (keccak(connId,15)+{1,2,4,5,16},
+        // including the proven endpointManifestVersion at offset 16) plus, for a message-bearing bundle, the
+        // last-message running-hash slot — so 5 or 6 slots. A bundle with no queue storage proof simply has no
+        // queue metadata — the all-zero absent sentinel (nextMessageId == 0). It is decoded and treated as any
+        // other bundle; there is no distinct "manifest-only" shape or path. The §8.1.4 invariant is enforced
+        // after the manifest step below.
         final QueueMetadata queueMetadata;
         if (bundle.storageProof().isEmpty()) {
             queueMetadata = QueueMetadata.absent();
         } else {
-            // entry.key() is the EVM storage slot; the MPT proves that slot -> value against the
-            // account's storage root. Sort the entries by slot key (big-endian unsigned) so they map
-            // to the QueueMetadata slot positions regardless of EVM delivery order.
+            // entry.key() is the EVM storage slot; the MPT proves that slot -> value against the account's
+            // storage root. Sort the entries by slot key (big-endian unsigned) for a canonical order; the slot
+            // keys drive the QueueMetadata layout (the Channel cluster vs. the message-hash outlier), not the
+            // EVM delivery order — matching the relay, which notes "the verifier sorts by key, so order ...
+            // is not load-bearing".
             final List<StorageProofEntry> orderedStorageProof = new ArrayList<>(bundle.storageProof());
             orderedStorageProof.sort((a, b) -> Arrays.compareUnsigned(
                     leftPad32(a.key(), "storageProof.key"), leftPad32(b.key(), "storageProof.key")));
-            // The slots map to QueueMetadata fields by sorted position, so each slot must be distinct.
+            // Each slot must be distinct so the layout mapping is unambiguous.
             for (int i = 1; i < orderedStorageProof.size(); i++) {
                 if (Arrays.equals(
                         leftPad32(orderedStorageProof.get(i - 1).key(), "storageProof.key"),
@@ -143,17 +147,20 @@ public final class EthereumSyncCommitteeProofVerifier {
                     throw EthProofs.fail("bundle storage proof contains a duplicate slot key");
                 }
             }
+            final byte[][] slotKeys = new byte[orderedStorageProof.size()][];
             final byte[][] provenSlotValues = new byte[orderedStorageProof.size()][];
             for (int i = 0; i < orderedStorageProof.size(); i++) {
                 final StorageProofEntry entry = orderedStorageProof.get(i);
-                final byte[] storageKey = keccak256(leftPad32(entry.key(), "storageProof[" + i + "].key"));
+                final byte[] slotKey = leftPad32(entry.key(), "storageProof[" + i + "].key");
+                final byte[] storageKey = keccak256(slotKey);
+                slotKeys[i] = slotKey;
                 provenSlotValues[i] = RlpDecoder.decodeMerklePatriciaTrie(
                                 provenAccount.storageRoot32(), entry.proofNodes())
                         .provenValue(storageKey)
                         .map(Rlp::decodeTrieStorageValueAsBytes32)
                         .orElseGet(() -> new byte[32]);
             }
-            queueMetadata = QueueMetadata.decode(provenSlotValues);
+            queueMetadata = QueueMetadata.decode(slotKeys, provenSlotValues);
         }
 
         // --- 4. Endpoint-manifest advance (spec §4.9), if the bundle carries one -------------

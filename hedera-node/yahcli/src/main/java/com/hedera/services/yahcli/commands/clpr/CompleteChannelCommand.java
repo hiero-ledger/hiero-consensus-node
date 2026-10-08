@@ -23,12 +23,21 @@ import picocli.CommandLine.ParentCommand;
  * {@code public-key}, {@code signature}, and {@code signature-scheme} from a JSON bundle
  * produced by {@link GenerateChannelIdentityCommand}; any flag passed explicitly
  * overrides the bundled value. Pair with {@link RegisterChannelCommand} (Phase 1).
+ *
+ * <p>The peer ledger's state proofs are passed with {@code --config-proof} (its ledger
+ * configuration, always required) and {@code --endpoint-manifest-proof} (its endpoint
+ * manifest, from {@link GetEndpointManifestCommand}). The manifest proof is optional here
+ * because the Besu, Sei, and Ethereum verifiers fall back to a bring-up manifest when it is
+ * empty, but the Hiero TSS verifier ({@code 0.0.366}) rejects an empty one.
  */
 @Command(
         name = "complete-channel",
         subcommands = {HelpCommand.class},
         description = "Submits a ClprCompleteChannel (Phase 2: Reveal) transaction.")
 public class CompleteChannelCommand implements Callable<Integer> {
+
+    /** The Hiero TSS verifier is the CLPR system contract itself (0.0.366). */
+    private static final long HIERO_TSS_VERIFIER_NUM = 0x16eL;
 
     @ParentCommand
     ClprCommand clprCommand;
@@ -90,6 +99,25 @@ public class CompleteChannelCommand implements Callable<Integer> {
                     + "Mutually exclusive with --config-proof; exactly one is required.")
     String configProofHex;
 
+    @Option(
+            names = {"--endpoint-manifest-proof"},
+            paramLabel = "<path>",
+            description = "Path to a binary file containing the peer's endpoint-manifest proof bytes "
+                    + "(e.g. the file written by `get-endpoint-manifest --proof-path`). "
+                    + "Mutually exclusive with --endpoint-manifest-proof-hex. Required when --verifier-contract is "
+                    + "the Hiero TSS verifier (0.0.366), which rejects an empty endpoint_manifest_proof_bytes; "
+                    + "the Besu, Sei, and Ethereum verifiers accept an empty proof and fall back to a bring-up "
+                    + "manifest.")
+    String endpointManifestProofFile;
+
+    @Option(
+            names = {"--endpoint-manifest-proof-hex"},
+            paramLabel = "<hex>",
+            description = "Hex-encoded endpoint-manifest proof bytes (with or without 0x prefix). "
+                    + "Mutually exclusive with --endpoint-manifest-proof; "
+                    + "required for the Hiero TSS verifier (0.0.366).")
+    String endpointManifestProofHex;
+
     @Override
     public Integer call() throws Exception {
         final var config = configFrom(clprCommand.getYahcli());
@@ -113,23 +141,40 @@ public class CompleteChannelCommand implements Callable<Integer> {
         if (verifierContract != null && !verifierContract.isBlank()) {
             op.verifierContractId(ClprArgs.parseContractId(verifierContract));
         }
-        final var configProofFileProvided = configProofFile != null && !configProofFile.isBlank();
-        final var configProofHexProvided = configProofHex != null && !configProofHex.isBlank();
-        if (configProofFileProvided && configProofHexProvided) {
-            throw new IllegalArgumentException("Cannot specify both --config-proof and --config-proof-hex; pick one.");
-        }
-        if (!configProofFileProvided && !configProofHexProvided) {
+        final var configProofBytes = ClprArgs.optionalBytesFromFileOrHex(
+                "config-proof", configProofFile, "config-proof-hex", configProofHex);
+        if (configProofBytes == null) {
             throw new IllegalArgumentException("Either --config-proof or --config-proof-hex is required");
         }
-        final var configProofBytes = configProofFileProvided
-                ? ClprArgs.readBytesFile(Path.of(configProofFile))
-                : ClprArgs.parseHex(configProofHex);
         op.configProofBytes(configProofBytes);
+
+        final var endpointManifestProofBytes = ClprArgs.optionalBytesFromFileOrHex(
+                "endpoint-manifest-proof",
+                endpointManifestProofFile,
+                "endpoint-manifest-proof-hex",
+                endpointManifestProofHex);
+        if (endpointManifestProofBytes != null) {
+            op.endpointManifestProofBytes(endpointManifestProofBytes);
+        }
+        if ((endpointManifestProofBytes == null || endpointManifestProofBytes.length == 0)
+                && targetsHieroTssVerifier()) {
+            config.output()
+                    .warn("WARNING - no endpoint-manifest proof bytes; the Hiero TSS verifier (0.0.366) rejects an "
+                            + "empty endpoint_manifest_proof_bytes with CLPR_VERIFIER_CONFIG_FAILED. Pass the peer's "
+                            + "`get-endpoint-manifest --proof-path` file via --endpoint-manifest-proof.");
+        }
 
         final var delegate = new ClprTxnSuite(config, "ClprCompleteChannel", op);
         delegate.runSuiteSync();
         return ClprOutcome.reportTxn(
                 config, delegate, op, "completed CLPR channel reveal", "could not complete CLPR channel reveal");
+    }
+
+    /** True when {@code --verifier-contract} names the Hiero TSS verifier (0.0.366). */
+    private boolean targetsHieroTssVerifier() {
+        return verifierContract != null
+                && !verifierContract.isBlank()
+                && ClprArgs.parseContractId(verifierContract).getContractNum() == HIERO_TSS_VERIFIER_NUM;
     }
 
     /** Returns the first non-blank of {@code explicit}, {@code fromIdentity}; errors if both are blank. */
