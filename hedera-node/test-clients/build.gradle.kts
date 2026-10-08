@@ -227,14 +227,11 @@ val prCheckPropOverrides =
     )
 
 // Overridable per-task DEFAULTS. Unlike prCheckPropOverrides (delivered as node environment
-// variables at
-// config ordinal 300, which no spec can override), these are written into each node's
-// application.properties
-// (ordinal 100) — on by default, but a spec can still override them with overriding(...) /
-// @ConfigOverride
-// (network-properties override, ordinal 101). Used to enable CLPR by default for the CLPR tasks
-// while
-// letting the few negative suites disable it per-spec.
+// variables at config ordinal 300, which no spec can override), these are written into each
+// node's application.properties (ordinal 100) — on by default, but a spec can still override
+// them with overriding(...) / @ConfigOverride (network-properties override, ordinal 101).
+// Used to enable CLPR by default for the CLPR tasks while letting the few negative suites
+// disable it per-spec.
 val prCheckDefaultOverrides =
     mapOf(
         "hapiTestClpr" to "clpr.enabled=true",
@@ -305,19 +302,6 @@ tasks.registerHapiTest(
 registerTestSubprocess("testSubprocess", "") // standard tasks for local dev without tag filter
 
 registerTestSubprocessConcurrent("testSubprocessConcurrent", "")
-
-// Gather overrides into a single comma‐separated list
-val testOverrides =
-    gradle.startParameter.taskNames
-        .mapNotNull { prCheckPropOverrides[it] }
-        .joinToString(separator = ",")
-
-// Overridable per-task defaults (see prCheckDefaultOverrides) — applied via application.properties,
-// not env.
-val defaultOverrides =
-    gradle.startParameter.taskNames
-        .mapNotNull { prCheckDefaultOverrides[it] }
-        .joinToString(separator = ",")
 
 prCheckTags.forEach { (taskName, ciTagExpression) ->
     if (
@@ -490,9 +474,11 @@ fun TaskContainer.registerHapiTest(
         if (prCheckPlatformOverrides.containsKey(name)) {
             systemProperty("hapi.spec.platform.overrides", prCheckPlatformOverrides.getValue(name))
         }
-        if (testOverrides.isNotBlank()) {
-            systemProperty("hapi.spec.test.overrides", testOverrides)
-            systemProperty("hapi.spec.test.defaultOverrides", defaultOverrides)
+        if (prCheckDefaultOverrides.containsKey(name)) {
+            systemProperty(
+                "hapi.spec.test.defaultOverrides",
+                prCheckDefaultOverrides.getValue(name),
+            )
         }
         if (prCheckPrepareUpgradeOffsets.containsKey(name)) {
             systemProperty(

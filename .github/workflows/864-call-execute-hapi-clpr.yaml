@@ -58,7 +58,6 @@ env:
   GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
   GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
-  CG_EXEC: ionice -c 2 -n 2 nice -n 19
 
 jobs:
   hapi-tests-clpr:
