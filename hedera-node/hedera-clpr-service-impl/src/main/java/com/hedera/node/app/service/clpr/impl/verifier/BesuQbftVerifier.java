@@ -141,10 +141,11 @@ public final class BesuQbftVerifier {
     private static final int CHANNEL_OFFSET_SENT_RUNNING_HASH = 4;
     private static final int CHANNEL_OFFSET_RECEIVED_RUNNING_HASH = 5;
     private static final int CHANNEL_OFFSET_ENDPOINT_MANIFEST_VERSION = 16;
-    // After reordering into the queue-metadata positional layout, decodeQueueMetadata sees 4 slots
-    // (ACK-only) or 5 (with the message running-hash appended).
-    private static final int STORAGE_PROOF_MIN_ENTRIES = 4;
-    private static final int STORAGE_PROOF_MAX_ENTRIES = 5;
+    // After reordering into the queue-metadata positional layout, decodeQueueMetadata sees 5 slots
+    // (ACK-only) or 6 (with the message running-hash appended): the 4 queue-metadata slots, the proven
+    // endpointManifestVersion slot (offset 16), and optionally the last-message running-hash slot.
+    private static final int STORAGE_PROOF_MIN_ENTRIES = 5;
+    private static final int STORAGE_PROOF_MAX_ENTRIES = 6;
     private static final int SP_INDEX_CHANNEL_STATUS_NEXTMSGID = 0;
 
     /**
@@ -178,7 +179,8 @@ public final class BesuQbftVerifier {
     private static final int SP_INDEX_CHANNEL_RECEIVED_MSG_ID = 1;
     private static final int SP_INDEX_CHANNEL_SENT_RUNNING_HASH = 2;
     private static final int SP_INDEX_CHANNEL_RECEIVED_RUNNING_HASH = 3;
-    private static final int SP_INDEX_LAST_MSG_RUNNING_HASH = 4; // optional
+    private static final int SP_INDEX_CHANNEL_ENDPOINT_MANIFEST_VERSION = 4;
+    private static final int SP_INDEX_LAST_MSG_RUNNING_HASH = 5; // optional
 
     private final Config config;
 
@@ -343,8 +345,8 @@ public final class BesuQbftVerifier {
         final List<StorageProofEntry> storageProof = decodeStorageProofList(fields.get(3));
         final QueueMetadata queueMetadata;
         if (storageProof.isEmpty()) {
-            // Absent queue metadata: the all-zero sentinel (nextMessageId == 0).
-            queueMetadata = new QueueMetadata(0L, new byte[32], 0L, new byte[32], 0, new byte[32]);
+            // Absent queue metadata: the all-zero sentinel (nextMessageId == 0, manifest version 0).
+            queueMetadata = new QueueMetadata(0L, new byte[32], 0L, new byte[32], 0, new byte[32], 0L);
         } else {
             if (storageProof.size() != CHANNEL_STORAGE_SLOTS && storageProof.size() != CHANNEL_STORAGE_SLOTS + 1) {
                 throw ProofException.besuQbft("storageProof has " + storageProof.size() + " entries; expected "
@@ -1108,9 +1110,9 @@ public final class BesuQbftVerifier {
      *
      * <p>Within the ascending cluster the fields sit at fixed positions: 0 = {@code status|nextMsgId},
      * 1 = {@code acked|received|reply}, 2 = {@code sentRunningHash}, 3 = {@code receivedRunningHash},
-     * 4 = {@code endpointManifestVersion} (not part of the queue metadata — dropped).
+     * 4 = {@code endpointManifestVersion}.
      *
-     * @return a 4-slot array (ACK-only) or 5-slot array (with the message running hash appended)
+     * @return a 5-slot array (ACK-only) or 6-slot array (with the message running hash appended)
      */
     @NonNull
     private static byte[][] reorderQueueSlots(
@@ -1137,7 +1139,10 @@ public final class BesuQbftVerifier {
         out[SP_INDEX_CHANNEL_RECEIVED_MSG_ID] = provenSlotValues[clusterStart + 1];
         out[SP_INDEX_CHANNEL_SENT_RUNNING_HASH] = provenSlotValues[clusterStart + 2];
         out[SP_INDEX_CHANNEL_RECEIVED_RUNNING_HASH] = provenSlotValues[clusterStart + 3];
-        // clusterStart+4 is endpointManifestVersion — intentionally not copied.
+        // clusterStart+4 is endpointManifestVersion (offset 16) — carried so the receiver can learn the
+        // peer's cached view of our manifest version from PROVEN state (spec §4.5). Never taken from
+        // relayed content, which a relay could inflate to suppress our manifest re-pushes.
+        out[SP_INDEX_CHANNEL_ENDPOINT_MANIFEST_VERSION] = provenSlotValues[clusterStart + 4];
         if (hasMessage) {
             final int msgHashIdx = clusterStart == 0 ? CHANNEL_STORAGE_SLOTS : 0; // the entry outside the cluster
             out[SP_INDEX_LAST_MSG_RUNNING_HASH] = provenSlotValues[msgHashIdx];
@@ -1151,11 +1156,11 @@ public final class BesuQbftVerifier {
      * {@code channelId32} — superseding the connId-less span heuristic in {@link #reorderQueueSlots}.
      * The {@code _channels} mapping base is {@code keccak256(channelId(32) || uint256(15))}; the
      * four queue-metadata fields sit at offsets {@code {1,2,4,5}}, {@code endpointManifestVersion} at
-     * {@code 16} (dropped). Any proven key matching none of the five is taken to be the last message's
-     * running-hash slot; a second such leftover, or a missing required queue slot, is a hard error
-     * (fail-safe — the verifier never silently mis-decodes).
+     * {@code 16} (carried through from proven state). Any proven key matching none of the five is taken
+     * to be the last message's running-hash slot; a second such leftover, or a missing required queue
+     * slot, is a hard error (fail-safe — the verifier never silently mis-decodes).
      *
-     * @return a 4-slot array (ACK-only) or 5-slot array (with the message running hash appended)
+     * @return a 5-slot array (ACK-only) or 6-slot array (with the message running hash appended)
      */
     @NonNull
     private static byte[][] matchQueueSlotsByConnId(
@@ -1184,8 +1189,9 @@ public final class BesuQbftVerifier {
             } else if (Arrays.equals(key, kRecvHash)) {
                 out[SP_INDEX_CHANNEL_RECEIVED_RUNNING_HASH] = provenSlotValues[i];
             } else if (Arrays.equals(key, kManifestVer)) {
-                // endpointManifestVersion — proven but not part of the queue metadata; dropped.
-                continue;
+                // endpointManifestVersion (offset 16) — carried from PROVEN state (spec §4.5), never
+                // from relayed content; see reorderQueueSlots for the rationale.
+                out[SP_INDEX_CHANNEL_ENDPOINT_MANIFEST_VERSION] = provenSlotValues[i];
             } else if (messageHashIdx < 0) {
                 messageHashIdx = i; // candidate last-message running-hash slot
             } else {
@@ -1196,7 +1202,8 @@ public final class BesuQbftVerifier {
         if (out[SP_INDEX_CHANNEL_STATUS_NEXTMSGID] == null
                 || out[SP_INDEX_CHANNEL_RECEIVED_MSG_ID] == null
                 || out[SP_INDEX_CHANNEL_SENT_RUNNING_HASH] == null
-                || out[SP_INDEX_CHANNEL_RECEIVED_RUNNING_HASH] == null) {
+                || out[SP_INDEX_CHANNEL_RECEIVED_RUNNING_HASH] == null
+                || out[SP_INDEX_CHANNEL_ENDPOINT_MANIFEST_VERSION] == null) {
             throw ProofException.besuQbft(
                     "bundle storage proof is missing a required Channel queue-metadata slot for channelId 0x"
                             + HEX.formatHex(channelId32));
@@ -1250,14 +1257,15 @@ public final class BesuQbftVerifier {
     }
 
     /**
-     * Decode a {@link QueueMetadata} from the 4 or 5 storage-slot values produced by
+     * Decode a {@link QueueMetadata} from the 5 or 6 storage-slot values produced by
      * {@link #reorderQueueSlots}, in this positional order:
      * <ol>
      *   <li>index 0 — packed slot: {@code verifier(20) | status(1) | nextMessageId(8)}.</li>
      *   <li>index 1 — packed slot: {@code ackedMessageId(8) | receivedMessageId(8) | nextExpectedReplyId(8)}.</li>
      *   <li>index 2 — {@code sentRunningHash} (bytes32, full slot).</li>
      *   <li>index 3 — {@code receivedRunningHash} (bytes32, full slot).</li>
-     *   <li>index 4 — last queued message's {@code runningHashAfterProcessing} (bytes32, full slot).
+     *   <li>index 4 — {@code endpointManifestVersion} (uint64, LSB-packed in its own slot).</li>
+     *   <li>index 5 — last queued message's {@code runningHashAfterProcessing} (bytes32, full slot).
      *       <strong>Optional</strong> — absent in ACK-only bundles.</li>
      * </ol>
      *
@@ -1270,7 +1278,7 @@ public final class BesuQbftVerifier {
         Objects.requireNonNull(provenSlotValues, "provenSlotValues");
         if (provenSlotValues.length < STORAGE_PROOF_MIN_ENTRIES
                 || provenSlotValues.length > STORAGE_PROOF_MAX_ENTRIES) {
-            throw ProofException.besuQbft("expected 4 or 5 proven slot values, got " + provenSlotValues.length);
+            throw ProofException.besuQbft("expected 5 or 6 proven slot values, got " + provenSlotValues.length);
         }
 
         // Slot 0: verifier(20) | status(1) | nextMessageId(8) — first declared at LSB.
@@ -1291,13 +1299,24 @@ public final class BesuQbftVerifier {
         final byte[] receivedRunningHash =
                 checkedCopy(provenSlotValues[SP_INDEX_CHANNEL_RECEIVED_RUNNING_HASH], 32, "receivedRunningHash");
 
-        // Slot 4 is optional — absent in ACK-only bundles (no queued messages).
+        // Slot 4: endpointManifestVersion (uint64) — a lone field in its own slot, LSB-packed (last 8 bytes).
+        final byte[] manifestVersionSlot = checkedCopy(
+                provenSlotValues[SP_INDEX_CHANNEL_ENDPOINT_MANIFEST_VERSION], 32, "endpointManifestVersionSlot");
+        final long endpointManifestVersion = readUint64BigEndian(manifestVersionSlot, 24);
+
+        // Slot 5 is optional — absent in ACK-only bundles (no queued messages).
         final byte[] lastMsgRunningHash = provenSlotValues.length > SP_INDEX_LAST_MSG_RUNNING_HASH
                 ? checkedCopy(provenSlotValues[SP_INDEX_LAST_MSG_RUNNING_HASH], 32, "lastMessageRunningHash")
                 : new byte[32];
 
         return new QueueMetadata(
-                nextMessageId, sentRunningHash, receivedMessageId, receivedRunningHash, status, lastMsgRunningHash);
+                nextMessageId,
+                sentRunningHash,
+                receivedMessageId,
+                receivedRunningHash,
+                status,
+                lastMsgRunningHash,
+                endpointManifestVersion);
     }
 
     /** Reads 8 bytes from {@code buf} starting at {@code offset} as a big-endian unsigned long. */
@@ -1381,6 +1400,9 @@ public final class BesuQbftVerifier {
      * @param lastMessageRunningHash the {@code runningHashAfterProcessing} of the last queued
      *     outbound message — proven alongside the queue metadata; carried here so callers can
      *     cross-check it against the bundle's last {@code ClprMessageValue}
+     * @param endpointManifestVersion the peer Channel's {@code endpoint_manifest_version} (SC-189
+     *     Channel offset 16) — the peer's cached view of our endpoint-manifest version; proven, so a
+     *     relay cannot inflate it to suppress our manifest re-pushes (spec §4.5)
      */
     public record QueueMetadata(
             long nextMessageId,
@@ -1388,7 +1410,8 @@ public final class BesuQbftVerifier {
             long receivedMessageId,
             @NonNull byte[] receivedRunningHash,
             int status,
-            @NonNull byte[] lastMessageRunningHash) {
+            @NonNull byte[] lastMessageRunningHash,
+            long endpointManifestVersion) {
         public QueueMetadata {
             sentRunningHash = checkedCopy(sentRunningHash, 32, "sentRunningHash");
             receivedRunningHash = checkedCopy(receivedRunningHash, 32, "receivedRunningHash");

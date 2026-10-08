@@ -28,6 +28,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import com.hedera.hapi.node.state.clpr.ClprChannel;
 import com.hedera.hapi.node.state.clpr.ClprChannelStatus;
 import com.hedera.hapi.node.state.clpr.ClprEndpoint;
+import com.hedera.hapi.node.state.clpr.ClprEndpointManifest;
 import com.hedera.hapi.node.state.clpr.ClprLedgerConfiguration;
 import com.hedera.hapi.node.state.clpr.ClprPeerEndpoints;
 import com.hedera.hapi.node.state.clpr.ClprPeerEndpointsEntry;
@@ -51,7 +52,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -66,8 +66,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.MockedConstruction;
 import org.mockito.Mockito;
@@ -343,33 +341,6 @@ class ClprChannelManagerTest {
         }
 
         @Test
-        @DisplayName("channel without peer endpoints, use capped ledger configuration")
-        void channelWithoutEndpointsUseLedgerConfig() {
-            subject.onChannelActivated(CHANNEL_ID_1);
-            // No pending messages, so initiateSync exits before any network call, but seeding still runs.
-            final var idleConn = makeChannel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE, 0L, 1L);
-            final var channelStore = mock(ReadableChannelStore.class);
-            lenient().when(channelStore.getChannel(CHANNEL_ID_1)).thenReturn(idleConn);
-
-            final var seedEndpoints = new ArrayList<ClprEndpoint>();
-            for (int i = 0; i < 10 + 5; i++) {
-                seedEndpoints.add(makeEndpoint("10.0.0." + i, 50211));
-            }
-            final var ledgerConfig = ClprLedgerConfiguration.newBuilder()
-                    .throttles(ClprThrottles.newBuilder().maxPeerEndpoints(10).build())
-                    .endpoints(seedEndpoints)
-                    .build();
-
-            try (var _ = givenMockedStateForSync(channelStore, ledgerConfig)) {
-                subject.syncChannel(CHANNEL_ID_1);
-
-                assertThat(subject.getKnownEndpoints(CHANNEL_ID_1))
-                        .as("Endpoints should be seeded from ledger config and capped at PEER_ENDPOINT_CAP")
-                        .hasSize(10);
-            }
-        }
-
-        @Test
         @DisplayName("peer ledger acked messages is ahead, no sync happen")
         void peerLedgerMessagesAheadNoActionOnSyncTick() {
             // nextMessageId == ackedMessageId + 1 means no pending outbound messages.
@@ -458,6 +429,17 @@ class ClprChannelManagerTest {
         }
 
         @Test
+        @DisplayName("channel whose cached peer manifest has no endpoints is skipped without dispatching a sync")
+        void channelWithoutDialTargetsIsSkipped() {
+            // Pending messages, but no endpoint manifest to dial from.
+            final var conn = makeChannel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE, 0L, 2L);
+
+            subject.initiateSync(conn);
+
+            verify(synchronizer, after(200).never()).synchronize(any(), any(), anyLong(), anyLong());
+        }
+
+        @Test
         @DisplayName("sync is performed, channel is removed from ongoing syncs and semaphore is released")
         void syncPerformed() {
             final var conn = makeActiveChannelWithPendingMessages(CHANNEL_ID_1);
@@ -522,39 +504,6 @@ class ClprChannelManagerTest {
         void seedPeerEndpointsWithEmptyList() {
             subject.seedPeerEndpoints(CHANNEL_ID_1, Collections.emptyList());
             assertThat(subject.getKnownEndpoints(CHANNEL_ID_1)).isEmpty();
-        }
-    }
-
-    @Nested
-    @DisplayName("endpoint seeding from config")
-    class EndpointSeedingFromConfigTest {
-
-        @Test
-        @DisplayName("keeps all configured endpoints when max_peer_endpoints is zero")
-        void seedEndpointsKeepsAllWhenMaxPeerEndpointsIsZero() {
-            final var channelId = Bytes.wrap(new byte[32]);
-            final var endpoints = new ArrayList<ClprEndpoint>();
-            for (int i = 0; i < 15; i++) {
-                endpoints.add(makeEndpoint("10.0.0." + i, 50211));
-            }
-            subject.seedEndpointsFromConfig(
-                    channelId, storeFactoryWithLedgerConfig(ledgerConfigWithEndpoints(endpoints, 0)));
-
-            assertThat(subject.getKnownEndpoints(channelId)).hasSize(15);
-        }
-
-        @Test
-        @DisplayName("truncates configured endpoints when max_peer_endpoints is non-zero")
-        void seedEndpointsTruncatesWhenMaxPeerEndpointsIsNonZero() {
-            final var channelId = Bytes.wrap(new byte[32]);
-            final var endpoints = new ArrayList<ClprEndpoint>();
-            for (int i = 0; i < 8; i++) {
-                endpoints.add(makeEndpoint("10.0.0." + i, 50211));
-            }
-            subject.seedEndpointsFromConfig(
-                    channelId, storeFactoryWithLedgerConfig(ledgerConfigWithEndpoints(endpoints, 3)));
-
-            assertThat(subject.getKnownEndpoints(channelId)).hasSize(3);
         }
     }
 
@@ -792,16 +741,6 @@ class ClprChannelManagerTest {
                 .build();
     }
 
-    private static ReadableStoreFactoryImpl storeFactoryWithLedgerConfig(final ClprLedgerConfiguration ledgerConfig) {
-        final var storeFactory = mock(ReadableStoreFactoryImpl.class);
-        final var configStore = mock(ReadableLedgerConfigurationStore.class);
-        lenient().when(configStore.getConfiguration()).thenReturn(ledgerConfig);
-        lenient()
-                .when(storeFactory.readableStore(ReadableLedgerConfigurationStore.class))
-                .thenReturn(configStore);
-        return storeFactory;
-    }
-
     /**
      * Wires the readable factory to additionally return the supplied {@link ReadableChannelStore}
      * so {@code syncTick()} can look up channels by id.
@@ -823,7 +762,14 @@ class ClprChannelManagerTest {
     }
 
     private static ClprChannel makeActiveChannelWithPendingMessages(final Bytes channelId) {
-        return makeChannel(channelId, ClprChannelStatus.ACTIVE, 0L, 2L);
+        // A dialable channel: its cached peer manifest carries an endpoint for the sync to target.
+        return makeChannel(channelId, ClprChannelStatus.ACTIVE, 0L, 2L)
+                .copyBuilder()
+                .endpointManifest(ClprEndpointManifest.newBuilder()
+                        .version(1L)
+                        .endpoints(List.of(makeEndpoint("10.0.0.1", 50211)))
+                        .build())
+                .build();
     }
 
     private static ClprChannel makeChannel(
@@ -970,19 +916,15 @@ class ClprChannelManagerTest {
         }
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void disablingClprBlocksOutboundWorkForAnExistingChannel(final boolean manifestEnabled) {
+    @Test
+    void disablingClprBlocksOutboundWorkForAnExistingChannel() {
         // Populate an eligible channel and peer cache before disabling the master flag.
         final var channel = makeChannel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE, 0L, 2L);
         subject.onChannelActivated(CHANNEL_ID_1);
         subject.seedPeerEndpoints(CHANNEL_ID_1, List.of(makeEndpoint("10.0.0.7", 50211)));
         Mockito.clearInvocations(stateAccessor, synchronizer, clientCache, networkInfo, leafCertManager);
         given(versionedConfig.getConfigData(ClprConfig.class))
-                .willReturn(defaultClprConfig()
-                        .enabled(false)
-                        .endpointManifestEnabled(manifestEnabled)
-                        .build());
+                .willReturn(defaultClprConfig().enabled(false).build());
 
         subject.start();
         subject.syncChannel(CHANNEL_ID_1);

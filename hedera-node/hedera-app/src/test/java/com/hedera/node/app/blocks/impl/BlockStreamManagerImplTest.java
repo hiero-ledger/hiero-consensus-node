@@ -136,7 +136,8 @@ class BlockStreamManagerImplTest {
     private static final long N_BLOCK_NO = 666L;
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L);
     private static final Timestamp CONSENSUS_THEN = new Timestamp(890, 0);
-    private static final Hash FAKE_START_OF_BLOCK_STATE_HASH = new Hash(HASH_OF_ZERO_384.toByteArray());
+    private static final Hash FAKE_START_OF_BLOCK_STATE_HASH =
+            new Hash(HASH_OF_ZERO_384.toByteArray(), DigestType.SHA_384);
     private static final Bytes FAKE_RESTART_BLOCK_HASH = Bytes.fromHex("abcd".repeat(24));
     // Effective last block hash computed by the restart path from blockStreamInfoWith(Bytes.EMPTY, patch(0))
     private static final Bytes FAKE_PATCH_RESTART_HASH = Bytes.fromHex(

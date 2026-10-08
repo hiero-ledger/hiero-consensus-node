@@ -4,7 +4,7 @@
 > This doc covers the high-level design of the mTLS two-tier cert model used for
 > peer-to-peer CLPR sync calls (clpr-spec PR #46 §3.4), and how it behaves under the
 > Endpoint Manifest feature (clpr-spec ADRs `2026-07-03-clpr-endpoint-manifests.md` and
-> `2026-07-14-endpoint-sync-streaming-and-mtls.md`), gated by `clpr.endpointManifestEnabled`
+> `2026-07-14-endpoint-sync-streaming-and-mtls.md`)
 > (see [Endpoint Manifest interaction](#endpoint-manifest-interaction)).
 
 ## Trust model
@@ -88,8 +88,8 @@ in local dev and tests.
 - **`ClprChannelManager`** — supplies the inbound trust anchor set: the CA certificates
   of all peers it currently knows. The set is read live on each handshake, so peers learned
   after startup are trusted without restarting the listener. Also resolves *outbound* dial
-  targets per Channel, per the `clpr.endpointManifestEnabled` flag — see
-  [Endpoint Manifest interaction](#endpoint-manifest-interaction) for how the two paths differ.
+  targets per Channel from the Endpoint Manifest — see
+  [Endpoint Manifest interaction](#endpoint-manifest-interaction).
 
 ## TLS provider (Ed25519 leaf)
 
@@ -120,8 +120,8 @@ so it isn't part of the cache key.
 
 A lookup (`clientFor(host, port, peerTlsCertificate, leafCredentials)`) is a cache hit only if
 the peer's cert passed in matches the cert the cached client was built with. On a mismatch —
-the peer rotated its CA, whether observed via the legacy config/discovery path or via an
-Endpoint Manifest update (see below) — the stale client's gRPC channel is shut down and a new
+the peer rotated its CA, observed via an Endpoint Manifest update (see below) — the stale
+client's gRPC channel is shut down and a new
 one is built pinning the new CA. This is what preserves the "always pins the *current* CA"
 guarantee while still amortizing the TCP + mTLS handshake cost across sync ticks: correctness
 comes from the cache-key comparison on each call, not from rebuilding unconditionally.
@@ -131,24 +131,26 @@ comes from the cache-key comparison on each call, not from rebuilding unconditio
 
 The inbound trust set is only as complete as the node's knowledge of its peers. A peer whose
 CA has not yet been learned is rejected at the handshake and simply retries once the node
-catches up — there is no persistent failure state. *How* peers/CAs are learned depends on
-`clpr.endpointManifestEnabled` (default `false`, until every peer verifier has migrated):
+catches up — there is no persistent failure state. Peer endpoints (and thus their published
+CA certs) are learned from the Endpoint Manifest — see
+[Endpoint Manifest interaction](#endpoint-manifest-interaction) below.
 
-- **Flag off (legacy)** — peer endpoints (and thus their published CA certs) are learned
-  from `ClprLedgerConfiguration.endpoints` (seeded into a node-local cache on first
-  observation of a Channel), `completeChannel`, discovery (`discoverEndpoints`, while mTLS
-  is disabled — see [Discovery under mTLS](#discovery-under-mtls)), and node-local
-  rehydration after a restart.
-- **Flag on** — see [Endpoint Manifest interaction](#endpoint-manifest-interaction) below;
-  discovery plays no part.
-
-Both modes populate the same node-local peer-endpoint cache (`ClprChannelManager`), which is
+Peer endpoints populate a node-local peer-endpoint cache (`ClprChannelManager`), which is
 what the inbound mTLS trust set (peer CA certificates, keyed by subject DN) is derived from.
+
+A Channel completed against a peer manifest with no endpoints (for example the peer's
+genesis placeholder, version 1 with no entries) has no dial targets and, with mTLS enabled,
+no trusted CA for that peer, so the peer's own sync attempts are rejected at the handshake.
+Such a Channel recovers only through the out-of-band manifest recovery path (spec §8.1.4:
+`clprGetEndpointManifest` against the peer, then `clprSubmitBundle` here), which needs no
+gRPC connection to the peer. To avoid it, capture the peer's manifest proof for
+`completeChannel` only after its first construction has finalized (version 2 or later, with at
+least one endpoint).
 
 ## Endpoint Manifest interaction
 
-The Endpoint Manifest feature (`clpr.endpointManifestEnabled`) replaces the ad hoc
-config/discovery-seeded peer list with `Channel.endpoint_manifest` — a `ClprEndpointManifest`
+The Endpoint Manifest replaces any ad hoc config/discovery-seeded peer list with
+`Channel.endpoint_manifest` — a `ClprEndpointManifest`
 (the same `ClprEndpoint` shape, `service_endpoint` + `tls_certificate`, that carries the CA
 cert discussed above) cached directly on the `Channel` record in state, alongside
 `Channel.endpoint_manifest_version`. It has two entry points, both already implemented:
@@ -174,32 +176,35 @@ selected as a sync target.
 
 `sync` and `discoverEndpoints` currently share a single advertised endpoint port. Once that
 port is the mutual-auth sync listener, an ordinary (non-mTLS) discovery call dialed there
-would fail. Until discovery has its own non-mTLS address, it is **suppressed while mTLS is
-enabled** (peers/CAs are still learned by the other means above). Giving discovery a
-dedicated `ClprEndpoint.discovery_endpoint` is tracked as follow-up (beyond spec PR #46).
+would fail. Discovery is therefore **suppressed while mTLS is enabled** (peers/CAs are
+learned from the Endpoint Manifest, as above).
 
-Independently of mTLS, discovery is also suppressed whenever `clpr.endpointManifestEnabled`
-is on — the Endpoint Manifest (see
-[Endpoint Manifest interaction](#endpoint-manifest-interaction)) is the sole source of peer
-endpoints/CAs in that mode, so `discoverEndpoints` is never called regardless of the mTLS
-setting.
+Discovery is a legacy mechanism superseded by the Endpoint Manifest (see
+[Endpoint Manifest interaction](#endpoint-manifest-interaction)), which is the sole source of
+dial targets. While mTLS is disabled the orchestrator still calls `discoverEndpoints` every
+`clpr.discoveryIntervalSeconds` (a value of 0 or less disables it), but the results are only
+merged into the node-local peer-endpoint cache — dialing reads `Channel.endpoint_manifest`
+alone. Entries merged this way are persisted with that cache, so after a restart with mTLS
+enabled they can contribute CA certs to the inbound trust set until the Channel's next
+manifest update replaces them. Disable discovery on networks that will later enable mTLS.
 
 ## Config summary
 
 ```
-clpr.caCrtPath               = ""     # CA cert (X.509 PEM or DER); empty = mTLS disabled
-clpr.caKeyPath               = ""     # CA key (unencrypted; see encodings below); empty = mTLS disabled
-clpr.mtlsPort                = 50214  # dedicated mutual-auth listener (per-node)
-clpr.endpointManifestEnabled = false  # network-governed; see Endpoint Manifest interaction
+clpr.caCrtPath                = ""     # CA cert (X.509 PEM or DER); empty = mTLS disabled
+clpr.caKeyPath                = ""     # CA key (unencrypted; see encodings below); empty = mTLS disabled
+clpr.mtlsPort                 = 50214  # dedicated mutual-auth listener (per-node)
+clpr.discoveryIntervalSeconds = 300    # legacy discovery loop, mTLS off only; <= 0 disables
 ```
 
-`clpr.endpointManifestEnabled` is independent of mTLS configuration — either can be on or off
-regardless of the other — but it changes *how* peer endpoints/CAs feeding the mTLS trust model
-above are learned; see [Endpoint Manifest interaction](#endpoint-manifest-interaction).
+mTLS configuration is independent of the Endpoint Manifest, which is always the source of the
+peer endpoints/CAs feeding the mTLS trust model above; see
+[Endpoint Manifest interaction](#endpoint-manifest-interaction).
 
 The CA cert/key are operator-provisioned rather than auto-generated — creating a proper CA
-certificate is a deployment concern. The operator advertises `clpr.mtlsPort` as the CLPR
-endpoint's service port in the ledger-configuration transaction.
+certificate is a deployment concern. Each node advertises `clpr.mtlsPort` (and its CA cert)
+automatically in the endpoint publication it contributes to this ledger's Endpoint Manifest;
+the ledger configuration's `endpoints` are not used for dialing.
 
 ### CA key and cert encodings
 

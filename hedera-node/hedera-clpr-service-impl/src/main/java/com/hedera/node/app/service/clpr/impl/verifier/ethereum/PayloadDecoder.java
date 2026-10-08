@@ -135,9 +135,12 @@ final class PayloadDecoder {
         // queue state and no content. The verifier reads an empty proof as absent queue metadata. (Content-based:
         // manifest-only is not a distinct wire shape, so it decodes as a normal bundle.)
         final List<StorageProofEntry> storageProof = decodeStorageProofList(fields.get(PAYLOAD_INDEX_STORAGE_PROOF));
-        if (!storageProof.isEmpty() && storageProof.size() != QueueMetadata.EXPECTED_SLOTS) {
+        if (!storageProof.isEmpty()
+                && storageProof.size() != QueueMetadata.EXPECTED_SLOTS
+                && storageProof.size() != QueueMetadata.EXPECTED_SLOTS_WITH_MESSAGE) {
             throw EthProofs.fail("storageProof has " + storageProof.size() + " entries; expected "
-                    + QueueMetadata.EXPECTED_SLOTS + " (last-msg running hash + 4 channel-metadata slots) "
+                    + QueueMetadata.EXPECTED_SLOTS + " (five Channel slots incl. endpointManifestVersion) or "
+                    + QueueMetadata.EXPECTED_SLOTS_WITH_MESSAGE + " (+ last-message running hash), "
                     + "or 0 (manifest-only recovery)");
         }
         final byte[] bundleContent = bytes(fields.get(PAYLOAD_INDEX_BUNDLE_CONTENT), "bundleContent");
