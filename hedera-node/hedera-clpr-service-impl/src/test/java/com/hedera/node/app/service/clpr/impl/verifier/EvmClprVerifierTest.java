@@ -35,11 +35,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
  * Unit test for {@link EvmClprVerifier#verifyConfig}, which dispatches to the channel's verifier
- * contract and decodes the ABI-encoded tuple return. Behind {@code clpr.endpointManifestEnabled} it
- * uses the manifest-aware ABI {@code verifyConfig(bytes,bytes32,bytes)} and, with the flag
- * off, the seed-endpoint ABI {@code verifyConfig(bytes,bytes32)} — synthesizing a bring-up manifest
- * from the returned config. The verifier's {@code context.dispatch(...)} is mocked to return the raw
- * ABI tuple the contract would produce, so no real proof/TSS machinery is involved.
+ * contract and decodes the ABI-encoded tuple return. It uses the manifest-aware ABI
+ * {@code verifyConfig(bytes,bytes32,bytes)}. The verifier's {@code context.dispatch(...)} is mocked
+ * to return the raw ABI tuple the contract would produce, so no real proof/TSS machinery is involved.
  */
 @ExtendWith(MockitoExtension.class)
 class EvmClprVerifierTest {
@@ -50,17 +48,9 @@ class EvmClprVerifierTest {
     private static final byte[] SERVICE_ADDR = new byte[20];
 
     // Manifest-aware config return tuple — single-sourced with the producer + consumer via ClprVerifierAbi.
-    private static final TupleType<Tuple> CONFIG_WITH_MANIFEST_RETURN =
-            ClprVerifierAbi.VERIFY_CONFIG_WITH_MANIFEST_RETURN;
-    // Config return with seed endpoints — mirrors EvmClprVerifier.VERIFY_CONFIG_WITH_SEED_ENDPOINTS_RETURN.
-    private static final TupleType<Tuple> CONFIG_WITH_SEED_ENDPOINTS_RETURN = TupleType.parse(
-            "(bytes,string,bytes,uint96,(uint64,uint64,uint64,uint64,uint64),bytes,bytes,(string,uint32,bytes,bytes)[])");
+    private static final TupleType<Tuple> CONFIG_RETURN = ClprVerifierAbi.VERIFY_CONFIG_RETURN;
     // Manifest-aware bundle return tuple — single-sourced with the producer + consumer via ClprVerifierAbi.
-    private static final TupleType<Tuple> BUNDLE_WITH_MANIFEST_RETURN =
-            ClprVerifierAbi.VERIFY_BUNDLE_WITH_MANIFEST_RETURN;
-    // Bundle return without a manifest — mirrors EvmClprVerifier.VERIFY_BUNDLE_RETURN (no manifest member).
-    private static final TupleType<Tuple> BUNDLE_RETURN =
-            TupleType.parse("((uint64,bytes32,uint64,bytes32,uint8),bytes[],bytes,bytes)");
+    private static final TupleType<Tuple> BUNDLE_RETURN = ClprVerifierAbi.VERIFY_BUNDLE_RETURN;
 
     @Mock
     private HandleContext context;
@@ -71,10 +61,9 @@ class EvmClprVerifierTest {
     private final EvmClprVerifier subject = new EvmClprVerifier(VERIFIER);
 
     @Test
-    @DisplayName(
-            "Manifest enabled (flag on): returns the proven config and the state-proven manifest from the tuple return")
+    @DisplayName("returns the proven config and the state-proven manifest from the tuple return")
     void verifyConfigWithManifestReturnsProvenConfigAndManifest() {
-        givenManifestEnabled(true);
+        givenConfig();
         givenDispatchReturns(configWithManifestReturn("295", SERVICE_ADDR, 3L));
 
         final var verified = subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
@@ -88,7 +77,7 @@ class EvmClprVerifierTest {
     @Test
     @DisplayName("manifest-aware: a return that is not a well-formed config tuple reverts")
     void verifyConfigWithManifestMalformedTupleReverts() {
-        givenManifestEnabled(true);
+        givenConfig();
         givenDispatchReturns(Bytes.wrap(new byte[] {(byte) 0xff, (byte) 0xff}));
 
         assertThatThrownBy(() -> subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context))
@@ -96,26 +85,10 @@ class EvmClprVerifierTest {
     }
 
     @Test
-    @DisplayName("Manifest disabled (flag off): decodes the context tuple and synthesizes a bring-up manifest")
-    void verifyConfigWithSeedEndpointsWhenFlagOffSynthesizesManifest() {
-        givenManifestEnabled(false);
-        givenDispatchReturns(configWithSeedEndpointsReturn("295", SERVICE_ADDR));
-
-        final var verified = subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
-
-        assertThat(verified.config().chainId()).isEqualTo("295");
-        assertThat(verified.config().serviceAddress()).isEqualTo(Bytes.wrap(SERVICE_ADDR));
-        // No manifest on the manifest-disabled wire → a version-1 manifest bound to the service address is synthesized.
-        assertThat(verified.manifest().version()).isEqualTo(1L);
-        assertThat(verified.manifest().serviceAddress()).isEqualTo(Bytes.wrap(SERVICE_ADDR));
-        assertThat(verified.manifest().endpoints()).isEmpty();
-    }
-
-    @Test
     @DisplayName("Verifier dispatch suppresses its child fee but allows EVM gas collection")
     void verifierDispatchAllowsEvmGasCollection() {
-        givenManifestEnabled(false);
-        givenDispatchReturns(configWithSeedEndpointsReturn("295", SERVICE_ADDR));
+        givenConfig();
+        givenDispatchReturns(configWithManifestReturn("295", SERVICE_ADDR, 1L));
 
         subject.verifyConfig(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
 
@@ -134,7 +107,7 @@ class EvmClprVerifierTest {
     @DisplayName(
             "verifyBundleWithManifest: nextMessageId == 0 sentinel decodes to a manifest-only content (null metadata)")
     void verifyBundleWithManifestManifestOnlySentinelDecodesToNullMetadata() {
-        givenManifestEnabled(true);
+        givenConfig();
         givenDispatchReturns(bundleWithManifestReturn(0L, 7L, SERVICE_ADDR));
 
         final var content = subject.verifyBundle(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
@@ -150,7 +123,7 @@ class EvmClprVerifierTest {
     @Test
     @DisplayName("verifyBundleWithManifest: a normal bundle (nextMessageId >= 1) keeps its queue metadata")
     void verifyBundleWithManifestNormalBundleKeepsMetadata() {
-        givenManifestEnabled(true);
+        givenConfig();
         // manifestVersion 0 = absent; nextMessageId 1 = a real (non-sentinel) bundle.
         givenDispatchReturns(bundleWithManifestReturn(1L, 0L, SERVICE_ADDR));
 
@@ -162,40 +135,21 @@ class EvmClprVerifierTest {
     }
 
     @Test
-    @DisplayName("verifyBundle: nextMessageId == 0 sentinel decodes to null metadata (trust-anchor rotation)")
-    void verifyBundleWithoutManifestAbsentMetadataSentinelDecodesToNullMetadata() {
-        givenManifestEnabled(false);
-        final byte[] newAnchor = {1, 2, 3};
-        givenDispatchReturns(bundleReturn(0L, newAnchor));
-
-        final var content = subject.verifyBundle(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
-
-        // Even off the manifest path, a metadata-absent manifest-disabled tuple (a trust-anchor rotation) decodes to
-        // null
-        // metadata so ClprSubmitBundleHandler takes its state-update-only path.
-        assertThat(content.metadata()).isNull();
-        assertThat(content.messages()).isEmpty();
-        assertThat(content.newTrustAnchor()).isEqualTo(Bytes.wrap(newAnchor));
-    }
-
-    @Test
-    @DisplayName("verifyBundle: a normal bundle (nextMessageId >= 1) keeps its queue metadata")
-    void verifyBundleWithoutManifestNormalBundleKeepsMetadata() {
-        givenManifestEnabled(false);
-        givenDispatchReturns(bundleReturn(1L, new byte[0]));
+    @DisplayName("verifyBundle: the sixth metadata member decodes to the sender's view of our manifest version")
+    void verifyBundleDecodesPeerObservedEndpointManifestVersion() {
+        givenConfig();
+        givenDispatchReturns(bundleWithManifestReturn(1L, 0L, SERVICE_ADDR, 9L));
 
         final var content = subject.verifyBundle(Bytes.EMPTY, Bytes.EMPTY, Bytes.EMPTY, context);
 
         assertThat(content.metadata()).isNotNull();
-        assertThat(content.metadata().nextMessageId()).isEqualTo(1L);
+        assertThat(content.metadata().endpointManifestVersion()).isEqualTo(9L);
     }
 
     // ---- helpers ----
 
-    private void givenManifestEnabled(final boolean enabled) {
-        final Configuration cfg = HederaTestConfigBuilder.create()
-                .withValue("clpr.endpointManifestEnabled", enabled)
-                .getOrCreateConfig();
+    private void givenConfig() {
+        final Configuration cfg = HederaTestConfigBuilder.create().getOrCreateConfig();
         given(context.configuration()).willReturn(cfg);
     }
 
@@ -218,7 +172,7 @@ class EvmClprVerifierTest {
                 Long.valueOf(0L),
                 Long.valueOf(0L));
         final Tuple manifest = Tuple.of(BigInteger.valueOf(manifestVersion), serviceAddr, new Tuple[0]);
-        final byte[] encoded = CONFIG_WITH_MANIFEST_RETURN
+        final byte[] encoded = CONFIG_RETURN
                 .encode(Tuple.from(
                         new byte[0],
                         chainId,
@@ -232,24 +186,6 @@ class EvmClprVerifierTest {
         return Bytes.wrap(encoded);
     }
 
-    /** Encodes the mainline manifest-disabled return: config fields (5-field throttles) + empty seedEndpoints. */
-    private static Bytes configWithSeedEndpointsReturn(final String chainId, final byte[] serviceAddr) {
-        final Tuple throttles =
-                Tuple.of(BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO, BigInteger.ZERO);
-        final byte[] encoded = CONFIG_WITH_SEED_ENDPOINTS_RETURN
-                .encode(Tuple.from(
-                        new byte[0],
-                        chainId,
-                        serviceAddr,
-                        BigInteger.ZERO,
-                        throttles,
-                        new byte[0],
-                        new byte[0],
-                        new Tuple[0]))
-                .array();
-        return Bytes.wrap(encoded);
-    }
-
     /**
      * Encodes the manifest-aware bundle return: metadata tuple + empty messages/trust-anchor + manifest struct.
      * {@code nextMessageId == 0} is the metadata-absent sentinel; {@code manifestVersion == 0} means
@@ -257,22 +193,24 @@ class EvmClprVerifierTest {
      */
     private static Bytes bundleWithManifestReturn(
             final long nextMessageId, final long manifestVersion, final byte[] serviceAddr) {
-        final Tuple meta = Tuple.of(BigInteger.valueOf(nextMessageId), new byte[32], BigInteger.ZERO, new byte[32], 0);
-        final Tuple manifest = Tuple.of(BigInteger.valueOf(manifestVersion), serviceAddr, new Tuple[0]);
-        final byte[] encoded = BUNDLE_WITH_MANIFEST_RETURN
-                .encode(Tuple.of(meta, new byte[0][], new byte[0], new byte[0], manifest))
-                .array();
-        return Bytes.wrap(encoded);
+        return bundleWithManifestReturn(nextMessageId, manifestVersion, serviceAddr, 0L);
     }
 
-    /**
-     * Encodes the mainline manifest-disabled bundle return: metadata tuple + empty messages + trust-anchor + empty id.
-     * {@code nextMessageId == 0} is the metadata-absent sentinel (a trust-anchor rotation).
-     */
-    private static Bytes bundleReturn(final long nextMessageId, final byte[] newTrustAnchor) {
-        final Tuple meta = Tuple.of(BigInteger.valueOf(nextMessageId), new byte[32], BigInteger.ZERO, new byte[32], 0);
+    private static Bytes bundleWithManifestReturn(
+            final long nextMessageId,
+            final long manifestVersion,
+            final byte[] serviceAddr,
+            final long endpointManifestVersion) {
+        final Tuple meta = Tuple.of(
+                BigInteger.valueOf(nextMessageId),
+                new byte[32],
+                BigInteger.ZERO,
+                new byte[32],
+                0,
+                BigInteger.valueOf(endpointManifestVersion));
+        final Tuple manifest = Tuple.of(BigInteger.valueOf(manifestVersion), serviceAddr, new Tuple[0]);
         final byte[] encoded = BUNDLE_RETURN
-                .encode(Tuple.of(meta, new byte[0][], newTrustAnchor, new byte[0]))
+                .encode(Tuple.of(meta, new byte[0][], new byte[0], new byte[0], manifest))
                 .array();
         return Bytes.wrap(encoded);
     }

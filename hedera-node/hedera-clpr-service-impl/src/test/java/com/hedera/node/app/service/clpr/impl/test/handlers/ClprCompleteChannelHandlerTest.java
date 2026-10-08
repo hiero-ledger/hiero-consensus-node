@@ -434,11 +434,11 @@ class ClprCompleteChannelHandlerTest {
         // Commitment stays in pending store (freed only when channel is closed)
         assertThat(commitmentStore.contains(ECDSA_COMMITMENT)).isTrue();
         assertThat(stored.ownershipCommitment()).isEqualTo(ECDSA_COMMITMENT);
-        // Flag off (default clpr.endpointManifestEnabled=false): dial targets come from
-        // ClprLedgerConfiguration.endpoints and no manifest is attached to the channel
-        // (spec §4.7). The verifier's synthesized bring-up manifest is intentionally not
-        // persisted, since the runtime orchestrator never reads it in this mode.
-        assertThat(stored.hasEndpointManifest()).isFalse();
+        // Manifest mode: the (empty) endpoint_manifest_proof_bytes yields an empty manifest, which
+        // is attached to the channel — ClprEndpointManifest permits an empty list at version >= 1
+        // and later manifest-update bundles populate it (spec §4.7).
+        assertThat(stored.hasEndpointManifest()).isTrue();
+        assertThat(stored.endpointManifestOrThrow().endpoints()).isEmpty();
         then(channelLifecycle).should().onChannelActivated(CHANNEL_ID);
     }
 
@@ -527,7 +527,7 @@ class ClprCompleteChannelHandlerTest {
 
     @Test
     void handleStoresPeerManifestFromProofBytes() {
-        // Flag on: non-empty endpoint_manifest_proof_bytes → PassThroughClprVerifier parses them
+        // Non-empty endpoint_manifest_proof_bytes → PassThroughClprVerifier parses them
         // as a real manifest, its endpoints satisfy the gate, and the Channel carries the same
         // manifest bytes-for-bytes.
         commitmentStore.put(ECDSA_COMMITMENT);
@@ -553,7 +553,7 @@ class ClprCompleteChannelHandlerTest {
                 .configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(PEER_CONFIG))
                 .endpointManifestProofBytes(ClprEndpointManifest.PROTOBUF.toBytes(peerManifest))
                 .build();
-        setupHandleContext(txnWith(op), manifestEnabledConfig());
+        setupHandleContext(txnWith(op));
         setupVerifierAccount(true);
 
         subject.handle(handleContext);
@@ -566,35 +566,8 @@ class ClprCompleteChannelHandlerTest {
     }
 
     @Test
-    void handleFlagOffIgnoresManifestProofAndStoresNoManifest() {
-        // Flag off: the endpoint_manifest_proof_bytes on the body are irrelevant — dial targets
-        // come from ClprLedgerConfiguration.endpoints (non-empty here) and no manifest is attached
-        // to the Channel. The channel still transitions to ACTIVE.
-        commitmentStore.put(ECDSA_COMMITMENT);
-        final var sig = signChannelId(SECRET_KEY, CHANNEL_ID);
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
-                .channelId(CHANNEL_ID)
-                .publicKey(Bytes.wrap(ECDSA_PUBLIC_KEY))
-                .signature(Bytes.wrap(sig))
-                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
-                .verifierContract(VERIFIER_CONTRACT_ID)
-                .configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(PEER_CONFIG))
-                .endpointManifestProofBytes(Bytes.EMPTY)
-                .build();
-        setupHandleContext(txnWith(op));
-        setupVerifierAccount(true);
-
-        subject.handle(handleContext);
-
-        final var stored = channelStore.getChannel(CHANNEL_ID);
-        assertThat(stored).isNotNull();
-        assertThat(stored.status()).isEqualTo(ClprChannelStatus.ACTIVE);
-        assertThat(stored.hasEndpointManifest()).isFalse();
-    }
-
-    @Test
-    void handleFlagOnAllowsEmptyManifestAtChannelCreation() {
-        // Flag on: the manifest is the authoritative endpoint source. An empty manifest proof
+    void handleAllowsEmptyManifestAtChannelCreation() {
+        // The manifest is the authoritative endpoint source. An empty manifest proof
         // yields an empty manifest, which ClprEndpointManifest explicitly permits at version >= 1
         // (genesis creates exactly that); later manifest-update bundles populate it. So the
         // channel is accepted ACTIVE with an empty stored manifest — NOT rejected.
@@ -609,7 +582,7 @@ class ClprCompleteChannelHandlerTest {
                 .configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(PEER_CONFIG))
                 .endpointManifestProofBytes(Bytes.EMPTY)
                 .build();
-        setupHandleContext(txnWith(op), manifestEnabledConfig());
+        setupHandleContext(txnWith(op));
         setupVerifierAccount(true);
 
         subject.handle(handleContext);
@@ -619,43 +592,6 @@ class ClprCompleteChannelHandlerTest {
         assertThat(stored.status()).isEqualTo(ClprChannelStatus.ACTIVE);
         assertThat(stored.hasEndpointManifest()).isTrue();
         assertThat(stored.endpointManifestOrThrow().endpoints()).isEmpty();
-    }
-
-    @Test
-    void handleFlagOffRejectsEmptyConfigEndpointsEvenWithManifestProof() {
-        // Flag off: config.endpoints is the authoritative source, so the manifest proof is
-        // ignored. A config with no endpoints leaves the channel inert → rejected, regardless
-        // of a non-empty manifest proof on the body. Proves the gate validates config.endpoints,
-        // not the manifest, when the flag is off.
-        commitmentStore.put(ECDSA_COMMITMENT);
-        final var peerManifest = ClprEndpointManifest.newBuilder()
-                .version(3L)
-                .serviceAddress(PEER_CONFIG.serviceAddress())
-                .endpoints(List.of(ClprEndpoint.newBuilder()
-                        .serviceEndpoint(ClprServiceEndpoint.newBuilder()
-                                .ipAddress("10.0.0.2")
-                                .port(50211)
-                                .build())
-                        .tlsCertificate(Bytes.wrap(new byte[] {7, 7, 7}))
-                        .build()))
-                .build();
-        final var sig = signChannelId(SECRET_KEY, CHANNEL_ID);
-        final var op = ClprCompleteChannelTransactionBody.newBuilder()
-                .channelId(CHANNEL_ID)
-                .publicKey(Bytes.wrap(ECDSA_PUBLIC_KEY))
-                .signature(Bytes.wrap(sig))
-                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
-                .verifierContract(VERIFIER_CONTRACT_ID)
-                .configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(peerConfigWithEndpointCount(0)))
-                .endpointManifestProofBytes(ClprEndpointManifest.PROTOBUF.toBytes(peerManifest))
-                .build();
-        setupHandleContext(txnWith(op));
-        setupVerifierAccount(true);
-
-        assertThatThrownBy(() -> subject.handle(handleContext))
-                .isInstanceOf(HandleException.class)
-                .has(responseCode(CLPR_VERIFIER_CONFIG_FAILED));
-        assertThat(channelStore.getChannel(CHANNEL_ID)).isNull();
     }
 
     @Test
@@ -843,28 +779,28 @@ class ClprCompleteChannelHandlerTest {
     @Test
     void storesAllPeerEndpointsWhenMaxPeerEndpointsIsZero() {
         commitmentStore.put(ECDSA_COMMITMENT);
-        final var peerConfig = peerConfigWithEndpointCount(12);
-        setupHandleContext(validEcdsaTxnWithPeerConfig(peerConfig));
+        final var peerManifest = manifestWithEndpointCount(12);
+        setupHandleContext(validEcdsaTxnWithManifest(peerManifest));
         setupVerifierAccount(true);
 
         subject.handle(handleContext);
 
-        then(channelLifecycle).should().seedPeerEndpoints(CHANNEL_ID, peerConfig.endpoints());
+        then(channelLifecycle).should().seedPeerEndpoints(CHANNEL_ID, peerManifest.endpoints());
     }
 
     @Test
     void truncatesPeerEndpointsWhenMaxPeerEndpointsIsNonZero() {
         commitmentStore.put(ECDSA_COMMITMENT);
-        final var peerConfig = peerConfigWithEndpointCount(5);
+        final var peerManifest = manifestWithEndpointCount(5);
         setupHandleContext(
-                validEcdsaTxnWithPeerConfig(peerConfig), enabledConfig(), localConfigWithMaxPeerEndpoints(3));
+                validEcdsaTxnWithManifest(peerManifest), enabledConfig(), localConfigWithMaxPeerEndpoints(3));
         setupVerifierAccount(true);
 
         subject.handle(handleContext);
 
         then(channelLifecycle)
                 .should()
-                .seedPeerEndpoints(CHANNEL_ID, peerConfig.endpoints().subList(0, 3));
+                .seedPeerEndpoints(CHANNEL_ID, peerManifest.endpoints().subList(0, 3));
     }
 
     @Test
@@ -951,15 +887,22 @@ class ClprCompleteChannelHandlerTest {
         return txnWith(op);
     }
 
-    private static Configuration enabledConfig() {
-        return HederaTestConfigBuilder.create().withValue("clpr.enabled", true).getOrCreateConfig();
+    private TransactionBody validEcdsaTxnWithManifest(final ClprEndpointManifest peerManifest) {
+        final var sig = signChannelId(SECRET_KEY, CHANNEL_ID);
+        final var op = ClprCompleteChannelTransactionBody.newBuilder()
+                .channelId(CHANNEL_ID)
+                .publicKey(Bytes.wrap(ECDSA_PUBLIC_KEY))
+                .signature(Bytes.wrap(sig))
+                .signatureScheme(ClprSignatureScheme.ECDSA_SECP256K1)
+                .verifierContract(VERIFIER_CONTRACT_ID)
+                .configProofBytes(ClprLedgerConfiguration.PROTOBUF.toBytes(PEER_CONFIG))
+                .endpointManifestProofBytes(ClprEndpointManifest.PROTOBUF.toBytes(peerManifest))
+                .build();
+        return txnWith(op);
     }
 
-    private static Configuration manifestEnabledConfig() {
-        return HederaTestConfigBuilder.create()
-                .withValue("clpr.enabled", true)
-                .withValue("clpr.endpointManifestEnabled", true)
-                .getOrCreateConfig();
+    private static Configuration enabledConfig() {
+        return HederaTestConfigBuilder.create().withValue("clpr.enabled", true).getOrCreateConfig();
     }
 
     private static ClprLedgerConfiguration localConfigWithMaxPeerEndpoints(final int maxPeerEndpoints) {
@@ -970,12 +913,22 @@ class ClprCompleteChannelHandlerTest {
                 .build();
     }
 
-    private static ClprLedgerConfiguration peerConfigWithEndpointCount(final int count) {
+    private static ClprEndpointManifest manifestWithEndpointCount(final int count) {
         final var endpoints = new ArrayList<ClprEndpoint>();
         for (int i = 0; i < count; i++) {
-            endpoints.add(ClprEndpoint.newBuilder().build());
+            endpoints.add(ClprEndpoint.newBuilder()
+                    .serviceEndpoint(ClprServiceEndpoint.newBuilder()
+                            .ipAddress("10.0.0." + i)
+                            .port(50211)
+                            .build())
+                    .tlsCertificate(Bytes.wrap(new byte[] {(byte) (i + 1)}))
+                    .build());
         }
-        return PEER_CONFIG.copyBuilder().endpoints(endpoints).build();
+        return ClprEndpointManifest.newBuilder()
+                .version(1L)
+                .serviceAddress(PEER_CONFIG.serviceAddress())
+                .endpoints(endpoints)
+                .build();
     }
 
     private TransactionBody txnWith(final ClprCompleteChannelTransactionBody op) {

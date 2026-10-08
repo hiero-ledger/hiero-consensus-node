@@ -298,8 +298,7 @@ public class ClprStateProofManager {
      *                       return {@code new_endpoint_manifest} and Step 1b applies the update
      *                       (spec §4.5, ADR "Propagating updates"). Callers pass {@code true} only
      *                       when the peer's cached {@code endpoint_manifest_version} is stale
-     *                       (see #335). Additionally gated by {@code clpr.endpointManifestEnabled}
-     *                       inside — flag OFF suppresses the manifest leaf regardless.
+     *                       (see #335).
      * @return serialised {@code StateProof} bytes, or {@code null} when no snapshot is available
      *         or when there are no message leaves and {@code allowPureAck} is false
      */
@@ -446,39 +445,25 @@ public class ClprStateProofManager {
     /**
      * Appends this ledger's {@code ClprEndpointManifest} singleton leaf to {@code allPaths} so the
      * peer's verifyBundle can return {@code new_endpoint_manifest} for Step 1b (spec §4.9),
-     * but only when <b>both</b> gates are set:
-     * <ol>
-     *   <li>the caller's staleness check — {@code includeEndpointManifest} is true if the peer's
-     *       cached {@code endpoint_manifest_version} is strictly less than our local
-     *       {@code ClprEndpointManifest.version()}; suppressing the leaf when the peer is
-     *       already current</li>
-     *   <li>the master {@code clpr.endpointManifestEnabled} flag</li>
-     * </ol>
+     * but only when the caller's staleness check is set — {@code includeEndpointManifest} is true if
+     * the peer's cached {@code endpoint_manifest_version} is strictly less than our local
+     * {@code ClprEndpointManifest.version()}; suppressing the leaf when the peer is already current.
      * A missing singleton or merkle proof is logged and skipped (not fatal) — the peer simply sees
      * no manifest update this tick.
      */
-    private void addEndpointManifestIfEnabled(
+    private void addEndpointManifest(
             @NonNull final List<MerklePath> allPaths,
             @NonNull final BinaryState binaryState,
             @NonNull final Bytes channelId,
-            @NonNull final List<SiblingNode> extendedSibs,
-            final boolean includeEndpointManifest) {
-        final boolean manifestFeatureEnabled = configProvider
-                .getConfiguration()
-                .getConfigData(ClprConfig.class)
-                .endpointManifestEnabled();
-        if (!manifestFeatureEnabled || !includeEndpointManifest) {
-            return;
-        }
+            @NonNull final List<SiblingNode> extendedSibs) {
         final long manifestPath = binaryState.getSingletonPath(ENDPOINT_MANIFEST_STATE_ID);
         if (manifestPath < 0) {
-            // Invariant violation, not a normal operating condition: the V0650 schema seeds the
-            // ClprEndpointManifest singleton at genesis, so with the feature enabled it MUST exist.
-            // Its absence means corrupt or unmigrated state — fail loudly rather than silently
-            // producing a manifest-less bundle.
+            // Invariant violation, not a normal operating condition: ClprServiceImpl.doGenesisSetup()
+            // seeds the ClprEndpointManifest singleton at genesis, so it MUST exist. Its absence means
+            // corrupt or unmigrated state — fail loudly rather than silently producing a manifest-less bundle.
             throw new IllegalStateException("CLPR endpoint manifest singleton missing from state (conn="
                     + channelId
-                    + ") while clpr.endpointManifestEnabled=true; the V0650 schema seeds this singleton at "
+                    + "); the CLPR service seeds this singleton at "
                     + "genesis, so its absence indicates corrupt or unmigrated state");
         }
         final var manifestMerkleProof = binaryState.getMerkleProof(manifestPath);
@@ -553,7 +538,9 @@ public class ClprStateProofManager {
         int messageLeafCount = 0;
 
         // ── Endpoint manifest singleton leaf (spec §4.9) ──────────────────────────
-        addEndpointManifestIfEnabled(allPaths, binaryState, channelId, extendedSibs, includeEndpointManifest);
+        if (includeEndpointManifest) {
+            addEndpointManifest(allPaths, binaryState, channelId, extendedSibs);
+        }
 
         final var tssProof = TssSignedBlockProof.newBuilder()
                 .blockSignature(snapshot.tssSignature())
@@ -651,14 +638,10 @@ public class ClprStateProofManager {
         // An initiator (`allowPureAck=false`) with an empty queue still has meaningful work when
         // it must push a manifest advance the peer has not observed — a moved endpoint has to
         // propagate or peers stay stuck dialing the stale address. So permit a manifest-only
-        // bundle when the manifest will actually be carried (feature on AND includeEndpointManifest).
+        // bundle when the manifest will actually be carried (includeEndpointManifest).
         // Only when there is truly nothing — no messages, not a responder ack, and no manifest to
         // send — do we skip. (Neeha review.)
-        final boolean manifestOnlyPayload = includeEndpointManifest
-                && configProvider
-                        .getConfiguration()
-                        .getConfigData(ClprConfig.class)
-                        .endpointManifestEnabled();
+        final boolean manifestOnlyPayload = includeEndpointManifest;
         if (messageLeafCount == 0) {
             if (!allowPureAck && !manifestOnlyPayload) {
                 log.debug(
