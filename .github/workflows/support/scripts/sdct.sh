@@ -18,6 +18,7 @@ die()  { log "$1" "$RED"; exit "${2:-1}"; }
 Usage() {
 cat >&2 <<EOF
 Usage: $0 <build-tag> <build-commit> <version-service> <version-blocknode> <version-mirrornode> [test-name]
+  <version-blocknode> and <version-mirrornode> may be "": not posted, the Jenkins job default applies
 
 Starts the SDCT Jenkins job and prints its queue id on stdout.
 
@@ -60,6 +61,11 @@ readonly USERPASSWORD="${USERNAME}:${PASSWORD}"
 readonly SDCT_JOB_PATH=${SDCT_JOB_PATH:-job/nightly/job/sdct}
 [[ "${SDCT_JOB_PATH}" =~ ^job/[A-Za-z0-9_/-]+$ ]] || die "Invalid SDCT_JOB_PATH: ${SDCT_JOB_PATH}" 2
 
+# Informational versions: posted only when set, so an empty value does not override the Jenkins job default
+VERSION_FIELDS=()
+[[ -z "${VERSION_BLOCKNODE}" ]] || VERSION_FIELDS+=(-F "VERSION_BLOCKNODE=${VERSION_BLOCKNODE}")
+[[ -z "${VERSION_MIRRORNODE}" ]] || VERSION_FIELDS+=(-F "VERSION_MIRRORNODE=${VERSION_MIRRORNODE}")
+
 # Mock runs: extra build parameters for the nightly/sdct-mock job, posted only when set
 MOCK_FIELDS=()
 if [[ -n "${MOCK_SCENARIO:-}" ]]; then
@@ -92,8 +98,7 @@ curl --no-progress-meter -f -X POST -u "$USERPASSWORD" --cookie "$COOKIEJAR" \
      -F "BUILD_TAG=${BUILD_TAG}"                             \
      -F "BUILD_COMMIT=${BUILD_COMMIT}"                       \
      -F "VERSION_SERVICE=${VERSION_SERVICE}"                 \
-     -F "VERSION_BLOCKNODE=${VERSION_BLOCKNODE}"             \
-     -F "VERSION_MIRRORNODE=${VERSION_MIRRORNODE}"           \
+     ${VERSION_FIELDS[@]+"${VERSION_FIELDS[@]}"}             \
      -F "GH_RUN_ID=${GH_RUN_ID}"                             \
      -F "GH_RUN_URL=${GH_RUN_URL}"                           \
      -F "SDCT_TEST=${SDCT_TEST}"                             \
@@ -105,7 +110,7 @@ curl --no-progress-meter -f -X POST -u "$USERPASSWORD" --cookie "$COOKIEJAR" \
 QUEUE_ID=$(tr -d '\r' < "${HEADERS}" | sed -n -E 's#^[Ll]ocation:.*/queue/item/([0-9]+)/?$#\1#p' | tail -1)
 [[ -n "${QUEUE_ID}" ]] || die "❌ Error: No queue item returned by Jenkins for [${BUILD_TAG}]" 5
 
-log "✅ Canonical test [${SDCT_TEST}] started for [${BUILD_TAG}] [${BUILD_COMMIT}] [${VERSION_SERVICE}] [BN ${VERSION_BLOCKNODE}] [MN ${VERSION_MIRRORNODE}], queue item ${QUEUE_ID}" "$GREEN"
+log "✅ Canonical test [${SDCT_TEST}] started for [${BUILD_TAG}] [${BUILD_COMMIT}] [${VERSION_SERVICE}] [BN ${VERSION_BLOCKNODE:-default}] [MN ${VERSION_MIRRORNODE:-default}], queue item ${QUEUE_ID}" "$GREEN"
 echo "${QUEUE_ID}"
 
 exit 0

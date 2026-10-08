@@ -159,7 +159,7 @@ The workflow relies on the following from the `SDCT` Jenkins job and its test dr
 
 | #  | Requirement                                                                                                                         |
 |----|-------------------------------------------------------------------------------------------------------------------------------------|
-| J1 | Accept the build parameters `BUILD_TAG`, `BUILD_COMMIT`, `VERSION_SERVICE`, `VERSION_BLOCKNODE`, `VERSION_MIRRORNODE`, `GH_RUN_ID`, `GH_RUN_URL` |
+| J1 | Accept the build parameters `BUILD_TAG`, `BUILD_COMMIT`, `VERSION_SERVICE`, `VERSION_BLOCKNODE`, `VERSION_MIRRORNODE` (optional: not posted when empty, so the job default applies), `GH_RUN_ID`, `GH_RUN_URL` |
 |    | `BUILD_COMMIT` is the build artifact name used to reset the network; the `VERSION_*` parameters are used for reporting only |
 |    | `BUILD_TAG` is the `build-tag` input on `main` and the `ref` input otherwise (e.g. `ref=v0.77.4`, `build-tag=build-v0.77.4` → `BUILD_TAG=v0.77.4`, `BUILD_COMMIT=build-v0.77.4`) |
 |    | Accept `SDCT_TEST` (`sdct`, `mini`, `custom`) to select the test, defaulting to `sdct`                                        |
@@ -270,7 +270,7 @@ the final disposition); `GET api/v1/suites/results?build_number=<n>&suite_type=s
 | Field | Value |
 |---|---|
 | `build_number` | `main` with a `build-NNNNN` tag only: integer, without leading zeros (`build-00401` → `401`) |
-| `branch`, `commit` | any other ref (branch `block-stream-tss`, release tag `v0.78.00-rc.13`, release branch `release/0.79`), or `main` without a `build-NNNNN` tag: `branch` is the `ref` input as typed, `commit` its 40-character head commit (a tag's commit for a tag); no `build_number`. Without a resolvable commit the report is skipped with a warning |
+| `branch`, `commit` | any other ref (branch `block-stream-tss`, release tag `v0.78.00-rc.13`, release branch `release/0.79`), or `main` without a `build-NNNNN` tag: `branch` is the `ref` input as typed, `commit` its 40-character head commit (a tag's commit for a tag); no `build_number`. An empty or invalid `branch` or `commit` is logged and left out, the report goes on with the other; with neither it is skipped with a warning |
 | `suite_type` | `"sdct"` |
 | `disposition` | see below |
 | `start_time` | Jenkins build start, RFC3339 UTC, the same in both reports; the decision time if the build never started |

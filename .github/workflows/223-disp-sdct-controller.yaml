@@ -2,8 +2,8 @@
 name: "223: [DISP] CITR SDCT Controller"
 run-name: "${{ inputs.mock && format('[MOCK] 223 SDCT {0} ({1})', inputs.build-tag, inputs.mock-scenario) || '223: [DISP] CITR SDCT Controller' }}"
 
-# TODO: 901 dispatches this workflow with only `build-tag`; the required `blocknode-version` and
-#       `mirrornode-version` inputs will be supplied once the external framework changes land.
+# NOTE: 901 dispatches this workflow with only `build-tag`. `ref` falls back to main when empty; `blocknode-version`
+#       and `mirrornode-version` are informational: when empty they are not sent to Jenkins, whose job defaults apply.
 # TODO: SDCT runs on the single perf1 network; the concurrency group below serializes runs of this workflow,
 #       overlapping runs from other sources will be prevented by the external framework changes.
 # TODO: add an ad hoc SDCT controller workflow for user dispatches, as 201 is to 221 for SDPT.
@@ -20,12 +20,14 @@ on:
         description: "build-XXXXX tag associated with the ref input."
         type: string
       blocknode-version:
-        required: true
-        description: "BlockNode version associated with the ref input."
+        required: false
+        default: ""
+        description: "BlockNode version (informational). Empty: not sent, the Jenkins job default applies."
         type: string
       mirrornode-version:
-        required: true
-        description: "MirrorNode version associated with the ref input."
+        required: false
+        default: ""
+        description: "MirrorNode version (informational). Empty: not sent, the Jenkins job default applies."
         type: string
       test-name:
         required: false
@@ -112,6 +114,12 @@ jobs:
       reason: ${{ steps.start-canonical-test.outputs.reason }}
 
     steps:
+      - name: Harden Runner
+        id: harden-runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
+        with:
+          egress-policy: audit
+
       - name: Set Job Deadline
         id: job-deadline
         env:
@@ -134,12 +142,6 @@ jobs:
             echo "job-path=${settings[4]}"
           } | tee -a "${GITHUB_OUTPUT}"
           echo "SDCT_JOB_PATH=${settings[4]}" >> "${GITHUB_ENV}"
-
-      - name: Harden Runner
-        id: harden-runner
-        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
-        with:
-          egress-policy: audit
 
       - name: Checkout Code
         id: checkout-code
@@ -187,7 +189,7 @@ jobs:
       - name: Verify Workflow Parameters
         id: parameters
         env:
-          REF_INPUT: ${{ inputs.ref }}
+          REF_INPUT: ${{ inputs.ref || 'main' }}
           BUILD_TAG_INPUT: ${{ inputs.build-tag }}
           BLOCKNODE_INPUT: ${{ inputs.blocknode-version }}
           MIRRORNODE_INPUT: ${{ inputs.mirrornode-version }}
@@ -203,12 +205,10 @@ jobs:
           BRANCH_NAME_LOWER="$(echo "${BRANCH_NAME}" | tr '[:upper:]' '[:lower:]')"
           BUILD_ARTIFACT="${BUILD_TAG_INPUT//[^a-zA-Z0-9\-_.]/_}"
 
-          for var in BLOCKNODE_INPUT MIRRORNODE_INPUT; do
-            if [[ -z "${!var// }" ]]; then
-              log_error "Required input ${var} is empty"
-              exit 1
-            fi
-          done
+          if [[ -z "${BUILD_TAG_INPUT// }" ]]; then
+            log_error "Required input build-tag is empty"
+            exit 1
+          fi
 
           log_info "Parameters: Branch: ${BRANCH_NAME}, Build: ${BUILD_ARTIFACT}"
           # main: the artifact is named after the commit of the build tag and doubles as the service version,
@@ -273,8 +273,8 @@ jobs:
             echo "- **Generated Artifact Name**: ${BUILD_ARTIFACT}"
             echo "- **Jenkins Build Tag**: ${JENKINS_BUILD_TAG}"
             echo "- **Service Version**: ${VERSION_SERVICE}"
-            echo "- **BlockNode Version**: ${BLOCKNODE_INPUT}"
-            echo "- **MirrorNode Version**: ${MIRRORNODE_INPUT}"
+            echo "- **BlockNode Version**: ${BLOCKNODE_INPUT:-not set (Jenkins default)}"
+            echo "- **MirrorNode Version**: ${MIRRORNODE_INPUT:-not set (Jenkins default)}"
             echo "- **Commit SHA**: \`${TAG_COMMIT_SHA:-N/A}\`"
             echo "- **Short Commit**: \`${TAG_COMMIT_SHORT:-N/A}\`"
             echo "- **Ref Head Commit**: \`${REF_COMMIT:-N/A}\`"
@@ -375,8 +375,8 @@ jobs:
           log_info "Build Tag: ${BUILD_TAG}"
           log_info "Build Version: ${BUILD_VERSION}"
           log_info "Service Version: ${VERSION_SERVICE}"
-          log_info "BlockNode Version: ${BLOCKNODE_VERSION}"
-          log_info "MirrorNode Version: ${MIRRORNODE_VERSION}"
+          log_info "BlockNode Version: ${BLOCKNODE_VERSION:-not set (Jenkins default)}"
+          log_info "MirrorNode Version: ${MIRRORNODE_VERSION:-not set (Jenkins default)}"
 
           if ! QUEUE_ID=$(bash "${TEST_SCRIPT_PATH}" "${BUILD_TAG}" "${BUILD_VERSION}" "${VERSION_SERVICE}" "${BLOCKNODE_VERSION}" "${MIRRORNODE_VERSION}" "${SDCT_TEST}"); then
             log_error "Canonical test failed to start"
@@ -454,7 +454,7 @@ jobs:
             echo "## Overall Status: ${OVERALL_STATUS}"
             echo
             echo "## Input Parameters"
-            echo "- **Reference**: \`${{ inputs.ref }}\`"
+            echo "- **Reference**: \`${{ inputs.ref || 'main' }}\`"
             echo "- **Build Tag**: \`${{ inputs.build-tag }}\`"
             echo "- **SDCT Test**: \`${{ inputs.test-name || 'sdct' }}\`"
             echo "- **Mock**: ${{ inputs.mock && format('`{0}` on nightly/sdct-mock', inputs.mock-scenario) || 'no' }}"
@@ -626,7 +626,16 @@ jobs:
   sdct-verdict:
     name: SDCT Verdict
     runs-on: hl-cn-sdct-lin
-    needs: [canonical-test, follow-1, follow-2, follow-3, follow-4, follow-5, follow-6]
+    needs:
+      [
+        canonical-test,
+        follow-1,
+        follow-2,
+        follow-3,
+        follow-4,
+        follow-5,
+        follow-6,
+      ]
     # Always runs: the only place that decides the verdict, and it stops a build nobody follows any more
     if: ${{ always() }}
     outputs:
@@ -973,7 +982,7 @@ jobs:
         env:
           CHEWIE_HOST: ${{ secrets.CHEWIE_HOST }}
           CHEWIE_KEY: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
-          REF: ${{ inputs.ref }}
+          REF: ${{ inputs.ref || 'main' }}
           BUILD_TAG: ${{ inputs.build-tag }}
           COMMIT: ${{ needs.canonical-test.outputs.ref-commit }}
           GH_RUN_ID: ${{ github.run_id }}
@@ -1013,7 +1022,7 @@ jobs:
         env:
           CHEWIE_HOST: ${{ secrets.CHEWIE_HOST }}
           CHEWIE_KEY: ${{ secrets.CHEWIE_REPO_IDENTITY_KEY }}
-          REF: ${{ inputs.ref }}
+          REF: ${{ inputs.ref || 'main' }}
           BUILD_TAG: ${{ inputs.build-tag }}
           COMMIT: ${{ needs.canonical-test.outputs.ref-commit }}
           GH_RUN_ID: ${{ github.run_id }}
