@@ -24,11 +24,30 @@ public class HintsLibraryImpl implements HintsLibrary {
     private static final SecureRandom RANDOM = CryptoUtils.getNonDetRandom();
     private static final HintsLibraryBridge BRIDGE = HintsLibraryBridge.getInstance();
     private static final int MIN_AGGREGATION_KEY_LENGTH = 49;
-    // The bridge caches CRS and AK process-wide, without a Java cache-key API. Hold this
-    // guard through each native call: preparation for NEXT must not replace ACTIVE's cache.
-    private static final ReentrantReadWriteLock NATIVE_CACHE_LOCK = new ReentrantReadWriteLock(true);
+    // The original native image is reserved for signing. Separate native images own the CRS
+    // caches used by key work and preprocessing, so neither can hold up ACTIVE signing.
+    private static final ReentrantReadWriteLock SIGNING_CACHE_LOCK = new ReentrantReadWriteLock(true);
     private static @Nullable Bytes cachedCrs;
     private static @Nullable Bytes cachedAggregationKey;
+
+    private final IsolatedHintsLibrary keyLibrary;
+    private final IsolatedHintsLibrary preprocessingLibrary;
+
+    // Load only two additional native images for the lifetime of the JVM, even when multiple
+    // HintsLibraryImpl instances are created. A Java adapter alone would still share native caches.
+    private static final class PreparationLibraries {
+        private static final IsolatedHintsLibrary KEYS = new IsolatedHintsLibrary();
+        private static final IsolatedHintsLibrary PREPROCESSING = new IsolatedHintsLibrary();
+    }
+
+    public HintsLibraryImpl() {
+        this(PreparationLibraries.KEYS, PreparationLibraries.PREPROCESSING);
+    }
+
+    HintsLibraryImpl(final IsolatedHintsLibrary keyLibrary, final IsolatedHintsLibrary preprocessingLibrary) {
+        this.keyLibrary = requireNonNull(keyLibrary);
+        this.preprocessingLibrary = requireNonNull(preprocessingLibrary);
+    }
 
     public static final int VK_LENGTH = 1096;
     public static final int SIGNATURE_LENGTH = HintsLibraryBridge.AGGREGATE_SIGNATURE_LENGTH_BYTES;
@@ -45,14 +64,16 @@ public class HintsLibraryImpl implements HintsLibrary {
         if (n <= 0 || n > 512 || (n & (n - 1)) != 0) {
             throw new IllegalArgumentException("Unsupported hinTS CRS party count: " + n);
         }
-        return withFreshNativeCache(() -> Bytes.wrap(BRIDGE.initCRS(n)));
+        // In 3.18.0, CRS ceremony operations deserialize their own inputs and never access
+        // the signing CRS/AK caches. They must not acquire the signing cache guard.
+        return Bytes.wrap(BRIDGE.initCRS(n));
     }
 
     @Override
     public Bytes updateCrs(@NonNull final Bytes crs, @NonNull final Bytes entropy) {
         requireNonNull(crs);
         requireNonNull(entropy);
-        final var updatedCrs = withFreshNativeCache(() -> BRIDGE.updateCRS(crs.toByteArray(), entropy.toByteArray()));
+        final var updatedCrs = BRIDGE.updateCRS(crs.toByteArray(), entropy.toByteArray());
         return updatedCrs == null ? null : Bytes.wrap(updatedCrs);
     }
 
@@ -61,8 +82,7 @@ public class HintsLibraryImpl implements HintsLibrary {
         requireNonNull(oldCrs);
         requireNonNull(newCrs);
         requireNonNull(proof);
-        return withFreshNativeCache(
-                () -> BRIDGE.verifyCRS(oldCrs.toByteArray(), newCrs.toByteArray(), proof.toByteArray()));
+        return BRIDGE.verifyCRS(oldCrs.toByteArray(), newCrs.toByteArray(), proof.toByteArray());
     }
 
     @Override
@@ -78,8 +98,7 @@ public class HintsLibraryImpl implements HintsLibrary {
             @NonNull final Bytes crs, @NonNull final Bytes blsPrivateKey, final int partyId, final int n) {
         requireNonNull(blsPrivateKey);
         requireExactCapacity(crs, n);
-        final var hints = withNativeCache(
-                crs, null, () -> BRIDGE.computeHints(crs.toByteArray(), blsPrivateKey.toByteArray(), partyId, n));
+        final var hints = keyLibrary.computeHints(crs.toByteArray(), blsPrivateKey.toByteArray(), partyId, n);
         return hints == null ? null : Bytes.wrap(hints);
     }
 
@@ -89,8 +108,7 @@ public class HintsLibraryImpl implements HintsLibrary {
         requireNonNull(crs);
         requireNonNull(hintsKey);
         requireExactCapacity(crs, n);
-        return withNativeCache(
-                crs, null, () -> BRIDGE.validateHintsKey(crs.toByteArray(), hintsKey.toByteArray(), partyId, n));
+        return keyLibrary.validateHintsKey(crs.toByteArray(), hintsKey.toByteArray(), partyId, n);
     }
 
     @Override
@@ -114,8 +132,7 @@ public class HintsLibraryImpl implements HintsLibrary {
                 .toArray(byte[][]::new);
         final long[] weightsArray =
                 Arrays.stream(parties).mapToLong(weights::get).toArray();
-        return withFreshNativeCache(
-                () -> BRIDGE.preprocess(crs.toByteArray(), parties, hintsPublicKeys, weightsArray, n));
+        return preprocessingLibrary.preprocess(crs.toByteArray(), parties, hintsPublicKeys, weightsArray, n);
     }
 
     @Override
@@ -179,7 +196,7 @@ public class HintsLibraryImpl implements HintsLibrary {
 
     @Override
     public void resetCache() {
-        final var lock = NATIVE_CACHE_LOCK.writeLock();
+        final var lock = SIGNING_CACHE_LOCK.writeLock();
         lock.lock();
         try {
             BRIDGE.resetCache();
@@ -190,32 +207,9 @@ public class HintsLibraryImpl implements HintsLibrary {
         }
     }
 
-    /**
-     * Ceremony operations and preprocessing can create a different CRS or AK. Their cache side
-     * effects are opaque, so do not let their entry or exit leave an assumed signing cache identity.
-     */
-    private static <T> T withFreshNativeCache(final Supplier<T> operation) {
-        final var lock = NATIVE_CACHE_LOCK.writeLock();
-        lock.lock();
-        try {
-            BRIDGE.resetCache();
-            cachedCrs = null;
-            cachedAggregationKey = null;
-            return operation.get();
-        } finally {
-            try {
-                BRIDGE.resetCache();
-                cachedCrs = null;
-                cachedAggregationKey = null;
-            } finally {
-                lock.unlock();
-            }
-        }
-    }
-
     private static <T> T withNativeCache(
             @Nullable final Bytes crs, @Nullable final Bytes aggregationKey, final Supplier<T> operation) {
-        final var readLock = NATIVE_CACHE_LOCK.readLock();
+        final var readLock = SIGNING_CACHE_LOCK.readLock();
         readLock.lock();
         try {
             if (cacheMatches(crs, aggregationKey)) {
@@ -224,7 +218,7 @@ public class HintsLibraryImpl implements HintsLibrary {
         } finally {
             readLock.unlock();
         }
-        final var writeLock = NATIVE_CACHE_LOCK.writeLock();
+        final var writeLock = SIGNING_CACHE_LOCK.writeLock();
         writeLock.lock();
         try {
             if (!cacheMatches(crs, aggregationKey)) {
