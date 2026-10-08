@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.validators.block;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.MAX_PBJ_RECORD_SIZE;
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
+
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.streams.RecordStreamFile;
 import com.hedera.hapi.streams.SidecarFile;
+import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.junit.support.RecordWithSidecars;
@@ -49,15 +53,21 @@ public class WrbRecordFileValidator implements BlockStreamValidator {
 
         // Build maps keyed by block number from the disk data.
         // data.files() / data.records() contain protobuf-java types. We normalize both sides through
-        // PBJ serialization to eliminate any cross-serializer encoding differences.
+        // PBJ serialization to eliminate any cross-serializer encoding differences, using the same
+        // raised parsing limit as the other stream validators for large node-generated proofs.
         final Map<Long, Bytes> diskRecordFileByBlockNumber = new HashMap<>();
         for (final var diskFile : data.files()) {
             final long blockNum = diskFile.getBlockNumber();
             try {
-                final var pbjRsf = RecordStreamFile.PROTOBUF.parse(Bytes.wrap(diskFile.toByteArray()));
+                final var pbjRsf = RecordStreamFile.PROTOBUF.parse(
+                        Bytes.wrap(diskFile.toByteArray()).toReadableSequentialData(),
+                        false,
+                        false,
+                        DEFAULT_MAX_DEPTH,
+                        MAX_PBJ_RECORD_SIZE);
                 diskRecordFileByBlockNumber.put(blockNum, RecordStreamFile.PROTOBUF.toBytes(pbjRsf));
-            } catch (final Exception e) {
-                log.warn("Failed to normalize disk record file for block {}; skipping", blockNum, e);
+            } catch (final ParseException e) {
+                throw new IllegalStateException("Failed to normalize disk record file for block " + blockNum, e);
             }
         }
 
@@ -67,11 +77,16 @@ public class WrbRecordFileValidator implements BlockStreamValidator {
             final List<Bytes> normalizedSidecars = record.sidecarFiles().stream()
                     .map(diskSidecar -> {
                         try {
-                            final var pbjSidecar = SidecarFile.PROTOBUF.parse(Bytes.wrap(diskSidecar.toByteArray()));
+                            final var pbjSidecar = SidecarFile.PROTOBUF.parse(
+                                    Bytes.wrap(diskSidecar.toByteArray()).toReadableSequentialData(),
+                                    false,
+                                    false,
+                                    DEFAULT_MAX_DEPTH,
+                                    MAX_PBJ_RECORD_SIZE);
                             return SidecarFile.PROTOBUF.toBytes(pbjSidecar);
-                        } catch (final Exception e) {
-                            log.warn("Failed to normalize disk sidecar for block {}; using empty bytes", blockNum, e);
-                            return Bytes.EMPTY;
+                        } catch (final ParseException e) {
+                            throw new IllegalStateException(
+                                    "Failed to normalize disk sidecar for block " + blockNum, e);
                         }
                     })
                     .toList();
