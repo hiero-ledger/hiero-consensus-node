@@ -400,7 +400,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
      *
      * @param bytes the serialized item to write
      */
-    void writeItem(@NonNull final byte[] bytes) {
+    void writeItem(@NonNull final Bytes bytes) {
         requireNonNull(bytes);
         if (state != State.OPEN) {
             throw new IllegalStateException(
@@ -410,8 +410,8 @@ public class FileBlockItemWriter implements BlockItemWriter {
         // Write the ITEMS tag.
         ProtoWriterTools.writeTag(writableStreamingData, BlockSchema.ITEMS, ProtoConstants.WIRE_TYPE_DELIMITED);
         // Write the length of the item.
-        writableStreamingData.writeVarInt(bytes.length, false);
-        // Write the item bytes themselves.
+        writableStreamingData.writeVarInt(Math.toIntExact(bytes.length()), false);
+        // Write the item bytes themselves, straight from the source buffer with no intermediate copy.
         writableStreamingData.writeBytes(bytes);
     }
 
@@ -425,7 +425,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
     @Override
     public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
         requireNonNull(bytes, "bytes must not be null");
-        writeItem(bytes.toByteArray());
+        writeItem(bytes);
     }
 
     @Override
