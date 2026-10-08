@@ -677,9 +677,6 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
                 return;
             }
 
-            if (existing == null) {
-                existing = cache.lookupLeafByPath(path);
-            }
             final VirtualLeafBytes<V> updated;
             if (existing != null) {
                 updated = valueCodec != null
