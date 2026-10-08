@@ -1126,6 +1126,7 @@ public final class VirtualMap extends AbstractVirtualRoot implements Labeled, Vi
      * @param value Hash value to set
      */
     private void setHashPrivate(@Nullable final Hash value) {
+        System.err.println("Set hash " + getFastCopyVersion() + " to " + value);
         hash.set(value);
     }
 

@@ -6,6 +6,7 @@ import com.hedera.pbj.runtime.FieldType;
 import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.ProtoParserTools;
 import com.hedera.pbj.runtime.ProtoWriterTools;
+import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.swirlds.virtualmap.MerkleHasher;
@@ -591,6 +592,15 @@ public class VirtualHashChunk {
         return calcHashBytes(hasher, chunkRank + height - pathRank, path, firstLeafPath, lastLeafPath);
     }
 
+    public byte[] calcHashBytes(
+            final WritableMessageDigest messageDigest, final long path, final long firstLeafPath, final long lastLeafPath) {
+        final int pathRank = MerklePathUtils.getRank(path);
+        final int chunkRank = MerklePathUtils.getRank(this.path);
+        assert pathRank >= chunkRank;
+        assert pathRank <= chunkRank + height;
+        return calcHashBytes(messageDigest, chunkRank + height - pathRank, path, firstLeafPath, lastLeafPath);
+    }
+
     private byte[] calcHashBytes(
             MerkleHasher hasher, final long h, final long path, final long firstLeafPath, final long lastLeafPath) {
         if (path > lastLeafPath) {
@@ -606,5 +616,22 @@ public class VirtualHashChunk {
         final long rightPath = MerklePathUtils.getRightChildPath(path);
         final byte[] rightHash = calcHashBytes(hasher, h - 1, rightPath, firstLeafPath, lastLeafPath);
         return hasher.internalNodeHashBytes(leftHash, rightHash);
+    }
+
+    private byte[] calcHashBytes(
+            final WritableMessageDigest messageDigest, final long h, final long path, final long firstLeafPath, final long lastLeafPath) {
+        if (path > lastLeafPath) {
+            assert path == 2;
+            return null;
+        }
+        if ((h == 0) || ((path >= firstLeafPath))) {
+            return getHashBytesAtPath(path);
+        }
+        assert h > 0;
+        final long leftPath = MerklePathUtils.getLeftChildPath(path);
+        final byte[] leftHash = calcHashBytes(messageDigest, h - 1, leftPath, firstLeafPath, lastLeafPath);
+        final long rightPath = MerklePathUtils.getRightChildPath(path);
+        final byte[] rightHash = calcHashBytes(messageDigest, h - 1, rightPath, firstLeafPath, lastLeafPath);
+        return MerkleHasher.internalNodeHashBytes(messageDigest, leftHash, rightHash);
     }
 }
