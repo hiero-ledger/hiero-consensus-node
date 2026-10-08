@@ -47,21 +47,12 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
-      reconnect-uptime:
-        required: false
-        default: "600"
+      solo-version:
+        required: true
+        default: "v0.91.0"
         type: string
-        description: "Reconnect uptime (secs). Downtime is Uptime x 3"
-      duration-minutes:
-        required: false
-        default: "1440"
-        description: "Expected duration of all tests in minutes"
-        type: string
-      disable-notifications:
-        required: false
-        default: true
-        type: boolean
-        description: "If true, skip tag and notifications"
+        description: 'Solo version'
+
 
 defaults:
   run:
@@ -230,8 +221,7 @@ jobs:
       instances-aux-qty: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-qty) }}
       instances-aux-cpu: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-cpu-request) }}
       instances-aux-memory-mb: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-mem-request-mb) }}
-      duration-minutes: ${{ fromJSON(needs.verify-citr-vars.outputs.request-duration) }}
-      request-timeout: ${{ fromJSON(needs.verify-citr-vars.outputs.request-timeout) }}
+
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
       chewie-token: ${{ needs.get-chewie-jwt.outputs.jwt }}
@@ -253,7 +243,7 @@ jobs:
       mirrorref: "${{ needs.extract-citr-vars.outputs.bn-mirror-node-version }}"
       explorerref: "${{ needs.extract-citr-vars.outputs.mirror-node-explorer-version }}"
       relayref: "${{ needs.extract-citr-vars.outputs.json-rpc-relay-version }}"
-      solo-version: "${{ needs.extract-citr-vars.outputs.adhoc-solo-version }}"
+      solo-version: ${{ inputs.solo-version }}
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"

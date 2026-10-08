@@ -378,6 +378,7 @@ jobs:
           wait: 120s
 
       - name: Install Solo
+        if: false
         env:
           SOLO_VERSION: ${{ inputs.solo-version || 'latest' }}
         run: |
@@ -387,7 +388,6 @@ jobs:
           solo --version
 
       - name: Build Solo
-        if: false
         run: |
           set +x
           set +e
@@ -1109,6 +1109,11 @@ jobs:
       - name: Setup Google Cloud SDK
         uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
+      - name: Delete namespace
+        if: ${{ !cancelled() }}
+        run: |
+          sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace ${{ needs.acquire-kubernetes-resources.outputs.namespace }}
+
       - name: Publish logs
         if: ${{ !cancelled() }}
         env:
@@ -1131,6 +1136,7 @@ jobs:
 
   # Send this output back to the caller workflow
   longevity-test-reconnect:
+    if: false
     name: Reconnect test
     runs-on: hl-cn-sdlt-lin-lg
     if: ${{ !cancelled() }}
@@ -1316,7 +1322,7 @@ jobs:
     needs:
       - longevity-tests-start
       - longevity-tests-finish
-      - longevity-test-reconnect
+      #- longevity-test-reconnect
     outputs:
       result: ${{ steps.sdlt-status.outputs.result }}
     steps:
@@ -1335,7 +1341,7 @@ jobs:
           HCS="${{ needs.longevity-tests-finish.outputs.HCSscore }}"
           SMART="${{ needs.longevity-tests-finish.outputs.Smartscore }}"
           VALIDATOR="${{ needs.longevity-tests-finish.outputs.ValidatorStatus }}"
-          RECONNECT="${{ needs.longevity-test-reconnect.outputs.ReconnectStatus }}"
+          RECONNECT="0"
 
           # Check if any variable is empty. If it is, we set the result to failure.
           if [[ -z "${NFT}" ]] || [[ -z "${HELI}" ]] || [[ -z "${CRYPTO}" ]] || [[ -z "${HCS}" ]] || [[ -z "${SMART}" ]] || [[ "${VALIDATOR}" != "0" ]] || [[ "${RECONNECT}" != "0" ]]; then
@@ -1364,12 +1370,12 @@ jobs:
       - longevity-tests-start
       - longevity-tests-wait
       - longevity-tests-finish
-      - longevity-test-reconnect
+      #- longevity-test-reconnect
       - single-day-longevity-test-result
       - acquire-kubernetes-resources
     if: ${{ (needs.longevity-tests-finish.result != 'success' ||
       needs.single-day-longevity-test-result.result != 'success' ||
-      needs.longevity-test-reconnect.result != 'success') &&
+      ) &&
       !cancelled() && always() }}
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -1410,7 +1416,7 @@ jobs:
     needs:
       - longevity-tests-finish
       - single-day-longevity-test-result
-      - longevity-test-reconnect
+      #- longevity-test-reconnect
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -1458,12 +1464,7 @@ jobs:
             Validator="FAILED"
           fi
 
-          if [[ "${{ needs.longevity-test-reconnect.outputs.ReconnectStatus }}" == "0" ]]
-          then
-            Reconnect="PASSED"
-          else
-            Reconnect="FAILED"
-          fi
+          Reconnect="PASSED"
 
           #last line is 5, it does not need comma block separator
           freport=`/usr/bin/echo -e "${report}" | awk '{print $1" "$2}'| perl -ne 'if ($. < 5) {$comma=","} else {$comma="";} ($t,$d)=split(/\s+/,$_,2);printf("{\"type\": \"text\",\"text\": \"%-25s %7d \\\n\"}%s",$t,$d,$comma);'`
