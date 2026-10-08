@@ -3,6 +3,11 @@ name: "202: [USER] CITR SDLT Ctrl Adhoc"
 on:
   workflow_dispatch:
     inputs:
+      solo-version:
+        required: true
+        default: "v0.91.0"
+        type: string
+        description: 'Solo version'
       ref:
         description: "The git ref (branch or tag) to checkout"
         required: false
@@ -47,12 +52,16 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
-      solo-version:
-        required: true
-        default: "v0.91.0"
+      duration-minutes:
+        required: false
+        default: "300"
+        description: "Expected duration of all tests in minutes"
         type: string
-        description: 'Solo version'
-
+      disable-notifications:
+        required: false
+        default: true
+        type: boolean
+        description: "If true, skip tag and notifications"
 
 defaults:
   run:
@@ -221,7 +230,8 @@ jobs:
       instances-aux-qty: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-qty) }}
       instances-aux-cpu: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-cpu-request) }}
       instances-aux-memory-mb: ${{ fromJSON(needs.get-sdlt-config.outputs.aux-mem-request-mb) }}
-
+      duration-minutes: ${{ fromJSON(needs.verify-citr-vars.outputs.request-duration) }}
+      request-timeout: ${{ fromJSON(needs.verify-citr-vars.outputs.request-timeout) }}
     secrets:
       github-token: ${{ secrets.GITHUB_TOKEN }}
       chewie-token: ${{ needs.get-chewie-jwt.outputs.jwt }}
