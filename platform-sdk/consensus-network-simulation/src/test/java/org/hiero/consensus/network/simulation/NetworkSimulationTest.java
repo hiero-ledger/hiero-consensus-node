@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.network.simulation;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.time.Duration;
@@ -20,6 +22,30 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 public class NetworkSimulationTest {
+
+    /** The name of the key column of the reports of the sweeps over the number of other parents. */
+    private static final String MAX_PARENTS_COLUMN = "MaxParents";
+
+    /** The name of the key column of the reports of the sweeps over the number of nodes. */
+    private static final String NUM_NODES_COLUMN = "NumNodes";
+
+    // this test is here just to see that framework is not regressing
+    // while all other tests are disabled by default, this one is enabled, so it can fail
+    // if any incompatible module changes are done
+    @Test
+    void smokeTest() {
+        final int numNodes = 12;
+
+        final Duration tick = Duration.of(5, ChronoUnit.MILLIS);
+        final Duration duration = Duration.ofSeconds(2);
+        final Configuration configuration = new TestConfigBuilder()
+                .withConfigDataType(EventCreationConfig.class)
+                .withValue(EventCreationConfig_.MAX_CREATION_RATE, 20)
+                .withValue(EventCreationConfig_.MAX_OTHER_PARENTS, 4)
+                .getOrCreateConfig();
+        final NetworkLatency latency = NetworkLatency.uniformLatency(tick, numNodes);
+        assertNotNull(runSimulation(tick, duration, numNodes, configuration, latency));
+    }
 
     @Test
     @Disabled("This test has no assertions, its only goal to speed up certain testing")
@@ -57,16 +83,9 @@ public class NetworkSimulationTest {
             results[maxParents] = runSimulation(tick, duration, numNodes, configuration, latency);
         }
 
-        System.out.println("MaxParents;avgC2C;maxC2C;events/s;bytes/s");
+        System.out.println(SimulationResult.csvHeader(MAX_PARENTS_COLUMN));
         for (int maxParents = 1; maxParents < numNodes; maxParents++) {
-            final SimulationResult res = results[maxParents];
-            System.out.printf(
-                    "%d;%s;%s;%d;%d%n",
-                    maxParents,
-                    res.averageC2C().toMillis() / 1000.0,
-                    res.maxC2C().toMillis() / 1000.0,
-                    res.eventsPerSec(),
-                    res.bytesPerSec());
+            System.out.println(results[maxParents].toCsvRow(String.valueOf(maxParents)));
         }
     }
 
@@ -90,16 +109,9 @@ public class NetworkSimulationTest {
             results[maxParents] = runSimulation(tick, duration, numNodes, configuration, latency);
         }
 
-        System.out.println("MaxParents;avgC2C;maxC2C;events/s;bytes/s");
+        System.out.println(SimulationResult.csvHeader(MAX_PARENTS_COLUMN));
         for (int maxParents = 1; maxParents < numNodes; maxParents++) {
-            final SimulationResult res = results[maxParents];
-            System.out.printf(
-                    "%d;%s;%s;%d;%d%n",
-                    maxParents,
-                    res.averageC2C().toMillis() / 1000.0,
-                    res.maxC2C().toMillis() / 1000.0,
-                    res.eventsPerSec(),
-                    res.bytesPerSec());
+            System.out.println(results[maxParents].toCsvRow(String.valueOf(maxParents)));
         }
     }
 
@@ -125,19 +137,16 @@ public class NetworkSimulationTest {
             results[numNodes] = runSimulation(tick, duration, numNodes, configuration, latency);
         }
 
-        System.out.println("MaxParents;avgC2C;maxC2C;events/s;bytes/s");
+        System.out.println(SimulationResult.csvHeader(NUM_NODES_COLUMN));
         for (int numNodes = 2; numNodes <= maxNumNodes; numNodes++) {
-            final SimulationResult res = results[numNodes];
-            System.out.printf(
-                    "%d;%s;%s;%d;%d%n",
-                    numNodes,
-                    res.averageC2C().toNanos() / 1000000000.0,
-                    res.maxC2C().toNanos() / 1000000000.0,
-                    res.eventsPerSec(),
-                    res.bytesPerSec());
+            System.out.println(results[numNodes].toCsvRow(String.valueOf(numNodes)));
         }
     }
 
+    /**
+     * Runs networks of 2 to 20 nodes for every possible number of other parents. Prints a matrix of the mean C2C in
+     * seconds, with one row per network size and one column per number of other parents.
+     */
     @Test
     @Disabled("This test has no assertions, its only goal to speed up certain testing")
     void ententeSizeParentMatrix() {
@@ -169,7 +178,7 @@ public class NetworkSimulationTest {
         for (int numNodes = 2; numNodes <= maxNumNodes; numNodes++) {
             System.out.print(numNodes + ";");
             for (int maxParents = 1; maxParents < numNodes; maxParents++) {
-                System.out.print(results[numNodes][maxParents].averageC2C().toNanos() / 1000000000.0 + ";");
+                System.out.print(SimulationResult.seconds(results[numNodes][maxParents].meanC2C()) + ";");
             }
             System.out.println();
         }
