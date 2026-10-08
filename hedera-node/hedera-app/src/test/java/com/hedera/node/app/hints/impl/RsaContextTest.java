@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.function.Supplier;
+import org.hiero.base.crypto.SigningSchema;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.fakes.crypto.KeysAndCertsGenerator;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -75,6 +76,20 @@ class RsaContextTest {
         assertFalse(subject.validate(1L, Bytes.wrap("wrong-message"), signature));
         assertFalse(subject.validate(2L, MESSAGE, signature));
         assertFalse(subject.validate(1L, new HintsPartialSignatureTransactionBody(123L, MESSAGE, signature)));
+    }
+
+    @Test
+    void validatesEd25519SignaturesFromRoster() throws Exception {
+        final var keys = KeysAndCertsGenerator.generate(NodeId.of(1L), SigningSchema.ED25519);
+        final var roster = new Roster(List.of(entryFor(1L, 10L, keys)));
+        final var signature =
+                new PlatformSigner(keys).sign(MESSAGE.toByteArray()).getBytes();
+
+        subject.initialize(roster, _ -> 10L);
+
+        assertTrue(subject.isReady());
+        assertTrue(subject.validate(1L, MESSAGE, signature));
+        assertFalse(subject.validate(1L, Bytes.wrap("wrong-message"), signature));
     }
 
     @Test
