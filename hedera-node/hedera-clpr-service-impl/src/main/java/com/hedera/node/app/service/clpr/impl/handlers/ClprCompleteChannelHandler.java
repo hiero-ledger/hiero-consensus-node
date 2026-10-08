@@ -402,10 +402,10 @@ public final class ClprCompleteChannelHandler extends AbstractClprHandler {
         // detecting the missing state record.
         channelLifecycle.onChannelActivated(op.channelId());
         // Seed the orchestrator's peer endpoint cache from the (truncated) peer
-        // ledger configuration so the first sync tick has endpoints to contact
-        // without waiting for discovery. Use the same truncated list as the on-chain
-        // peer_signing_keys roster so the orchestrator can't try to call out to a
-        // peer endpoint whose signing key we don't recognize.
+        // ledger configuration so the first sync tick has endpoints to contact.
+        // Use the same truncated list as the on-chain peer_signing_keys roster
+        // so the orchestrator can't try to call out to a peer endpoint whose
+        // signing key we don't recognize.
         channelLifecycle.seedPeerEndpoints(op.channelId(), truncatedPeerEndpoints);
     }
 

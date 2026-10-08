@@ -37,7 +37,6 @@ import com.hedera.hapi.node.state.clpr.ClprThrottles;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.clpr.ReadableChannelStore;
 import com.hedera.node.app.service.clpr.ReadableLedgerConfigurationStore;
-import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.store.ReadableStoreFactoryImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfiguration;
@@ -89,9 +88,6 @@ class ClprChannelManagerTest {
     private ClprSynchronizer synchronizer;
 
     @Mock
-    private NetworkInfo networkInfo;
-
-    @Mock
     private ClprLeafCertManager leafCertManager;
 
     @Mock
@@ -108,8 +104,7 @@ class ClprChannelManagerTest {
         given(versionedConfig.getConfigData(ClprConfig.class))
                 .willReturn(defaultClprConfig().build());
         Mockito.reset(synchronizer);
-        subject = new ClprChannelManager(
-                configProvider, networkInfo, stateAccessor, synchronizer, leafCertManager, clientCache);
+        subject = new ClprChannelManager(configProvider, stateAccessor, synchronizer, leafCertManager, clientCache);
     }
 
     @AfterEach
@@ -146,35 +141,10 @@ class ClprChannelManagerTest {
         }
 
         @Test
-        @DisplayName("discovery is disabled")
-        void startWithDiscoveryDisabled() {
-            final var config = defaultClprConfig().discoveryIntervalSeconds(-1).build();
-            given(versionedConfig.getConfigData(ClprConfig.class)).willReturn(config);
-
-            subject.start();
-
-            assertFalse(subject.isDiscoveryEnabled(), "Expected discovery to be disabled");
-        }
-
-        @Test
-        @DisplayName("discovery is enabled")
-        void startWithDiscoveryEnabled() {
-            final var config = defaultClprConfig().discoveryIntervalSeconds(10).build();
-            given(versionedConfig.getConfigData(ClprConfig.class)).willReturn(config);
-
-            subject.start();
-
-            assertTrue(subject.isDiscoveryEnabled(), "Expected discovery to be enabled");
-        }
-
-        @Test
         @DisplayName("is idempotent — a second call schedules no additional tasks")
         void startIsIdempotent() {
-            // Discovery off so the only periodic task is the peer-endpoints flush; with no active
-            // channel the scheduler queue holds exactly that one task after start().
-            given(versionedConfig.getConfigData(ClprConfig.class))
-                    .willReturn(defaultClprConfig().discoveryIntervalSeconds(-1).build());
-
+            // The only periodic task is the peer-endpoints flush; with no active channel the
+            // scheduler queue holds exactly that one task after start().
             subject.start();
             assertTrue(subject.started());
             final var executor = (ScheduledThreadPoolExecutor) subject.scheduler();
@@ -398,8 +368,7 @@ class ClprChannelManagerTest {
                     .willReturn(defaultClprConfig()
                             .maxConcurrentSyncs(maxConcurrentSyncs)
                             .build());
-            subject = new ClprChannelManager(
-                    configProvider, networkInfo, stateAccessor, synchronizer, leafCertManager, clientCache);
+            subject = new ClprChannelManager(configProvider, stateAccessor, synchronizer, leafCertManager, clientCache);
 
             final List<ClprChannel> channels = IntStream.range(0, maxConcurrentSyncs + 1)
                     .mapToObj((id) -> makeActiveChannelWithPendingMessages(Bytes.wrap("channel_" + id)))
@@ -508,54 +477,7 @@ class ClprChannelManagerTest {
     }
 
     @Nested
-    @DisplayName("endpoint cache (mergeDiscoveredEndpoints)")
-    class EndpointCacheTest {
-
-        private static final Bytes CHANNEL_ID = Bytes.wrap(new byte[32]);
-
-        @Test
-        @DisplayName("adds new endpoints to the cache")
-        void mergeDiscoveredEndpointsAddsNewEndpoints() {
-            final var ep1 = makeEndpoint("10.0.0.1", 50211);
-            subject.mergeDiscoveredEndpoints(CHANNEL_ID, List.of(ep1));
-            assertThat(subject.getKnownEndpoints(CHANNEL_ID)).hasSize(1);
-        }
-
-        @Test
-        @DisplayName("deduplicates endpoints by address")
-        void mergeDiscoveredEndpointsDeduplicatesByAddress() {
-            final var ep1 = makeEndpoint("10.0.0.1", 50211);
-            final var ep2 = makeEndpoint("10.0.0.1", 50211);
-            final var ep3 = makeEndpoint("10.0.0.2", 50211);
-
-            subject.mergeDiscoveredEndpoints(CHANNEL_ID, List.of(ep1));
-            subject.mergeDiscoveredEndpoints(CHANNEL_ID, List.of(ep2, ep3));
-
-            assertThat(subject.getKnownEndpoints(CHANNEL_ID)).hasSize(2);
-        }
-
-        @Test
-        @DisplayName("ignores an empty endpoint list")
-        void mergeDiscoveredEndpointsIgnoresEmpty() {
-            subject.mergeDiscoveredEndpoints(CHANNEL_ID, List.of());
-            assertThat(subject.getKnownEndpoints(CHANNEL_ID)).isEmpty();
-        }
-
-        @Test
-        @DisplayName("re-merging only already-known endpoints leaves the cache unchanged")
-        void mergeDiscoveredEndpointsAllDuplicatesAreNoOp() {
-            subject.mergeDiscoveredEndpoints(CHANNEL_ID, List.of(makeEndpoint("10.0.0.1", 50211)));
-            assertThat(subject.getKnownEndpoints(CHANNEL_ID)).hasSize(1);
-
-            // A merge whose endpoints are all already known adds nothing — the cache neither grows
-            // nor corrupts (and the size-gate skips flagging the file dirty for this no-op).
-            subject.mergeDiscoveredEndpoints(CHANNEL_ID, List.of(makeEndpoint("10.0.0.1", 50211)));
-            assertThat(subject.getKnownEndpoints(CHANNEL_ID)).hasSize(1);
-        }
-    }
-
-    @Nested
-    @DisplayName("mTLS: known peer CA certs + discovery suppression")
+    @DisplayName("mTLS: known peer CA certs")
     class MtlsTests {
         private static final Bytes CONN = Bytes.wrap(new byte[32]);
 
@@ -613,14 +535,6 @@ class ClprChannelManagerTest {
             subject.seedPeerEndpoints(CONN, List.of(withGarbage));
 
             assertThat(subject.knownPeerCaCertificatesByIssuer()).isEmpty();
-        }
-
-        @Test
-        @DisplayName("discoveryTick requests no client when mTLS is enabled")
-        void discoverySuppressedUnderMtls() {
-            subject.seedPeerEndpoints(CONN, List.of(makeEndpoint("10.0.0.9", 50214)));
-            subject.discoveryTick();
-            verifyNoInteractions(clientCache);
         }
 
         @Test
@@ -871,8 +785,8 @@ class ClprChannelManagerTest {
 
             // Manager B: fresh instance, same (temp) cache file. It must rebuild the registry, the
             // peer endpoint cache, the interval, and the timer purely from disk + committed state.
-            final var managerB = new ClprChannelManager(
-                    configProvider, networkInfo, stateAccessor, synchronizer, leafCertManager, clientCache);
+            final var managerB =
+                    new ClprChannelManager(configProvider, stateAccessor, synchronizer, leafCertManager, clientCache);
             final var channelStore = mock(ReadableChannelStore.class);
             given(channelStore.getChannel(CHANNEL_ID_1))
                     .willReturn(ClprChannel.newBuilder()
@@ -900,8 +814,8 @@ class ClprChannelManagerTest {
             await().atMost(Duration.ofSeconds(5)).until(() -> cacheHas(cacheFile, CHANNEL_ID_1));
             subject.stop();
 
-            final var managerB = new ClprChannelManager(
-                    configProvider, networkInfo, stateAccessor, synchronizer, leafCertManager, clientCache);
+            final var managerB =
+                    new ClprChannelManager(configProvider, stateAccessor, synchronizer, leafCertManager, clientCache);
             final var channelStore = mock(ReadableChannelStore.class);
             given(channelStore.getChannel(CHANNEL_ID_1))
                     .willReturn(makeChannel(CHANNEL_ID_1, ClprChannelStatus.CLOSED, 0L, 0L));
@@ -922,21 +836,19 @@ class ClprChannelManagerTest {
         final var channel = makeChannel(CHANNEL_ID_1, ClprChannelStatus.ACTIVE, 0L, 2L);
         subject.onChannelActivated(CHANNEL_ID_1);
         subject.seedPeerEndpoints(CHANNEL_ID_1, List.of(makeEndpoint("10.0.0.7", 50211)));
-        Mockito.clearInvocations(stateAccessor, synchronizer, clientCache, networkInfo, leafCertManager);
+        Mockito.clearInvocations(stateAccessor, synchronizer, clientCache, leafCertManager);
         given(versionedConfig.getConfigData(ClprConfig.class))
                 .willReturn(defaultClprConfig().enabled(false).build());
 
         subject.start();
         subject.syncChannel(CHANNEL_ID_1);
         subject.initiateSync(channel);
-        subject.discoveryTick();
 
         assertFalse(subject.started());
-        assertFalse(subject.isDiscoveryEnabled());
         assertNull(subject.syncTickFuture(CHANNEL_ID_1));
         assertThat(((ScheduledThreadPoolExecutor) subject.scheduler()).getQueue())
                 .isEmpty();
-        verifyNoInteractions(stateAccessor, synchronizer, clientCache, networkInfo, leafCertManager);
+        verifyNoInteractions(stateAccessor, synchronizer, clientCache, leafCertManager);
     }
 
     @Test
@@ -957,14 +869,13 @@ class ClprChannelManagerTest {
 
         subject.start();
         subject.syncChannel(CHANNEL_ID_1);
-        subject.discoveryTick();
 
         assertFalse(subject.started());
         assertThat(subject.knownChannelsIds()).isEmpty();
         assertThat(subject.getKnownEndpoints(CHANNEL_ID_1)).isEmpty();
         assertThat(((ScheduledThreadPoolExecutor) subject.scheduler()).getQueue())
                 .isEmpty();
-        verifyNoInteractions(stateAccessor, synchronizer, clientCache, networkInfo, leafCertManager);
+        verifyNoInteractions(stateAccessor, synchronizer, clientCache, leafCertManager);
         subject.stop();
         assertThat(Files.readAllBytes(cacheFile)).isEqualTo(before);
     }

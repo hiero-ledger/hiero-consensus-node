@@ -59,8 +59,8 @@ call it directly from EVM execution context. See [section 6](#6-connector-author
 **Note:** `registerEndpoint` and `deregisterEndpoint` from spec section 6.5 are **not implemented** on Hiero.
 Endpoints are derived automatically from the active roster (see [section 4](#4-endpoint-implementation)).
 
-**Note:** `updateEndpointRoster` from spec section 6.2 is **not implemented**. Peer endpoint discovery is
-handled off-chain via gossip (see cross-platform spec §5.4). Peer endpoint data is not stored in on-ledger state.
+**Note:** `updateEndpointRoster` from spec section 6.2 is **not implemented**. Peer endpoints are learned from the
+peer ledger's endpoint manifest, cached on the Channel (`Channel.endpoint_manifest`).
 
 ## 1.2 Protobuf Message Definitions
 
@@ -952,8 +952,8 @@ Hiero-specific choices made.
 Hiero where "consensus nodes are the endpoints."
 
 **Hiero decision:** No `registerEndpoint` or `deregisterEndpoint` transactions. Endpoints are derived
-automatically from the active roster. Peer endpoint discovery is handled off-chain via the gossip-based
-`discoverEndpoints` RPC (see cross-platform spec §5.4). Peer endpoint data is NOT stored in on-ledger state.
+automatically from the active roster. Peer endpoints are learned from the peer ledger's endpoint manifest, cached
+on the Channel (`Channel.endpoint_manifest`).
 
 ## 11.2 Endpoint Bond
 

@@ -36,7 +36,7 @@ endpoint-to-endpoint sync.
 | `sendMessage` pseudo-API    | EVM precompile method on `0x16e` → `ClprServiceApi.sendMessage`.                                                                                        |
 | `submitBundle` pseudo-API   | HAPI tx `ClprSubmitBundle` (allowed in `networkAdmin.nodeTransactionsAllowList`).                                                                       |
 | Verifier contract           | EVM contract on this ledger; called via `ContractCallTransactionBody` step-dispatch in `EvmClprVerifier`.                                               |
-| Sync RPC (gRPC)             | `proto.ClprEndpointService` exposed by Netty server, routed via `ClprMethod`/`ClprDiscoveryMethod` to `ClprSyncWorkflowImpl`.                           |
+| Sync RPC (gRPC)             | `proto.ClprEndpointService` exposed by Netty server, routed via `ClprStreamingSyncMethod` to `ClprSyncWorkflowImpl`.                                    |
 | Outbound sync orchestration | `ClprChannelManager` (background scanner, `start()`/`stop()` from `Hedera.java`).                                                                       |
 | Storage                     | Merkle state via Schema; one schema `V0650ClprSchema` (genesis at v0.65.0).                                                                             |
 | Admin                       | CLPR admin key (per-handler check); update of `ClprLedgerConfiguration` is a HAPI tx.                                                                   |

@@ -92,7 +92,7 @@ final class HederaTest {
     }
 
     @Test
-    @DisplayName("Constructor builds a ClprService and registers it with sync/discoverEndpoints methods")
+    @DisplayName("Constructor builds a ClprService and registers it with the sync method")
     void registersClprService() {
         final var clprService = serviceOfType(ClprServiceImpl.class);
         assertThat(clprService.getServiceName()).isEqualTo(ClprService.NAME);
@@ -101,7 +101,7 @@ final class HederaTest {
                 .flatMap(def -> def.methods().stream())
                 .map(RpcMethodDefinition::path)
                 .collect(Collectors.toSet());
-        assertThat(methodNames).contains("sync", "discoverEndpoints");
+        assertThat(methodNames).contains("sync").doesNotContain("discoverEndpoints");
     }
 
     @Test

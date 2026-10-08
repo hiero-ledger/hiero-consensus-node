@@ -46,7 +46,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static java.util.stream.Collectors.toSet;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
@@ -84,7 +83,6 @@ import com.hederahashgraph.service.proto.java.ClprServiceGrpc;
 import io.grpc.CallOptions;
 import io.grpc.MethodDescriptor;
 import io.grpc.Status;
-import io.grpc.StatusRuntimeException;
 import io.grpc.netty.NettyChannelBuilder;
 import io.grpc.stub.ClientCalls;
 import io.grpc.stub.StreamObserver;
@@ -213,7 +211,7 @@ public class ClprDisabledSuite {
 
     @Tag(ONLY_SUBPROCESS)
     @HapiTest
-    @DisplayName("Every node rejects peer sync, discovery and streaming while CLPR is disabled")
+    @DisplayName("Every node rejects streaming sync while CLPR is disabled")
     final Stream<DynamicTest> peerRpcCallsAreRejected() {
         return hapiTest(withOpContext((spec, opLog) -> {
             for (final var node : spec.targetNetworkOrThrow().nodes()) {
@@ -221,14 +219,6 @@ public class ClprDisabledSuite {
                         .usePlaintext()
                         .build();
                 try {
-                    final var error = assertThrows(
-                            StatusRuntimeException.class,
-                            () -> ClientCalls.blockingUnaryCall(
-                                    channel,
-                                    peerMethod("discoverEndpoints", MethodDescriptor.MethodType.UNARY),
-                                    CallOptions.DEFAULT.withDeadlineAfter(5, TimeUnit.SECONDS),
-                                    new byte[0]));
-                    assertPeerServiceDisabled(error.getStatus());
                     final var status = new CompletableFuture<Status>();
                     final var stream = ClientCalls.asyncBidiStreamingCall(
                             channel.newCall(

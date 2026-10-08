@@ -7,9 +7,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.hedera.hapi.node.state.clpr.ClprBundleRequest;
 import com.hedera.hapi.node.state.clpr.ClprBundleResponse;
-import com.hedera.hapi.node.state.clpr.ClprDiscoverEndpointsResponse;
-import com.hedera.hapi.node.state.clpr.ClprEndpoint;
-import com.hedera.hapi.node.state.clpr.ClprServiceEndpoint;
 import com.hedera.hapi.node.state.clpr.ClprStreamingSyncPayload;
 import com.hedera.node.app.service.clpr.ClprEndpointServiceDefinition;
 import com.hedera.node.app.workflows.clpr.ClprEndpointClient.ClprSyncException;
@@ -226,6 +223,26 @@ class ClprEndpointClientTest {
         }
 
         @Test
+        @DisplayName("given the pinned CA did not sign the peer's leaf, then sync fails")
+        void givenPinnedCaDidNotSignPeerLeaf_thenSyncFails() throws Exception {
+            final var mockedResponseMessages = new ClprStreamingSyncPayload[] {buildStreamingSyncPayload(null, null)};
+            final int port = startStreamingServer(mockedResponseMessages, new CopyOnWriteArrayList<>());
+
+            // Pin a CA cert unrelated to the CA that signed the server's leaf — chain validation fails.
+            final var client = newClient(port, wrongCaCert);
+            try (final var call = client.sync(TIMEOUT)) {
+                // The handshake failure may surface on the write or on the read, depending on timing.
+                assertThatThrownBy(() -> {
+                            call.write(buildStreamingSyncPayload(8, null));
+                            call.read();
+                        })
+                        .isInstanceOf(ClprSyncException.class);
+            } finally {
+                client.shutdownChannel();
+            }
+        }
+
+        @Test
         @DisplayName("sync surfaces a peer error status as a ClprSyncException")
         void syncReadSurfacesPeerError() throws Exception {
             final int port = startStreamingServer(observer -> new StreamObserver<>() {
@@ -334,63 +351,6 @@ class ClprEndpointClientTest {
     }
 
     @Test
-    @DisplayName("discoverEndpoints round-trips over mTLS")
-    void discoverSucceedsOverMutualTls() throws Exception {
-        final var peerEndpoint = ClprEndpoint.newBuilder()
-                .serviceEndpoint(ClprServiceEndpoint.newBuilder()
-                        .ipAddress("10.0.0.9")
-                        .port(50211)
-                        .build())
-                .build();
-        final var discoverResponse = ClprDiscoverEndpointsResponse.newBuilder()
-                .endpoints(List.of(peerEndpoint))
-                .build();
-        final int port = startServer(
-                ClprDiscoverEndpointsResponse.PROTOBUF.toBytes(discoverResponse).toByteArray());
-
-        final var client = newClient(port, testCa.caCert());
-        try {
-            final var discovered = client.discoverEndpoints(CHANNEL_ID, TIMEOUT);
-
-            assertThat(discovered).containsExactly(peerEndpoint);
-        } finally {
-            client.shutdownChannel();
-        }
-    }
-
-    @Test
-    void rejectsDiscoverResponseWithUnknownFields() throws Exception {
-        final var discoverResponse = ClprDiscoverEndpointsResponse.PROTOBUF
-                .toBytes(ClprDiscoverEndpointsResponse.DEFAULT)
-                .append(Bytes.fromHex("c03e01"));
-        final int port = startServer(discoverResponse.toByteArray());
-
-        final var client = newClient(port, testCa.caCert());
-        try {
-            assertThatThrownBy(() -> client.discoverEndpoints(CHANNEL_ID, TIMEOUT))
-                    .isInstanceOf(ClprEndpointClient.ClprDiscoveryException.class)
-                    .hasRootCauseInstanceOf(UnknownFieldException.class);
-        } finally {
-            client.shutdownChannel();
-        }
-    }
-
-    @Test
-    @DisplayName("discoverEndpoints fails when pinning a CA that did not sign the peer's leaf")
-    void discoverFailsWhenPeerCertificateIsNotPinned() throws Exception {
-        final int port = startServer(new byte[0]);
-
-        // Pin a CA cert unrelated to the CA that signed the server's leaf — chain validation fails.
-        final var client = newClient(port, wrongCaCert);
-        try {
-            assertThatThrownBy(() -> client.discoverEndpoints(CHANNEL_ID, TIMEOUT))
-                    .isInstanceOf(ClprEndpointClient.ClprDiscoveryException.class);
-        } finally {
-            client.shutdownChannel();
-        }
-    }
-
-    @Test
     @DisplayName("building the SSL context rejects malformed peer CA certificate bytes")
     void buildSslContextRejectsMalformedCertificate() {
         assertThatThrownBy(() -> ClprEndpointClientImpl.buildClientSslContext(
@@ -405,46 +365,6 @@ class ClprEndpointClientTest {
     void plaintextClientAcceptsNullCertificate() {
         // clientCredentials == null → plaintext path; the peer cert is unused and may be null.
         assertThatNoException().isThrownBy(() -> new ClprEndpointClientImpl("localhost", 50211).shutdownChannel());
-    }
-
-    /**
-     * Starts a Netty gRPC server that terminates TLS with the test server leaf certificate,
-     * requires client authentication, and trusts the test CA cert (which signed the client leaf).
-     */
-    private int startServer(final byte[] discoverResponse) throws Exception {
-        final var sslContext = GrpcSslContexts.configure(
-                        SslContextBuilder.forServer(serverLeaf.privateKey(), serverLeaf.cert())
-                                .clientAuth(ClientAuth.REQUIRE)
-                                .trustManager(testCa.caCert()))
-                .protocols("TLSv1.2", "TLSv1.3")
-                .build();
-
-        final var service = ServerServiceDefinition.builder("proto.ClprEndpointService")
-                .addMethod(unaryMethod("discoverEndpoints"), cannedResponse(discoverResponse))
-                .build();
-
-        server = NettyServerBuilder.forPort(0)
-                .sslContext(sslContext)
-                .addService(service)
-                .build()
-                .start();
-        return server.getPort();
-    }
-
-    private static MethodDescriptor<byte[], byte[]> unaryMethod(final String methodName) {
-        return MethodDescriptor.<byte[], byte[]>newBuilder()
-                .setType(MethodDescriptor.MethodType.UNARY)
-                .setFullMethodName(MethodDescriptor.generateFullMethodName("proto.ClprEndpointService", methodName))
-                .setRequestMarshaller(BYTE_MARSHALLER)
-                .setResponseMarshaller(BYTE_MARSHALLER)
-                .build();
-    }
-
-    private static io.grpc.ServerCallHandler<byte[], byte[]> cannedResponse(final byte[] response) {
-        return ServerCalls.asyncUnaryCall((request, responseObserver) -> {
-            responseObserver.onNext(response);
-            responseObserver.onCompleted();
-        });
     }
 
     /**
@@ -470,8 +390,7 @@ class ClprEndpointClientTest {
     }
 
     /**
-     * Starts a Netty gRPC server exposing only the bidi-streaming sync RPC, with the same mTLS setup
-     * as {@link #startServer}. Replies to the client's messages with the provided {@code responseMessages}
+     * Starts a Netty gRPC server exposing only the bidi-streaming sync RPC. Replies to the client's messages with the provided {@code responseMessages}
      * in the sequence they are provided, recording every message the client sent into {@code received}.
      * Once the last response has been sent the server closes its side with OK; any further client message
      * is recorded but not answered.
@@ -482,7 +401,11 @@ class ClprEndpointClientTest {
         return startStreamingServer(exchangeMessages(responseMessages, received));
     }
 
-    /** Starts a Netty gRPC server exposing only the bidi-streaming sync RPC, backed by the given handler. */
+    /**
+     * Starts a Netty gRPC server exposing only the bidi-streaming sync RPC, backed by the given handler. The server
+     * terminates TLS with the test server leaf certificate, requires client authentication, and trusts the test CA
+     * cert (which signed the client leaf).
+     */
     private int startStreamingServer(final ServerCalls.BidiStreamingMethod<byte[], byte[]> handler) throws Exception {
         final var sslContext = GrpcSslContexts.configure(
                         SslContextBuilder.forServer(serverLeaf.privateKey(), serverLeaf.cert())
