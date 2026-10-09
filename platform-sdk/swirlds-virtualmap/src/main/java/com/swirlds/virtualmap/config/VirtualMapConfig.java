@@ -19,10 +19,6 @@ import com.swirlds.config.api.validation.annotation.Min;
  *        {@code virtualMap.percentHashThreads} and {@link Runtime#availableProcessors()}.
  * @param reconnectMode
  *      Reconnect mode. For the list of accepted values, see {@link VirtualMapReconnectMode}.
- * @param reconnectFlushInterval
- *      During reconnect, virtual nodes are periodically flushed to disk after they are hashed. This
- *      interval indicates the number of nodes to hash before they are flushed to disk. If zero, all
- *      hashed nodes are flushed in the end of reconnect hashing only.
  * @param percentCleanerThreads
  * 		Gets the percentage (from 0.0 to 100.0) of available processors to devote to cache
  * 		cleaner threads. Ignored if an explicit number of threads is given via {@code virtualMap.numCleanerThreads}.
@@ -53,7 +49,6 @@ public record VirtualMapConfig(
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "50.0") double percentHashThreads,
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numHashThreads,
         @ConfigProperty(defaultValue = PULL_TOP_TO_BOTTOM) String reconnectMode,
-        @Min(0) @ConfigProperty(defaultValue = "500000") int reconnectFlushInterval,
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "25.0") double percentCleanerThreads,
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numCleanerThreads,
         @Min(1) @ConfigProperty(defaultValue = "1200000000") long copyFlushCandidateThreshold,

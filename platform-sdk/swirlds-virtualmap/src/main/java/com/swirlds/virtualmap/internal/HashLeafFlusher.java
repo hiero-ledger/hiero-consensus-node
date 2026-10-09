@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.virtualmap.internal.reconnect;
+package com.swirlds.virtualmap.internal;
 
-import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.VIRTUAL_MERKLE_STATS;
 
 import com.swirlds.virtualmap.MerklePathUtils;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
 import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
-import com.swirlds.virtualmap.internal.VirtualMapStatistics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -18,25 +16,24 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.Marker;
 
 /**
  * This is a mechanism to flush data (dirty hashes, dirty leaves, deleted leaves) to disk
- * during reconnect. This class is used by the learner during reconnect to delete leaves from
- * the old (learner) state tree outside the new leaf path range, update leaves that match
- * between the teacher and learner, and update hashes computed by the virtual hasher.
+ * outside of the virtual map cache and pipeline.
  *
  * <p>This flusher is thread safe, its methods like {@link #updateHashChunk(VirtualHashChunk)},
  * {@link #updateLeaf(VirtualLeafBytes)}, and {@link #deleteLeaf(VirtualLeafBytes)} can
- * be called from multiple threads. However, some of the calling threads may be blocked
- * till the currently accumulated data is flushed to disk.
+ * be called from multiple threads. At most one flush runs at a time. However, some of the calling threads may
+ * be blocked till the currently accumulated data is flushed to disk.
  *
  * <p>{@link #init(long, long)} must be called in the beginning of flush, and {@link
  * #finish()} must be called in the end.
  *
  */
-public class ReconnectHashLeafFlusher {
+public class HashLeafFlusher {
 
-    private static final Logger logger = LogManager.getLogger(ReconnectHashLeafFlusher.class);
+    private static final Logger logger = LogManager.getLogger(HashLeafFlusher.class);
 
     // Using 0 as a flag that the path range is not set, since -1,-1 is a valid (empty) range
     private volatile long firstLeafPath = 0;
@@ -48,7 +45,8 @@ public class ReconnectHashLeafFlusher {
     private List<VirtualLeafBytes> deletedLeaves;
     private List<VirtualHashChunk> updatedHashChunks;
 
-    // Flushes are initiated from onNodeHashed(). While a flush is in progress, other nodes
+    // Flushes are initiated from updateHashChunk(), updateLeaf(), and deleteLeaf(). While a flush is in progress, other
+    // nodes
     // are still hashed in parallel, so it may happen that enough nodes are hashed to
     // start a new flush, while the previous flush is not complete yet. This flag is
     // protection from that
@@ -60,14 +58,31 @@ public class ReconnectHashLeafFlusher {
 
     private final VirtualMapStatistics statistics;
 
-    public ReconnectHashLeafFlusher(
+    private final Marker logMarker;
+
+    /**
+     * Creates a flusher that logs with the {@code VIRTUAL_MERKLE_STATS} marker.
+     */
+    public HashLeafFlusher(
             @NonNull final VirtualDataSource dataSource,
             final int flushInterval,
             @NonNull final VirtualMapStatistics statistics) {
-        this.dataSource = Objects.requireNonNull(dataSource);
+        this(dataSource, flushInterval, statistics, VIRTUAL_MERKLE_STATS.getMarker());
+    }
+
+    /**
+     * Creates a flusher that logs with the given marker.
+     */
+    public HashLeafFlusher(
+            @NonNull final VirtualDataSource dataSource,
+            final int flushInterval,
+            @NonNull final VirtualMapStatistics statistics,
+            @NonNull final Marker logMarker) {
+        this.dataSource = Objects.requireNonNull(dataSource, "dataSource must not be null");
         this.hashChunkHeight = this.dataSource.getHashChunkHeight();
         this.flushInterval = flushInterval;
-        this.statistics = Objects.requireNonNull(statistics);
+        this.statistics = Objects.requireNonNull(statistics, "statistics must not be null");
+        this.logMarker = Objects.requireNonNull(logMarker, "logMarker must not be null");
     }
 
     public synchronized void init(final long firstLeafPath, final long lastLeafPath) {
@@ -92,13 +107,13 @@ public class ReconnectHashLeafFlusher {
         deletedLeaves = new ArrayList<>();
 
         logger.info(
-                RECONNECT.getMarker(),
-                "Reconnect flusher initialized with firstLeafPath={}, lastLeafPath={}",
+                logMarker,
+                "Hash leaf flusher initialized with firstLeafPath={}, lastLeafPath={}",
                 firstLeafPath,
                 lastLeafPath);
     }
 
-    void updateHashChunk(@NonNull final VirtualHashChunk chunk) {
+    public void updateHashChunk(@NonNull final VirtualHashChunk chunk) {
         assert (updatedHashChunks != null) && (updatedLeaves != null) && (deletedLeaves != null)
                 : "updateHash called without init";
         actionAndCheckFlush(() -> updatedHashChunks.add(chunk));
@@ -170,9 +185,10 @@ public class ReconnectHashLeafFlusher {
             @NonNull final List<VirtualLeafBytes> leavesToDelete) {
         assert flushInProgress.get() : "Flush in progress flag must be set";
         try {
+            throwIfInterrupted();
             logger.info(
-                    VIRTUAL_MERKLE_STATS.getMarker(),
-                    "Reconnect flush: {} updated hash chunks, {} updated leaves, {} deleted leaves",
+                    logMarker,
+                    "Flush: {} updated hash chunks, {} updated leaves, {} deleted leaves",
                     hashChunksToFlush.size(),
                     leavesToFlush.size(),
                     leavesToDelete.size());
@@ -186,14 +202,24 @@ public class ReconnectHashLeafFlusher {
                         leavesToFlush.stream(),
                         leavesToDelete.stream(),
                         true);
+                // If interrupted, saveRecords() restores the interrupted flag and returns normally,
+                // possibly before all data is written. This must not be treated as a success
+                throwIfInterrupted();
                 final long end = System.currentTimeMillis();
                 statistics.recordFlush(end - start);
-                logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Flushed in {} ms", end - start);
+                logger.debug(logMarker, "Flushed in {} ms", end - start);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         } finally {
             flushInProgress.set(false);
+        }
+    }
+
+    // Fails the flush if the current thread is interrupted. The interrupted flag is left set
+    private static void throwIfInterrupted() {
+        if (Thread.currentThread().isInterrupted()) {
+            throw new IllegalStateException("Interrupted while flushing hashes and leaves");
         }
     }
 }
