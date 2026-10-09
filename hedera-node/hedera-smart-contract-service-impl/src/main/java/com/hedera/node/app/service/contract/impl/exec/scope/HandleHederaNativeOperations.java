@@ -32,7 +32,9 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.schedule.ReadableScheduleStore;
 import com.hedera.node.app.service.schedule.ScheduleServiceApi;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import com.hedera.node.app.service.token.ReadableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.ReadableNftStore;
+import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
@@ -49,6 +51,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Instant;
 import java.util.Map;
 import java.util.SortedSet;
 import javax.inject.Inject;
@@ -130,6 +133,30 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
     @Override
     public @NonNull ReadableEndpointManifestStore readableEndpointManifestStore() {
         return context.storeFactory().readableStore(ReadableEndpointManifestStore.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull ReadableStakingInfoStore readableStakingInfoStore() {
+        return context.storeFactory().readableStore(ReadableStakingInfoStore.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull ReadableNetworkStakingRewardsStore readableNetworkStakingRewardsStore() {
+        return context.storeFactory().readableStore(ReadableNetworkStakingRewardsStore.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public @NonNull Instant currentConsensusTime() {
+        return context.consensusNow();
     }
 
     /**

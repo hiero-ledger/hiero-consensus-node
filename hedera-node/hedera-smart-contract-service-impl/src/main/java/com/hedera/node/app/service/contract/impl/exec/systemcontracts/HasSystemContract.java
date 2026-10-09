@@ -38,7 +38,13 @@ public class HasSystemContract extends AbstractNativeSystemContract implements H
     private static final Set<Integer> HAS_PROXY_ELIGIBLE_CALL_DATA_PREFIXES = Set.of(
             0xbbee989e, // hbarAllowance(address spender)
             0x86aff07c, // hbarApprove(address spender, int256 amount)
-            0xf5677e99); // setUnlimitedAutomaticAssociations(bool enableAutoAssociations)
+            0xf5677e99, // setUnlimitedAutomaticAssociations(bool enableAutoAssociations)
+            0x5fbd84d5, // stakeToNode(int64 nodeId)
+            0xa69431fe, // stakeToAccount(address account)
+            0x2def6620, // unstake()
+            0x293d496f, // setDeclineReward(bool decline)
+            0xfad3a941, // stakeToNodeAndDeclineReward(int64 nodeId, bool decline)
+            0xb40cd21d); // getStakingInfo()
 
     public static boolean isPayloadEligibleForHasProxyRedirect(Bytes payload) {
         final int prefix = payload.size() >= FUNCTION_SELECTOR_LENGTH ? payload.getInt(0) : 0;
