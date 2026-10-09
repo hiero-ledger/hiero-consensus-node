@@ -264,28 +264,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     }
 
     /**
-     * Which config (software) version this network's nodes read when they start. Explicit at the call site
-     * so a start never silently picks the wrong source: single-network tests share one JVM-global counter,
-     * while multi-network tests must each use their own so a concurrently running network's config-version
-     * upgrade can't leak in and cause a {@code Cannot downgrade} crash.
-     */
-    public enum ConfigVersionSource {
-        /**
-         * The JVM-global {@code LifecycleTest.CURRENT_CONFIG_VERSION}. Used by single-network tests, where
-         * there is exactly one network in the JVM and the shared counter is correct.
-         */
-        GLOBAL_CONFIG_VERSION,
-        /**
-         * This network's own per-network counter from {@link MultiNetworkLifecycleTest}. Used by
-         * multi-network tests, so each concurrently-running network tracks its config version independently.
-         */
-        PER_NETWORK_CONFIG_VERSION
-    }
-
-    /**
-     * Starts all nodes in the network, reading each node's config (software) version from the JVM-global
-     * counter — the correct source for single-network tests. Multi-network tests must instead call
-     * {@link #start(ConfigVersionSource)} with {@link ConfigVersionSource#PER_NETWORK_CONFIG_VERSION}.
+     * Starts all nodes in the network.
      */
     @Override
     public void start() {
@@ -293,19 +272,18 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     }
 
     /**
-     * Starts all nodes, taking each node's config (software) version from {@code versionSource}. Single-network
-     * tests use {@link #start()} ({@link ConfigVersionSource#GLOBAL_CONFIG_VERSION}); multi-network callers pass
-     * {@link ConfigVersionSource#PER_NETWORK_CONFIG_VERSION} so this network uses its own per-network config-version counter
-     * and a concurrently-running network's config-version upgrade can't leak into its genesis/restart.
+     * Starts all nodes in the network with the given config (software) version, instead of the JVM-global
+     * {@code LifecycleTest.CURRENT_CONFIG_VERSION} that {@link #start()} uses.
+     *
+     * <p>Multi-network tests start each network at version 0: a network may boot after another network's
+     * upgrade restart has bumped the global counter, and its genesis state must not carry that higher version,
+     * or a later same-version restart (e.g. {@code FakeNmt.restartNode}, which uses version 0) is refused as a
+     * downgrade.
+     *
+     * @param configVersion the config version to start the nodes with
      */
-    public void start(@NonNull final ConfigVersionSource versionSource) {
-        switch (versionSource) {
-            case GLOBAL_CONFIG_VERSION -> startAllNodes(HederaNode::start);
-            case PER_NETWORK_CONFIG_VERSION -> {
-                final int configVersion = MultiNetworkLifecycleTest.configVersionOf(name());
-                startAllNodes(node -> ((SubProcessNode) node).startWithConfigVersion(configVersion));
-            }
-        }
+    public void start(final int configVersion) {
+        startAllNodes(node -> ((SubProcessNode) node).startWithConfigVersion(configVersion));
     }
 
     private void startAllNodes(@NonNull final Consumer<HederaNode> startAction) {

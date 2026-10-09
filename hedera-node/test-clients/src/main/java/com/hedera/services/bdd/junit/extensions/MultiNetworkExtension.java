@@ -5,7 +5,6 @@ import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.WORKING_DIR;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ClprWrapsProvingKeyInstaller.ensureProvisioned;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.awaitStatus;
-import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.ConfigVersionSource.PER_NETWORK_CONFIG_VERSION;
 import static com.hedera.services.bdd.junit.hedera.subprocess.TssFixtures.CACHE_DIR;
 import static com.hedera.services.bdd.junit.hedera.subprocess.TssFixtures.GENESIS_NETWORK_JSON;
 import static com.hedera.services.bdd.junit.hedera.subprocess.TssFixtures.fixtureBaseAndNodeCount;
@@ -28,7 +27,6 @@ import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest.Network;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
-import com.hedera.services.bdd.junit.hedera.subprocess.MultiNetworkLifecycleTest;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -77,6 +75,11 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     private static final String CAPTURED_PROPS_KEY = "capturedProps";
     private static final String TEST_ID_KEY = "multiNetworkTestId";
     private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(5);
+    /**
+     * Config version every multi-network network starts at, regardless of upgrade restarts other networks have
+     * already done (see {@link SubProcessNetwork#start(int)}).
+     */
+    private static final int GENESIS_CONFIG_VERSION = 0;
     /** How long to wait for an already-started shared network to be ACTIVE again before reusing it. */
     private static final Duration SHARED_REUSE_ACTIVE_TIMEOUT = Duration.ofMinutes(5);
 
@@ -558,9 +561,6 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             final long realm = cfg.realm() >= 0 ? cfg.realm() : getConfigRealm();
             final var network = SubProcessNetwork.newIsolatedNetwork(
                     resolveName(cfg), cfg.size(), shard, realm, resolveFirstGrpcPort(cfg));
-            // Give this network its own config-version counter (starting at 0) before it starts, so a
-            // concurrent network's config-version upgrade can't leak into this network's genesis/restart.
-            MultiNetworkLifecycleTest.register(resolveName(cfg));
 
             // Collect setup overrides (defaults + annotation-declared + tssPreload-injected) into
             // one map so duplicates are merged predictably. Defaults are seeded first so a per-test
@@ -648,7 +648,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             try (final var executor = Executors.newVirtualThreadPerTaskExecutor()) {
                 final List<Future<Void>> futures = networks.stream()
                         .map(n -> executor.<Void>submit(() -> {
-                            n.start(PER_NETWORK_CONFIG_VERSION);
+                            n.start(GENESIS_CONFIG_VERSION);
                             n.awaitReady(STARTUP_TIMEOUT);
                             return null;
                         }))
@@ -1036,7 +1036,6 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         final long realm = cfg.realm() >= 0 ? cfg.realm() : getConfigRealm();
         final var fresh = SubProcessNetwork.newIsolatedNetwork(
                 resolveName(cfg), cfg.size(), shard, realm, resolveFirstGrpcPort(cfg));
-        MultiNetworkLifecycleTest.register(resolveName(cfg));
         // Carry over the test-declared setupOverrides (clpr.enabled, chainId, etc.). Do NOT
         // re-inject the ONLY_FREEZE_BLOCK export overrides: with a cached fixture in place this
         // is now a warm run, and the test isn't expected to issue another freeze.
@@ -1076,7 +1075,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                 "[CLPR-FIXTURE] '{}' restarting with just-cached per-node fixtures preloaded ({} nodes)",
                 resolveName(cfg),
                 cfg.size());
-        fresh.start(PER_NETWORK_CONFIG_VERSION);
+        fresh.start(GENESIS_CONFIG_VERSION);
         fresh.awaitReady(STARTUP_TIMEOUT);
         return fresh;
     }

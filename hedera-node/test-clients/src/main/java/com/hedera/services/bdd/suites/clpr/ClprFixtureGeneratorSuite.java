@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
-import org.junit.jupiter.api.parallel.ResourceLock;
 
 /**
  * Home for the warm-cache fixture generators. Each test brings its network(s) up <b>cold</b> (its committed
@@ -35,14 +34,6 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @Tag(MULTINETWORK)
 @DisplayName("CLPR fixture generators")
 @Disabled("Fixture generator")
-@ResourceLock("ledgerA")
-@ResourceLock("ledgerA_manifest")
-@ResourceLock("ledgerA_mtls")
-@ResourceLock("ledgerA_restart")
-@ResourceLock("ledgerB")
-@ResourceLock("ledgerB_manifest")
-@ResourceLock("ledgerB_mtls")
-@ResourceLock("ledgerB_restart")
 public class ClprFixtureGeneratorSuite {
     // Kept in step with the consuming suites so a regenerated fixture matches how it is used.
     private static final int MTLS_PORT_LEDGER_A_MTLS = 41450; // ClprHieroToHieroMtlsSuite

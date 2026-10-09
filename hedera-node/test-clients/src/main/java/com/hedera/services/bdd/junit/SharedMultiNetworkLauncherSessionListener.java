@@ -1,23 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit;
 
+import static java.util.stream.Collectors.toCollection;
 import static org.junit.platform.commons.support.AnnotationSupport.findAnnotation;
 
 import com.hedera.services.bdd.junit.extensions.MultiNetworkExtension;
+import com.hedera.services.bdd.junit.extensions.MultiNetworkGroupQueue;
 import com.hedera.services.bdd.junit.extensions.NetworkGroup;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Method;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.platform.commons.support.AnnotationSupport;
 import org.junit.platform.engine.TestExecutionResult;
 import org.junit.platform.engine.support.descriptor.ClassSource;
@@ -56,9 +66,50 @@ public class SharedMultiNetworkLauncherSessionListener implements LauncherSessio
      */
     private final Set<String> seenMethods = new HashSet<>();
 
+    /** Every test class in the plan, including {@code @Disabled} ones (JUnit still takes their locks). */
+    private final Set<Class<?>> testClasses = new LinkedHashSet<>();
+
     @Override
     public void launcherSessionOpened(@NonNull final LauncherSession session) {
         session.getLauncher().registerTestExecutionListeners(new SharedMultiNetworkExecutionListener());
+    }
+
+    /**
+     * Fails every network group locked by a test class that locks the networks of more than one group.
+     *
+     * <p>JUnit holds a class's {@code @ResourceLock}s while its tests run, even for a {@code @Disabled} class. If a
+     * class holds a lock of group X while one of its tests waits in {@link MultiNetworkGroupQueue} for group X to
+     * finish, and another class of group X needs that lock, no test can move. Allowing each class to lock only one
+     * group's networks rules this out. Locks on names that are not multi-network networks are ignored.
+     *
+     * @param classes the test classes in the plan
+     * @param queue the queue whose groups to fail
+     */
+    static void validateOneGroupPerClass(
+            @NonNull final Collection<Class<?>> classes, @NonNull final MultiNetworkGroupQueue queue) {
+        final Map<String, String> groupByNetwork = new HashMap<>();
+        classes.stream()
+                .flatMap(clazz -> Arrays.stream(clazz.getDeclaredMethods()))
+                .flatMap(method -> findAnnotation(method, MultiNetworkHapiTest.class).stream())
+                .map(ann -> NetworkGroup.of(ann.value()))
+                .forEach(group -> group.networkNames().forEach(name -> groupByNetwork.putIfAbsent(name, group.id())));
+        for (final var clazz : classes) {
+            final Set<String> lockedNetworks = Stream.concat(
+                            Stream.<AnnotatedElement>of(clazz), Arrays.stream(clazz.getDeclaredMethods()))
+                    .flatMap(element ->
+                            AnnotationSupport.findRepeatableAnnotations(element, ResourceLock.class).stream())
+                    .map(ResourceLock::value)
+                    .filter(groupByNetwork::containsKey)
+                    .collect(toCollection(TreeSet::new));
+            final Set<String> lockedGroups =
+                    lockedNetworks.stream().map(groupByNetwork::get).collect(toCollection(TreeSet::new));
+            if (lockedGroups.size() > 1) {
+                final var error = "Test class " + clazz.getName() + " locks networks of several network groups "
+                        + lockedGroups + "; a class may lock only one group's networks, or it can deadlock";
+                log.error(error);
+                queue.invalidate(lockedNetworks, error);
+            }
+        }
     }
 
     public class SharedMultiNetworkExecutionListener implements TestExecutionListener {
@@ -77,6 +128,7 @@ public class SharedMultiNetworkLauncherSessionListener implements LauncherSessio
                         if (clazz == null) {
                             return;
                         }
+                        testClasses.add(clazz);
                         for (final var m : clazz.getDeclaredMethods()) {
                             if (!m.getName().equals(ms.getMethodName())) {
                                 continue;
@@ -89,6 +141,7 @@ public class SharedMultiNetworkLauncherSessionListener implements LauncherSessio
                         if (clazz == null) {
                             return;
                         }
+                        testClasses.add(clazz);
                         for (final var m : clazz.getDeclaredMethods()) {
                             collectDeclarations(clazz.getName(), m);
                         }
@@ -98,6 +151,7 @@ public class SharedMultiNetworkLauncherSessionListener implements LauncherSessio
             if (declarationsByName.isEmpty()) {
                 return;
             }
+            validateOneGroupPerClass(testClasses, MultiNetworkExtension.NETWORK_GROUP_QUEUE);
 
             // Resolve per-name conflicts and pick a canonical Network config: throws
             // IllegalStateException if the same name is declared with two different explicit

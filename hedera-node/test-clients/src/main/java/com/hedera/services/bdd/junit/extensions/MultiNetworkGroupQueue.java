@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -267,6 +268,29 @@ public final class MultiNetworkGroupQueue {
             if (state != null) {
                 releaseLocked(state);
             }
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * Fails every registered group that uses any of {@code networkNames}: its tests fail fast in
+     * {@link #awaitTurn} with {@code error}, and it no longer holds back heavier groups.
+     *
+     * @param networkNames the networks whose groups to fail
+     * @param error the reason the groups fail with
+     */
+    public void invalidate(@NonNull final Collection<String> networkNames, @NonNull final String error) {
+        lock.lock();
+        try {
+            for (final var name : networkNames) {
+                final var state = groupsByNetwork.get(name);
+                if (state != null) {
+                    state.error = error;
+                    waiting.remove(state);
+                }
+            }
+            changed.signalAll();
         } finally {
             lock.unlock();
         }

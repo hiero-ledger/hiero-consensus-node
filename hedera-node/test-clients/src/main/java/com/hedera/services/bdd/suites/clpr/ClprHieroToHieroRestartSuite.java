@@ -19,7 +19,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import com.hedera.services.bdd.junit.ConfigOverride;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest.Network;
-import com.hedera.services.bdd.junit.hedera.subprocess.MultiNetworkLifecycleTest;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
@@ -108,8 +107,7 @@ public class ClprHieroToHieroRestartSuite extends HieroToHieroBase implements Li
                                                 waitForFrozenNetwork(FREEZE_WAIT_TIMEOUT),
                                                 FakeNmt.shutdownWithin(allNodes(), SHUTDOWN_TIMEOUT),
                                                 sourcing(() -> FakeNmt.restartWithConfigVersion(
-                                                        allNodes(),
-                                                        MultiNetworkLifecycleTest.nextConfigVersionOf(ledgerB.name()))),
+                                                        allNodes(), CURRENT_CONFIG_VERSION.incrementAndGet())),
                                                 waitForActive(allNodes(), RESTART_TIMEOUT),
                                                 blockingOrder(doAdhoc(() -> ledgerB.awaitLedgerId(RESTART_TIMEOUT))))
                                         .findFirst()

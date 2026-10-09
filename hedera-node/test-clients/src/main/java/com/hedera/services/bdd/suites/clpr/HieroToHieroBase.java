@@ -42,7 +42,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.extensions.MultiNetworkExtension;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
-import com.hedera.services.bdd.junit.hedera.subprocess.MultiNetworkLifecycleTest;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.SpecOperation;
@@ -519,8 +518,8 @@ public abstract class HieroToHieroBase implements LifecycleTest {
                                         .withUpdateFile(DEFAULT_UPGRADE_FILE_ID)
                                         .havingHash(upgradeFileHashAt(FAKE_UPGRADE_ZIP_LOC))),
                                 confirmFreezeAndShutdown(),
-                                FakeNmt.restartWithConfigVersion(
-                                        allNodes(), MultiNetworkLifecycleTest.nextConfigVersionOf(network.name())),
+                                sourcing(() -> FakeNmt.restartWithConfigVersion(
+                                        allNodes(), CURRENT_CONFIG_VERSION.incrementAndGet())),
                                 waitForActive(allNodes(), RESTART_TO_ACTIVE_TIMEOUT),
                                 blockingOrder(doAdhoc(() -> {
                                     awaitWrapsExtensible(network);
