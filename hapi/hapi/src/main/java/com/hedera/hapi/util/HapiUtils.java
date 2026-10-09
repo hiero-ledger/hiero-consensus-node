@@ -270,7 +270,6 @@ public class HapiUtils {
             case CLPR_CLOSE_CHANNEL -> HederaFunctionality.CLPR_CLOSE_CHANNEL;
             case CLPR_COMPLETE_CHANNEL -> HederaFunctionality.CLPR_COMPLETE_CHANNEL;
             case CLPR_SUBMIT_BUNDLE -> HederaFunctionality.CLPR_SUBMIT_BUNDLE;
-            case CLPR_REDACT_MESSAGE -> HederaFunctionality.CLPR_REDACT_MESSAGE;
             case CLPR_REGISTER_CONNECTOR -> HederaFunctionality.CLPR_REGISTER_CONNECTOR;
             case CLPR_COMPLETE_CONNECTOR -> HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
             case CLPR_DEREGISTER_CONNECTOR -> HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;

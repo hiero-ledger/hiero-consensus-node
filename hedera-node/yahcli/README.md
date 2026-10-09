@@ -1007,11 +1007,10 @@ the Besu, Sei, and Ethereum verifiers accept an empty manifest proof.
 
 ### Bundles and messages
 
-|        Command        |                                                        Description                                                         |
-|-----------------------|----------------------------------------------------------------------------------------------------------------------------|
-| `clpr submit-bundle`  | Submits a `ClprSubmitBundle` with a hex/file bundle payload.                                                               |
-| `clpr redact-message` | Submits a `ClprRedactMessage` for a given `(channel-id, message-id)`.                                                      |
-| `clpr send-message`   | Invokes `sendMessage()` on a deployed connector wrapper contract, which forwards to the CLPR system precompile at `0x16e`. |
+|       Command        |                                                        Description                                                         |
+|----------------------|----------------------------------------------------------------------------------------------------------------------------|
+| `clpr submit-bundle` | Submits a `ClprSubmitBundle` with a hex/file bundle payload.                                                               |
+| `clpr send-message`  | Invokes `sendMessage()` on a deployed connector wrapper contract, which forwards to the CLPR system precompile at `0x16e`. |
 
 ### Ledger configuration and endpoint manifest
 

@@ -818,11 +818,6 @@
           "extras": []
         },
         {
-          "name": "ClprRedactMessage",
-          "baseFee": 10000000,
-          "extras": []
-        },
-        {
           "name": "ClprRegisterConnector",
           "baseFee": 10000000,
           "extras": []

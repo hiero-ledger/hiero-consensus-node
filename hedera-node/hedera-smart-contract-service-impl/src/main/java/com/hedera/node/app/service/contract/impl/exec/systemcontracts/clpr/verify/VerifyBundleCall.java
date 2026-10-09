@@ -185,14 +185,14 @@ public class VerifyBundleCall extends AbstractCall {
                             return fail();
                         }
                         final var msgValue = ClprMessageValue.PROTOBUF.parseStrict(inner.toReadableSequentialData());
-                        // Preserve the slot for redacted messages (payload cleared by ClprRedactMessage):
-                        // the receiver expects to iterate messages by index so it can emit a REDACTED
-                        // reply for that slot and advance ackedMessageId. Dropping the slot would
-                        // misalign receivedMessageId and stall delivery.
+                        if (!msgValue.hasPayload()) {
+                            log.warn(
+                                    "verifyBundle: message leaf without a payload for trustAnchor {}",
+                                    trustAnchorBytes);
+                            return fail();
+                        }
                         provenMessages.add(new ProvenMessage(
-                                messageKey,
-                                msgValue.hasPayload() ? msgValue.payload() : ClprMessagePayload.DEFAULT,
-                                msgValue.runningHashAfterProcessing()));
+                                messageKey, msgValue.payloadOrThrow(), msgValue.runningHashAfterProcessing()));
                     }
                 } else if (svTag == ClprProofExtraction.SV_ENDPOINT_MANIFEST_TAG) {
                     // Optional endpoint manifest advancement (spec §4.9 / bundle Progress

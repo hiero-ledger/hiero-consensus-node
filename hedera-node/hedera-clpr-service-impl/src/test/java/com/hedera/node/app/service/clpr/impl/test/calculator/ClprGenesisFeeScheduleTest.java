@@ -5,7 +5,6 @@ import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_CLOSE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_COMPLETE_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_DEREGISTER_CONNECTOR;
-import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REDACT_MESSAGE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CHANNEL;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_REGISTER_CONNECTOR;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SUBMIT_BUNDLE;
@@ -56,8 +55,7 @@ class ClprGenesisFeeScheduleTest {
             CLPR_REGISTER_CONNECTOR,
             CLPR_COMPLETE_CONNECTOR,
             CLPR_DEREGISTER_CONNECTOR,
-            CLPR_SUBMIT_BUNDLE,
-            CLPR_REDACT_MESSAGE);
+            CLPR_SUBMIT_BUNDLE);
 
     @Test
     @DisplayName("Every CLPR transaction op has the flat 1/10¢ base fee in the genesis schedule")

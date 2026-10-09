@@ -2058,11 +2058,6 @@ enum ResponseCodeEnum {
     CLPR_MESSAGE_NOT_FOUND = 549;
 
     /**
-     * The message has already been acknowledged by the peer and cannot be redacted.
-     */
-    CLPR_MESSAGE_ALREADY_ACKNOWLEDGED = 550;
-
-    /**
      * The endpoint signature is invalid or the signer is not a registered endpoint.
      */
     CLPR_INVALID_ENDPOINT_SIGNATURE = 551;
@@ -2123,11 +2118,6 @@ enum ResponseCodeEnum {
     CLPR_AUTHORIZATION_FAILED = 562;
 
     /**
-     * The message has already been redacted (payload already removed).
-     */
-    CLPR_MESSAGE_ALREADY_REDACTED = 563;
-
-    /**
      * The Connector has exceeded its per-Channel queue quota. Other
      * Connectors may still enqueue messages on this Channel.
      */
@@ -2182,11 +2172,4 @@ enum ResponseCodeEnum {
      * The submitting endpoint is charged a penalty fee.
      */
     CLPR_NO_PROGRESS = 571;
-
-    /**
-     * Attempted to redact a message slot whose payload is not a Data Message.
-     * Per spec §4.4, only Data Messages may be redacted — Response Messages
-     * and Control Messages may not.
-     */
-    CLPR_MESSAGE_NOT_REDACTABLE = 572;
 }

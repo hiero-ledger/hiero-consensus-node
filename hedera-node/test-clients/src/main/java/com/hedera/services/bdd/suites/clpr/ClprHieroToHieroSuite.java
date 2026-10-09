@@ -615,7 +615,7 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
         //   (a) Tick first → all 5 ship while ACTIVE → B processes normally → A drains to CLOSED.
         //   (b) Close first → A transitions ACTIVE → CLOSING before the bundle ships → bundle
         //       includes the close state in metadata → B mirrors to CLOSING per the spec cascade
-        //       → B replies with CHANNEL_CLOSED for slots that hadn't been dispatched.
+        //       → B still dispatches and replies to every slot (spec §4.2).
         // Either outcome is spec-correct. The assertion tolerates both: 5 messages received on B
         // AND both sides reach non-ACTIVE. Extends bundleRoundTripDuringCloseHandshake (N=1) to
         // N=5 to stress the close-during-loop interaction with multi-slot bundles.
@@ -643,8 +643,8 @@ public class ClprHieroToHieroSuite extends HieroToHieroBase {
                                                 .hasKnownStatus(SUCCESS))
                                 .findFirst()
                                 .orElseThrow(),
-                        // Whichever close timing wins, B observes 5 inbound slots (either as
-                        // normal-handled or CHANNEL_CLOSED-replied).
+                        // Whichever close timing wins, B observes 5 inbound slots (each
+                        // dispatched and replied to normally).
                         awaitReceivedMessage(ledgerB, crypto.channelId, messageCount),
                         // Drain handshake completes on both sides.
                         awaitChannelNonActive(ledgerA, crypto),

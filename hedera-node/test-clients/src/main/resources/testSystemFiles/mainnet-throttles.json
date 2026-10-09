@@ -65,7 +65,6 @@
             "ClprRegisterConnector",
             "ClprDeregisterConnector",
             "ClprSubmitBundle",
-            "ClprRedactMessage",
             "ClprGetLedgerConfiguration",
             "ClprGetEndpointManifest"
           ]

@@ -373,7 +373,7 @@ contract ClprPassThroughVerifier {
                         } else if (b0 == SV_MSG_B0 && b1 == SV_B1) {
                             (uint256 mvS, uint256 mvL) = _unwrapFirst(buf, svS);
                             uint256 mvEnd = mvS + mvL;
-                            // payload may be absent for redacted slots; pL[mi] stays 0
+                            // pL[mi] stays 0 if the payload is absent
                             (pS[mi], pL[mi],) = _findLd(buf, mvS, mvEnd, MV_PAYLOAD);
                             (hS[mi], hL[mi],) = _findLd(buf, mvS, mvEnd, MV_HASH);
                             mi++;

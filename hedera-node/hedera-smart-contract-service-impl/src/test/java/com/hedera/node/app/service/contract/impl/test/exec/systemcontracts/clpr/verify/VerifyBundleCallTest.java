@@ -407,6 +407,21 @@ class VerifyBundleCallTest {
             assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
         }
 
+        @Test
+        @DisplayName("given a message leaf without a payload, then the bundle is rejected")
+        void givenMessageLeafWithoutPayload_thenRejected() {
+            final var payloadlessMessage = messageValue(4)
+                    .copyBuilder()
+                    .payload((ClprMessagePayload) null)
+                    .build();
+
+            final var result = executeWithStubbedPathsForResult(
+                    channelLeaf(CHANNEL), keyedMessageLeaf(CHANNEL_ID, 4, payloadlessMessage));
+
+            assertThat(result.responseCode()).isEqualTo(CLPR_BUNDLE_VERIFICATION_FAILED);
+            assertThat(result.fullResult().result().state()).isEqualTo(MessageFrame.State.REVERT);
+        }
+
         private Tuple executeWithStubbedPaths(@NonNull final Bytes... leaves) {
             return executeWithStubbedPathsForOutput(leaves).get(0);
         }

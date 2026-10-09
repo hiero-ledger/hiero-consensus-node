@@ -5,7 +5,6 @@ import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCloseCh
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprCompleteChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprDeregisterConnector;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprGetLedgerConfiguration;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRedactMessage;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterChannel;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprRegisterConnector;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ClprSubmitBundle;
@@ -136,7 +135,6 @@ public final class ExpectedCustomThrottles {
             ClprCloseChannel,
             ClprGetLedgerConfiguration,
             ClprSubmitBundle,
-            ClprRedactMessage,
             ClprRegisterConnector,
             ClprDeregisterConnector));
 
@@ -151,7 +149,6 @@ public final class ExpectedCustomThrottles {
             ClprCloseChannel,
             ClprGetLedgerConfiguration,
             ClprSubmitBundle,
-            ClprRedactMessage,
             ClprRegisterConnector,
             ClprDeregisterConnector));
 

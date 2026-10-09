@@ -66,16 +66,6 @@ service ClprService {
     rpc submitBundle (Transaction) returns (TransactionResponse);
 
     /**
-     * Redact a message from the outbound queue.
-     * <p>
-     * Removes the payload of a message before it has been delivered.
-     * Requires the CLPR admin key.<br/>
-     * The request body MUST be a
-     * [ClprRedactMessageTransactionBody](#com.hedera.hapi.node.clpr.ClprRedactMessageTransactionBody)
-     */
-    rpc redactMessage (Transaction) returns (TransactionResponse);
-
-    /**
      * Register a Connector commitment on the CLPR Service (Phase 1: Commit).
      * <p>
      * Permissionless and idempotent. Stores a commitment hash on-ledger
